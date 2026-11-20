@@ -14,6 +14,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -224,7 +226,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                     shardRouting,
                     toRoutingNode.nodeId(),
                     allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                    "move command",
+                    MoveReason.of(MoveType.COMMAND),
                     allocation.changes(),
                     recoveryPriority
                 );

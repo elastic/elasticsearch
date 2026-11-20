@@ -581,6 +581,7 @@ exec "${JQ}" "$@"
     expect(r.args).toBe("");
     expect(r.agent).toContain("== meta-data set pr_comment:validate-prometheus-compliance:body");
     expect(r.agent).toContain("<!-- promcheck-pr-report -->\n## Promcheck\n\n**Promcheck running**");
+    expect(r.agent).toContain(`with promcheck v${VERSION} (\`${WORKLOAD}\`)`);
     // The note links the build, not the short-lived notify job.
     expect(r.agent).toContain("[Buildkite run](https://buildkite.example/builds/7) | ");
     expect(r.agent).not.toContain("#notify-job");
@@ -588,6 +589,57 @@ exec "${JQ}" "$@"
     expect(r.agent.indexOf("pr_comment:early_comment_job_id")).toBeGreaterThan(
       r.agent.indexOf("pr_comment:validate-prometheus-compliance:body"),
     );
+  });
+
+  test("PR comment workload overrides the pipeline default for oneshot", () => {
+    const fixture = "compliance-tester";
+    const realGetconf = execFileSync("sh", ["-c", "command -v getconf"], { encoding: "utf8" }).trim();
+    writeFileSync(join(dir, "assets", `${fixture}.tar.gz`), "bundle");
+    // macOS getconf lacks _PHYS_PAGES; keep the real binary for other keys and stub that one for local runs.
+    writeFileSync(
+      join(dir, "bin", "getconf"),
+      `#!/bin/bash
+[[ $1 == _PHYS_PAGES ]] && { echo 1048576; exit 0; }
+exec "${realGetconf}" "$@"
+`,
+      { mode: 0o755 },
+    );
+    writeFileSync(
+      join(dir, "bin", "curl"),
+      `#!/bin/bash
+url= out=
+while (($#)); do
+  case $1 in
+    -H) [[ $2 == @- ]] && cat >/dev/null; shift ;;
+    -o) out=$2; shift ;;
+    https://*) url=$1 ;;
+  esac
+  shift
+done
+case $url in
+  */releases/tags/*)
+    printf '{"assets":[{"name":"promcheck-linux-amd64","url":"https://assets/promcheck-linux-amd64"},'
+    printf '{"name":"promcheck-linux-arm64","url":"https://assets/promcheck-linux-arm64"},'
+    printf '{"name":"${WORKLOAD}.tar.gz","url":"https://assets/${WORKLOAD}.tar.gz"},'
+    printf '{"name":"${fixture}.tar.gz","url":"https://assets/${fixture}.tar.gz"}]}' ;;
+  https://assets/*) cp "${join(dir, "assets")}/\${url##*/}" "$out" ;;
+  *) exit 22 ;;
+esac
+`,
+      { mode: 0o755 },
+    );
+    const r = run(STABLE, STABLE, { env: { GITHUB_PR_COMMENT_VAR_WORKLOAD: fixture } });
+    expect(r.status, r.output).toBe(0);
+    expect(existsSync(join(dir, "tmp", "validate-prometheus-compliance-output", `@${fixture}-report.md`))).toBe(true);
+    expect(existsSync(join(dir, "tmp", "validate-prometheus-compliance-output", `@${WORKLOAD}-report.md`))).toBe(false);
+    expect(r.agent).toContain(`with promcheck v${VERSION} (\`${fixture}\`)`);
+  });
+
+  test("invalid PR comment workloads are rejected before work starts", () => {
+    const r = run(STABLE, STABLE, { env: { GITHUB_PR_COMMENT_VAR_WORKLOAD: "../evil" } });
+    expect(r.status).toBe(1);
+    expect(r.output).toContain("Invalid promcheck workload from PR comment: ../evil");
+    expect(r.agent).toBe("");
   });
 
   test("a misconfigured pipeline fails the job", () => {

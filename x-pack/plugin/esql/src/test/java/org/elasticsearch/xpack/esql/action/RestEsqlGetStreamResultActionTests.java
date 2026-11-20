@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -40,7 +41,7 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
     }
 
     public void testRoute() {
-        List<org.elasticsearch.rest.RestHandler.Route> routes = new RestEsqlGetStreamResultAction().routes();
+        List<RestHandler.Route> routes = new RestEsqlGetStreamResultAction().routes();
         assertThat(routes, hasSize(1));
         assertThat(routes.get(0).getMethod(), equalTo(RestRequest.Method.GET));
         assertThat(routes.get(0).getPath(), equalTo("/_query/stream/{id}"));

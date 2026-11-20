@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.streaming;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,16 +95,9 @@ public class StreamResultsService {
                 );
             }
         }
-        // A failure before the first row is a normal HTTP error. After rows were written the status is already 200, and the error
-        // goes in the last line instead.
-        if (request.statusOnly() == false
-            && metadata.status() == StreamMetadata.Status.FAILED
-            && pages.pages().isEmpty()
-            && metadata.completionInfo() != null
-            && metadata.completionInfo().failure() != null) {
-            StreamMetadata.StreamFailure failure = metadata.completionInfo().failure();
-            return new ElasticsearchStatusException(failure.reason(), failure.status());
-        }
+        // A failed or cancelled stream is not an error of the read. Its rows are the response, and the body reports the failure:
+        // the stored one for a failed stream, the cancellation for a cancelled stream. The body chooses the HTTP status when
+        // there is no row to write.
         return null;
     }
 }

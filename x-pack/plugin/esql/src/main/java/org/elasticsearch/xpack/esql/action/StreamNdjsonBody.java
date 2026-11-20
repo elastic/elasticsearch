@@ -23,6 +23,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -55,6 +56,10 @@ import static org.elasticsearch.xpack.esql.action.NdjsonRowWriter.NEWLINE;
  * {@code max_rows} and {@code max_bytes} are counted while rows are written, and the first one reached ends the response at a row
  * boundary. When a limit is not set there is no limit. Bytes count the rows only, including their newline, not the first and last
  * lines. A row is always written when a limit is not yet reached, so a row larger than {@code max_bytes} is still written.
+ * <p>
+ * A failed stream is reported the same way whether or not rows are written: the last line has the stored type and reason of the failure
+ * and the stored warnings. Only the HTTP status differs, see {@link #httpStatus()}. A cancelled stream is reported like a failed one,
+ * with the error of a cancelled task.
  * <p>
  * Pages are owned by this body until their part is fully written, and are released by the part, by {@link #close()} or when a limit
  * is reached.
@@ -96,6 +101,42 @@ public final class StreamNdjsonBody implements Releasable {
         synchronized (lock) {
             pending.addAll(read.takePages());
         }
+    }
+
+    /**
+     * The HTTP status of the response. A read of a failed or cancelled stream that has no row to write answers with the status of the
+     * failure, as {@code POST /_query/stream} does for a failure before the first row. With rows to write the status is 200, because
+     * the rows are a valid part of the result, and the failure is only in the last line. A status-only request asks for the status of
+     * the stream, so it is 200 as well. It must be asked before the first part is written.
+     */
+    public RestStatus httpStatus() {
+        StreamMetadata.StreamFailure failure = storedFailure();
+        if (failure == null || request.statusOnly()) {
+            return RestStatus.OK;
+        }
+        synchronized (lock) {
+            return pending.isEmpty() && inFlight == null ? failure.status() : RestStatus.OK;
+        }
+    }
+
+    /**
+     * The failure of the query, when the stream is failed or cancelled. A cancelled stream has no stored failure, so it is reported as
+     * the cancellation that {@code POST /_query/stream} reports. Without it a cancelled stream would look like one that is still
+     * running, and a client that reads until the result is complete would never stop.
+     */
+    private StreamMetadata.StreamFailure storedFailure() {
+        return switch (metadata.status()) {
+            case FAILED -> metadata.completionInfo() != null ? metadata.completionInfo().failure() : null;
+            case CANCELED -> {
+                TaskCancelledException cancelled = new TaskCancelledException("stream [" + request.streamId() + "] was cancelled");
+                yield new StreamMetadata.StreamFailure(
+                    ElasticsearchException.getExceptionName(cancelled),
+                    cancelled.getMessage(),
+                    cancelled.status()
+                );
+            }
+            case RUNNING, COMPLETE -> null;
+        };
     }
 
     public ChunkedRestResponseBodyPart firstPart() {
@@ -252,10 +293,7 @@ public final class StreamNdjsonBody implements Releasable {
             StreamMetadata.StreamCompletionInfo completion = meta.completionInfo();
             long nextOffset = request.offset() + rowsWritten;
 
-            StreamMetadata.StreamFailure failure = null;
-            if (meta.status() == StreamMetadata.Status.FAILED && completion != null) {
-                failure = completion.failure();
-            }
+            StreamMetadata.StreamFailure failure = storedFailure();
             // The row count can be missing from the stored metadata. Then the end of the result cannot be checked against it.
             Long totalRows = completion != null ? completion.rows() : null;
             // All the stored pages were written, no limit stopped the response, and still rows are missing: the storage lost pages.

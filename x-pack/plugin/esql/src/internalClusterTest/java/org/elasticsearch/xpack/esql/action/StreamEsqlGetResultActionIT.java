@@ -163,6 +163,11 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
         }
         Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        return read(response);
+    }
+
+    /** Parses an NDJSON body. It is also the body of a failed stream that has no rows to read, which comes with an error status. */
+    private static Read read(Response response) throws IOException {
         assertThat(response.getEntity().getContentType().getValue(), startsWith("application/x-ndjson"));
         String[] lines = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8).split("\n");
         List<Long> values = new ArrayList<>();
@@ -360,9 +365,17 @@ public class StreamEsqlGetResultActionIT extends AbstractEsqlIntegTestCase {
         assertThat(read.last().get("complete"), equalTo(false));
         assertThat(read.last().get("next_offset"), equalTo(4));
 
-        // nothing left to read at the offset: a normal HTTP error
+        // nothing left to read at the offset: the status of the failure, with the same lines as above
         ResponseException e = expectThrows(ResponseException.class, () -> get("failed", "offset", "4"));
         assertThat(status(e), equalTo(500));
+        Read failed = read(e.getResponse());
+        assertThat(failed.values(), equalTo(List.of()));
+        assertThat(failed.first().get("query_status"), equalTo("failed"));
+        assertThat(failed.last().get("status"), equalTo(500));
+        assertThat(failed.last().get("next_offset"), equalTo(4));
+        Map<?, ?> error = (Map<?, ?>) failed.last().get("error");
+        assertThat(error.get("type"), equalTo("illegal_state_exception"));
+        assertThat(error.get("reason"), equalTo("boom"));
     }
 
     public void testErrors() throws Exception {

@@ -14,7 +14,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xpack.esql.streaming.GetStreamResultRequest;
@@ -94,7 +93,10 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
         return new GetStreamResultRequest(streamId, offset, maxRows, maxBytes, waitTimeout);
     }
 
-    /** Sends the NDJSON body, or the error when the read failed before the first line. */
+    /**
+     * Sends the NDJSON body, or the error when the read itself failed, for example for an unknown id. A failed query is not a failed
+     * read: its failure is in the NDJSON body, and the body chooses the HTTP status.
+     */
     private static final class EsqlStreamResultListener extends RestActionListener<GetStreamResultResponse> {
         private final RestChannel restChannel;
 
@@ -114,7 +116,7 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
             }
             boolean sent = false;
             try {
-                restChannel.sendResponse(RestResponse.chunked(RestStatus.OK, body.firstPart(), body));
+                restChannel.sendResponse(RestResponse.chunked(body.httpStatus(), body.firstPart(), body));
                 sent = true;
             } finally {
                 if (sent == false) {

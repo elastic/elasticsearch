@@ -12663,7 +12663,35 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     public void testFileBoundsOfMultiRowGroupColumnWithAllNaNRowGroupAreNotServedUnderDefaultOrder() throws Exception {
-        assertAllNaNRowGroupColumnHasNoFileBounds(ColumnOrder.typeDefined());
+        assertAllNaNRowGroupColumnHasNoFileBounds();
+    }
+
+    public void testFileBoundsServeTheMaximumWhenOnlyAnEarlyRowGroupHasAZeroMinimum() throws Exception {
+        double[] values = new double[3000];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.of(2999.0), d.maxValue());
+    }
+
+    public void testFileBoundsServeTheMinimumWhenOnlyALateRowGroupHasAZeroMaximum() throws Exception {
+        double[] values = new double[3000];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i - 2999.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(-2999.0), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
     }
 
     public void testFileBoundsOfMultiRowGroupColumnSkipAllNaNRowGroupUnderTotalOrder() throws Exception {
@@ -12848,13 +12876,13 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(Optional.empty(), f.maxValue());
     }
 
-    private void assertAllNaNRowGroupColumnHasNoFileBounds(ColumnOrder order) throws Exception {
+    private void assertAllNaNRowGroupColumnHasNoFileBounds() throws Exception {
         int phase = 1200;
         double[] values = new double[3 * phase];
         for (int i = 0; i < values.length; i++) {
             values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
         }
-        byte[] parquetData = createDoubleColumnFile(order, values);
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
 
         long start = 0;
         boolean sawAllNaNRowGroup = false;

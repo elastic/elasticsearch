@@ -183,14 +183,23 @@ public final class RowLocation {
      * shortened message but a deleted one. {@code NdJsonFormatReaderTests} pins a glob of two objects whose
      * locations differ only there.
      * <p>
-     * What this does not buy is a bound on width, and that is the honest cost: a key may be any length a store
-     * permits, so a location in a response header is as long as the store made it. The escape is the half that
-     * closes a defect -- a name cannot forge the bracket structure around it either way -- while the cap only
-     * ever traded width for ambiguity, which is a trade worth making for a name and not for a location.
+     * What this does not buy is a bound on width, and that is the honest cost. A key may be any length a store
+     * permits, and each escaped character costs six where the original cost one, so a location in a response
+     * header is as long as the store made it and, for a key written entirely in the escaped set, six times that.
+     * Nothing downstream re-bounds it: {@code http.max_warning_header_size} and {@code http.max_warning_header_count}
+     * default to unbounded, and the informational channel caps the NUMBER of distinct warnings
+     * ({@code SkipWarnings#MAX_ADDED_WARNINGS}) rather than the length of any one. The merge base embedded the
+     * same location raw and uncapped, so what this adds to the width is the expansion, not the absence of a
+     * bound. The escape is the half that closes a defect -- a name cannot forge the bracket structure around it
+     * either way -- while the cap only ever traded width for ambiguity, which is a trade worth making for a name
+     * and not for a location. Bounding a location without losing the distinction it carries means a discriminator
+     * that survives the cut, which is a policy owed to every message embedding a store-supplied path rather than
+     * to this one.
      * <p>
-     * The cost, which is real and accepted: a location whose authority is an IPv6 literal carries brackets the
-     * URI grammar contributed rather than the key, and they are escaped too, so {@code https://[2001:db8::1]/b/x}
-     * renders ten characters wider. Once a location is one string those brackets are the same characters a key
+     * The cost, which is real and accepted: a key legitimately holding a bracket -- {@code part[0].ndjson} is an
+     * ordinary name -- renders escaped, so what the warning prints is no longer a string the store will accept
+     * back. A location whose authority is an IPv6 literal carries the same cost on brackets the URI grammar
+     * contributed rather than the key, so {@code https://[2001:db8::1]/b/x} renders ten characters wider. Once a location is one string those brackets are the same characters a key
      * can spell, so telling them apart means trusting a parse of the very text this is protecting; the address
      * stays legible escaped, and an unescaped prefix would reopen the forgery for a container name.
      */
@@ -207,7 +216,8 @@ public final class RowLocation {
         int head = remaining / 2;
         int tailStart = displayable.length() - (remaining - head);
         // Both cuts fall on an arbitrary UTF-16 index, so either can land between the halves of a surrogate
-        // pair and leave an unpaired one. Give the orphan up rather than keep it: a lone surrogate encodes to
+        // pair and leave an unpaired one. One step each way is enough for a name decoded from UTF-8, where a high
+        // surrogate is always followed by its low one. Give the orphan up rather than keep it: a lone surrogate encodes to
         // no UTF-8 sequence, so whatever each channel substitutes for it, what it never shows is the character
         // the name had there -- half of which was cut away regardless. Keeping it spends a position in the cap
         // to say nothing. Dropping shortens the result, which the cap permits.
@@ -235,7 +245,7 @@ public final class RowLocation {
      * <p>
      * This clause is not the only path a store-supplied string takes to that log, and saying so would invite the
      * next log site to skip the escape. {@code NdJsonPageIterator}'s truncated-record branch logs a location at
-     * {@code warn} and three sites log one at {@code debug}; the first of those now goes through
+     * {@code warn} and other sites log one at {@code debug}; the first of those now goes through
      * {@link #escapedForDisplay} for this reason, while the {@code debug} sites are left as they are. What this
      * class is responsible for is the clause, and any other site printing a store-supplied string owes itself
      * the same escape. A name is store-supplied

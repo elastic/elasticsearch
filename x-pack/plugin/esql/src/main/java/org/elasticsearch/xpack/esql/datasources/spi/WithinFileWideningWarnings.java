@@ -46,7 +46,10 @@ public final class WithinFileWideningWarnings {
         for (WidenedColumn widened : widenedColumns) {
             // The column name is store-supplied too -- an NDJSON field name is an arbitrary JSON key -- and it is
             // printed first inside this same bracketed sentence, so leaving it raw would let it forge the whole
-            // detail that follows and defeat the escape applied to the location.
+            // detail that follows and defeat the escape applied to the location. The sampled value is the third
+            // such field and is deliberately NOT escaped: it is the user's own data, bracketed cells are ordinary
+            // in it (csv-headerless.csv-spec pins warnings reading value [[-2.14] and value [12]]), and an escape
+            // there would mangle the common case to close the rare one. That trade is esql-planning#2022's.
             String detail = "column ["
                 + RowLocation.escapedForDisplay(widened.columnName())
                 + "] at sample "

@@ -12511,20 +12511,13 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * On a block-aligned split of a splittable compressed object the reader is handed {@code recordAligned=false}:
-     * the split offset is a boundary in the COMPRESSED file while the ordinal counts decompressed records, and this
-     * reader additionally discards a leading partial record the previous split already reported. A byte printed
-     * there would send the reader of the message to the wrong place without their being able to tell, so the byte
-     * is withheld. The clause still has to say that the ordinal was counted inside a split, because the wording
-     * left over otherwise is the wording of a read from byte zero, whose ordinal IS the file's.
-     */
-    /**
      * The byte expression's first arm asks whether this is the file's own first split, not whether the offset is
-     * zero. Every other fixture here sets both together, so swapping one for the other reddens nothing and the
-     * arm is pinned by luck. Production cannot currently produce the disagreeing cell -- {@code
-     * FileSplitProvider.isFirstInFile} calls an offset-zero split the first one -- but the reader's expression
-     * is what this file is pinning, so the cell is built directly: first split, non-zero offset. A byte counted
-     * from the file's start is zero whatever the split's offset says.
+     * zero, and the two disagree in production: {@code FileSplitProvider.isFirstInFile} is a disjunction, so a
+     * split stamped {@code _first_split} is the first one at whatever offset it begins, and the first macro-split
+     * of a block-aligned compressed object begins at the first block boundary rather than at byte zero. Every
+     * other fixture here sets the two together, which leaves the arm pinned by luck. This builds the disagreeing
+     * cell directly: first split, non-zero offset. A byte counted from the file's start is zero whatever the
+     * split's offset says.
      */
     public void testTheFirstSplitCountsFromZeroEvenAtANonZeroOffset() throws IOException {
         List<Attribute> schema = splitSchema();
@@ -12547,6 +12540,14 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat("and it is not reported as counted inside a split", detail, not(containsString("counted within a split")));
     }
 
+    /**
+     * On a block-aligned split of a splittable compressed object the reader is handed {@code recordAligned=false}:
+     * the split offset is a boundary in the COMPRESSED file while the ordinal counts decompressed records, and this
+     * reader additionally discards a leading partial record the previous split already reported. A byte printed
+     * there would send the reader of the message to the wrong place without their being able to tell, so the byte
+     * is withheld. The clause still has to say that the ordinal was counted inside a split, because the wording
+     * left over otherwise is the wording of a read from byte zero, whose ordinal IS the file's.
+     */
     public void testABlockAlignedSplitWithholdsTheByteAndSaysSo() throws IOException {
         List<Attribute> schema = splitSchema();
         FormatReadContext ctx = FormatReadContext.builder()

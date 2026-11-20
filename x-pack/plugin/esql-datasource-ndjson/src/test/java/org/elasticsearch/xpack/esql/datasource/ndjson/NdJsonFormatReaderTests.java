@@ -586,12 +586,6 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The widening warning prints the source location inside a bracket and schema inference takes it straight
-     * from the store, so a key holding a bracket closes its own field and renders as another object's clause,
-     * which the deduplication then collapses into one warning. The escape closes that. The width cap does not
-     * come with it -- see {@link RowLocation#escapedForDisplay} and the glob case above, which a cap would break.
-     */
-    /**
      * The column name is printed first inside the same bracketed sentence as the location, and an NDJSON field
      * name is an arbitrary JSON key taken verbatim from the data. So escaping only the location would leave the
      * sentence forgeable by whoever writes the file: a key can spell a complete second detail line, which the
@@ -611,6 +605,12 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         assertThat("and cannot forge another object's clause", joined, not(containsString("of [victim.ndjson]")));
     }
 
+    /**
+     * The widening warning prints the source location inside a bracket and schema inference takes it straight
+     * from the store, so a key holding a bracket closes its own field and renders as another object's clause,
+     * which the deduplication then collapses into one warning. The escape closes that. The width cap does not
+     * come with it -- see {@link RowLocation#escapedForDisplay} and the glob case above, which a cap would break.
+     */
     public void testSchemaWideningWarningEscapesTheLocationWithoutCuttingIt() throws IOException {
         byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
         HostileNameBytesObject object = new HostileNameBytesObject(bytes);
@@ -747,6 +747,33 @@ public class NdJsonFormatReaderTests extends ESTestCase {
             "a within-file widen discovered on the no-pre-resolved-schema read path must still warn, got: " + warnings,
             warnings.stream().anyMatch(w -> w.contains("column [a]") && w.contains("[keyword]"))
         );
+    }
+
+    /**
+     * The reader has two widening sites and they take their location from the same store-supplied path:
+     * {@code metadata()}, which planning calls, and the inline inference {@code read()} falls back to when the
+     * request carries no resolved schema. The case above pins the escape at the first; reverting the second on
+     * its own reddened nothing, because every other read-path fixture here uses a clean basename. A read served
+     * from a cold plan is the ordinary way a user meets this warning, so the escape is pinned at both.
+     */
+    public void testTheReadPathEscapesTheWideningLocationToo() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        HostileNameBytesObject object = new HostileNameBytesObject(bytes);
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+
+        List<String> warnings = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder().batchSize(100).informationalWarningSink(warnings::add).build();
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+
+        String joined = String.join(" ", warnings);
+        String token = RowLocation.escapedForDisplay(object.path().toString());
+        assertThat("the bracket is escaped, or this test is not exercising the escape", token, containsString("\\u005D"));
+        assertThat("the read path's widening warning carries the escaped location", joined, containsString("[" + token + "]"));
+        assertThat("so a key cannot close its own bracket", joined, not(containsString("a]b")));
     }
 
     /**

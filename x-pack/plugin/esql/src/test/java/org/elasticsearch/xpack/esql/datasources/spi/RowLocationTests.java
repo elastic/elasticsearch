@@ -124,6 +124,19 @@ public class RowLocationTests extends ESTestCase {
     }
 
     /**
+     * A column name is store-supplied too: a CSV header cell or an NDJSON field name is whatever the file says,
+     * and the per-cell clause prints it inside a bracket at the end of the same sentence the location opens. So
+     * a column can close its own field and spell a whole second clause, which the exact-string deduplication
+     * then collapses against a real one -- the same defect the object name's escape closes, one field along.
+     */
+    public void testABracketInAColumnNameCannotForgeTheClause() {
+        String forged = RowLocation.of(1, "v.csv", 0L, "id], column [password");
+        assertThat("the bracket is named rather than printed", forged, containsString("005D"));
+        assertThat("so the column cannot open a second column field", forged, not(containsString("], column [password]")));
+        assertThat(RowLocation.of(2, "v.csv", 0L, "a[b]"), equalTo("row [2] of [v.csv], column [a\\u005Bb\\u005D]"));
+    }
+
+    /**
      * Escaping expands a control character into six, so it has to run before the cap — capping first would let a
      * name made of control characters grow past the bound afterwards, which is the bound the response header needs.
      */

@@ -16,6 +16,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 
 import java.util.List;
@@ -361,17 +362,74 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Floor of the heap-derived {@link #MAX_DISCOVERED_FILES} default. An explicit setting may go down to 1.
+     */
+    static final int MIN_DISCOVERED_FILES_DEFAULT = 25_000;
+
+    /**
+     * Ceiling of the heap-derived default and the setting's max. Degenerate globs still abort here even on
+     * a huge heap; the request breaker remains the memory backstop below that.
+     */
+    static final int MAX_DISCOVERED_FILES_LIMIT = 1_000_000;
+
+    /**
+     * Share of max heap one query's discovered-file planning may occupy when the operator has not set
+     * {@link #MAX_DISCOVERED_FILES}. 15% of heap is 25% of the default request breaker (60%), so a listing
+     * at the derived cap stays under the breaker and a second cap-sized query can still run.
+     */
+    static final int DISCOVERED_FILES_HEAP_PERCENT = 15;
+
+    /**
+     * Schema-map allowance billed per kept file during resolution. Must stay in lock-step with
+     * {@code ExternalSourceResolver}'s {@code SCHEMA_MAP_BYTES_PER_FILE}.
+     */
+    static final long SCHEMA_MAP_BYTES_PER_DISCOVERED_FILE = 320L;
+
+    /**
+     * Breaker-charged bytes per kept file used to size the default cap: listing floor plus schema-map
+     * allowance plus one phase-2 split shell. Compact listings weigh less live; the breaker keeps this
+     * floor, so the file-count 400 fires before a mid-planning circuit break.
+     */
+    static final long PLANNING_BYTES_PER_DISCOVERED_FILE = FileList.LISTING_BYTES_PER_ENTRY + SCHEMA_MAP_BYTES_PER_DISCOVERED_FILE
+        + Phase2Reservation.SHELL_BYTES;
+
+    /**
+     * Default {@link #MAX_DISCOVERED_FILES} from max heap: 15% of heap divided by
+     * {@link #PLANNING_BYTES_PER_DISCOVERED_FILE}, clamped to
+     * [{@value #MIN_DISCOVERED_FILES_DEFAULT}, {@value #MAX_DISCOVERED_FILES_LIMIT}].
+     * Heap {@code <= 0} (tests, misreported JVM) yields the floor.
+     */
+    public static int defaultMaxDiscoveredFiles(long heapBytes) {
+        if (heapBytes <= 0L) {
+            return MIN_DISCOVERED_FILES_DEFAULT;
+        }
+        long raw = heapBytes * DISCOVERED_FILES_HEAP_PERCENT / (PLANNING_BYTES_PER_DISCOVERED_FILE * 100);
+        if (raw < MIN_DISCOVERED_FILES_DEFAULT) {
+            return MIN_DISCOVERED_FILES_DEFAULT;
+        }
+        if (raw > MAX_DISCOVERED_FILES_LIMIT) {
+            return MAX_DISCOVERED_FILES_LIMIT;
+        }
+        return (int) raw;
+    }
+
+    /**
      * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
      * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
-     * Default: 25,000 — generous for legitimate use, catches truly degenerate cases. Planning memory for
-     * the kept files is charged to the request breaker, so raising this cap fails a query that does not
-     * fit with a circuit-breaking exception instead of exhausting the heap.
+     * <p>
+     * The default is {@link #defaultMaxDiscoveredFiles(long)} rather than a fixed literal:
+     * {@value #DISCOVERED_FILES_HEAP_PERCENT}% of the node's max heap divided by the per-file planning
+     * charge (listing floor + schema-map + phase-2 shell), clamped to
+     * [{@value #MIN_DISCOVERED_FILES_DEFAULT}, {@value #MAX_DISCOVERED_FILES_LIMIT}].
+     * An explicit value overrides the formula and is not clipped by heap; planning memory for the kept
+     * files is charged to the request breaker, so a cap the node cannot hold fails with a
+     * circuit-breaking exception instead of exhausting the heap.
      */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
         "esql.external.max_discovered_files",
-        25_000,
+        s -> Integer.toString(defaultMaxDiscoveredFiles(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes())),
         1,
-        1000000,
+        MAX_DISCOVERED_FILES_LIMIT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

@@ -1581,6 +1581,22 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * Matching on __name__ is rejected even where the series store it, as here: which series store it is known only from
+     * the data, and one whose metric is a field reads it as absent.
+     */
+    public void testPromqlMatchingOnMetricNameIsRejected() {
+        String index = "promql-matching-on-metric-name-is-rejected";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        refresh(index);
+        for (String q : List.of("tx / on(__name__, host) rx")) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, q)));
+            assertThat(error.getMessage(), containsString("matching on __name__ is not supported at this time"));
+        }
+    }
+
     /** A by() key no parent reads still decides the rows it aggregates. */
     public void testPromqlUnusedByKeyStillDeterminesRows() {
         String index = "promql-unused-by-key";

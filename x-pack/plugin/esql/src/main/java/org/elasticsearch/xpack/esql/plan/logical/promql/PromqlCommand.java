@@ -561,6 +561,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             && (containsVectorMatch(binaryOperator.left()) || containsVectorMatch(binaryOperator.right()));
                         if (binaryOperator.match() != VectorMatch.NONE && scalarOperand) {
                             failures.add(fail(lp, "vector matching only allowed between instant vectors [{}]", lp.sourceText()));
+                        } else if (containerFunctions) {
+                            // Operands match on their label containers, opaque or not.
                         } else if ((binaryOperator.match() != VectorMatch.NONE || joinComposed)
                             && (hasConcreteLabels(binaryOperator.left()) == false || hasConcreteLabels(binaryOperator.right()) == false)) {
                                 // TODO: Materialize match keys from runtime-defined labels.
@@ -602,8 +604,19 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     if (binaryOperator instanceof VectorBinarySet setOp) {
                         verifySetOperator(failures, setOp, topLevelUnions.contains(setOp));
                     }
+                    if ((binaryOperator.match().filter() == VectorMatch.Filter.ON
+                        && binaryOperator.match().filterLabels().contains(LabelMatcher.NAME))
+                        || binaryOperator.match().groupingLabels().contains(LabelMatcher.NAME)) {
+                        // A series whose metric is a field stores no __name__ and reads it as absent, so on(__name__) would
+                        // match the series of different metrics, which Prometheus keeps apart. Which series store it is
+                        // known only from the data, so it is rejected for all.
+                        // TODO: Match on __name__ once the metric name is a dimension value.
+                        // https://github.com/elastic/elasticsearch/issues/146989
+                        failures.add(fail(lp, "matching on __name__ is not supported at this time [{}]", lp.sourceText()));
+                    }
                     boolean labelMatched = binaryOperator.match().filter() != VectorMatch.Filter.NONE;
                     if (labelMatched == false
+                        && containerFunctions == false
                         && (usesWithoutGrouping(binaryOperator.left()) || usesWithoutGrouping(binaryOperator.right()))) {
                         // TODO: Support WITHOUT-grouped operands in binary expressions.
                         // https://github.com/elastic/elasticsearch/issues/145308

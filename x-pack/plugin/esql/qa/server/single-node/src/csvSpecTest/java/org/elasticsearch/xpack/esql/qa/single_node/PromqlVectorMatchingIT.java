@@ -126,7 +126,7 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
         assertRows(
             "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx) / on (cluster, pod) group_left () "
                 + "sum by (cluster, pod) (network.eth0.rx)) "
-                + "| KEEP result, cluster, pod, step",
+                + "| KEEP result, cluster, step",
             List.of()
         );
     }
@@ -136,6 +136,42 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
         assertPromqlError(
             "PROMQL index=k8s step=10m " + "sum by (cluster) (network.eth0.tx) or on (cluster) sum by (cluster) (network.eth0.rx)",
             "set operator [or] with on/ignoring is not supported at this time"
+        );
+    }
+
+    /**
+     * Several series sharing a match key on a "one" side fail the query, as in Prometheus: two on the right of a
+     * one-to-one match or of {@code group_left}, and two on the left matching one right series one-to-one.
+     */
+    public void testManyToManyMatchingFails() throws IOException {
+        assertPromqlError("PROMQL index=k8s step=10m result=(network.eth0.tx * on (cluster) network.eth0.rx)", "found a duplicate row");
+        assertPromqlError(
+            "PROMQL index=k8s step=10m result=(network.eth0.tx / on (cluster) group_left network.eth0.rx)",
+            "found a duplicate row"
+        );
+        assertPromqlError(
+            "PROMQL index=k8s step=10m result=(network.eth0.tx * on (cluster) sum by (cluster) (network.eth0.rx))",
+            "input must not have duplicates"
+        );
+    }
+
+    /**
+     * Fuzz repro: an opaque selector + {@code ignoring} a labelless {@code sum} is the empty vector (the empty Prometheus
+     * signature never matches), not a 400 duplicate-row / 500 IndexOOB from asymmetric join keys. The other way round
+     * the opaque side is the "one" side, and its series sharing a signature fail the query, as in Prometheus.
+     */
+    public void testIgnoringLabellessVsOpaque() throws IOException {
+        assumeTrue(
+            "opaque operands match on their label containers",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH.capabilityName()))
+        );
+        assertRows(
+            "PROMQL index=k8s step=10m result=(network.eth0.tx + ignoring (pod) sum(network.eth0.tx)) | KEEP result, step",
+            List.of()
+        );
+        assertPromqlError(
+            "PROMQL index=k8s step=10m result=(sum(network.eth0.tx) + ignoring (pod) network.eth0.tx)",
+            "found a duplicate row"
         );
     }
 
@@ -152,9 +188,13 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
     }
 
     private void assertRows(String query, List<List<Object>> expectedRows) throws IOException {
+        assertThat(values(query), equalTo(expectedRows));
+    }
+
+    private List<List<Object>> values(String query) throws IOException {
         Map<String, Object> response = runEsqlSync(requestObjectBuilder().query(query));
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) response.get("values");
-        assertThat(values, equalTo(expectedRows));
+        return values;
     }
 }

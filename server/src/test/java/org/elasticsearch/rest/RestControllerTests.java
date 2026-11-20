@@ -1021,6 +1021,34 @@ public class RestControllerTests extends ESTestCase {
         assertEquals(0, inFlightRequestsBreaker.getUsed());
     }
 
+    public void testDispatchRequestOfHandlerThatCannotTripLimitsBytesBeyondAllowance() {
+        restController.registerHandler(new Route(GET, "/cannot-trip"), valuesHandler(false, () -> {}));
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+
+        // Over the in-flight limit, and within the allowance.
+        String small = values(between(10, 100));
+        assertThat((long) small.length(), greaterThan(BREAKER_LIMIT.getBytes()));
+        RestRequest smallRequest = testRestRequest("/cannot-trip", small, XContentType.JSON);
+        AssertingChannel smallChannel = new AssertingChannel(smallRequest, true, RestStatus.OK);
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            restController.dispatchRequest(smallRequest, smallChannel, threadContext);
+        }
+        assertTrue(smallChannel.getSendResponseCalled());
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+
+        // Rejected before it is parsed, so it need not be valid content.
+        String large = "x".repeat(Math.toIntExact(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES + 1));
+        RestRequest largeRequest = testRestRequest("/cannot-trip", large, XContentType.JSON);
+        AssertingChannel largeChannel = new AssertingChannel(largeRequest, true, RestStatus.TOO_MANY_REQUESTS);
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            restController.dispatchRequest(largeRequest, largeChannel, threadContext);
+        }
+        assertTrue(largeChannel.getSendResponseCalled());
+        assertEquals(1, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
     public void testDispatchRequiresContentTypeForRequestsWithContent() {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, null);

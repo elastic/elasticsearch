@@ -51,7 +51,7 @@ File layout is a property of your data rather than of your cluster.
 
 Aim for mid-sized files, from tens of megabytes to several hundred megabytes.
 
-Amazon S3 has high latency on every request, so a query gets its throughput from reading many files in parallel rather than from any single read being fast. Both extremes cost you throughput. If a dataset yields too few splits, whether from too few files or from compressed text files that are one split each, there is not enough work to share out and some of your cores sit idle however large the cluster is. If it holds too many, each one still costs a full request, and a query over very small files spends more of its time waiting on those requests than reading data.
+Amazon S3 has high latency on every request, so a query gets its throughput from reading many files in parallel rather than from any single read being fast. Both extremes cost throughput, in different ways. If a dataset yields too few splits, whether from too few files or from compressed text files that are one split each, there is not enough work to share out and some of your cores sit idle however large the cluster is. If it holds too many, each one still costs a full request, and a query over very small files spends more of its time waiting on those requests than reading data.
 
 There is also a hard limit on how many files one query may keep after its listing filters have run, set by [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files). A query that keeps more than that fails, and pruning is the first remedy, because a partition filter or a narrower resource pattern can bring a large dataset under the limit without changing anything else. Beyond that, split the data across several datasets, or raise the setting on a self-managed cluster.
 
@@ -103,13 +103,13 @@ Raising it does not on its own give you more read parallelism. The value you set
 
 On {{ech}} you choose a size per zone in RAM and a hardware profile for the deployment. Heap is half that RAM, and the core count is the RAM times a ratio set by the profile, so a CPU optimized profile gives about 1 GB of heap per core, general purpose about 2 GB, and storage optimized about 3.5 GB.
 
-Use a general purpose profile, which gives the 1 GB to 2 GB per core this page asks for, and select a size per zone of twice the heap you need. Both examples above come to an 8 GB size per zone, the Parquet one in 1 zone and the compressed CSV one across 2. Avoid CPU optimized, where the heap each core gets leaves nothing spare for compressed text or an inferred schema.
+Use a general purpose profile, which gives the 1 GB to 2 GB per core this page asks for, and select a size per zone of twice the heap you need. Avoid CPU optimized, where the heap each core gets leaves nothing spare for compressed text or an inferred schema.
 
 ### Sizing for {{es-serverless}} [sizing-serverless]
 
-On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores, and a project scales on its own search load rather than on its data federation load. To follow this guide, use an {{es-serverless}} project, which is the only type that lets you set a capacity floor, through [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus). Raise it ahead of an expected increase in query load and lower it afterwards, because you are billed for at least that many [Search VCUs](docs-content://deploy-manage/cloud-organization/billing/elasticsearch-billing-dimensions.md#elasticsearch-billing-information-about-the-vcu-types-search-ingest-and-ml) while it is set.
+On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores. Capacity is managed for you, and a project is scaled from the search load it sees, which does not take data federation into account. To follow this guide, [create an {{es-serverless}} project](docs-content://deploy-manage/deploy/elastic-cloud/create-serverless-project.md), which is the only type that lets you set a capacity floor, through [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus). Raise it ahead of an expected increase in query load and lower it afterwards, because you are billed for at least that many [Search VCUs](docs-content://deploy-manage/cloud-organization/billing/elasticsearch-billing-dimensions.md#elasticsearch-billing-information-about-the-vcu-types-search-ingest-and-ml) while it is set.
 
-The Search tier is provisioned at 2 Search VCUs per core, and a Search VCU is 1 GiB of memory, so allow 2 Search VCUs for every GB of heap and 2 for every core, and set the minimum to whichever of the two is larger. The Parquet example above comes to 8 and the compressed CSV example to 16. You can run federated queries from the other project types as well, but their capacity follows their own configuration, and data federation is not currently one of the factors in it.
+Work out the heap and the cores this page gives you, then allow 2 Search VCUs for every GB of heap and 2 Search VCUs for every core, and set the minimum to whichever of the two figures is larger. You can run federated queries from the other project types as well, but their capacity follows their own configuration, and data federation is not currently one of the factors in it.
 
 ## Sizing for performance [performance]
 
@@ -127,7 +127,7 @@ The [TLC trip record data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-da
 
 This is a Parquet dataset, so the initial heap is 2 GB. At 1 core per 8 to 10 concurrent queries, 10 concurrent queries need 1 to 2 cores, which is below the 2-core minimum, so use 2. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB.
 
-Start with 1 node, with at least 2 cores and at least 4 GB of heap.
+Start with 1 node, with at least 2 cores and at least 4 GB of heap. On {{ech}} that is an 8 GB size per zone in 1 zone, and on {{es-serverless}} it is a minimum of 8 Search VCUs.
 
 ### Backblaze drive stats, gzipped CSV [example-backblaze]
 
@@ -135,7 +135,7 @@ Start with 1 node, with at least 2 cores and at least 4 GB of heap.
 
 This is compressed text, so the initial heap is 4 GB. At 1 core per 3 to 4 concurrent queries, 10 concurrent queries need 3 to 4 cores. Compressed text serves fewer concurrent queries as a node widens, so those cores belong on separate nodes: 2 nodes of 2 cores each. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB, which is less than the 4 GB this format starts at, so use 4 GB.
 
-Start with 2 nodes, each with at least 2 cores and at least 4 GB of heap.
+Start with 2 nodes, each with at least 2 cores and at least 4 GB of heap. On {{ech}} that is an 8 GB size per zone across 2 zones, and on {{es-serverless}} it is a minimum of 16 Search VCUs.
 
 If the schema is inferred rather than specified, add a further 2 GB to 4 GB of heap to each node.
 

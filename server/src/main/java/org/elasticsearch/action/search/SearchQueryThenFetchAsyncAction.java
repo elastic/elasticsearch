@@ -1000,11 +1000,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 new ChannelActionListener<>(channel)
             );
             final BytesTransportResponse response;
-            QueryLoad.Charging mergeLoad = queryPhaseResultConsumer.mergeLoad();
-            if (mergeLoad != null) {
-                // the merge task that completed the last shard already reduced shard results
-                TaskLoadAttribution.chargeSoFar(mergeLoad, System.nanoTime());
-            }
             mergeStartNanos = TaskLoadAttribution.startPart();
             try {
                 response = buildResponse();

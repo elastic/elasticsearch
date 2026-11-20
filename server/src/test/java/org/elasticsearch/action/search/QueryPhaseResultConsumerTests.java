@@ -72,9 +72,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -657,6 +659,65 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 assertThat(consumer.docsMatched(new ShardId("index", "uuid", i)), equalTo(1L));
             }
             assertThat("not consumed yet", consumer.docsMatched(new ShardId("index", "uuid", shards + 1)), equalTo(0L));
+        }
+    }
+
+    /**
+     * A merge task charges its merge before it completes the shards it merged, as the last of them may complete the request,
+     * which then reports the merge load before the pool charges the task.
+     */
+    public void testMergeIsChargedBeforeItCompletesItsShards() throws Exception {
+        long mergeNanos = TimeUnit.MILLISECONDS.toNanos(1);
+        CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                if (Thread.currentThread() instanceof EsExecutors.EsThread) {
+                    spin(mergeNanos);
+                }
+            }
+        };
+        ExecutorService trackingExecutor = EsExecutors.newFixed(
+            "tracking",
+            1,
+            10,
+            EsExecutors.daemonThreadFactory("test", "tracking"),
+            threadPool.getThreadContext(),
+            TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+        );
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        searchRequest.setBatchedReduceSize(2);
+        QueryLoad load = new QueryLoad();
+        AtomicLong loadWhenCompleted = new AtomicLong(-1);
+        CountDownLatch completed = new CountDownLatch(1);
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                trackingExecutor,
+                breaker,
+                reducingController(),
+                () -> false,
+                SearchProgressListener.NOOP,
+                4,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            consumer.mergeLoad(load.charging((nanos, cpuNanos, finishNanos) -> {}));
+            // the third result forks a merge of the first two, which then completes the third
+            for (int i = 0; i < 3; i++) {
+                QuerySearchResult result = queryResultWithAggs(i);
+                consumer.consumeResult(result, i < 2 ? () -> {} : () -> {
+                    loadWhenCompleted.set(load.nanos());
+                    completed.countDown();
+                });
+                result.decRef();
+            }
+            assertTrue(completed.await(10, TimeUnit.SECONDS));
+            assertThat(loadWhenCompleted.get(), greaterThanOrEqualTo(mergeNanos));
+        } finally {
+            terminate(trackingExecutor);
         }
     }
 

@@ -896,6 +896,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         mergeTask = queue.poll();
                         runningTask.set(mergeTask);
                     }
+                    if (load != null) {
+                        // the shards it completes may complete the request, which then reports the merge load
+                        TaskLoadAttribution.chargeSoFar(load, System.nanoTime());
+                    }
                     if (next != null) {
                         next.run();
                     }

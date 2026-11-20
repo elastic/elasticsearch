@@ -119,7 +119,7 @@ public class S3StorageProvider implements StorageProvider {
      * provider, mirroring the client-wide scope the strategy had when it lived inside the SDK client.
      * SDK-level retries are disabled on {@link #s3AsyncClient} — see {@link #buildS3AsyncClient}.
      */
-    private final RetryStrategy asyncReadRetryStrategy = AwsRetryStrategy.standardRetryStrategy();
+    private final RetryStrategy asyncReadRetryStrategy = standardRetryStrategy();
     private final S3Configuration config;
     private final StorageIdentity storageIdentity;
     // Non-null only in the production constructor; null in the test-only constructor (forTesting).
@@ -310,7 +310,7 @@ public class S3StorageProvider implements StorageProvider {
      * Package-private for subclass override in tests.
      */
     S3Client buildRetryClient(String region) {
-        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy(), region).build();
+        return configureCommon(S3Client.builder(), config, credentials, standardRetryStrategy(), region).build();
     }
 
     /**
@@ -423,8 +423,21 @@ public class S3StorageProvider implements StorageProvider {
         }
     }
 
+    /**
+     * AWS Standard retries plus {@code InvalidAccessKeyId}. IAM is not strongly consistent, so a
+     * freshly minted key can 403 until it propagates; this is the S3 SDK seam that waits that out.
+     * Azure/GCS would add an SDK-native predicate at their own builders if they hit the same class
+     * of failure.
+     */
+    private static RetryStrategy standardRetryStrategy() {
+        return AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .retryOnException(S3FailureDetail::isInvalidAccessKeyIdException)
+            .build();
+    }
+
     private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
-        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy(), null).build();
+        return configureCommon(S3Client.builder(), config, credentials, standardRetryStrategy(), null).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(
@@ -493,7 +506,7 @@ public class S3StorageProvider implements StorageProvider {
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
         List<ExecutionInterceptor> interceptors
     ) {
-        return configureCommon(builder, config, credentials, AwsRetryStrategy.standardRetryStrategy(), null, interceptors);
+        return configureCommon(builder, config, credentials, standardRetryStrategy(), null, interceptors);
     }
 
     private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(

@@ -205,6 +205,13 @@ public final class StringColumnWriter {
         final boolean valuesWorthNaming;
         final PlainValues.Metadata written;
         final SlotAddressing addressing;
+        final StringColumnValues values = cursors.get();
+        final PlainWritePlan plan = PlainWritePlan.of(
+            options.enablePlainSkipIndex(),
+            skipIndex != null,
+            values.streamsValues(),
+            values.mayBeSorted()
+        );
         final PlainValues.Writer stream = new PlainValues.Writer(
             chunkCodec,
             sizes.plainChunks(),
@@ -212,7 +219,8 @@ public final class StringColumnWriter {
             sizes.lengthBlockSize(),
             numValues,
             totals.constantLength(),
-            outputs
+            outputs,
+            plan.capturesBounds()
         );
         final AddressingWriter slots = AddressingWriter.open(
             numDocsWithField,
@@ -223,14 +231,13 @@ public final class StringColumnWriter {
         );
         long nulls = 0;
         long valueAddress = 0;
-        final StringColumnValues values = cursors.get();
-        final PlainSkipKind.Writer bounds = options.enablePlainSkipIndex() && skipIndex != null
+        final PlainSkipKind.Writer bounds = plan.capturesBounds()
             ? PlainSkipKind.forWriting().newWriter(directory, context, outputs.data().getName(), numValues)
             : null;
         final StringColumnMetadata.Plain.Skipper skipper;
         boolean finished = false;
         try {
-            if (values.streamsValues() && values.mayBeSorted() == false && bounds == null) {
+            if (plan.streamsValues()) {
                 // No value is held whole: the length marks a null, the cursor marks repeats, and the bytes are copied a
                 // piece at a time.
                 sorted = false;
@@ -271,7 +278,7 @@ public final class StringColumnWriter {
                                 bounds.add(valueAddress, doc, stream.ownerChunk(), null, false);
                             }
                         } else {
-                            if (bounds == null && sorted) {
+                            if (plan.checksOrder() && sorted) {
                                 if (hasPrevious && previous.get().compareTo(value) > 0) {
                                     sorted = false;
                                 } else {

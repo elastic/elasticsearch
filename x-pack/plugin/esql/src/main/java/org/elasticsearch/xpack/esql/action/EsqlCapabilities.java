@@ -1683,6 +1683,13 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITH_EQUALS_NOT_EQUALS,
 
         /**
+         * Union-type conversions are scoped to their own side of an {@code IN} subquery. Before, a cast after an {@code IN} whose
+         * subquery ran {@code STATS} failed with "Cannot use field [...] due to ambiguities", and casts after the {@code IN} were
+         * loaded by the subquery's index too.
+         */
+        WHERE_IN_SUBQUERY_UNION_TYPES_SCOPE_FIX,
+
+        /**
          * Support multi-column IN subqueries in WHERE: WHERE (field1, field2) IN (FROM index | KEEP field1, field2).
          */
         WHERE_IN_MULTI_COLUMN_SUBQUERY,
@@ -3170,6 +3177,22 @@ public class EsqlCapabilities {
          * grammar change and are covered by {@link #EQL_COMMAND} alone.
          */
         EQL_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command honours the request {@code filter}. Snapshot-only, gated together with {@link #EQL_COMMAND}.
+         */
+        EQL_COMMAND_REQUEST_FILTER(Build.current().isSnapshot()),
+
+        /**
+         * LOOKUP JOIN after the EQL source command resolves its lookup index on the local cluster. Fixes #166162.
+         */
+        EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
+
+        /**
+         * The EQL source command takes its number of matches only from {@code WITH {"size"}} (EQL's default of 10, with a warning when
+         * used) and {@code LIMIT} only trims rows. Snapshot-only, gated together with {@link #EQL_COMMAND}. Added in #165563.
+         */
+        EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
@@ -4921,6 +4944,17 @@ public class EsqlCapabilities {
         COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
+         * that is rounded or converted to another date type.
+         */
+        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+
+        /**
+         * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
+         */
+        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
          * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
          */
@@ -4952,19 +4986,35 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
-         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
-         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
-         * for a request without the header. Before this, every query was counted as {@code rest}.
+         * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
+         * Snapshot-only until the command is advertised.
          */
-        USAGE_QUERIES_BY_CLIENT,
+        NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.
+         * Also covers the body fields {@code max_rows} and {@code max_bytes}, which end the response early, and
+         * {@code store}, of which only {@code none} is accepted.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING_V2(Build.current().isSnapshot()),
+
+        /** The {@code _score} column merged by a subquery union ({@code FROM (...), (...)}) stays as live score when every
+         * branch either asked for {@code METADATA _score} or leaves the column null, so a scoring search after the merge,
+         * such as a runtime {@code MATCH}, adds to it instead of being dropped. Rows from a branch without a score stay
+         * {@code null} through that search. A branch that computed its own {@code _score} keeps the merged column out
+         * of scoring, as it does for a single source.
+         */
+        FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
+
+        /**
+         * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a
+         * time series, like outside of {@code TS}. {@code EARLIEST} returned the last value of the time series whose last sample
+         * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
+         */
+        FIX_TS_FIRST_LAST_SAMPLES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -1754,10 +1754,17 @@ public abstract class FieldMapper extends Mapper {
          * {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS} the value is ignored, warning on {@code false}.
          */
         public static Parameter<Boolean> docValuesParam(boolean defaultValue) {
+            return docValuesParam(defaultValue, IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS);
+        }
+
+        /**
+         * Like {@link #docValuesParam(boolean)} but the value is ignored in strict-columnar indices only since {@code since}, for mappers
+         * that adopted the no-op behavior after {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS}.
+         */
+        public static Parameter<Boolean> docValuesParam(boolean defaultValue, IndexVersion since) {
             return new Parameter<>("doc_values", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
                 boolean enabled = XContentMapValues.nodeBooleanValue(o, "doc_values");
-                if (defaultValue
-                    && ignoresDocValuesAttribute(c.getIndexSettings(), IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)) {
+                if (defaultValue && ignoresDocValuesAttribute(c.getIndexSettings(), since)) {
                     if (enabled == false) {
                         warnDocValuesIgnoredInColumnar(n);
                     }

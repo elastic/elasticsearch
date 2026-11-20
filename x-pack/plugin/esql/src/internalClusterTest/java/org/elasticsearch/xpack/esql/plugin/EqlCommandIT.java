@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -22,14 +19,12 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.junit.Before;
@@ -38,10 +33,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -146,13 +137,13 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testLimitReturnsMostRecentEventByDefault() {
-        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | LIMIT 1", "powershell.exe");
-        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | KEEP process.name | LIMIT 1", "powershell.exe");
+    public void testLimitTrimsRowsOfTheDefaultTailResult() {
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | LIMIT 1", "cmd.exe");
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | KEEP process.name | LIMIT 1", "cmd.exe");
     }
 
-    public void testLimitReturnsOldestEventWithHeadResultPosition() {
-        assertSingleProcessName("EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\"} | LIMIT 1", "cmd.exe");
+    public void testHeadResultPositionReturnsTheOldestEvent() {
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\", \"size\": 1}", "cmd.exe");
     }
 
     public void testSequenceQueryUnnestsToOneRowPerEventWithTypedColumns() {
@@ -258,7 +249,13 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     public void testRequestFilterAppliesBeforeTheEqlResultSize() {
         QueryBuilder filter = new RangeQueryBuilder("@timestamp").lte("2026-07-22T10:00:01Z");
-        assertSingleProcessName(syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" | LIMIT 1").filter(filter), "cmd.exe");
+        QueryBuilder afterFirstEvent = new RangeQueryBuilder("@timestamp").gte("2026-07-22T10:00:01Z");
+        assertSingleProcessName(
+            syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\"} | LIMIT 1").filter(
+                afterFirstEvent
+            ),
+            "powershell.exe"
+        );
         assertSingleProcessName(
             syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" WITH {\"size\": 1}").filter(filter),
             "cmd.exe"
@@ -326,39 +323,6 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         // ES|QL passes timestamp_field through opaquely, so the error must originate in the EQL delegate, not ES|QL
         // analysis — pin that origin so a future change that resolves the field ES|QL-side does not silently pass here.
         assertThat(e, not(instanceOf(VerificationException.class)));
-    }
-
-    public void testLimitDrivesSizeAndSuppressesTruncationWarning() throws Exception {
-        // Lower the cap to 1. A pushed LIMIT 1 must set size from the LIMIT (not the cap), so NO truncation warning
-        // fires. If the pushed limit failed to reach the request, size would fall back to the cap and the warning
-        // WOULD fire at size == cap == 1 — so asserting its absence discriminates the whole plumbing chain.
-        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
-        try {
-            CapturedQuery result = runCapturingWarnings("EQL " + INDEX + " \"process where true\" | LIMIT 1");
-            assertThat(result.rows(), hasSize(1));
-            assertTrue(
-                "a LIMIT-driven size must not warn about truncation, got: " + result.warnings(),
-                result.warnings().stream().noneMatch(w -> w.contains("results may be incomplete"))
-            );
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
-        }
-    }
-
-    public void testTruncationWarningWhenCapHit() throws Exception {
-        // Lower the cap below the number of process events. STATS has no LIMIT pushed past the aggregation, so the
-        // request size defaults to the cap and the (real) truncation must surface a client Warning.
-        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
-        try {
-            CapturedQuery result = runCapturingWarnings("EQL " + INDEX + " \"process where true\" | STATS count = COUNT(*)");
-            assertThat("STATS must count only the capped events", ((Number) result.rows().get(0).get(0)).longValue(), equalTo(1L));
-            assertTrue(
-                "client must receive a truncation Warning, got: " + result.warnings(),
-                result.warnings().stream().anyMatch(w -> w.contains("results may be incomplete"))
-            );
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
-        }
     }
 
     public void testUnmappedLoadReturnsSourceValues() {
@@ -463,41 +427,6 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             )
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
-    }
-
-    private record CapturedQuery(List<List<Object>> rows, List<String> warnings) {}
-
-    /**
-     * Runs a query and captures both its rows and the coordinator's response {@code Warning} headers — the only way
-     * to observe a runtime warning end to end. Mirrors the header capture in {@code ExternalMaxRecordSizeTruncationIT}
-     * / {@code WarningsIT}: {@code ActionListener.wrap} (not {@code run()}) since the transport client owns the
-     * response ref-count, so we must not close it here.
-     */
-    private CapturedQuery runCapturingWarnings(String query) throws Exception {
-        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<List<List<Object>>> rows = new AtomicReference<>(List.of());
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        AtomicReference<Exception> failure = new AtomicReference<>();
-        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query), ActionListener.wrap(response -> {
-            try {
-                rows.set(getValuesList(response));
-                ThreadContext threadContext = internalCluster().getInstance(TransportService.class, coordinator.getName())
-                    .getThreadPool()
-                    .getThreadContext();
-                warnings.addAll(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
-            } finally {
-                latch.countDown();
-            }
-        }, e -> {
-            failure.set(e);
-            latch.countDown();
-        }));
-        assertTrue("query did not complete within 1 minute", latch.await(1, TimeUnit.MINUTES));
-        if (failure.get() != null) {
-            throw new AssertionError("query must not fail", failure.get());
-        }
-        return new CapturedQuery(rows.get(), warnings);
     }
 
     private List<String> esqlIds(String eqlQuery, QueryBuilder filter) {

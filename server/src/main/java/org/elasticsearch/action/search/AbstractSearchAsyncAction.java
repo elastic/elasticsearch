@@ -484,7 +484,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
-        final boolean retriable = TransportActions.isRetriableShardLevelException(e);
+        final boolean retriable = TransportActions.isRetriableShardLevelException(e, shardIt.getSearchContextId());
         logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s] retriable [%s]", shard, request, lastShard, retriable), e);
         if (lastShard == false && retriable) {
             logger.debug("Retrying shard [{}] with target [{}]", shard.getShardId(), nextShard);

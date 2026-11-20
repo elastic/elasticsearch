@@ -35,16 +35,20 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.store.CacheMissWaitMetrics;
 import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.DirectoryMetricsTests;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -87,8 +91,8 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL;
 import static org.elasticsearch.action.search.AbstractSearchAsyncAction.INTERNAL_PARTIAL_RESULTS_CANCEL_REASON;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CACHE_MISS_WAIT_HISTOGRAM_NAME;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.STORE_BYTES_READ_HISTOGRAM_NAME;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
@@ -106,6 +110,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private TestThreadPool threadPool;
     private TransportService mockTransportService;
     private RecordingMeterRegistry meterRegistry;
+    /** The attributes the actions created by {@code createAction} record their search response metrics with. */
+    private Map<String, Object> searchRequestAttributes = Map.of();
     /** The cluster state the actions under test are created with; tests that need restores in it replace it. */
     private ClusterState clusterState = ClusterState.EMPTY_STATE;
 
@@ -249,7 +255,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             searchResponseMetrics,
-            Map.of(),
+            searchRequestAttributes,
             false
         ) {
             @Override
@@ -358,7 +364,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
-        assertEquals(numFailures, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(numFailures, searchPhaseExecutionException.shardFailures().size());
         for (ShardSearchFailure shardSearchFailure : searchPhaseExecutionException.shardFailures()) {
             assertThat(shardSearchFailure.getCause(), instanceOf(IllegalArgumentException.class));
         }
@@ -379,7 +385,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("message", searchPhaseExecutionException.getMessage());
         assertEquals("test", searchPhaseExecutionException.getPhaseName());
-        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(0, searchPhaseExecutionException.shardFailures().size());
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
         assertEquals(nodeLookups, resolvedNodes);
         assertEquals(requestIds, releasedContexts);
@@ -413,7 +419,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());
         assertEquals("query", searchPhaseExecutionException.getPhaseName());
-        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
+        assertEquals(0, searchPhaseExecutionException.shardFailures().size());
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
     }
 
@@ -559,13 +565,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
             action.doRun(Map.of(shardIt, 0, other, 1));
 
-            final ShardSearchFailure[] failures = action.buildShardFailures();
-            assertThat(failures, arrayWithSize(2));
-            final var restoringFailure = Arrays.stream(failures).filter(f -> f.shard().getShardId().equals(restoring.shardId())).findAny();
+            List<ShardSearchFailure> failures = action.buildShardFailures();
+            assertThat(failures, hasSize(2));
+            final var restoringFailure = failures.stream().filter(f -> f.shard().getShardId().equals(restoring.shardId())).findAny();
             assertTrue(restoringFailure.isPresent());
             assertThat(restoringFailure.get().getCause(), instanceOf(ShardRestoringException.class));
             assertThat(restoringFailure.get().status(), equalTo(RestStatus.FORBIDDEN));
-            final var otherFailure = Arrays.stream(failures).filter(f -> f.shard().getShardId().equals(other.shardId())).findAny();
+            final var otherFailure = failures.stream().filter(f -> f.shard().getShardId().equals(other.shardId())).findAny();
             assertTrue(otherFailure.isPresent());
             assertThat(otherFailure.get().getCause(), instanceOf(NoShardAvailableActionException.class));
             assertThat(otherFailure.get().status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
@@ -590,11 +596,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             action.onShardFailure(0, target, new ShardRestoringException("index", randomUUID()));
             action.onShardFailure(1, target, new ShardNotFoundException(shardId));
 
-            final ShardSearchFailure[] failures = action.buildShardFailures();
-            assertThat(failures[0].getCause(), instanceOf(ShardRestoringException.class));
-            assertThat(failures[0].status(), equalTo(RestStatus.FORBIDDEN));
-            assertThat(failures[1].getCause(), instanceOf(NoShardAvailableActionException.class));
-            assertThat(failures[1].status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            List<ShardSearchFailure> failures = action.buildShardFailures();
+            assertThat(failures.get(0).getCause(), instanceOf(ShardRestoringException.class));
+            assertThat(failures.get(0).status(), equalTo(RestStatus.FORBIDDEN));
+            assertThat(failures.get(1).getCause(), instanceOf(NoShardAvailableActionException.class));
+            assertThat(failures.get(1).status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
     }
 
@@ -614,7 +620,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             )
         );
         PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(
-            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY)
+            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), List.of())
         );
 
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
@@ -853,6 +859,56 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertFalse("onShardGroupFailure must not fire when retrying", groupFailureFired.get());
     }
 
+    public void testMissingContextIsRetriedOnlyForRetryableContextIds() {
+        var retryableContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), UUIDs.randomBase64UUID());
+        assertTrue("the context may exist on another copy", retriesAfterMissingContext(retryableContextId, false));
+        assertFalse("there is no other copy left", retriesAfterMissingContext(retryableContextId, true));
+        assertFalse("no context id", retriesAfterMissingContext(null, false));
+        var nonRetryableContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+        assertFalse("the context cannot be rebuilt on another copy", retriesAfterMissingContext(nonRetryableContextId, false));
+    }
+
+    /**
+     * Fails the first (or, with {@code failOnLastCopy}, the second and last) of two copies of a shard with a
+     * {@link SearchContextMissingException} and returns whether the other copy is tried.
+     */
+    private boolean retriesAfterMissingContext(ShardSearchContextId contextId, boolean failOnLastCopy) {
+        SearchShardIterator shardIt = new SearchShardIterator(
+            null,
+            new ShardId("index", "_na_", 0),
+            List.of("node1", "node2"),
+            null,
+            contextId,
+            contextId == null ? null : TimeValue.timeValueMinutes(1),
+            false,
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        SearchShardTarget target = shardIt.nextOrNull();
+        if (failOnLastCopy) {
+            target = shardIt.nextOrNull();
+        }
+        AtomicInteger retryCount = new AtomicInteger();
+        AtomicBoolean groupFailureFired = new AtomicBoolean();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
+                new SearchRequest().allowPartialSearchResults(true),
+                phaseResults,
+                retryCount,
+                groupFailureFired
+            );
+            var missingContext = new SearchContextMissingException(
+                new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong())
+            );
+            action.onShardFailure(0, target, shardIt, missingContext);
+        } finally {
+            // createAction starts a new thread pool and transport service on every call, and only the last ones are closed after the test
+            cleanTransportService();
+        }
+        assertEquals("the shard fails exactly when it is not retried", retryCount.get() == 0, groupFailureFired.get());
+        return retryCount.get() > 0;
+    }
+
     public void testOnShardFailure_IgnoresInternalTaskCancelledException() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -894,8 +950,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
         // Confirm that we include the non-TaskCancelledException and use the appropriate status code
-        assertThat(searchPhaseExecutionException.shardFailures(), arrayWithSize(1));
-        assertThat(searchPhaseExecutionException.shardFailures()[0].getCause(), equalTo(nonInternalException));
+        assertThat(searchPhaseExecutionException.shardFailures(), hasSize(1));
+        assertThat(searchPhaseExecutionException.shardFailures().getFirst().getCause(), equalTo(nonInternalException));
         assertThat(searchPhaseExecutionException.getMessage(), containsString("Partial shards failure"));
         assertThat(searchPhaseExecutionException.status(), equalTo(ExceptionsHelper.status(nonInternalException)));
         assertEquals(nodeLookups, resolvedNodes);
@@ -939,8 +995,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
         // Confirm that we include only the first non-internal TaskCancelledException and use its status code
-        assertThat(searchPhaseExecutionException.shardFailures(), arrayWithSize(1));
-        assertThat(searchPhaseExecutionException.shardFailures()[0].getCause(), equalTo(nonInternalCancel.get()));
+        assertThat(searchPhaseExecutionException.shardFailures(), hasSize(1));
+        assertThat(searchPhaseExecutionException.shardFailures().getFirst().getCause(), equalTo(nonInternalCancel.get()));
         assertThat(searchPhaseExecutionException.getMessage(), containsString("Partial shards failure"));
         assertThat(searchPhaseExecutionException.status(), equalTo(nonInternalCancel.get().status()));
         assertEquals(nodeLookups, resolvedNodes);
@@ -996,7 +1052,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertThat(searchPhaseExecutionException.getSuppressed(), emptyArray());
-        assertThat(searchPhaseExecutionException.shardFailures(), emptyArray());
+        assertThat(searchPhaseExecutionException.shardFailures(), empty());
         // Confirm that the placeholder exception is used as the cause and that the status is INTERNAL_SERVER_ERROR
         assertThat(searchPhaseExecutionException.getCause().getMessage(), equalTo(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL));
         assertThat(searchPhaseExecutionException.getMessage(), containsString(ALL_SHARDS_FAILED_DUE_TO_INTERNAL_CANCEL));
@@ -1117,6 +1173,93 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 .getMeasurements(InstrumentType.LONG_HISTOGRAM, STORE_BYTES_READ_HISTOGRAM_NAME);
             assertThat(measurements, empty());
         }
+    }
+
+    public void testRecordStoreMetricsReportsCacheMissWaitInMilliseconds() {
+        // 3.5 ms: a fractional millisecond must survive, a long histogram would have recorded 3
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 3_500_000));
+        assertThat(measurements, hasSize(1));
+        assertTrue(measurements.get(0).isDouble());
+        assertThat(measurements.get(0).getDouble(), equalTo(3.5));
+    }
+
+    public void testRecordStoreMetricsSkipsCacheMissWaitWhenThereWasNone() {
+        // no blob store cache metric at all, as on a stateful node, and a blob store cache metric that recorded no waits
+        assertThat(recordCacheMissWait(directoryMetricsOf(new DirectoryMetricsTests.Counter()), cacheMissWait(0, 0)), empty());
+    }
+
+    public void testRecordStoreMetricsRecordsCacheMissWaitOfZeroNanos() {
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 0));
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).getDouble(), equalTo(0.0));
+    }
+
+    public void testRecordStoreMetricsRecordsCacheMissWaitWithSearchRequestAttributes() {
+        // the attributes the other search response metrics carry, so the wait can be broken down the same way
+        searchRequestAttributes = Map.of("query_type", "match_all", "target", "datastream");
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait(1, 1_000_000));
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).attributes(), equalTo(searchRequestAttributes));
+    }
+
+    /**
+     * Runs {@code recordStoreMetrics} once for each of {@code calls}, and returns everything recorded to the cache miss wait
+     * histogram. A single action is used for all calls, because each {@code createAction} replaces the test's thread pool.
+     */
+    private List<Measurement> recordCacheMissWait(DirectoryMetrics... calls) {
+        try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
+                new SearchRequest(),
+                results,
+                ActionListener.noop(),
+                true,
+                new AtomicLong()
+            );
+            for (DirectoryMetrics directoryMetrics : calls) {
+                action.recordStoreMetrics(directoryMetrics);
+            }
+            return meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, CACHE_MISS_WAIT_HISTOGRAM_NAME);
+        }
+    }
+
+    private static DirectoryMetrics cacheMissWait(long waits, long waitNanos) {
+        return directoryMetricsOf(new CacheMissWait(waits, waitNanos));
+    }
+
+    /**
+     * Stands in for the blob store cache metric of the stateless plugin, which is not on the classpath of this module. It is
+     * registered under the same name and implements the same interface.
+     */
+    private static class CacheMissWait extends DirectoryMetricsTests.Counter implements CacheMissWaitMetrics {
+        private final long waits;
+        private final long waitNanos;
+
+        CacheMissWait(long waits, long waitNanos) {
+            super(0);
+            this.waits = waits;
+            this.waitNanos = waitNanos;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return DirectoryMetrics.BLOB_STORE_CACHE_METRICS_NAME;
+        }
+
+        @Override
+        public long getWaits() {
+            return waits;
+        }
+
+        @Override
+        public long getWaitTime() {
+            return waitNanos;
+        }
+    }
+
+    private static DirectoryMetrics directoryMetricsOf(DirectoryMetricsTests.Counter metric) {
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(metric.getWriteableName(), metric);
+        return builder.build();
     }
 
     private static DirectoryMetrics storeMetrics(long bytesRead) {

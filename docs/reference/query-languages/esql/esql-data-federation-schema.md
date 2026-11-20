@@ -3,7 +3,7 @@ navigation_title: "Schema inference"
 description: "Learn how ES|QL Data Federation infers, merges, and selects schemas for datasets that span files in external storage."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -16,9 +16,6 @@ A dataset's schema defines the columns and data types that queries can use. A da
 - **Declare every column:** Only the columns you [declare](#declare-a-schema-explicitly) are available, and nothing is inferred.
 - **Declare some columns and infer the rest:** Declared columns override what's inferred for them, and every other column is still inferred.
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 ## Schema sources by file format
 
 The following table shows where each [supported file format](esql-data-federation-file-formats.md) gets its schema and how it names columns:
@@ -30,19 +27,19 @@ The following table shows where each [supported file format](esql-data-federatio
 | CSV and TSV without a header row | Sampled rows | `col0`, `col1`, and so on, by position. The [`column_prefix`](esql-data-federation-dataset-settings.md#csv-column-prefix) setting controls the prefix. |
 | NDJSON | Sampled rows | JSON keys. Nested objects use dotted names, such as `user.id`. |
 
-Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled.
+Parquet metadata can also contain column statistics and bloom filters that let queries skip irrelevant data. For text formats, use `schema_sample_size` for [CSV and TSV](esql-data-federation-dataset-settings.md#csv-schema-sample-size) or [NDJSON](esql-data-federation-dataset-settings.md#ndjson-schema-sample-size) to control how many rows or lines are sampled. Sampling also stops after 32 MiB of decoded bytes, so files with very wide rows can't load an unlimited amount of data onto the coordinating node. If the first record is larger than that limit, the query fails. In that case, declare a schema.
 
 ### How the sample is shared across files [shared-schema-sample]
 ```{applies_to}
 stack: preview 9.6+
 ```
 
-With the `union_by_name` and `strict` [strategies](#choose-a-schema-resolution-strategy), every file a query reads is sampled, and the files split `schema_sample_size` between them. Each file gets `schema_sample_size` divided by the number of files, with that number rounded up to a power of two, and never fewer than `100` rows or lines unless `schema_sample_size` is lower.
+With the `union_by_name` and `strict` [strategies](#choose-a-schema-resolution-strategy), every file a query reads is sampled, and the files split `schema_sample_size` between them. Each file gets `schema_sample_size` divided by the number of files, with that number rounded up to a power of two, and never fewer than `100` rows or lines unless `schema_sample_size` is lower. The 32 MiB decoded-byte cap is split the same way, never fewer than 1 MiB per file.
 
 For example, with the default CSV `schema_sample_size` of `40000`:
 
-- A query over 3 files samples `10000` rows from each.
-- A query over 3000 files samples `100` rows from each, `300000` rows in total.
+- A query over 3 files samples `10000` rows from each, up to 8 MiB decoded.
+- A query over 3000 files samples `100` rows from each, `300000` rows in total, up to 1 MiB decoded per file.
 
 A file's share is the rows or lines sampled from it. A column that first appears after those rows isn't part of the inferred schema, and neither is a type change in an existing column. With `strict`, this means a type difference after the sampled rows isn't caught when the query is planned. The value is read as the inferred type instead, and if it can't be converted, [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides whether the query fails, the row is skipped, or the value becomes null.
 
@@ -50,7 +47,7 @@ A file's share is the rows or lines sampled from it. A column that first appears
 
 When a dataset spans multiple files, [`schema_resolution`](esql-data-federation-dataset-settings.md#schema-resolution) controls how differences between their schemas are reconciled.
 
-{applies_to}`stack: preview 9.6+` The default is `first_file_wins`. Datasets created before `first_file_wins` became the default keep using `union_by_name` when they have no stored `schema_resolution` value.
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` The default is `first_file_wins`. Datasets created before `first_file_wins` became the default keep using `union_by_name` when they have no stored `schema_resolution` value.
 
 {applies_to}`stack: experimental =9.5` The default is `union_by_name`.
 
@@ -58,7 +55,7 @@ The following table compares the available strategies:
 
 | Strategy | Behavior | Use when |
 |---|---|---|
-| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. Columns that exist only in other files aren't included. Only one file's schema is inspected.<br>{applies_to}`stack: preview 9.6+` Other CSV and TSV files [match it by header name](#first-file-wins-csv-tsv). | Files share a schema, and you want the least schema-discovery work. |
+| `first_file_wins` | Reads the schema from the first file after [file ordering](#control-which-file-supplies-the-schema), and reads later files with that schema. Columns that exist only in other files aren't included. Only one file's schema is inspected.<br>{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` Other CSV and TSV files [match it by header name](#first-file-wins-csv-tsv). | Files share a schema, and you want the least schema-discovery work. |
 | `union_by_name` | Inspects every file and merges columns by name. Missing columns contain null values. Compatible types are widened, and incompatible types become `keyword`. | Files can gain or lose columns, and those differences shouldn't fail the query. |
 | `strict` | Inspects every file and requires the same schema, apart from nullability. | Schema drift should fail the query. |
 
@@ -66,7 +63,7 @@ The following table compares the available strategies:
 
 A type mismatch in a later Parquet file doesn't fail the query. If a column's type can't be read as the type from the first file, that column contains null values for the file, and the response includes a warning. The [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) setting doesn't control this case.
 
-{applies_to}`stack: preview 9.6+` If the column is [declared in `mappings`](#declare-a-schema-explicitly), `error_mode` decides instead, and only when a query reads the column:
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` If the column is [declared in `mappings`](#declare-a-schema-explicitly), `error_mode` decides instead, and only when a query reads the column:
 
 - `fail_fast`: The query fails.
 - `null_field`: The column contains null values for that file, and the response includes a warning.
@@ -157,7 +154,7 @@ Files without a modification time sort as the oldest. Equal modification times u
 
 By default, a dataset's schema is inferred from its files. To control column names and types, add an optional `mappings` block to the [create or update request](esql-data-federation-manage-datasets-api.md#create-or-update-a-dataset).
 
-{applies_to}`stack: preview 9.6+` You can also declare columns in the **Schema mappings** step when you [add a dataset in {{kib}}](esql-data-federation-manage-datasets-ui.md#schema-mappings). The step's controls set the same properties:
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` You can also declare columns in the **Schema mappings** step when you [add a dataset in {{kib}}](esql-data-federation-manage-datasets-ui.md#schema-mappings). The step's controls set the same properties:
 
 - **Use mapped fields only** sets `dynamic` to `false`.
 - **Original field name** sets `path`.
@@ -193,7 +190,7 @@ The `mappings` block supports the following properties:
 - `properties`: Columns keyed by their logical name. Each column supports:
   - `type`: Required. The column's data type. Refer to [supported types](#declared-types).
   - `path`: Optional physical column name. Use it to expose a file column under a different logical name. For example, to rename a timestamp column to `@timestamp`.
-    - {applies_to}`stack: preview 9.6+` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
+    - {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` To keep a file column whose name matches a metadata name, rename it here before requesting that name through `METADATA`.
   - `format`: Optional date parsing pattern for a column with type `date` or `date_nanos`. Refer to [date columns](#declared-date-columns).
 - `dynamic`: Controls undeclared columns. The default, `true`, overlays the declared columns on the inferred schema. Set it to `false` to treat the declaration as the complete schema, skip schema inference, and leave undeclared columns unavailable to queries.
 
@@ -236,10 +233,10 @@ The number is read as epoch nanoseconds.
 {{es}} validates the `mappings` block when you create or update a dataset. The request is rejected with a `400` error when:
 
 - A column uses an unsupported type, such as `geo_point`.
-- {applies_to}`stack: preview 9.6+` A column uses the `text` type.
+- {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` A column uses the `text` type.
 - A column includes a mapping parameter other than `type`, `path`, and `format`, such as `ignore_above`.
 - A column sets `format`, but its type isn't `date` or `date_nanos`.
-- {applies_to}`stack: preview 9.6+` The `mappings` block includes `_id`.
+- {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` The `mappings` block includes `_id`.
 
 ### How declared columns match file columns
 
@@ -257,4 +254,4 @@ When a declared column can't be found, it reads as null for each file that lacks
 
 For Parquet, a declared type must match the file's type or be one it can be converted to. An incompatible type makes the query fail. With `dynamic: false`, this check uses one file. With `dynamic: true`, it uses the merged schema.
 
-{applies_to}`stack: preview 9.6+` If another file has a type that can't be read as the declared type, [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides, as described in [How `first_file_wins` handles type mismatches](#first-file-wins-type-mismatches). With `dynamic: true` and `schema_resolution` set to `union_by_name`, the types of every file are known when the query is planned, so `fail_fast` fails the query then, whether or not the query reads the column.
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` If another file has a type that can't be read as the declared type, [`error_mode`](esql-data-federation-dataset-settings.md#error-mode) decides, as described in [How `first_file_wins` handles type mismatches](#first-file-wins-type-mismatches). With `dynamic: true` and `schema_resolution` set to `union_by_name`, the types of every file are known when the query is planned, so `fail_fast` fails the query then, whether or not the query reads the column.

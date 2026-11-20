@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
+import org.elasticsearch.cluster.routing.allocation.SnapshotRestoreAllocationSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
@@ -143,6 +144,8 @@ import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocation
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor;
+import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreAllocationDecider;
+import org.elasticsearch.xpack.stateless.allocation.SnapshotRestoreStorageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessBalancingWeightsFactory;
 import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAllocator;
@@ -229,6 +232,7 @@ import org.elasticsearch.xpack.stateless.recovery.metering.StatelessSearchNodeRe
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
+import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportGetShardWarmingInfoAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardMetrics;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
@@ -396,6 +400,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
     private final SetOnce<EstimatedHeapUsageRecoveryGate> estimatedHeapUsageRecoveryGate = new SetOnce<>();
     private final SetOnce<EstimatedHeapSettings> estimatedHeapSettings = new SetOnce<>();
+    private final SetOnce<StatelessExistingShardsAllocator> existingShardsAllocator = new SetOnce<>();
     private final SetOnce<Client> clientRef = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
@@ -507,10 +512,6 @@ public class StatelessPlugin extends Plugin
     }
 
     private static StatelessThreadPools.ThreadPoolConfig getThreadPoolConfig(Settings settings, boolean hasIndexRole) {
-        // TODO: Consider modifying these pool counts if we change the object store client connections based on node size.
-        // Right now we have 10 threads for snapshots, 1 or 8 threads for translog and 20 or 28 threads for shard thread pools. This is to
-        // attempt to keep the threads below the default client connections limit of 50. This assumption is currently broken by the snapshot
-        // metadata pool having 50 threads. But we will continue to iterate on this numbers and limits.
         final int processors = EsExecutors.allocatedProcessors(settings);
 
         if (hasIndexRole) {
@@ -522,25 +523,35 @@ public class StatelessPlugin extends Plugin
             final int uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
 
             return StatelessThreadPools.ThreadPoolConfig.builder()
-                .shardReadMaxThreads(Math.min(processors * 4, 10))
+                // Shard read threads are used during recovery to read BCC headers.
+                // These reads are generally small, and so we can allow high concurrency
+                // without hitting network/disk throughput limits.
+                // Previously we used `Math.min(processors * 4, 10)` that resulted in
+                // more threads on small nodes with a hard cap.
+                // So we keep this value for small nodes to keep existing behavior.
+                .shardReadMaxThreads(Math.max(Math.min(processors * 4, 10), processors * 2))
+                // Based on production experience 8 is enough for current workloads.
                 .translogThreads(2, Math.min(processors * 2, 8))
+                // Based on production experience 10 is enough for current workloads.
                 .shardWriteThreads(2, Math.min(processors * 4, 10))
                 .clusterStateReadWriteThreads(2, 4)
                 .getVirtualBatchedCompoundCommitChunkThreads(1, Math.min(processors, 4))
                 .fillVirtualBatchedCompoundCommitCacheThreads(0, 1)
-                .prewarmMaxThreads(Math.min(processors * 2, 32))
+                // Similar to `shardReadMaxThreads`, on indexing nodes prewarm reads
+                // are generally small, so we allow high concurrency.
+                .prewarmMaxThreads(processors * 2)
                 .uploadPrewarmThreads(uploadPrewarmMaxThreads / 2, uploadPrewarmMaxThreads)
                 .blobCopyThreads(0, 4)
                 .build();
         } else {
-            // fill vbcc cache threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some
-            // idle threads around to reduce churn and re-use the existing buffers more
             return StatelessThreadPools.ThreadPoolConfig.builder()
                 .shardReadMaxThreads(Math.min(processors * 4, 28))
                 .translogThreads(0, 1)
                 .shardWriteThreads(0, 1)
                 .clusterStateReadWriteThreads(0, 1)
                 .getVirtualBatchedCompoundCommitChunkThreads(0, 1)
+                // fill vbcc cache threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep
+                // some idle threads around to reduce churn and re-use the existing buffers more
                 .fillVirtualBatchedCompoundCommitCacheThreads(Math.max(processors / 2, 2), Math.max(processors, 2))
                 .prewarmMaxThreads(Math.min(processors * 4, 32))
                 .uploadPrewarmThreads(0, 1)
@@ -597,6 +608,7 @@ public class StatelessPlugin extends Plugin
             new ActionHandler(TransportReshardAction.TYPE, TransportReshardAction.class),
             new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
             new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class),
+            new ActionHandler(TransportGetShardWarmingInfoAction.TYPE, TransportGetShardWarmingInfoAction.class),
             new ActionHandler(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
             new ActionHandler(
                 TransportPublishIndexingOperationsHeapMemoryRequirements.INSTANCE,
@@ -612,8 +624,10 @@ public class StatelessPlugin extends Plugin
         var settings = Settings.builder()
             .put(super.additionalSettings())
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED.getKey(), true)
             .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
             .put(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED.getKey(), true)
+            .put(COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT.getKey(), true)
             .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
         settings.put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
             .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0)
@@ -750,12 +764,14 @@ public class StatelessPlugin extends Plugin
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
 
+        components.add(new PluginComponentBinding<>(WarmingRatioProviderFactory.class, warmingRatioProviderFactoryRef.get()));
         final var searchRecoveryTimeoutCalculationService = new SearchRecoveryTimeoutCalculationService(
             cacheService,
             threadPool,
             clusterService.getClusterSettings(),
             clusterService.getSettings(),
-            JvmInfo.jvmInfo().getMem().getHeapMax()
+            JvmInfo.jvmInfo().getMem().getHeapMax(),
+            services.telemetryProvider()
         );
         components.add(searchRecoveryTimeoutCalculationService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(
@@ -895,6 +911,17 @@ public class StatelessPlugin extends Plugin
             .getClusterInfoService()
             .addListener(
                 new SharedCacheCapacityMonitor(
+                    clusterService.getClusterSettings(),
+                    threadPool.relativeTimeInMillisSupplier(),
+                    clusterService::state,
+                    rerouteService
+                )::onNewInfo
+            );
+
+        services.allocationService()
+            .getClusterInfoService()
+            .addListener(
+                new SnapshotRestoreStorageMonitor(
                     clusterService.getClusterSettings(),
                     threadPool.relativeTimeInMillisSupplier(),
                     clusterService::state,
@@ -1293,6 +1320,8 @@ public class StatelessPlugin extends Plugin
             BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED,
             COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
+            SnapshotRestoreAllocationSettings.SNAPSHOT_RESTORE_ALLOCATION_ENABLED,
+            SnapshotRestoreStorageMonitor.REROUTE_INTERVAL_SETTING,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,
             ObjectStoreService.CLIENT_SETTING,
@@ -1407,6 +1436,7 @@ public class StatelessPlugin extends Plugin
             SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING,
             SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING,
+            SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
@@ -1578,7 +1608,8 @@ public class StatelessPlugin extends Plugin
                     projectResolver.get(),
                     bccHeaderReadExecutor.get(),
                     clusterService.get(),
-                    warmingRatioProviderFactoryRef.get()
+                    warmingRatioProviderFactoryRef.get(),
+                    clientRef.get()
                 )
             );
         }
@@ -1806,7 +1837,8 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public void registerDirectoryMetrics(BiConsumer<String, PluggableDirectoryMetricsHolder<?>> registrator) {
-        registrator.accept(StatelessPlugin.NAME, metricHolder);
+        // the same name the metric is deserialized under on the coordinator, so that local and remote shards merge into one entry
+        registrator.accept(BlobStoreCacheDirectoryMetrics.NAME, metricHolder);
     }
 
     protected CodecProvider getCodecProvider(EngineConfig engineConfig) {
@@ -1982,9 +2014,11 @@ public class StatelessPlugin extends Plugin
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         estimatedHeapSettings.set(new EstimatedHeapSettings(clusterSettings));
+        existingShardsAllocator.set(new StatelessExistingShardsAllocator(clusterSettings));
         return List.of(
             new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
+            new SnapshotRestoreAllocationDecider(settings, clusterSettings),
             new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
@@ -1999,7 +2033,7 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
-        return Map.of(StatelessPlugin.NAME, new StatelessExistingShardsAllocator());
+        return Map.of(StatelessPlugin.NAME, existingShardsAllocator.get());
     }
 
     @Override

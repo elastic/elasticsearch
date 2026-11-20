@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 165170
+summary: Let the AlertZero Alert Triage role use its triage decisions index
+type: enhancement

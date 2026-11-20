@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentString;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Shared infrastructure for building a single-partition {@link EscfBatch} from OTLP data whose document
@@ -50,10 +51,10 @@ import java.util.List;
  * that tombstones the partially-written row instead, so a single failed row doesn't force discarding the rest
  * of an otherwise-good batch.
  *
- * <p><b>Extension point for bulk writes:</b> a caller that knows a value is shared by many consecutive rows
- * (e.g. a resource attribute repeated for every data-point group under the same resource) could write it once
- * for a whole row range via the column's positional {@code EscfColumnBuilder.setX(row, value)} API; wiring
- * that up is left for when a caller needs it.
+ * <p><b>Bulk writes:</b> a caller that knows a value is shared by many consecutive rows (e.g. a resource
+ * attribute repeated for every data-point group under the same resource) marks the start of the range with
+ * {@link #prepareFill()}, commits the rows without that value, and then writes it once for the whole range with
+ * the {@code fillX} writers (see {@link #fillLong}).
  */
 public abstract class AbstractOTLPBatchBuilder implements Releasable {
 
@@ -88,6 +89,11 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
     /** Registers (or reuses) the leaf field {@code name} under {@code parentIdx} and returns its column index. */
     protected final int leafField(String name, int parentIdx) {
         return schema.appendLeaf(name, parentIdx);
+    }
+
+    /** Returns the sub-schema of {@code name} under {@code parentIdx}, see {@link SourceSchema#getSubSchema}. */
+    protected final <T> T getSubSchema(int parentIdx, String name, SourceSchema.SubSchemaFactory<T> factory) {
+        return schema.getSubSchema(parentIdx, name, factory);
     }
 
     /**
@@ -190,6 +196,100 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
         catchUp(colIdx, docCount).addArray(array.arrayType(), array.packed());
     }
 
+    // -------------------------------------------------------------------------
+    // Fill writers: one value for a range of already committed rows
+    // -------------------------------------------------------------------------
+
+    /**
+     * Marks the start of a fill range and returns the marker to pass as {@code fillFrom} to the {@code fillX}
+     * writers. Every row committed after this call, up to the moment a {@code fillX} writer is called, is part of
+     * the range. Use for values shared by many consecutive rows (e.g. resource attributes repeated for every
+     * data-point group under the same resource): the value is encoded once and repeated at the byte level instead
+     * of being re-encoded for every row.
+     *
+     * <p>A filled column must not be written by any row of the range through the per-row {@code xxxField}
+     * writers, and the fill must happen between rows, never while a row is partially written: either shows up as
+     * a duplicate field.
+     */
+    public final int prepareFill() {
+        return docCount;
+    }
+
+    /** Writes {@code value} at {@code colIdx} for every row committed since {@code fillFrom}, see {@link #prepareFill}. */
+    public final void fillLong(int colIdx, long value, int fillFrom) {
+        fillValue(colIdx, fillFrom, colBuilder -> colBuilder.addLong(value));
+    }
+
+    /** Writes {@code value} at {@code colIdx} for every row committed since {@code fillFrom}, see {@link #prepareFill}. */
+    public final void fillDouble(int colIdx, double value, int fillFrom) {
+        fillValue(colIdx, fillFrom, colBuilder -> colBuilder.addDouble(value));
+    }
+
+    /** Writes {@code value} at {@code colIdx} for every row committed since {@code fillFrom}, see {@link #prepareFill}. */
+    public final void fillBoolean(int colIdx, boolean value, int fillFrom) {
+        fillValue(colIdx, fillFrom, colBuilder -> colBuilder.addBoolean(value));
+    }
+
+    /**
+     * Writes a UTF-8 string from a raw byte slice at {@code colIdx} for every row committed since {@code fillFrom},
+     * see {@link #prepareFill}.
+     */
+    public final void fillString(int colIdx, byte[] bytes, int offset, int length, int fillFrom) {
+        fillValue(colIdx, fillFrom, colBuilder -> colBuilder.addString(new XContentString.UTF8Bytes(bytes, offset, length)));
+    }
+
+    /** Writes {@code value} at {@code colIdx} for every row committed since {@code fillFrom}, see {@link #prepareFill}. */
+    public final void fillString(int colIdx, String value, int fillFrom) {
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        fillString(colIdx, bytes, 0, bytes.length, fillFrom);
+    }
+
+    /** Writes {@code value} at {@code colIdx} for every row committed since {@code fillFrom}, see {@link #prepareFill}. */
+    public final void fillString(int colIdx, ByteString value, int fillFrom) {
+        byte[] bytes = value.toByteArray();
+        fillString(colIdx, bytes, 0, bytes.length, fillFrom);
+    }
+
+    /**
+     * Writes a packed inline array at {@code colIdx} for every row committed since {@code fillFrom}, see
+     * {@link #prepareFill} and {@link #arrayField}.
+     */
+    public final void fillArray(int colIdx, SourceBatchEncodeHelper.PackedArray array, int fillFrom) {
+        fillValue(colIdx, fillFrom, colBuilder -> colBuilder.addArray(array.arrayType(), array.packed()));
+    }
+
+    /**
+     * Returns {@code true} if {@code colIdx} has already been filled for the range starting at {@code fillFrom}.
+     * The fill counterpart of {@link #hasValue}, for fills whose field name comes from the payload. Always
+     * {@code false} for an empty range, since filling one writes nothing.
+     */
+    public final boolean isFilled(int colIdx, int fillFrom) {
+        return colIdx < builders.size() && builders.get(colIdx).nextAppendRow() > fillFrom;
+    }
+
+    private void fillValue(int colIdx, int fillFrom, Consumer<EscfColumnBuilder> addValue) {
+        assert fillFrom <= docCount : "fill range starts at [" + fillFrom + "] after the last committed row [" + docCount + "]";
+        int numEntriesToFill = docCount - fillFrom;
+        if (numEntriesToFill == 0) {
+            return; // nothing to fill, no rows were added since prepareFill() was called
+        }
+        EscfColumnBuilder colBuilder = catchUp(colIdx, fillFrom);
+        addValue.accept(colBuilder);
+        colBuilder.repeatLastRow(numEntriesToFill - 1);
+    }
+
+    /**
+     * Opens an array value at {@code colIdx} and returns the column builder to stream its elements into via
+     * {@link EscfColumnBuilder#appendLong} or {@link EscfColumnBuilder#appendDouble}. Arrays of different columns
+     * may be open at the same time, but each must be closed with {@link EscfColumnBuilder#endArray} before the
+     * column is written again or the batch is built.
+     */
+    public final EscfColumnBuilder beginArray(int colIdx) {
+        EscfColumnBuilder builder = catchUp(colIdx, docCount);
+        builder.beginArray(docCount);
+        return builder;
+    }
+
     /**
      * Returns {@code true} if {@code colIdx} has already been written as a leaf in the current (uncommitted) row.
      * Callers writing fields whose name comes from the payload (e.g. attribute keys) use this to skip
@@ -209,6 +309,7 @@ public abstract class AbstractOTLPBatchBuilder implements Releasable {
             builders.add(new EscfColumnBuilder(EscfColumnBuilder.CollisionPolicy.SPLIT, recycler));
         }
         EscfColumnBuilder builder = builders.get(colIdx);
+        assert builder.isArrayOpen() == false : "array of [" + schema.getFullPath(colIdx) + "] is still open";
         int gap = targetRow - builder.nextAppendRow();
         if (gap < 0) {
             throw new IllegalArgumentException("Duplicate field [" + schema.getFullPath(colIdx) + "]");

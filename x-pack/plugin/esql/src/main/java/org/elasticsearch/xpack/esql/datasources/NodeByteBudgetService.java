@@ -130,9 +130,12 @@ public final class NodeByteBudgetService implements NodeByteBudget {
                     if (untrackedFail == null) {
                         waiter.tracked = tracker.waitStarted(
                             AdmissionTracker.GATE_BYTES,
-                            lease == null
-                                ? Thread.currentThread().getName() + ":bytes=" + bytes
-                                : "lease#" + lease.startSeq() + ":bytes=" + bytes
+                            QueryConcurrencyBudget.waiterLabel(
+                                lease == null ? null : lease.queryId(),
+                                lease == null
+                                    ? Thread.currentThread().getName() + ":bytes=" + bytes
+                                    : "lease#" + lease.startSeq() + ":bytes=" + bytes
+                            )
                         );
                         waiters.addLast(waiter);
                         if (lease != null) {

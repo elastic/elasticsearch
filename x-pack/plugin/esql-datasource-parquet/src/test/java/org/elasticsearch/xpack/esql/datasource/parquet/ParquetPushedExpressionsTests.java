@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
+import org.apache.parquet.filter2.predicate.Operators;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -25,13 +28,17 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PatternPrefixBound;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -49,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -1517,8 +1525,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
      * temporal read at its range edge, or a format parse failure) makes the decoded null-set larger than the physical
      * one, so {@code eq(col, null)} would prune a row group whose {@code nullCount == 0}. What declines is narrower
      * than "anything that rescales": a narrowing is total, so only a read that can leave a value with no
-     * representation at all declines -- {@code TIMESTAMP(MICROS)}, whose out-of-nanos-range values the decode nulls,
-     * the millis-to-nanos widen of a bare {@code INT64}, and any format parse. Mutating {@code decodeCanNull} to
+     * representation at all declines -- the millis-to-nanos widen of a bare {@code INT64} and any format parse.
+     * {@code TIMESTAMP(MICROS)} declines too, but conservatively rather than necessarily: its declared-{@code date}
+     * decode is a fused pair now and cannot null, and the arm is keyed on the declared type rather than the file's,
+     * which is what a relaxation would have to change first. Mutating {@code decodeCanNull} to
      * {@code declaredFormat != null} reds this.
      */
     public void testIsNullPushdownGateMatchesDecodeCanNullTruthTable() {
@@ -1528,8 +1538,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         record Case(String name, MessageType schema, DataType declared, String format, boolean pushes) {}
         List<Case> cases = List.of(
             // DATETIME: the identity reads over bare / MILLIS push, and so does the NANOS narrowing -- floorDiv is
-            // total over the whole long domain. MICROS is the one decline: its out-of-nanos-range values are nulled in
-            // the decode, before any narrowing.
+            // total over the whole long domain. MICROS is the one decline, and a conservative one: see the javadoc.
             new Case("datetime / bare INT64", int64Ts(null), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATETIME, null, false),
@@ -2006,6 +2015,55 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         assertThat(fp.toString(), containsString("score"));
     }
 
+    public void testDoublePredicateWithSignedZeroOrNanIsNotPushed() {
+        MessageType schema = Types.buildMessage().required(DOUBLE).named("score").named("test");
+        Attribute score = attr("score", DataType.DOUBLE);
+        assertNull("eq(0.0) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, 0.0)));
+        assertNull("eq(-0.0) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, -0.0)));
+        assertNull("eq(NaN) must not reach parquet-java stats", predicateFor(schema, eq("score", DataType.DOUBLE, Double.NaN)));
+        assertNull(
+            "gte(0.0) must not reach parquet-java stats",
+            predicateFor(schema, new GreaterThanOrEqual(Source.EMPTY, score, lit(0.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "lte(-0.0) must not reach parquet-java stats",
+            predicateFor(schema, new LessThanOrEqual(Source.EMPTY, score, lit(-0.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "IN containing 0.0 must not reach parquet-java stats",
+            predicateFor(schema, new In(Source.EMPTY, score, List.of(lit(0.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE))))
+        );
+        assertNull(
+            "NOT(eq(0.0)) declines because the inner does",
+            predicateFor(schema, new Not(Source.EMPTY, eq("score", DataType.DOUBLE, 0.0)))
+        );
+        assertNull(
+            "notEq(5.0) can drop a {5.0, NaN} group",
+            predicateFor(schema, new NotEquals(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null))
+        );
+        assertNull(
+            "NOT(gt(5.0)) inverts to lte and can drop {6.0, NaN}",
+            predicateFor(schema, new Not(Source.EMPTY, new GreaterThan(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null)))
+        );
+        assertNull("NOT(eq(5.0)) inverts to notEq", predicateFor(schema, new Not(Source.EMPTY, eq("score", DataType.DOUBLE, 5.0))));
+        assertNull(
+            "NOT(IN(5.0, 6.0)) inverts to notIn",
+            predicateFor(
+                schema,
+                new Not(Source.EMPTY, new In(Source.EMPTY, score, List.of(lit(5.0, DataType.DOUBLE), lit(6.0, DataType.DOUBLE))))
+            )
+        );
+        assertNotNull("eq(0.5) stays pushed", predicateFor(schema, eq("score", DataType.DOUBLE, 0.5)));
+        assertNotNull(
+            "gt(5.0) of a finite non-zero stays pushed",
+            predicateFor(schema, new GreaterThan(Source.EMPTY, score, lit(5.0, DataType.DOUBLE), null))
+        );
+        assertNotNull(
+            "IN of non-zero finites stays pushed",
+            predicateFor(schema, new In(Source.EMPTY, score, List.of(lit(1.0, DataType.DOUBLE), lit(5.0, DataType.DOUBLE))))
+        );
+    }
+
     // A DECIMAL(scale>0) column reached via a *declared* long/integer/keyword pushed the literal
     // against the column's *unscaled* on-disk stats (e.g. `price = 123` against stats stored as
     // 12300 for scale=2).
@@ -2270,13 +2328,12 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
     // -----------------------------------------------------------------------------------
     // Nested STRUCT pushdown — dotted column names (e.g. event.action) flow through the
-    // same FilterPredicate translation as top-level names. The resolveNestedPrimitive
-    // helper walks the dotted path; FilterApi.binaryColumn / intColumn / longColumn etc.
-    // internally store the name as a multi-segment ColumnPath via ColumnPath.fromDotString,
-    // which is then compared against the multi-segment ColumnDescriptor.getPath() at row
-    // group filter time — so the dotted name must reappear verbatim in the predicate's
-    // toString. A literal top-level field literally named
-    // "event.action" wins over a nested resolution of the same dotted path.
+    // same FilterPredicate translation as top-level names. resolveNestedPrimitive walks
+    // the file schema; ParquetFilterColumns mints a ColumnPath from those segments, not
+    // from FilterApi.fromDotString (which would split a leaf named "event.action").
+    // Assert the segment array, not toString(): both ["event.action"] and ["event","action"]
+    // print as "event.action". A literal top-level field named "event.action" wins over
+    // nested event.action.
     // -----------------------------------------------------------------------------------
     // Nested STRUCT type-shape helpers: each builds a single event-group schema with the
     // requested leaf primitive and logical-type annotation.
@@ -2352,11 +2409,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
         FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
         assertNotNull(fp);
-        // parquet-mr renders the column path with dots in toString — verify the dotted name
-        // round-trips end-to-end through FilterApi.binaryColumn -> ColumnPath.fromDotString.
-        // Note: the BytesRef literal is rendered as raw byte values (Binary{N constant bytes,
-        // [108, ...]}) rather than the ASCII text, so we cannot assert on "login" here.
-        assertThat(fp.toString(), containsString("event.action"));
+        // Nested struct event.action is the path ["event","action"]. toString() also prints
+        // "event.action", so it cannot distinguish this from a one-segment leaf named "event.action".
+        assertArrayEquals(new String[] { "event", "action" }, columnPath(fp));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(fp).getClass());
     }
 
     public void testToFilterPredicateNestedLongRange() {
@@ -2501,7 +2557,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
 
         FilterPredicate fp = new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
         assertNotNull(fp);
-        assertThat(fp.toString(), containsString("a.b.c.d"));
+        assertArrayEquals(new String[] { "a", "b", "c", "d" }, columnPath(fp));
         assertThat(fp.toString(), containsString("42"));
     }
 
@@ -2547,7 +2603,72 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         Expression keywordEq = eq("event.action", DataType.KEYWORD, new BytesRef("login"));
         FilterPredicate keywordPred = new ParquetPushedExpressions(List.of(keywordEq)).toFilterPredicate(schema);
         assertNotNull("literal BINARY 'event.action' wins → KEYWORD pushdown valid", keywordPred);
-        assertThat(keywordPred.toString(), containsString("event.action"));
+        // The predicate must target the one-segment leaf, not the nested INT64 event.action.
+        // FilterApi.binaryColumn("event.action") splits on '.' and would miss this leaf.
+        assertArrayEquals(new String[] { "event.action" }, columnPath(keywordPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(keywordPred).getClass());
+    }
+
+    public void testLiteralDottedNameEqIsOneSegmentPath() {
+        // Flat parquet leaf whose name contains a dot. ES|QL writes this as source.ip (quotes
+        // optional — the parser joins `source.ip` and source.ip to the same name). The pushed
+        // ColumnPath must be one segment or RowGroupFilter looks for nested source → ip and
+        // drops every row group.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("source.ip")
+            .named("test");
+        FilterPredicate fp = predicateFor(schema, eq("source.ip", DataType.KEYWORD, new BytesRef("188.166.20.77")));
+        assertNotNull(fp);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(fp));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(fp).getClass());
+    }
+
+    public void testLiteralDottedNameInAndRangeAndStartsWithAreOneSegmentPath() {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("source.ip")
+            .required(INT32)
+            .named("destination.port")
+            .named("test");
+
+        FilterPredicate inPred = predicateFor(
+            schema,
+            new In(
+                Source.EMPTY,
+                attr("source.ip", DataType.KEYWORD),
+                List.of(lit(new BytesRef("188.166.20.77"), DataType.KEYWORD), lit(new BytesRef("1.2.3.4"), DataType.KEYWORD))
+            )
+        );
+        assertNotNull(inPred);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(inPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(inPred).getClass());
+
+        FilterPredicate rangePred = predicateFor(
+            schema,
+            new Range(
+                Source.EMPTY,
+                attr("destination.port", DataType.INTEGER),
+                lit(442, DataType.INTEGER),
+                false,
+                lit(444, DataType.INTEGER),
+                false,
+                ZoneOffset.UTC
+            )
+        );
+        assertNotNull(rangePred);
+        assertArrayEquals(new String[] { "destination.port" }, columnPath(rangePred));
+        assertEquals(Operators.IntColumn.class, firstColumn(rangePred).getClass());
+
+        FilterPredicate startsPred = predicateFor(
+            schema,
+            new StartsWith(Source.EMPTY, attr("source.ip", DataType.KEYWORD), lit(new BytesRef("188."), DataType.KEYWORD))
+        );
+        assertNotNull(startsPred);
+        assertArrayEquals(new String[] { "source.ip" }, columnPath(startsPred));
+        assertEquals(Operators.BinaryColumn.class, firstColumn(startsPred).getClass());
     }
 
     public void testResolveNestedPrimitiveLiteralWinsOverPath() {
@@ -2954,6 +3075,66 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         );
     }
 
+    /**
+     * A prefix-bearing {@code mv_like} / {@code mv_rlike} has no statistics form; the range it implies
+     * ({@link PatternPrefixBound}, pushed beside it) builds a two-sided bound over a non-repeated BINARY leaf, with the
+     * exclusive upper pushed inclusive as for every {@code mv_in_range}. The pattern itself is NO, so beside it the
+     * pushed predicate is the bound alone.
+     */
+    public void testImpliedPatternPrefixRangeBuildsATwoSidedRangeOnABinaryLeaf() {
+        MessageType schema = Types.buildMessage().required(BINARY).as(stringType()).named("region").named("test");
+        Attribute region = attr("region", DataType.KEYWORD);
+        FilterPredicate expected = FilterApi.and(
+            FilterApi.gtEq(FilterApi.binaryColumn("region"), Binary.fromConstantByteArray("abc".getBytes(StandardCharsets.UTF_8))),
+            FilterApi.ltEq(FilterApi.binaryColumn("region"), Binary.fromConstantByteArray("abd".getBytes(StandardCharsets.UTF_8)))
+        );
+        ParquetFilterPushdownSupport support = new ParquetFilterPushdownSupport();
+        for (Expression pattern : List.of(
+            new MvLike(Source.EMPTY, region, lit(new BytesRef("abc*xyz"), DataType.KEYWORD)),
+            new MvRLike(Source.EMPTY, region, lit(new BytesRef("abc.*xyz"), DataType.KEYWORD))
+        )) {
+            MvInRange bound = PatternPrefixBound.of(pattern);
+            assertNotNull(pattern + " has a prefix", bound);
+            assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(bound));
+            assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(pattern));
+            assertEquals(expected.toString(), predicateFor(schema, bound).toString());
+            assertEquals(expected.toString(), new ParquetPushedExpressions(List.of(bound, pattern)).toFilterPredicate(schema).toString());
+        }
+    }
+
+    /**
+     * A {@code BINARY DECIMAL} infers as {@code double}; declared {@code keyword} it reads {@code "12.34"} while its
+     * statistics hold the unscaled integer bytes. No keyword bound compares against those, the implied range included.
+     */
+    public void testKeywordOverBinaryDecimalBuildsNoValueBound() {
+        MessageType schema = Types.buildMessage().required(BINARY).as(decimalType(2, 9)).named("amount").named("test");
+        Attribute amount = attr("amount", DataType.KEYWORD);
+        MvInRange bound = PatternPrefixBound.of(new MvLike(Source.EMPTY, amount, lit(new BytesRef("12*"), DataType.KEYWORD)));
+        assertNotNull(bound);
+        assertNull("implied range", predicateFor(schema, bound));
+        assertNull("equality", predicateFor(schema, eq("amount", DataType.KEYWORD, new BytesRef("12.34"))));
+        assertNull("IN", predicateFor(schema, new In(Source.EMPTY, amount, List.of(lit(new BytesRef("12.34"), DataType.KEYWORD)))));
+        assertNull("STARTS_WITH", predicateFor(schema, new StartsWith(Source.EMPTY, amount, lit(new BytesRef("12"), DataType.KEYWORD))));
+        assertNotNull("IS NULL reads only the null count", predicateFor(schema, new IsNull(Source.EMPTY, amount)));
+
+        MessageType stringSchema = Types.buildMessage().required(BINARY).as(stringType()).named("amount").named("test");
+        assertNotNull("a string leaf still pushes", predicateFor(stringSchema, bound));
+    }
+
+    /** Statistics are only reachable at a non-repeated leaf, so over a list the implied range builds nothing. */
+    public void testImpliedPatternPrefixRangeBuildsNothingOverAList() {
+        MvInRange overList = PatternPrefixBound.of(
+            new MvLike(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("abc*"), DataType.KEYWORD))
+        );
+        assertNotNull(overList);
+        assertNull("3-level LIST", predicateFor(stringListSchema(), overList));
+        MvInRange overRepeated = PatternPrefixBound.of(
+            new MvRLike(Source.EMPTY, attr("String_list", DataType.KEYWORD), lit(new BytesRef("abc.*"), DataType.KEYWORD))
+        );
+        assertNotNull(overRepeated);
+        assertNull("2-level repeated leaf", predicateFor(repeatedStringSchema(), overRepeated));
+    }
+
     public void testListValuedKeywordBoundIsNotRenderedAsAString() {
         // On a keyword column a list-valued bound does not throw, it stringifies: mv_less(region, ["zzz"]) pushed
         // LTE("[zzz]"), which sorts below "zoo", so the row group holding region=zoo was dropped and the retained
@@ -3022,6 +3203,97 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     /** The predicate {@code expr} alone would push, or {@code null} when it declines. */
     private static FilterPredicate predicateFor(MessageType schema, Expression expr) {
         return new ParquetPushedExpressions(List.of(expr)).toFilterPredicate(schema);
+    }
+
+    /**
+     * Physical {@link org.apache.parquet.hadoop.metadata.ColumnPath} segments of the first leaf
+     * in {@code fp}. {@code toString()} joins with '.', so it cannot tell {@code ["source.ip"]}
+     * from {@code ["source","ip"]}.
+     */
+    private static String[] columnPath(FilterPredicate fp) {
+        return firstColumn(fp).getColumnPath().toArray();
+    }
+
+    private static Operators.Column<?> firstColumn(FilterPredicate fp) {
+        return fp.accept(new FilterPredicate.Visitor<Operators.Column<?>>() {
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Eq<T> eq) {
+                return eq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.NotEq<T> notEq) {
+                return notEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Lt<T> lt) {
+                return lt.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.LtEq<T> ltEq) {
+                return ltEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Gt<T> gt) {
+                return gt.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.GtEq<T> gtEq) {
+                return gtEq.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.In<T> in) {
+                return in.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.NotIn<T> notIn) {
+                return notIn.getColumn();
+            }
+
+            @Override
+            public <T extends Comparable<T>> Operators.Column<?> visit(Operators.Contains<T> contains) {
+                throw new AssertionError("unexpected Contains");
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.And and) {
+                return and.getLeft().accept(this);
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.Or or) {
+                return or.getLeft().accept(this);
+            }
+
+            @Override
+            public Operators.Column<?> visit(Operators.Not not) {
+                return not.getPredicate().accept(this);
+            }
+
+            @Override
+            public <
+                T extends Comparable<T>,
+                U extends org.apache.parquet.filter2.predicate.UserDefinedPredicate<T>> Operators.Column<?> visit(
+                    Operators.UserDefined<T, U> udp
+                ) {
+                throw new AssertionError("unexpected UserDefined");
+            }
+
+            @Override
+            public <
+                T extends Comparable<T>,
+                U extends org.apache.parquet.filter2.predicate.UserDefinedPredicate<T>> Operators.Column<?> visit(
+                    Operators.LogicalNotUserDefined<T, U> udp
+                ) {
+                throw new AssertionError("unexpected LogicalNotUserDefined");
+            }
+        });
     }
 
     private static Expression eq(String name, DataType type, Object value) {

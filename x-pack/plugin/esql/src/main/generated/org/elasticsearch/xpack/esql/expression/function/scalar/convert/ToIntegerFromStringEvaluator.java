@@ -52,7 +52,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendInt(evalValue(vector, p, scratchPad));
@@ -74,7 +74,7 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount, true)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);

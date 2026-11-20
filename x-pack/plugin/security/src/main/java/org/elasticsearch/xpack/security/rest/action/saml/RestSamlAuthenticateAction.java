@@ -81,6 +81,12 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final Input input = PARSER.parse(parser, null);

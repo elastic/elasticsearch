@@ -97,8 +97,16 @@ public class SigtermTerminationHandler implements TerminationHandler {
         this.metrics = metrics;
     }
 
+    /**
+     * Registers the shutdown of this node and waits for its overall status to become {@link SingleNodeShutdownMetadata.Status#COMPLETE},
+     * within the configured timeout.
+     *
+     * @return {@link Outcome#READY} only if the last status polled was {@link SingleNodeShutdownMetadata.Status#COMPLETE}; a failure to
+     *         register the shutdown or to poll its status, or a timeout, yields {@link Outcome#NOT_READY}
+     * @throws RuntimeException if interrupted while waiting, with the interrupt status of the thread restored
+     */
     @Override
-    public void handleTermination() {
+    public Outcome handleTermination() {
         logger.info("handling graceful shutdown request");
         final long started = threadPool.rawRelativeTimeInMillis();
         CountDownLatch latch = new CountDownLatch(1);
@@ -159,6 +167,7 @@ public class SigtermTerminationHandler implements TerminationHandler {
                 );
                 metrics.recordMigrationTime(migrationDuration, migrationCompleted);
             }
+            return isReady(status) ? Outcome.READY : Outcome.NOT_READY;
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(ex);
@@ -375,6 +384,14 @@ public class SigtermTerminationHandler implements TerminationHandler {
             }
         }
 
+    }
+
+    /**
+     * Only the last status polled tells whether the node's shards are safe elsewhere. It is unset if the registration failed. Since
+     * polling stops at {@link SingleNodeShutdownMetadata.Status#COMPLETE}, a failed poll or a timeout leaves an earlier, incomplete one.
+     */
+    private static boolean isReady(SingleNodeShutdownStatus lastStatus) {
+        return lastStatus != null && lastStatus.overallStatus() == SingleNodeShutdownMetadata.Status.COMPLETE;
     }
 
     private static ShutdownStatus getShutdownStatus(boolean failed, SingleNodeShutdownStatus status) {

@@ -235,7 +235,8 @@ class NodeServiceProvider {
             httpServerTransport,
             transportService,
             terminationHandler,
-            actionsToAwaitOnShutdown(pluginsService)
+            actionsToAwaitOnShutdown(pluginsService),
+            drainsOnShutdown(pluginsService)
         );
     }
 
@@ -244,5 +245,12 @@ class NodeServiceProvider {
         return pluginsService.filterPlugins(ShutdownAwarePlugin.class)
             .flatMap(p -> p.getActionsToAwaitOnShutdown().stream())
             .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /** The drains graceful shutdown starts, see {@link ShutdownAwarePlugin#startDrainOnShutdown()}. */
+    static List<ShutdownPrepareService.PluginDrain> drainsOnShutdown(PluginsService pluginsService) {
+        return pluginsService.filterPlugins(ShutdownAwarePlugin.class)
+            .map(p -> new ShutdownPrepareService.PluginDrain(p.getClass().getName(), p::startDrainOnShutdown))
+            .toList();
     }
 }

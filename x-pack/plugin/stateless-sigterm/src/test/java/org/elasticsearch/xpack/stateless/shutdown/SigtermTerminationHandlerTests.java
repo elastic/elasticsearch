@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.readiness.ReadinessRequest;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.readiness.TransportReadinessAction;
@@ -57,6 +58,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -70,8 +72,10 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -163,7 +167,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             );
 
             RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-            new SigtermTerminationHandler(
+            final var outcome = new SigtermTerminationHandler(
                 client,
                 threadPool,
                 null,
@@ -175,6 +179,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             ).handleTermination();
 
             mockLog.assertAllExpectationsMatched();
+            assertThat(outcome, equalTo(TerminationHandler.Outcome.READY));
 
             verify(client, times(1)).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
             verify(client, times(1)).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
@@ -199,7 +204,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
 
         final var meterRegistry = new RecordingMeterRegistry();
-        new SigtermTerminationHandler(
+        final var outcome = new SigtermTerminationHandler(
             client,
             threadPool,
             null,
@@ -209,6 +214,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             nodeId,
             new SigtermShutdownMetrics(meterRegistry)
         ).handleTermination();
+        assertThat(outcome, equalTo(TerminationHandler.Outcome.NOT_READY));
 
         final List<Measurement> shutdownMeasurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHUTDOWN_DURATION_HISTOGRAM);
@@ -243,7 +249,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
 
         final var meterRegistry = new RecordingMeterRegistry();
-        new SigtermTerminationHandler(
+        final var outcome = new SigtermTerminationHandler(
             client,
             threadPool,
             null,
@@ -253,6 +259,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             nodeId,
             new SigtermShutdownMetrics(meterRegistry)
         ).handleTermination();
+        assertThat(outcome, equalTo(TerminationHandler.Outcome.NOT_READY));
 
         final List<Measurement> migrationMeasurements = meterRegistry.getRecorder()
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SigtermShutdownMetrics.SHARD_MIGRATION_DURATION_HISTOGRAM);
@@ -340,7 +347,8 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
 
         // handleTermination blocks on a latch while deferred polls are scheduled. Drive the queue from this thread.
         // First poll runs synchronously on the handler thread and schedules (totalPolls - 1) deferred polls.
-        final var handlerThread = new Thread(handler::handleTermination, "sigterm-handler");
+        final var outcome = new AtomicReference<TerminationHandler.Outcome>();
+        final var handlerThread = new Thread(() -> outcome.set(handler.handleTermination()), "sigterm-handler");
         handlerThread.start();
         assertBusy(() -> assertTrue("first poll should have scheduled the next deferred poll", taskQueue.hasDeferredTasks()));
         for (int i = 0; i < totalPolls - 1; i++) {
@@ -351,6 +359,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         assertFalse("no further deferred polls after overall COMPLETE", taskQueue.hasDeferredTasks());
         assertFalse(taskQueue.hasRunnableTasks());
         safeJoin(handlerThread);
+        assertThat(outcome.get(), equalTo(TerminationHandler.Outcome.READY));
 
         verify(client, times(totalPolls)).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
 
@@ -417,7 +426,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
             }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
 
             final var meterRegistry = new RecordingMeterRegistry();
-            new SigtermTerminationHandler(
+            final var outcome = new SigtermTerminationHandler(
                 client,
                 testThreadPool,
                 null,
@@ -427,6 +436,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                 nodeId,
                 new SigtermShutdownMetrics(meterRegistry)
             ).handleTermination();
+            assertThat(outcome, equalTo(TerminationHandler.Outcome.NOT_READY));
 
             assertShutdownAndMigrationMetrics(meterRegistry, SigtermTerminationHandler.ShutdownStatus.IN_PROGRESS, true, false);
 
@@ -436,6 +446,149 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
         } finally {
             testThreadPool.shutdownNow();
         }
+    }
+
+    /**
+     * A failed status poll after an incomplete status leaves the node not ready.
+     */
+    public void testStatusPollFailureAfterIncompleteStatusIsNotReady() {
+        final TimeValue timeout = timeValueSeconds(10);
+        final String nodeId = randomAlphaOfLength(10);
+        final var polls = new AtomicInteger();
+
+        final var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+        doAnswer(invocation -> {
+            ActionListener<GetShutdownStatusAction.Response> listener = invocation.getArgument(2);
+            if (polls.getAndIncrement() == 0) {
+                listener.onResponse(statusResponse(nodeId, timeout, SingleNodeShutdownMetadata.Status.IN_PROGRESS, true));
+            } else {
+                listener.onFailure(new RuntimeException("get shutdown status failed"));
+            }
+            return null;
+        }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+        final var outcome = new SigtermTerminationHandler(
+            client,
+            threadPool,
+            null,
+            null,
+            TimeValue.timeValueMillis(5),
+            timeout,
+            nodeId,
+            SigtermShutdownMetrics.NOOP
+        ).handleTermination();
+
+        assertThat(outcome, equalTo(TerminationHandler.Outcome.NOT_READY));
+        assertThat(polls.get(), equalTo(2));
+    }
+
+    /**
+     * Completed shard migration is not enough: on timeout, the node is ready only if the overall status was complete.
+     */
+    public void testTimeoutWithMigrationCompleteButOverallIncompleteIsNotReady() {
+        final TimeValue timeout = TimeValue.timeValueMillis(100);
+        final String nodeId = randomAlphaOfLength(10);
+
+        final var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            ActionListener<AcknowledgedResponse> listener = invocation.getArgument(2);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+        doAnswer(invocation -> {
+            ActionListener<GetShutdownStatusAction.Response> listener = invocation.getArgument(2);
+            // plugins never ready, so the overall status never reaches COMPLETE
+            listener.onResponse(statusResponse(nodeId, timeout, SingleNodeShutdownMetadata.Status.COMPLETE, false));
+            return null;
+        }).when(client).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
+
+        final var outcome = new SigtermTerminationHandler(
+            client,
+            threadPool,
+            null,
+            null,
+            TimeValue.timeValueMillis(5),
+            timeout,
+            nodeId,
+            SigtermShutdownMetrics.NOOP
+        ).handleTermination();
+
+        assertThat(outcome, equalTo(TerminationHandler.Outcome.NOT_READY));
+    }
+
+    /**
+     * An interrupt while waiting for the shutdown status throws, with the interrupt status restored.
+     */
+    public void testInterruptedWhileWaitingThrows() {
+        final var putSent = new CountDownLatch(1);
+        final var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            putSent.countDown(); // never responds, so the handler waits until interrupted
+            return null;
+        }).when(client).execute(eq(PutShutdownNodeAction.INSTANCE), any(), any());
+
+        final var handler = new SigtermTerminationHandler(
+            client,
+            threadPool,
+            null,
+            null,
+            TimeValue.timeValueMillis(5),
+            TimeValue.timeValueHours(1),
+            randomAlphaOfLength(10),
+            SigtermShutdownMetrics.NOOP
+        );
+        final var thrown = new AtomicReference<RuntimeException>();
+        final var interruptedAtEnd = new AtomicBoolean();
+        final var handlerThread = new Thread(() -> {
+            try {
+                handler.handleTermination();
+            } catch (RuntimeException e) {
+                thrown.set(e);
+                interruptedAtEnd.set(Thread.currentThread().isInterrupted());
+            }
+        }, "sigterm-handler");
+        handlerThread.start();
+        safeAwait(putSent);
+        handlerThread.interrupt();
+        safeJoin(handlerThread);
+
+        assertThat(thrown.get(), notNullValue());
+        assertThat(thrown.get().getCause(), instanceOf(InterruptedException.class));
+        assertTrue(interruptedAtEnd.get());
+    }
+
+    private static GetShutdownStatusAction.Response statusResponse(
+        String nodeId,
+        TimeValue gracePeriod,
+        SingleNodeShutdownMetadata.Status migrationStatus,
+        boolean pluginsReady
+    ) {
+        return new GetShutdownStatusAction.Response(
+            Collections.singletonList(
+                new SingleNodeShutdownStatus(
+                    SingleNodeShutdownMetadata.builder()
+                        .setNodeId(nodeId)
+                        .setNodeEphemeralId(nodeId)
+                        .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
+                        .setReason("test")
+                        .setStartedAtMillis(randomNonNegativeLong())
+                        .setGracePeriod(gracePeriod)
+                        .build(),
+                    new ShutdownShardMigrationStatus(migrationStatus, 0, 0, 0),
+                    ShutdownPersistentTasksStatus.fromRemainingTasks(0, 0),
+                    new ShutdownPluginsStatus(pluginsReady),
+                    ShutdownShardSnapshotsStatus.fromShardCounts(0, 0, 0)
+                )
+            )
+        );
     }
 
     public void testShutdownStalledRequiresPolling() {
@@ -757,7 +910,7 @@ public class SigtermTerminationHandlerTests extends ESTestCase {
                 nodeId,
                 new SigtermShutdownMetrics(meterRegistry)
             );
-            handler.handleTermination();
+            assertThat(handler.handleTermination(), equalTo(TerminationHandler.Outcome.READY));
 
             verify(client, times(initialRounds)).execute(eq(GetShutdownStatusAction.INSTANCE), any(), any());
             assertShutdownAndMigrationMetrics(meterRegistry, SigtermTerminationHandler.ShutdownStatus.COMPLETE, false, true);

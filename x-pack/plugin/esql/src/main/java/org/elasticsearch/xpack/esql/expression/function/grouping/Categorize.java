@@ -176,6 +176,18 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         out.writeNamedWriteable(field);
         if (out.getTransportVersion().supports(ESQL_CATEGORIZE_OPTIONS)) {
             out.writeOptionalNamedWriteable(options);
+        } else if (options != null) {
+            // Dropping the options would silently categorize with defaults on the peer.
+            // IllegalArgumentException returns a 400 to the user, which is what we want here.
+            throw new IllegalArgumentException(
+                "["
+                    + sourceText()
+                    + "] with options is not supported in peer node's version ["
+                    + out.getTransportVersion()
+                    + "]. Upgrade to version ["
+                    + ESQL_CATEGORIZE_OPTIONS
+                    + "] or newer."
+            );
         }
     }
 

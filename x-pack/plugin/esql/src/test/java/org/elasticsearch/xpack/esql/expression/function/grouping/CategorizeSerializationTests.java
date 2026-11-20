@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -38,6 +40,30 @@ public class CategorizeSerializationTests extends AbstractExpressionSerializatio
             case 1 -> options = randomValueOtherThan(options, () -> randomBoolean() ? null : randomOptions());
         }
         return new Categorize(source, field, options);
+    }
+
+    /**
+     * #164781: writing to a peer that predates the options transport version
+     * must fail loudly instead of silently categorizing with defaults.
+     */
+    public void testBackcompatSerializationFailsFastWithOptionsOnOlderPeer() throws Exception {
+        Categorize withOptions = new Categorize(
+            Source.synthetic("CATEGORIZE(field, options)"),
+            randomChildSupportedOn(TransportVersion.CURRENT),
+            randomOptions()
+        );
+        // Any released version that predates esql_categorize_options.
+        TransportVersion olderPeer = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("esql_categorize_options")
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> copyInstance(withOptions, olderPeer)
+        );
+        assertTrue(
+            e.getMessage(),
+            e.getMessage().contains("with options is not supported in peer node's version")
+        );
     }
 
     private MapExpression randomOptions() {

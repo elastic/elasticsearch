@@ -390,6 +390,49 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(data.get("location"), equalTo(Map.of("lat", 37.751d, "lon", -97.822d)));
     }
 
+    /**
+     * Later processors in a pipeline (and scripts) may modify the document in place, so both the result map written to the target
+     * field and the nested {@code location} map (lat/lon) must be mutable. An immutable map such as {@link Map#of} anywhere in
+     * that structure could easily surface as an {@link UnsupportedOperationException} in users' pipelines, so let's avoid them.
+     */
+    public void testResultMapsAreMutable() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomBoolean() ? GEOIP_TYPE : IP_LOCATION_TYPE,
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            createLookup("GeoLite2-City.mmdb"),
+            "target_field",
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "8.8.8.8");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) ingestDocument.getSource().get("target_field");
+        assertThat(data, notNullValue());
+
+        // the nested location map must be mutable
+        Object location = data.get("location");
+        assertThat(location, notNullValue());
+        assertThat(location, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> locationMap = (Map<String, Object>) location;
+        locationMap.put("extra", "value");
+        assertThat(locationMap, hasEntry("extra", "value"));
+        locationMap.remove("extra");
+
+        // the top-level result map must also be mutable
+        data.put("extra", "value");
+        assertThat(data, hasEntry("extra", "value"));
+        data.remove("extra");
+    }
+
     public void testListFirstOnlyNoMatches() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
             GEOIP_TYPE,

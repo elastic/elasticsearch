@@ -51,8 +51,6 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
     private static final Set<String> KNOWN_GET_ROOT_PROJECT = [
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
         "org.elasticsearch.gradle.internal.ElasticsearchBasePlugin",
-        "org.elasticsearch.gradle.internal.InternalBwcGitPlugin",
-        "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin",
         "org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin",
         "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
@@ -60,7 +58,6 @@ class IsolatedProjectsArchUnitSpec extends AbstractArchUnitSpec {
 
     private static final Set<String> KNOWN_GET_ALL_SUB_PROJECTS = [
         "org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin",
-        "org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin",
         "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
         "org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin",
     ] as Set

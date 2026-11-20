@@ -202,8 +202,11 @@ public final class EscfBulkWriter implements Releasable {
                 fail(e);
                 return;
             }
-            if (tripped || nodeBelowLimit() == false) {
+            if (tripped) {
                 takeBack();
+            } else if (nodeBelowLimit() == false) {
+                // the others give theirs on their next rows, or when the writer is idle
+                giveBack();
             } else {
                 giveBackIfIdle();
             }
@@ -519,7 +522,8 @@ public final class EscfBulkWriter implements Releasable {
         while (true) {
             Chunk chunk;
             synchronized (this) {
-                if (chunks.isEmpty() || failure != null || bulksInFlight >= policy.maxBulksInFlight()) {
+                int slots = nodeBelowLimit() ? policy.maxBulksInFlight() : 1;
+                if (chunks.isEmpty() || failure != null || bulksInFlight >= slots) {
                     return;
                 }
                 chunk = chunks.poll();

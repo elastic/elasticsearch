@@ -317,16 +317,19 @@ public class EscfBulkWriterTests extends ESTestCase {
             assertTrue(producers.get(i).hasCapacity());
             producers.get(i).add(page(i, 1), false);
         }
-        // the row that reached the limit sent the open batches
-        assertThat(client.bulks, hasSize(3));
+        // the row that reached the limit gave its batch, which waits since one bulk is in flight
+        assertThat(client.bulks, hasSize(1));
         assertThat(coordinatingBytes(service), equalTo(3 * oneRow));
         for (EscfBulkWriter.Producer producer : producers) {
             assertFalse(producer.hasCapacity());
         }
         // two rows are below the limit
         answer();
+        assertThat(ids(client.bulks.getFirst()), equalTo(List.of("id-2")));
         assertTrue(producers.get(0).hasCapacity());
+        // the idle writer takes the batch left open
         answer();
+        assertThat(ids(client.bulks.getFirst()), equalTo(List.of("id-1")));
         answer();
         Releasables.close(producers);
     }
@@ -334,17 +337,24 @@ public class EscfBulkWriterTests extends ESTestCase {
     public void testNodeUsageLeavesOneBulkInFlight() {
         EscfBulkService service = service(UNBOUNDED);
         EscfBulkWriter writer = writer(service, new EscfBulkWriter.Policy(8, MAX_TARGET, ONE_MB));
-        // other bulks of the node take the writer's share
-        Releasable others = service.indexingPressure().markCoordinatingOperationStarted(1, ONE_MB, true);
-        try (EscfBulkWriter.Producer producer = writer.newProducer()) {
-            assertTrue(producer.hasCapacity());
-            producer.add(page(0, 1), false);
-            assertThat(client.bulks, hasSize(1));
-            assertFalse(producer.hasCapacity());
-            answer();
-            assertTrue(producer.hasCapacity());
-        }
-        others.close();
+        // primary and replica bulks of the node take the writer's share together, neither alone
+        IndexingPressure pressure = service.indexingPressure();
+        Releasable primary = pressure.validateAndMarkPrimaryOperationStarted(1, ONE_MB / 2, 0, true, false);
+        Releasable replica = pressure.markReplicaOperationStarted(1, ONE_MB / 2, true);
+        EscfBulkWriter.Producer first = writer.newProducer();
+        EscfBulkWriter.Producer second = writer.newProducer();
+        // both pass while the writer is idle, but only one bulk goes
+        assertTrue(first.hasCapacity());
+        assertTrue(second.hasCapacity());
+        first.add(page(0, 1), false);
+        second.add(page(1, 1), false);
+        assertThat(client.bulks, hasSize(1));
+        assertFalse(first.hasCapacity());
+        answer();
+        assertThat(client.bulks, hasSize(1));
+        answer();
+        assertTrue(first.hasCapacity());
+        Releasables.close(first, second, primary, replica);
     }
 
     public void testRowsGoToTheBatchInOrder() {

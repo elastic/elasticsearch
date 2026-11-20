@@ -339,8 +339,14 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * is as visible as a status change and is pinned the same way -- this PR's own CSV faults moved from
      * {@code parsing_exception} to {@code external_client_exception}, which nothing would otherwise have caught.
      * <p>
-     * The two empty-object cells moved the same way, and their move is worth recording because the prose they
-     * answer with did not change -- only the type. They read {@code illegal_argument_exception} because
+     * The two empty-object cells moved the same way, and their move is worth recording because what the user reads
+     * moved with it. The diagnosis sentence is retained word for word, but it no longer arrives bare: a typed refusal
+     * is handed back as it stands, so {@code error.reason} now opens with the {@code Malformed external data:} prefix
+     * {@code MALFORMED_DATA} renders, where the untyped argument error the resolver forwarded carried the diagnosis
+     * alone. A client matching a whole reason string sees a different one; a client reading the diagnosis inside it
+     * does not. This map pins the type, and no map here pins the reason -- the reason is held only to the invariants
+     * above, which refuse a collision between conditions and a JVM type name, and a prefix breaks neither.
+     * They read {@code illegal_argument_exception} because
      * the refusal behind them was a bare {@code IOException}, which {@code FileSourceFactory} re-raises
      * untyped; the resolver forwards an untyped message only past its storage-path guard, so an object a user is
      * entitled to call {@code logs.amazonaws.com.csv} lost the whole diagnosis to a substring match on a basename

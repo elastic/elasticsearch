@@ -6705,6 +6705,16 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(noHeader.getMessage(), containsString("file [logs.amazonaws.com.csv] has no schema line"));
 
+        // Typing them keeps the diagnosis word for word and changes what precedes it: the resolver forwarded an
+        // untyped message bare, a typed one carries the condition's own prefix. A client matching a whole reason
+        // string therefore sees a different one, which is why it is pinned here rather than left to be noticed.
+        for (ExternalClientException refusal : List.of(noRows, noHeader)) {
+            assertTrue(
+                "a typed refusal must open with the condition's prefix, got: " + refusal.getMessage(),
+                refusal.getMessage().startsWith("Malformed external data: ")
+            );
+        }
+
         // What each would have cost the user untyped: the sentence, whole, with nothing in its place.
         for (ExternalClientException refusal : List.of(noRows, noHeader)) {
             assertNull(

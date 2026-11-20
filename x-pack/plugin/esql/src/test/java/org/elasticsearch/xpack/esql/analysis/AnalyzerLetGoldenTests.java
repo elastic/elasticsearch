@@ -51,15 +51,20 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- multiple LET named subqueries, second references first --
+    // -- multiple LET named subqueries, only the second one used --
 
-    public void testLetMultipleBindingsSecondUsed() {
-        runGoldenTest("""
+    public void testLetMultipleBindingsSecondUsedRejected() {
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement("""
             LET a = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
             LET b = (FROM languages | WHERE language_code > 2 | KEEP language_name, language_code);
             FROM b
             | SORT language_code
-            """, STAGES);
+            """);
+        expectThrows(
+            ParsingException.class,
+            containsString("LET subquery [a] is declared but never referenced"),
+            () -> LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
+        );
     }
 
     // -- chained LET: later named subquery references earlier one --
@@ -137,7 +142,7 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
     public void testViewCannotReferenceLetBindingOutsideItsScope() {
         var query = """
             LET subquery = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name);
-            FROM view
+            FROM view, subquery
             | KEEP language_code, language_name
             """;
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);

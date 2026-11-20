@@ -31,7 +31,9 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -121,9 +123,49 @@ public class LetResolverTests extends ESTestCase {
     // -----------------------------------------------------------------------
 
     public void testUnmatchedNameLeftAsUnresolvedRelation() {
-        LogicalPlan result = parseAndResolveLet("LET known = (FROM some_index); FROM unknown_index");
+        LogicalPlan result = parseAndResolveLet("LET known = (FROM some_index); FROM unknown_index | WHERE a IN (FROM known)");
         // "unknown_index" ≠ "known", should not be substituted
-        assertUnresolvedRelation(result, "unknown_index");
+        assertThat(
+            result.collect(UnresolvedRelation.class).stream().map(ur -> ur.indexPattern().indexPattern()).toList(),
+            contains("unknown_index")
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Unreferenced named subqueries
+    // -----------------------------------------------------------------------
+
+    public void testUnreferencedNamedSubqueryRejected() {
+        expectThrows(
+            ParsingException.class,
+            containsString("line 1:5: LET subquery [unused] is declared but never referenced"),
+            () -> parseAndResolveLet("LET unused = (FROM no_such_index | EVAL x = no_such_fn(y)); ROW a = 1")
+        );
+    }
+
+    public void testSeveralUnreferencedNamedSubqueriesRejected() {
+        expectThrows(
+            ParsingException.class,
+            containsString("LET subqueries [a, c] are declared but never referenced"),
+            () -> parseAndResolveLet("LET a = (FROM idx); LET b = (FROM idx); LET c = (FROM idx); FROM b")
+        );
+    }
+
+    /** A reference from a named subquery that is itself never referenced still counts: only the outer one is reported. */
+    public void testNamedSubqueryReferencedOnlyByUnreferencedOneRejected() {
+        expectThrows(
+            ParsingException.class,
+            containsString("LET subquery [b] is declared but never referenced"),
+            () -> parseAndResolveLet("LET a = (FROM idx); LET b = (FROM a); FROM idx")
+        );
+    }
+
+    public void testNamedSubqueryReferencedOnlyInInSubqueryAccepted() {
+        LogicalPlan result = parseAndResolveLet("LET a = (FROM idx | KEEP x); FROM other | WHERE x IN (FROM a)");
+        assertThat(
+            result.collect(UnresolvedRelation.class).stream().map(ur -> ur.indexPattern().indexPattern()).toList(),
+            contains("other")
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -414,8 +456,11 @@ public class LetResolverTests extends ESTestCase {
     }
 
     public void testTsSourceNotMatchingAnyBindingIsLeftAlone() {
-        LogicalPlan result = parseAndResolveLet("LET b = (FROM idx | LIMIT 10); TS tsdb_index");
-        assertThat(assertUnresolvedRelation(result, "tsdb_index").indexMode(), is(IndexMode.TIME_SERIES));
+        LogicalPlan result = parseAndResolveLet("LET b = (FROM idx | KEEP host); TS tsdb_index | WHERE host IN (FROM b)");
+        List<UnresolvedRelation> relations = result.collect(UnresolvedRelation.class);
+        assertThat(relations, hasSize(1));
+        assertThat(relations.get(0).indexPattern().indexPattern(), equalTo("tsdb_index"));
+        assertThat(relations.get(0).indexMode(), is(IndexMode.TIME_SERIES));
     }
 
     // -----------------------------------------------------------------------
@@ -470,8 +515,12 @@ public class LetResolverTests extends ESTestCase {
      * never matches the named subquery {@code x}. The relation is left for field-caps, which resolves it against indices.
      */
     public void testCurrentBehaviorWildcardPatternDoesNotMatchBinding() {
-        LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM x*");
-        assertUnresolvedRelation(result, "x*");
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM x, x*");
+        assertThat(result, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = ((UnionAll) result).children();
+        assertThat(children, hasSize(2));
+        binding(children.get(0), "x");
+        assertUnresolvedRelation(children.get(1), "x*");
     }
 
     /**
@@ -479,7 +528,11 @@ public class LetResolverTests extends ESTestCase {
      * passed through untouched to index resolution, where it is a no-op because no index matches {@code x}.
      */
     public void testCurrentBehaviorExclusionPatternDoesNotMatchBinding() {
-        LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM sample_data, -x");
-        assertUnresolvedRelation(result, "sample_data,-x");
+        LogicalPlan result = parseAndResolveLet("LET x = (FROM sample_data METADATA _index); FROM x, sample_data, -x");
+        assertThat(result, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = ((UnionAll) result).children();
+        assertThat(children, hasSize(2));
+        binding(children.get(0), "x");
+        assertUnresolvedRelation(children.get(1), "sample_data,-x");
     }
 }

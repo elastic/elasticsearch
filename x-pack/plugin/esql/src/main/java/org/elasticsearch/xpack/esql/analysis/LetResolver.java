@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,15 +95,39 @@ public final class LetResolver {
         // reference would be exponential for chained named subqueries; the sizes are tracked arithmetically instead.
         Map<String, Integer> sizes = new HashMap<>(letBindings.size());
         var allBindings = letBindings.stream().map(LetBinding::name).collect(Collectors.toSet());
+        Set<String> referenced = new HashSet<>();
         for (LetBinding binding : letBindings) {
             // Substitute earlier named subqueries into this named subquery's body (sequential scoping).
             PlanSize bindingSize = new PlanSize(binding.plan(), maxPlanNodesCount, maxPlanNodesSource);
-            var current = substitute(binding.plan(), resolved, sizes, allBindings, bindingSize);
+            var current = substitute(binding.plan(), resolved, sizes, allBindings, referenced, bindingSize);
             resolved.put(binding.name(), current);
             sizes.put(binding.name(), bindingSize.size());
         }
         // Substitute the full map into the main query plan.
-        return substitute(plan, resolved, sizes, allBindings, new PlanSize(plan, maxPlanNodesCount, maxPlanNodesSource));
+        PlanSize planSize = new PlanSize(plan, maxPlanNodesCount, maxPlanNodesSource);
+        LogicalPlan result = substitute(plan, resolved, sizes, allBindings, referenced, planSize);
+        failOnUnreferenced(letBindings, referenced);
+        return result;
+    }
+
+    /**
+     * A named subquery that is never referenced is never resolved, so errors in its body (unknown indices or functions, missing
+     * privileges, type errors) would go unreported. Rejecting it keeps the option to validate or warn about such subqueries
+     * later without breaking queries that were accepted before.
+     */
+    private static void failOnUnreferenced(List<LetBinding> letBindings, Set<String> referenced) {
+        List<LetBinding> unreferenced = letBindings.stream().filter(b -> referenced.contains(b.name()) == false).toList();
+        if (unreferenced.isEmpty()) {
+            return;
+        }
+        List<String> names = unreferenced.stream().map(LetBinding::name).toList();
+        throw new ParsingException(
+            unreferenced.get(0).source(),
+            names.size() == 1
+                ? "LET subquery [{}] is declared but never referenced"
+                : "LET subqueries [{}] are declared but never referenced",
+            names.size() == 1 ? names.get(0) : String.join(", ", names)
+        );
     }
 
     // Only for testing, it names the cluster setting as the source of maxPlanNodesCount
@@ -123,6 +148,7 @@ public final class LetResolver {
         Map<String, LogicalPlan> resolved,
         Map<String, Integer> sizes,
         Set<String> allBindings,
+        Set<String> referenced,
         PlanSize planSize
     ) {
         // transformDownSkipBranch: when a replacement is made, set skipBranch so the replacement
@@ -157,6 +183,7 @@ public final class LetResolver {
                             throw new ParsingException(ur.source(), "Subqueries are not supported in LOOKUP JOIN");
                         }
                         anyMatch = true;
+                        referenced.add(current);
                         // The subquery name is known only here, so carry it to the analyzer,
                         // where METADATA _name answers it and the wrapper is then removed. The wrapper is one more node.
                         result.add(new NamedSubquery(ur.source(), bindingPlan, current));
@@ -201,11 +228,11 @@ public final class LetResolver {
             // plan-node children, so transformDownSkipBranch cannot reach it via the normal child
             // traversal. Substitute into those plans explicitly here.
             LogicalPlan result = p.transformExpressionsOnly(InSubquery.class, inSub -> {
-                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved, sizes, allBindings, planSize);
+                LogicalPlan newSubquery = substitute(inSub.subquery(), resolved, sizes, allBindings, referenced, planSize);
                 return newSubquery != inSub.subquery() ? new InSubquery(inSub.source(), inSub.value(), newSubquery) : inSub;
             });
             return result.transformExpressionsOnly(MultiColumnInSubquery.class, mcsub -> {
-                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved, sizes, allBindings, planSize);
+                LogicalPlan newSubquery = substitute(mcsub.subquery(), resolved, sizes, allBindings, referenced, planSize);
                 return newSubquery != mcsub.subquery() ? new MultiColumnInSubquery(mcsub.source(), mcsub.values(), newSubquery) : mcsub;
             });
         });

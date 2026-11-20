@@ -173,6 +173,10 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         return totalVectors;
     }
 
+    public float estimateFilterSelectivity(Weight filterWeight, List<LeafReaderContext> leaves) throws IOException {
+        return KnnQueryUtils.estimateFilterSelectivityBySampling(filterWeight, leaves, field);
+    }
+
     @Override
     public long totalVectorOps() {
         return vectorOpsCount;

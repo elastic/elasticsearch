@@ -707,6 +707,10 @@ PUT _ingest/pipeline/query_helper_pipeline
 1. The `prompt` field contains the prompt used for the completion task, created with [Painless](docs-content://explore-analyze/scripting/modules-scripting-painless.md). `+ ctx.content` appends the natural language input to the prompt.
 2. The ID of the pre-configured {{infer}} endpoint, which utilizes the [`openai` service](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `completion` task type.
 
+::::{tip}
+The `openai` service can also connect to a locally hosted model or another server that follows the OpenAI API shape. To use one, set the `url` in the `service_settings` of the {{infer}} endpoint. For an example, refer to [Using OpenAI compatible models with the {{infer-cap}} API](docs-content://solutions/search/semantic-search/using-openai-compatible-models.md).
+::::
+
 
 The following API request will simulate running a document through the ingest pipeline created previously:
 

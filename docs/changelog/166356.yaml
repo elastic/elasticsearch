@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166356
+summary: Test DF query memory on paused CSV
+type: enhancement

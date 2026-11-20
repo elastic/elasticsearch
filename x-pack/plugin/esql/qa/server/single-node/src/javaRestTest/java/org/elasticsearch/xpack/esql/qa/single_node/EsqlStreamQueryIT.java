@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -35,6 +39,7 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.parseNdjson;
 import static org.elasticsearch.xpack.esql.EsqlStreamTestUtils.tolerateDefaultLimitWarning;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -273,7 +278,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testErrorFraming() throws IOException {
         ResponseException re = expectThrows(ResponseException.class, () -> EsqlStreamTestUtils.rawStream(client(), """
             {"query": "FROM stream-test | EVAL x = unknown_function(value)"}
-            """, "streaming=true", "format=ndjson"));
+            """));
 
         String contentType = re.getResponse().getEntity().getContentType().getValue();
         assertThat(contentType, containsString("application/x-ndjson"));
@@ -322,46 +327,246 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     public void testBatchSizeRejected() {
-        for (String[] params : new String[][] { { "streaming=true", "format=ndjson", "batch_size=10" }, { "batch_size=10" } }) {
-            ResponseException re = expectThrows(
-                ResponseException.class,
-                () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", params)
-            );
-            assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(re.getMessage(), containsString("[batch_size]"));
-        }
-    }
-
-    public void testNdjsonFormatRequiresStreaming() {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "format=ndjson")
+            containsString("[batch_size]"),
+            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "batch_size=10")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("ndjson"));
     }
 
-    public void testStreamingRequiresNdjsonFormat() {
+    public void testFormatMustBeNdjson() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "streaming=true", "format=csv")
+            containsString("ndjson"),
+            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "format=csv")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("ndjson"));
+
+        Response response = EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "format=ndjson");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    public void testAcceptHeaderMustAllowNdjson() throws IOException {
+        Request request = new Request("POST", "/_query/stream");
+        request.setJsonEntity("{\"query\": \"FROM stream-test | LIMIT 1\"}");
+        tolerateDefaultLimitWarning(request);
+        request.setOptions(request.getOptions().toBuilder().addHeader("Accept", "text/csv"));
+        ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+
+        Request accepted = new Request("POST", "/_query/stream");
+        accepted.setJsonEntity("{\"query\": \"FROM stream-test | LIMIT 1\"}");
+        tolerateDefaultLimitWarning(accepted);
+        accepted.setOptions(accepted.getOptions().toBuilder().addHeader("Accept", "application/x-ndjson"));
+        assertThat(client().performRequest(accepted).getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    public void testAcceptRestCompatibleNdjson() throws IOException {
+        int major = RestApiVersion.current().major;
+        Request request = new Request("POST", "/_query/stream");
+        request.setEntity(
+            new StringEntity(
+                "{\"query\": \"FROM stream-test | LIMIT 1\"}",
+                ContentType.parse("application/vnd.elasticsearch+json;compatible-with=" + major)
+            )
+        );
+        tolerateDefaultLimitWarning(request);
+        request.setOptions(
+            request.getOptions().toBuilder().addHeader("Accept", "application/vnd.elasticsearch+x-ndjson;compatible-with=" + major)
+        );
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(response.getEntity().getContentType().getValue(), containsString("ndjson"));
+    }
+
+    public void testStreamingParametersRemovedFromQueryEndpoint() {
+        Request request = new Request("POST", "/_query?streaming=true&format=ndjson");
+        request.setJsonEntity("{\"query\": \"FROM stream-test | LIMIT 1\"}");
+        ResponseException re = expectThrows(ResponseException.class, containsString("[streaming]"), () -> client().performRequest(request));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testColumnarRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(
-                client(),
-                "{\"query\": \"FROM stream-test | LIMIT 1\", \"columnar\": true}",
-                "streaming=true",
-                "format=ndjson"
-            )
+            containsString("columnar"),
+            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\", \"columnar\": true}")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("columnar"));
+    }
+
+    public void testMaxRowsEndsTheResponse() throws IOException {
+        Streamed streamed = stream("""
+            {"query": "FROM stream-test | SORT value | LIMIT 100 | KEEP value", "max_rows": 2}
+            """);
+
+        assertThat(streamed.rows(), equalTo(List.of(List.of(1), List.of(2))));
+        Map<String, Object> footer = streamed.footer();
+        assertThat("rows were left unsent", footer.get("complete"), equalTo(false));
+        assertThat("next_offset is the first row that was not sent", footer.get("next_offset"), equalTo(2));
+        assertThat(footer.get("status"), equalTo(200));
+        assertThat(footer, hasKey("took"));
+        assertThat(footer, not(hasKey("error")));
+        assertThat("the query did not finish, so there are no statistics", footer, not(hasKey("documents_found")));
+    }
+
+    public void testMaxRowsAtLeastTheResultSizeIsComplete() throws IOException {
+        for (int maxRows : new int[] { 4, 5, 1000 }) {
+            Streamed streamed = stream(
+                "{\"query\": \"FROM stream-test | SORT value | LIMIT 100 | KEEP value\", \"max_rows\": " + maxRows + "}"
+            );
+
+            assertThat("max_rows " + maxRows, streamed.rows(), hasSize(4));
+            assertThat("max_rows " + maxRows, streamed.footer().get("complete"), equalTo(true));
+            assertThat("max_rows " + maxRows, streamed.footer().get("next_offset"), equalTo(4));
+        }
+    }
+
+    public void testMaxRowsZeroReturnsOnlyTheColumnsAndTheLastLine() throws IOException {
+        Streamed streamed = stream("""
+            {"query": "FROM stream-test | SORT value | LIMIT 100 | KEEP value", "max_rows": 0}
+            """);
+
+        assertThat(streamed.lines(), hasSize(2));
+        assertThat(streamed.header(), hasKey("columns"));
+        assertThat(streamed.footer().get("complete"), equalTo(false));
+        assertThat(streamed.footer().get("next_offset"), equalTo(0));
+    }
+
+    public void testMaxBytesEndsTheResponseBetweenRows() throws IOException {
+        // The columns line alone is larger than 1 byte, but the first row is always written.
+        for (String maxBytes : new String[] { "1", "\"1b\"" }) {
+            Streamed streamed = stream(
+                "{\"query\": \"FROM stream-test | SORT value | LIMIT 100 | KEEP value\", \"max_bytes\": " + maxBytes + "}"
+            );
+
+            assertThat("max_bytes " + maxBytes, streamed.rows(), equalTo(List.of(List.of(1))));
+            assertThat("max_bytes " + maxBytes, streamed.footer().get("complete"), equalTo(false));
+            assertThat("max_bytes " + maxBytes, streamed.footer().get("next_offset"), equalTo(1));
+        }
+    }
+
+    public void testMaxBytesLargerThanTheResultIsComplete() throws IOException {
+        Streamed streamed = stream("""
+            {"query": "FROM stream-test | SORT value | LIMIT 100 | KEEP value", "max_bytes": "1mb"}
+            """);
+
+        assertThat(streamed.rows(), hasSize(4));
+        assertThat(streamed.footer().get("complete"), equalTo(true));
+        assertThat(streamed.footer().get("next_offset"), equalTo(4));
+    }
+
+    public void testStoreNoneIsAccepted() throws IOException {
+        Streamed streamed = stream("""
+            {"query": "FROM stream-test | SORT value | LIMIT 100 | KEEP value", "store": "none"}
+            """);
+
+        assertThat(streamed.rows(), hasSize(4));
+        assertThat(streamed.footer().get("complete"), equalTo(true));
+    }
+
+    public void testStoreOtherThanNoneIsRejected() {
+        for (String store : new String[] { "overflow", "all", "bogus" }) {
+            assertStreamRejected(
+                "{\"query\": \"FROM stream-test | LIMIT 1\", \"store\": \"" + store + "\"}",
+                "[store] only supports [none] for now, got [" + store + "]"
+            );
+        }
+    }
+
+    public void testInvalidLimitsAreRejected() {
+        assertStreamRejected(
+            "{\"query\": \"FROM stream-test | LIMIT 1\", \"max_rows\": -1}",
+            "[max_rows] must be greater than or equal to 0"
+        );
+        assertStreamRejected("{\"query\": \"FROM stream-test | LIMIT 1\", \"max_bytes\": 0}", "[max_bytes] must be greater than 0");
+        assertStreamRejected("{\"query\": \"FROM stream-test | LIMIT 1\", \"max_bytes\": \"-1b\"}", "max_bytes");
+    }
+
+    public void testLimitsAreNotAcceptedOnTheQueryEndpoints() throws IOException {
+        for (String endpoint : new String[] { "/_query", "/_query/async" }) {
+            for (String field : new String[] { "\"max_rows\": 1", "\"max_bytes\": 1", "\"store\": \"none\"" }) {
+                Request request = new Request("POST", endpoint);
+                request.setJsonEntity("{\"query\": \"FROM stream-test | LIMIT 1\", " + field + "}");
+                ResponseException re = expectThrows(ResponseException.class, () -> client().performRequest(request));
+                assertThat(endpoint + " " + field, re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+                assertThat(endpoint + " " + field, EntityUtils.toString(re.getResponse().getEntity()), containsString("unknown field"));
+            }
+        }
+    }
+
+    /**
+     * Ending a response at a limit must stop the query, not just the response: the connection stays open, so nothing else
+     * would. With a small page size the result is many pages, so the query is still producing when the limit is reached.
+     */
+    public void testQueryStopsWhenTheResponseEndsAtALimit() throws Exception {
+        Request bulk = new Request("POST", "/_bulk?index=stream-many&refresh=true");
+        StringBuilder docs = new StringBuilder();
+        for (int i = 0; i < 5000; i++) {
+            docs.append("{\"index\": {}}\n{\"v\": ").append(i).append("}\n");
+        }
+        bulk.setJsonEntity(docs.toString());
+        assertOK(client().performRequest(bulk));
+
+        // 5 rows falls inside the first page of 10 rows; 10 rows fills it exactly and the next page shows there is more.
+        for (int maxRows : new int[] { 5, 10 }) {
+            Streamed streamed = stream(
+                "{\"query\": \"FROM stream-many | KEEP v | LIMIT 5000\", \"max_rows\": "
+                    + maxRows
+                    + ", \"pragma\": {\"page_size\": 10}, \"accept_pragma_risks\": true}"
+            );
+
+            assertThat("max_rows " + maxRows, streamed.rows(), hasSize(maxRows));
+            assertThat("max_rows " + maxRows, streamed.footer().get("complete"), equalTo(false));
+            assertThat("max_rows " + maxRows, streamed.footer().get("next_offset"), equalTo(maxRows));
+            assertBusy(() -> assertThat("the streaming query must have been cancelled", runningStreamTasks(), equalTo(0)));
+        }
+    }
+
+    /**
+     * The last line of a response that ended inside a page is built while the page is written to the HTTP channel, so it must
+     * still carry the warnings the query raised when it was planned. The query has no LIMIT, which raises the default-limit warning.
+     */
+    @SuppressWarnings("unchecked")
+    public void testLimitFooterKeepsWarningsWhenTheLimitIsInsideAPage() throws Exception {
+        Request bulk = new Request("POST", "/_bulk?index=stream-many&refresh=true");
+        StringBuilder docs = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            docs.append("{\"index\": {}}\n{\"v\": ").append(i).append("}\n");
+        }
+        bulk.setJsonEntity(docs.toString());
+        assertOK(client().performRequest(bulk));
+
+        Streamed streamed = stream(
+            "{\"query\": \"FROM stream-many | KEEP v\", \"max_rows\": 5, \"pragma\": {\"page_size\": 10}, \"accept_pragma_risks\": true}"
+        );
+
+        assertThat(streamed.rows(), hasSize(5));
+        assertThat(streamed.footer().get("complete"), equalTo(false));
+        assertThat(streamed.footer().get("next_offset"), equalTo(5));
+        assertThat((List<String>) streamed.footer().get("warnings"), hasItem(EsqlStreamTestUtils.DEFAULT_LIMIT_WARNING));
+        assertBusy(() -> assertThat("the streaming query must have been cancelled", runningStreamTasks(), equalTo(0)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private int runningStreamTasks() throws IOException {
+        Request listTasks = new Request("GET", "/_tasks?actions=indices:data/read/esql/stream");
+        Map<String, Object> response = entityAsMap(client().performRequest(listTasks));
+        int tasks = 0;
+        for (Object node : ((Map<String, Object>) response.get("nodes")).values()) {
+            tasks += ((Map<String, Object>) ((Map<String, Object>) node).get("tasks")).size();
+        }
+        return tasks;
+    }
+
+    private void assertStreamRejected(String body, String expectedMessage) {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            containsString(expectedMessage),
+            () -> EsqlStreamTestUtils.rawStream(client(), body)
+        );
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     @SuppressWarnings("unchecked")
@@ -431,31 +636,25 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testBothIncludeMetadataFlagsRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
+            allOf(containsString("include_execution_metadata"), containsString("include_ccs_metadata")),
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
-                "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_ccs_metadata\": true, \"include_execution_metadata\": true}",
-                "streaming=true",
-                "format=ndjson"
+                "{\"query\": \"FROM stream-test | LIMIT 1\", \"include_ccs_metadata\": true, \"include_execution_metadata\": true}"
             )
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("include_execution_metadata"));
-        assertThat(re.getMessage(), containsString("include_ccs_metadata"));
     }
 
     public void testUnmappedFieldsLoadAllRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
+            allOf(containsString("LOAD_ALL"), containsString("POST /_query/stream")),
             () -> EsqlStreamTestUtils.rawStream(
                 client(),
-                "{\"query\": \"SET unmapped_fields=\\\"LOAD_ALL\\\"; FROM stream-test | LIMIT 1\"}",
-                "streaming=true",
-                "format=ndjson"
+                "{\"query\": \"SET unmapped_fields=\\\"LOAD_ALL\\\"; FROM stream-test | LIMIT 1\"}"
             )
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("LOAD_ALL"));
-        assertThat(re.getMessage(), containsString("streaming=true"));
     }
 
     public void testUnmappedFieldsLoadStillWorks() throws IOException {
@@ -466,26 +665,14 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     public void testDelimiterRejected() {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> EsqlStreamTestUtils.rawStream(
-                client(),
-                "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-                "streaming=true",
-                "format=ndjson",
-                "delimiter=,"
-            )
+            containsString("delimiter"),
+            () -> EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "delimiter=,")
         );
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(re.getMessage(), containsString("delimiter"));
     }
 
     public void testHeaderAcceptedInertly() throws IOException {
-        Response response = EsqlStreamTestUtils.rawStream(
-            client(),
-            "{\"query\": \"FROM stream-test | LIMIT 1\"}",
-            "streaming=true",
-            "format=ndjson",
-            "header=present"
-        );
+        Response response = EsqlStreamTestUtils.rawStream(client(), "{\"query\": \"FROM stream-test | LIMIT 1\"}", "header=present");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 
@@ -542,10 +729,7 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
 
         Streamed streamed = stream(streamBody("FROM stream-test | WHERE value == 3 | KEEP value, description"), "drop_null_columns=true");
         List<String> streamColumnNames = columnNames(streamed.header(), "columns");
-        assertTrue(
-            "/_query?streaming=true must keep description because it is populated index-wide",
-            streamColumnNames.contains("description")
-        );
+        assertTrue("/_query/stream must keep description because it is populated index-wide", streamColumnNames.contains("description"));
     }
 
     public void testDropNullColumnsAliasOfPopulatedFieldIsKept() throws IOException {
@@ -679,8 +863,8 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertEquals("EXPLAIN stream must emit exactly one columns header frame", 1L, streamed.headerFrameCount());
         List<String> explainColumnNames = columnNames(streamed.header(), "columns");
         assertEquals(
-            "EXPLAIN columns must be cluster, node, role, type, plan",
-            List.of("cluster", "node", "role", "type", "plan"),
+            "EXPLAIN columns must be cluster, node, role, type, plan, plan_json",
+            List.of("cluster", "node", "role", "type", "plan", "plan_json"),
             explainColumnNames
         );
     }
@@ -996,13 +1180,9 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
     }
 
     private Streamed stream(String bodyJson, String... queryParams) throws IOException {
-        List<String> params = new ArrayList<>();
-        params.add("streaming=true");
-        params.add("format=ndjson");
-        params.addAll(java.util.Arrays.asList(queryParams));
-        Response response = EsqlStreamTestUtils.rawStream(client(), bodyJson, params.toArray(String[]::new));
+        Response response = EsqlStreamTestUtils.rawStream(client(), bodyJson, queryParams);
         assertThat(
-            "/_query must respond with application/x-ndjson when streaming=true",
+            "/_query/stream must respond with application/x-ndjson",
             response.getEntity().getContentType().getValue(),
             containsString("application/x-ndjson")
         );

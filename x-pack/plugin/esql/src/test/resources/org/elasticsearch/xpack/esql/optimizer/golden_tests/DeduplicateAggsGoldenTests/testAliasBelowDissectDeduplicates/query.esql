@@ -1,0 +1,4 @@
+FROM employees
+| EVAL s2 = salary * 2
+| DISSECT first_name "%{x}"
+| STATS a = MIN(s2), b = MIN(salary * 2), c = COUNT(x)

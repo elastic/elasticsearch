@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -21,6 +22,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,11 +55,11 @@ public class IndexOperationBatchTests extends ESTestCase {
     }
 
     private static IndexOperationBatch primaryBatch(int n) {
-        return IndexOperationBatch.initFromBulk(items(n), 0, n, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
+        return IndexOperationBatch.initFromBulk(items(n), 0, n, null, IndexMode.STANDARD, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
     }
 
     private static IndexOperationBatch primaryBatch(BulkItemRequest[] items, int from, int to) {
-        return IndexOperationBatch.initFromBulk(items, from, to, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
+        return IndexOperationBatch.initFromBulk(items, from, to, null, IndexMode.STANDARD, Engine.Operation.Origin.PRIMARY, 1L, 0L, null);
     }
 
     private static BytesArray src(int d) {
@@ -213,6 +216,7 @@ public class IndexOperationBatchTests extends ESTestCase {
             from,
             to,
             null,
+            IndexMode.STANDARD,
             Engine.Operation.Origin.PRIMARY,
             1L,
             0L,
@@ -234,23 +238,23 @@ public class IndexOperationBatchTests extends ESTestCase {
         // from < 0
         expectThrows(
             IndexOutOfBoundsException.class,
-            () -> IndexOperationBatch.initFromBulk(items, -1, 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
+            () -> IndexOperationBatch.initFromBulk(items, -1, 1, null, IndexMode.STANDARD, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
         );
         // to > items.length
         expectThrows(
             IndexOutOfBoundsException.class,
-            () -> IndexOperationBatch.initFromBulk(items, 0, n + 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
+            () -> IndexOperationBatch.initFromBulk(items, 0, n + 1, null, IndexMode.STANDARD, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
         );
         // to < from
         expectThrows(
             IndexOutOfBoundsException.class,
-            () -> IndexOperationBatch.initFromBulk(items, 2, 1, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
+            () -> IndexOperationBatch.initFromBulk(items, 2, 1, null, IndexMode.STANDARD, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
         );
         // from == to (empty range) — rejected with IllegalArgumentException (not OOB; in-bounds but empty)
         final int x = randomIntBetween(0, n);
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> IndexOperationBatch.initFromBulk(items, x, x, null, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
+            () -> IndexOperationBatch.initFromBulk(items, x, x, null, IndexMode.STANDARD, Engine.Operation.Origin.PRIMARY, 1L, 0L, null)
         );
         assertTrue(e.getMessage().contains("empty batch"));
     }
@@ -273,6 +277,7 @@ public class IndexOperationBatchTests extends ESTestCase {
             0,
             n,
             null,
+            IndexMode.STANDARD,
             Engine.Operation.Origin.REPLICA,
             1L,
             0L,
@@ -297,6 +302,7 @@ public class IndexOperationBatchTests extends ESTestCase {
                 0,
                 n,
                 escf,
+                IndexMode.STANDARD,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
                 0L,
@@ -461,6 +467,7 @@ public class IndexOperationBatchTests extends ESTestCase {
                 0,
                 n,
                 rootEscf,
+                IndexMode.STANDARD,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
                 0L,
@@ -621,6 +628,7 @@ public class IndexOperationBatchTests extends ESTestCase {
                 0,
                 n,
                 escf,
+                IndexMode.STANDARD,
                 Engine.Operation.Origin.PRIMARY,
                 7L,
                 0L,
@@ -684,6 +692,7 @@ public class IndexOperationBatchTests extends ESTestCase {
             0,
             1,
             escf,
+            IndexMode.STANDARD,
             Engine.Operation.Origin.PRIMARY,
             7L,
             0L,
@@ -708,6 +717,7 @@ public class IndexOperationBatchTests extends ESTestCase {
                 0,
                 n,
                 escf,
+                IndexMode.STANDARD,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
                 0L,
@@ -741,6 +751,7 @@ public class IndexOperationBatchTests extends ESTestCase {
                 0,
                 n,
                 escf,
+                IndexMode.STANDARD,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
                 0L,
@@ -763,6 +774,50 @@ public class IndexOperationBatchTests extends ESTestCase {
         }
     }
 
+    /**
+     * On a time_series index the request routing is the coordinator-computed routing hash. Mappers still see it via
+     * {@link IndexOperationBatch#routings()}, but like the document-mode path it must not end up on the operations or
+     * in the translog.
+     */
+    public void testTimeSeriesRoutingHashStaysOutOfOperationsAndTranslog() throws IOException {
+        final int n = randomIntBetween(1, 5);
+        final BulkItemRequest[] items = new BulkItemRequest[n];
+        final String[] routingHashes = new String[n];
+        for (int d = 0; d < n; d++) {
+            routingHashes[d] = TimeSeriesRoutingHashFieldMapper.encode(randomInt());
+            items[d] = new BulkItemRequest(
+                d,
+                new IndexRequest("index").id("doc-" + d).source(src(d), XContentType.JSON).routing(routingHashes[d])
+            );
+        }
+        try (EscfBatch escf = escfBatch(n)) {
+            final IndexOperationBatch batch = IndexOperationBatch.initFromBulk(
+                items,
+                0,
+                n,
+                escf,
+                IndexMode.TIME_SERIES,
+                Engine.Operation.Origin.PRIMARY,
+                1L,
+                0L,
+                null
+            );
+            final int from = randomIntBetween(0, n - 1);
+            final IndexOperationBatch slice = batch.slice(from, n);
+            for (int i = 0; i < slice.docCount(); i++) {
+                assertThat(slice.routings()[slice.offset() + i], equalTo(new BytesRef(routingHashes[from + i])));
+                assertThat(slice.routingString(i), nullValue());
+                assertThat(slice.toIndexOp(i).routing(), nullValue());
+            }
+
+            final IndexOperationBatch.TranslogRecord record = batch.toTranslogRecord(new byte[n], null);
+            assertThat(record.routings(), nullValue());
+            for (Translog.Operation op : record.explode()) {
+                assertThat(((Translog.Index) op).routing(), nullValue());
+            }
+        }
+    }
+
     public void testToTranslogRecordRejectsRowStatusLengthMismatch() throws IOException {
         final int n = randomIntBetween(2, 5);
         try (EscfBatch escf = escfBatch(n)) {
@@ -771,6 +826,7 @@ public class IndexOperationBatchTests extends ESTestCase {
                 0,
                 n,
                 escf,
+                IndexMode.STANDARD,
                 Engine.Operation.Origin.PRIMARY,
                 1L,
                 0L,
@@ -794,6 +850,7 @@ public class IndexOperationBatchTests extends ESTestCase {
             0,
             n,
             null,
+            IndexMode.STANDARD,
             Engine.Operation.Origin.PRIMARY,
             1L,
             0L,

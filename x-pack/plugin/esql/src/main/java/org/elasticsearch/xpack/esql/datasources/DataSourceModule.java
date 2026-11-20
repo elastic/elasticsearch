@@ -299,7 +299,8 @@ public final class DataSourceModule implements Closeable {
             managedIdentityEnabled,
             retryScheduler,
             effectiveLocalFileAccess,
-            admissionTracker
+            admissionTracker,
+            threadPool != null ? threadPool.getThreadContext() : null
         );
 
         this.codecRegistry = new DecompressionCodecRegistry();
@@ -529,6 +530,7 @@ public final class DataSourceModule implements Closeable {
         if (admissionWatchdog != null) {
             all.add(admissionWatchdog);
         }
+        all.add(formatReaderRegistry);
         all.add(storageProviderRegistry);
         all.addAll(managedCloseables);
         IOUtils.close(all);

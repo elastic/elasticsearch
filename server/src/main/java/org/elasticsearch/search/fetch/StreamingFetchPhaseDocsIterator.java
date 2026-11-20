@@ -339,6 +339,9 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         private PendingChunk doProduceNext() {
             RecyclerBytesStreamOutput chunkBuffer = null;
             try {
+                if (leafSetupThread == null) {
+                    announceAll(indexReader, docs);
+                }
                 chunkBuffer = chunkWriter.newNetworkBytesStream();
                 int chunkStartIndex = currentIdx;
                 int hitsInChunk = 0;

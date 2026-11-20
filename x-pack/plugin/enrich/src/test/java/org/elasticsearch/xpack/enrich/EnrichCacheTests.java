@@ -6,9 +6,12 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -29,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
+import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -298,6 +302,121 @@ public class EnrichCacheTests extends ESTestCase {
         // Mutating the first result must not corrupt the second
         resultBytes1[0] = 99;
         assertArrayEquals(originalBytes, resultBytes2);
+    }
+
+    // Expected sizes assume compressed oops and 8-byte alignment (header 12, array header 16, reference 4): map 80 + table + 32 per
+    // entry with keys free, list 48 + array, Double/Long 24, Integer/Float/Boolean 16, String 24 + align(16 + 2 * length).
+    private static void assumeCompressedOops() {
+        assumeTrue(
+            "expected sizes are hand-computed for compressed oops and 8-byte alignment",
+            RamUsageEstimator.COMPRESSED_REFS_ENABLED && RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT == 8
+        );
+    }
+
+    public void testEstimateHeapSizeOfFlatNumericMap() {
+        assumeCompressedOops();
+        assertThat(EnrichCache.estimateHeapSize(null), equalTo(0L));
+        assertThat(EnrichCache.estimateHeapSize(Map.of()), equalTo(80L));
+        // 3 entries: ceil(3 / 0.75) = 4 -> table align(16 + 16) = 32; nodes 3 * 32 = 96; Double 24 + Long 24 + Integer 16 = 64
+        Map<String, Object> flat = Map.of("d", 1.5d, "l", 7L, "i", 3);
+        assertThat(EnrichCache.estimateHeapSize(flat), equalTo(80L + 32 + 96 + 64));
+        // the estimate is of the deep copy's shape, so it is the same for the copy itself
+        assertThat(EnrichCache.estimateHeapSize(CollectionUtils.deepCopy(flat, UNMODIFIABLE)), equalTo(272L));
+    }
+
+    public void testEstimateHeapSizeOfNestedMaps() {
+        assumeCompressedOops();
+        // outer, 1 entry: ceil(1 / 0.75) = 2 -> table align(16 + 8) = 24; one node 32 -> 80 + 24 + 32 = 136
+        // inner, 2 entries: ceil(2 / 0.75) = 3 -> capacity 4 -> table 32; nodes 64; Integer 16 + Boolean 16 -> 80 + 32 + 64 + 32 = 208
+        Map<String, Object> nested = Map.of("outer", Map.of("x", 1, "y", true));
+        assertThat(EnrichCache.estimateHeapSize(nested), equalTo(136L + 208));
+    }
+
+    public void testEstimateHeapSizeOfLists() {
+        assumeCompressedOops();
+        // single-entry map 136; list of 3 Integers: 48 + array align(16 + 12) = 32 + 3 * 16 = 128
+        assertThat(EnrichCache.estimateHeapSize(Map.of("list", List.of(1, 2, 3))), equalTo(136L + 128));
+        // an empty list shares a static empty array, so only the shells are charged
+        assertThat(EnrichCache.estimateHeapSize(Map.of("empty", List.of())), equalTo(136L + 48));
+        // list of two single-entry maps: 48 + array align(16 + 8) = 24 + 2 * (136 + Long 24)
+        assertThat(EnrichCache.estimateHeapSize(List.of(Map.of("a", 1L), Map.of("b", 2L))), equalTo(48L + 24 + 2 * 160));
+    }
+
+    public void testEstimateHeapSizeOfStrings() {
+        assumeCompressedOops();
+        // 20 characters: 24 + align(16 + 2 * 20) = 24 + 56 = 80, in a single-entry map 136
+        assertThat(EnrichCache.estimateHeapSize(Map.of("s", "0123456789abcdefghij")), equalTo(136L + 80));
+        // 200 characters: 24 + align(16 + 400) = 440
+        assertThat(EnrichCache.estimateHeapSize(Map.of("s", "x".repeat(200))), equalTo(136L + 440));
+        // strings are counted as UTF-16, so text the JVM cannot store as Latin-1 is not undercounted
+        assertThat(EnrichCache.estimateHeapSize("東京都渋谷区"), equalTo(EnrichCache.estimateHeapSize("tokyos")));
+        assertThat(EnrichCache.estimateHeapSize("tokyos"), equalTo(24L + 32));
+        assertThat(EnrichCache.estimateHeapSize("tokyos"), equalTo(RamUsageEstimator.sizeOf("tokyos")));
+    }
+
+    public void testEstimateHeapSizeOfRareLeafTypes() {
+        assumeCompressedOops();
+        // byte[5]: align(16 + 5) = 24, in a single-entry map 136
+        assertThat(EnrichCache.estimateHeapSize(Map.of("b", new byte[] { 1, 2, 3, 4, 5 })), equalTo(136L + 24));
+        assertThat(EnrichCache.estimateHeapSize(new byte[1024]), equalTo(RamUsageEstimator.sizeOf(new byte[1024])));
+        // Float, as parsed from SMILE or CBOR sources: 16, in a single-entry map 136
+        assertThat(EnrichCache.estimateHeapSize(Map.of("f", 1.5f)), equalTo(136L + 16));
+        // anything else is left to Lucene, which charges its default for types it does not know
+        assertThat(EnrichCache.estimateHeapSize(new java.util.Date()), equalTo((long) RamUsageEstimator.UNKNOWN_DEFAULT_RAM_BYTES_USED));
+    }
+
+    /**
+     * Verifies that the weight of a cache value is the cache key constant plus the estimated heap of the parsed hits rather than the
+     * serialized size of the search response.
+     */
+    public void testToCacheValueWeighsEstimatedHeap() {
+        assumeCompressedOops();
+        SearchResponse emptyResponse = convertToSearchResponse(List.of());
+        try {
+            assertThat(EnrichCache.toCacheValue(emptyResponse).sizeInBytes(), equalTo(256L));
+        } finally {
+            emptyResponse.decRef();
+        }
+        // hits list: 48 + array align(16 + 8) = 24 -> 72
+        // {"a": 1.5}: single-entry map 136 + Double 24 = 160
+        // {"b": "xyz"}: single-entry map 136 + string 24 + align(16 + 6) = 48 -> 184
+        SearchResponse response = convertToSearchResponse(List.of(Map.of("a", 1.5d), Map.of("b", "xyz")));
+        try {
+            EnrichCache.CacheValue cacheValue = EnrichCache.toCacheValue(response);
+            assertThat(cacheValue.hits().size(), equalTo(2));
+            assertThat(cacheValue.sizeInBytes(), equalTo(256L + 72 + 160 + 184));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * Verifies that a byte-sized cache evicts based on the estimated heap of its entries and reports it as its size in bytes.
+     */
+    public void testEvictionByEstimatedHeapSize() {
+        assumeCompressedOops();
+        // one entry: key 256 + single-hit list 48 + align(16 + 4) = 24 + {"a": 1.5} 160 -> 488
+        long entrySize = 488L;
+        EnrichCache enrichCache = new EnrichCache(ByteSizeValue.ofBytes(2 * entrySize + 100));
+        ProjectId projectId = randomProjectIdOrDefault();
+        for (int i = 0; i < 3; i++) {
+            SearchResponse response = convertToSearchResponse(List.of(Map.of("a", 1.5d)));
+            try {
+                EnrichCache.CacheValue cacheValue = EnrichCache.toCacheValue(response);
+                assertThat(cacheValue.sizeInBytes(), equalTo(entrySize));
+                enrichCache.put(new EnrichCache.CacheKey(projectId, "policy1-1", String.valueOf(i), 1), cacheValue);
+            } finally {
+                response.decRef();
+            }
+        }
+        EnrichStatsAction.Response.CacheStats cacheStats = enrichCache.getStats("_id");
+        assertThat(cacheStats.count(), equalTo(2L));
+        assertThat(cacheStats.evictions(), equalTo(1L));
+        assertThat(cacheStats.cacheSizeInBytes(), equalTo(2 * entrySize));
+        // the oldest entry was evicted, the two most recent ones are still served
+        assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "0", 1)), nullValue());
+        assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "1", 1)), notNullValue());
+        assertThat(enrichCache.get(new EnrichCache.CacheKey(projectId, "policy1-1", "2", 1)), notNullValue());
     }
 
     private SearchResponse convertToSearchResponseWithSmile(Map<String, Object> sourceMap) {

@@ -308,11 +308,12 @@ public class EqlRequestsTests extends ESTestCase {
         assertThat(buildWith(new EqlRequests.EnclosingQuery(false, null, null)).allowPartialSearchResults(), equalTo(false));
     }
 
-    public void testSequencePartialResultsDefaultsFalseAndIsOptIn() {
-        assertThat(build("sequence [a] [b]", "logs", NO_SCHEMA, Map.of()).allowPartialSequenceResults(), equalTo(false));
+    public void testSequencePartialResultsIsLeftToTheEqlDefaultUnlessSet() {
+        assertThat(build("sequence [a] [b]", "logs", NO_SCHEMA, Map.of()).allowPartialSequenceResults(), nullValue());
+        boolean allow = randomBoolean();
         assertThat(
-            build("sequence [a] [b]", "logs", NO_SCHEMA, Map.of("allow_partial_sequence_results", true)).allowPartialSequenceResults(),
-            equalTo(true)
+            build("sequence [a] [b]", "logs", NO_SCHEMA, Map.of("allow_partial_sequence_results", allow)).allowPartialSequenceResults(),
+            equalTo(allow)
         );
     }
 

@@ -127,7 +127,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             MaxClauseCountQueryVisitor.segmentCountOrDefault(context.getIndexReader()),
             context.getIndexReader()
         );
-        Query query = toQuery(context, visitor);
+        Query query;
+        try {
+            query = toQuery(context, visitor);
+        } catch (IndexSearcher.TooManyClauses e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
         if (query != null) {
             context.addCircuitBreakerMemory(visitor.getEstimatedBytes(), ChildMemoryCircuitBreaker.CATEGORY_QUERY);
         }

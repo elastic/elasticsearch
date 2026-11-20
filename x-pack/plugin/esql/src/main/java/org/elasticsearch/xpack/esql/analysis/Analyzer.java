@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.BindNestedAny;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
@@ -373,8 +372,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 Limiter.ONCE,
                 new BindNestedAny(),
                 new HideNestedScopeFields(),
-                // Before ResolveDescribe replaces a ROW producer with a LocalRelation.
-                new RejectUnsupportedIntoSource(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
@@ -415,7 +412,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Runs the analysis rules and returns the plan without verification, so a test can record that plan.
      */
     public LogicalPlan analyzeWithoutVerification(LogicalPlan plan) {
-        return execute(plan);
+        return replaceDescribe(execute(plan));
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -428,7 +425,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         if (viewBoundaryWarning != null) {
             HeaderWarning.addWarning(viewBoundaryWarning);
         }
-        return verified;
+        return replaceDescribe(verified);
+    }
+
+    /**
+     * Replaces every {@code DESCRIBE} with the table that describes its input. The input stays in the plan
+     * until then, so verification checks it as it would without {@code DESCRIBE}.
+     */
+    private static LogicalPlan replaceDescribe(LogicalPlan plan) {
+        return plan.transformUp(Describe.class, describe -> describe.table() == null ? describe : describe.table());
     }
 
     /**
@@ -562,34 +567,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Rejects an INTO whose producer is not ROW when {@code DESCRIBE} is about to replace that producer.
-     * A producer that verification can still see fails in {@link Into#postAnalysisVerification}, which
-     * {@code analyzeWithoutVerification} skips.
-     */
-    private static class RejectUnsupportedIntoSource extends AnalyzerRule<Into> {
-        @Override
-        protected boolean skipResolved() {
-            // Into is resolved by this batch, and the check still has to see it.
-            return false;
-        }
-
-        @Override
-        protected LogicalPlan rule(Into into) {
-            if (into.child().anyMatch(Describe.class::isInstance) && Into.unsupportedSource(into.child(), false)) {
-                throw new VerificationException(List.of(Failure.fail(into, "INTO currently only supports ROW as a source, without FORK")));
-            }
-            return into;
-        }
-    }
-
-    /**
-     * Replaces {@code DESCRIBE} with a table describing its resolved child. Runs once resolution is done,
-     * so the child's columns, renames and computed fields are final.
+     * Computes the table that describes the resolved child of {@code DESCRIBE}. Runs once resolution is done,
+     * so the child's columns, renames and computed fields are final. The table replaces {@code DESCRIBE} after
+     * verification, see {@link #replaceDescribe}.
      */
     private static class ResolveDescribe extends ParameterizedAnalyzerRule<Describe, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(Describe describe, AnalyzerContext context) {
-            if (describe.child().resolved() == false || describe.child().anyMatch(Into.class::isInstance)) {
+            if (describe.table() != null || describe.child().resolved() == false || describe.child().anyMatch(Into.class::isInstance)) {
                 return describe;
             }
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
@@ -597,12 +582,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
             Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
             Set<NameId> timeColumns = ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns);
-            return describe.describe(
-                semantics,
-                datasetColumns,
-                ColumnUnits.collect(describe.child(), semantics),
-                timeColumns,
-                ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
+            return describe.withTable(
+                describe.describe(
+                    semantics,
+                    datasetColumns,
+                    ColumnUnits.collect(describe.child(), semantics),
+                    timeColumns,
+                    ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
+                )
             );
         }
 

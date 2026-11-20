@@ -126,6 +126,20 @@ final class ElasticServiceAccounts {
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
                     .allowRestrictedIndices(true)
                     .build(),
+                // Feature flags system indices (defined in KibanaPlugin, created and managed by Kibana).
+                // Fleet Server serves the flag definitions and records the evaluation contexts it observes.
+                // view_index_metadata allows reading the index UUID (indices:monitor/settings/get) so a
+                // recreated index, which can reuse _seq_no and _primary_term, is not treated as unchanged.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".feature-flags-definitions*")
+                    .privileges("read", "view_index_metadata")
+                    .allowRestrictedIndices(true)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".feature-flags-observed-contexts*")
+                    .privileges("read", "write")
+                    .allowRestrictedIndices(true)
+                    .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("synthetics-*")
                     // Fleet Server needs "read" privilege to be able to retrieve multi-agent docs

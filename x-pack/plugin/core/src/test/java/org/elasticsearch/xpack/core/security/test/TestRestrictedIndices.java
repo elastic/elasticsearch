@@ -78,7 +78,8 @@ public class TestRestrictedIndices {
                     getKibanaSavedObjectsDescriptor(),
                     getReportingIndexDescriptor(),
                     getApmAgentConfigDescriptor(),
-                    getApmCustomLinkDescriptor()
+                    getApmCustomLinkDescriptor(),
+                    getFeatureFlagsDescriptor()
                 )
             )
         );
@@ -251,6 +252,15 @@ public class TestRestrictedIndices {
             .setDescription("system index for APM custom links")
             .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
             .setAllowedElasticProductOrigins(List.of("kibana"))
+            .build();
+    }
+
+    private static SystemIndexDescriptor getFeatureFlagsDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(".feature-flags*")
+            .setDescription("Feature flags system index")
+            .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
+            .setAllowedElasticProductOrigins(List.of("kibana", "fleet"))
             .build();
     }
 

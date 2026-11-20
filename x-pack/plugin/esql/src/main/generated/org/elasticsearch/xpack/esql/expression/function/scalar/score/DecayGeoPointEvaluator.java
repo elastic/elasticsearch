@@ -101,7 +101,7 @@ public final class DecayGeoPointEvaluator implements ExpressionEvaluator {
   }
 
   public DoubleVector eval(int positionCount, BytesRefVector valueVector) {
-    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+    try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount, true)) {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef value = valueVector.getBytesRef(p, valueScratch);

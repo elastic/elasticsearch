@@ -626,7 +626,7 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
 
         var indicesSegments = client().admin().indices().prepareSegments(indexName).get();
         assertThat(indicesSegments.getSuccessfulShards(), equalTo(numberOfShards + numberOfShards * numberOfReplicas));
-        assertThat(indicesSegments.getShardFailures().length, equalTo(0));
+        assertThat(indicesSegments.getShardFailures(), empty());
         assertThat(indicesSegments.getIndices().size(), equalTo(1));
 
         var indices = indicesSegments.getIndices().get(indexName);

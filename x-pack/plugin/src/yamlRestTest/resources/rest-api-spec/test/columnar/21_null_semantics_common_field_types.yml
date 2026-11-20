@@ -311,6 +311,158 @@ setup:
 
   - do:
       indices.create:
+        index: test_logsdb_columnar_row
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+            index.batch_indexing: false
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              version:
+                type: version
+              ip:
+                type: ip
+              binary:
+                type: binary
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+              pattern_text:
+                type: pattern_text
+              geo_point:
+                type: geo_point
+
+  - do:
+      bulk:
+        index: test_logsdb_columnar_row
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+
+  - do:
+      indices.create:
+        index: test_vectordb_columnar_row
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+            index.batch_indexing: false
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              version:
+                type: version
+              ip:
+                type: ip
+              binary:
+                type: binary
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+              pattern_text:
+                type: pattern_text
+              geo_point:
+                type: geo_point
+
+  - do:
+      bulk:
+        index: test_vectordb_columnar_row
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "only_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{ "index": { "_id": "mixed" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
+          - '{ "index": { "_id": "leading_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "trailing_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "both_ends_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+
+  - do:
+      indices.create:
         index: test_columnar_stored
         body:
           settings:
@@ -385,7 +537,7 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
 
 ---
-exists matches only documents with a non-null value on a keyword field in logsdb_columnar and vectordb_columnar:
+exists matches only documents with a non-null value on a keyword field in logsdb_columnar and vectordb_columnar and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "exists matches a document that holds only nulls on this type (proposed contract in #165909)"
@@ -424,8 +576,42 @@ exists matches only documents with a non-null value on a keyword field in logsdb
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: keyword } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: keyword } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a keyword field in logsdb_columnar and vectordb_columnar:
+synthetic source drops the null elements of a keyword field in logsdb_columnar and vectordb_columnar and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -472,8 +658,50 @@ synthetic source drops the null elements of a keyword field in logsdb_columnar a
   - match: { hits.hits.8._source.keyword: "a" }
   - match: { hits.hits.9._source.keyword: "a" }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: keyword
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - is_false: hits.hits.1._source.keyword
+  - is_false: hits.hits.2._source.keyword
+  - match: { hits.hits.3._source.keyword: ["a", "b"] }
+  - is_false: hits.hits.4._source.keyword
+  - is_false: hits.hits.5._source.keyword
+  - is_false: hits.hits.6._source.keyword
+  - match: { hits.hits.7._source.keyword: "a" }
+  - match: { hits.hits.8._source.keyword: "a" }
+  - match: { hits.hits.9._source.keyword: "a" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: keyword
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - is_false: hits.hits.1._source.keyword
+  - is_false: hits.hits.2._source.keyword
+  - match: { hits.hits.3._source.keyword: ["a", "b"] }
+  - is_false: hits.hits.4._source.keyword
+  - is_false: hits.hits.5._source.keyword
+  - is_false: hits.hits.6._source.keyword
+  - match: { hits.hits.7._source.keyword: "a" }
+  - match: { hits.hits.8._source.keyword: "a" }
+  - match: { hits.hits.9._source.keyword: "a" }
+
 ---
-exists matches only documents with a non-null value on a text field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a text field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "exists matches a document that holds only nulls on this type (proposed contract in #165909)"
@@ -529,8 +757,42 @@ exists matches only documents with a non-null value on a text field in logsdb_co
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: text } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: text } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a text field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+synthetic source drops the null elements of a text field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -598,8 +860,50 @@ synthetic source drops the null elements of a text field in logsdb_columnar and 
   - match: { hits.hits.8._source.text: "a" }
   - match: { hits.hits.9._source.text: "a" }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: text
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.text: "a" }
+  - is_false: hits.hits.1._source.text
+  - is_false: hits.hits.2._source.text
+  - match: { hits.hits.3._source.text: ["a", "b"] }
+  - is_false: hits.hits.4._source.text
+  - is_false: hits.hits.5._source.text
+  - is_false: hits.hits.6._source.text
+  - match: { hits.hits.7._source.text: "a" }
+  - match: { hits.hits.8._source.text: "a" }
+  - match: { hits.hits.9._source.text: "a" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: text
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.text: "a" }
+  - is_false: hits.hits.1._source.text
+  - is_false: hits.hits.2._source.text
+  - match: { hits.hits.3._source.text: ["a", "b"] }
+  - is_false: hits.hits.4._source.text
+  - is_false: hits.hits.5._source.text
+  - is_false: hits.hits.6._source.text
+  - match: { hits.hits.7._source.text: "a" }
+  - match: { hits.hits.8._source.text: "a" }
+  - match: { hits.hits.9._source.text: "a" }
+
 ---
-exists matches only documents with a non-null value on a wildcard field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a wildcard field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "exists matches a document that holds only nulls on this type (proposed contract in #165909)"
@@ -655,8 +959,42 @@ exists matches only documents with a non-null value on a wildcard field in logsd
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: wildcard } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: wildcard } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a wildcard field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a wildcard field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -726,6 +1064,48 @@ synthetic source drops the null elements of a wildcard field in logsdb_columnar 
 
   - do:
       search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: wildcard
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - is_false: hits.hits.1._source.wildcard
+  - is_false: hits.hits.2._source.wildcard
+  - match: { hits.hits.3._source.wildcard: ["a", "b"] }
+  - is_false: hits.hits.4._source.wildcard
+  - is_false: hits.hits.5._source.wildcard
+  - is_false: hits.hits.6._source.wildcard
+  - match: { hits.hits.7._source.wildcard: "a" }
+  - match: { hits.hits.8._source.wildcard: "a" }
+  - match: { hits.hits.9._source.wildcard: "a" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: wildcard
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - is_false: hits.hits.1._source.wildcard
+  - is_false: hits.hits.2._source.wildcard
+  - match: { hits.hits.3._source.wildcard: ["a", "b"] }
+  - is_false: hits.hits.4._source.wildcard
+  - is_false: hits.hits.5._source.wildcard
+  - is_false: hits.hits.6._source.wildcard
+  - match: { hits.hits.7._source.wildcard: "a" }
+  - match: { hits.hits.8._source.wildcard: "a" }
+  - match: { hits.hits.9._source.wildcard: "a" }
+
+  - do:
+      search:
         index: test_columnar_stored
         body:
           query: { match_all: {} }
@@ -746,7 +1126,7 @@ synthetic source drops the null elements of a wildcard field in logsdb_columnar 
   - match: { hits.hits.9._source.wildcard: "a" }
 
 ---
-exists matches only documents with a non-null value on a version field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a version field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -784,6 +1164,40 @@ exists matches only documents with a non-null value on a version field in logsdb
   - do:
       search:
         index: test_columnar_row
+        body:
+          query: { exists: { field: version } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: version } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
         body:
           query: { exists: { field: version } }
           sort: [ { "@timestamp": asc } ]
@@ -799,7 +1213,7 @@ exists matches only documents with a non-null value on a version field in logsdb
   - match: { hits.hits.4._id: both_ends_null }
 
 ---
-synthetic source drops the null elements of a version field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a version field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - do:
       search:
         index: test_logsdb_columnar
@@ -845,6 +1259,48 @@ synthetic source drops the null elements of a version field in logsdb_columnar a
   - do:
       search:
         index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: version
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.version: "1.0.0" }
+  - is_false: hits.hits.1._source.version
+  - is_false: hits.hits.2._source.version
+  - match: { hits.hits.3._source.version: ["1.0.0", "2.0.0"] }
+  - is_false: hits.hits.4._source.version
+  - is_false: hits.hits.5._source.version
+  - is_false: hits.hits.6._source.version
+  - match: { hits.hits.7._source.version: "1.0.0" }
+  - match: { hits.hits.8._source.version: "1.0.0" }
+  - match: { hits.hits.9._source.version: "1.0.0" }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: version
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.version: "1.0.0" }
+  - is_false: hits.hits.1._source.version
+  - is_false: hits.hits.2._source.version
+  - match: { hits.hits.3._source.version: ["1.0.0", "2.0.0"] }
+  - is_false: hits.hits.4._source.version
+  - is_false: hits.hits.5._source.version
+  - is_false: hits.hits.6._source.version
+  - match: { hits.hits.7._source.version: "1.0.0" }
+  - match: { hits.hits.8._source.version: "1.0.0" }
+  - match: { hits.hits.9._source.version: "1.0.0" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
         body:
           query: { match_all: {} }
           sort: [ { "@timestamp": asc } ]
@@ -885,7 +1341,7 @@ synthetic source drops the null elements of a version field in logsdb_columnar a
   - match: { hits.hits.9._source.version: "1.0.0" }
 
 ---
-exists matches only documents with a non-null value on an ip field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on an ip field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -937,8 +1393,42 @@ exists matches only documents with a non-null value on an ip field in logsdb_col
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: ip } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: ip } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of an ip field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+synthetic source drops the null elements of an ip field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -1006,8 +1496,50 @@ synthetic source drops the null elements of an ip field in logsdb_columnar and v
   - match: { hits.hits.8._source.ip: "10.0.0.1" }
   - match: { hits.hits.9._source.ip: "10.0.0.1" }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: ip
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - is_false: hits.hits.1._source.ip
+  - is_false: hits.hits.2._source.ip
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.0.0.2"] }
+  - is_false: hits.hits.4._source.ip
+  - is_false: hits.hits.5._source.ip
+  - is_false: hits.hits.6._source.ip
+  - match: { hits.hits.7._source.ip: "10.0.0.1" }
+  - match: { hits.hits.8._source.ip: "10.0.0.1" }
+  - match: { hits.hits.9._source.ip: "10.0.0.1" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: ip
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - is_false: hits.hits.1._source.ip
+  - is_false: hits.hits.2._source.ip
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.0.0.2"] }
+  - is_false: hits.hits.4._source.ip
+  - is_false: hits.hits.5._source.ip
+  - is_false: hits.hits.6._source.ip
+  - match: { hits.hits.7._source.ip: "10.0.0.1" }
+  - match: { hits.hits.8._source.ip: "10.0.0.1" }
+  - match: { hits.hits.9._source.ip: "10.0.0.1" }
+
 ---
-exists matches only documents with a non-null value on a binary field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a binary field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1059,8 +1591,42 @@ exists matches only documents with a non-null value on a binary field in logsdb_
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: binary } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: binary } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a binary field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a binary field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1106,6 +1672,48 @@ synthetic source drops the null elements of a binary field in logsdb_columnar an
   - do:
       search:
         index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: binary
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.binary: "YQ==" }
+  - is_false: hits.hits.1._source.binary
+  - is_false: hits.hits.2._source.binary
+  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
+  - is_false: hits.hits.4._source.binary
+  - is_false: hits.hits.5._source.binary
+  - is_false: hits.hits.6._source.binary
+  - match: { hits.hits.7._source.binary: "YQ==" }
+  - match: { hits.hits.8._source.binary: "YQ==" }
+  - match: { hits.hits.9._source.binary: "YQ==" }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: binary
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.binary: "YQ==" }
+  - is_false: hits.hits.1._source.binary
+  - is_false: hits.hits.2._source.binary
+  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
+  - is_false: hits.hits.4._source.binary
+  - is_false: hits.hits.5._source.binary
+  - is_false: hits.hits.6._source.binary
+  - match: { hits.hits.7._source.binary: "YQ==" }
+  - match: { hits.hits.8._source.binary: "YQ==" }
+  - match: { hits.hits.9._source.binary: "YQ==" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
         body:
           query: { match_all: {} }
           sort: [ { "@timestamp": asc } ]
@@ -1146,7 +1754,7 @@ synthetic source drops the null elements of a binary field in logsdb_columnar an
   - match: { hits.hits.9._source.binary: "YQ==" }
 
 ---
-exists matches only documents with a non-null value on a boolean field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a boolean field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1198,8 +1806,42 @@ exists matches only documents with a non-null value on a boolean field in logsdb
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: boolean } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: boolean } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a boolean field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+synthetic source drops the null elements of a boolean field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -1267,8 +1909,50 @@ synthetic source drops the null elements of a boolean field in logsdb_columnar a
   - match: { hits.hits.8._source.boolean: false }
   - match: { hits.hits.9._source.boolean: false }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: boolean
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.boolean: false }
+  - is_false: hits.hits.1._source.boolean
+  - is_false: hits.hits.2._source.boolean
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - is_false: hits.hits.4._source.boolean
+  - is_false: hits.hits.5._source.boolean
+  - is_false: hits.hits.6._source.boolean
+  - match: { hits.hits.7._source.boolean: false }
+  - match: { hits.hits.8._source.boolean: false }
+  - match: { hits.hits.9._source.boolean: false }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: boolean
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.boolean: false }
+  - is_false: hits.hits.1._source.boolean
+  - is_false: hits.hits.2._source.boolean
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - is_false: hits.hits.4._source.boolean
+  - is_false: hits.hits.5._source.boolean
+  - is_false: hits.hits.6._source.boolean
+  - match: { hits.hits.7._source.boolean: false }
+  - match: { hits.hits.8._source.boolean: false }
+  - match: { hits.hits.9._source.boolean: false }
+
 ---
-exists matches only documents with a non-null value on a byte field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a byte field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1320,8 +2004,42 @@ exists matches only documents with a non-null value on a byte field in logsdb_co
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: byte } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: byte } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a byte field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a byte field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -1391,6 +2109,48 @@ synthetic source drops the null elements of a byte field in logsdb_columnar and 
 
   - do:
       search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: byte
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.byte: 1 }
+  - is_false: hits.hits.1._source.byte
+  - is_false: hits.hits.2._source.byte
+  - match: { hits.hits.3._source.byte: [1, 2] }
+  - is_false: hits.hits.4._source.byte
+  - is_false: hits.hits.5._source.byte
+  - is_false: hits.hits.6._source.byte
+  - match: { hits.hits.7._source.byte: 1 }
+  - match: { hits.hits.8._source.byte: 1 }
+  - match: { hits.hits.9._source.byte: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: byte
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.byte: 1 }
+  - is_false: hits.hits.1._source.byte
+  - is_false: hits.hits.2._source.byte
+  - match: { hits.hits.3._source.byte: [1, 2] }
+  - is_false: hits.hits.4._source.byte
+  - is_false: hits.hits.5._source.byte
+  - is_false: hits.hits.6._source.byte
+  - match: { hits.hits.7._source.byte: 1 }
+  - match: { hits.hits.8._source.byte: 1 }
+  - match: { hits.hits.9._source.byte: 1 }
+
+  - do:
+      search:
         index: test_columnar_stored
         body:
           query: { match_all: {} }
@@ -1411,7 +2171,7 @@ synthetic source drops the null elements of a byte field in logsdb_columnar and 
   - match: { hits.hits.9._source.byte: 1 }
 
 ---
-exists matches only documents with a non-null value on a short field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a short field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1463,8 +2223,42 @@ exists matches only documents with a non-null value on a short field in logsdb_c
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: short } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: short } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a short field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a short field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -1534,6 +2328,48 @@ synthetic source drops the null elements of a short field in logsdb_columnar and
 
   - do:
       search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: short
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.short: 1 }
+  - is_false: hits.hits.1._source.short
+  - is_false: hits.hits.2._source.short
+  - match: { hits.hits.3._source.short: [1, 2] }
+  - is_false: hits.hits.4._source.short
+  - is_false: hits.hits.5._source.short
+  - is_false: hits.hits.6._source.short
+  - match: { hits.hits.7._source.short: 1 }
+  - match: { hits.hits.8._source.short: 1 }
+  - match: { hits.hits.9._source.short: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: short
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.short: 1 }
+  - is_false: hits.hits.1._source.short
+  - is_false: hits.hits.2._source.short
+  - match: { hits.hits.3._source.short: [1, 2] }
+  - is_false: hits.hits.4._source.short
+  - is_false: hits.hits.5._source.short
+  - is_false: hits.hits.6._source.short
+  - match: { hits.hits.7._source.short: 1 }
+  - match: { hits.hits.8._source.short: 1 }
+  - match: { hits.hits.9._source.short: 1 }
+
+  - do:
+      search:
         index: test_columnar_stored
         body:
           query: { match_all: {} }
@@ -1554,7 +2390,7 @@ synthetic source drops the null elements of a short field in logsdb_columnar and
   - match: { hits.hits.9._source.short: 1 }
 
 ---
-exists matches only documents with a non-null value on an integer field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on an integer field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1606,8 +2442,42 @@ exists matches only documents with a non-null value on an integer field in logsd
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: integer } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: integer } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of an integer field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of an integer field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -1677,6 +2547,48 @@ synthetic source drops the null elements of an integer field in logsdb_columnar 
 
   - do:
       search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: integer
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - is_false: hits.hits.1._source.integer
+  - is_false: hits.hits.2._source.integer
+  - match: { hits.hits.3._source.integer: [1, 2] }
+  - is_false: hits.hits.4._source.integer
+  - is_false: hits.hits.5._source.integer
+  - is_false: hits.hits.6._source.integer
+  - match: { hits.hits.7._source.integer: 1 }
+  - match: { hits.hits.8._source.integer: 1 }
+  - match: { hits.hits.9._source.integer: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: integer
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - is_false: hits.hits.1._source.integer
+  - is_false: hits.hits.2._source.integer
+  - match: { hits.hits.3._source.integer: [1, 2] }
+  - is_false: hits.hits.4._source.integer
+  - is_false: hits.hits.5._source.integer
+  - is_false: hits.hits.6._source.integer
+  - match: { hits.hits.7._source.integer: 1 }
+  - match: { hits.hits.8._source.integer: 1 }
+  - match: { hits.hits.9._source.integer: 1 }
+
+  - do:
+      search:
         index: test_columnar_stored
         body:
           query: { match_all: {} }
@@ -1697,7 +2609,7 @@ synthetic source drops the null elements of an integer field in logsdb_columnar 
   - match: { hits.hits.9._source.integer: 1 }
 
 ---
-exists matches only documents with a non-null value on a long field in logsdb_columnar and vectordb_columnar:
+exists matches only documents with a non-null value on a long field in logsdb_columnar and vectordb_columnar and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1732,8 +2644,42 @@ exists matches only documents with a non-null value on a long field in logsdb_co
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: long } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: long } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a long field in logsdb_columnar and vectordb_columnar:
+synthetic source drops the null elements of a long field in logsdb_columnar and vectordb_columnar and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -1780,8 +2726,50 @@ synthetic source drops the null elements of a long field in logsdb_columnar and 
   - match: { hits.hits.8._source.long: 1 }
   - match: { hits.hits.9._source.long: 1 }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: long
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.long: 1 }
+  - is_false: hits.hits.1._source.long
+  - is_false: hits.hits.2._source.long
+  - match: { hits.hits.3._source.long: [1, 2] }
+  - is_false: hits.hits.4._source.long
+  - is_false: hits.hits.5._source.long
+  - is_false: hits.hits.6._source.long
+  - match: { hits.hits.7._source.long: 1 }
+  - match: { hits.hits.8._source.long: 1 }
+  - match: { hits.hits.9._source.long: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: long
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.long: 1 }
+  - is_false: hits.hits.1._source.long
+  - is_false: hits.hits.2._source.long
+  - match: { hits.hits.3._source.long: [1, 2] }
+  - is_false: hits.hits.4._source.long
+  - is_false: hits.hits.5._source.long
+  - is_false: hits.hits.6._source.long
+  - match: { hits.hits.7._source.long: 1 }
+  - match: { hits.hits.8._source.long: 1 }
+  - match: { hits.hits.9._source.long: 1 }
+
 ---
-exists matches only documents with a non-null value on a half_float field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a half_float field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1833,8 +2821,42 @@ exists matches only documents with a non-null value on a half_float field in log
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: half_float } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: half_float } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a half_float field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a half_float field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -1904,6 +2926,48 @@ synthetic source drops the null elements of a half_float field in logsdb_columna
 
   - do:
       search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: half_float
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - is_false: hits.hits.1._source.half_float
+  - is_false: hits.hits.2._source.half_float
+  - match: { hits.hits.3._source.half_float: [1.5, 2.5] }
+  - is_false: hits.hits.4._source.half_float
+  - is_false: hits.hits.5._source.half_float
+  - is_false: hits.hits.6._source.half_float
+  - match: { hits.hits.7._source.half_float: 1.5 }
+  - match: { hits.hits.8._source.half_float: 1.5 }
+  - match: { hits.hits.9._source.half_float: 1.5 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: half_float
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - is_false: hits.hits.1._source.half_float
+  - is_false: hits.hits.2._source.half_float
+  - match: { hits.hits.3._source.half_float: [1.5, 2.5] }
+  - is_false: hits.hits.4._source.half_float
+  - is_false: hits.hits.5._source.half_float
+  - is_false: hits.hits.6._source.half_float
+  - match: { hits.hits.7._source.half_float: 1.5 }
+  - match: { hits.hits.8._source.half_float: 1.5 }
+  - match: { hits.hits.9._source.half_float: 1.5 }
+
+  - do:
+      search:
         index: test_columnar_stored
         body:
           query: { match_all: {} }
@@ -1924,7 +2988,7 @@ synthetic source drops the null elements of a half_float field in logsdb_columna
   - match: { hits.hits.9._source.half_float: 1.5 }
 
 ---
-exists matches only documents with a non-null value on a float field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a float field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -1976,8 +3040,42 @@ exists matches only documents with a non-null value on a float field in logsdb_c
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: float } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: float } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a float field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a float field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -2047,6 +3145,48 @@ synthetic source drops the null elements of a float field in logsdb_columnar and
 
   - do:
       search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: float
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - is_false: hits.hits.1._source.float
+  - is_false: hits.hits.2._source.float
+  - match: { hits.hits.3._source.float: [1.5, 2.5] }
+  - is_false: hits.hits.4._source.float
+  - is_false: hits.hits.5._source.float
+  - is_false: hits.hits.6._source.float
+  - match: { hits.hits.7._source.float: 1.5 }
+  - match: { hits.hits.8._source.float: 1.5 }
+  - match: { hits.hits.9._source.float: 1.5 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: float
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - is_false: hits.hits.1._source.float
+  - is_false: hits.hits.2._source.float
+  - match: { hits.hits.3._source.float: [1.5, 2.5] }
+  - is_false: hits.hits.4._source.float
+  - is_false: hits.hits.5._source.float
+  - is_false: hits.hits.6._source.float
+  - match: { hits.hits.7._source.float: 1.5 }
+  - match: { hits.hits.8._source.float: 1.5 }
+  - match: { hits.hits.9._source.float: 1.5 }
+
+  - do:
+      search:
         index: test_columnar_stored
         body:
           query: { match_all: {} }
@@ -2067,7 +3207,7 @@ synthetic source drops the null elements of a float field in logsdb_columnar and
   - match: { hits.hits.9._source.float: 1.5 }
 
 ---
-exists matches only documents with a non-null value on a double field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a double field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -2119,8 +3259,42 @@ exists matches only documents with a non-null value on a double field in logsdb_
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: double } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: double } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a double field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a double field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -2190,6 +3364,48 @@ synthetic source drops the null elements of a double field in logsdb_columnar an
 
   - do:
       search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: double
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - is_false: hits.hits.1._source.double
+  - is_false: hits.hits.2._source.double
+  - match: { hits.hits.3._source.double: [1.5, 2.5] }
+  - is_false: hits.hits.4._source.double
+  - is_false: hits.hits.5._source.double
+  - is_false: hits.hits.6._source.double
+  - match: { hits.hits.7._source.double: 1.5 }
+  - match: { hits.hits.8._source.double: 1.5 }
+  - match: { hits.hits.9._source.double: 1.5 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: double
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - is_false: hits.hits.1._source.double
+  - is_false: hits.hits.2._source.double
+  - match: { hits.hits.3._source.double: [1.5, 2.5] }
+  - is_false: hits.hits.4._source.double
+  - is_false: hits.hits.5._source.double
+  - is_false: hits.hits.6._source.double
+  - match: { hits.hits.7._source.double: 1.5 }
+  - match: { hits.hits.8._source.double: 1.5 }
+  - match: { hits.hits.9._source.double: 1.5 }
+
+  - do:
+      search:
         index: test_columnar_stored
         body:
           query: { match_all: {} }
@@ -2210,7 +3426,7 @@ synthetic source drops the null elements of a double field in logsdb_columnar an
   - match: { hits.hits.9._source.double: 1.5 }
 
 ---
-exists matches only documents with a non-null value on a date field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a date field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -2262,8 +3478,42 @@ exists matches only documents with a non-null value on a date field in logsdb_co
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: date } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: date } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a date field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+synthetic source drops the null elements of a date field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -2331,8 +3581,50 @@ synthetic source drops the null elements of a date field in logsdb_columnar and 
   - match: { hits.hits.8._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.9._source.date: "2026-01-01T00:00:00.000Z" }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: date
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - is_false: hits.hits.1._source.date
+  - is_false: hits.hits.2._source.date
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+  - is_false: hits.hits.4._source.date
+  - is_false: hits.hits.5._source.date
+  - is_false: hits.hits.6._source.date
+  - match: { hits.hits.7._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.8._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.9._source.date: "2026-01-01T00:00:00.000Z" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: date
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - is_false: hits.hits.1._source.date
+  - is_false: hits.hits.2._source.date
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+  - is_false: hits.hits.4._source.date
+  - is_false: hits.hits.5._source.date
+  - is_false: hits.hits.6._source.date
+  - match: { hits.hits.7._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.8._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.9._source.date: "2026-01-01T00:00:00.000Z" }
+
 ---
-exists matches only documents with a non-null value on a date_nanos field in logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a date_nanos field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_logsdb_columnar
@@ -2384,8 +3676,42 @@ exists matches only documents with a non-null value on a date_nanos field in log
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: date_nanos } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: date_nanos } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a date_nanos field in logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a date_nanos field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "source keeps null array elements on this type (proposed contract in #165909)"
@@ -2455,6 +3781,48 @@ synthetic source drops the null elements of a date_nanos field in logsdb_columna
 
   - do:
       search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: date_nanos
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - is_false: hits.hits.1._source.date_nanos
+  - is_false: hits.hits.2._source.date_nanos
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+  - is_false: hits.hits.4._source.date_nanos
+  - is_false: hits.hits.5._source.date_nanos
+  - is_false: hits.hits.6._source.date_nanos
+  - match: { hits.hits.7._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.8._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: date_nanos
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - is_false: hits.hits.1._source.date_nanos
+  - is_false: hits.hits.2._source.date_nanos
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+  - is_false: hits.hits.4._source.date_nanos
+  - is_false: hits.hits.5._source.date_nanos
+  - is_false: hits.hits.6._source.date_nanos
+  - match: { hits.hits.7._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.8._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+
+  - do:
+      search:
         index: test_columnar_stored
         body:
           query: { match_all: {} }
@@ -2475,7 +3843,7 @@ synthetic source drops the null elements of a date_nanos field in logsdb_columna
   - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
 
 ---
-exists matches only documents with a non-null value on a pattern_text field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a pattern_text field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_columnar
@@ -2527,6 +3895,38 @@ exists matches only documents with a non-null value on a pattern_text field in c
   - do:
       search:
         index: test_columnar_row
+        body:
+          query: { exists: { field: pattern_text } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: leading_null }
+  - match: { hits.hits.2._id: trailing_null }
+  - match: { hits.hits.3._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: pattern_text } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: leading_null }
+  - match: { hits.hits.2._id: trailing_null }
+  - match: { hits.hits.3._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
         body:
           query: { exists: { field: pattern_text } }
           sort: [ { "@timestamp": asc } ]
@@ -2541,7 +3941,7 @@ exists matches only documents with a non-null value on a pattern_text field in c
   - match: { hits.hits.3._id: both_ends_null }
 
 ---
-synthetic source drops the null elements of a pattern_text field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a pattern_text field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - do:
       search:
         index: test_columnar
@@ -2605,6 +4005,46 @@ synthetic source drops the null elements of a pattern_text field in columnar and
   - do:
       search:
         index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: pattern_text
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.pattern_text: "a" }
+  - is_false: hits.hits.1._source.pattern_text
+  - is_false: hits.hits.2._source.pattern_text
+  - is_false: hits.hits.4._source.pattern_text
+  - is_false: hits.hits.5._source.pattern_text
+  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.7._source.pattern_text: "a" }
+  - match: { hits.hits.8._source.pattern_text: "a" }
+  - match: { hits.hits.9._source.pattern_text: "a" }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: pattern_text
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.pattern_text: "a" }
+  - is_false: hits.hits.1._source.pattern_text
+  - is_false: hits.hits.2._source.pattern_text
+  - is_false: hits.hits.4._source.pattern_text
+  - is_false: hits.hits.5._source.pattern_text
+  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.7._source.pattern_text: "a" }
+  - match: { hits.hits.8._source.pattern_text: "a" }
+  - match: { hits.hits.9._source.pattern_text: "a" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
         body:
           query: { match_all: {} }
           sort: [ { "@timestamp": asc } ]
@@ -2643,7 +4083,7 @@ synthetic source drops the null elements of a pattern_text field in columnar and
   - match: { hits.hits.9._source.pattern_text: "a" }
 
 ---
-exists matches only documents with a non-null value on a geo_point field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing:
+exists matches only documents with a non-null value on a geo_point field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - do:
       search:
         index: test_columnar
@@ -2712,8 +4152,42 @@ exists matches only documents with a non-null value on a geo_point field in colu
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
 
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: geo_point } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: geo_point } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
 ---
-synthetic source drops the null elements of a geo_point field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and columnar with columnar_stored:
+synthetic source drops the null elements of a geo_point field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - do:
       search:
         index: test_columnar
@@ -2786,6 +4260,52 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
   - do:
       search:
         index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: geo_point
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - is_false: hits.hits.1._source.geo_point
+  - is_false: hits.hits.2._source.geo_point
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
+  - is_false: hits.hits.4._source.geo_point
+  - is_false: hits.hits.5._source.geo_point
+  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: geo_point
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - is_false: hits.hits.1._source.geo_point
+  - is_false: hits.hits.2._source.geo_point
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
+  - is_false: hits.hits.4._source.geo_point
+  - is_false: hits.hits.5._source.geo_point
+  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
         body:
           query: { match_all: {} }
           sort: [ { "@timestamp": asc } ]

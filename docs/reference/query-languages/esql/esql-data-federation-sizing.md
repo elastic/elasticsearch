@@ -20,7 +20,7 @@ For data held in {{es}} indices, refer to the [Size your shards](docs-content://
 
 * **Prefer Parquet to the text formats** where you have the choice. It needs no schema inference, reads only the columns a query names, and stays splittable when compressed.
 * **Prefer mid-sized files**, from tens of megabytes to several hundred megabytes.
-* **Specify a mapping** on text datasets, with `dynamic` set to `false`.
+* **Prefer an explicitly declared schema for text datasets.** [Specify a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) with [`dynamic`](esql-data-federation-schema.md#mapping-properties) set to `false`.
 * **Start at 2 GB of heap** for Parquet, **2 GB to 4 GB** for uncompressed text, and **4 GB** for compressed text. Add a further **2 GB to 4 GB** for a text dataset whose schema is inferred.
 * **Allocate 1 GB to 2 GB of heap per core.**
 * **Add 1 core per 3 to 4 concurrent queries** on text, and 1 core per 8 to 10 on Parquet.

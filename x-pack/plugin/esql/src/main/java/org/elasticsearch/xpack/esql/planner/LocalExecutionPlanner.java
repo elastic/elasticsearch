@@ -2611,10 +2611,6 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(eqlSource.output());
-        // No pushed LIMIT and no WITH {"size"} → fall back to the ES|QL result-truncation cap, and warn at runtime
-        // if the response fills it (results may be incomplete).
-        int truncationCap = configuration.resultTruncationMaxSize(false);
-        boolean warnOnTruncation = EqlRequests.usesTruncationCapSize(eqlSource.options(), eqlSource.pushedLimit());
         EqlSearchRequest request = EqlRequests.build(
             eqlSource.query(),
             eqlSource.indices(),
@@ -2622,7 +2618,6 @@ public class LocalExecutionPlanner {
             eqlSource.options(),
             eqlSource.pushedLimit(),
             new EqlRequests.EnclosingQuery(
-                truncationCap,
                 // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
                 configuration.allowPartialResults(),
                 QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
@@ -2639,7 +2634,14 @@ public class LocalExecutionPlanner {
             request.preResolvedFieldCaps(preResolved);
         }
         return PhysicalOperation.fromSource(
-            new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output(), eqlSource.source(), warnOnTruncation),
+            new EqlSourceOperator.Factory(
+                client,
+                request,
+                eqlSource.mode(),
+                eqlSource.output(),
+                eqlSource.source(),
+                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit())
+            ),
             layout.build()
         );
     }

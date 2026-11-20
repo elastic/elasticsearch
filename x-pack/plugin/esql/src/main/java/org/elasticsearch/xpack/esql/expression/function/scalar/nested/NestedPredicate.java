@@ -21,15 +21,19 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
@@ -41,7 +45,9 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -132,6 +138,33 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     public List<String> relativePaths() {
         return relativePaths;
+    }
+
+    /** The full names of the child fields this predicate reads. */
+    public List<String> fieldNames() {
+        return relativePaths.stream().map(relative -> path + "." + relative).toList();
+    }
+
+    /**
+     * The predicate over the child fields themselves, for Lucene to match within each child document. {@code null} when
+     * it reads more than child fields or a child that a cast reads per index.
+     */
+    @Nullable
+    public Expression childPredicate() {
+        Map<NameId, FieldAttribute> fields = new HashMap<>();
+        List<String> names = fieldNames();
+        for (int i = 0; i < inputs.size(); i++) {
+            Attribute input = inputs.get(i);
+            if (EsPhysicalOperationProviders.findUnionTypes(input) != null) {
+                return null;
+            }
+            EsField field = new EsField(names.get(i), input.dataType(), Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+            fields.put(input.id(), new FieldAttribute(input.source(), names.get(i), field));
+        }
+        if (body.references().stream().anyMatch(attribute -> fields.containsKey(attribute.id()) == false)) {
+            return null;
+        }
+        return body.transformUp(Attribute.class, attribute -> fields.get(attribute.id()));
     }
 
     @Override
@@ -233,7 +266,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         public Block eval(Page page) {
             DocVector docs = docs(page);
             boolean[] matched = new boolean[docs.getPositionCount()];
-            children.read(docs, position -> true, loaded -> accept(loaded, matched));
+            children.read(docs, position -> true, position -> matched[position] == false, loaded -> accept(loaded, matched));
             BooleanBlock.Builder builder = context.blockFactory().newBooleanBlockBuilder(matched.length);
             Block result = null;
             try {

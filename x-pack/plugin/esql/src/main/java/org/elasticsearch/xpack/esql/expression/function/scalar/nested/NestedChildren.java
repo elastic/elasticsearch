@@ -235,6 +235,15 @@ public final class NestedChildren implements Releasable {
      * {@code consumer} returns.
      */
     void read(DocVector parents, IntPredicate included, Consumer<Page> consumer) {
+        read(parents, included, position -> true, consumer);
+    }
+
+    /**
+     * As {@link #read(DocVector, IntPredicate, Consumer)}, but a parent's remaining children are skipped once
+     * {@code keepReading} says its position needs no more. It is asked after each page is consumed, so a parent whose
+     * children fit in one page is read whole.
+     */
+    void read(DocVector parents, IntPredicate included, IntPredicate keepReading, Consumer<Page> consumer) {
         parents.ensureAttached("NESTED");
         int[] shardIds = new int[PAGE_SIZE];
         int[] segments = new int[PAGE_SIZE];
@@ -259,7 +268,9 @@ public final class NestedChildren implements Releasable {
                     continue;
                 }
                 int first = shard.parents().getBitSet(leaf).prevSetBit(parent - 1) + 1;
-                for (int child = children.nextSetBit(first); child < parent; child = children.nextSetBit(child + 1)) {
+                for (int child = children.nextSetBit(first); child < parent && keepReading.test(p); child = children.nextSetBit(
+                    child + 1
+                )) {
                     shardIds[count] = shardId;
                     segments[count] = segment;
                     docs[count] = child;

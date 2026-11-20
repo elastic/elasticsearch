@@ -211,6 +211,52 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean nestedFieldHasDocValues(FieldName field) {
+        boolean mapped = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string())) {
+                if (context.getFieldType(field.string()).hasDocValues() == false) {
+                    return false;
+                }
+                mapped = true;
+            }
+        }
+        return mapped;
+    }
+
+    @Override
+    public boolean nestedFieldIsSearchable(FieldName field) {
+        boolean mapped = false;
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(field.string())) {
+                if (context.getFieldType(field.string()).isSearchable() == false) {
+                    return false;
+                }
+                mapped = true;
+            } else if (context.nestedLookup().hasNestedParent(field.string())) {
+                return false;
+            }
+        }
+        return mapped;
+    }
+
+    @Override
+    public boolean nestedFieldIsQueryable(FieldName field, DataType type) {
+        if (nestedFieldIsSearchable(field) == false || nestedFieldHasDocValues(field) == false) {
+            return false;
+        }
+        for (SearchExecutionContext context : contexts) {
+            MappedFieldType fieldType = context.getFieldType(field.string());
+            if (fieldType != null
+                && (dataType(fieldType) != type
+                    || fieldType instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.hasNormalizer())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public boolean readsKey(FieldName field) {
         for (SearchExecutionContext context : contexts) {
             if (context instanceof EsqlSearchExecutionContext esql && esql.readsKey(field.string())) {

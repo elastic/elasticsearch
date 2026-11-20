@@ -1114,3 +1114,54 @@ setup:
         body:
           query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.flag) | KEEP id, h | SORT id'
   - match: { values: [["1", false], ["2", false], ["3", true], ["4", false], ["5", false], ["6", false]] }
+
+---
+"NESTED_ANY cannot reference a parent field":
+  - do:
+      catch: /Field \[id\] is outside the nested scope/
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == id) | KEEP id'
+
+---
+"NESTED_ANY cannot reference a parent field beside a child field":
+  - do:
+      catch: /Field \[id\] is outside the nested scope/
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a" AND id == "1") | KEEP id'
+
+---
+"NESTED_ANY cannot reference a computed column":
+  - do:
+      catch: /Field \[k\] is outside the nested scope/
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL k = "a" | WHERE NESTED_ANY(items.sku == k) | KEEP id'
+
+---
+"NESTED_ANY cannot reference a renamed parent field":
+  - do:
+      catch: /Field \[pid\] is outside the nested scope/
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | RENAME id AS pid | WHERE NESTED_ANY(items.sku == pid) | KEEP pid'
+
+---
+"NESTED_ANY cannot reference a parent field in EVAL":
+  - do:
+      catch: /Field \[id\] is outside the nested scope/
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.sku == id) | KEEP id, h'
+
+---
+"a parent field beside NESTED_ANY is not an outer reference":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | WHERE id == "1" AND NESTED_ANY(items.sku == "a") | KEEP id | SORT id'
+  - match: { values: [["1"]] }
+

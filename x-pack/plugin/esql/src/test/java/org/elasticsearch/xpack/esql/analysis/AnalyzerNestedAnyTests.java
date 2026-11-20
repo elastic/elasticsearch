@@ -188,6 +188,57 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
+    public void testOuterReferenceToAnEvalColumnIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | EVAL k = \"a\" | WHERE NESTED_ANY(items.sku == k)",
+            containsString("Field [k] is outside the nested scope")
+        );
+    }
+
+    public void testOuterReferenceToARenamedColumnIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | RENAME id AS pid | WHERE NESTED_ANY(items.sku == pid)",
+            containsString("Field [pid] is outside the nested scope")
+        );
+    }
+
+    public void testOuterReferenceInTheCollectionFormIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | WHERE NESTED_ANY(items, items.sku == id)",
+            containsString("Field [id] is outside the nested scope")
+        );
+    }
+
+    public void testOuterReferenceBesideAChildFieldIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | WHERE NESTED_ANY(items.sku == \"a\" AND id == \"1\")",
+            containsString("Field [id] is outside the nested scope")
+        );
+    }
+
+    public void testOuterReferenceThroughAFunctionIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | WHERE NESTED_ANY(CONCAT(items.sku, id) == \"a1\")",
+            containsString("Field [id] is outside the nested scope")
+        );
+    }
+
+    public void testOuterReferenceInEvalIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | EVAL h = NESTED_ANY(items.sku == id) | KEEP id, h",
+            containsString("Field [id] is outside the nested scope")
+        );
+    }
+
+    public void testOuterReferenceAloneLeavesNoNestedFieldToBind() {
+        nestedAnalyzer().error("FROM ne | WHERE NESTED_ANY(id == \"1\")", containsString("Field [id] is outside the nested scope"));
+    }
+
+    public void testParentColumnBesideTheCallIsNotAnOuterReference() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | WHERE id == \"1\" AND NESTED_ANY(items.sku == \"a\") | LIMIT 10");
+        assertThat(predicate(plan).inputs(), hasSize(1));
+    }
+
     public void testSpatialChildIsReadLikeAnyOtherColumn() {
         LogicalPlan plan = nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.loc IS NOT NULL)");
         assertThat(predicate(plan).inputs().stream().map(Attribute::dataType).toList(), equalTo(List.of(DataType.GEO_POINT)));

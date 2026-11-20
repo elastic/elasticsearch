@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -54,9 +55,7 @@ final class DataNodeComputeResponse extends TransportResponse {
                 0,
                 0,
                 0,
-                0,
-                0,
-                0,
+                SearchLoadMetrics.EMPTY,
                 in.readCollectionAsImmutableList(DriverProfile::readFrom),
                 List.of(),
                 java.util.Map.of(),

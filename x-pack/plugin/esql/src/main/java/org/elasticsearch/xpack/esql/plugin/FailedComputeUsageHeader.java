@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 
 import java.util.List;
 import java.util.Map;
@@ -61,7 +62,8 @@ final class FailedComputeUsageHeader {
             usage.cpuNanos(),
             usage.driverNanos()
         );
-        write(threadContext, SEARCH_LOAD_NAME, usage.searchLoadNanos(), usage.searchCpuNanos(), usage.searchWaitingNanos());
+        SearchLoadMetrics searchLoad = usage.searchLoad();
+        write(threadContext, SEARCH_LOAD_NAME, searchLoad.loadNanos(), searchLoad.cpuNanos(), searchLoad.waitingNanos());
     }
 
     private static void write(ThreadContext threadContext, String name, long... fields) {
@@ -98,9 +100,7 @@ final class FailedComputeUsageHeader {
             sum[5],
             sum[6],
             sum[7],
-            searchLoad[0],
-            searchLoad[1],
-            searchLoad[2],
+            new SearchLoadMetrics(searchLoad[0], searchLoad[1], searchLoad[2]),
             List.of(),
             List.of(),
             Map.of(),

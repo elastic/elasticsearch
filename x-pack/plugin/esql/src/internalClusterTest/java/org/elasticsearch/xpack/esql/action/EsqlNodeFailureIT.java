@@ -147,7 +147,7 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
             assertThat(EsqlTestUtils.getValuesList(resp).size(), equalTo(okIds.size()));
             // the failed shards found documents before loading the failing field
             assertThat(resp.documentsFound(), greaterThan((long) okIds.size()));
-            assertThat(resp.searchLoadNanos(), greaterThan(0L));
+            assertThat(resp.searchLoad().loadNanos(), greaterThan(0L));
         }
     }
 

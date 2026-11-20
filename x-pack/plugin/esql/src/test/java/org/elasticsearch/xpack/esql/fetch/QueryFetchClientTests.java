@@ -30,6 +30,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -88,9 +89,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
         0,
         0,
         0,
-        0,
-        0,
-        0,
+        SearchLoadMetrics.EMPTY,
         List.of(),
         List.of(),
         Map.of(),

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -54,7 +55,23 @@ public class FailedComputeUsageTransportTests extends ESTestCase {
     }
 
     private static DriverCompletionInfo usage() {
-        return new DriverCompletionInfo(1, 2, 3, 4_000, 50, 6, 70, 80, 0, 0, 0, List.of(), List.of(), Map.of(), false, false, Set.of());
+        return new DriverCompletionInfo(
+            1,
+            2,
+            3,
+            4_000,
+            50,
+            6,
+            70,
+            80,
+            SearchLoadMetrics.EMPTY,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
     }
 
     public void testUsageArrivesFromAnotherNode() throws Exception {

@@ -28,6 +28,8 @@ public record SearchLoadMetrics(long loadNanos, long cpuNanos, long waitingNanos
         DirectoryMetrics.PluggableMetrics<SearchLoadMetrics>,
         VersionedNamedWriteable {
 
+    public static final SearchLoadMetrics EMPTY = new SearchLoadMetrics(0, 0, 0);
+
     public static final String NAME = "search_load";
     public static final String LOAD_NANOS_KEY = "search_load_nanos";
     public static final String CPU_NANOS_KEY = "search_cpu_nanos";
@@ -68,7 +70,7 @@ public record SearchLoadMetrics(long loadNanos, long cpuNanos, long waitingNanos
 
     @Override
     public Supplier<SearchLoadMetrics> delta() {
-        return () -> new SearchLoadMetrics(0, 0, 0);
+        return () -> EMPTY;
     }
 
     @Override

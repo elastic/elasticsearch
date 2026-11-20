@@ -119,8 +119,8 @@ public class FailedComputeUsageTests extends ComputeTestCase {
         assertThat(reportedUsage.get().bytesRead(), equalTo(1_100 + planningBytesRead));
         assertThat(reportedUsage.get().readNanos(), equalTo(30L));
         assertThat(reportedUsage.get().readCpuNanos(), equalTo(12L));
-        assertThat(reportedUsage.get().searchLoadNanos(), equalTo(loadNanos));
-        assertThat(reportedUsage.get().searchCpuNanos(), equalTo(cpuNanos));
+        assertThat(reportedUsage.get().searchLoad().loadNanos(), equalTo(loadNanos));
+        assertThat(reportedUsage.get().searchLoad().cpuNanos(), equalTo(cpuNanos));
     }
 
     public void testPlainListenerGetsAPlainFailure() {

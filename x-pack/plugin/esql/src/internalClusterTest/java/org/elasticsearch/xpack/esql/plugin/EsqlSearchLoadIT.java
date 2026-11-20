@@ -109,9 +109,9 @@ public class EsqlSearchLoadIT extends AbstractEsqlIntegTestCase {
                 "FROM read | WHERE v > 100 | KEEP k, v | LIMIT 1000"
             );
             try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
-                assertThat(response.searchLoadNanos(), greaterThan(0L));
-                assertThat(response.searchCpuNanos(), lessThanOrEqualTo(response.searchLoadNanos()));
-                reported += response.searchLoadNanos();
+                assertThat(response.searchLoad().loadNanos(), greaterThan(0L));
+                assertThat(response.searchLoad().cpuNanos(), lessThanOrEqualTo(response.searchLoad().loadNanos()));
+                reported += response.searchLoad().loadNanos();
             }
         }
 

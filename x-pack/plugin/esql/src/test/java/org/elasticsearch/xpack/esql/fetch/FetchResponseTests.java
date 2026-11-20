@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.EOFException;
@@ -50,9 +51,7 @@ public class FetchResponseTests extends ComputeTestCase {
             17,
             19,
             31,
-            37,
-            41,
-            43,
+            new SearchLoadMetrics(37, 41, 43),
             List.of(),
             List.of(),
             Map.of(),

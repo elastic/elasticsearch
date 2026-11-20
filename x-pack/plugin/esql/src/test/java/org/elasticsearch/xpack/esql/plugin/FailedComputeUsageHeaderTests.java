@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -32,9 +33,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
             base + 5,
             base + 6,
             base + 7,
-            base + 8,
-            base + 9,
-            base + 10,
+            new SearchLoadMetrics(base + 8, base + 9, base + 10),
             List.of(),
             List.of(),
             Map.of(),
@@ -53,9 +52,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         assertThat(actual.readCpuNanos(), equalTo(expected.readCpuNanos()));
         assertThat(actual.cpuNanos(), equalTo(expected.cpuNanos()));
         assertThat(actual.driverNanos(), equalTo(expected.driverNanos()));
-        assertThat(actual.searchLoadNanos(), equalTo(expected.searchLoadNanos()));
-        assertThat(actual.searchCpuNanos(), equalTo(expected.searchCpuNanos()));
-        assertThat(actual.searchWaitingNanos(), equalTo(expected.searchWaitingNanos()));
+        assertThat(actual.searchLoad(), equalTo(expected.searchLoad()));
     }
 
     public void testRoundTrip() {
@@ -129,9 +126,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
             0,
             0,
             0,
-            0,
-            0,
-            7,
+            new SearchLoadMetrics(0, 0, 7),
             List.of(),
             List.of(),
             Map.of(),
@@ -153,9 +148,7 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
         DriverCompletionInfo taken = FailedComputeUsageHeader.take(threadContext);
         assertThat(taken.documentsFound(), equalTo(1L));
         assertThat(taken.driverNanos(), equalTo(8L));
-        assertThat(taken.searchLoadNanos(), equalTo(0L));
-        assertThat(taken.searchCpuNanos(), equalTo(0L));
-        assertThat(taken.searchWaitingNanos(), equalTo(0L));
+        assertThat(taken.searchLoad(), equalTo(SearchLoadMetrics.EMPTY));
     }
 
     /**
@@ -164,6 +157,10 @@ public class FailedComputeUsageHeaderTests extends ESTestCase {
      */
     public void testHeaderCarriesAllTheCountersOfTheCompletionInfo() {
         long counters = Arrays.stream(DriverCompletionInfo.class.getRecordComponents()).filter(c -> c.getType() == long.class).count();
-        assertThat(counters, equalTo((long) FailedComputeUsageHeader.FIELDS + FailedComputeUsageHeader.SEARCH_LOAD_FIELDS));
+        assertThat(counters, equalTo((long) FailedComputeUsageHeader.FIELDS));
+        long searchLoadCounters = Arrays.stream(SearchLoadMetrics.class.getRecordComponents())
+            .filter(c -> c.getType() == long.class)
+            .count();
+        assertThat(searchLoadCounters, equalTo((long) FailedComputeUsageHeader.SEARCH_LOAD_FIELDS));
     }
 }

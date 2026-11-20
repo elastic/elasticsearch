@@ -36,6 +36,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.ScriptFactory;
@@ -726,6 +727,16 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 return List.of();
             }
         };
+    }
+
+    public void testLegacyIndexRespectsDocValuesFalse() throws IOException {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "geo_point");
+            b.field("doc_values", false);
+        }));
+        MappedFieldType ft = service.fieldType("field");
+        assertFalse(ft.hasDocValues());
+        assertEquals(IndexType.NONE, ft.indexType());
     }
 
     @Override

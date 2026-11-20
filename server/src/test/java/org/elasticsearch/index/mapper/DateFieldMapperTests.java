@@ -819,6 +819,16 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
 
+    public void testLegacyIndexRespectsDocValuesFalse() throws IOException {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "date");
+            b.field("doc_values", false);
+        }));
+        MappedFieldType ft = service.fieldType("field");
+        assertFalse(ft.hasDocValues());
+        assertEquals(IndexType.NONE, ft.indexType());
+    }
+
     private static IndexSettings buildIndexSettings(IndexVersion indexVersion) {
         return new IndexSettings(
             new IndexMetadata.Builder("index").settings(indexSettings(indexVersion, 1, 1).build()).build(),

@@ -53,6 +53,9 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.W
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIX;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIXES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_END;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_HOUR_FILES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.expand;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.fieldShapedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.folderRange;
@@ -63,6 +66,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.p
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.pathsOf;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.reference;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.temporalHints;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveSevenDayTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveTree;
 
 /**
@@ -72,8 +76,8 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.w
  *
  * <p>Documented holes (flipped by later PRs):
  * <ul>
- *   <li>Mixed-tree {@code month == 6} returns only {@code month=6} (PR 4). {@code 006} is another spelling of 6;
- *       {@code 007} is integer 7. Boolean/encoded-string splice holes stay out of scope for D.</li>
+ *   <li>Mixed-tree {@code month == 6} returns only {@code month=6}. {@code 006} is another spelling of 6;
+ *       {@code 007} is integer 7.</li>
  * </ul>
  */
 public class ListingWalkHarnessTests extends ESTestCase {
@@ -284,6 +288,52 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertTrue(walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
     }
 
+    /**
+     * 154-prefix Hive tree, 7 June days and {@code hour == 0}. Walk and forced-flat keep the same files as
+     * the oracle. {@code hour=0} splices miss padded {@code hour=00}, so listing retries the original glob
+     * and today's 512 cap aborts twice at
+     * {@link ListingWalkHarness#WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN}. {@link
+     * ListingWalkHarness#WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES} is the derived directory count to reach
+     * matching hour folders; not observed under the cap.
+     */
+    public void testWideHiveTreeSevenDayHourWalkCostVersusFlat() throws IOException {
+        List<StorageEntry> tree = wideHiveSevenDayTree();
+        assertEquals(1957, WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES);
+        assertTrue(tree.stream().anyMatch(e -> e.path().toString().contains("/month=07/")));
+        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END));
+        List<PartitionFilterHint> hourHint = List.of(new PartitionFilterHint("hour", Operator.EQUALS, List.of(0)));
+        List<PartitionFilterHint> hints = new ArrayList<>(listingHints(filters, DAY_SPEC));
+        hints.addAll(hourHint);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, WIDE_HIVE_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+        assertEquals(WIDE_HIVE_SEVEN_DAY_HOUR_FILES, ref.paths().size());
+        assertFalse(ref.inferenceAnchor());
+        assertEquals(0, ref.excludedByFileHint());
+        for (String path : ref.paths()) {
+            assertTrue(path, path.contains("/hour=00/"));
+            assertFalse(path, path.contains("/hour=01/"));
+            assertFalse(path, path.contains("/month=07/"));
+        }
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, WIDE_HIVE_GLOB, hourHint, MAX, pred);
+        assertObserved(walked, ref);
+
+        ListingWalkHarness flatExpand = new ListingWalkHarness(tree);
+        flatExpand.setChildrenUnsupported(true);
+        FileList flattened = expand(flatExpand, WIDE_HIVE_GLOB, hourHint, MAX, pred);
+        assertObserved(flattened, ref);
+        assertEquals(pathsOf(walked), pathsOf(flattened));
+
+        // hour=0 splices to hour=0, misses padded hour=00, retries the original glob, then the 512
+        // cap aborts the walk the same way as the 1-day test (417 children and a prefix listing each
+        // attempt).
+        assertEquals(2 * WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN, walk.listChildrenRequests());
+        assertEquals(2 * objectPages(tree.size()), walk.listObjectPages());
+        assertEquals(2 * objectPages(tree.size()), flatExpand.listObjectPages());
+        assertTrue(walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
+    }
+
     public void testChildrenUnsupportedForcesOnePrefixList() throws IOException {
         ListingWalkHarness provider = new ListingWalkHarness(fieldShapedTree());
         provider.childrenUnsupported = true;
@@ -361,8 +411,8 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     /**
-     * Unpadded {@code month=6} exists, so the splice hits and padded siblings are not listed. PR 4 leaves
-     * {@code month=*} and the matcher keeps {@code 6}/{@code 06}/{@code 006}.
+     * Unpadded {@code month=6} exists, so the splice hits and padded siblings are not listed. The matcher
+     * keeps {@code 6}/{@code 06}/{@code 006}.
      */
     public void testMixedTreeMonthEqualsSixReturnsOnlyUnpaddedSpelling() throws IOException {
         List<StorageEntry> tree = mixedTree();

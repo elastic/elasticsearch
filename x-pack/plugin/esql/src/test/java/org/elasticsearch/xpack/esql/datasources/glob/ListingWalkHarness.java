@@ -93,9 +93,12 @@ public final class ListingWalkHarness implements StorageProvider {
      */
     public static final int WIDE_HIVE_ONE_DAY_FILES = WIDE_HIVE_PREFIXES * WIDE_HIVE_HOURS * WIDE_HIVE_FILES_PER_LEAF;
     /**
-     * {@code listChildren} (including peeks) to reach matching day directories on {@link #wideHiveTree()}
-     * with a 1-day filter: root + accounts + services + regions + years + matching months + July peeks.
-     * Today's {@code MAX_DIRECTORY_LISTINGS} aborts earlier, at {@link #WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN}.
+     * Derived {@code listChildren} to reach matching day directories on {@link #wideHiveTree()} with a
+     * 1-day filter: root + accounts + services + regions + years + matching months + July peeks.
+     * Formula, not an observed complete walk — today's cap aborts at
+     * {@link #WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN}. The {@code 4 × prefixes} term is regions, years,
+     * June months, and July peeks; without July peeks the count is 725. Do not treat this as a measured
+     * walk until a raised ceiling observes {@code listChildrenRequests()}.
      */
     public static final int WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES = 1 + 2 * WIDE_HIVE_ACCOUNTS + 4 * WIDE_HIVE_PREFIXES;
     /**
@@ -103,6 +106,18 @@ public final class ListingWalkHarness implements StorageProvider {
      * ({@code listings + dirs = 417 + 154 = 571}): root + accounts + services + regions.
      */
     public static final int WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN = 1 + 2 * WIDE_HIVE_ACCOUNTS + WIDE_HIVE_PREFIXES;
+    /** Matching June days in {@link #wideHiveSevenDayTree()}. The builder also adds 1 July as a prune sibling. */
+    public static final int WIDE_HIVE_SEVEN_DAYS = 7;
+    public static final Instant WIDE_HIVE_SEVEN_DAY_END = Instant.parse("2026-06-08T00:00:00Z");
+    /** Kept files for a 7-day window and {@code hour == 0}: prefixes × days × filesPerLeaf. */
+    public static final int WIDE_HIVE_SEVEN_DAY_HOUR_FILES = WIDE_HIVE_PREFIXES * WIDE_HIVE_SEVEN_DAYS * WIDE_HIVE_FILES_PER_LEAF;
+    /**
+     * Derived {@code listChildren} to reach matching hour directories on {@link #wideHiveSevenDayTree()}
+     * with a 7-day window and an hour filter: the 1-day day-grain formula plus one listing per matching
+     * day. Not observed under today's 512 cap. Without July peeks: 725 + 7×154 = 1803.
+     */
+    public static final int WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES = WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES + WIDE_HIVE_SEVEN_DAYS
+        * WIDE_HIVE_PREFIXES;
 
     private static final String[] WIDE_HIVE_REGIONS = {
         "us-east-1",
@@ -233,6 +248,23 @@ public final class ListingWalkHarness implements StorageProvider {
      * (prune siblings), {@link #WIDE_HIVE_HOURS} hours × {@link #WIDE_HIVE_FILES_PER_LEAF} files per leaf.
      */
     public static List<StorageEntry> wideHiveTree() {
+        return wideHiveTree(List.of(LocalDate.of(2026, 6, 1), LocalDate.of(2026, 6, 2), LocalDate.of(2026, 7, 1)));
+    }
+
+    /**
+     * Same 154 prefixes as {@link #wideHiveTree()}, 1–7 June plus 1 July as a prune sibling. Kept separate so
+     * the 1-day tree's key count and abort LIST pins stay put.
+     */
+    public static List<StorageEntry> wideHiveSevenDayTree() {
+        List<LocalDate> days = new ArrayList<>(WIDE_HIVE_SEVEN_DAYS + 1);
+        for (int d = 1; d <= WIDE_HIVE_SEVEN_DAYS; d++) {
+            days.add(LocalDate.of(2026, 6, d));
+        }
+        days.add(LocalDate.of(2026, 7, 1));
+        return wideHiveTree(days);
+    }
+
+    private static List<StorageEntry> wideHiveTree(List<LocalDate> days) {
         assert WIDE_HIVE_REGIONS.length == 20 : WIDE_HIVE_REGIONS.length;
         int extraDualRegionAccounts = WIDE_HIVE_PREFIXES - WIDE_HIVE_ACCOUNTS;
         List<StorageEntry> entries = new ArrayList<>();
@@ -240,11 +272,11 @@ public final class ListingWalkHarness implements StorageProvider {
         for (int a = 1; a <= WIDE_HIVE_ACCOUNTS; a++) {
             String account = String.format(Locale.ROOT, "%012d", a);
             String firstRegion = WIDE_HIVE_REGIONS[(a - 1) % WIDE_HIVE_REGIONS.length];
-            addWideHivePrefix(entries, account, firstRegion);
+            addWideHivePrefix(entries, account, firstRegion, days);
             prefixes++;
             if (a <= extraDualRegionAccounts) {
                 String secondRegion = WIDE_HIVE_REGIONS[a % WIDE_HIVE_REGIONS.length];
-                addWideHivePrefix(entries, account, secondRegion);
+                addWideHivePrefix(entries, account, secondRegion, days);
                 prefixes++;
             }
         }
@@ -252,11 +284,11 @@ public final class ListingWalkHarness implements StorageProvider {
         return entries;
     }
 
-    private static void addWideHivePrefix(List<StorageEntry> entries, String account, String region) {
+    private static void addWideHivePrefix(List<StorageEntry> entries, String account, String region, List<LocalDate> days) {
         String prefix = WIDE_HIVE_PREFIX + "/aws-account-id=" + account + "/aws-service=vpcflowlogs/aws-region=" + region;
-        addWideHiveDay(entries, prefix, 2026, 6, 1);
-        addWideHiveDay(entries, prefix, 2026, 6, 2);
-        addWideHiveDay(entries, prefix, 2026, 7, 1);
+        for (LocalDate day : days) {
+            addWideHiveDay(entries, prefix, day.getYear(), day.getMonthValue(), day.getDayOfMonth());
+        }
     }
 
     private static void addWideHiveDay(List<StorageEntry> entries, String prefix, int year, int month, int day) {

@@ -31,6 +31,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     private static final TransportVersion REINDEX_PAGE_STATS_ADDED = TransportVersion.fromName("reindex_page_indexing_pressure_stats");
 
+    // For a reindex page the coordinating totals hold the estimate the page reserved, not its real bytes. The real bytes are the total
+    // minus reindexPageBytesBelowEstimate plus reindexPageBytesAboveEstimate. The coordinating ops total includes the final empty page.
     private final long totalCombinedCoordinatingAndPrimaryBytes;
     private final long totalCoordinatingBytes;
     private final long totalPrimaryBytes;

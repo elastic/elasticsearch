@@ -326,9 +326,9 @@ public abstract class PaginatedHitSource {
          * search-after values and PIT id are kept so a later reader of the response still sees the cursor for this page.
          */
         public void dropHits() {
-            // When no explicit values were given the getter falls back to the last hit, so pin that answer down before any hit is
-            // released. A released hit is not guaranteed to still answer, even though a SearchHit happens to keep its sort values.
-            // Only the sort values array is kept, not the hit itself.
+            // Without explicit values the getter falls back to the last hit, and a released hit may not answer. The batch hits are
+            // already released by the time this runs, so the loop below only sees released hits. Both point-in-time sources pass
+            // explicit search-after values, so the fallback is never needed. Keeping the values array pins the answer anyway.
             searchAfterValues = getSearchAfterValues();
             for (Hit hit : hits) {
                 hit.release();

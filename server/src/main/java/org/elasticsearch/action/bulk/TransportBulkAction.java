@@ -853,7 +853,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         return request.getIndices().stream().allMatch(indexName -> isSystemIndex(indicesLookup, systemIndices, indexName));
     }
 
-    private static boolean isSystemIndex(SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices, String indexName) {
+    public static boolean isSystemIndex(SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices, String indexName) {
         final IndexAbstraction abstraction = indicesLookup.get(indexName);
         if (abstraction != null) {
             return abstraction.isSystem();

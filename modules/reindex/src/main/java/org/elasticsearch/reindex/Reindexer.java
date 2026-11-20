@@ -1144,6 +1144,15 @@ public class Reindexer {
             return super.buildPaginatedSearchResultSource(backoffPolicy, searchRequest);
         }
 
+        /**
+         * A reindex writes to its destination whatever it reads from. Enrich reindex sets its destination the same way.
+         */
+        @Override
+        protected List<String> writeTargetExpressions() {
+            final String destination = mainRequest.getDestination().index();
+            return destination == null ? List.of() : List.of(destination);
+        }
+
         @Override
         protected void finishHim(
             Exception failure,
@@ -1209,6 +1218,9 @@ public class Reindexer {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);
                     index.source(BytesReference.bytes(builder), builder.contentType());
+                    // The request holds the converted copy, so the hit's source is no longer needed. Release is safe to repeat, so
+                    // the page cleanup releasing this hit again does no harm.
+                    doc.release();
                 } catch (IOException e) {
                     throw new UncheckedIOException(
                         "failed to convert hit ["

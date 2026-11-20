@@ -34,6 +34,7 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -72,9 +73,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -86,7 +85,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -141,15 +139,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
 
-    /**
-     * Hits the script already released while building the current bulk.
-     * Cleanup walks those same hits and must leave them alone.
-     * <p>
-     * This set is not synchronised. That is safe because every add and every remove is ordered by an executor handoff, and
-     * {@code ClientHit#release} is idempotent, so even a missed entry would only release the same hit a second time.
-     */
-    private final Set<PaginatedHitSource.Hit> hitsReleasedWhileBuilding = Collections.newSetFromMap(new IdentityHashMap<>());
-
     private int lastBatchSize;
     /**
      * The current paginated search response being processed. Set atomically so that either {@link #prepareBulkRequest} or
@@ -157,7 +146,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     private final AtomicReference<PaginatedSearchConsumableHitsResponse> currentPaginatedSearchResponse = new AtomicReference<>();
     /**
-     * Set to {@code true} at the start of {@link #finishHim(Exception, List, List, boolean)} so {@link #prepareBulkRequest} can still
+     * Set to {@code true} once, at the start of {@link #finishHim(Exception, List, List, boolean)}, so a second finish does nothing and
+     * {@link #prepareBulkRequest} can still
      * release unconsumed hits when {@link #currentPaginatedSearchResponse} is temporarily {@code null} after prepare's CAS
      * (before the ref is restored when {@code maxDocs} leaves a partial batch).
      */
@@ -205,8 +195,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private final IndexingPressure indexingPressure;
 
     /**
-     * Null in tests that do not set it up, and then no bulk counts as system-only. A system-only page may grow past the coordinating
-     * limit, as a system-only bulk was never refused at the coordinating stage.
+     * Null in tests that do not set it up, and then nothing counts as system-only. A system-only page skips the node total check when
+     * it reserves, and may grow past the coordinating limit, as a system-only bulk was never refused at the coordinating stage.
      */
     @Nullable
     private final SystemIndices systemIndices;
@@ -224,9 +214,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private static final TimeValue MIN_RESERVATION_WAIT = timeValueMillis(50);
 
     /**
-     * How long a reserve that is not capped is refused before the worker says so in the log.
+     * How long a reserve is refused before the worker says so in the log.
      */
     private static final TimeValue RESERVATION_WAIT_WARN_AFTER = TimeValue.timeValueSeconds(60);
+
+    private static final String ALL_INDICES = "_all";
 
     private static final long NOT_REFUSED = -1;
 
@@ -372,9 +364,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
-        if (scriptApplier instanceof ScriptApplier<?> applier) {
-            applier.releaseConsumedHitWith(this::releaseHitForThisBulk);
-        }
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
@@ -630,6 +619,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * @param asyncResponse the response to process from {@link PaginatedHitSource}
      */
     void onPaginatedSearchResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, PaginatedSearchConsumableHitsResponse asyncResponse) {
+        // Before the page is published, so nothing else can close its charge while it shrinks.
+        shrinkChargeToHits(asyncResponse);
         currentPaginatedSearchResponse.set(asyncResponse);
         PaginatedHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got paginated search response with [{}] hits", task.getId(), asyncResponse.remainingHits());
@@ -773,7 +764,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                 return;
             }
             if (mainRequest instanceof DeleteByQueryRequest) {
-                // The delete request keeps the id, not the source. Drop the source before a rejected bulk is retried.
+                // The delete request copies the id and routing, so drop the hits before a rejected bulk is retried.
                 releaseBatchHits.close();
             }
             request.timeout(mainRequest.getTimeout());
@@ -1116,6 +1107,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
+        // A cancel can finish the task while a queued reservation attempt finishes it as well. The listener must hear once.
+        if (requestFinishing.compareAndSet(false, true) == false) {
+            logger.debug("[{}]: already finishing, ignoring a second finish", task.getId());
+            return;
+        }
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
         if (bulkByPaginatedSearchSearchContextMetrics != null
             && searchContextKeepaliveDeadline.shouldRecordKeepaliveExpiry(failure, searchFailures)) {
@@ -1138,7 +1134,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             searchFailures
         );
         final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
-        requestFinishing.set(true);
         // A search that failed before a page existed still holds its estimate. A page that exists closes its own charge below.
         ReservationRetry scheduledReservation = reservationRetry.getAndSet(null);
         if (scheduledReservation != null) {
@@ -1234,12 +1229,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         if (pressure != null) {
             final IndexingPressure.Coordinating charge;
             try {
-                // The reserve is never forced, so a full coordinating budget refuses an estimate that fits under the limit instead of
-                // borrowing past it. An estimate that was cut down to the limit is admitted whatever else the node holds, because
-                // otherwise it would only ever fit on an empty node. The operation count is the page we asked for. The bytes are resized
-                // to the bulk once it exists.
-                final PageEstimate estimate = estimatedPageBytes(pressure);
-                charge = pressure.reserveReindexPage(pageDocCount(), estimate.bytes(), estimate.cappedAtLimit());
+                // The reserve is never forced, so a full coordinating budget refuses it instead of borrowing past the limit.
+                // A page that only touches system indices skips the node total check, as a system-only bulk is never refused there.
+                // The operation count is the page we asked for. The bytes are resized to the bulk once it exists.
+                charge = pressure.reserveReindexPage(pageDocCount(), estimatedPageBytes(pressure), writesOnlySystemIndices());
             } catch (EsRejectedExecutionException e) {
                 logger.debug("[{}]: waiting to reserve the next page [{}]", task.getId(), e.getMessage());
                 pressure.addReindexPageReserveRejection();
@@ -1422,12 +1415,14 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * The bytes to reserve for the next page, and whether that guess was cut down to the coordinating limit.
+     * The bytes to reserve for the next page. That is the documents it may hold times the per document guess, plus the request context.
+     * <p>
+     * The guess stops at half the coordinating limit. Two reserves of that size fill the budget on an empty node, and a third waits.
+     * A page whose real size is over half the limit reserves half and grows when it is resized.
+     * That growth is refused only when the page's own size passes the limit.
      */
-    private record PageEstimate(long bytes, boolean cappedAtLimit) {}
-
-    private PageEstimate estimatedPageBytes(IndexingPressure pressure) {
-        final long limit = pressure.getCoordinatingLimitInBytes();
+    private long estimatedPageBytes(IndexingPressure pressure) {
+        final long maxEstimate = pressure.getCoordinatingLimitInBytes() / 2;
         // Read at reserve time so a dynamic update applies to this reserve, not to a value captured when the node started.
         final long perDocument = pressure.reindexBytesEstimatePerDocument();
         final long raw;
@@ -1439,10 +1434,80 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             );
         } catch (ArithmeticException e) {
             // Far past the limit, so it is capped the same way.
-            return new PageEstimate(limit, true);
+            return maxEstimate;
         }
-        // A reservation larger than the limit is rejected even when the node is empty, so the estimate stops at the limit.
-        return raw > limit ? new PageEstimate(limit, true) : new PageEstimate(raw, false);
+        return min(raw, maxEstimate);
+    }
+
+    /**
+     * The index names or patterns the main request writes to. Update-by-query and delete-by-query write to the indices they search.
+     * A reindex writes to its destination, whatever its source is, so it overrides this.
+     */
+    protected List<String> writeTargetExpressions() {
+        return List.of(mainRequest.getSearchRequest().indices());
+    }
+
+    /**
+     * Whether every index the main request writes to is a system index. This is decided before the search, because no bulk exists yet.
+     * An expression that resolves to nothing, an exclusion, or a mix of system and other indices is not system-only.
+     * Patterns are matched against the indices lookup, so an alias counts as the alias it is.
+     */
+    private boolean writesOnlySystemIndices() {
+        if (systemIndices == null || indicesLookup == null) {
+            return false;
+        }
+        final SortedMap<String, IndexAbstraction> lookup = indicesLookup.get();
+        final List<String> expressions = writeTargetExpressions();
+        if (expressions.isEmpty()) {
+            return false;
+        }
+        for (String expression : expressions) {
+            final boolean systemOnly;
+            if (expression.startsWith("-")) {
+                systemOnly = false;
+            } else if (Regex.isSimpleMatchPattern(expression) || ALL_INDICES.equals(expression)) {
+                systemOnly = matchesOnlySystemIndices(expression, lookup);
+            } else {
+                systemOnly = TransportBulkAction.isSystemIndex(lookup, systemIndices, expression);
+            }
+            if (systemOnly == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean matchesOnlySystemIndices(String pattern, SortedMap<String, IndexAbstraction> lookup) {
+        final String matching = ALL_INDICES.equals(pattern) ? "*" : pattern;
+        boolean matchedAny = false;
+        for (Map.Entry<String, IndexAbstraction> entry : lookup.entrySet()) {
+            if (Regex.simpleMatch(matching, entry.getKey())) {
+                if (entry.getValue().isSystem() == false) {
+                    return false;
+                }
+                matchedAny = true;
+            }
+        }
+        return matchedAny;
+    }
+
+    /**
+     * Lowers a page's charge from the estimate to the size of the hits it arrived with, if the estimate was larger.
+     * This runs when the page arrives, so a throttle wait does not hold an estimate bigger than the page. It never grows the charge.
+     * A page that is already sized, such as the rest of a {@code max_docs} split, is left alone.
+     */
+    private void shrinkChargeToHits(PaginatedSearchConsumableHitsResponse page) {
+        final IndexingPressure.Coordinating charge = page.coordinatingCharge();
+        if (charge == null || page.chargeSized() || indexingPressure == null) {
+            return;
+        }
+        final long hitBytes = page.hitSourceBytes() + threadPool.getThreadContext().estimatedRequestContextBytes();
+        final long reserved = charge.currentBytes();
+        if (hitBytes < reserved) {
+            final long shrank = reserved - hitBytes;
+            charge.reduceBytes(shrank);
+            indexingPressure.addReindexPageBytesBelowEstimate(shrank);
+        }
     }
 
     /**
@@ -1495,17 +1560,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             && TransportBulkAction.isOnlySystem(request, indicesLookup.get(), systemIndices);
     }
 
-    private void releaseHitForThisBulk(PaginatedHitSource.Hit hit) {
-        hit.release();
-        hitsReleasedWhileBuilding.add(hit);
-    }
-
     private void releaseHits(List<? extends PaginatedHitSource.Hit> hits) {
         for (PaginatedHitSource.Hit hit : hits) {
-            // The script already dropped this hit when it copied the source.
-            if (hitsReleasedWhileBuilding.remove(hit) == false) {
-                hit.release();
-            }
+            hit.release();
         }
     }
 
@@ -1741,9 +1798,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
     /**
      * Applies a script to a request built from one search hit.
-     * Once the script has replaced the source, the hit is released once. The request holds the new source, so the hit's bytes are no
-     * longer needed, and the page cleanup does not release that hit again. A request with no script keeps the hit until the page is
-     * released, because the bulk shares that source.
+     * Once the script has replaced the source, the hit is released. The request holds the new source, so the hit's bytes are no
+     * longer needed. Releasing a hit is safe to repeat, so the page cleanup releasing it again does no harm. A request with no script
+     * keeps the hit until the page is released, because the bulk shares that source.
      */
     public abstract static class ScriptApplier<T extends Metadata>
         implements
@@ -1757,7 +1814,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         protected final Script script;
         protected final Map<String, Object> params;
         protected final LongSupplier nowInMillisSupplier;
-        private Consumer<PaginatedHitSource.Hit> releaseConsumedHit = PaginatedHitSource.Hit::release;
 
         public ScriptApplier(
             WorkerBulkByPaginatedSearchTaskState taskWorker,
@@ -1773,13 +1829,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             this.nowInMillisSupplier = nowInMillisSupplier;
         }
 
-        /**
-         * Where a consumed hit is released. The action records the hit so page cleanup does not release it again.
-         */
-        private void releaseConsumedHitWith(Consumer<PaginatedHitSource.Hit> releaseConsumedHit) {
-            this.releaseConsumedHit = releaseConsumedHit;
-        }
-
         @Override
         public RequestWrapper<?> apply(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
             if (script == null) {
@@ -1793,7 +1842,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             request.setSource(ctxMap.getSource());
             // The request now holds the source the script produced, so the hit's bytes are no longer needed.
             // Shared source, the path with no script, keeps the hit until the page is released.
-            releaseConsumedHit.accept(doc);
+            doc.release();
 
             updateRequest(request, metadata);
 

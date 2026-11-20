@@ -113,6 +113,8 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final AtomicLong currentPrimaryOps = new AtomicLong(0);
     private final AtomicLong currentReplicaOps = new AtomicLong(0);
 
+    // For a reindex page the coordinating totals hold the estimate the page reserved, not its real bytes. The real bytes are the total
+    // minus reindexPageBytesBelowEstimate plus reindexPageBytesAboveEstimate. The coordinating ops total includes the final empty page.
     private final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
     private final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
     private final AtomicLong totalPrimaryBytes = new AtomicLong(0);
@@ -256,16 +258,18 @@ public class IndexingPressure implements IndexingPressureMonitor {
      * <p>
      * The reservation is never forced, so {@link Coordinating#increaseBytes} still refuses a page whose own size is above the
      * coordinating limit.
+     * <p>
+     * Callers cap their estimate at half the coordinating limit. Two such reserves fill the budget on an empty node, and a third waits
+     * for one of them to be released. A page whose real size is between half the limit and the limit reserves half and grows when it
+     * is resized. That growth is refused only when the reservation's own new size passes the limit.
      *
-     * @param cappedAtLimit true when the caller's estimate was cut down to the coordinating limit. The node can only hold that much when
-     *                      it holds nothing else, so waiting for the node total to fit could wait forever on a node with steady replica
-     *                      bytes. A capped reserve is admitted whatever the node already holds. Its own size is still checked against
-     *                      the limit.
+     * @param systemOnly true when the page only reads or writes system indices. A system-only reserve skips the node total check, so
+     *                   it is never refused for what the node already holds, as a system-only bulk never was.
      * @throws EsRejectedExecutionException if the bytes do not fit, in which case nothing was reserved
      */
-    public Coordinating reserveReindexPage(int operations, long bytes, boolean cappedAtLimit) {
+    public Coordinating reserveReindexPage(int operations, long bytes, boolean systemOnly) {
         Coordinating coordinating = new Coordinating(false);
-        coordinating.increment(operations, bytes, cappedAtLimit, false);
+        coordinating.increment(operations, bytes, systemOnly, false);
         return coordinating;
     }
 
@@ -470,16 +474,16 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
 
         /**
-         * @param admitAboveNodeTotal when true, only this reservation's own size is checked against the coordinating limit, and what
-         *                            the node already holds is not
+         * @param skipNodeTotalCheck when true, only this reservation's own size is checked against the coordinating limit, and what
+         *                           the node already holds is not
          * @param countRejection whether a refusal counts in {@code coordinating_rejections}
          */
-        private void increment(int operations, long bytes, boolean admitAboveNodeTotal, boolean countRejection) {
+        private void increment(int operations, long bytes, boolean skipNodeTotalCheck, boolean countRejection) {
             assert closed.get() == false;
             long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
             long replicaWriteBytes = currentReplicaBytes.get();
             long totalBytes = combinedBytes + replicaWriteBytes;
-            final boolean overLimit = admitAboveNodeTotal ? bytes > coordinatingLimit : totalBytes > coordinatingLimit;
+            final boolean overLimit = skipNodeTotalCheck ? bytes > coordinatingLimit : totalBytes > coordinatingLimit;
             if (forceExecution == false && overLimit) {
                 long bytesWithoutOperation = combinedBytes - bytes;
                 long totalBytesWithoutOperation = totalBytes - bytes;
@@ -531,8 +535,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
          * Refuses when this reservation's own new size would pass the coordinating limit, and leaves the reservation unchanged when it
          * refuses.
          * <p>
-         * One coordinating reservation is only resized and closed on a single thread, the worker chain that owns it. It is not safe to
-         * resize from two threads at once.
+         * A reservation has one owner at a time. Resizing or closing it from two threads at once is not safe.
          * <p>
          * The total counters keep the amount first reserved. Growing the reservation moves the current counters only.
          *
@@ -585,8 +588,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
          * Reduces the tracked byte count for this coordinating operation without closing it.
          * Use this to lower a reservation once the actual size is known to be smaller than the initially reserved amount.
          * <p>
-         * One coordinating reservation is only resized and closed on a single thread, the worker chain that owns it. It is not safe to
-         * resize from two threads at once.
+         * A reservation has one owner at a time. Resizing or closing it from two threads at once is not safe.
          * <p>
          * The total counters keep the amount first reserved. Shrinking the reservation moves the current counters only.
          */

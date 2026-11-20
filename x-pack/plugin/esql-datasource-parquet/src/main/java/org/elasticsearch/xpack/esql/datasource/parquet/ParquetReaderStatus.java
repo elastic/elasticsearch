@@ -25,8 +25,12 @@ import java.util.TreeMap;
  * crosses the wire directly, replacing the {@code Map}-flattening that the previous generic-map
  * carrier required.
  *
- * @param predicateColumns columns referenced by pushed-down predicates, sorted for determinism
- * @param columns          per-column read counters keyed by column path
+ * @param rowGroupsDictionaryFilterSkipped row groups filtered without parquet-mr's DICTIONARY level
+ *                                         because their dictionary pages were not pre-warmed; zero
+ *                                         when received from a node that predates the field
+ * @param predicateColumns                 columns referenced by pushed-down predicates, sorted for
+ *                                         determinism
+ * @param columns                          per-column read counters keyed by column path
  */
 public record ParquetReaderStatus(
     long rowsEmitted,
@@ -38,6 +42,7 @@ public record ParquetReaderStatus(
     long rowGroupsInFile,
     long rowGroupsTotal,
     long rowGroupsKept,
+    long rowGroupsDictionaryFilterSkipped,
     boolean pageIndexUsed,
     long rowsInKeptRowGroups,
     long rowsAfterPageIndex,
@@ -48,31 +53,59 @@ public record ParquetReaderStatus(
 ) implements FormatReaderStatus {
 
     private static final TransportVersion ESQL_READ_CPU_NANOS = TransportVersion.fromName("esql_read_cpu_nanos");
+    private static final TransportVersion ESQL_PARQUET_DICTIONARY_FILTER_SKIPPED = TransportVersion.fromName(
+        "esql_parquet_dictionary_filter_skipped"
+    );
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         FormatReaderStatus.class,
         "parquet",
-        ParquetReaderStatus::new
+        ParquetReaderStatus::readFrom
     );
 
-    public ParquetReaderStatus(StreamInput in) throws IOException {
-        this(
-            in.readVLong(),                  // rowsEmitted
-            in.readBoolean(),                // predicatePushdownUsed
-            in.readVLong(),                  // footerReadNanos
-            in.readVLong(),                  // footerSizeBytes
-            in.readVLong(),                  // footerCacheHits
-            in.readVLong(),                  // footerCacheMisses
-            in.readVLong(),                  // rowGroupsInFile
-            in.readVLong(),                  // rowGroupsTotal
-            in.readVLong(),                  // rowGroupsKept
-            in.readBoolean(),                // pageIndexUsed
-            in.readVLong(),                  // rowsInKeptRowGroups
-            in.readVLong(),                  // rowsAfterPageIndex
-            in.readBoolean(),                // lateMaterializationEnabled
-            in.readBoolean(),                // lateMaterializationUsed
-            in.readStringCollectionAsList(), // predicateColumns
-            readColumnsSkippingNanos(in)     // columns (skips removed readNanos/readCpuNanos fields)
+    /**
+     * Wire order differs from the record order: {@code rowGroupsDictionaryFilterSkipped} was added
+     * later and trails the stream behind its transport version, so the fields are read into locals
+     * first and the canonical constructor is called afterwards.
+     */
+    public static ParquetReaderStatus readFrom(StreamInput in) throws IOException {
+        long rowsEmitted = in.readVLong();
+        boolean predicatePushdownUsed = in.readBoolean();
+        long footerReadNanos = in.readVLong();
+        long footerSizeBytes = in.readVLong();
+        long footerCacheHits = in.readVLong();
+        long footerCacheMisses = in.readVLong();
+        long rowGroupsInFile = in.readVLong();
+        long rowGroupsTotal = in.readVLong();
+        long rowGroupsKept = in.readVLong();
+        boolean pageIndexUsed = in.readBoolean();
+        long rowsInKeptRowGroups = in.readVLong();
+        long rowsAfterPageIndex = in.readVLong();
+        boolean lateMaterializationEnabled = in.readBoolean();
+        boolean lateMaterializationUsed = in.readBoolean();
+        List<String> predicateColumns = in.readStringCollectionAsList();
+        Map<String, PerColumnStatus> columns = readColumnsSkippingNanos(in);
+        long rowGroupsDictionaryFilterSkipped = in.getTransportVersion().supports(ESQL_PARQUET_DICTIONARY_FILTER_SKIPPED)
+            ? in.readVLong()
+            : 0L;
+        return new ParquetReaderStatus(
+            rowsEmitted,
+            predicatePushdownUsed,
+            footerReadNanos,
+            footerSizeBytes,
+            footerCacheHits,
+            footerCacheMisses,
+            rowGroupsInFile,
+            rowGroupsTotal,
+            rowGroupsKept,
+            rowGroupsDictionaryFilterSkipped,
+            pageIndexUsed,
+            rowsInKeptRowGroups,
+            rowsAfterPageIndex,
+            lateMaterializationEnabled,
+            lateMaterializationUsed,
+            predicateColumns,
+            columns
         );
     }
 
@@ -108,6 +141,9 @@ public record ParquetReaderStatus(
             out.writeVLong(0L); // readCpuNanos: removed field, preserved for wire compatibility
         }
         out.writeMap(columns, StreamOutput::writeWriteable);
+        if (out.getTransportVersion().supports(ESQL_PARQUET_DICTIONARY_FILTER_SKIPPED)) {
+            out.writeVLong(rowGroupsDictionaryFilterSkipped);
+        }
     }
 
     @Override
@@ -137,6 +173,7 @@ public record ParquetReaderStatus(
         builder.field("row_groups_in_file", rowGroupsInFile);
         builder.field("row_groups_total", rowGroupsTotal);
         builder.field("row_groups_kept", rowGroupsKept);
+        builder.field("row_groups_dictionary_filter_skipped", rowGroupsDictionaryFilterSkipped);
         builder.field("page_index_used", pageIndexUsed);
         builder.field("rows_in_kept_row_groups", rowsInKeptRowGroups);
         builder.field("rows_after_page_index", rowsAfterPageIndex);

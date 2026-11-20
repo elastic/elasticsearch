@@ -315,19 +315,12 @@ public class AnalyzerContext {
     }
 
     /**
-     * Where a loading {@code unmapped_fields} mode stopped: {@code resolution} was set by the caller's query, or by the
-     * definition of {@code settingView} if not {@code null}, and does not apply inside view {@code viewName}.
-     * {@code enclosingView} names the view that reads {@code viewName} and whose output the null-fill was placed at, when
-     * {@code viewName} was merged into it. {@code viewLoadsUnmappedFields} says whether {@code viewName}'s own definition
-     * already SETs a loading mode, in which case it only has to reference the fields to load them.
+     * Where a loading {@code unmapped_fields} mode stopped: the mode was set by the caller's query, or by the definition of
+     * {@code settingView} if not {@code null}, and does not apply inside view {@code viewName}. {@code viewName} is the view
+     * the {@code SET}'s scope reads directly: the views nested in it are behind the same boundary, even when compaction
+     * lifted their branches up to the scope's level.
      */
-    public record ViewBoundary(
-        UnmappedResolution resolution,
-        @Nullable String settingView,
-        String viewName,
-        @Nullable String enclosingView,
-        boolean viewLoadsUnmappedFields
-    ) {}
+    public record ViewBoundary(@Nullable String settingView, String viewName) {}
 
     /** {@code fieldName} was answered with null at the output of {@code boundary}'s view. */
     public record ViewBoundaryNullFill(ViewBoundary boundary, String fieldName) {}

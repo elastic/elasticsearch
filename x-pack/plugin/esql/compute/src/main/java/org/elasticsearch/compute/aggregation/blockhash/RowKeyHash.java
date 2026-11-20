@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -26,12 +27,17 @@ import java.util.List;
  * {@link BlockHash} gives a row one group per value of a multivalue. Rows whose keys hold at most one value are hashed
  * by the same {@link BlockHash}es as {@code STATS ... BY}.
  * <p>
- *     With one key column, those rows go through the hash {@link BlockHash#build} picks for the column and the rows
- *     with a multivalue through a {@link PackedValuesBlockHash} with whole multivalues, created on the first one.
- *     The ids of both are mapped to one range. With several key columns, the packed hash takes every row.
+ *     With one key column of a type that has a specialized hash, those rows go through the hash {@link BlockHash#build}
+ *     picks for the column, and the rows with a multivalue through a {@link PackedValuesBlockHash} with whole multivalues,
+ *     created on the first one. The ids of both are mapped to one range. Otherwise the packed hash takes every row.
  * </p>
  */
 public final class RowKeyHash implements Releasable {
+    /**
+     * The number of group ids a hash hands back at once, as for {@code STATS ... BY}.
+     */
+    private static final int EMIT_BATCH_SIZE = Operator.TARGET_PAGE_SIZE / Long.SIZE;
+
     private final BlockFactory blockFactory;
     private final List<BlockHash.GroupSpec> multivalueSpecs;
     /**
@@ -61,7 +67,7 @@ public final class RowKeyHash implements Releasable {
             List<BlockHash.GroupSpec> specs = List.of(new BlockHash.GroupSpec(0, elementTypes.get(keyChannels[0])));
             this.multivalueSpecs = specs;
             this.singleKeyChannel = keyChannels[0];
-            BlockHash singleValues = BlockHash.build(specs, blockFactory, PackedValuesBlockHash.DEFAULT_BATCH_SIZE, false);
+            BlockHash singleValues = BlockHash.build(specs, blockFactory, EMIT_BATCH_SIZE, false);
             boolean success = false;
             try {
                 this.singleValueGroups = new GroupMap();
@@ -87,14 +93,16 @@ public final class RowKeyHash implements Releasable {
 
     private static boolean hasSpecializedHash(ElementType type) {
         return switch (type) {
-            case BOOLEAN, INT, LONG, DOUBLE, BYTES_REF -> true;
-            case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE, DOUBLE_RANGE ->
-                false;
+            case BOOLEAN, INT, LONG, BYTES_REF -> true;
+            // The specialized hash for doubles maps every NaN to one key. The packed hash keeps the raw bits, so one double
+            // key groups the same way as several.
+            case DOUBLE, FLOAT, NULL, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE,
+                DOUBLE_RANGE -> false;
         };
     }
 
     private PackedValuesBlockHash newMultivalues() {
-        return new PackedValuesBlockHash(multivalueSpecs, blockFactory, PackedValuesBlockHash.DEFAULT_BATCH_SIZE, true);
+        return new PackedValuesBlockHash(multivalueSpecs, blockFactory, EMIT_BATCH_SIZE, true);
     }
 
     /**
@@ -114,14 +122,18 @@ public final class RowKeyHash implements Releasable {
             add(singleValues, singleValueGroups, keys, null, groupIds);
             return groupIds;
         }
-        int[] singleValued = complement(multivalued, groupIds.length);
-        if (singleValued.length > 0) {
-            add(singleValues, singleValueGroups, keys.filter(false, singleValued), singleValued, groupIds);
-        }
         if (multivalues == null) {
             multivalues = newMultivalues();
             multivalueGroups = new GroupMap();
         }
+        if (multivalued.length == groupIds.length) {
+            // Every row holds a multivalue, so there's nothing to split.
+            keys.incRef();
+            add(multivalues, multivalueGroups, keys, null, groupIds);
+            return groupIds;
+        }
+        int[] singleValued = complement(multivalued, groupIds.length);
+        add(singleValues, singleValueGroups, keys.filter(false, singleValued), singleValued, groupIds);
         add(multivalues, multivalueGroups, keys.filter(false, multivalued), multivalued, groupIds);
         return groupIds;
     }

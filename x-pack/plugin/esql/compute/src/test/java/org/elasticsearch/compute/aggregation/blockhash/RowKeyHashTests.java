@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -74,14 +75,33 @@ public class RowKeyHashTests extends BlockHashTestCase {
         assertGroups(blockFactory, types, between(1, 5));
     }
 
+    /**
+     * A single double key groups like several keys: two NaNs with different bits are different keys.
+     */
+    public void testNaNsKeepTheirBits() {
+        double nan = Double.NaN;
+        double otherNan = Double.longBitsToDouble(Double.doubleToRawLongBits(Double.NaN) | 1L);
+        Page page = new Page(blockFactory.newDoubleArrayVector(new double[] { nan, otherNan, nan }, 3).asBlock());
+        try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(ElementType.DOUBLE), blockFactory)) {
+            int[] groupIds = hash.add(page);
+            assertThat(groupIds[0], equalTo(groupIds[2]));
+            assertThat(groupIds[0] == groupIds[1], equalTo(false));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
     public void testCircuitBreaking() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        CrankyCircuitBreakerService crankyService = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, crankyService);
         BlockFactory crankyFactory = BlockFactory.builder(bigArrays).build();
         try {
             assertGroups(crankyFactory, randomList(1, 3, () -> randomFrom(TYPES)), between(1, 5));
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
+        // The hash charges its own breaker, which the shared teardown doesn't check.
+        assertThat(crankyService.getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     /**

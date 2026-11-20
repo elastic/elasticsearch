@@ -21,6 +21,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -137,7 +138,6 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -3557,7 +3557,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     // package-private for testing
     Releasable warnIfReadingMetadataIsSlow(ShardId shardId, SnapshotId snapshotId) {
-        final Scheduler.Cancellable warning = threadPool.schedule(() -> {
+        final var readFinished = new SubscribableListener<Void>();
+        // hot threads samples for a while, so don't run the timeout on the scheduler thread
+        readFinished.addTimeout(SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD, threadPool, threadPool.generic());
+        readFinished.addListener(ActionListener.wrap(ignored -> {}, e -> {
+            if (e instanceof ElasticsearchTimeoutException == false) {
+                return; // could not schedule the timeout, e.g. because the node is shutting down
+            }
             logger.warn("[{}][{}] still reading file metadata after [{}]", shardId, snapshotId, SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD);
             HotThreads.logLocalHotThreads(
                 logger,
@@ -3565,12 +3571,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 "hot threads while reading file metadata for shard snapshot [" + shardId + "][" + snapshotId + "]",
                 ReferenceDocs.LOGGING
             );
-        },
-            SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD,
-            // hot threads samples for a while, so don't run it on the scheduler thread
-            threadPool.generic()
-        );
-        return warning::cancel;
+        }));
+        return () -> readFinished.onResponse(null);
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
@@ -3651,12 +3653,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final Store.MetadataSnapshot metadataFromStore;
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
                 snapshotStatus.updateStatusDescription("snapshot task runner: reading file metadata");
-                final long metadataStartMillis = threadPool.absoluteTimeInMillis();
+                final long metadataStartMillis = threadPool.relativeTimeInMillis();
                 try (var ignored = warnIfReadingMetadataIsSlow(shardId, snapshotId)) {
                     metadataFromStore = context.metadataSnapshot();
+                } finally {
+                    // record failed reads too, otherwise the histogram is biased towards healthy reads
+                    blobStoreSnapshotMetrics.recordShardMetadataDuration(threadPool.relativeTimeInMillis() - metadataStartMillis);
                 }
                 fileNames = context.fileNames();
-                blobStoreSnapshotMetrics.recordShardMetadataDuration(threadPool.absoluteTimeInMillis() - metadataStartMillis);
+                snapshotStatus.updateStatusDescription("snapshot task runner: comparing files with repository");
                 for (String fileName : fileNames) {
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 

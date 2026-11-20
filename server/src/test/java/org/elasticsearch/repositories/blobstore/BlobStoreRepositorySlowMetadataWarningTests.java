@@ -17,14 +17,18 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.Scheduler;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class BlobStoreRepositorySlowMetadataWarningTests extends ESTestCase {
 
@@ -69,8 +73,39 @@ public class BlobStoreRepositorySlowMetadataWarningTests extends ESTestCase {
             );
 
             try (Releasable ignored = repository.warnIfReadingMetadataIsSlow(shardId, snapshotId)) {
+                // not due immediately
+                deterministicTaskQueue.runAllRunnableTasks();
+                assertTrue(deterministicTaskQueue.hasDeferredTasks());
+                assertFalse(deterministicTaskQueue.hasRunnableTasks());
+
                 deterministicTaskQueue.runAllTasks();
+                assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(TimeValue.timeValueMinutes(2).millis()));
             }
+
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testScheduledCallbackDoesNothingIfReadFinishedBeforeItRan() {
+        // Capture the callback so it can be run after the read has finished, as happens when cancellation loses a race with the executor
+        final var callback = new AtomicReference<Runnable>();
+        doAnswer(invocation -> {
+            callback.set(invocation.getArgument(0));
+            return mock(Scheduler.ScheduledCancellable.class);
+        }).when(repository.threadPool).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
+
+        try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no warning",
+                    BlobStoreRepository.class.getCanonicalName(),
+                    Level.WARN,
+                    "*still reading file metadata*"
+                )
+            );
+
+            repository.warnIfReadingMetadataIsSlow(shardId, snapshotId).close();
+            callback.get().run();
 
             mockLog.assertAllExpectationsMatched();
         }

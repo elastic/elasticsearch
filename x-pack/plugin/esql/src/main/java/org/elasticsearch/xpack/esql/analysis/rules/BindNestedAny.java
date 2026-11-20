@@ -43,7 +43,10 @@ import java.util.Set;
  * that schema, so {@link #scope} runs while attributes are still unresolved and this rule runs after implicit casting.
  */
 public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-    /** Rewrites nested names inside {@code NESTED_ANY} onto the private schema. Leaves every other name unresolved. */
+    /**
+     * Rewrites nested names inside {@code NESTED_ANY} onto the private schema. Leaves every other name unresolved. A column of the
+     * query with the same name replaces the child, as a later definition does everywhere else, so that is an error.
+     */
     public static LogicalPlan scope(LogicalPlan plan, List<Attribute> childrenOutput) {
         return plan.transformExpressionsOnlyUp(NestedAny.class, nested -> nested.transformUp(UnresolvedAttribute.class, attribute -> {
             Attribute field = nestedField(attribute, childrenOutput);
@@ -210,6 +213,9 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             if (candidate instanceof FieldAttribute field
                 && field.name().equals(scopedName)
                 && field.field() instanceof NestedScopeField scope) {
+                if (output.stream().anyMatch(column -> column.synthetic() == false && column.name().equals(attribute.name()))) {
+                    throw error(attribute, "NESTED_ANY cannot use [" + attribute.name() + "]: a column of that name replaces it here");
+                }
                 if (scope.leaf() instanceof UnsupportedEsField unsupported) {
                     return new UnsupportedAttribute(attribute.source(), attribute.name(), unsupported);
                 }

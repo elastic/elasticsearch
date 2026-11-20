@@ -248,6 +248,34 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         assertThat(predicate.inputs(), hasSize(1));
     }
 
+    public void testEvalColumnNamedLikeAChildReplacesIt() {
+        nestedAnalyzer().error(
+            "FROM ne | EVAL items.sku = \"z\" | WHERE NESTED_ANY(items.sku == \"z\")",
+            containsString("NESTED_ANY cannot use [items.sku]: a column of that name replaces it here")
+        );
+    }
+
+    public void testRenamedColumnNamedLikeAChildReplacesIt() {
+        nestedAnalyzer().error(
+            "FROM ne | RENAME id AS items.sku | WHERE NESTED_ANY(items.sku == \"a\")",
+            containsString("NESTED_ANY cannot use [items.sku]: a column of that name replaces it here")
+        );
+    }
+
+    public void testEvalColumnNamedLikeAChildInTheEvalForm() {
+        nestedAnalyzer().error(
+            "FROM ne | EVAL items.qty = 1 | EVAL h = NESTED_ANY(items.qty > 0)",
+            containsString("NESTED_ANY cannot use [items.qty]: a column of that name replaces it here")
+        );
+    }
+
+    public void testColumnWithAnotherNameDoesNotReplaceTheChild() {
+        NestedPredicate predicate = predicate(
+            nestedAnalyzer().query("FROM ne | EVAL sku = \"z\" | WHERE NESTED_ANY(items.sku == \"a\") | LIMIT 10")
+        );
+        assertThat(predicate.inputs(), hasSize(1));
+    }
+
     public void testSpatialChildIsReadLikeAnyOtherColumn() {
         LogicalPlan plan = nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.loc IS NOT NULL)");
         assertThat(predicate(plan).inputs().stream().map(Attribute::dataType).toList(), equalTo(List.of(DataType.GEO_POINT)));

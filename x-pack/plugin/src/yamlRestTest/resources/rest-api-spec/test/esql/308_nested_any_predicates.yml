@@ -1175,3 +1175,19 @@ setup:
         body:
           query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.sku == id) | KEEP id, h'
 
+---
+"a computed column named like a child replaces it":
+  - do:
+      catch: /NESTED_ANY cannot use \[items.sku\].+a column of that name replaces it here/
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL items.sku = "z" | WHERE NESTED_ANY(items.sku == "z") | KEEP id'
+
+---
+"a renamed column named like a child replaces it":
+  - do:
+      catch: /NESTED_ANY cannot use \[items.sku\].+a column of that name replaces it here/
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | RENAME id AS items.sku | WHERE NESTED_ANY(items.sku == "a") | KEEP items.sku'
+

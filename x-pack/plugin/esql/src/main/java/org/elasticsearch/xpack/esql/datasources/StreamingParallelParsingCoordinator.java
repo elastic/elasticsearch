@@ -633,13 +633,7 @@ public final class StreamingParallelParsingCoordinator {
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
-        /**
-         * The source's last-modified, probed at most once and shared by every chunk. The probe is a HEAD on a
-         * store that carries no last-modified hint, and chunks are stamped from several threads, so probing per
-         * chunk would be one round trip per chunk for a value that cannot differ between them. Holding the
-         * result — including the failure, as an empty optional — also pins ONE mtime for the whole file, which
-         * is what the row readers do at open. Null means not yet probed.
-         */
+        /** One mtime for the whole file: empty is a non-answer, null is not yet probed. */
         private final AtomicReference<Optional<Instant>> pinnedSourceMtime = new AtomicReference<>();
 
         private final ArrayBlockingQueue<PoolBuffer> bufferPool;
@@ -2478,11 +2472,10 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * The source's last-modified, probed on first use and reused by every later chunk.
-         * <p>
-         * A losing thread in a race probes too, and discards its own answer rather than the winner's, so every
-         * chunk of one file is stamped with the same instant either way. A failed probe is memoized as well:
-         * retrying it per chunk would pay the round trip repeatedly to keep getting null.
+         * The source's last-modified, probed on first use and reused by every later chunk, so a store carrying
+         * no last-modified hint costs one HEAD per file rather than one per chunk. Either non-answer is final
+         * for this read, as it is for the row readers, which probe once at open and stop caching the file on a
+         * null or a throw.
          */
         @Nullable
         private Instant pinnedSourceMtime() {
@@ -2492,9 +2485,7 @@ public final class StreamingParallelParsingCoordinator {
                 try {
                     probed = Optional.ofNullable(storageObject.lastModified());
                 } catch (IOException e) {
-                    // Leave it empty — the chunk cannot be safely cached without a pinned mtime, and the
-                    // readers' pinnedMtimeMillis >= 0 gate turns that into a safe miss.
-                    probed = Optional.empty();
+                    probed = Optional.empty(); // No pin, so the publish guard leaves the file a safe miss.
                 }
                 pinnedSourceMtime.compareAndSet(null, probed);
                 cached = pinnedSourceMtime.get();
@@ -2518,9 +2509,7 @@ public final class StreamingParallelParsingCoordinator {
             // the chunk under a fabricated mtime — risking a stale warm hit if the file later changes. A null
             // mtime leaves pinnedMtimeMillis at -1, so the chunk's stats are uncacheable (safe-miss). A real
             // last-modified (including a genuine EPOCH) still flows through and stays cacheable.
-            // Only a read that harvests statistics needs the stamp, so one that does not never probes. The
-            // scope term is the one the two row readers apply; the sink is this path's own producer of the
-            // thing being stamped.
+            // Only a read that harvests needs the stamp, so one that does not never probes.
             Instant mtime = null;
             if (storageObject != null && captureSink != null && statsColumnScope != StripeColumnScope.NONE) {
                 mtime = pinnedSourceMtime();

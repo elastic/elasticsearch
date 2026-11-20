@@ -3293,16 +3293,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     /**
-     * The sink per-file statistics are captured into, or {@code null} when this read harvests nothing.
+     * The sink per-file statistics are captured into, or {@code null} under {@link StripeColumnScope#NONE},
+     * which is the off switch {@link StatsCapturingIterator#wrap} and both parsing coordinators already guard on.
      * <p>
-     * The readers already honour {@link StripeColumnScope#NONE}; honouring it here takes the rest of the capture
-     * machinery out of the read. {@link StatsCapturingIterator#wrap} returns the delegate unwrapped on a null sink,
-     * and the parsing coordinators then bind no per-worker handle, stage no stripes, and write no unclean-close
-     * marker — all three already guard on the sink being present, so {@code null} is their own off switch rather
-     * than a new contract.
-     * <p>
-     * Not to be confused with {@code FormatReadContext.statsStripeSink}, whose {@code null} means the chunk
-     * publishes its own stripe pieces instead of staging them.
+     * Not {@code FormatReadContext.statsStripeSink}, whose {@code null} means the chunk publishes its own stripe
+     * pieces instead of staging them.
      */
     @Nullable
     private ConcurrentMap<String, List<Map<String, Object>>> statisticsCaptureSink(AsyncExternalSourceBuffer buffer) {

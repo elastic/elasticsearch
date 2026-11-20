@@ -2695,9 +2695,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // the finalize marker is present.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        // Under NONE this read harvests nothing, so it takes no cacheable identity: that skips the mtime probe
-        // below, which is a cache-only metadata read (a HEAD on a store carrying no Last-Modified header), and
-        // leaves cacheableObject null, which is what every publish and every accumulator downstream keys off.
+        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below and
+        // leaves cacheableObject null, which every publish and every accumulator downstream keys off.
         boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
@@ -5499,13 +5498,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // loop (see appendStagedRow) instead of re-walking every built block. Build the
                 // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
                 // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
-                // PROJECTED is the only scope whose whole-file publish reads these, and captureBlockStats returns
-                // early for every other, so accumulating under another scope folds a min/max/null per cell on the
-                // parse loop for a result no one reads. The direct path is never entered under ALL (see
-                // directEligible), and COUNT wants the row count alone.
-                // statsStripeSize > 0 is the other half: under a stripe grid captureBlockStats returns at its
-                // accumulateStripes branch and closeInternal publishes per stripe, so nothing ever reads this
-                // accumulator and every projected cell would be folded twice.
+                // Only a gridless PROJECTED read publishes this accumulator. Under any other scope, or under a
+                // stripe grid, the fold is a min/max/null per cell on the parse loop that nothing goes on to read.
                 if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED && statsStripeSize <= 0) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;

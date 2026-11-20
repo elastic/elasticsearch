@@ -208,13 +208,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Nullable
     private final DatasetListingService listingService;
     /**
-     * Whether the node's external-source cache is accepting writes. Statistics are harvested for that cache
-     * and nothing else, and {@link ExternalSourceCacheService#reconcileSourceStatsFromContributions} discards
-     * them on its first line when it is off.
-     * <p>
-     * A supplier, not a captured flag: {@code esql.external.cache.enabled} is dynamic and this factory is a
-     * per-node singleton, so a value read at construction would miss every toggle. It does not govern the
-     * footer caches, which have their own budgets.
+     * Whether the node's external-source cache is accepting writes. Statistics are harvested for that cache and
+     * nothing else, and {@link ExternalSourceCacheService#reconcileSourceStatsFromContributions} drops them when
+     * it is off. A supplier rather than a flag: the setting is dynamic and this factory is a per-node singleton.
      */
     private final BooleanSupplier externalSourceCacheEnabled;
     /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */
@@ -740,8 +736,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .parsingParallelism(context.parsingParallelism())
                     .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
                     .maxRecordBytes(context.maxRecordBytes())
-                    // A disabled cache accepts no statistics, so harvest none. The grid goes with the scope so
-                    // that no reader builds a harvester nothing can feed.
+                    // A disabled cache accepts no statistics, so harvest none; the grid goes with the scope.
                     .statsStripeSize(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes() : -1L)
                     .statsColumnScope(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings) : StripeColumnScope.NONE)
                     .streamingSegmentatorAdmission(segmentatorAdmission)

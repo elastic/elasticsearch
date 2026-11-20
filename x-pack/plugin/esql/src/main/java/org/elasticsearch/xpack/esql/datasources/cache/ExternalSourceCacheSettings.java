@@ -60,21 +60,16 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Whether this node does external-source cache work at all. It governs both halves: the node neither serves
-     * from the cache nor measures for it, because a row-format read harvests statistics for this cache and
-     * nothing else — see {@code FileSourceFactory}, which resolves the flag once per read.
+     * Whether this node does external-source cache work at all: with it off the node neither serves from the
+     * cache nor measures for it, since a row-format read harvests statistics for this cache and nothing else.
      * <p>
-     * It is node-scoped, so an asymmetric setting is a real configuration, and it cuts both ways. Off on a data
-     * node and on at the coordinator, reads on that node measure nothing, so the coordinator never warms for the
-     * files those nodes read. The reverse — on at the data node, off at the coordinator — is the one case where
-     * the rule this setting otherwise keeps does not hold: those reads still measure, and the coordinator
-     * discards what they send, which is the cost this flag exists to avoid. Both follow from the node scope, and
-     * closing either would mean the coordinator deciding and shipping the decision with the plan, which is a wire
-     * field. Set it cluster-wide and the two halves agree on every node that observes the update, for reads
-     * started after it arrives: a read already in flight keeps the scope it resolved.
+     * Node-scoped, so set it cluster-wide unless an asymmetric configuration is wanted. Off at a data node and
+     * on at the coordinator, that node's reads measure nothing and the coordinator never warms for its files;
+     * the reverse still measures and the coordinator discards the result, which one decision shipped with the
+     * plan would close, at the price of a wire field.
      * <p>
-     * It does not reach the footer caches, which are built per format reader from {@link #FOOTER_CACHE_SIZE} and
-     * {@link #FOOTER_PARSED_CACHE_SIZE}; bound those with their own budgets.
+     * It does not reach the footer caches, which have their own budgets ({@link #FOOTER_CACHE_SIZE},
+     * {@link #FOOTER_PARSED_CACHE_SIZE}).
      */
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
         "esql.external.cache.enabled",

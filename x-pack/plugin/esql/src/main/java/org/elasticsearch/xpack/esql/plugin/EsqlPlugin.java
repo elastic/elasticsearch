@@ -553,9 +553,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             localFileAccess,
             services.threadPool().executor(externalBlobStorePool()),
             listingService,
-            // The live flag, not the yml value: CACHE_ENABLED is dynamic and setEnabled doubles as the cache's
-            // clear operation, so a read that harvests statistics must ask the service whether anything will
-            // accept them.
+            // The live flag, not the yml value: setEnabled doubles as the cache's clear operation.
             cacheService::isEnabled
         );
 

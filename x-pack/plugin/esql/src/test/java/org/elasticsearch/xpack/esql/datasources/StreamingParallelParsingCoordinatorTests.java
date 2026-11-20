@@ -424,9 +424,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         // > 2 chunk-buffers so the segmentator dispatches several chunks and the per-chunk probe repeats.
         String content = buildContent(500);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-        String path = MTIME_PROBE_PATH;
         StorageObject file = new CountingMtimeStorageObject(source, probes);
-        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, MTIME_PROBE_PATH);
 
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {

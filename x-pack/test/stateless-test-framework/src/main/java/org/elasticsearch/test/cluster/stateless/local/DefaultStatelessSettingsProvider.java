@@ -99,12 +99,16 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
     private static Map<String, String> dataNodeRecoveryThrottlingSettings(RecoveryThrottlingMode mode, Random random) {
         final Map<String, String> settings = new HashMap<>();
         switch (mode) {
-            case MASTER, DNRT -> {
+            case MASTER -> {
+                // Keep the default master-side throttling and leave DNRT unbounded
+            }
+            case DNRT -> {
                 // Recovery gates are left disabled.
                 settings.putAll(UNTHROTTLED_MASTER_RECOVERY_SETTINGS);
-                settings.put("indices.recovery.max_concurrent_incoming_recoveries", String.valueOf(1));
-                settings.put("indices.recovery.max_concurrent_outgoing_recoveries", String.valueOf(1));
-                settings.put("indices.recovery.enable_direct_cancellations", String.valueOf(true));
+                settings.put("indices.recovery.max_concurrent_incoming_recoveries", String.valueOf(random.nextInt(1, 17)));
+                settings.put("indices.recovery.max_non_critical_incoming_recoveries_proportion", random.nextInt(50, 101) + "%");
+                settings.put("indices.recovery.max_concurrent_outgoing_recoveries", String.valueOf(random.nextInt(1, 17)));
+                settings.put("indices.recovery.enable_direct_cancellations", String.valueOf(random.nextBoolean()));
             }
         }
         return Map.copyOf(settings);

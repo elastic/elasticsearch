@@ -1839,39 +1839,47 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    /** Whether a row short of the file's header width is dropped rather than kept, which is when its vote is withheld. */
-    private boolean dropsShortRows(ErrorPolicy policy) {
-        return options.headerRow() && options.padShortRows() == false && policy.mode() != ErrorPolicy.Mode.FAIL_FAST;
+    /**
+     * Whether a row short of the file's header width never becomes a row of the result: dropped under a lenient
+     * policy, fatal under {@code fail_fast}. Padding fills such a row out and keeps it, so under padding it is data.
+     * This is the condition under which its vote on a column's type is withheld.
+     */
+    private boolean shortRowIsNotData() {
+        return options.headerRow() && options.padShortRows() == false;
     }
 
     /**
      * The sampled rows type inference may read: the ones the reader goes on to keep. A row narrower than the file's
-     * header is not a row of that file (see {@link CsvBatchIterator#fileStatedRowWidth}), so where the policy drops
-     * such a row its values must not decide a column's type -- one short row would otherwise widen a numeric column
-     * to {@code keyword} and fail an aggregation over a file in which no surviving value is text.
+     * header is not a row of that file (see {@link CsvBatchIterator#fileStatedRowWidth}), so where it never becomes
+     * data its values must not decide a column's type -- one short row would otherwise widen a numeric column to
+     * {@code keyword} and fail an aggregation over a file in which no surviving value is text. Under
+     * {@code fail_fast} that failure arrives before the read that would have refused the row: the query is rejected
+     * at analysis over the widened type, so the error naming the row and the two widths is never reached.
      *
-     * <p>Only the VOTE is withheld, never the row: the sample is replayed as data unchanged, so a dropped row is
-     * still reported and still charged to the error budget. Padding keeps such rows, so under it they keep their
-     * vote; so does {@code fail_fast}, which fails on the row rather than reading past it, leaving no result for a
-     * type to be wrong in. A file whose every sampled row is short leaves nothing else to type from, so the sample
-     * stands as it is rather than inferring from no evidence.
+     * <p>Only the VOTE is withheld, never the row: the sample is replayed as data unchanged, so a short row is still
+     * reported and still charged to the error budget. Padding keeps such rows, so under it they keep their vote. A
+     * file whose every sampled row is short leaves nothing else to type from, so the sample stands as it is rather
+     * than inferring from no evidence.
      */
-    private static List<String[]> typeInferenceRows(List<String[]> rows, int fileWidth, boolean dropsShortRows) {
-        if (dropsShortRows == false) {
+    private static List<String[]> typeInferenceRows(List<String[]> rows, int fileWidth, boolean shortRowIsNotData) {
+        if (shortRowIsNotData == false) {
             return rows;
         }
-        List<String[]> kept = null;
+        // A zero-length row holds no value for any column, so standing in for a short row withholds that row's vote
+        // while leaving the rows after it at the sample positions the widening warnings name.
+        String[] noVote = Strings.EMPTY_ARRAY;
+        List<String[]> voting = null;
+        int withheld = 0;
         for (int i = 0; i < rows.size(); i++) {
-            String[] row = rows.get(i);
-            if (row.length < fileWidth) {
-                if (kept == null) {
-                    kept = new ArrayList<>(rows.subList(0, i));
+            if (rows.get(i).length < fileWidth) {
+                if (voting == null) {
+                    voting = new ArrayList<>(rows);
                 }
-            } else if (kept != null) {
-                kept.add(row);
+                voting.set(i, noVote);
+                withheld++;
             }
         }
-        return kept == null || kept.isEmpty() ? rows : kept;
+        return voting == null || withheld == rows.size() ? rows : voting;
     }
 
     private InferredSchema inferSchemaFromSample(
@@ -1906,7 +1914,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
-                typeInferenceRows(sample.rows(), columnNames.length, dropsShortRows(effectivePolicy)),
+                typeInferenceRows(sample.rows(), columnNames.length, shortRowIsNotData()),
                 options.datetimeFormatter(),
                 sawUndecodableTemporal,
                 widenings
@@ -5477,7 +5485,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
-                typeInferenceRows(sample.rows(), columnNames.length, dropsShortRows(errorPolicy)),
+                typeInferenceRows(sample.rows(), columnNames.length, shortRowIsNotData()),
                 options.datetimeFormatter(),
                 sawUndecodableTemporal,
                 widenings

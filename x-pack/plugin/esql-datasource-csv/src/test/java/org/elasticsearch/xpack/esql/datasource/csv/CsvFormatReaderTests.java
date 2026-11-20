@@ -9667,6 +9667,31 @@ public class CsvFormatReaderTests extends ESTestCase {
             DataType.KEYWORD,
             padding.metadata(object).schema().get(0).dataType()
         );
+
+        CsvFormatReader failing = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("error_mode", "fail_fast"));
+        assertEquals(
+            "fail_fast does not read the row either, and typing the column from it rejects the query at analysis "
+                + "-- before the read that would have named the row and the two widths",
+            DataType.INTEGER,
+            failing.metadata(object).schema().get(0).dataType()
+        );
+    }
+
+    /**
+     * A withheld row keeps its place in the sample. The widening warnings number rows within the sample, so dropping
+     * one from the list would renumber every row after it and send the reader to the wrong line of their own file.
+     */
+    public void testWithholdingAVoteDoesNotRenumberTheSample() throws IOException {
+        // Row 2 is short; the widen row 3 forces must still be reported against row 3.
+        StorageObject object = createStorageObject("v,n\n1,10\n2\noops,30\n");
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("error_mode", "skip_row", "max_errors", 10)
+        );
+        List<String> warnings = reader.metadata(object).warnings();
+        assertTrue(
+            "the widening must name the row it happened on, got: " + warnings,
+            warnings.stream().anyMatch(w -> w.contains("column [v] at sample row [3]") && w.contains("oops"))
+        );
     }
 
     /**

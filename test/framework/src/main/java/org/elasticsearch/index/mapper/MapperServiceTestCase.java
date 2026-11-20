@@ -105,6 +105,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -118,6 +119,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.index.mapper.BlockLoaderTestCase.TIME_SERIES_DIMENSION_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -264,6 +266,35 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected IndexVersion getVersion() {
         return IndexVersion.current();
+    }
+
+    protected final MapperService createMapperServiceWithParams(Settings settings, org.elasticsearch.datageneration.Mapping mapping)
+        throws IOException {
+        return createMapperServiceWithParams(settings, mapping.raw());
+    }
+
+    protected final MapperService createMapperServiceWithParams(Settings settings, Map<String, Object> mapping) throws IOException {
+        IndexMode indexMode = IndexMode.fromString(settings.get(IndexSettings.MODE.getKey()));
+        var mappingWithDimensions = addTimeSeriesDimensionsIfNeeded(mapping, indexMode);
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mappingWithDimensions);
+        return createMapperService(getVersion(), settings, () -> true, mappingXContent);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> addTimeSeriesDimensionsIfNeeded(Map<String, Object> mapping, IndexMode indexMode) {
+        if (indexMode != IndexMode.TIME_SERIES) {
+            return mapping;
+        }
+
+        // Copies all tha maps down the path to _doc.properties.sensor_id
+        var mappingRawCopy = new HashMap<>(mapping);
+        var doc = (Map<String, Object>) mappingRawCopy.get("_doc");
+        var docCopy = new HashMap<>(doc);
+        var propertiesCopy = new HashMap<>((Map<String, Object>) docCopy.get("properties"));
+        propertiesCopy.put(TIME_SERIES_DIMENSION_FIELD, Map.of("type", "keyword", "time_series_dimension", true));
+        docCopy.put("properties", propertiesCopy);
+        mappingRawCopy.put("_doc", docCopy);
+        return mappingRawCopy;
     }
 
     protected final MapperService createMapperService(Settings settings, XContentBuilder mappings) throws IOException {

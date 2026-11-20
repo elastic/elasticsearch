@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Simplified version of {@link DocumentParserContext} to be used in tests.
@@ -67,16 +68,17 @@ public class TestDocumentParserContext extends DocumentParserContext {
     }
 
     /**
-     * Creates a context over a real {@link MappingParserContext}, such as a {@link MapperService}'s, for tests that need the type
-     * parsers it has.
+     * Creates a context over a real {@link MapperService}, for tests that need the type parsers and the mappings it has, such as to
+     * update the mapping of a field that is already mapped.
      */
-    public TestDocumentParserContext(MappingParserContext mappingParserContext, MappingLookup mappingLookup) {
+    public TestDocumentParserContext(MapperService mapperService) {
         super(
-            mappingLookup,
-            mappingParserContext,
+            mapperService.mappingLookup(),
+            mapperService.parserContext(),
             null,
-            mappingLookup.getMapping().getRoot(),
-            ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+            mapperService.mappingLookup().getMapping().getRoot(),
+            ObjectMapper.Dynamic.getRootDynamic(mapperService.mappingLookup()),
+            mapperService::parseStoredMappings
         );
         this.parser = null;
     }
@@ -108,9 +110,14 @@ public class TestDocumentParserContext extends DocumentParserContext {
             ),
             source,
             mappingLookup.getMapping().getRoot(),
-            ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+            ObjectMapper.Dynamic.getRootDynamic(mappingLookup),
+            TestDocumentParserContext::noMappingBuilder
         );
         this.parser = parser;
+    }
+
+    private static MappingBuilder noMappingBuilder(Map<String, Object> decodedRoot) {
+        throw new UnsupportedOperationException("this context has no way to parse a stored mapping");
     }
 
     @Override

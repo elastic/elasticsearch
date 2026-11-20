@@ -18,6 +18,9 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -34,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -49,6 +54,13 @@ import static org.hamcrest.Matchers.hasSize;
 public class EqlFieldCapsReuseIT extends AbstractEsqlIntegTestCase {
 
     private static final String INDEX = "eql_reuse";
+    private static final QueryBuilder CMD_EXE = new TermQueryBuilder("process.name", "cmd.exe");
+    private static final QueryBuilder PRUNES_EVERY_INDEX = new ExistsQueryBuilder("no_such_field");
+    private static final String SHARED_PATTERN_QUERY = "FROM "
+        + INDEX
+        + " | WHERE process.name IN (EQL "
+        + INDEX
+        + " \"process where true\" | KEEP process.name) | KEEP process.name";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -103,8 +115,40 @@ public class EqlFieldCapsReuseIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testSharedPatternWithRequestFilterResolvesFromAndEqlSeparately() {
+        assertFieldCapsCalls(SHARED_PATTERN_QUERY, CMD_EXE, 1, 2);
+    }
+
+    public void testSharedPatternWithoutRequestFilterResolvesOnce() {
+        assertFieldCapsCalls(SHARED_PATTERN_QUERY, null, 1, 1);
+    }
+
+    public void testSharedPatternWithTimeRangeResolvesFromAndEqlSeparately() {
+        String query = "FROM (FROM "
+            + INDEX
+            + " | WHERE @timestamp >= \"2026-01-01T00:00:00Z\" | KEEP process.name), (EQL "
+            + INDEX
+            + " \"process where true\" | KEEP process.name)";
+        assertFieldCapsCalls(query, null, 2, 2);
+    }
+
+    public void testEqlPatternIsResolvedWithoutTheRequestFilter() {
+        assertFieldCapsCalls("EQL " + INDEX + " \"process where true\" | KEEP process.name", PRUNES_EVERY_INDEX, 0, 1);
+    }
+
+    private void assertFieldCapsCalls(String query, QueryBuilder filter, int expectedRows, int expectedEsqlResolutions) {
+        FieldCapsCounterPlugin.FIELD_CAPS_CALLS.set(0);
+        FieldCapsCounterPlugin.ESQL_RESOLVE_FIELDS_CALLS.set(0);
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest(query).filter(filter))) {
+            assertThat(getValuesList(resp), hasSize(expectedRows));
+        }
+        assertThat(FieldCapsCounterPlugin.ESQL_RESOLVE_FIELDS_CALLS.get(), equalTo(expectedEsqlResolutions));
+        assertThat(FieldCapsCounterPlugin.FIELD_CAPS_CALLS.get(), equalTo(0));
+    }
+
     public static class FieldCapsCounterPlugin extends Plugin implements ActionPlugin {
         static final AtomicInteger FIELD_CAPS_CALLS = new AtomicInteger();
+        static final AtomicInteger ESQL_RESOLVE_FIELDS_CALLS = new AtomicInteger();
 
         @Override
         public Collection<ActionFilter> getActionFilters() {
@@ -124,6 +168,8 @@ public class EqlFieldCapsReuseIT extends AbstractEsqlIntegTestCase {
                 ) {
                     if (TransportFieldCapabilitiesAction.NAME.equals(action)) {
                         FIELD_CAPS_CALLS.incrementAndGet();
+                    } else if (EsqlResolveFieldsAction.NAME.equals(action)) {
+                        ESQL_RESOLVE_FIELDS_CALLS.incrementAndGet();
                     }
                     chain.proceed(task, action, request, listener);
                 }

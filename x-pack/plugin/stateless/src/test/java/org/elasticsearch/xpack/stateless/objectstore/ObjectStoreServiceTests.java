@@ -19,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -90,8 +91,10 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationResponse;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -110,7 +113,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -372,7 +374,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                     @Override
                     public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
-                        assert BatchedCompoundCommit.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
+                        assert BccBlob.startsWithBlobPrefix(blobName) || permittedFiles.contains(blobName)
                             : blobName + " in " + permittedFiles;
                         return super.readBlob(purpose, blobName);
                     }
@@ -442,7 +444,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     .listBlobs(randomFrom(OperationPurpose.values()))
                     .keySet()
                     .stream()
-                    .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+                    .filter(BccBlob::startsWithBlobPrefix)
                     .count()
             );
 
@@ -1757,11 +1759,11 @@ public class ObjectStoreServiceTests extends ESTestCase {
             bccGenerations.add(randomLongBetween(1L, 1000L));
         }
         for (long generation : bccGenerations) {
-            writeRandomBlob(blobContainer, BatchedCompoundCommit.blobNameFromGeneration(generation));
+            writeRandomBlob(blobContainer, BccBlob.blobNameFromGeneration(generation));
         }
         final long maxBccGeneration = bccGenerations.stream().mapToLong(Long::longValue).max().getAsLong();
-        // a merge blob with a merge start generation above every BCC must neither be listed nor be the latest blob
-        final String mergeBlobName = randomMergeBlobName(maxBccGeneration + randomLongBetween(1L, 100L));
+        // a merge blob must neither be listed nor be the latest blob
+        final String mergeBlobName = randomMergeBlobName();
         writeRandomBlob(blobContainer, mergeBlobName);
         final String junkBlobName = randomAlphaOfLength(10);
         writeRandomBlob(blobContainer, junkBlobName);
@@ -1777,7 +1779,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 final var latestBlob = ObjectStoreService.getLatestBlob(blobContainer);
                 assertThat(latestBlob, notNullValue());
                 assertThat(latestBlob.v1(), equalTo(maxBccGeneration));
-                assertThat(latestBlob.v2().name(), equalTo(BatchedCompoundCommit.blobNameFromGeneration(maxBccGeneration)));
+                assertThat(latestBlob.v2().name(), equalTo(BccBlob.blobNameFromGeneration(maxBccGeneration)));
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -1802,10 +1804,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
         blobContainer.writeBlob(OperationPurpose.INDICES, blobName, new BytesArray(randomByteArrayOfLength(between(1, 64))), true);
     }
 
-    // TODO(szybia): use MergeBlobFile.blobName (#162535)
-    private static String randomMergeBlobName(long mergeStartGeneration) {
-        return BatchedCompoundCommit.MERGE_BLOB_PREFIX + mergeStartGeneration + '_' + randomAlphanumericOfLength(between(1, 5)) + '_'
-            + HexFormat.of().toHexDigits(randomLong());
+    private static String randomMergeBlobName() {
+        return MergeBlob.blobName(randomByteArrayOfLength(StringHelper.ID_LENGTH));
     }
 
     private void assertProjectObjectStoreNotFound(ObjectStoreService objectStoreService, ProjectId projectId) {

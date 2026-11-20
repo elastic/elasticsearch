@@ -130,6 +130,13 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
             setCacheEnabled(false);
             Map<String, List<Map<String, Object>>> disabled = scan(format, "clean_off", "| STATS COUNT(*)", exhausted());
             assertThat("a disabled cache must harvest nothing", disabled, anEmptyMap());
+
+            // Back on, against a file neither earlier arm read. The flag is resolved per read through a supplier
+            // rather than captured once, and only this arm can tell that apart from a value latched at the first
+            // disable: the two arms above pass either way.
+            setCacheEnabled(true);
+            Map<String, List<Map<String, Object>>> reenabled = scan(format, "clean_again", "| STATS COUNT(*)", exhausted());
+            assertThat("re-enabling the cache must put harvesting back", reenabled, not(anEmptyMap()));
         } finally {
             restoreCacheSetting();
         }

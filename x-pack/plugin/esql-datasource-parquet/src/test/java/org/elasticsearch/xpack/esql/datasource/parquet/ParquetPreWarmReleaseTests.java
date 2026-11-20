@@ -422,18 +422,53 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("ready, empty and not exhausted"));
     }
 
+    /**
+     * A wait on I/O starts the count again: two runs of empty reads, each one short of the cap, with a wait between them
+     * still reach the page.
+     */
+    public void testWaitOnIoRestartsTheCount() {
+        int waitAt = MAX_EMPTY_READS_IN_A_ROW;
+        int pageAt = 2 * MAX_EMPTY_READS_IN_A_ROW;
+        assertEquals(EXPECTED_ROWS, drain(emptyUntilAdvance(pageAt, waitAt)).rows());
+        consumeOnePage(emptyUntilAdvance(pageAt, waitAt));
+    }
+
     private static CloseableIterator<Page> readyButEmptyTwice() {
         return emptyUntilAdvance(3);
     }
 
     /** Always ready; {@code tryAdvance()} number {@code pageAt} returns the only page, of {@link #EXPECTED_ROWS} rows. */
     private static CloseableIterator<Page> emptyUntilAdvance(int pageAt) {
+        return emptyUntilAdvance(pageAt, 0);
+    }
+
+    /** {@code tryAdvance()} number {@code waitAt} leaves it not ready for one {@code waitForReady()} call; 0 for never. */
+    private static CloseableIterator<Page> emptyUntilAdvance(int pageAt, int waitAt) {
         return new CloseableIterator<>() {
             private int advances;
+            private boolean ioPending;
+            private SubscribableListener<Void> handedOut;
+
+            @Override
+            public SubscribableListener<Void> waitForReady() {
+                if (handedOut != null) {
+                    // the I/O lands before the next call
+                    handedOut.onResponse(null);
+                    handedOut = null;
+                }
+                if (ioPending == false) {
+                    return SubscribableListener.newSucceeded(null);
+                }
+                ioPending = false;
+                handedOut = new SubscribableListener<>();
+                return handedOut;
+            }
 
             @Override
             public Page tryAdvance() {
-                return ++advances == pageAt ? new Page(EXPECTED_ROWS) : null;
+                advances++;
+                ioPending = advances == waitAt;
+                return advances == pageAt ? new Page(EXPECTED_ROWS) : null;
             }
 
             @Override

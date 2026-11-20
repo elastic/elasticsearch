@@ -114,7 +114,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 | 26 | Operands aggregated differently {applies_to}`stack: ga 9.5-9.6` | `sum(a) / b`, `b / scalar(sum(a))`, `topk(2, a) * b` | Aggregate both operands alike: `sum(a) / sum(b)`. A number, such as `sum(a) * 2`, and `or` are supported | [#158184]({{es-issue}}158184) |
 | 27 | Nested aggregation next to an operand that reads a metric {applies_to}`stack: ga 9.5-9.6` | `count(count by (pod) (a)) / sum(b)` | - | [#158184]({{es-issue}}158184) |
 | 28 | A different `offset` per operand {applies_to}`stack: ga 9.5-9.6` | `rate(x[5m]) / rate(x[5m] offset 1h)` | `or` is supported | [#158184]({{es-issue}}158184) |
-| 29 | `label_replace` or `label_join` as an operand | `label_replace(a, ...) * on(pod) group_left(node) b` | - | [#157672]({{es-issue}}157672) |
+| 29 | `label_replace` or `label_join` as an operand {applies_to}`stack: ga =9.6` | `label_replace(a, ...) * on(pod) group_left(node) b` | - | [#157672]({{es-issue}}157672) |
 | 30 | `fill()`, `fill_left()`, and `fill_right()` ({{prom}}: `promql-binop-fill-modifiers` feature flag) | `a + fill(0) b` | - | [#164223]({{es-issue}}164223) |
 :::
 

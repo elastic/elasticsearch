@@ -13,6 +13,8 @@ Each [function reference entry](/reference/query-languages/promql/functions.md) 
 
 The functions in the [{{promql}} functions](/reference/query-languages/promql/functions.md) reference, such as `rate`, `increase`, `histogram_quantile`, `label_replace`, and the `<aggregation>_over_time` functions.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` `label_replace` and `label_join` over any expression, including one that overwrites a label, such as `label_replace(sum by (job) (x), "job", "$1", "job", "(.*)")`.
+
 {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` `sort` and `sort_desc` below the top level, such as `sum(sort(x))`, and `histogram_quantile` or `histogram_fraction` over `topk`, `bottomk`, `limitk`, `limit_ratio`, or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`.
 
 **Not supported yet**
@@ -28,15 +30,14 @@ The functions in the [{{promql}} functions](/reference/query-languages/promql/fu
 | 46 | `histogram_quantile` or `histogram_fraction` over `without(...)` {applies_to}`stack: ga =9.6` | `histogram_quantile(0.9, sum without (instance) (rate(x[5m])))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
 | 47 | `histogram_stddev`, `histogram_stdvar` {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `histogram_stddev(h)` | - | [#164152]({{es-issue}}164152) |
 | 48 | `irate`, `delta` on native histograms {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `irate(h[5m])` | - | [#152263]({{es-issue}}152263) |
-| 49 | `label_replace` or `label_join` outside `by(...)` | `label_replace(x, "dst", "$1", "instance", "(.*):.*")` | {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Use it inside `by(...)`: `sum by (dst) (label_replace(...))` | [#157672]({{es-issue}}157672) |
+| 49 | `label_replace` or `label_join` outside `by(...)` {applies_to}`stack: ga =9.6` | `label_replace(x, "dst", "$1", "instance", "(.*):.*")` | {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Use it inside `by(...)`: `sum by (dst) (label_replace(...))` | [#157672]({{es-issue}}157672) |
 | 50 | `label_replace` or `label_join` over an aggregation {applies_to}`stack: ga =9.6` | `label_replace(sum by (job) (x), ...)` | - | [#157672]({{es-issue}}157672) |
-| 51 | `label_replace` or `label_join` over anything other than a `by(...)` aggregation or `count_values`, or that overwrites a grouping label or the `count_values` label {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `label_replace(sum without (instance) (x), "dst", "$1", "job", "(.*)")`, `label_replace(sum by (job) (x), "job", "$1", "job", "(.*)")` | Aggregate with `by(...)` and write a new label: `label_replace(sum by (job) (x), "dst", "$1", "job", "(.*)")` | [#157672]({{es-issue}}157672) |
-| 52 | `label_replace` or `label_join` that writes a label named `step` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `label_replace(x, "step", ...)` | `step` is an output column of the `PROMQL` command | - |
-| 53 | `predict_linear` with a horizon computed by a function {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `predict_linear(x[1h], time())`, `predict_linear(x[1h], scalar(y))` | Use a number, a duration literal, or arithmetic on literals | [#164225]({{es-issue}}164225) |
-| 54 | `rate` on native histograms {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `rate(h[5m])` | Use `increase`: `histogram_quantile(0.99, sum by (job) (increase(h[5m])))` | [#152263]({{es-issue}}152263) |
-| 55 | `sort` or `sort_desc` below the top level {applies_to}`stack: ga =9.6` | `sum(sort(x))` | Remove it. Sorting has no effect there | [#164227]({{es-issue}}164227) |
-| 56 | `sort_by_label` or `sort_by_label_desc` below the top level ({{prom}}: `promql-experimental-functions` feature flag) {applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` | `sum(sort_by_label(x, "job"))` | Remove it. Sorting has no effect there | [#164227]({{es-issue}}164227) |
-| 57 | `step()`, `range()`, `start()`, `end()` ({{prom}}: `promql-experimental-functions` feature flag) | `time() - start()` | - | [#164228]({{es-issue}}164228) |
+| 51 | `label_replace` or `label_join` that writes a label named `step` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `label_replace(x, "step", ...)` | `step` is an output column of the `PROMQL` command | - |
+| 52 | `predict_linear` with a horizon computed by a function {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `predict_linear(x[1h], time())`, `predict_linear(x[1h], scalar(y))` | Use a number, a duration literal, or arithmetic on literals | [#164225]({{es-issue}}164225) |
+| 53 | `rate` on native histograms {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `rate(h[5m])` | Use `increase`: `histogram_quantile(0.99, sum by (job) (increase(h[5m])))` | [#152263]({{es-issue}}152263) |
+| 54 | `sort` or `sort_desc` below the top level {applies_to}`stack: ga =9.6` | `sum(sort(x))` | Remove it. Sorting has no effect there | [#164227]({{es-issue}}164227) |
+| 55 | `sort_by_label` or `sort_by_label_desc` below the top level ({{prom}}: `promql-experimental-functions` feature flag) {applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` | `sum(sort_by_label(x, "job"))` | Remove it. Sorting has no effect there | [#164227]({{es-issue}}164227) |
+| 56 | `step()`, `range()`, `start()`, `end()` ({{prom}}: `promql-experimental-functions` feature flag) | `time() - start()` | - | [#164228]({{es-issue}}164228) |
 :::
 
 **Behaves differently**
@@ -46,8 +47,8 @@ The functions in the [{{promql}} functions](/reference/query-languages/promql/fu
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 58 | `absent_over_time` with no data or over a gap | `absent_over_time(x{job="none"}[5m])` | No results | `1`, with the labels of the selector's equality matchers | - |
-| 59 | `histogram_count`, `histogram_sum`, or `histogram_avg` on classic buckets | `histogram_count(rate(x_bucket[5m]))` | An error. They accept only native histograms | No results | - |
-| 60 | `quantile_over_time` | `quantile_over_time(0.9, x[5m])` | Approximate, using t-digest | Exact, with linear interpolation | - |
-| 61 | `rate`, `increase` | `rate(x[5m])` | Computed over fixed time buckets, interpolated at bucket boundaries. Results can differ slightly | Extrapolated within each range window | - |
+| 57 | `absent_over_time` with no data or over a gap | `absent_over_time(x{job="none"}[5m])` | No results | `1`, with the labels of the selector's equality matchers | - |
+| 58 | `histogram_count`, `histogram_sum`, or `histogram_avg` on classic buckets | `histogram_count(rate(x_bucket[5m]))` | An error. They accept only native histograms | No results | - |
+| 59 | `quantile_over_time` | `quantile_over_time(0.9, x[5m])` | Approximate, using t-digest | Exact, with linear interpolation | - |
+| 60 | `rate`, `increase` | `rate(x[5m])` | Computed over fixed time buckets, interpolated at bucket boundaries. Results can differ slightly | Extrapolated within each range window | - |
 :::

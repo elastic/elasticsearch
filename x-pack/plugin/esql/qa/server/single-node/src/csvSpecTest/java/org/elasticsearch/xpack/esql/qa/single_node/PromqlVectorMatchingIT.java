@@ -171,6 +171,30 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
         );
     }
 
+    /** Fuzz repro: {@code label_replace} over opaque {@code group_left} keeps includes and derives dst. */
+    public void testLabelReplaceOverOpaqueGroupLeft() throws IOException {
+        assumeTrue(
+            "PromQL label functions required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.capabilityName()))
+        );
+        assumeTrue(
+            "a relabel over a binary operator",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS_ANYWHERE.capabilityName()))
+        );
+        assertRows(
+            "PROMQL index=k8s step=10m result=(label_replace("
+                + "network.eth0.tx / on (cluster) group_left (region) "
+                + "sum by (cluster, region) (network.eth0.rx{cluster=\"staging\"}), "
+                + "\"dst\", \"$1\", \"pod\", \"(.+)\")) "
+                + "| WHERE step == \"2024-05-10T00:10:00.000Z\" | KEEP result, dst, region | SORT dst",
+            List.of(
+                List.of(0.25535055350553504, "one", "us"),
+                List.of(0.33062730627306275, "three", "us"),
+                List.of(0.34833948339483395, "two", "us")
+            )
+        );
+    }
+
     /**
      * {@code or on(cluster)} keeps every left series and adds the right series of the clusters the left one lacks: the same
      * rows as a default {@code or} whose right operand leaves out the left one's clusters.

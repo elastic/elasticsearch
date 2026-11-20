@@ -376,10 +376,8 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             assertThat(response.hits().events().size(), equalTo(1));
             assertFetchFields(response.hits().events().get(0));
 
-            EqlSearchResponse storedResponse = client().execute(
-                EqlAsyncGetResultAction.INSTANCE,
-                new GetAsyncResultRequest(response.id())
-            ).actionGet();
+            EqlSearchResponse storedResponse = client().execute(EqlAsyncGetResultAction.INSTANCE, new GetAsyncResultRequest(response.id()))
+                .actionGet();
             try {
                 assertThat(storedResponse, equalTo(response));
                 assertFetchFields(storedResponse.hits().events().get(0));

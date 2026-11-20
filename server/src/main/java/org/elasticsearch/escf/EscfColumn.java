@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.KeyValueReader;
 import org.elasticsearch.sourcebatch.SliceableColumn;
@@ -133,11 +134,19 @@ public abstract class EscfColumn implements SliceableColumn {
 
     /**
      * Returns {@code true} if any document in this column carries more than one value. Always
-     * {@code false} for scalar columns; {@link EscfArrayColumn} overrides this to scan its
-     * per-row element-range offsets. Used by {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch}
-     * to enforce {@code multi_value=false} before delegating to the field-specific implementation.
+     * {@code false} for scalar columns; {@link EscfArrayColumn} and {@link EscfUnionColumn} override this. Used by
+     * {@link org.elasticsearch.index.mapper.FieldMapper#mapColumnBatch} to enforce
+     * {@code multi_value=false} before delegating to the field-specific implementation.
      */
-    public boolean hasMultiValueDoc() {
+    public final boolean hasMultiValueDoc() {
+        return hasMultiValueDoc(true);
+    }
+
+    /**
+     * As {@link #hasMultiValueDoc()}, but a {@code null} array element counts as a value only when {@code countNulls} is {@code true}.
+     * An implementation may over-report, since the caller then just falls back to the row path.
+     */
+    public boolean hasMultiValueDoc(boolean countNulls) {
         return false;
     }
 
@@ -193,6 +202,12 @@ public abstract class EscfColumn implements SliceableColumn {
      */
     public abstract void addSizesInBytes(int[] sizes);
 
+    /**
+     * Adds the size {@code model} charges for every present document's value to {@code sizes[row]}, in one sweep over this
+     * column.
+     */
+    public abstract void addMeteredSizes(long[] sizes, MeteringModel model);
+
     /** Returns {@code true} if document {@code row} holds an explicit JSON {@code null}. */
     public final boolean isNull(int row) {
         return getTypeByte(row) == SourceValueType.NULL;
@@ -238,6 +253,11 @@ public abstract class EscfColumn implements SliceableColumn {
      */
     public Text getStringValue(int row) {
         throw notA("string");
+    }
+
+    /** The payload length in bytes of document {@code row}'s value; only a string or binary column has one. */
+    public int getValueLength(int row) {
+        throw notA("variable-length");
     }
 
     /** Returns the binary value at {@code row}. The column kind must be {@link EscfColumnKind#BINARY}. */

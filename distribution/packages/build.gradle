@@ -59,14 +59,14 @@ plugins {
     with copySpec {
       from 'src/common'
       from "src/${type}"
-      filter("tokens": TokenExpansions.forProject(project, type, false), ReplaceTokens.class)
+      filter("tokens": esDistributionLayout.tokenExpansions(type, false), ReplaceTokens.class)
     }
 
     into('etc/elasticsearch') {
-      with configFiles(type, false)
+      with esDistributionLayout.config(type, false)
     }
 
-    filter("tokens": TokenExpansions.forProject(project, type, false), ReplaceTokens.class)
+    filter("tokens": esDistributionLayout.tokenExpansions(type, false), ReplaceTokens.class)
 
     // create empty dirs, we set the permissions when configuring the packages
     doLast(new CreateEmptyDirectories([
@@ -110,7 +110,7 @@ def commonPackageConfig(String type, String architecture) {
     // specify it again explicitly for copying common files
     into('/usr/share/elasticsearch') {
       into('bin') {
-        with binFiles(type, false)
+        with esDistributionLayout.bin(type, false)
       }
       from(rootProject.projectDir) {
         include 'README.asciidoc'
@@ -119,13 +119,13 @@ def commonPackageConfig(String type, String architecture) {
         }
       }
       into('lib') {
-        with libFiles('linux', architecture)
+        with esDistributionLayout.lib('linux', architecture, false)
       }
       into('modules') {
-        with modulesFiles('linux', architecture)
+        with esDistributionLayout.modules('linux', architecture)
       }
       into('jdk') {
-        with jdkFiles(project, 'linux', architecture)
+        with esDistributionLayout.jdk('linux', architecture)
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
       // intended to manage them; otherwise they may be left behind on uninstallation. duplicate calls of the same
@@ -269,7 +269,7 @@ def commonPackageConfig(String type, String architecture) {
     conflicts('elasticsearch-oss')
 
     into '/usr/share/elasticsearch'
-    with noticeFile(false)
+    with esDistributionLayout.notice(false)
   }
 }
 

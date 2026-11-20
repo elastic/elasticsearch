@@ -139,7 +139,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .setQuery(new BulkScorerTimeoutQuery(false));
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
@@ -158,7 +158,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .setQuery(new BulkScorerTimeoutQuery(true));
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
@@ -178,7 +178,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .addAggregation(new TermsAggregationBuilder("terms").field("field.keyword"));
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
@@ -201,7 +201,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .addAggregation(new TermsAggregationBuilder("terms").field("field.keyword"));
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
@@ -228,7 +228,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .addAggregation(new TermsAggregationBuilder("terms").field("field.keyword"));
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
@@ -251,7 +251,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .addAggregation(new TermsAggregationBuilder("terms").field("field.keyword"));
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
@@ -343,7 +343,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             );
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
@@ -373,7 +373,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .setQuery(new RewriteTimeoutQuery());
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
@@ -399,7 +399,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .setQuery(new RewriteTimeoutQuery());
         ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
             assertThat(searchResponse.isTimedOut(), equalTo(true));
-            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getShardFailures().size());
             assertEquals(0, searchResponse.getFailedShards());
             assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());

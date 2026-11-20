@@ -3,43 +3,67 @@ LimitExec[1000[INTEGER],null]
   \_ExchangeExec[[x{r}#0, $$count(*)$count{r}#2, $$count(*)$seen{r}#3],true]
     \_FilterExec[$$count(*)$count{r}#4 > 0[LONG]]
       \_EsStatsQueryExec[all_types], stats[ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
-  "range" : {
-    "date" : {
-      "gte" : "2023-10-19T00:00:00.000Z",
-      "lt" : "2023-10-21T00:00:00.000Z",
-      "time_zone" : "Z",
-      "format" : "strict_date_optional_time",
-      "boost" : 0.0
-    }
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-19T00:00:00.000Z",
+          "lt" : "2023-10-21T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date >= \"2023-10-19\"@2:9"
   }
 }, tags=[1697760000000]], QueryBuilderAndTags[query={
-  "range" : {
-    "date" : {
-      "gte" : "2023-10-21T00:00:00.000Z",
-      "lt" : "2023-10-22T00:00:00.000Z",
-      "time_zone" : "Z",
-      "format" : "strict_date_optional_time",
-      "boost" : 0.0
-    }
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-21T00:00:00.000Z",
+          "lt" : "2023-10-22T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date >= \"2023-10-19\"@2:9"
   }
 }, tags=[1697846400000]], QueryBuilderAndTags[query={
-  "range" : {
-    "date" : {
-      "gte" : "2023-10-22T00:00:00.000Z",
-      "lt" : "2023-10-23T00:00:00.000Z",
-      "time_zone" : "Z",
-      "format" : "strict_date_optional_time",
-      "boost" : 0.0
-    }
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-22T00:00:00.000Z",
+          "lt" : "2023-10-23T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date >= \"2023-10-19\"@2:9"
   }
 }, tags=[1697932800000]], QueryBuilderAndTags[query={
-  "range" : {
-    "date" : {
-      "gte" : "2023-10-23T00:00:00.000Z",
-      "lte" : "2023-10-24T00:00:00.000Z",
-      "time_zone" : "Z",
-      "format" : "strict_date_optional_time",
-      "boost" : 0.0
-    }
+  "esql_single_value" : {
+    "field" : "date",
+    "next" : {
+      "range" : {
+        "date" : {
+          "gte" : "2023-10-23T00:00:00.000Z",
+          "lte" : "2023-10-24T00:00:00.000Z",
+          "time_zone" : "Z",
+          "format" : "strict_date_optional_time",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "date >= \"2023-10-19\"@2:9"
   }
 }, tags=[1698019200000]]]}], query[][x{r}#0, $$count(*)$count{r}#4, $$count(*)$seen{r}#5], limit[], 

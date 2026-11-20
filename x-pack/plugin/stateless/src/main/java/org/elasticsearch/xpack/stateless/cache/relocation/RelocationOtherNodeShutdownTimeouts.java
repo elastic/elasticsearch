@@ -69,8 +69,9 @@ public class RelocationOtherNodeShutdownTimeouts {
         if (shareSlotsWithShuttingDownNodes == false || SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state)) {
             return fallbackTimeout();
         }
-        final var deadlineShares = deadlineShares(state, targetNodeId);
-        if (deadlineShares.stream().allMatch(DeadlineShare::fits)) {
+        // A deadline whose shards all get a slot does not limit the wait, as nobody queues behind this shard before it.
+        final var contendedDeadlineShares = deadlineShares(state, targetNodeId).stream().filter(share -> share.fits() == false).toList();
+        if (contendedDeadlineShares.isEmpty()) {
             // no shutting-down node waits for this target before its deadline, or nobody queues behind anybody: treat this as if it were
             // not a shutting-down node
             return new SearchRecoveryTimeout(
@@ -80,7 +81,7 @@ public class RelocationOtherNodeShutdownTimeouts {
         }
 
         // Use the deadline with the smallest equal share, so that no deadline is missed.
-        final var tightestDeadline = Collections.min(deadlineShares, comparingDouble(DeadlineShare::equalShareMs));
+        final var tightestDeadline = Collections.min(contendedDeadlineShares, comparingDouble(DeadlineShare::equalShareMs));
         final double timePerShardMs = tightestDeadline.timePerShardMs();
         final double waitMs;
         if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {

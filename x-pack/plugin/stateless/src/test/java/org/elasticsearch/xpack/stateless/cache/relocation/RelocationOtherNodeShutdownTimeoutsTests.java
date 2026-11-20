@@ -72,6 +72,25 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
         }
     }
 
+    /// A deadline whose shards all get a slot does not limit the wait, even when it is about to expire. Node A has 1 relocating shard and
+    /// 1s left, which fits in the 2 slots with this shard, and node B has 5 relocating shards and 600s left. Only B queues, so the wait is
+    /// its equal share `600s / 7 * 2 ≈ 171s`, not the 1s that is left to A.
+    public void testIgnoresTheDeadlinesWhoseShardsAllFitInTheSlots() {
+        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
+            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, withGraceCap("10m"));
+            threadPool.setCurrentTimeInMillis(randomLongBetween(1_000_000, 2_000_000));
+            final long now = threadPool.absoluteTimeInMillis();
+            final var state = relocationWithOtherNodesShuttingDown(
+                new Index("idx", randomUUID()),
+                List.of(new ShuttingDownNode("early-node", 1, now - 599_000), new ShuttingDownNode("late-node", 5, now))
+            );
+
+            final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(plan.timeout().millis(), equalTo(Math.round(600_000 / 7.0 * 2)));
+        }
+    }
+
     /// A relocation from a source that is not shutting down while another node shuts down: the target accepts 2 incoming recoveries,
     /// and this shard and the one relocating shard of the shutting-down node fit in them concurrently, so nobody queues and the shard keeps
     /// the full relocation-with-shutdown timeout.

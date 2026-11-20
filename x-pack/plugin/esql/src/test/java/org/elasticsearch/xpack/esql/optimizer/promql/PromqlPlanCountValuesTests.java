@@ -162,12 +162,17 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
         assertThat(plan.collect(HashJoin.class), hasSize(1));
     }
 
-    /** The fused path cannot pair an aggregated constant with {@code scalar(...)} of a vector. */
-    public void testConstantTimesScalarOfVectorIsRejected() {
-        VerificationException e = expectThrows(
-            VerificationException.class,
-            () -> countValuesPlan("count_values(\"v\", vector(1)) * scalar(sum(network.bytes_in))")
-        );
+    /**
+     * The fused path cannot pair an aggregated constant with {@code scalar(...)} of a vector; where every node knows the label
+     * container functions they join as independent pipelines.
+     */
+    public void testConstantTimesScalarOfVector() {
+        String query = "count_values(\"v\", vector(1)) * scalar(sum(network.bytes_in))";
+        if (containerFunctions()) {
+            assertThat(countValuesPlan(query).collect(HashJoin.class), hasSize(1));
+            return;
+        }
+        VerificationException e = expectThrows(VerificationException.class, () -> countValuesPlan(query));
         assertThat(e.getMessage(), containsString("binary operations between vectors with mismatched grouping keys are not yet supported"));
     }
 

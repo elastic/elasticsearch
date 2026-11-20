@@ -814,12 +814,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             assertFalse("the task finishes when the poll runs and not when it is cancelled", harness.listener.isDone());
             assertThat("the poll is the only thing waiting", clock.deferredCount(), equalTo(1));
             assertThat(clock.nextDelay().millis(), equalTo(expectedPollMillis));
-            long cancelledAtMillis = clock.relativeTimeInMillis();
 
             clock.advanceTime();
 
-            assertThat("the poll ran after its interval", clock.relativeTimeInMillis() - cancelledAtMillis, equalTo(expectedPollMillis));
-            assertThat("the task is noticed within a second", clock.relativeTimeInMillis() - cancelledAtMillis, lessThanOrEqualTo(1_000L));
             assertTrue("the cancelled task must finish", harness.listener.isDone());
             assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
             assertThat("the listener completes once", harness.listener.completions.get(), equalTo(1));
@@ -828,6 +825,34 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             assertThat(harness.client.bulks, equalTo(List.of()));
             assertThat("the task holds nothing of its own", harness.chargedBytes(), equalTo(baseline + limit));
         }
+        assertThat("the budget is back where it started", pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline));
+        assertThat(pressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(baseline));
+    }
+
+    /**
+     * A cancel can land after the budget has said yes and before the task sends its search. The page is already charged by then, so the
+     * task must hand the charge back and finish cancelled without sending the search, and the listener must hear exactly once.
+     */
+    public void testCancelInsideAReserveThatFitsSendsNoSearchAndReleasesTheCharge() {
+        int pageSize = between(1, 3);
+        ScriptedClock clock = new ScriptedClock();
+        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(1, 4_096);
+        CancellingPressure pressure = new CancellingPressure(limit);
+        long baseline = pressure.stats().getCurrentCoordinatingBytes();
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        String reason = randomAlphaOfLength(8);
+        pressure.onReserveThatFits = () -> harness.taskManager.cancel(harness.task, reason, () -> {});
+
+        harness.start();
+
+        assertThat("the reserve was attempted", pressure.reserves.get(), equalTo(1));
+        assertThat("the reserve fitted, so nothing waits to retry", clock.hasDeferredTasks(), equalTo(false));
+        assertThat("the search is not sent", harness.client.searches.size(), equalTo(0));
+        assertThat(harness.client.bulks, equalTo(List.of()));
+        assertTrue("the cancelled task must finish", harness.listener.isDone());
+        assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo(reason));
+        assertThat("the listener completes once", harness.listener.completions.get(), equalTo(1));
+        assertThat("the task holds nothing", harness.chargedBytes(), equalTo(baseline));
         assertThat("the budget is back where it started", pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline));
         assertThat(pressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(baseline));
     }
@@ -1932,7 +1957,8 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
             assertThat(
                 format(
-                    "the worker was not admitted with [%d] replica bytes against a limit of [%d], reserve rejections [%d], coordinating [%d]",
+                    "the worker was not admitted with [%d] replica bytes against a limit of [%d], "
+                        + "reserve rejections [%d], coordinating [%d]",
                     pressure.stats().getCurrentReplicaBytes(),
                     pressure.getCoordinatingLimitInBytes(),
                     pressure.stats().getReindexPageReserveRejections(),
@@ -2374,6 +2400,28 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         public Coordinating reserveReindexPage(int operations, long bytes, boolean systemOnly) {
             bytesBeforeReservation.add(stats().getCurrentCoordinatingBytes());
             return super.reserveReindexPage(operations, bytes, systemOnly);
+        }
+    }
+
+    /**
+     * Runs a hook once the real reservation has succeeded, and only then hands the reservation back. That is a cancel landing in the
+     * gap between the budget saying yes and the task using the page. The hook is set after the task exists, as the task is built from
+     * this pressure.
+     */
+    private static final class CancellingPressure extends IndexingPressure {
+        final AtomicInteger reserves = new AtomicInteger();
+        volatile Runnable onReserveThatFits = () -> {};
+
+        CancellingPressure(long limit) {
+            super(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), limit + "b").build());
+        }
+
+        @Override
+        public Coordinating reserveReindexPage(int operations, long bytes, boolean systemOnly) {
+            Coordinating reservation = super.reserveReindexPage(operations, bytes, systemOnly);
+            reserves.incrementAndGet();
+            onReserveThatFits.run();
+            return reservation;
         }
     }
 

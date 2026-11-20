@@ -18,8 +18,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A hit that behaves like one parsed from a remote cluster: the source is a final field, so {@link #release()} counts the first call
- * and nothing else. A second call does nothing, as {@link PaginatedHitSource.Hit#release()} requires. Whoever still holds the hit still holds its source bytes, which is exactly why a finished page has to be
- * forgotten and not only released.
+ * and nothing else. A second call does nothing, as {@link PaginatedHitSource.Hit#release()} requires. Whoever still holds the hit
+ * still holds its source bytes, which is exactly why a finished page has to be forgotten and not only released.
  */
 final class RemoteStyleHit implements PaginatedHitSource.Hit {
     private final String index;

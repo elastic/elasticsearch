@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery.ScoreM
 import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -50,10 +51,15 @@ import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.script.DocReader;
+import org.elasticsearch.script.ScoreScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -62,12 +68,17 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNot.not;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class FunctionScoreTests extends ESTestCase {
 
@@ -701,6 +712,76 @@ public class FunctionScoreTests extends ESTestCase {
             Weight weight = searcher.createWeight(fsq, scoreMode, 1f);
             Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
+        }
+    }
+
+    public void testScriptScoreFunctionCancellationCheckWired() throws IOException {
+        SearchLookup lookup = new SearchLookup(null, null, (ctx, doc) -> null);
+        AtomicReference<ScoreScript> capturedScript = new AtomicReference<>();
+        ScoreScript.LeafFactory leafFactory = new ScoreScript.LeafFactory() {
+            @Override
+            public boolean needs_score() {
+                return false;
+            }
+
+            @Override
+            public boolean needs_termStats() {
+                return false;
+            }
+
+            @Override
+            public ScoreScript newInstance(DocReader reader) {
+                ScoreScript script = new ScoreScript(Map.of(), null, reader) {
+                    @Override
+                    public double execute(ExplanationHolder holder) {
+                        return 1.0;
+                    }
+                };
+                capturedScript.set(script);
+                return script;
+            }
+        };
+        ScriptScoreFunction function = new ScriptScoreFunction(new Script("test"), leafFactory, lookup, "index", 0);
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                w.addDocument(new Document());
+                w.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                LeafReaderContext leaf = reader.leaves().get(0);
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+
+                new FunctionScoreQuery(Queries.ALL_DOCS_INSTANCE, function).createWeight(
+                    contextSearcher,
+                    org.apache.lucene.search.ScoreMode.COMPLETE,
+                    1f
+                ).scorerSupplier(leaf).get(1);
+                assertNotNull(capturedScript.get()._getCancellationCheck());
+
+                capturedScript.set(null);
+                new FunctionScoreQuery(Queries.ALL_DOCS_INSTANCE, new FilterScoreFunction(Queries.ALL_DOCS_INSTANCE, function)).createWeight(
+                    contextSearcher,
+                    org.apache.lucene.search.ScoreMode.COMPLETE,
+                    1f
+                ).scorerSupplier(leaf).get(1);
+                assertNotNull(capturedScript.get()._getCancellationCheck());
+
+                capturedScript.set(null);
+                IndexSearcher plainSearcher = newSearcher(reader);
+                new FunctionScoreQuery(Queries.ALL_DOCS_INSTANCE, function).createWeight(
+                    plainSearcher,
+                    org.apache.lucene.search.ScoreMode.COMPLETE,
+                    1f
+                ).scorerSupplier(leaf).get(1);
+                assertNull(capturedScript.get()._getCancellationCheck());
+            }
         }
     }
 

@@ -45,6 +45,8 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     private BiFunction<LeafReaderContext, IntSupplier, ScriptTermStats> termStatsFactory;
 
+    private Runnable cancellationCheck;
+
     public ScriptScoreFunction(Script sScript, ScoreScript.LeafFactory script, SearchLookup lookup, String indexName, int shardId) {
         super(CombineFunction.REPLACE);
         this.sScript = sScript;
@@ -61,6 +63,7 @@ public class ScriptScoreFunction extends ScoreFunction {
         leafScript.setScorer(scorer);
         leafScript._setIndexName(indexName);
         leafScript._setShard(shardId);
+        leafScript._setCancellationCheck(cancellationCheck);
 
         if (script.needs_termStats()) {
             assert termStatsFactory != null;
@@ -121,6 +124,10 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     public void setTermStatsFactory(BiFunction<LeafReaderContext, IntSupplier, ScriptTermStats> termStatsFactory) {
         this.termStatsFactory = termStatsFactory;
+    }
+
+    public void setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
     }
 
     @Override

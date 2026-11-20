@@ -44,7 +44,7 @@ One consequence is worth stating plainly, because it is the opposite of sizing f
 * **Declare a schema** on text datasets with the `mappings` block. It skips schema inference entirely, which is the single largest heap cost for CSV and TSV.
 * **Start with 4 GB to 8 GB of heap per node for text datasets, and 2 GB to 4 GB for Parquet**, then refine with the [formula below](#heap-per-node).
 * **Allow 75 MB to 200 MB of heap per processor** on text datasets. The low end is CSV and TSV, which expand least when decompressed; the high end is zstd-compressed NDJSON, which expands most.
-* **On text datasets, add 1 GB of heap for each concurrent query.**
+* **On text datasets, allow about one processor for every three concurrent queries**, and the heap that processor brings with it.
 * **Keep heap at or below 31 GB** and add nodes rather than growing one past it.
 
 ## Size heap for concurrency [size-heap]
@@ -58,21 +58,27 @@ Heap on a node divides up like this:
                    +  the units being read (x readers in flight)
                    +  per-query state      (x queries running together)
 
+    processors     =  at least  concurrent queries / 3   (text formats)
+
 Two of those four terms apply only to the text formats, which is why Parquet is cheaper and why the recommendations below differ by format.
 
 ### Memory decides how many queries run together [memory-and-concurrency]
 
-Of the four terms above, the first three are fixed once you have chosen a format and a node size: they are what a node needs to run a query of that kind at all. Only the last grows with concurrency, and it grows far more slowly than the query count, because queries share one pool of readers rather than each being given their own. Going from one query to sixteen costs roughly one allowance per query, not sixteen times the whole figure.
+The first three terms are fixed once you have chosen a format and a node size: they are what a node needs to run a query of that kind at all. Only the last grows with concurrency, and it grows far more slowly than the query count, because queries share one pool of readers rather than each being given their own.
 
-Where machine size enters, it enters through the number of units a node reads at once. That number follows the processor count, which is why the recommendation below is a base plus a per-processor allowance rather than a single figure.
+That is why concurrency is sized in processors rather than in gigabytes. Roughly one processor serves three concurrent queries on a text dataset, and the heap that processor needs is the per-processor allowance. Going from three concurrent queries to thirty costs about nine more processors and their allowance, not ten times the whole figure.
 
 ### Start at 4 GB to 8 GB for text, then allow per processor [heap-per-node]
 
 A text dataset starts at 4 GB to 8 GB of heap per node. Refine that starting point against the processors the node has and the queries you expect to run at once:
 
 ```
-heap per node  =  2 GB  +  ( allowance x processors )  +  1 GB x concurrent queries
+processors     =  at least  concurrent queries / 3
+
+heap per node  =  2 GB  +  ( allowance x processors )
 ```
+
+Concurrency is served by processors rather than by a separate memory allowance: three concurrent queries need roughly one processor between them, and the heap that processor needs is already the per-processor allowance below.
 
 | Dataset | Allowance per processor |
 |---|---|
@@ -98,7 +104,7 @@ Where the formula asks for more, add nodes rather than growing one. Each node ha
 
 Parquet pays neither of the two text-only terms. Its schema is in the file, so there is no inference, and it needs no conversion buffers.
 
-Parquet is not in the table above because it does not size the same way. Its reads are bounded across the node rather than growing with each processor you add, so a per-processor allowance over-states it, and the per-query term does not apply in the same way either.
+Parquet is not in the table above because it does not size the same way. Its reads are bounded across the node rather than growing with each processor you add, so a per-processor allowance over-states it, and the one-processor-per-three-queries rule does not apply in the same way either.
 
 Start a Parquet dataset at 2 GB to 4 GB of heap per node. It needs less than the text formats, not more.
 
@@ -197,14 +203,37 @@ The file readers are contended rather than exhausted. Lower [`esql.external.max_
 
 ## Example configurations [examples]
 
-| Dataset | Configuration | Heap per node |
-|---|---|---|
-| NDJSON, gzip, declared schema | 16 processors, 4 concurrent queries | `2 + (0.165 x 16) + 4` = 9 GB |
-| CSV, gzip, declared schema | 16 processors, 4 concurrent queries | `2 + (0.075 x 16) + 4` = 7 GB |
-| CSV, gzip, inferred schema | 16 processors, 4 concurrent queries | 31 GB, set by schema inference |
-| Parquet | 16 processors, 4 concurrent queries | 2 GB to 4 GB |
+Three public datasets, worked through the rules above on a 16-processor node, which serves about 48 concurrent text queries.
 
-These figures are approximate. A number of conditions in your own environment can move them, in particular the width of your tables, the shape of your queries, and your compression ratio. Measure your own if the number decides a purchase.
+### NYC TLC trip records, Parquet [example-taxi]
+
+The [TLC trip record data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) is published as one Parquet file per month, of roughly 50 MB to 110 MB. Five years is about 60 files; the full history is about 180.
+
+**Allow 2 GB to 4 GB of heap per node.** The figure does not change between five years of data and fifteen, because a reader holds the row group it is working on rather than the dataset.
+
+Sixty files is below the few hundred this guide suggests, and for Parquet that is fine: a Parquet file divides on row groups, so the file count is a preference rather than a limit.
+
+### GH Archive, gzipped NDJSON [example-gharchive]
+
+[GH Archive](https://www.gharchive.org/) publishes one gzipped NDJSON file per hour. Taking files of about 25 MB that compress about 6:1, a year is roughly 8,800 files.
+
+The per-processor allowance for NDJSON at that ratio is about 75 MB, so the formula gives `2 + (0.075 x 16)` = 3.2 GB. That is below the starting point for text, so **allow 4 GB of heap per node**.
+
+The file layout suits this workload well: files of tens of megabytes, and enough of them to keep every reader busy. Note that three years of hourly files is about 26,000 objects, which is past the [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files) default of 25,000. Narrow the resource pattern, or raise the setting.
+
+### Backblaze drive stats, gzipped CSV [example-backblaze]
+
+[Backblaze drive stats](https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data) is published as one CSV file per day, with a wide schema of SMART attributes.
+
+With the schema declared, the allowance for CSV at about 5:1 is roughly 65 MB per processor, giving `2 + (0.065 x 16)` = 3 GB, so **allow 4 GB of heap per node**.
+
+With the schema inferred, the same dataset needs about **31 GB**. That difference is schema inference on a wide table, and it is the single largest effect on this page. It is why declaring a schema is the first recommendation for CSV and TSV.
+
+### Reading these examples [examples-reading]
+
+In all three, the starting point governs rather than the per-processor allowance: a 16-processor node lands at the floor. The allowance starts to bind above roughly 12 to 27 processors, depending on how well the data compresses, and that is where the table in [Allow per processor](#heap-per-node) earns its place.
+
+These figures are approximate, and the dataset sizes above are illustrative rather than current. A number of conditions in your own environment can move them, in particular the width of your tables, the shape of your queries, and your compression ratio. Measure your own if the number decides a purchase.
 
 ## What these figures rest on [provenance]
 

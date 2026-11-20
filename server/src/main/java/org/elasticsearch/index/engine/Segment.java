@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.ComputedKeySortField;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 
@@ -290,6 +291,12 @@ public class Segment implements Writeable {
             } else if (field.getType().equals(SortField.Type.STRING)) {
                 o.writeByte(SORT_STRING_SINGLE);
                 o.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
+                o.writeBoolean(field.getReverse());
+            } else if (field instanceof ComputedKeySortField) {
+                // Reported as a long sort on the key's text
+                o.writeByte(SORT_LONG);
+                o.writeGenericValue(field.getMissingValue());
+                o.writeBoolean(false);
                 o.writeBoolean(field.getReverse());
             } else {
                 throw new IOException("invalid index sort field:" + field);

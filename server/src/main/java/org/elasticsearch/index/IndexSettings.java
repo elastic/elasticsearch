@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
@@ -52,6 +53,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
@@ -1635,7 +1637,7 @@ public final class IndexSettings {
     private volatile ByteSizeValue flushAfterMergeThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
-    private final IndexSortConfig indexSortConfig;
+    private final Supplier<IndexSortConfig> indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
@@ -1901,7 +1903,9 @@ public final class IndexSettings {
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         sliceEnabled = scopedSettings.get(SLICE_ENABLED);
-        this.indexSortConfig = new IndexSortConfig(this);
+        IndexSortConfig.validateSortSettings(settings);
+        // Parses the index sort when first used, so that tools that read index settings without plugins don't need its parser
+        this.indexSortConfig = CachedSupplier.wrap(() -> new IndexSortConfig(this));
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
@@ -2586,7 +2590,7 @@ public final class IndexSettings {
      * Returns the index sort config that should be used for this index.
      */
     public IndexSortConfig getIndexSortConfig() {
-        return indexSortConfig;
+        return indexSortConfig.get();
     }
 
     public IndexScopedSettings getScopedSettings() {

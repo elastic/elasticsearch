@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -32,7 +33,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -41,7 +41,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Holds all the information that is used to build the sort order of an index.
@@ -71,10 +71,10 @@ public final class IndexSortConfig {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(IndexSortConfig.class);
 
     /**
-     * Expression that configures all index sort fields at once, as a comma-separated list of
-     * {@code key [ASC|DESC] [NULLS FIRST|NULLS LAST]} entries where {@code key} is a field, {@code MV_MIN(field)} or
-     * {@code MV_MAX(field)}. Like in ES|QL, {@code DESC} defaults to {@code NULLS FIRST}, unlike {@code index.sort.missing}, which
-     * defaults to {@code _last} for both orders.
+     * Expression that configures all index sort fields at once, in the ES|QL {@code SORT} syntax that the {@link IndexSortParser}
+     * reads: a comma-separated list of {@code key [ASC|DESC] [NULLS FIRST|NULLS LAST]} entries where {@code key} is a field,
+     * {@code MV_MIN(field)}, {@code MV_MAX(field)} or an expression that computes the key. Like in ES|QL, {@code DESC} defaults to
+     * {@code NULLS FIRST}, unlike {@code index.sort.missing}, which defaults to {@code _last} for both orders.
      * <p>
      * It is stored as is, so that reading back the settings returns what was written. When set, {@link IndexSortConfig} is built
      * from it directly and the {@code index.sort.*} settings are not consulted. It has no default to report, which keeps
@@ -86,7 +86,13 @@ public final class IndexSortConfig {
             if (value.isEmpty()) {
                 return;
             }
-            parseSortExpression(value);
+            if (value.isBlank()) {
+                throw new IllegalArgumentException("setting [" + INDEX_SORT_SETTING.getKey() + "] must not be blank");
+            }
+            // Without the parser, the index fails to be created instead
+            if (IndexSortParser.get() != null) {
+                parseSortExpression(value);
+            }
         }
     }, Setting.Property.IndexScope, Setting.Property.Final, Setting.Property.ServerlessPublic) {
         @Override
@@ -303,234 +309,42 @@ public final class IndexSortConfig {
     /**
      * One entry of an {@link #INDEX_SORT_SETTING} expression, with the order, multi-value mode and missing value already resolved
      * to their ES|QL defaults.
+     *
+     * @param field the field to sort on, or {@code null} for a computed key
+     * @param computedKey the text of a key computed by an expression, anything but a field or {@code MV_MIN} or {@code MV_MAX} of
+     *                    one, such as {@code DATE_TRUNC(1 hour, @timestamp)}
+     * @param computedKeyFields the fields that the computed key reads
      */
-    public record SortEntry(String field, SortOrder order, MultiValueMode mode, String missing) {}
-
-    /**
-     * Parses an {@link #INDEX_SORT_SETTING} expression into its sort entries.
-     */
-    public static List<SortEntry> parseSortExpression(String expression) {
-        if (expression.isBlank()) {
-            throw new IllegalArgumentException("setting [" + INDEX_SORT_SETTING.getKey() + "] must not be blank");
+    public record SortEntry(
+        @Nullable String field,
+        SortOrder order,
+        MultiValueMode mode,
+        String missing,
+        @Nullable String computedKey,
+        Set<String> computedKeyFields
+    ) {
+        public static SortEntry onField(String field, SortOrder order, MultiValueMode mode, String missing) {
+            return new SortEntry(field, order, mode, missing, null, Set.of());
         }
-        return new SortExpressionParser(expression).parse();
+
+        public static SortEntry onComputedKey(String key, SortOrder order, String missing, Set<String> fields) {
+            return new SortEntry(null, order, order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN, missing, key, fields);
+        }
     }
 
     /**
-     * Hand written parser for the {@link #INDEX_SORT_SETTING} syntax, since the ES|QL grammar lives in an x-pack plugin that
-     * {@code server} can't depend on. Accepts a strict subset of the ES|QL {@code SORT} syntax, so the same text keeps its
-     * meaning when it is later parsed by ES|QL. Anything beyond the supported subset is rejected.
+     * Parses an {@link #INDEX_SORT_SETTING} expression into its sort entries, with the {@link IndexSortParser}.
      */
-    private static final class SortExpressionParser {
-        /** Each dot-separated part of an unquoted name follows the ES|QL UNQUOTED_IDENTIFIER rule, anything else needs backticks. */
-        private static final Pattern UNQUOTED_PART = Pattern.compile("[a-z][a-z0-9_]*|[_@][a-z0-9_]+", Pattern.CASE_INSENSITIVE);
-        /** Keywords in ES|QL expressions, which ES|QL never reads as field names when unquoted, including as any part of a dotted name. */
-        private static final Set<String> RESERVED_WORDS = Set.of(
-            "and",
-            "asc",
-            "by",
-            "desc",
-            "false",
-            "first",
-            "in",
-            "is",
-            "last",
-            "like",
-            "not",
-            "null",
-            "nulls",
-            "on",
-            "or",
-            "rlike",
-            "true",
-            "where",
-            "with"
-        );
+    public static List<SortEntry> parseSortExpression(String expression) {
+        return parser().parse(expression);
+    }
 
-        /**
-         * Identity of a sort entry, used to detect duplicates. Keeps the function and field separate so a quoted field that is
-         * literally named {@code MV_MAX(a)} is not confused with {@code MV_MAX} applied to field {@code a}.
-         *
-         * @param function the upper-cased multi-value function, or {@code null} when the field is sorted directly
-         */
-        private record SortKey(String function, String field) {
-            @Override
-            public String toString() {
-                return function == null ? field : function + "(" + field + ")";
-            }
+    private static IndexSortParser parser() {
+        IndexSortParser parser = IndexSortParser.get();
+        if (parser == null) {
+            throw new IllegalArgumentException("setting [" + INDEX_SORT_SETTING.getKey() + "] requires the ES|QL plugin");
         }
-
-        private final String expression;
-        private int pos = 0;
-
-        SortExpressionParser(String expression) {
-            this.expression = expression;
-        }
-
-        List<SortEntry> parse() {
-            List<SortEntry> entries = new ArrayList<>();
-            Set<SortKey> seenKeys = new HashSet<>();
-            while (true) {
-                int entryStart = pos;
-                String mode = null;
-                String function = null;
-                skipWhitespace();
-                if (atEnd() || peek() == ',') {
-                    throw error("contains an empty sort entry");
-                }
-                boolean quoted = peek() == '`';
-                String field = readFieldName();
-                if (quoted == false) {
-                    skipWhitespace();
-                    if (isAt('(')) {
-                        function = field.toUpperCase(Locale.ROOT);
-                        mode = switch (function) {
-                            case "MV_MIN" -> "min";
-                            case "MV_MAX" -> "max";
-                            default -> throw error("contains unsupported function [" + field + "], expected one of [MV_MIN, MV_MAX]");
-                        };
-                        pos++;
-                        skipWhitespace();
-                        field = readFieldName();
-                        skipWhitespace();
-                        if (isAt(')') == false) {
-                            throw error("is missing a closing parenthesis for [" + expression.substring(entryStart, pos).trim() + "]");
-                        }
-                        pos++;
-                    }
-                }
-                SortKey key = new SortKey(function, field);
-                if (seenKeys.add(key) == false) {
-                    throw error("contains sort key [" + key + "] more than once");
-                }
-
-                String order = null;
-                String nulls = null;
-                while (true) {
-                    skipWhitespace();
-                    if (atEnd() || peek() == ',') {
-                        break;
-                    }
-                    String word = readWord();
-                    switch (word.toUpperCase(Locale.ROOT)) {
-                        case "ASC", "DESC" -> {
-                            if (order != null || nulls != null) {
-                                throw error("has an unexpected [" + word + "], the order must come once and before NULLS");
-                            }
-                            order = word.toLowerCase(Locale.ROOT);
-                        }
-                        case "NULLS" -> {
-                            if (nulls != null) {
-                                throw error("specifies NULLS more than once");
-                            }
-                            skipWhitespace();
-                            String position = atEnd() ? "" : readWord();
-                            nulls = switch (position.toUpperCase(Locale.ROOT)) {
-                                case "FIRST" -> "_first";
-                                case "LAST" -> "_last";
-                                default -> throw error("expects FIRST or LAST after NULLS but found [" + position + "]");
-                            };
-                        }
-                        default -> throw error(
-                            "contains unexpected token [" + word + "], expected one of [ASC, DESC, NULLS FIRST, NULLS LAST]"
-                        );
-                    }
-                }
-                if (order == null) {
-                    order = "asc";
-                }
-                if (mode == null) {
-                    mode = order.equals("desc") ? "max" : "min";
-                }
-                if (nulls == null) {
-                    // Like ES|QL, null sorts as larger than any value, so DESC puts nulls first.
-                    nulls = order.equals("desc") ? "_first" : "_last";
-                }
-                entries.add(new SortEntry(field, parseOrderMode(order), parseMultiValueMode(mode), nulls));
-
-                if (atEnd()) {
-                    return entries;
-                }
-                pos++; // the comma
-            }
-        }
-
-        /** Reads a field name, either unquoted or in backticks where a doubled backtick is a literal one, as in ES|QL. */
-        private String readFieldName() {
-            if (atEnd()) {
-                throw error("is missing a field name");
-            }
-            if (peek() == '`') {
-                StringBuilder name = new StringBuilder();
-                pos++;
-                while (true) {
-                    if (atEnd()) {
-                        throw error("has an unterminated backtick quoted field name");
-                    }
-                    char c = expression.charAt(pos++);
-                    if (c != '`') {
-                        name.append(c);
-                    } else if (isAt('`')) {
-                        name.append('`');
-                        pos++;
-                    } else {
-                        break;
-                    }
-                }
-                if (name.isEmpty()) {
-                    throw error("contains an empty quoted field name");
-                }
-                return name.toString();
-            }
-            String name = readWord();
-            for (String part : name.split("\\.", -1)) {
-                if (UNQUOTED_PART.matcher(part).matches() == false) {
-                    throw error("has invalid unquoted field name [" + name + "], use backticks to quote it");
-                }
-                if (RESERVED_WORDS.contains(part.toLowerCase(Locale.ROOT))) {
-                    throw error("has reserved word [" + part + "] in field name [" + name + "], use backticks to quote it");
-                }
-            }
-            return name;
-        }
-
-        /** Reads a run of characters that are not whitespace, a comma, a parenthesis or a backtick. */
-        private String readWord() {
-            int start = pos;
-            while (atEnd() == false && isWordChar(peek())) {
-                pos++;
-            }
-            if (start == pos) {
-                throw error("has unexpected character [" + peek() + "]");
-            }
-            return expression.substring(start, pos);
-        }
-
-        private static boolean isWordChar(char c) {
-            return Character.isWhitespace(c) == false && c != ',' && c != '(' && c != ')' && c != '`';
-        }
-
-        private void skipWhitespace() {
-            while (atEnd() == false && Character.isWhitespace(peek())) {
-                pos++;
-            }
-        }
-
-        private boolean atEnd() {
-            return pos >= expression.length();
-        }
-
-        private boolean isAt(char c) {
-            return atEnd() == false && peek() == c;
-        }
-
-        private char peek() {
-            return expression.charAt(pos);
-        }
-
-        private IllegalArgumentException error(String message) {
-            return new IllegalArgumentException("setting [" + INDEX_SORT_SETTING.getKey() + "] " + message + " in [" + expression + "]");
-        }
+        return parser;
     }
 
     private static String validateMissingValue(String missing) {
@@ -567,17 +381,21 @@ public final class IndexSortConfig {
     /**
      * The sort fields of an index, from {@link #INDEX_SORT_SETTING} if it is set and from {@link #INDEX_SORT_FIELD_SETTING}
      * (or its default) otherwise, one per sort entry so a field can repeat, for example {@code MV_MIN(a), MV_MAX(a)}. Doesn't
-     * include the slice key.
+     * include the slice key or computed keys, see {@link #computedKeyFields()}.
      */
     public static List<String> sortFields(Settings settings) {
         String expression = settings.get(INDEX_SORT_SETTING.getKey(), "");
         if (expression.isEmpty()) {
             return INDEX_SORT_FIELD_SETTING.get(settings);
         }
-        return parseSortExpression(expression).stream().map(SortEntry::field).toList();
+        return parseSortExpression(expression).stream().map(SortEntry::field).filter(Objects::nonNull).toList();
     }
 
-    private static void validateSortSettings(Settings settings) {
+    /**
+     * Checks the sort settings together. Only checks the fields of an {@link #INDEX_SORT_SETTING} expression if the
+     * {@link IndexSortParser} is loaded, see {@link IndexSettings#getIndexSortConfig()}.
+     */
+    static void validateSortSettings(Settings settings) {
         boolean hasSortExpression = settings.get(INDEX_SORT_SETTING.getKey(), "").isEmpty() == false;
         if (hasSortExpression) {
             for (Setting<?> setting : new Setting<?>[] {
@@ -603,7 +421,8 @@ public final class IndexSortConfig {
             }
         }
 
-        if (IndexSettings.SLICE_ENABLED.get(settings) && (INDEX_SORT_FIELD_SETTING.exists(settings) || hasSortExpression)) {
+        if (IndexSettings.SLICE_ENABLED.get(settings)
+            && (INDEX_SORT_FIELD_SETTING.exists(settings) || (hasSortExpression && IndexSortParser.get() != null))) {
             for (String field : sortFields(settings)) {
                 if (field.equals(RoutingFieldMapper.NAME)
                     || field.equals(SliceIndexing.FIELD_NAME)
@@ -646,43 +465,59 @@ public final class IndexSortConfig {
 
     // visible for tests
     final FieldSortSpec[] sortSpecs;
+    private final IndexSettings indexSettings;
+    private final Set<String> computedKeyFields;
     private final IndexVersion indexCreatedVersion;
     private final String indexName;
     private final IndexMode indexMode;
     private final boolean sliceEnabled;
 
     public IndexSortConfig(IndexSettings indexSettings) {
+        this.indexSettings = indexSettings;
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
         this.sliceEnabled = indexSettings.isSliceEnabled();
 
-        validateSortSettings(settings);
-
         List<String> fields;
         List<SortOrder> orders;
         List<MultiValueMode> modes;
         List<String> missingValues;
+        List<String> computedKeys;
         String expression = settings.get(INDEX_SORT_SETTING.getKey(), "");
         if (expression.isEmpty()) {
             fields = new ArrayList<>(INDEX_SORT_FIELD_SETTING.get(settings));
             orders = new ArrayList<>(INDEX_SORT_ORDER_SETTING.get(settings));
             modes = new ArrayList<>(INDEX_SORT_MODE_SETTING.get(settings));
             missingValues = new ArrayList<>(INDEX_SORT_MISSING_SETTING.get(settings));
+            computedKeys = new ArrayList<>(Collections.nCopies(fields.size(), null));
+            computedKeyFields = Set.of();
         } else {
             List<SortEntry> entries = parseSortExpression(expression);
-            fields = new ArrayList<>(entries.stream().map(SortEntry::field).toList());
+            // A computed key has no field, its spec is named after its text
+            fields = new ArrayList<>(entries.stream().map(e -> e.computedKey() != null ? e.computedKey() : e.field()).toList());
             orders = new ArrayList<>(entries.stream().map(SortEntry::order).toList());
             modes = new ArrayList<>(entries.stream().map(SortEntry::mode).toList());
             missingValues = new ArrayList<>(entries.stream().map(SortEntry::missing).toList());
+            computedKeys = new ArrayList<>(entries.stream().map(SortEntry::computedKey).toList());
+            computedKeyFields = entries.stream().flatMap(e -> e.computedKeyFields().stream()).collect(Collectors.toUnmodifiableSet());
+            if (computedKeys.stream().anyMatch(Objects::nonNull) && indexCreatedVersion.before(IndexVersions.INDEX_SORT_COMPUTED_KEYS)) {
+                throw new IllegalArgumentException(
+                    "setting ["
+                        + INDEX_SORT_SETTING.getKey()
+                        + "] can't have computed keys on an index created before all nodes support them"
+                );
+            }
         }
         if (indexSettings.isSliceEnabled()) {
             prependSliceKeySort(fields, orders, modes, missingValues);
+            computedKeys.addFirst(null);
         }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].order = orders.get(i);
+            sortSpecs[i].computedKey = computedKeys.get(i);
         }
         for (int i = 0; i < sortSpecs.length; i++) {
             sortSpecs[i].mode = modes.get(i);
@@ -716,12 +551,12 @@ public final class IndexSortConfig {
     }
 
     public boolean hasPrimarySortOnField(String field) {
-        return sortSpecs.length > 0 && sortSpecs[0].field.equals(field);
+        return sortSpecs.length > 0 && sortSpecs[0].sortsOnField(field);
     }
 
     public boolean containsDescendingTimestampSort() {
         for (FieldSortSpec sort : sortSpecs) {
-            if (sort.order == SortOrder.DESC && sort.field.equals("@timestamp")) {
+            if (sort.order == SortOrder.DESC && sort.sortsOnField("@timestamp")) {
                 return true;
             }
         }
@@ -743,6 +578,13 @@ public final class IndexSortConfig {
         final SortField[] sortFields = new SortField[sortSpecs.length];
         for (int i = 0; i < sortSpecs.length; i++) {
             FieldSortSpec sortSpec = sortSpecs[i];
+            if (sortSpec.computedKey != null) {
+                boolean reverse = sortSpec.order == SortOrder.DESC;
+                boolean nullsFirst = "_first".equals(sortSpec.missingValue);
+                sortFields[i] = parser().resolve(sortSpec.computedKey, reverse, nullsFirst, indexSettings, fieldTypeLookup);
+                validateIndexSortField(sortFields[i]);
+                continue;
+            }
             // This is only necessary because of the logic of "{}" empty mappings.
             // metadata fields are not eagerly loaded as mapped fields, so if we have slice enabled, and no mapped fields, we get an empty
             // lookup and must resolve the slice key field type directly.
@@ -805,9 +647,14 @@ public final class IndexSortConfig {
         }
     }
 
+    /** The fields that the computed keys of this sort read. The mapping must keep them sortable like {@link #sortFields}. */
+    public Set<String> computedKeyFields() {
+        return computedKeyFields;
+    }
+
     public boolean hasSortOnField(final String fieldName) {
         for (FieldSortSpec sortSpec : sortSpecs) {
-            if (sortSpec.field.equals(fieldName)) {
+            if (sortSpec.sortsOnField(fieldName)) {
                 return true;
             }
         }
@@ -819,9 +666,17 @@ public final class IndexSortConfig {
         SortOrder order;
         MultiValueMode mode;
         String missingValue;
+        /** The text of a computed key, see {@link SortEntry#computedKey()}, in which case {@link #field} is that text too. */
+        @Nullable
+        String computedKey;
 
         FieldSortSpec(String field) {
             this.field = field;
+        }
+
+        /** Whether this sorts on the field, which a computed key named like the field doesn't. */
+        boolean sortsOnField(String fieldName) {
+            return computedKey == null && field.equals(fieldName);
         }
 
         public String getField() {

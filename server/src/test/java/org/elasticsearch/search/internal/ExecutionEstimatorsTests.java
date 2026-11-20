@@ -12,10 +12,22 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.IntRange;
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
+import org.apache.lucene.document.ShapeField.QueryRelation;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.XYPointField;
+import org.apache.lucene.document.XYShape;
+import org.apache.lucene.geo.Circle;
+import org.apache.lucene.geo.Point;
+import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.geo.XYCircle;
+import org.apache.lucene.geo.XYPolygon;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -27,6 +39,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -37,6 +50,8 @@ import static org.hamcrest.Matchers.nullValue;
 public class ExecutionEstimatorsTests extends ESTestCase {
 
     private static final String FIELD = "f";
+    private static final Polygon LAT_LON_POLYGON = new Polygon(new double[] { 0, 0, 10, 10, 0 }, new double[] { 0, 10, 10, 0, 0 });
+    private static final XYPolygon XY_POLYGON = new XYPolygon(new float[] { 0, 10, 10, 0, 0 }, new float[] { 0, 0, 10, 10, 0 });
 
     public void testPointRange() {
         assertCharged(LongPoint.newRangeQuery(FIELD, 1, 10));
@@ -66,6 +81,56 @@ public class ExecutionEstimatorsTests extends ESTestCase {
         assertThat(ExecutionEstimators.fieldOf(LongRange.newIntersectsQuery(FIELD, new long[] { 1 }, new long[] { 10 })), equalTo(FIELD));
     }
 
+    public void testLatLonPointDistance() {
+        assertCharged(LatLonPoint.newDistanceQuery(FIELD, 1, 2, 1000), LatLonPointDistanceExecutionEstimator.class);
+        assertCharged(
+            LatLonPoint.newGeometryQuery(FIELD, QueryRelation.INTERSECTS, new Circle(1, 2, 1000)),
+            LatLonPointDistanceExecutionEstimator.class
+        );
+    }
+
+    public void testXYPointInGeometry() {
+        assertCharged(XYPointField.newPolygonQuery(FIELD, XY_POLYGON), PointsExecutionEstimator.class);
+        assertCharged(XYPointField.newGeometryQuery(FIELD, XY_POLYGON, new XYCircle(1, 2, 3)), PointsExecutionEstimator.class);
+    }
+
+    public void testSpatialQueries() {
+        for (QueryRelation relation : QueryRelation.values()) {
+            if (relation != QueryRelation.CONTAINS) {
+                assertCharged(LatLonPoint.newGeometryQuery(FIELD, relation, LAT_LON_POLYGON), SpatialExecutionEstimator.class);
+            }
+            assertCharged(LatLonShape.newGeometryQuery(FIELD, relation, LAT_LON_POLYGON), SpatialExecutionEstimator.class);
+            assertCharged(LatLonShape.newBoxQuery(FIELD, relation, 0, 10, 0, 10), SpatialExecutionEstimator.class);
+            assertCharged(XYShape.newGeometryQuery(FIELD, relation, XY_POLYGON), SpatialExecutionEstimator.class);
+        }
+        assertCharged(LatLonPoint.newPolygonQuery(FIELD, LAT_LON_POLYGON), SpatialExecutionEstimator.class);
+        // CONTAINS on points is a ConstantScoreQuery over one LatLonPointQuery per point, which are looked up on their own.
+        assertCharged(
+            ((BooleanQuery) ((ConstantScoreQuery) LatLonPoint.newGeometryQuery(FIELD, QueryRelation.CONTAINS, new Point(1, 2))).getQuery())
+                .clauses()
+                .getFirst()
+                .query(),
+            SpatialExecutionEstimator.class
+        );
+    }
+
+    public void testShapeDocValuesQueriesAreNotCharged() {
+        assertNotCharged(LatLonShape.newSlowDocValuesBoxQuery(FIELD, QueryRelation.INTERSECTS, 0, 10, 0, 10));
+        assertNotCharged(XYShape.newSlowDocValuesBoxQuery(FIELD, QueryRelation.INTERSECTS, 0, 10, 0, 10));
+        assertNotCharged(LatLonDocValuesField.newSlowGeometryQuery(FIELD, QueryRelation.INTERSECTS, LAT_LON_POLYGON));
+    }
+
+    public void testSpatialFieldsAreFoundThroughVisit() {
+        for (Query query : new Query[] {
+            LatLonPoint.newDistanceQuery(FIELD, 1, 2, 1000),
+            LatLonPoint.newPolygonQuery(FIELD, LAT_LON_POLYGON),
+            LatLonShape.newGeometryQuery(FIELD, QueryRelation.INTERSECTS, LAT_LON_POLYGON),
+            XYPointField.newPolygonQuery(FIELD, XY_POLYGON),
+            XYShape.newGeometryQuery(FIELD, QueryRelation.INTERSECTS, XY_POLYGON) }) {
+            assertThat(query.toString(), ExecutionEstimators.fieldOf(query), equalTo(FIELD));
+        }
+    }
+
     public void testBoostAndIndexOrDocValuesAreUnwrapped() {
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, 1, 10);
         for (Query indexQuery : new Query[] {
@@ -88,6 +153,12 @@ public class ExecutionEstimatorsTests extends ESTestCase {
 
     private static void assertCharged(Query query) {
         assertThat("no charge for " + query, ExecutionEstimators.forQuery(query), notNullValue());
+    }
+
+    private static void assertCharged(Query query, Class<? extends LeafExecutionEstimator> estimatorClass) {
+        ExecutionEstimators.ExecutionCharge charge = ExecutionEstimators.forQuery(query);
+        assertThat("no charge for " + query, charge, notNullValue());
+        assertThat(query.toString(), charge.estimator(), instanceOf(estimatorClass));
     }
 
     private static void assertNotCharged(Query query) {

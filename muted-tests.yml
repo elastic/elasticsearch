@@ -679,12 +679,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testFailedQueryMidScanIsMetered
   issue: https://github.com/elastic/elasticsearch/issues/166565
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testGeoDistanceClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.search.heappressure.ManyBitsetClausesHeapPressureIT
-  method: testGeoShapeOnGeoPointClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
 - class: org.elasticsearch.search.heappressure.AggregationBitsetHeapPressureIT
   method: testSignificantTermsBackgroundFilters
   issue: https://github.com/elastic/elasticsearch/issues/166396
@@ -699,10 +693,4 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/166396
 - class: org.elasticsearch.index.query.bitmapterms.heappressure.BitmapTermsHeapPressureIT
   method: testBitmapTermsClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
-  method: testIntersectsPolygonClauses
-  issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
-  method: testContainsPointClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396

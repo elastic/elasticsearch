@@ -12,19 +12,25 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.lucene.search.cost.DocIdSetBuilderCostEstimator;
 
 import java.io.IOException;
 
 /**
  * The per-leaf execution RAM of a points query that intersects the field's BKD tree into a {@code DocIdSetBuilder} and
- * whose {@link ScorerSupplier#cost()} is {@link PointValues#estimateDocCount} of that intersection, such as
- * {@link org.apache.lucene.search.PointInSetQuery} and {@link org.apache.lucene.document.RangeFieldQuery}. Sized via
- * {@link DocIdSetBuilderCostEstimator}; nothing when the leaf has no points for the field or the query matches nothing.
+ * whose {@link ScorerSupplier#cost()} is {@link PointValues#estimateDocCount} of that intersection.
+ * Sized via {@link DocIdSetBuilderCostEstimator}. Nothing when the leaf has no points for the field or the query matches nothing.
  */
-final class PointsExecutionEstimator implements LeafExecutionEstimator {
+class PointsExecutionEstimator implements LeafExecutionEstimator {
 
     static final String BREAKER_LABEL = "points-execution";
+
+    /**
+     * Fixed overhead of a bit set the scorer keeps: the {@code FixedBitSet}, its {@code long[]} header and the
+     * {@code BitSetIterator} over it. Conservative without compressed oops.
+     */
+    static final long BIT_SET_BASE_BYTES = 96L;
 
     private final String field;
 
@@ -42,7 +48,17 @@ final class PointsExecutionEstimator implements LeafExecutionEstimator {
         if (cost <= 0) {
             return 0L;
         }
-        return new DocIdSetBuilderCostEstimator(grownValues(cost, values), ctx.reader().maxDoc()).estimate();
+        return bytesForMatches(values, ctx.reader().maxDoc(), cost);
+    }
+
+    /** Sizes the set the query collects its matches in, on a leaf with points for the field and an estimated doc count above 0. */
+    long bytesForMatches(PointValues values, int maxDoc, long cost) {
+        return new DocIdSetBuilderCostEstimator(grownValues(cost, values), maxDoc).estimate();
+    }
+
+    /** The heap of a {@code FixedBitSet(maxDoc)} that a query builds directly rather than through a {@code DocIdSetBuilder}. */
+    static long bitSetBytes(int maxDoc) {
+        return BIT_SET_BASE_BYTES + (long) FixedBitSet.bits2words(maxDoc) * Long.BYTES;
     }
 
     /**

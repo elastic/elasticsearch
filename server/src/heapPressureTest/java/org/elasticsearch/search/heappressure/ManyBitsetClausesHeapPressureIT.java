@@ -32,9 +32,8 @@ import java.util.function.IntFunction;
  * <li>{@code geo_shape} with a polygon on {@code geo_point}, a {@code LatLonPointQuery};
  * <li>{@code range} on a {@code long_range} field, a {@code RangeFieldQuery}.
  * </ul>
- * The query cache is off so that every clause is built. The {@code terms} and {@code long_range} cases must be rejected under
- * {@code points-execution}. The geo cases are not charged yet: they pass if the request either succeeds or is rejected by a circuit
- * breaker and the node survives. Each case should be run on its own, since a case that kills the node skips the rest.
+ * The query cache is off so that every clause is built. Every case must be rejected under {@code points-execution}. Each case should
+ * be run on its own, since a case that kills the node skips the rest.
  */
 public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase {
 
@@ -94,7 +93,7 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
 
     /** {@code geo_distance}: each clause matches about two thirds of the documents. */
     public void testGeoDistanceClauses() throws IOException {
-        assertOnlyTripsOrSucceeds(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
+        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
             {"geo_distance": {"distance": "%dm", "loc": {"lat": 0, "lon": 0}}}""", 1_000_000 + i)))));
     }
 
@@ -103,7 +102,7 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
      * segment, which Lucene would answer without a bit set.
      */
     public void testGeoShapeOnGeoPointClauses() throws IOException {
-        assertOnlyTripsOrSucceeds(n -> search(INDEX, searchBody(should(n, i -> {
+        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> {
             String top = Double.toString(9.0 - i * 0.0001);
             return Strings.format("""
                 {"geo_shape": {"loc": {"relation": "intersects", "shape": {"type": "polygon", "coordinates": [[
@@ -120,10 +119,6 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
 
     private void assertTripsUnderPointsLabel(IntFunction<Request> request) throws IOException {
         assertTripsOnlyWhenLarge(request, FEW_CLAUSES, MANY_CLAUSES, "points-execution");
-    }
-
-    private void assertOnlyTripsOrSucceeds(IntFunction<Request> request) throws IOException {
-        assertTripsOnlyWhenLarge(request, FEW_CLAUSES, MANY_CLAUSES, null);
     }
 
     /** A coordinate in [-10, 10) spread over the documents by {@code seed}. */

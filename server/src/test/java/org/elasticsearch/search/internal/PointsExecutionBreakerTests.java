@@ -11,10 +11,12 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -38,14 +40,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Searches with the queries sized by {@link PointsExecutionEstimator} ({@link org.apache.lucene.search.PointInSetQuery} and
- * {@link org.apache.lucene.document.RangeFieldQuery}) through a {@link ContextIndexSearcher} with a request breaker, and checks
- * what is charged and that it is released.
+ * Searches with the queries sized by {@link PointsExecutionEstimator} and {@link SpatialExecutionEstimator} (set, range field and
+ * geo point queries) through a {@link ContextIndexSearcher} with a request breaker, and checks what is charged and that it is
+ * released.
  */
 public class PointsExecutionBreakerTests extends ESTestCase {
 
     private static final String POINT_FIELD = "p";
     private static final String RANGE_FIELD = "r";
+    private static final String GEO_FIELD = "g";
     private static final String KEYWORD_FIELD = "k";
     private static final String RARE_TERM = "rare";
     private static final int RARE_DOCS = 5;
@@ -63,6 +66,7 @@ public class PointsExecutionBreakerTests extends ESTestCase {
                 doc.add(new LongPoint(POINT_FIELD, docId));
                 doc.add(new SortedNumericDocValuesField(POINT_FIELD, docId));
                 doc.add(new LongRange(RANGE_FIELD, new long[] { docId }, new long[] { docId + 10 }));
+                doc.add(new LatLonPoint(GEO_FIELD, docId % 20 - 10, docId / 100 - 10));
                 // A rare term gives a cheap lead clause that drives IndexOrDocValuesQuery onto its doc-values side.
                 if (docId < RARE_DOCS) {
                     doc.add(new StringField(KEYWORD_FIELD, RARE_TERM, Field.Store.NO));
@@ -85,6 +89,15 @@ public class PointsExecutionBreakerTests extends ESTestCase {
 
     public void testRangeFieldQueryChargesAndReleases() throws IOException {
         assertChargesThenReleases(LongRange.newIntersectsQuery(RANGE_FIELD, new long[] { 100 }, new long[] { 1500 }));
+    }
+
+    public void testDistanceQueryChargesAndReleases() throws IOException {
+        assertChargesThenReleases(LatLonPoint.newDistanceQuery(GEO_FIELD, 0, 0, 500_000));
+    }
+
+    public void testSpatialQueryChargesAndReleases() throws IOException {
+        Polygon polygon = new Polygon(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 });
+        assertChargesThenReleases(LatLonPoint.newPolygonQuery(GEO_FIELD, polygon));
     }
 
     public void testIndexOrDocValuesSetQueryChargesWhenPointsSideSelected() throws IOException {

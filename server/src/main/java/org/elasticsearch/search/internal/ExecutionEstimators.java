@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
+import org.elasticsearch.lucene.search.IndexedSpatialQueries;
 
 /**
  * Maps the queries whose scorers allocate per-leaf execution memory to the {@link ExecutionCharge} that
@@ -65,11 +66,23 @@ final class ExecutionEstimators {
         if (query instanceof RangeFieldQuery) {
             return points(fieldOf(query));
         }
-        return null;
+        final IndexedSpatialQueries.Kind spatialKind = IndexedSpatialQueries.kindOf(query);
+        if (spatialKind == null) {
+            return null;
+        }
+        return switch (spatialKind) {
+            case POINT_IN_GEOMETRY -> points(fieldOf(query));
+            case POINT_DISTANCE -> points(new LatLonPointDistanceExecutionEstimator(fieldOf(query)));
+            case SPATIAL -> points(new SpatialExecutionEstimator(fieldOf(query)));
+        };
     }
 
     private static ExecutionCharge points(String field) {
-        return new ExecutionCharge(new PointsExecutionEstimator(field), PointsExecutionEstimator.BREAKER_LABEL);
+        return points(new PointsExecutionEstimator(field));
+    }
+
+    private static ExecutionCharge points(LeafExecutionEstimator estimator) {
+        return new ExecutionCharge(estimator, PointsExecutionEstimator.BREAKER_LABEL);
     }
 
     /** The field of a query that has no getter for it, as reported by its {@link Query#visit}. */

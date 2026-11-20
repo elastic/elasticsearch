@@ -235,7 +235,7 @@ tests:
   tasks:
   - :x-pack:plugin:inference:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackFieldsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testFetchTooManyBigFields
@@ -322,7 +322,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackStringFunctionsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testManyDissectFromRow
@@ -713,11 +713,6 @@ tests:
   - :server:internalClusterTest
   method: testTopHitsReleasedAfterSuccessfulHighlight
   issue: https://github.com/elastic/elasticsearch/issues/166292
-- class: org.elasticsearch.xpack.esql.action.SubPlanResultLimitIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: testOversizedInSubqueryFailsBeforeReadingAllInput
-  issue: https://github.com/elastic/elasticsearch/issues/166371
 - class: org.elasticsearch.index.mapper.KeywordFieldMapperColumnarCompatibilityTests
   tasks:
   - :server:test
@@ -819,11 +814,6 @@ tests:
   - :x-pack:plugin:ml:internalClusterTest
   method: testNodeChurnDuringLookbackShouldRecoverAndKeepDatafeedStarted
   issue: https://github.com/elastic/elasticsearch/issues/166782
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitorTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testRerouteBasedOnEstimatedHeapUsage
-  issue: https://github.com/elastic/elasticsearch/issues/166784
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
@@ -844,3 +834,18 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/166909
+- class: org.elasticsearch.xpack.esql.plan.physical.TsInfoExecSerializationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLimitNotOnTheWire
+  issue: https://github.com/elastic/elasticsearch/issues/166936
+- class: org.elasticsearch.xpack.esql.plan.logical.TsInfoSerializationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLimitOnTheWire
+  issue: https://github.com/elastic/elasticsearch/issues/166944
+- class: org.elasticsearch.xpack.esql.plan.physical.TsInfoExecSerializationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLimitOnTheWire
+  issue: https://github.com/elastic/elasticsearch/issues/166946

@@ -374,7 +374,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             int keep = Math.min(docs.length, maxPerLeaf);
             if (keep < docs.length) {
                 // Partition so the top-`keep` by score (descending) occupy [0, keep); avoids a full sort.
-                ArrayUtil.select(docs, 0, docs.length, keep, Comparator.comparingDouble((ScoreDoc sd) -> sd.score).reversed());
+                ArrayUtil.select(docs, 0, docs.length, keep, ScoreDoc.COMPARATOR);
             }
             int[] ids = new int[keep];
             for (int i = 0; i < keep; i++) {

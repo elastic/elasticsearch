@@ -155,6 +155,19 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(0, ExternalSourceSettings.blobStoreConcurrency(0, ByteSizeValue.ofMb(256).getBytes(), requestLimit(256)));
     }
 
+    public void testSdkConnectionPoolSizeAddsOneExceptUnlimited() {
+        assertEquals(8, ExternalSourceSettings.sdkConnectionPoolSize(0, 8));
+        assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(1, 8));
+        assertEquals(5, ExternalSourceSettings.sdkConnectionPoolSize(4, 8));
+        Settings unlimited = Settings.builder().put("esql.external.max_concurrent_requests", 0).build();
+        assertEquals(
+            ExternalSourceSettings.defaultBlobStoreConcurrency(unlimited),
+            ExternalSourceSettings.sdkConnectionPoolSize(unlimited)
+        );
+        Settings one = Settings.builder().put("esql.external.max_concurrent_requests", 1).build();
+        assertEquals(2, ExternalSourceSettings.sdkConnectionPoolSize(one));
+    }
+
     public void testPositiveOverrideHonorsParseFloorOnTinyHeap() {
         // 80 MiB heap: M = 20 MiB, floor(M / B) = 2, leftover 16 still gets the gzip parse floor of 4.
         assertEquals(4, ExternalSourceSettings.blobStoreConcurrency(16, ByteSizeValue.ofMb(80).getBytes(), requestLimit(80)));

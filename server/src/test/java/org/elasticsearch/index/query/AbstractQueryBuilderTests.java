@@ -10,13 +10,17 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -26,6 +30,7 @@ import java.io.IOException;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class AbstractQueryBuilderTests extends ESTestCase {
 
@@ -81,6 +86,101 @@ public class AbstractQueryBuilderTests extends ESTestCase {
             ParsingException exception = expectThrows(ParsingException.class, () -> parseInnerQueryBuilder(parser));
             assertEquals("unknown query [match_] did you mean any of [match, match_all, match_none]?", exception.getMessage());
         }
+    }
+
+    public void testQueryAtTheClauseLimitIsParsed() throws IOException {
+        int limit = Math.max(AbstractQueryBuilder.PARSE_CLAUSE_LIMIT_FLOOR, IndexSearcher.getMaxClauseCount());
+        // Split across two inner bool queries, which are not clauses themselves.
+        String source = "{\"bool\":{\"should\":[" + boolQueryJson(limit / 2) + "," + boolQueryJson(limit - limit / 2) + "]}}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            BoolQueryBuilder query = (BoolQueryBuilder) AbstractQueryBuilder.parseTopLevelQuery(parser);
+            assertEquals(2, query.should().size());
+        }
+    }
+
+    public void testQueryOverTheClauseLimitIsRejectedWhileParsed() throws IOException {
+        int limit = Math.max(AbstractQueryBuilder.PARSE_CLAUSE_LIMIT_FLOOR, IndexSearcher.getMaxClauseCount());
+        // A query at the limit still parses, so the rejection below is about the count.
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, boolQueryJson(limit))) {
+            assertNotNull(AbstractQueryBuilder.parseTopLevelQuery(parser));
+        }
+        String source = "{\"query\":" + boolQueryJson(limit + 1_000) + ",\"size\":10}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals("query", parser.nextFieldName());
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> AbstractQueryBuilder.parseTopLevelQuery(parser)
+            );
+            assertThat(causeMessages(e), containsString("The number of clauses in the query exceeds the maximum of [" + limit + "]"));
+            // Rejected at the first clause over the limit, so the other clauses, several tokens each, are still unread.
+            int unread = 0;
+            while (parser.nextToken() != null) {
+                unread++;
+            }
+            assertThat(unread, greaterThan(1_000));
+        }
+    }
+
+    public void testHigherNodeClauseLimitIsUsedWhileParsed() throws IOException {
+        int original = IndexSearcher.getMaxClauseCount();
+        int nodeLimit = AbstractQueryBuilder.PARSE_CLAUSE_LIMIT_FLOOR * 2;
+        IndexSearcher.setMaxClauseCount(nodeLimit);
+        try {
+            // Over the floor, but within the node's own limit.
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, boolQueryJson(nodeLimit))) {
+                assertNotNull(AbstractQueryBuilder.parseTopLevelQuery(parser));
+            }
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, boolQueryJson(nodeLimit + 1))) {
+                IllegalArgumentException e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> AbstractQueryBuilder.parseTopLevelQuery(parser)
+                );
+                assertThat(causeMessages(e), containsString("exceeds the maximum of [" + nodeLimit + "]"));
+            }
+        } finally {
+            IndexSearcher.setMaxClauseCount(original);
+        }
+    }
+
+    public void testSearchBodyWithTooManyClausesIsRejectedWhileParsed() throws IOException {
+        int limit = Math.max(AbstractQueryBuilder.PARSE_CLAUSE_LIMIT_FLOOR, IndexSearcher.getMaxClauseCount());
+        // A SMILE search body with a bool query of distinct term clauses over the limit.
+        XContentBuilder body = XContentBuilder.builder(XContentType.SMILE.xContent());
+        body.startObject().startObject("query").startObject("bool").startArray("should");
+        for (int i = 0; i < limit * 5; i++) {
+            body.startObject().startObject("term").field("field", "value" + i).endObject().endObject();
+        }
+        body.endArray().endObject().endObject().endObject();
+        try (XContentParser parser = createParser(body)) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().parseXContent(parser, true, feature -> true)
+            );
+            assertThat(causeMessages(e), containsString("The number of clauses in the query exceeds the maximum of [" + limit + "]"));
+            // Rejected at the first clause over the limit, so most of the body is never read.
+            int unread = 0;
+            while (parser.nextToken() != null) {
+                unread++;
+            }
+            assertThat(unread, greaterThan(limit));
+        }
+    }
+
+    private static String boolQueryJson(int termClauses) {
+        StringBuilder json = new StringBuilder("{\"bool\":{\"should\":[");
+        for (int i = 0; i < termClauses; i++) {
+            json.append(i == 0 ? "" : ",").append("{\"term\":{\"field\":\"value").append(i).append("\"}}");
+        }
+        return json.append("]}}").toString();
+    }
+
+    private static String causeMessages(Throwable e) {
+        StringBuilder messages = new StringBuilder();
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            messages.append(t.getMessage()).append('\n');
+        }
+        return messages.toString();
     }
 
     @Override

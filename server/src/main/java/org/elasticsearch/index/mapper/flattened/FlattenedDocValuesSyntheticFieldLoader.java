@@ -89,16 +89,16 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
 
     @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+        Stream<Map.Entry<String, StoredFieldLoader>> subFieldLoaders = mappedSubFieldLoaders.stream()
+            .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders);
         if (keyedIgnoredValuesFieldFullPath == null || storeIgnoredFieldsInBinaryDocValues) {
-            return Stream.empty();
+            return subFieldLoaders;
         }
 
         Stream<Map.Entry<String, StoredFieldLoader>> flattenedLoaders = Stream.of(Map.entry(keyedIgnoredValuesFieldFullPath, (values) -> {
             ignoredStoredValues = new ArrayList<>();
             ignoredStoredValues.addAll(values);
         }));
-        Stream<Map.Entry<String, StoredFieldLoader>> subFieldLoaders = mappedSubFieldLoaders.stream()
-            .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders);
         return Stream.concat(flattenedLoaders, subFieldLoaders);
     }
 

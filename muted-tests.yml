@@ -12,180 +12,289 @@ tests:
   method: testLicenseInvalidForInference {p0=false}
   issue: https://github.com/elastic/elasticsearch/issues/137691
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
+  tasks:
+  - :x-pack:plugin:analytics:test
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
 - class: org.elasticsearch.xpack.application.OpenAiServiceUpgradeIT
   method: testOpenAiEmbeddings {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/144440
 - class: org.elasticsearch.repositories.azure.AzureBlobContainerStatsTests
+  tasks:
+  - :modules:repository-azure:test
   method: testRetriesAndOperationsAreTrackedSeparately
   issue: https://github.com/elastic/elasticsearch/issues/145281
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
+  tasks:
+  - :x-pack:plugin:autoscaling:internalClusterTest
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:javaRestTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/150569
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/150569
 - class: org.elasticsearch.xpack.ml.integration.MlDistributedFailureIT
+  tasks:
+  - :x-pack:plugin:ml:internalClusterTest
   method: testFullClusterRestart
   issue: https://github.com/elastic/elasticsearch/issues/150960
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  tasks:
+  - :server:internalClusterTest
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283
 - class: org.elasticsearch.xpack.transform.integration.TransformCrossProjectIT
+  tasks:
+  - :x-pack:plugin:transform:internalClusterTest
   method: testUpdateTransformWithProjectRouting
   issue: https://github.com/elastic/elasticsearch/issues/147534
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testCancelTailRequest
   issue: https://github.com/elastic/elasticsearch/issues/153203
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformGetCheckpointIT
+  tasks:
+  - :x-pack:plugin:transform:internalClusterTest
   method: testGetCheckpointTimeoutExceeded
   issue: https://github.com/elastic/elasticsearch/issues/150934
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
+  tasks:
+  - :modules:repository-gcs:test
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
 - class: org.elasticsearch.repositories.SnapshotMetricsIT
+  tasks:
+  - :server:internalClusterTest
   method: testSnapshotAPMMetrics
   issue: https://github.com/elastic/elasticsearch/issues/153595
 - class: org.elasticsearch.xpack.esql.evaluator.command.TestCompoundOutputEvaluatorTests
+  tasks:
+  - :x-pack:plugin:esql:test
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/154059
 - class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
+  tasks:
+  - :server:test
   method: testLimitsFileCount
   issue: https://github.com/elastic/elasticsearch/issues/149557
 - class: org.elasticsearch.packaging.test.EnrollmentProcessTests
+  tasks:
+  - :qa:packaging:destructiveDistroTest.default-linux-archive
   method: test10ArchiveAutoFormCluster
   issue: https://github.com/elastic/elasticsearch/issues/155685
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
   method: testSearchesWhereNonExistentClusterIsSpecifiedWithWildcards
   issue: https://github.com/elastic/elasticsearch/issues/156063
 - class: org.elasticsearch.xpack.transform.integration.continuous.TransformContinuousIT
+  tasks:
+  - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest
   method: testContinuousEvents
   issue: https://github.com/elastic/elasticsearch/issues/153782
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
+  tasks:
+  - :modules:repository-gcs:test
   method: testResumableWrite
   issue: https://github.com/elastic/elasticsearch/issues/156513
 - class: org.elasticsearch.search.aggregations.metrics.TDigestPercentilesIT
+  tasks:
+  - :server:internalClusterTest
   method: testSingleValuedFieldGetProperty
   issue: https://github.com/elastic/elasticsearch/issues/157330
 - class: org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceTests
+  tasks:
+  - :x-pack:plugin:inference:test
   method: testUnifiedCompletionError
   issue: https://github.com/elastic/elasticsearch/issues/157332
 - class: org.elasticsearch.xpack.ml.integration.ForecastIT
+  tasks:
+  - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
   method: testOverflowToDisk
   issue: https://github.com/elastic/elasticsearch/issues/157223
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
   method: testLookupJoinOthers {p0=EQ}
   issue: https://github.com/elastic/elasticsearch/issues/157452
 - class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
+  tasks:
+  - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
   method: testFailedDeploymentStats
   issue: https://github.com/elastic/elasticsearch/issues/157341
 - class: org.elasticsearch.xpack.ccr.RestartIT
+  tasks:
+  - :x-pack:plugin:ccr:javaRestTest
   method: testRestart {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/155609
 - class: org.elasticsearch.xpack.transform.integration.TransformDestIndexIT
+  tasks:
+  - :x-pack:plugin:transform:qa:single-node-tests:javaRestTest
   method: testUnattendedTransformDestIndexCreatedDuringUpdate_EmptySourceIndex_NoDeferValidation
   issue: https://github.com/elastic/elasticsearch/issues/152599
 - class: org.elasticsearch.compute.aggregation.SumDenseVectorGroupingAggregatorFunctionTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
   method: testManyInitialManyPartialFinalRunner
   issue: https://github.com/elastic/elasticsearch/issues/158614
 - class: org.elasticsearch.action.RejectionActionIT
+  tasks:
+  - :server:internalClusterTest
   method: testSimulatedSearchRejectionLoad
   issue: https://github.com/elastic/elasticsearch/issues/158625
 - class: org.elasticsearch.action.admin.indices.forcemerge.ForceMergeBlocksIT
+  tasks:
+  - :server:internalClusterTest
   method: testForceMergeWithBlocks
   issue: https://github.com/elastic/elasticsearch/issues/158626
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with body parameters}
   issue: https://github.com/elastic/elasticsearch/issues/147656
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  tasks:
+  - :server:internalClusterTest
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/159150
 - class: org.elasticsearch.upgrades.MlMappingsUpgradeIT
   method: testMappingsUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/159529
 - class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testManyRequests
   issue: https://github.com/elastic/elasticsearch/issues/151627
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
+  tasks:
+  - :x-pack:plugin:ml:internalClusterTest
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/150541
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/159566
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalUtilTests
+  tasks:
+  - :x-pack:plugin:esql:test
   method: testRandomBounds
   issue: https://github.com/elastic/elasticsearch/issues/159682
 - class: org.elasticsearch.xpack.spatial.common.H3SphericalUtilTests
+  tasks:
+  - :x-pack:plugin:spatial:test
   method: testRandomBounds
   issue: https://github.com/elastic/elasticsearch/issues/159682
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
+  tasks:
+  - :x-pack:plugin:security:test
   method: testSignAndVerifyDifferentPayloadFailsPKCS12orBCFKS
   issue: https://github.com/elastic/elasticsearch/issues/159806
 - class: org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManagerTests
+  tasks:
+  - :x-pack:plugin:security:test
   method: testSignAndVerifyPKCS12orBCFKS
   issue: https://github.com/elastic/elasticsearch/issues/159807
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:javaRestTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:qa:minio:javaRestTest
   issue: https://github.com/elastic/elasticsearch/issues/160407
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
+  tasks:
+  - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/146955
 - class: org.elasticsearch.xpack.esql.action.LookupJoinTypesIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/160421
 - class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
+  tasks:
+  - :x-pack:plugin:security:test
   method: testHandlerIsInvokedOnConnectionClose
   issue: https://github.com/elastic/elasticsearch/issues/160606
 - class: org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceTests
+  tasks:
+  - :x-pack:plugin:inference:test
   method: testUnifiedCompletionNonStreamingNotFoundError
   issue: https://github.com/elastic/elasticsearch/issues/160618
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:internalClusterTest
   method: testCleanUpAfterIndicesAreDeleted
   issue: https://github.com/elastic/elasticsearch/issues/160715
 - class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
   method: test {yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old outlier_detection job}
   issue: https://github.com/elastic/elasticsearch/issues/160950
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.WeightedAvgTests
+  tasks:
+  - :x-pack:plugin:esql:test
   issue: https://github.com/elastic/elasticsearch/issues/161319
 - class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
+  tasks:
+  - :server:internalClusterTest
   method: testForceMergeIsBlockedThenUnblocked
   issue: https://github.com/elastic/elasticsearch/issues/161490
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
+  tasks:
+  - :x-pack:plugin:transform:qa:multi-cluster-tests-with-security:mixed-cluster
   method: test {yaml=multi_cluster/80_transform/Batch transform local and remote index sharing the same name}
   issue: https://github.com/elastic/elasticsearch/issues/161651
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  tasks:
+  - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
   method: testRevertModelSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/147383
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.xpack.esql.qa.multi_node.ExternalDistributedResilienceIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:javaRestTest
   method: testConnectionResetRecoveryDuringDistributedQuery
   issue: https://github.com/elastic/elasticsearch/issues/161792
 - class: org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests
+  tasks:
+  - :server:test
   method: testManyDocsWithManyValues
   issue: https://github.com/elastic/elasticsearch/issues/161955
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
+  tasks:
+  - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
   method: testRevertModelSnapshot_DeleteInterveningResults
   issue: https://github.com/elastic/elasticsearch/issues/161086
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  tasks:
+  - :x-pack:plugin:yamlRestCompatTest
+  - :x-pack:plugin:yamlRestTest
   method: test {yaml=profiling/10_basic/Test topN functions from test-events}
   issue: https://github.com/elastic/elasticsearch/issues/162284
 - class: org.elasticsearch.upgrades.UpgradeXpackClusterClientYamlTestSuiteIT
   method: test {upgradedNodes=1 yaml=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
   issue: https://github.com/elastic/elasticsearch/issues/158357
 - class: org.elasticsearch.cluster.routing.allocation.decider.MockDiskUsagesIT
+  tasks:
+  - :server:internalClusterTest
   method: testAutomaticReleaseOfIndexBlock
   issue: https://github.com/elastic/elasticsearch/issues/162420
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
+  tasks:
+  - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/162939
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
+  tasks:
+  - :x-pack:plugin:ml:qa:ml-with-security:yamlRestTest
   method: test {yaml=ml/delete_expired_data/Test delete expired data with path parameters}
   issue: https://github.com/elastic/elasticsearch/issues/162947
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
@@ -245,6 +354,11 @@ tests:
   - :x-pack:plugin:ml:test
   method: test_scaleUp
   issue: https://github.com/elastic/elasticsearch/issues/166070
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
+  tasks:
+  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
+  method: testEsqlEnrichWithSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/166601
 
 # Examples:
 #

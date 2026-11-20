@@ -90,8 +90,8 @@ public class RelocationSourceShutdownTimeouts {
     /// i.e. `(totalBytesToWarm / (cacheSize * cacheRatio)) * remaining * concurrentRelocations`.
     /// 3. _Warm-amount share_ (when the source answered for its current shutdown signal before this plan):
     /// `(shardWarmAmount / sumOfWarmAmountsFromSourceToTarget) * remaining * concurrentRelocations`. Both amounts are the source's
-    /// estimates across its shards that may relocate to the target (omitting copies already relocating elsewhere or whose shard ID is
-    /// already on the target). The sum is recomputed on each request, so shards that finished relocating drop out of it.
+    /// estimates across its shards that may relocate to the target. The sum is recomputed on each request, so shards that
+    /// finished relocating drop out of it.
     ///
     /// with `deadline = start + min(metadata grace, cap)`. The timeout is capped at the remaining grace period.
     ///

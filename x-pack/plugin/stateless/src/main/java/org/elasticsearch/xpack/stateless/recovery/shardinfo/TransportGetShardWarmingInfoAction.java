@@ -132,7 +132,7 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
             logger.debug("no routing node for local node [{}], no warming info for [{}]", localNodeId, request.shardId());
             return Response.NONE;
         }
-        final RoutingNode targetRoutingNode = state.getRoutingNodes().node(request.targetNodeId());
+        final RoutingNode targetNode = state.getRoutingNodes().node(request.targetNodeId());
         final long nowMillis = nowSupplier.getAsLong();
         final ConcurrentMap<ShardId, Long> estimates = estimatesForSignal(state, localNodeId, request.shutdownSignalTimestamp());
         long sourceBytesToWarm = 0L;
@@ -143,7 +143,7 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
                     // already relocating to another target
                     continue;
                 }
-            } else if (targetRoutingNode != null && targetRoutingNode.getByShardId(routing.shardId()) != null) {
+            } else if (targetNode != null && targetNode.getByShardId(routing.shardId()) != null) {
                 // target already holds another copy of this shard
                 continue;
             }

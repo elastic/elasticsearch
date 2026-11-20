@@ -272,9 +272,11 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         if (routing.initializing() == false || sourceNodeId == null) {
             return SourceShardWarmingInfo.NOT_REQUESTED;
         }
-        if (clusterService.getClusterSettings().get(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING) == false
-            || clusterService.getClusterSettings()
-                .get(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING) == false) {
+        final var clusterSettings = clusterService.getClusterSettings();
+        if (clusterSettings.get(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING) == false
+            || clusterSettings.get(
+                SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING
+            ) == false) {
             return SourceShardWarmingInfo.NOT_REQUESTED;
         }
         final var state = clusterService.state();

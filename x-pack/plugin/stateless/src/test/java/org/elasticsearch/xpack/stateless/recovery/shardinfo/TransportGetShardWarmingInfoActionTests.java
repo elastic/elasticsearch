@@ -117,7 +117,13 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testExcludesStartedSourceCopyWhenTargetAlreadyHoldsStartedCopy() {
         final long startedAt = randomNonNegativeLong();
-        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), started(1, SOURCE), started(1, TARGET));
+        state = clusterState(
+            startedAt,
+            relocating(0, SOURCE, TARGET),
+            started(0, OTHER_TARGET),
+            started(1, SOURCE),
+            started(1, TARGET)
+        );
         withBytesToWarm(600L, 300L);
 
         assertThat(action.computeWarmingInfo(request(0, startedAt)), equalTo(response(600L, 600L)));
@@ -126,7 +132,13 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
 
     public void testExcludesUncommittedInitializingSourceCopyWhenTargetHoldsOtherCopy() {
         final long startedAt = randomNonNegativeLong();
-        state = clusterState(startedAt, relocating(0, SOURCE, TARGET), initializing(1, SOURCE), started(1, TARGET));
+        state = clusterState(
+            startedAt,
+            relocating(0, SOURCE, TARGET),
+            started(0, OTHER_TARGET),
+            initializing(1, SOURCE),
+            started(1, TARGET)
+        );
         withBytesToWarm(0, 600L);
         when(indicesService.getShardOrNull(new ShardId(index, 1))).thenReturn(null);
 

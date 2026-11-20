@@ -275,11 +275,16 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
     }
 
     /**
-     * Whether a {@code *} leaves the column alone: the internals and the columns with a metadata name. A union turns a metadata column
-     * into a reference attribute, which is not internal any more, so for those the name decides.
+     * Whether a {@code *} leaves the column alone: the internals and the metadata columns a union passes on. A union turns a metadata
+     * column into a reference attribute, which is not internal any more, so for one that a union below produces the name decides. A
+     * column that the query creates with such a name, as in {@code EVAL _score = ROUND(_score, 4)}, is an ordinary one and is filled.
      */
-    private static boolean leftAloneByAllFields(Attribute attribute) {
-        return attribute.isInternal() || MetadataAttribute.isSupported(attribute.name());
+    private boolean leftAloneByAllFields(Attribute attribute) {
+        return attribute.isInternal() || (MetadataAttribute.isSupported(attribute.name()) && producedByAUnion(attribute));
+    }
+
+    private boolean producedByAUnion(Attribute attribute) {
+        return child().anyMatch(plan -> plan instanceof UnionAll && plan.outputSet().contains(attribute));
     }
 
     public boolean fills(Attribute attribute) {

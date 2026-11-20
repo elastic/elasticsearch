@@ -1592,17 +1592,53 @@ required_capability: fillnull
 required_capability: fillnull_all_columns_skips_metadata_after_union
 required_capability: subquery_in_from_command
 
-// Naming the column puts it in scope, with or without a * next to it.
+// Naming the column puts it in scope.
 FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),
      (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, last_name)
      METADATA _index
 | FILLNULL "unknown" ON _index
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
+10001          | Georgi             | null              | unknown
+10002          | null               | Simmel            | unknown
+;
+
+fillNullNamedMetadataIndexAlongsideAllColumnsIsFilledAfterUnionOfSubqueries
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
+required_capability: fillnull
+required_capability: fillnull_all_columns_skips_metadata_after_union
+required_capability: subquery_in_from_command
+
+// With a * next to it, the named column is still filled, with its own value from the same FILLNULL as the others.
+FROM (FROM employees | WHERE emp_no == 10001 | KEEP emp_no, first_name),
+     (FROM employees | WHERE emp_no == 10002 | KEEP emp_no, last_name)
+     METADATA _index
 | FILLNULL "n/a" ON *, _index
 | SORT emp_no
 ;
-warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+warning:Line 4:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
 
 emp_no:integer | first_name:keyword | last_name:keyword | _index:keyword
-10001          | Georgi             | n/a               | unknown
-10002          | n/a                | Simmel            | unknown
+10001          | Georgi             | n/a               | n/a
+10002          | n/a                | Simmel            | n/a
+;
+
+fillNullAllColumnsFillsAUserColumnNamedLikeMetadata
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
+required_capability: fillnull
+required_capability: fillnull_all_columns_skips_metadata_after_union
+
+// A column the query creates is not metadata, whatever its name: a * fills it, as it fills the column it was made from.
+FROM employees
+| WHERE emp_no == 10010
+| KEEP emp_no, gender
+| EVAL _score = gender
+| FILLNULL "x" ON *
+;
+warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+
+emp_no:integer | gender:keyword | _score:keyword
+10010          | x              | x
 ;

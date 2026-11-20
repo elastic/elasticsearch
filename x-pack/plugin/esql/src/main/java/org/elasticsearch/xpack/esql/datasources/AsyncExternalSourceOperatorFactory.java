@@ -696,8 +696,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         /**
          * The widest text extremum a harvest publishes, in bytes (see
-         * {@code ExternalSourceCacheSettings#STATS_MAX_EXTREMUM_SIZE}). A negative value restores the
-         * {@link FormatReadContext#DEFAULT_MAX_EXTREMUM_BYTES} default; zero withholds every text extremum that has any bytes.
+         * {@code ExternalSourceCacheSettings#STATS_MAX_EXTREMUM_SIZE}). Not normalised here: every path from
+         * this field ends in {@link FormatReadContext}, whose compact constructor owns the rule. A negative
+         * value restores the {@link FormatReadContext#DEFAULT_MAX_EXTREMUM_BYTES} default; zero withholds
+         * every text extremum that has any bytes.
          */
         public Builder statsMaxExtremumBytes(int statsMaxExtremumBytes) {
             this.statsMaxExtremumBytes = statsMaxExtremumBytes;

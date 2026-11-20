@@ -88,6 +88,21 @@ id:keyword
 3
 ;
 
+anyChildAtAllInEval
+required_capability: fn_nested_any
+
+FROM nested_orders
+| EVAL has = NESTED_ANY(items, true)
+| KEEP id, has
+| SORT id
+;
+
+id:keyword | has:boolean
+1          | true
+2          | false
+3          | true
+;
+
 besideAParentCondition
 required_capability: fn_nested_any
 

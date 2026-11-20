@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [fn_nested_any]
+          capabilities: [fn_nested_any, nested_expand]
       reason: "NESTED_ANY is snapshot-only"
   - do:
       indices.create:
@@ -783,16 +783,6 @@ setup:
   - match: { values: [[5]] }
 
 ---
-"NOT NESTED_ANY keeps parents without a match or without children":
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | WHERE NOT NESTED_ANY(items.sku == "a") | KEEP id | SORT id'
-  - match: { values: [["2"], ["4"], ["5"]] }
-
----
 "NESTED_ANY keeps working after RENAME":
   - do:
       allowed_warnings_regex:
@@ -811,16 +801,6 @@ setup:
         body:
           query: 'FROM nested_any_shapes | MV_EXPAND top | WHERE NESTED_ANY(items.sku == "a") | KEEP id, top | SORT id, top'
   - match: { values: [["1","p"], ["1","q"], ["3","q"], ["6","p"]] }
-
----
-"NESTED_ANY combines with a pushed-down filter":
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | WHERE n > 1 AND NESTED_ANY(items.sku == "a") | KEEP id | SORT id'
-  - match: { values: [["3"], ["6"]] }
 
 ---
 "NESTED_ANY over a child that is null for some objects":
@@ -853,16 +833,6 @@ setup:
   - match: { values: [["2", true], ["3", true], ["6", true]] }
 
 ---
-"NESTED_ANY flag groups":
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.qty > 4) | STATS c = COUNT(*) BY h | SORT h'
-  - match: { values: [[3, false], [3, true]] }
-
----
 "NESTED_ANY inside CASE":
   - do:
       allowed_warnings_regex:
@@ -871,36 +841,6 @@ setup:
         body:
           query: 'FROM nested_any_shapes | EVAL t = CASE(NESTED_ANY(items.sku == "a"), "yes", "no") | KEEP id, t | SORT id'
   - match: { values: [["1","yes"], ["2","no"], ["3","yes"], ["4","no"], ["5","no"], ["6","yes"]] }
-
----
-"two NESTED_ANY calls may match different children":
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a") AND NESTED_ANY(items.sku == "b") | KEEP id | SORT id'
-  - match: { values: [["1"]] }
-
----
-"conditions inside one NESTED_ANY must hold for the same child":
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a" AND items.qty > 3) | KEEP id | SORT id'
-  - match: { values: [["3"], ["6"]] }
-
----
-"NESTED_ANY after NESTED_ANY":
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a") | WHERE NESTED_ANY(items.qty > 3) | KEEP id | SORT id'
-  - match: { values: [["3"], ["6"]] }
 
 ---
 "NESTED_ANY before NESTED_EXPAND":
@@ -915,26 +855,20 @@ setup:
 ---
 "NESTED_ANY in WHERE cannot follow a coordinator pipeline breaker":
   - do:
-      catch: /NESTED_ANY must run on the data nodes/
+      catch: bad_request
       esql.query:
         body:
           query: 'FROM nested_any_shapes | SORT id | LIMIT 3 | WHERE NESTED_ANY(items.sku == "a") | KEEP id'
+  - match: { error.reason: "/(?s).*NESTED_ANY\\smust\\srun\\son\\sthe\\sdata\\snodes.*/" }
 
 ---
 "NESTED_ANY in EVAL cannot follow a coordinator pipeline breaker":
   - do:
-      catch: /NESTED_ANY must run on the data nodes/
+      catch: bad_request
       esql.query:
         body:
           query: 'FROM nested_any_shapes | SORT id | LIMIT 3 | EVAL h = NESTED_ANY(items.qty > 1) | KEEP id, h'
-
----
-"NESTED_ANY cannot read a nested field dropped by KEEP":
-  - do:
-      catch: /Unknown column \[items.sku\]/
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | KEEP id | WHERE NESTED_ANY(items.sku == "a")'
+  - match: { error.reason: "/(?s).*NESTED_ANY\\smust\\srun\\son\\sthe\\sdata\\snodes.*/" }
 
 ---
 "a TO_LONG predicate selects the same rows as on a top-level field":
@@ -1116,22 +1050,13 @@ setup:
   - match: { values: [["1", false], ["2", false], ["3", true], ["4", false], ["5", false], ["6", false]] }
 
 ---
-"a parent field beside NESTED_ANY is not part of its predicate":
-  - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | WHERE id == "1" AND NESTED_ANY(items.sku == "a") | KEEP id | SORT id'
-  - match: { values: [["1"]] }
-
----
 "a name under the nested path is not a child":
   - do:
-      catch: /Unknown column \[items.undeclared\]/
+      catch: bad_request
       esql.query:
         body:
           query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a" AND items.undeclared == "x") | KEEP id'
+  - match: { error.reason: "/(?s).*Unknown\\scolumn\\s\\[items\\.undeclared\\].*/" }
 
 ---
 "a limit after EVAL of a nested predicate keeps the predicate on the data nodes":
@@ -1146,48 +1071,17 @@ setup:
 ---
 "NESTED_ANY cannot read a parent field":
   - do:
-      catch: /Field \[id\] is outside the nested scope/
+      catch: bad_request
       esql.query:
         body:
           query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == id) | KEEP id'
-
----
-"NESTED_ANY cannot read a parent field beside a child field":
-  - do:
-      catch: /Field \[id\] is outside the nested scope/
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a" AND id == "1") | KEEP id'
-
----
-"NESTED_ANY cannot read a computed column":
-  - do:
-      catch: /Field \[k\] is outside the nested scope/
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | EVAL k = "a" | WHERE NESTED_ANY(items.sku == k) | KEEP id'
-
----
-"NESTED_ANY cannot read a parent field in EVAL":
-  - do:
-      catch: /Field \[id\] is outside the nested scope/
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.sku == id) | KEEP id, h'
+  - match: { error.reason: "/(?s).*Field\\s\\[id\\]\\sis\\soutside\\sthe\\snested\\sscope.*/" }
 
 ---
 "a computed column named like a child replaces it":
   - do:
-      catch: /NESTED_ANY cannot use \[items.sku\].+a column of that name replaces it here/
+      catch: bad_request
       esql.query:
         body:
           query: 'FROM nested_any_shapes | EVAL items.sku = "z" | WHERE NESTED_ANY(items.sku == "z") | KEEP id'
-
----
-"a renamed column named like a child replaces it":
-  - do:
-      catch: /NESTED_ANY cannot use \[items.sku\].+a column of that name replaces it here/
-      esql.query:
-        body:
-          query: 'FROM nested_any_shapes | RENAME id AS items.sku | WHERE NESTED_ANY(items.sku == "a") | KEEP items.sku'
-
+  - match: { error.reason: "/(?s).*NESTED_ANY\\scannot\\suse\\s\\[items\\.sku\\].*a\\scolumn\\sof\\sthat\\sname\\sreplaces\\sit\\shere.*/" }

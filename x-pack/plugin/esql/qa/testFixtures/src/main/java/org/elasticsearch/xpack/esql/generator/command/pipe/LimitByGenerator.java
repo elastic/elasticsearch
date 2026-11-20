@@ -64,7 +64,7 @@ public class LimitByGenerator implements CommandGenerator {
 
     private static boolean groupable(Column col) {
         DataType dt = DataType.fromTypeName(col.type());
-        return dt != null && dt.isGroupable();
+        return dt != null && dt.isGroupable() && dt != DataType.SOURCE;
     }
 
     @Override

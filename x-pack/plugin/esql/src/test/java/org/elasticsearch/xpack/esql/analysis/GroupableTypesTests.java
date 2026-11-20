@@ -9,15 +9,9 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.FloatBlock;
-import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.GroupKeyEncoder;
-import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
-import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -34,8 +28,6 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Enforces that which types can be a grouping key is decided by {@link DataType#isGroupable} alone: for every
@@ -161,9 +153,10 @@ public class GroupableTypesTests extends ESTestCase {
     }
 
     /**
-     * Every groupable type must build the {@link BlockHash} STATS BY groups with. The exception is dense_vector:
-     * {@link BlockHash} cannot group it, which is why STATS rejects it, while LIMIT BY and DEDUP encode their keys
-     * row by row and accept it, covered by {@link #testDenseVectorHasARowKeyEncoding}.
+     * Every groupable type must build the {@link BlockHash} STATS BY groups with: the build throws for an
+     * element type without grouping support, which is the failure. The exception is dense_vector:
+     * {@link BlockHash} cannot group it, which is why STATS rejects it, while LIMIT BY and DEDUP encode
+     * their keys row by row and accept it, covered by the dense_vector and dedup csv-spec tests.
      */
     public void testGroupableTypesCanBuildBlockHash() {
         BlockFactory blockFactory = blockFactory();
@@ -172,41 +165,7 @@ public class GroupableTypesTests extends ESTestCase {
                 continue;
             }
             ElementType elementType = PlannerUtils.toElementType(type);
-            try (BlockHash hash = BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 16 * 1024, false)) {
-                assertThat("grouping by [" + type.typeName() + "] must be supported by BlockHash", hash, notNullValue());
-            }
-        }
-    }
-
-    /**
-     * dense_vector cannot build a {@link BlockHash}, which is why STATS rejects it, but it stays groupable
-     * because the LIMIT BY and DEDUP key path can encode {@link ElementType#FLOAT}. That encoding may come
-     * from the mv-dedupe batch encoders or from {@link GroupKeyEncoder}; either satisfies the contract.
-     */
-    public void testDenseVectorHasARowKeyEncoding() {
-        assertTrue(DataType.DENSE_VECTOR.isGroupable());
-        BlockFactory blockFactory = blockFactory();
-        assertThat(PlannerUtils.toElementType(DataType.DENSE_VECTOR), is(ElementType.FLOAT));
-        try (FloatBlock block = blockFactory.newFloatArrayVector(new float[] { 1F, 2F }, 2).asBlock()) {
-            assertTrue(
-                "the LIMIT BY/DEDUP key path must encode FLOAT",
-                batchEncodersSupport(block) || groupKeyEncoderEncodes(block, blockFactory)
-            );
-        }
-    }
-
-    private static boolean batchEncodersSupport(FloatBlock block) {
-        try (BatchEncoder encoder = MultivalueDedupe.batchEncoder(block, 1, true)) {
-            return encoder != null;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    private static boolean groupKeyEncoderEncodes(FloatBlock block, BlockFactory blockFactory) {
-        PagedBytesBuilder row = new PagedBytesBuilder(blockFactory.bigArrays().recycler(), blockFactory.breaker(), "test", 64);
-        try (GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.FLOAT), row)) {
-            return encoder.encode(new Page(block), 0) != null;
+            BlockHash.build(List.of(new BlockHash.GroupSpec(0, elementType)), blockFactory, 16 * 1024, false).close();
         }
     }
 

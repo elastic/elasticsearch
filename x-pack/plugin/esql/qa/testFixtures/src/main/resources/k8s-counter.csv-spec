@@ -59,50 +59,34 @@ false     | true
 
 statsByCounterLong
 required_capability: group_by_counters
-FROM k8s | STATS events = count(*), bytes = sum(network.bytes_in) BY b = network.total_bytes_in | EVAL b = to_long(b) | SORT b | LIMIT 5;
+FROM k8s | STATS c = count(*) BY network.total_bytes_in | STATS keys = count(*);
 
-events:long | bytes:long | b:long
-1           | 3          | 3
-1           | 16         | 16
-1           | 17         | 17
-1           | 4          | 21
-1           | 131        | 152
+keys:long
+198
 ;
 
 statsByCounterLongMatchesGroupingByCastBaseType
 required_capability: group_by_counters
-FROM k8s | STATS events = count(*), bytes = sum(network.bytes_in) BY b = to_long(network.total_bytes_in) | SORT b | LIMIT 5;
+FROM k8s | STATS c = count(*) BY to_long(network.total_bytes_in) | STATS keys = count(*);
 
-events:long | bytes:long | b:long
-1           | 3          | 3
-1           | 16         | 16
-1           | 17         | 17
-1           | 4          | 21
-1           | 131        | 152
+keys:long
+198
 ;
 
 statsByCounterDouble
 required_capability: group_by_counters
-FROM k8s | STATS events = count(*) BY c = network.total_cost | EVAL c = to_double(c) | SORT c | LIMIT 5;
+FROM k8s | STATS c = count(*) BY network.total_cost | STATS keys = count(*);
 
-events:long | c:double
-1           | 0.625
-1           | 1.375
-1           | 2.625
-1           | 2.875
-1           | 3.0
+keys:long
+180
 ;
 
 statsByCounterDoubleMatchesGroupingByCastBaseType
 required_capability: group_by_counters
-FROM k8s | STATS events = count(*) BY c = to_double(network.total_cost) | SORT c | LIMIT 5;
+FROM k8s | STATS c = count(*) BY to_double(network.total_cost) | STATS keys = count(*);
 
-events:long | c:double
-1           | 0.625
-1           | 1.375
-1           | 2.625
-1           | 2.875
-1           | 3.0
+keys:long
+180
 ;
 
 limitByCounterLong

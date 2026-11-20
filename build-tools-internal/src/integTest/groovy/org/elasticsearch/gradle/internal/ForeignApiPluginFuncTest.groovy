@@ -71,7 +71,14 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     }
 
     def "extractForeignApiJar is not registered when minimumRuntimeVersion is not 21"() {
-        // The task must be absent from the task graph entirely, not merely skipped.
+        // The task must be absent from the task graph entirely, not merely skipped. We assert this
+        // by requesting the task by name and expecting task selection to fail, rather than running
+        // `assemble`. Running `assemble` would drive the compileJava toolchain to the (non-21)
+        // minimumRuntimeVersion set below; with the configuration cache enabled Gradle then
+        // resolves that toolchain while serializing the task graph, triggering a network
+        // auto-provisioning download of a JDK that is not installed locally (only JDK 21 is
+        // available via JAVA21_HOME). Selecting the task directly fails before any toolchain is
+        // resolved, so this stays hermetic and does not depend on JDK downloads.
         given:
         buildFile.text = buildFile.text.replace(
             "plugins.apply(ForeignApiPlugin)",
@@ -81,10 +88,10 @@ class ForeignApiPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         )
 
         when:
-        def result = gradleRunner('assemble').build()
+        def result = gradleRunner('extractForeignApiJar').buildAndFail()
 
         then:
-        result.task(":extractForeignApiJar") == null
+        result.output.contains("Task 'extractForeignApiJar' not found")
     }
 
     // --- ForeignAccessArgumentProvider / --patch-module tests ---

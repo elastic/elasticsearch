@@ -73,6 +73,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.junit.Before;
@@ -85,14 +86,13 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.atomic.LongAccumulator;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-/** Test cases for AbstractIVFKnnVectorQuery objects. */
+/** Test cases for {@link AbstractIVFKnnVectorQuery} objects. */
 public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
     // handle quantization noise
     static final float EPSILON = 0.001f;
@@ -191,6 +191,13 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         assertNotEquals(q1, getKnnVectorQuery("f1", vector(1, 1), 10));
         assertNotEquals(q1, getKnnVectorQuery("f1", vector(0, 1), 2));
         assertNotEquals(q1, getKnnVectorQuery("f1", vector(0), 10));
+    }
+
+    public void testLeafCollectorBudgetKeepsOverspillHeadroom() {
+        int k = random().nextInt(100) + 1;
+        float oversample = 1f + random().nextFloat() * 9f;
+        AbstractIVFKnnVectorQuery query = getKnnVectorQuery("field", randomVector(4), k);
+        assertEquals(IvfSegmentConfig.leafCollectorBudget(k, oversample), query.leafCollectorBudget(oversample));
     }
 
     /**
@@ -902,18 +909,18 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
     }
 
     /**
-     * The cross-leaf min-competitive {@link LongAccumulator} must be a single instance shared by every
+     * The cross-leaf min-competitive {@link SharedMinCompetitiveScore} must be a single instance shared by every
      * per-leaf collector manager; otherwise each leaf accumulates in isolation and cross-leaf pruning is
      * inert. Wiring regression: fails if the accumulator is (re)created per collector manager.
      */
     public void testAccumulatorSharedAcrossLeaves() throws IOException {
         try (Directory dir = buildMultiSegmentIndex(); IndexReader reader = DirectoryReader.open(dir)) {
             assertTrue("test requires multiple segments", reader.leaves().size() > 1);
-            List<LongAccumulator> captured = Collections.synchronizedList(new ArrayList<>());
+            List<SharedMinCompetitiveScore> captured = Collections.synchronizedList(new ArrayList<>());
             new AccumulatorCapturingQuery("field", 3, testResolver(), captured).rewrite(newSearcher(reader));
 
             assertEquals("one collector manager per leaf", reader.leaves().size(), captured.size());
-            Set<LongAccumulator> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+            Set<SharedMinCompetitiveScore> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
             distinct.addAll(captured);
             assertEquals("all leaves must share a single accumulator instance", 1, distinct.size());
             assertNotNull("multi-leaf accumulator must be non-null", captured.get(0));
@@ -937,7 +944,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
             }
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 assertEquals(1, reader.leaves().size());
-                List<LongAccumulator> captured = Collections.synchronizedList(new ArrayList<>());
+                List<SharedMinCompetitiveScore> captured = Collections.synchronizedList(new ArrayList<>());
                 new AccumulatorCapturingQuery("field", 3, testResolver(), captured).rewrite(newSearcher(reader));
                 assertEquals(1, captured.size());
                 assertNull("single-leaf accumulator must be null", captured.get(0));
@@ -967,24 +974,34 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
     }
 
     /**
-     * Minimal {@link AbstractIVFKnnVectorQuery} that records the {@link LongAccumulator} handed to each
+     * Minimal {@link AbstractIVFKnnVectorQuery} that records the {@link SharedMinCompetitiveScore} handed to each
      * per-leaf collector manager during {@code rewrite()}. {@code getLeafResults} is stubbed out: the wiring
      * under test — that {@code rewrite()} threads a single shared accumulator into every leaf's collector
      * manager — is established in the task-setup loop before any leaf search runs, so no real vector scoring
      * (and hence no per-variant query type) is needed to observe it.
      */
     private static class AccumulatorCapturingQuery extends AbstractIVFKnnVectorQuery {
-        private final List<LongAccumulator> captured;
+        private final List<SharedMinCompetitiveScore> captured;
 
-        AccumulatorCapturingQuery(String field, int k, TestIvfQueryConfigResolver resolver, List<LongAccumulator> captured) {
-            super(field, 0f, k, k, null, resolver);
+        AccumulatorCapturingQuery(String field, int k, TestIvfQueryConfigResolver resolver, List<SharedMinCompetitiveScore> captured) {
+            super(field, 0f, k, k, null, resolver, false);
             this.captured = captured;
         }
 
+        /**
+         * Unreachable here: counting needs the field's vector encoding, which this double - shared by the
+         * float and byte test subclasses - does not know. Only the post-filter path calls it, and this query
+         * is never wrapped in a {@link PostFilterKnnQuery}.
+         */
         @Override
-        protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
-            captured.add(longAccumulator);
-            return super.getKnnCollectorManager(k, longAccumulator);
+        public int countTotalVectors(List<LeafReaderContext> leaves) {
+            throw new UnsupportedOperationException("AccumulatorCapturingQuery only exercises rewrite() accumulator wiring");
+        }
+
+        @Override
+        protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
+            captured.add(sharedScore);
+            return super.getKnnCollectorManager(k, sharedScore);
         }
 
         @Override
@@ -999,7 +1016,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         }
 
         @Override
-        Query getAutoRescoreQuery(IndexSearcher indexSearcher, TopDocs topOversampled, int effectiveK) {
+        Query getAutoRescoreQuery(IndexSearcher indexSearcher, Query approxTopN, int finalK, int rescoreK) {
             return null;
         }
 

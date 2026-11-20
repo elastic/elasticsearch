@@ -39,7 +39,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
   SumOverflowingLongGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
     this.channels = channels;
-    this.state = new LongArrayState(driverContext.bigArrays(), SumOverflowingLongAggregator.init());
+    this.state = new LongArrayState(driverContext.bigArrays(), driverContext.breaker(), SumOverflowingLongAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -128,7 +128,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+          SumOverflowingLongAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -145,7 +145,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         long vValue = vVector.getLong(valuesPosition);
-        state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumOverflowingLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -192,7 +192,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+          SumOverflowingLongAggregator.combine(state, groupId, sum.getLong(valuesPosition));
         }
       }
     }
@@ -215,7 +215,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+          SumOverflowingLongAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -232,7 +232,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         long vValue = vVector.getLong(valuesPosition);
-        state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumOverflowingLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -279,7 +279,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+          SumOverflowingLongAggregator.combine(state, groupId, sum.getLong(valuesPosition));
         }
       }
     }
@@ -296,7 +296,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        SumOverflowingLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -306,7 +306,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       long vValue = vVector.getLong(valuesPosition);
-      state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), vValue));
+      SumOverflowingLongAggregator.combine(state, groupId, vValue);
     }
   }
 
@@ -346,7 +346,7 @@ public final class SumOverflowingLongGroupingAggregatorFunction implements Group
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, SumOverflowingLongAggregator.combine(state.getOrDefault(groupId), sum.getLong(valuesPosition)));
+        SumOverflowingLongAggregator.combine(state, groupId, sum.getLong(valuesPosition));
       }
     }
   }

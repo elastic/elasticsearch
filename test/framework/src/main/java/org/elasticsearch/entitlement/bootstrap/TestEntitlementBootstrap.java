@@ -139,7 +139,6 @@ public class TestEntitlementBootstrap {
 
         return new TestPolicyManager(
             HardcodedEntitlements.serverPolicy(null, parseTestServerPolicy()),
-            HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
             pathLookup,

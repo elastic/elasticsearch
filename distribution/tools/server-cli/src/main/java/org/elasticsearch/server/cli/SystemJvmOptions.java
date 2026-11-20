@@ -81,6 +81,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
+            maybeAddJitCompilerOptions(isHotspot),
             attachEntitlementAgent(esHome)
         ).flatMap(s -> s).toList();
     }
@@ -133,7 +134,11 @@ final class SystemJvmOptions {
     private static Stream<String> enableNativeAccess() {
         var enableNativeAccessOptions = new ArrayList<String>();
         enableNativeAccessOptions.add(
-            "--enable-native-access=org.elasticsearch.nativeaccess,org.elasticsearch.foreign,org.apache.lucene.core,"
+            "--enable-native-access="
+                + "org.apache.lucene.core,"
+                + "org.elasticsearch.foreign,"
+                + "org.elasticsearch.nativeaccess,"
+                + "org.elasticsearch.simdjson,"
                 + "org.elasticsearch.simdvec"
         );
         enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
@@ -156,6 +161,22 @@ final class SystemJvmOptions {
             return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:G1NumCollectionsKeepPinned=10000000");
         }
         return Stream.of();
+    }
+
+    /*
+     * Additional JIT compiler options. These are only applied when running on HotSpot.
+     */
+    static Stream<String> maybeAddJitCompilerOptions(boolean isHotspot) {
+        if (isHotspot == false) {
+            return Stream.empty();
+        }
+        return Stream.of(
+            // keep the JVM from echoing each compile command to stdout at startup
+            "-XX:CompileCommand=quiet",
+            "-XX:CompileCommand=dontinline,java.nio.*::putArray",
+            "-XX:CompileCommand=dontinline,java.nio.*::putBuffer",
+            "-XX:CompileCommand=dontinline,java.nio.*::getArray"
+        );
     }
 
     private static Stream<String> attachEntitlementAgent(Path esHome) {

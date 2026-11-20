@@ -18,8 +18,11 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -29,14 +32,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -56,8 +58,20 @@ import static org.hamcrest.Matchers.notNullValue;
  * while CSV/TSV short-circuited. Any reader that stops committing per-stripe stats for this realistic shape (or
  * regresses the whole-file EOF marker so the {@code 0..K} fold never closes) must fail this test. The geometry
  * itself is asserted from the cold profile's captured contributions ({@link #assertMultiChunkPerStripeGeometry}),
- * so a silent degradation to a whole-file or single-chunk read fails loudly instead of passing vacuously (a
- * whole-file summary is authoritative and would still short-circuit warm).
+ * so a silent degradation fails loudly instead of passing vacuously (a whole-file summary is authoritative and
+ * would still short-circuit warm).
+ * <p>
+ * What that assertion can see is bounded by the staging of a stripe's pieces. A stripe reaches the coordinator
+ * as ONE contribution spanning its whole grid cell, carrying the geometry of the piece that owns each edge, so
+ * the number of chunks that built it is not visible here — which is the model working rather than a gap, since
+ * a stripe's content is defined to be independent of how the read was chunked. The assertion therefore checks
+ * the tiling the fold depends on: every contribution is a chunked
+ * one, the grid is the pinned one, each stripe is staged exactly once, starts land on grid lines, every stripe
+ * but the last covers its whole cell, and exactly one is terminal. That catches a whole-file degradation, a grid
+ * that stops subdividing, a cover left with a hole in it, and an EOF marker that never closes. It does NOT
+ * catch a read that used one chunk per stripe, because such a read produces byte-identical contributions; the
+ * several-chunks-per-stripe shape is held by the settings pinned below -- a stripe grid larger than the read
+ * segment -- and by {@code StripeStatsStagingTests}, where the pieces still exist to be counted.
  * <p>
  * Each file is ~12 MB (well over the default 4 MB segment size, so the parallel-parse path yields ~3 chunks per file), the
  * stripe grid is pinned to 6 MB (larger than a 4 MB chunk, so every stripe spans a chunk boundary), and the
@@ -72,6 +86,8 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
     private static final int ROWS_PER_FILE = 120_000; // ~12 MB/file once padded -> 3 chunks at the 4 MB segment size
     private static final long TOTAL = (long) FILE_COUNT * ROWS_PER_FILE;
     private static final long TS_BASE_MILLIS = 1_577_836_800_000L; // 2020-01-01T00:00:00Z
+    /** The stripe grid the node settings pin, larger than a read segment so every stripe spans a chunk boundary. */
+    private static final long STRIPE_BYTES = 6L * 1024 * 1024;
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -140,7 +156,8 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
      * across chunks and files. COUNT(*) runs first so its row-count-only per-file entries are in place before
      * MIN/MAX, reproducing the production ordering.
      */
-    private void assertWarmAggregatesShortCircuit(String dataset) {
+    private void assertWarmAggregatesShortCircuit(DatasetFiles under) {
+        String dataset = under.dataset();
         // The multi-chunk-per-stripe geometry requires the parallel-parse path (external_parsing_parallelism > 1). That
         // pragma is snapshot-only (rejected in release builds), so this test relies on its node default —
         // EsExecutors.allocatedProcessors(EMPTY), i.e. the machine's cores — and skips on a single-processor
@@ -156,10 +173,27 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
             assertThat("cold COUNT(*) reads every row", response.documentsFound(), equalTo(TOTAL));
             coldContributions = capturedContributionsByPath(response);
         }
+        ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
+            .cacheService();
+        // Zero documents scanned does not say the per-file records answered: over a glob the dataset aggregate
+        // short-circuits the count either way, so a contribution refused for some files and accepted for others
+        // passes every value assertion here while leaving those files cold forever. Two signals separate the
+        // cases — every file carrying a harvested count, and the aggregate fallback not firing.
+        assertThat(
+            "every file the cold scan read must carry a harvested row count",
+            ExternalSourceCacheTestAccess.enrichedPerFileEntries(cacheService, under.marker()),
+            equalTo(FILE_COUNT)
+        );
+        long fallbacksBefore = ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService);
         try (var response = runProfiled(countQuery)) {
             assertSingleLong(response, TOTAL);
             assertThat("warm COUNT(*) must short-circuit across multi-chunk-per-stripe files", response.documentsFound(), equalTo(0L));
         }
+        assertThat(
+            "the warm count must come from the per-file records, not from the dataset-aggregate fallback",
+            ExternalSourceCacheTestAccess.datasetAggregateFallbacks(cacheService),
+            equalTo(fallbacksBefore)
+        );
         // Only meaningful AFTER the warm assertion: the warm serve firing proves the cold profile's
         // contribution snapshot was the complete reconcile input (see capturedContributionsByPath),
         // so the geometry read below cannot race the producer-completion async hop.
@@ -239,41 +273,77 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
     }
 
     /**
-     * Asserts the cold read actually exercised the multiple-chunks-per-stripe geometry this test exists
-     * for. The warm assertions alone cannot see it: a read that silently degrades to a whole-file pass
-     * (or to one chunk per file) still short-circuits warm — a whole-file summary is authoritative — so
-     * the coverage this suite adds over the sibling fold ITs would evaporate invisibly on a config or
-     * reader change. Per file: every contribution must be a partial-chunk stripe fragment (no whole-file
-     * reads), and at least one stripe ordinal must be covered by fragments from more than one chunk
-     * (distinct coverage starts) — the per-stripe interval-cover had to stitch. With the pinned 6 MB
-     * stripe over 4 MB chunks every interior stripe splits, so one stitched stripe per file is the
-     * loosest assertion that still pins the geometry.
+     * Asserts the cold read actually exercised the read geometry this test exists for. The warm assertions
+     * alone cannot see it: a read that silently degrades to a whole-file pass still short-circuits warm — a
+     * whole-file summary is authoritative — so the coverage this suite adds over the sibling fold ITs would
+     * evaporate invisibly on a config or reader change.
+     * <p>
+     * It asserts the tiling the fold depends on, and not the chunk count behind a stripe, which staging makes
+     * unobservable here (see the class note): every contribution is a chunked one, the grid is the pinned one,
+     * each stripe is staged exactly once, every start lands on its grid line, every stripe but the last covers
+     * its whole cell, and exactly one is terminal. That catches a whole-file degradation, a grid that stops
+     * subdividing, a cover left with a hole in it, and an EOF marker that never closes.
      */
     private static void assertMultiChunkPerStripeGeometry(Map<String, List<Map<String, Object>>> contributionsByPath) {
         assertThat("every file must contribute captured stats", contributionsByPath.keySet(), hasSize(FILE_COUNT));
         for (Map.Entry<String, List<Map<String, Object>>> file : contributionsByPath.entrySet()) {
-            Map<Long, Set<Long>> fragmentStartsByStripe = new HashMap<>();
+            String path = file.getKey();
+            Map<Long, long[]> cellByStripe = new HashMap<>();
+            long terminal = 0;
             for (Map<String, Object> contribution : file.getValue()) {
                 assertTrue(
-                    "file [" + file.getKey() + "] must be read as parallel chunks, not a whole-file pass",
+                    "file [" + path + "] must be read as parallel chunks, not a whole-file pass",
                     Boolean.TRUE.equals(contribution.get(ExternalStats.PARTIAL_CHUNK_KEY))
+                );
+                assertThat(
+                    "file [" + path + "] must address its stripes on the pinned grid",
+                    ((Number) contribution.get(ExternalStats.STRIPE_SIZE_KEY)).longValue(),
+                    equalTo(STRIPE_BYTES)
                 );
                 long ordinal = ((Number) contribution.get(ExternalStats.STRIPE_ORDINAL_KEY)).longValue();
                 long start = ((Number) contribution.get(ExternalStats.COVERAGE_START_KEY)).longValue();
-                fragmentStartsByStripe.computeIfAbsent(ordinal, o -> new HashSet<>()).add(start);
+                long end = ((Number) contribution.get(ExternalStats.COVERAGE_END_KEY)).longValue();
+                assertNull(
+                    "file [" + path + "] staged stripe [" + ordinal + "] more than once, so its cover has a hole in it",
+                    cellByStripe.put(ordinal, new long[] { start, end })
+                );
+                assertThat(
+                    "file [" + path + "] stripe [" + ordinal + "] must start on its grid line",
+                    start,
+                    equalTo(ordinal * STRIPE_BYTES)
+                );
+                assertTrue("file [" + path + "] stripe [" + ordinal + "] must cover bytes", end > start);
+                if (Boolean.TRUE.equals(contribution.get(ExternalStats.COVERAGE_IS_LAST_KEY))) {
+                    terminal++;
+                }
             }
-            assertTrue(
-                "file ["
-                    + file.getKey()
-                    + "] must have at least one stripe stitched from several chunks; per-stripe fragment starts: "
-                    + fragmentStartsByStripe,
-                fragmentStartsByStripe.values().stream().anyMatch(starts -> starts.size() > 1)
+            long stripes = cellByStripe.size();
+            assertThat(
+                "file [" + path + "] must span several stripes, or the pinned grid is not subdividing it: " + cellByStripe.keySet(),
+                stripes,
+                greaterThan(1L)
             );
+            for (long ordinal = 0; ordinal < stripes - 1; ordinal++) {
+                long[] cell = cellByStripe.get(ordinal);
+                assertNotNull("file [" + path + "] is missing stripe [" + ordinal + "]", cell);
+                assertThat(
+                    "file [" + path + "] stripe [" + ordinal + "] must cover its whole grid cell, not stop short of it",
+                    cell[1],
+                    equalTo((ordinal + 1) * STRIPE_BYTES)
+                );
+            }
+            assertThat("file [" + path + "] must mark exactly one stripe terminal", terminal, equalTo(1L));
         }
     }
 
+    /**
+     * A registered dataset together with the substring that isolates its per-file cache entries from every other
+     * test's: the cluster is shared across methods, so the format suffix alone would also match a sibling's files.
+     */
+    private record DatasetFiles(String dataset, String marker) {}
+
     /** Writes {@code FILE_COUNT} files of the given format into a directory and registers the glob as a dataset. */
-    private String writeAndRegister(String format) throws IOException {
+    private DatasetFiles writeAndRegister(String format) throws IOException {
         Path dir = createTempDir();
         long v = 0;
         for (int f = 0; f < FILE_COUNT; f++) {
@@ -289,7 +359,7 @@ public class ExternalMultiChunkPerStripeWarmFoldIT extends AbstractExternalDataS
         if (dirUri.endsWith("/") == false) {
             dirUri += "/";
         }
-        return registerDataset("multichunk_" + format, dirUri + "*." + format, Map.of());
+        return new DatasetFiles(registerDataset("multichunk_" + format, dirUri + "*." + format, Map.of()), dir.getFileName().toString());
     }
 
     // ~50 bytes of padding per row so a 120k-row file clears the 4 MB segment*2 chunking threshold with margin.

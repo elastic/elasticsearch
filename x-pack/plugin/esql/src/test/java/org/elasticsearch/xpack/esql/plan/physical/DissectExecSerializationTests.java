@@ -54,4 +54,9 @@ public class DissectExecSerializationTests extends AbstractPhysicalPlanSerializa
     protected boolean alwaysEmptySource() {
         return true;
     }
+
+    public void testOutputIsCached() {
+        PhysicalPlan plan = createTestInstance();
+        assertSame(plan.output(), plan.output());
+    }
 }

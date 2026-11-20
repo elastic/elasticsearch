@@ -18,7 +18,7 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheMetrics.PrefetchResult;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.CachePopulationSource;
-import org.elasticsearch.blobcache.common.ByteBufferReference;
+import org.elasticsearch.blobcache.common.BufferFillScope;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
@@ -30,7 +30,7 @@ import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
@@ -46,7 +46,7 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
+import static org.elasticsearch.xpack.stateless.StatelessThreadPools.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
 
 /**
  * Used by {@link BlobCacheIndexInput} to read data from the cache using a given {@link StatelessSharedBlobCacheService.CacheFile} instance.
@@ -57,8 +57,6 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATC
  * sub-file's byte range receive {@code MADV_RANDOM}; boundary regions shared with adjacent files fall back to {@code MADV_NORMAL}.
  */
 public class CacheFileReader {
-
-    public static final FeatureFlag OBJECT_STORE_PREFETCH_FEATURE_FLAG = new FeatureFlag("stateless_object_store_prefetch");
 
     static final int MAX_PREFETCH_ALREADY_UPLOADED_RETRIES = 2;
 
@@ -103,6 +101,7 @@ public class CacheFileReader {
     private final long exclusiveStart;
     private final long exclusiveEnd;
     private final boolean hasSearchRole;
+    private final boolean objectStorePrefetchEnabled;
     /**
      * Where to account the bytes read from the cache, whether they were already there or had to be fetched. Installed
      * by the index input that owns this reader, and carried on to its copies.
@@ -114,7 +113,8 @@ public class CacheFileReader {
         CacheBlobReader cacheBlobReader,
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
-        LongSupplier relativeTimeInMillisSupplier
+        LongSupplier relativeTimeInMillisSupplier,
+        boolean objectStorePrefetchEnabled
     ) {
         this(
             cacheFile,
@@ -126,7 +126,8 @@ public class CacheFileReader {
             SharedBytes.MADV_NORMAL,
             0,
             0,
-            false
+            false,
+            objectStorePrefetchEnabled
         );
     }
 
@@ -144,7 +145,8 @@ public class CacheFileReader {
         LongSupplier relativeTimeInMillisSupplier,
         int regionSize,
         IOContext context,
-        boolean hasSearchRole
+        boolean hasSearchRole,
+        boolean objectStorePrefetchEnabled
     ) {
         this(
             cacheFile,
@@ -156,7 +158,8 @@ public class CacheFileReader {
             contextToAdvice(context, hasSearchRole),
             0,
             Long.MAX_VALUE,
-            hasSearchRole
+            hasSearchRole,
+            objectStorePrefetchEnabled
         );
     }
 
@@ -170,7 +173,8 @@ public class CacheFileReader {
         int desiredAdvice,
         long exclusiveStart,
         long exclusiveEnd,
-        boolean hasSearchRole
+        boolean hasSearchRole,
+        boolean objectStorePrefetchEnabled
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
@@ -182,6 +186,7 @@ public class CacheFileReader {
         this.exclusiveStart = exclusiveStart;
         this.exclusiveEnd = exclusiveEnd;
         this.hasSearchRole = hasSearchRole;
+        this.objectStorePrefetchEnabled = objectStorePrefetchEnabled;
     }
 
     /**
@@ -207,7 +212,8 @@ public class CacheFileReader {
             desiredMAdvice,
             exclusiveStart,
             exclusiveEnd,
-            hasSearchRole
+            hasSearchRole,
+            objectStorePrefetchEnabled
         );
         copy.storeMetrics = storeMetrics.singleThreaded();
         return copy;
@@ -245,7 +251,8 @@ public class CacheFileReader {
             advice,
             exclStart,
             exclEnd,
-            hasSearchRole
+            hasSearchRole,
+            objectStorePrefetchEnabled
         );
         copy.storeMetrics = storeMetrics.singleThreaded();
         return copy;
@@ -334,8 +341,8 @@ public class CacheFileReader {
     /**
      * Attempts to prefetch byte(s) from the local cache using the fast path.
      *
-     * <p>If the data is not in the cache and {@link #OBJECT_STORE_PREFETCH_FEATURE_FLAG} is enabled,
-     * schedules an asynchronous download from the object store so that subsequent reads may find the
+     * <p>If the data is not in the cache and {@link StatelessSharedBlobCacheService#STATELESS_CACHE_OBJECT_STORE_PREFETCH_ENABLED_SETTING}
+     * is enabled, schedules an asynchronous download from the object store so that subsequent reads may find the
      * data already cached. Otherwise this method is best-effort and non-blocking, only succeeding
      * when the data is already present in the local cache.</p>
      *
@@ -346,7 +353,7 @@ public class CacheFileReader {
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryPrefetch(long offset, long length) throws IOException {
-        if (OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled() == false) {
+        if (objectStorePrefetchEnabled == false) {
             return cacheFile.tryPrefetch(offset, length);
         }
         final long blobLength = cacheFile.getLength();
@@ -398,8 +405,8 @@ public class CacheFileReader {
                 cacheBlobReader,
                 () -> writeBuffer.get().clear(),
                 bytesCopied -> {},
-                StatelessPlugin.SHARD_READ_THREAD_POOL,
-                StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                StatelessThreadPools.SHARD_READ_THREAD_POOL,
+                StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
             ),
             "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
             listener.delegateResponse((l, e) -> {
@@ -524,10 +531,10 @@ public class CacheFileReader {
 
     private void doRead(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)
         throws Exception {
-        // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
-        // accessing the byte buffer anymore that was passed to doReadInternal
-        // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
-        final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
+        // Async callbacks (such as those used by readCacheFile) may run on other threads, and may still be running if this read fails,
+        // so they only write to the buffer through fillScope. Completing it waits for them and stops any later one, and only then
+        // advances the buffer's position.
+        final BufferFillScope fillScope = BufferFillScope.of(b);
         try {
             // Compute the range of bytes of the blob to fetch and to write to the cache.
             //
@@ -559,8 +566,8 @@ public class CacheFileReader {
                     cacheBlobReader,
                     () -> writeBuffer.get().clear(),
                     bytesCopied -> {},
-                    StatelessPlugin.SHARD_READ_THREAD_POOL,
-                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                    StatelessThreadPools.SHARD_READ_THREAD_POOL,
+                    StatelessThreadPools.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                 );
                 // Determine madvise advice for this read. For compound sub-files, only ranges
                 // that fall entirely within the exclusive interior get MADV_RANDOM; boundary
@@ -578,38 +585,53 @@ public class CacheFileReader {
                         rangeToRead.start(),
                         rangeToRead.start() + len
                     );
-                    return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, byteBufferReference);
+                    return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, fillScope);
                 }, rangeMissingHandler, resourceDescription);
-                byteBufferReference.finish(bytesRead);
+                fillScope.complete(bytesRead);
             } catch (Exception e) {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
                     assert bytesRead == 0 : "expecting bytes read to be 0 but got: " + bytesRead + " for " + cacheFile.getCacheKey();
                     int len = length - bytesRead;
+                    // Some regions may have been copied into the buffer already. Complete the failed attempt's scope, which also makes sure
+                    // that none of its callbacks is, or will be, writing to the buffer, before the read below starts over with a new scope
+                    // and writes all of the same bytes again.
+                    fillScope.complete(0);
+                    final BufferFillScope bypassScope = BufferFillScope.of(b);
                     // TODO ideally we would make it async, but it should be safe
                     // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
                     // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and
                     // IndexingShardCacheBlobReader completes on FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL, so the
                     // reader must bypass FillCacheMemoryPressure — waiting here would block this pool behind speculative fills,
                     // possibly the same pool a deferred read would resume on.
-                    var readFuture = new PlainActionFuture<Integer>();
-                    cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
-                        try (in) {
-                            final int read = Streams.read(in, b, len);
-                            if (read == -1) {
-                                BlobCacheUtils.throwEOF(position, len);
+                    try {
+                        var readFuture = new PlainActionFuture<Integer>();
+                        cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
+                            try (in) {
+                                // The listener may run on another thread, and may still be running if the wait below fails, so it writes
+                                // through a slice of the bypassScope rather than to b directly. If the scope is already complete
+                                // the wait below has failed and the read has been abandoned, so nobody is waiting for the bytes.
+                                return bypassScope.fillSlice(0, len, dst -> {
+                                    final int read = Streams.read(in, dst, len);
+                                    if (read == -1) {
+                                        BlobCacheUtils.throwEOF(position, len);
+                                    }
+                                    return read;
+                                }).orElse(0);
                             }
-                            return read;
-                        }
-                    }));
-                    bytesRead += cacheFile.recordWait(len, readFuture);
-                    blobCacheMetrics.recordBypassRead();
+                        }));
+                        bytesRead += cacheFile.recordWait(len, readFuture);
+                        bypassScope.complete(bytesRead);
+                        blobCacheMetrics.recordBypassRead();
+                    } finally {
+                        bypassScope.complete(0);
+                    }
                 } else {
                     throw e;
                 }
             }
             assert bytesRead == length : bytesRead + " vs " + length;
         } finally {
-            byteBufferReference.finish(0);
+            fillScope.complete(0);
         }
     }
 

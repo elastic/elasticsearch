@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [optional_fields_load_all, optional_fields_load_all_net_zero_projection]
+          capabilities: [ optional_fields_load_all_single_source_column, optional_fields_load_all_column_from_shard, optional_fields_load_all_v2]
       reason: "net-zero projection under SET unmapped_fields=\"load_all\" returns zero columns instead of failing"
 
   - do:
@@ -67,15 +67,20 @@ setup:
   - length: { values: 3 }
 
 ---
-'drop every mapped column returns zero columns':
+'drop every mapped column leaves only the empty _unmapped_fields column':
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM load-all-net-zero | DROP @timestamp, message'
-  - length: { columns: 0 }
+  - length: { columns: 1 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match: { columns.0.type: _source }
   - length: { values: 3 }
+  - match: { values.0.0: null }
+  - match: { values.1.0: null }
+  - match: { values.2.0: null }
 
 ---
 'net zero projection after where returns zero columns':
@@ -89,13 +94,25 @@ setup:
   - length: { values: 1 }
 
 ---
-'net zero projection discoverable only at runtime returns zero columns':
+'net zero projection discoverable only at runtime leaves only the empty _unmapped_fields column':
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ optional_fields_warn_non_loadable_punk_combined ]
+      reason: "single, shorter warning for non-loadable partially unmapped fields"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
-        - "Field \\[.*\\] of type \\[.*\\] is unmapped in some indices and has no implicit conversion from .*, so it will not be loaded from _source; values will be null in those indices"
+        - "Fields? \\[.*\\] (is|are) unmapped in some indices and ha(s|ve) no implicit conversion from KEYWORD; (it is|they are) null in those indices"
       esql.query:
         body:
           query: 'SET unmapped_fields="load_all"; FROM test* | KEEP * | DROP x, id*'
-  - length: { columns: 0 }
+  - length: { columns: 1 }
+  - match: { columns.0.name: _unmapped_fields }
+  - match: { columns.0.type: _source }
   - length: { values: 3 }
+  - match: { values.0.0: null }
+  - match: { values.1.0: null }
+  - match: { values.2.0: null }

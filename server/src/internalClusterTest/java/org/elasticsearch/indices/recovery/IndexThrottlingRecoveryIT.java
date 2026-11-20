@@ -66,7 +66,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
     }
 
     /// Verifies that the source node queues peer recovery requests that exceed
-    /// [PeerRecoverySourceService#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING], and that all queued recoveries
+    /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING], and that all queued recoveries
     /// eventually complete successfully once slots become free.
     public void testSourceNodeQueuesRecoveriesPastConcurrencyLimit() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -74,7 +74,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
         final var sourceNode = internalCluster().startDataOnlyNode(
             Settings.builder()
                 .put(
-                    PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
+                    DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(),
                     sourceConcurrentRecoveryLimit
                 )
                 .build()
@@ -116,7 +116,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
         internalCluster().startMasterOnlyNode();
         final var sourceNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final int numShards = 2;
@@ -195,7 +195,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
         );
         final var sourceNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .put(PeerRecoverySourceService.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1)
                 .build()
         );
         final var index1 = randomIndexName();
@@ -293,7 +293,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
         // Target node only has 1 slot for concurrent recovery
         String targetNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
 
         assertAcked(
@@ -340,7 +342,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
         });
 
         final var targetNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
 
         // First recovery will occupy the only recovery slot
@@ -362,7 +366,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
     public void testNextPendingRecoveryDispatchedOnActiveEmptyStoreRecoveryCompletion() {
         final var node = internalCluster().startNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var indexOne = randomIndexName();
         final var indexTwo = randomIndexName();
@@ -425,7 +431,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
         ensureGreen(indexNames.toArray(String[]::new));
 
         final var targetNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), limit).build()
+            Settings.builder()
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), limit)
+                .build()
         );
 
         final var releaseRecoveries = new CountDownLatch(1);
@@ -479,7 +487,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
         final var targetNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), firstLimit)
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), firstLimit)
                 .build()
         );
         final var releaseRecoveries = new CountDownLatch(1);
@@ -510,7 +518,10 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .setPersistentSettings(
                     Settings.builder()
-                        .put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), secondLimit)
+                        .put(
+                            DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(),
+                            secondLimit
+                        )
                         .build()
                 )
         );
@@ -527,7 +538,9 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
 
     public void testRecoveryApisReportsBothActiveAndQueuedRecoveries() throws Exception {
         final var node = internalCluster().startNode(
-            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+            Settings.builder()
+                .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)
+                .build()
         );
         final var indexOne = randomIndexName();
         final var indexTwo = randomIndexName();
@@ -561,6 +574,8 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
             assertThat("expected queued recovery to be reported by /_recovery", recoveryResponse.evaluate(indexTwo), notNullValue());
             assertThat(recoveryResponse.evaluate(indexOne + ".shards.0.stage"), equalTo("INIT"));
             assertThat(recoveryResponse.evaluate(indexTwo + ".shards.0.stage"), equalTo("CREATED"));
+            assertNull("an active recovery is not gate-deferred", recoveryResponse.evaluate(indexOne + ".shards.0.gate"));
+            assertNull("a concurrency-queued recovery is not gate-deferred", recoveryResponse.evaluate(indexTwo + ".shards.0.gate"));
 
             assertThat(
                 "an active recovery reports a start time",
@@ -596,6 +611,7 @@ public class IndexThrottlingRecoveryIT extends AbstractIndexRecoveryIntegTestCas
                 activeOnlyResponse.evaluate(indexTwo + ".shards.0.stage"),
                 equalTo("CREATED")
             );
+            assertNull(activeOnlyResponse.evaluate(indexTwo + ".shards.0.gate"));
 
             catStageByIndex = catRecoveryStageByIndex(true, Set.of(indexOne, indexTwo));
             assertThat(

@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ai21.completion;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -126,11 +125,8 @@ public class Ai21ChatCompletionResponseHandlerTests extends ESTestCase {
     }
 
     private static HttpResponse mockErrorResponse(int statusCode) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
         var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        when(response.getCode()).thenReturn(statusCode);
 
         return response;
     }

@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "host": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "shard": {
+      "type": "long",
+      "time_series_dimension": true
+    },
+    "load": {
+      "type": "double",
+      "time_series_metric": "gauge"
+    }
+  }
+}

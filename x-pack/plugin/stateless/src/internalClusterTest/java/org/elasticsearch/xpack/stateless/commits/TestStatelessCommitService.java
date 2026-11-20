@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -57,6 +59,15 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     @Override
+    public void installUploadBoundListener(IndexShard shard, SubscribableListener<Long> uploadBoundListener) {
+        getStrategy().installUploadBoundListener(
+            () -> super.installUploadBoundListener(shard, uploadBoundListener),
+            shard,
+            uploadBoundListener
+        );
+    }
+
+    @Override
     public ActionListener<Void> markRelocating(ShardId shardId, long minRelocatedGeneration, ActionListener<Void> listener) {
         return getStrategy().markRelocating(
             () -> super.markRelocating(shardId, minRelocatedGeneration, listener),
@@ -67,6 +78,14 @@ public class TestStatelessCommitService extends StatelessCommitService {
     }
 
     public static class Strategy {
+        public void installUploadBoundListener(
+            Runnable originalRunnable,
+            IndexShard shard,
+            SubscribableListener<Long> uploadBoundListener
+        ) {
+            originalRunnable.run();
+        }
+
         public ActionListener<Void> markRelocating(
             Supplier<ActionListener<Void>> originalSupplier,
             ShardId shardId,

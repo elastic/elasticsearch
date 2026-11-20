@@ -532,13 +532,11 @@ public class AugmentationCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * The adversarial intersection: a typed static lambda (which gets {@link
-     * org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck} for its own
-     * loop) that <em>also</em> contains a cancellation-aware {@code each} call (which pushes the
-     * script receiver). Both rely on the script being reachable; the lambda is realized as an
-     * instance method capturing the script as {@code this}, so the loop's {@code _getCancellationCheck}
-     * and the each call's {@code loadThis()} both resolve to it.  Verifies the runnable fires from
-     * the nested each.
+     * The adversarial intersection: a typed lambda with its own loop that <em>also</em> contains a
+     * cancellation-aware {@code each} call (which pushes the script receiver). Both rely on the
+     * script being reachable; under cancellation the lambda is realized as an instance method
+     * capturing the script as {@code this}, so the loop's {@code _getCancellationCheck} and the each
+     * call's {@code loadThis()} both resolve to it.  Verifies the runnable fires from the nested each.
      */
     public void testEachInsideStaticLoopLambdaFiresCancelRunnable() {
         ScriptedMetricAggContexts.InitScript script = compileInit(

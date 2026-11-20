@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -89,7 +90,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
@@ -143,7 +144,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
         countDownLatch.await();
         verify(client, times(1)).fieldCaps(any(), any());
         verify(client, times(1)).settings();
@@ -233,7 +234,7 @@ public class CancellationTests extends ESTestCase {
                 assertThat(e, instanceOf(TaskCancelledException.class));
                 countDownLatch.countDown();
             }
-        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP);
+        }, "", mock(TransportService.class), mockClusterService, CrossProjectModeDecider.NOOP, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
         assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
         // Final verification to ensure no more interaction
         verify(client).fieldCaps(any(), any());

@@ -25,7 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
- * End-to-end guard for the GA text-format codec gate (elastic/esql-planning#938): on release builds a
+ * End-to-end guard for the GA text-format codec gate : on release builds a
  * {@code FROM <dataset>} query over a {@code ...csv.bz2} resource (registered without a {@code format} setting, so
  * the codec is resolved from the extension) must be rejected at planning time with the
  * {@code "compression codec [bzip2] is not supported; supported: uncompressed, gzip, zstd"} message produced by

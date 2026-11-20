@@ -1,0 +1,7 @@
+area: Mapping
+issues:
+ - 160665
+pr: 161217
+summary: If index mode is strictly columnar don't store positions by default for text
+  fields
+type: enhancement

@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
 public final class TypeResolutions {
@@ -83,7 +83,7 @@ public final class TypeResolutions {
     }
 
     /**
-     * @see DataType#isRepresentable(DataType)
+     * @see DataType#isRepresentableInExpression(DataType)
      */
     public static TypeResolution isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(
         Expression e,
@@ -92,7 +92,7 @@ public final class TypeResolutions {
     ) {
         return isType(
             e,
-            dt -> isRepresentable(dt)
+            dt -> isRepresentableInExpression(dt)
                 && dt != DENSE_VECTOR
                 && dt != AGGREGATE_METRIC_DOUBLE
                 && dt != EXPONENTIAL_HISTOGRAM
@@ -115,7 +115,7 @@ public final class TypeResolutions {
         return isType(
             e,
             (t) -> isSpatialOrGrid(t) == false
-                && DataType.isRepresentable(t)
+                && DataType.isRepresentableInExpression(t)
                 && t != DENSE_VECTOR
                 && t != AGGREGATE_METRIC_DOUBLE
                 && t != EXPONENTIAL_HISTOGRAM

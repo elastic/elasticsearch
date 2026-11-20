@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164479
+summary: Add a JSON Schema for the ES|QL profile response
+type: enhancement

@@ -115,7 +115,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
     public record ScoreSort(Order.OrderDirection direction) implements Sort {
         @Override
         public SortBuilder<?> sortBuilder() {
-            return new ScoreSortBuilder();
+            return new ScoreSortBuilder().order(Direction.from(direction).asOrder());
         }
 
         @Override
@@ -243,13 +243,15 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags);
+            : passIdentityTo(new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags));
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : passIdentityTo(
+                new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags)
+            );
     }
 
     public boolean canPushSorts() {
@@ -263,7 +265,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : passIdentityTo(
+                new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags)
+            );
     }
 
     /**
@@ -275,15 +279,17 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
         QueryBuilder thisQuery = queryWithoutTag();
         return Objects.equals(thisQuery, query)
             ? this
-            : new EsQueryExec(
-                source(),
-                indexPattern,
-                indexMode,
-                attrs,
-                limit,
-                sorts,
-                estimatedRowSize,
-                List.of(new QueryBuilderAndTags(query, List.of()))
+            : passIdentityTo(
+                new EsQueryExec(
+                    source(),
+                    indexPattern,
+                    indexMode,
+                    attrs,
+                    limit,
+                    sorts,
+                    estimatedRowSize,
+                    List.of(new QueryBuilderAndTags(query, List.of()))
+                )
             );
     }
 

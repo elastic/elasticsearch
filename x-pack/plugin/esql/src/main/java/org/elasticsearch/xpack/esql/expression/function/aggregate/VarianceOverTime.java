@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -31,7 +32,7 @@ import static java.util.Collections.emptyList;
 /**
  * Similar to {@link Variance}, but it is used to calculate the variance over a time series of values from the given field.
  */
-public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToAggregator {
+public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToAggregator, AnyNullIsNull {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(VarianceOverTime.class)
         .binary(VarianceOverTime::new)
         .name("variance_over_time", "stdvar_over_time");
@@ -70,12 +71,12 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToA
     }
 
     public VarianceOverTime(Source source, Expression field, Expression filter, Expression window) {
-        super(source, field, filter, window, emptyList());
+        super(source, List.of(field), filter, window, emptyList());
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return perTimeSeriesAggregation().resolveType();
+        return perTimeSeriesAggregation().typeResolved();
     }
 
     @Override
@@ -96,11 +97,6 @@ public class VarianceOverTime extends TimeSeriesAggregateFunction implements ToA
     @Override
     public VarianceOverTime replaceChildren(List<Expression> newChildren) {
         return new VarianceOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
-    }
-
-    @Override
-    public VarianceOverTime withFilter(Expression filter) {
-        return new VarianceOverTime(source(), field(), filter, window());
     }
 
     @Override

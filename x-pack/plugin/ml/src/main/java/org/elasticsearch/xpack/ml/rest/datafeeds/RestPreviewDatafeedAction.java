@@ -16,6 +16,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +33,10 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     private final Set<String> supportedCapabilities;
 
     public RestPreviewDatafeedAction(boolean mlCrossProjectSearchEnabled) {
-        this.supportedCapabilities = MlDatafeedRestCapabilities.supportedCapabilities(mlCrossProjectSearchEnabled);
+        this.supportedCapabilities = MlDatafeedRestCapabilities.supportedCapabilities(
+            mlCrossProjectSearchEnabled,
+            MachineLearning.ESQL_DATAFEEDS_FEATURE_FLAG.isEnabled()
+        );
     }
 
     @Override

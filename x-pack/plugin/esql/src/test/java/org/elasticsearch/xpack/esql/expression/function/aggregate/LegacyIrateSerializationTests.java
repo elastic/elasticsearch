@@ -22,7 +22,7 @@ public class LegacyIrateSerializationTests extends AbstractExpressionSerializati
         Expression window = randomChild();
         Expression timestamp = randomChild();
         Expression temporality = randomChild();
-        return new LegacyIrate(source, field, filter, window, timestamp, temporality);
+        return new LegacyIrate(source, field, timestamp, filter, window, temporality);
     }
 
     @Override
@@ -40,6 +40,6 @@ public class LegacyIrateSerializationTests extends AbstractExpressionSerializati
             case 3 -> timestamp = randomValueOtherThan(timestamp, AbstractExpressionSerializationTests::randomChild);
             case 4 -> temporality = randomValueOtherThan(temporality, AbstractExpressionSerializationTests::randomChild);
         }
-        return new LegacyIrate(source, field, filter, window, timestamp, temporality);
+        return new LegacyIrate(source, field, timestamp, filter, window, temporality);
     }
 }

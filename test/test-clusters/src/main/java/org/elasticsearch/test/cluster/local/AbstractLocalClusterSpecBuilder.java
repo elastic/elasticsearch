@@ -15,6 +15,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,10 +25,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiAlphanumOfLength;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
+
 public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchCluster> extends AbstractLocalSpecBuilder<
     LocalClusterSpecBuilder<T>> implements LocalClusterSpecBuilder<T> {
 
-    private String name = "test-cluster";
+    private static final Version BATCH_INDEXING_SETTING_VERSION = Version.fromString("9.4.0");
+
+    @Nullable
+    private String name;
     private boolean shared = false;
     private final List<DefaultLocalNodeSpecBuilder> nodeBuilders = new ArrayList<>();
     private final List<User> users = new ArrayList<>();
@@ -137,8 +144,9 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
         // Apply lazily provided configuration
         lazyConfigProviders.forEach(s -> s.get().apply(this));
 
+        String clusterName = this.name == null ? "test-cluster-" + randomAsciiAlphanumOfLength(8) : this.name;
         List<User> clusterUsers = users.isEmpty() ? List.of(User.DEFAULT_USER) : users;
-        LocalClusterSpec clusterSpec = new LocalClusterSpec(name, clusterUsers, roleFiles, shared);
+        LocalClusterSpec clusterSpec = new LocalClusterSpec(clusterName, clusterUsers, roleFiles, shared);
         List<LocalNodeSpec> nodeSpecs;
 
         if (nodeBuilders.isEmpty()) {
@@ -150,6 +158,15 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
         }
 
         clusterSpec.setNodes(nodeSpecs);
+        // Decided once for the whole cluster so that all nodes agree. Nodes before 9.4.0 reject the setting, and upgrading only some
+        // nodes would leave the cluster with mixed values, so clusters with any such node keep the default. Shared clusters keep the
+        // default too, because the suite that happens to start them would decide the value, which a single suite can't reproduce.
+        boolean disableBatchIndexing = randomBoolean();
+        clusterSpec.setBatchIndexingDisabled(
+            disableBatchIndexing
+                && shared == false
+                && nodeSpecs.stream().allMatch(n -> n.getVersion().onOrAfter(BATCH_INDEXING_SETTING_VERSION))
+        );
         clusterSpec.validate();
 
         return clusterSpec;

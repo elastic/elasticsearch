@@ -49,6 +49,7 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
         .description("Clamps the sample values of all elements to have a lower limit of min.")
         .example("clamp_min(http_requests_total, 0)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
+        .stdDivergence("A `min` that isn't a number literal, such as `clamp_min(a, scalar(b))`, isn't supported yet.")
         .name("clamp_min");
 
     private DataType resolvedType;
@@ -66,7 +67,7 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
         @Param(
             name = "field",
             type = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
-            description = "field to clamp."
+            description = "Expression to clamp. If `null`, the function returns `null`."
         ) Expression field,
         @Param(
             name = "min",
@@ -95,7 +96,15 @@ public class ClampMin extends EsqlScalarFunction implements AnyNullIsNull {
 
     @Override
     public DataType dataType() {
-        if (resolvedType == null && resolveType().resolved() == false) {
+        DataType cached = resolvedType;
+        return cached != null ? cached : resolveDataType();
+    }
+
+    /**
+     * {@link #resolveType} assigns {@link #resolvedType}. Reading it after this thread assigned it can't see {@code null}.
+     */
+    private DataType resolveDataType() {
+        if (resolveType().resolved() == false) {
             throw new EsqlIllegalArgumentException("Unable to resolve data type for clamp_min");
         }
         return resolvedType;

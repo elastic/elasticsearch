@@ -24,15 +24,6 @@ import java.io.IOException;
 
 public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
 
-    public boolean hasNativeAccess() {
-        var jdkVersion = Runtime.version().feature();
-        var arch = System.getProperty("os.arch");
-        var osName = System.getProperty("os.name");
-        return (jdkVersion >= 22
-            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
-                || arch.equals("amd64") && osName.equals("Linux")));
-    }
-
     public void testInt7DotProduct() throws Exception {
         // only even dimensions are supported
         final int dimensions = random().nextInt(1, 1000) * 2;

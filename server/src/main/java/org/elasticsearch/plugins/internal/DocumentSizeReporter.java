@@ -9,7 +9,12 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.sourcebatch.LuceneColumn;
+
+import java.util.function.Consumer;
+import java.util.function.IntToLongFunction;
 
 /**
  * An interface to allow performing an action when parsing and indexing has been completed
@@ -26,7 +31,16 @@ public interface DocumentSizeReporter {
     default void onParsingCompleted(ParsedDocument parsedDocument) {}
 
     /**
-     * An action to be performed upon finished indexing.
+     * An action to be performed upon finished indexing. The origin tells where the operation originates from, this allows implementations
+     * to treat operations that are re-applied from the translog differently from operations that are ingested for the first time (for
+     * instance to avoid reporting the same ingest twice).
      */
-    default void onIndexingCompleted(ParsedDocument parsedDocument) {}
+    default void onIndexingCompleted(ParsedDocument parsedDocument, Engine.Operation.Origin origin) {}
+
+    /**
+     * Batch counterpart of {@link #onParsingCompleted(ParsedDocument)}: called once per columnar batch chunk, after the metadata mappers
+     * ran and before the chunk's columns are frozen. The chunk's documents have no LuceneDocument to add a field to, so an
+     * implementation that stores the sizes attaches a column over the chunk through {@code columnConsumer}.
+     */
+    default void onBatchParsingCompleted(int docCount, IntToLongFunction normalizedSizeByDoc, Consumer<LuceneColumn> columnConsumer) {}
 }

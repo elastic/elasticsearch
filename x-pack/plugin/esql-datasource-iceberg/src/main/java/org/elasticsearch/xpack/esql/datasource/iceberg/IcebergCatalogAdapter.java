@@ -114,7 +114,7 @@ public class IcebergCatalogAdapter {
             }
         }
 
-        throw new IOException("No metadata files found in " + metadataDir + ". Tried version-hint.text and versions 1-100");
+        throw new IOException("No Iceberg metadata files found. Tried version-hint.text and versions 1-100");
     }
 
     /**

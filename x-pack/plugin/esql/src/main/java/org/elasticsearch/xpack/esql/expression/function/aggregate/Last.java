@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastBooleanByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllLastBooleanByLongAggregatorFunctionSupplier;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -57,7 +59,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Last extends AggregateFunction implements ToAggregator {
+public class Last extends AggregateFunction implements ToAggregator, UnitAware.PreservesUnit {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Last", Last::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Last.class)
         .binary(Last::new)
@@ -65,8 +67,6 @@ public class Last extends AggregateFunction implements ToAggregator {
         // Also fix a crash when InsertDefaultInnerTimeSeriesAggregate sees an unresolved sort during the CCS/bwc analyzer retry path.
         .capabilities("fix_null_sort_dropped_timestamp", "fix_unresolved_sort_in_ts_default_inner_agg")
         .name("last");
-
-    private final Expression sort;
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
@@ -146,22 +146,34 @@ public class Last extends AggregateFunction implements ToAggregator {
         ) Expression field,
         @Param(name = "sortField", type = { "integer", "long", "date", "date_nanos" }, description = "The sort field") Expression sort
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW, sort);
+        this(source, field, sort, Literal.TRUE, NO_WINDOW);
     }
 
-    private Last(Source source, Expression field, Expression filter, Expression window, Expression sort) {
-        super(source, field, filter, window, List.of(sort));
-        this.sort = sort;
+    public Last(Source source, Expression field, Expression sort, Expression filter, Expression window) {
+        super(source, List.of(field, sort), filter, window, List.of());
     }
 
     private static Last readFrom(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> params = in.readNamedWriteableCollectionAsList(Expression.class);
         Expression sort = params.getFirst();
-        return new Last(source, field, filter, window, sort);
+        return new Last(source, field, sort, filter, window);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        source().writeTo(out);
+        out.writeNamedWriteable(field());
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(List.of(sort()));
     }
 
     @Override
@@ -171,7 +183,7 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Last> info() {
-        return NodeInfo.create(this, Last::new, field(), sort);
+        return NodeInfo.create(this, Last::new, field(), sort(), filter(), window());
     }
 
     @Override
@@ -179,13 +191,12 @@ public class Last extends AggregateFunction implements ToAggregator {
         return new Last(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
-    @Override
-    public Last withFilter(Expression filter) {
-        return new Last(source(), field(), filter, window(), sort);
+    public Expression field() {
+        return fields().get(0);
     }
 
     public Expression sort() {
-        return sort;
+        return fields().get(1);
     }
 
     @Override
@@ -232,7 +243,7 @@ public class Last extends AggregateFunction implements ToAggregator {
             "numeric except counter types"
         ).and(
             isType(
-                sort,
+                sort(),
                 dt -> dt == DataType.INTEGER || dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
                 sourceText(),
                 SECOND,
@@ -299,6 +310,6 @@ public class Last extends AggregateFunction implements ToAggregator {
 
     @Override
     public String toString() {
-        return "last(" + field() + ", " + sort + ")";
+        return "last(" + field() + ", " + sort() + ")";
     }
 }

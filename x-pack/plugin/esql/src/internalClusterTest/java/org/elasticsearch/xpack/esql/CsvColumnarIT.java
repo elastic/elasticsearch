@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -110,45 +112,28 @@ public class CsvColumnarIT extends CsvIT {
      * <p>Note: several entries in the generative-test catalogue
      * ({@code addresses_text}, {@code employees_gender_text}, {@code all_types},
      * {@code all_types_no_short}, {@code all_types_short_as_long}, {@code apps_short}) were
-     * artifacts of the ref_/cand_ side-by-side wildcard approach and do NOT apply here.
-     * They are still included because columnar auto-converts text→keyword and
-     * short→long, causing expected column-type headers in the csv-spec entries to mismatch.
-     * Revisit once the inventory (via {@code skip_columnar:} directives) is established and
-     * transformExpectedResults becomes worth implementing.
+     * artifacts of the ref_/cand_ side-by-side wildcard approach and do NOT apply here. They were
+     * also listed here on the assumption that columnar's text→keyword and short→long conversions
+     * would mismatch the csv-spec column-type headers. Running them proved otherwise: no test
+     * fails on column types. The only failures were the {@code unmapped_fields="load"} family
+     * described below, which now carry per-test {@code skip_columnar:} directives instead, so
+     * these datasets are no longer excluded.
+     *
+     * <p>A second round removed {@code airports}, {@code airports_web}, {@code airports_not_indexed},
+     * {@code employees_incompatible} and {@code conv_from_keyword}. Their stated reasons were real but
+     * far narrower than a whole dataset: running them recovered 394 tests and failed only 11, all of
+     * them the geo_point precision difference, which now carries per-test directives. Prefer measuring
+     * the blast radius over trusting the reason: an entry that excludes hundreds of tests to silence a
+     * handful is worth re-checking, and a reason describing a result difference should be verified not
+     * to be an index-creation failure (the {@code doc_values:false} airports variants above were
+     * mislabelled that way).
      */
     private static final Set<String> COLUMNAR_INCOMPATIBLE_DATASETS = Set.of(
-        // index:false / doc_values:false are no-ops in strict columnar mode — every field gets
-        // doc values and is searchable — so query results differ by design from a standard index
-        // that honours those settings.
-        "airports_not_indexed",
+        // geo_point with doc_values:false cannot be rebuilt from doc values, so index creation
+        // fails with "field [location] cannot reconstruct _source from doc values". Note this is
+        // a creation failure, not the by-design result difference that index:false produces.
         "airports_no_doc_values",
         "airports_not_indexed_nor_doc_values",
-        // geo_point fields are stored at different precision in columnar mode: to_string() returns
-        // slightly different coordinates (e.g. "POINT (116.072 5.975)" vs "POINT (116.073 5.975)").
-        // See CrossIndexModeGenerativeRestRunner.EXCLUDED_DATASETS.
-        "airports",
-        "airports_web",
-        // Mapping designed to be type-incompatible with the standard employees dataset; its CSV
-        // data contains deliberate duplicates in boolean MV fields (e.g. [false,true,true]).
-        // SortedSetDocValues deduplicates those in standard mode while columnar may preserve them.
-        "employees_incompatible",
-        // Contains an unsigned_long field that is not indexed in columnar mode; MV_INTERSECTS and
-        // MV_CONTAINS tests that use this field in a filter context fail with "Cannot search on
-        // field [unsigned_long] since it is not indexed".
-        "all_types_mv",
-        // Contains semantic_text and dense_vector fields that are absent from columnar field_caps,
-        // and has a short-typed field "short" that columnar normalises to long — both cause
-        // expected column-type header mismatches vs csv-spec declared types.
-        "all_types",
-        "all_types_no_short",
-        "all_types_short_as_long",
-        // id field overridden to short; columnar normalises short→long, causing a type conflict
-        // vs the base apps dataset (id: integer) and expected-type mismatches.
-        "apps_short",
-        // Keyword fields overridden to text; columnar auto-converts text→keyword, so expected
-        // column types in csv-spec entries (text) mismatch the actual columnar types (keyword).
-        "addresses_text",
-        "employees_gender_text",
         // Contains a plain txt:text field with no doc_values; fails index creation in columnar
         // mode because text without doc_values cannot be reconstructed from doc values.
         "text_state_mapped",
@@ -158,14 +143,6 @@ public class CsvColumnarIT extends CsvIT {
         // cartesian_shape field with doc_values:false cannot be reconstructed from doc values
         // in columnar mode: "field [shape] cannot reconstruct _source from doc values".
         "cartesian_multipolygons_no_doc_values",
-        // Known columnar bug: STATS output aliases whose names conflict with existing index fields
-        // read from the wrong source, producing incorrect aggregate values.
-        // TODO: file an issue and reference it here.
-        "ul_logs",
-        // index.mapping.index_disabled_by_default=true disables the inverted index for fields
-        // without an explicit "index: true", so full-text (:) queries return different results
-        // between standard and columnar modes.
-        "conv_from_keyword",
         // Mappings that disable or exclude _source are rejected by columnar mode:
         // "Failed to parse mapping: _source can not be disabled in index using [columnar] index mode".
         // These datasets test _source-disabled / _source-excluded query behavior, which does not
@@ -174,18 +151,64 @@ public class CsvColumnarIT extends CsvIT {
         "partial_mapping_mv_no_source_sample_data",
         "partial_mapping_excluded_source_sample_data",
         // LOAD_ALL / LOAD from source loads unmapped fields directly from the stored _source.
-        // In columnar mode, _source is synthetic (reconstructed from doc values), so unmapped
-        // fields — fields that exist in the stored document but have no mapping entry — are not
-        // available. All unmapped-load-all tests and the unmapped-load tests that load fields
-        // absent from the mapping therefore produce 0-column / 0-row results in columnar mode.
+        // In columnar mode _source is synthetic, so fields absent from the mapping are gone. Nearly
+        // every test reaching these two datasets exercises exactly that, so a per-test directive
+        // would mean ~230 of them; the dataset-level exclusion stays.
         "partial_mapping_sample_data",
         "partial_mapping_mv_sample_data",
-        // no_mapping_sample_data has no explicit mapping; all its fields are unmapped. When
-        // combined with other indices in a multi-index query and LOAD is used to load the
-        // unmapped fields, columnar mode returns null for them (synthetic _source cannot
-        // reconstruct fields that have no mapping entry). Excluding this dataset removes all
-        // type-conflict tests that depend on unmapped-field loading from this source.
+        // Has no explicit mapping at all, so every field is unmapped and the same reasoning applies.
         "no_mapping_sample_data",
+        // Same reason, for the LOAD_ALL fixtures: all of these are dynamic:false and deliberately leave
+        // everything but the mapped keys in _source / _ignored_source, which strict columnar drops at
+        // ingest. synthetic_source_partial_mapping reuses mapping-partial_mapping_sample_data.json.
+        // Measured: un-excluding all seven adds 37 tests, of which 36 fail and 1 is already skipped,
+        // so not one test is recovered. The failures are the reason itself — the unmapped column is
+        // absent from the result rather than merely wrong. Unlike the airports entries above, the
+        // blast radius here is exactly the genuine-failure set, so dataset level is the right
+        // granularity. No need to re-measure.
+        "unmapped_multi_stored_foo",
+        "unmapped_multi_stored_bar",
+        "unmapped_multi_synthetic",
+        "unmapped_multi_stored_mixed",
+        "unmapped_array_data",
+        "unmapped_object_data",
+        // mv_expand_unmapped is dynamic:false and read for the tags and deep.items leaves its mapping does not declare, which strict
+        // columnar drops at ingest; mv_expand_mapped only exists to be read alongside it.
+        "mv_expand_mapped",
+        "mv_expand_unmapped",
+        // change_point_mapped carries unmapped leaves (type, pvalue, ...) and change_point_unmapped maps only id, so strict columnar drops
+        // what the tests read at ingest.
+        "change_point_mapped",
+        "change_point_unmapped",
+        // Both are dynamic:false and are read for the fields their mapping does not declare, which strict columnar drops at ingest.
+        "flattened_paths_mapped",
+        "flattened_paths_unmapped",
+        // dynamic:false, read for the undeclared leaves under a nested parent, which strict columnar drops at ingest. The mapped index also
+        // nests parts inside items, and columnar supports only a single level of nesting, so index creation fails outright.
+        "nested_paths_mapped",
+        "nested_paths_unmapped",
+        // dynamic:false and read for the leaves its mapping does not declare, which strict columnar drops at ingest.
+        "unmapped_compound_outputs",
+        // Same again: every field but id is unmapped, so strict columnar drops it at ingest.
+        "unmapped_compound_inputs",
+        "synthetic_source_partial_mapping",
+        // unmapped_source_* family: dynamic:false with only id mapped; everything else lives in
+        // _source / _ignored_source, which strict columnar drops at ingest. unmapped_source_disabled
+        // additionally sets _source: {enabled: false}, which columnar index modes do not permit at all.
+        "unmapped_source_stored",
+        "unmapped_source_synthetic",
+        "unmapped_source_synth_keep_arrays",
+        "unmapped_source_disabled",
+        "unmapped_source_excludes",
+        "unmapped_source_includes",
+        "unmapped_source_subobjects_false",
+        // The partial_mapping fixture again under index.mode=logsdb. Re-moding it to columnar would both defeat the point of the dataset
+        // (it exists to exercise logsdb) and hit the same dynamic:false loss as partial_mapping_sample_data above.
+        "logsdb_partial_mapping",
+        // all_types_unmapped* drop every typed column from mapping-all-types.json so each type lands in _source only - dynamic:false
+        // again, so strict columnar discards them at ingest
+        "all_types_unmapped",
+        "all_types_unmapped_synthetic",
         // Keyword fields with a normalizer (e.g. test_lowercase) store only the normalised form
         // in doc values, losing the original value. Columnar mode therefore cannot reconstruct
         // the original _source for these fields and rejects index creation with
@@ -280,15 +303,26 @@ public class CsvColumnarIT extends CsvIT {
      * dataset(s) it reads from, so {@link #shouldExclude} can detect incompatible or time-series
      * datasets that are only reachable via a view.
      */
+    /**
+     * Matches one leading {@code SET <name> = <value>;} statement, where the value is either a
+     * double-quoted string (escapes allowed) or a run of non-semicolon characters. Trailing
+     * whitespace — including the {@code \r\n} that {@link CsvSpecReader} emits after each SET
+     * line — is consumed so repeated application peels off stacked SET statements.
+     *
+     * <p>Declared before {@link #VIEW_BACKING_DATASETS}, whose static initializer calls
+     * {@link #stripLeadingSetStatements}.
+     */
+    private static final java.util.regex.Pattern LEADING_SET_STATEMENT = java.util.regex.Pattern.compile(
+        "^\\s*(?i:SET)\\s+[A-Za-z_][A-Za-z0-9_.]*\\s*=\\s*(\"(?:[^\"\\\\]|\\\\.)*\"|[^;]*);\\s*"
+    );
+
     private static final Map<String, Set<CsvTestsDataLoader.TestDataset>> VIEW_BACKING_DATASETS = VIEW_CONFIGS.entrySet()
         .stream()
         .collect(
             java.util.stream.Collectors.toUnmodifiableMap(
                 Map.Entry::getKey,
-                e -> EsqlQueryDatasetResolver.resolveDatasets(
-                    EsqlQueryDatasetResolver.extractIndexPatterns(e.getValue().loadQuery()),
-                    CSV_DATASET
-                )
+                // View bodies are read like test queries, so a PROMQL body (index=...) resolves too.
+                e -> EsqlQueryDatasetResolver.resolveDatasets(sourcePatterns(e.getValue().loadQuery()), CSV_DATASET)
             )
         );
 
@@ -333,6 +367,33 @@ public class CsvColumnarIT extends CsvIT {
     }
 
     /**
+     * The normalised index patterns that {@code query} reads directly, not through a view: the first three extraction paths of
+     * {@link #resolveAllDatasets}. Also used for view bodies by {@link #VIEW_BACKING_DATASETS}, so it must only use static
+     * fields declared before that one.
+     */
+    private static Set<String> sourcePatterns(String query) {
+        String stripped = stripLeadingSetStatements(query);
+        // Collect raw patterns from FROM/TS and PROMQL, then normalise each one.
+        Set<String> rawPatterns = new LinkedHashSet<>(EsqlQueryDatasetResolver.extractIndexPatterns(stripped));
+        Matcher m = PROMQL_INDEX.matcher(stripped);
+        while (m.find()) {
+            rawPatterns.add(m.group(1).trim());
+        }
+        // Double-quoted index names (e.g. TS "k8s" | ...) are masked to spaces before the shared
+        // SOURCE_COMMAND regex runs, so extractIndexPatterns captures only a 1-char fragment that
+        // normalizeIndexPattern cannot de-quote. Match directly on the unmasked stripped text.
+        Matcher dq = DOUBLE_QUOTED_SOURCE.matcher(stripped);
+        while (dq.find()) {
+            rawPatterns.add(dq.group(1).trim());
+        }
+        Set<String> patterns = new LinkedHashSet<>();
+        for (String raw : rawPatterns) {
+            patterns.add(normalizeIndexPattern(raw));
+        }
+        return patterns;
+    }
+
+    /**
      * Resolves all {@link CsvTestsDataLoader.TestDataset} entries that the given query touches,
      * combining five extraction paths that {@link EsqlQueryDatasetResolver#extractIndexPatterns}
      * alone would miss:
@@ -354,24 +415,7 @@ public class CsvColumnarIT extends CsvIT {
      * the method never throws.
      */
     private static Set<CsvTestsDataLoader.TestDataset> resolveAllDatasets(String query) {
-        String stripped = stripLeadingSetStatements(query);
-        // Collect raw patterns from FROM/TS and PROMQL, then normalise each one.
-        Set<String> rawPatterns = new LinkedHashSet<>(EsqlQueryDatasetResolver.extractIndexPatterns(stripped));
-        Matcher m = PROMQL_INDEX.matcher(stripped);
-        while (m.find()) {
-            rawPatterns.add(m.group(1).trim());
-        }
-        // Double-quoted index names (e.g. TS "k8s" | ...) are masked to spaces before the shared
-        // SOURCE_COMMAND regex runs, so extractIndexPatterns captures only a 1-char fragment that
-        // normalizeIndexPattern cannot de-quote. Match directly on the unmasked stripped text.
-        Matcher dq = DOUBLE_QUOTED_SOURCE.matcher(stripped);
-        while (dq.find()) {
-            rawPatterns.add(dq.group(1).trim());
-        }
-        Set<String> patterns = new LinkedHashSet<>();
-        for (String raw : rawPatterns) {
-            patterns.add(normalizeIndexPattern(raw));
-        }
+        Set<String> patterns = sourcePatterns(query);
         Set<CsvTestsDataLoader.TestDataset> datasets = new LinkedHashSet<>(EsqlQueryDatasetResolver.resolveDatasets(patterns, CSV_DATASET));
         for (String pattern : patterns) {
             // Exact-key view lookup (e.g. FROM country_airports).
@@ -423,33 +467,26 @@ public class CsvColumnarIT extends CsvIT {
     }
 
     /**
-     * Returns {@code query} with any leading {@code SET <name>=<value>;\r\n} lines removed.
+     * Returns {@code query} with any leading {@code SET <name>=<value>;} statements removed.
      *
      * <p>{@link EsqlQueryDatasetResolver#extractIndexPatterns} uses a regex that anchors on
      * start-of-input, {@code |}, or {@code (} (deliberately, to avoid widening
-     * {@code CsvFlattenedKeywordIT}'s keyword-path scoping). When a csv-spec query opens with one or
-     * more {@code SET} lines — which {@link CsvSpecReader} appends to the query as {@code SET
-     * name=value;\r\n} — the subsequent {@code FROM} sits after a newline and the regex returns no
-     * patterns, causing {@link #shouldExclude} to miss time-series or incompatible-dataset sources.
-     * Stripping the {@code SET} lines here restores the extraction without touching the shared
-     * resolver.
-     *
-     * <p>Only strips lines whose first non-whitespace token is {@code SET} (case-insensitive) followed
-     * by a non-whitespace identifier, an equals sign, and a value ending in {@code ;} — the exact
-     * form {@code CsvSpecReader} emits. Lines that do not match are left intact; the first non-{@code
-     * SET} line and all subsequent lines are returned unchanged.
+     * {@code CsvFlattenedKeywordIT}'s keyword-path scoping). When a query opens with one or more
+     * {@code SET} statements, the subsequent {@code FROM} sits after the {@code ;} — on the next
+     * line for csv-spec test queries ({@link CsvSpecReader} emits {@code SET name=value;\r\n}) or
+     * on the same line for view bodies ({@code SET name="v"; FROM x | ...}) — and the regex
+     * returns no patterns, causing {@link #shouldExclude} to miss time-series or
+     * incompatible-dataset sources. Stripping the {@code SET} statements here restores the
+     * extraction without touching the shared resolver.
      */
     private static String stripLeadingSetStatements(String query) {
-        // CsvSpecReader joins lines with "\r\n"; split on any line ending and reconstruct.
-        String[] lines = query.split("\r\n|\r|\n", -1);
-        int first = 0;
-        while (first < lines.length && lines[first].stripLeading().toUpperCase(Locale.ROOT).startsWith("SET ")) {
-            first++;
+        String result = query;
+        java.util.regex.Matcher m = LEADING_SET_STATEMENT.matcher(result);
+        while (m.find()) {
+            result = result.substring(m.end());
+            m = LEADING_SET_STATEMENT.matcher(result);
         }
-        if (first == 0) {
-            return query;
-        }
-        return String.join("\r\n", java.util.Arrays.copyOfRange(lines, first, lines.length));
+        return result;
     }
 
     private static boolean shouldExclude(CsvTestCase testCase) throws IOException {
@@ -525,11 +562,27 @@ public class CsvColumnarIT extends CsvIT {
      * {@code CsvLogsdbColumnarIT}) may override to choose a different mode.
      */
     protected static Settings modeSettings() {
-        return Settings.builder().put("index.mode", "columnar").build();
+        Settings.Builder settings = Settings.builder().put(INDEX_MODE_SETTING, "columnar");
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            // TODO: remove once ESCF preserves the original text of floating point numbers
+            // (https://github.com/elastic/elasticsearch/issues/163401).
+            settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+        }
+        return settings.build();
     }
 
+    private static final String INDEX_MODE_SETTING = "index.mode";
+
     /**
-     * Installs the columnar index-load strategy.
+     * The {@code _index_mode} metadata column, and the value the csv-spec corpus declares for it.
+     * The corpus is written against standard indices, so any dataset this strategy converts
+     * reports a different mode at query time.
+     */
+    private static final String INDEX_MODE_COLUMN = "_index_mode";
+    private static final String STANDARD_INDEX_MODE = "standard";
+
+    /**
+     * Installs the columnar differential test strategy.
      *
      * <p>Runs after {@link CsvIT#setupCluster()} (JUnit guarantees the superclass
      * {@code @BeforeClass} runs first) and replaces the identity strategy with one that creates
@@ -542,7 +595,7 @@ public class CsvColumnarIT extends CsvIT {
      */
     @BeforeClass
     public static void installColumnarStrategy() {
-        indexLoadStrategy = new ColumnarStrategy(modeSettings());
+        differentialTestStrategy = new ColumnarStrategy(modeSettings());
     }
 
     @AfterClass
@@ -585,7 +638,7 @@ public class CsvColumnarIT extends CsvIT {
     // -----------------------------------------------------------------------------------------
 
     /**
-     * {@link CsvIT.IndexLoadStrategy} that creates each dataset in columnar index mode.
+     * {@link CsvIT.DifferentialTestStrategy} that creates each dataset in columnar index mode.
      *
      * <p>The strategy:
      * <ul>
@@ -601,7 +654,7 @@ public class CsvColumnarIT extends CsvIT {
      *   <li>Honours the {@code skip_columnar:} preamble directive to silence individual tests.</li>
      * </ul>
      */
-    private static final class ColumnarStrategy implements IndexLoadStrategy {
+    static final class ColumnarStrategy implements DifferentialTestStrategy {
 
         private final Settings extraSettings;
 
@@ -671,13 +724,56 @@ public class CsvColumnarIT extends CsvIT {
             return new TransformedQuery(testCase.query, Settings.EMPTY);
         }
 
+        /**
+         * Rewrites expected {@code _index_mode} values from {@code standard} to the mode this
+         * strategy actually stamps on the datasets it converts.
+         *
+         * <p>Only the literal {@code standard} is rewritten. Lookup-mode datasets keep their
+         * original mode and the corpus already declares {@code lookup} for them, and a dataset
+         * that unexpectedly stayed standard (see {@link #FORCED_STANDARD_DATASETS}) still fails
+         * rather than being masked.
+         */
         @Override
-        public CsvTestUtils.ExpectedResults transformExpectedResults(
-            String testId,
-            CsvTestCase testCase,
-            CsvTestUtils.ExpectedResults expected
-        ) {
-            return expected;
+        public CsvTestUtils.TestResults transformExpectedResults(String testId, CsvTestCase testCase, CsvTestUtils.TestResults expected) {
+            int modeIdx = expected.columnNames().indexOf(INDEX_MODE_COLUMN);
+            if (modeIdx < 0) {
+                return expected;
+            }
+            String actualMode = extraSettings.get(INDEX_MODE_SETTING);
+            if (actualMode == null) {
+                return expected;
+            }
+            boolean anyChanged = false;
+            List<List<Object>> newValues = new ArrayList<>(expected.values().size());
+            for (List<Object> row : expected.values()) {
+                Object rewritten = rewriteIndexMode(row.get(modeIdx), actualMode);
+                if (rewritten == row.get(modeIdx)) {
+                    newValues.add(row);
+                } else {
+                    List<Object> newRow = new ArrayList<>(row);
+                    newRow.set(modeIdx, rewritten);
+                    newValues.add(newRow);
+                    anyChanged = true;
+                }
+            }
+            if (anyChanged == false) {
+                return expected;
+            }
+            return new CsvTestUtils.TestResults(expected.columnNames(), expected.columnTypes(), newValues);
+        }
+
+        /**
+         * Returns the cell with {@code standard} replaced by {@code actualMode}, or the original
+         * cell instance when nothing needs rewriting.
+         *
+         * <p>Only scalar cells are rewritten. Every row of a {@code _index_mode} column describes
+         * a single index, so no multi-value cell is expected here. If one ever appears it falls
+         * through unchanged and the comparison fails with a plain value mismatch, which is the
+         * intended outcome: this hook exists to retarget a known-good expectation, not to absorb
+         * shapes it was never verified against.
+         */
+        private static Object rewriteIndexMode(Object cell, String actualMode) {
+            return STANDARD_INDEX_MODE.equals(cell) ? actualMode : cell;
         }
 
         /**
@@ -694,7 +790,7 @@ public class CsvColumnarIT extends CsvIT {
         /**
          * Sanitizes a mapping JSON string for columnar index mode.
          *
-         * <p>Performs four adjustments in a single parse-serialize pass:
+         * <p>Performs five adjustments in a single parse-serialize pass:
          * <ol>
          *   <li>Removes the top-level {@code "runtime"} section.
          *       {@code IndexMode.COLUMNAR.validateMapping} calls
@@ -725,6 +821,12 @@ public class CsvColumnarIT extends CsvIT {
          *       collapse to a constant. That produces different relevance scores for the same
          *       query, invalidating the csv-spec oracle. Restoring the standard-mode default
          *       makes BM25 scores bit-identical so all score-asserting specs remain valid.</li>
+         *   <li>Injects {@code "index_options": "positions"} into every {@code text} field that omits
+         *       {@code "index_options"}.
+         *       Strictly columnar mode defaults text {@code index_options} to {@code docs} (no
+         *       positions), which breaks positional queries (e.g. {@code MATCH_PHRASE},
+         *       {@code QSTR}/{@code KQL} phrases). Restoring the standard-mode {@code positions}
+         *       default keeps those queries valid so the csv-spec oracle remains valid.</li>
          * </ol>
          */
         private static String sanitizeMapping(String mapping) throws IOException {
@@ -733,6 +835,7 @@ public class CsvColumnarIT extends CsvIT {
             stripStoreTrue(map);
             fixDenseVectorIndexDefault(map);
             fixTextNormsDefault(map);
+            fixTextIndexOptionsDefault(map);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(map);
                 return Strings.toString(builder);
@@ -796,6 +899,26 @@ public class CsvColumnarIT extends CsvIT {
             walkFieldDefs(mappingObject, fieldDef -> {
                 if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("norms") == false) {
                     fieldDef.put("norms", true);
+                }
+            });
+        }
+
+        /**
+         * Recursively walks the mapping and injects {@code "index_options": "positions"} into every
+         * {@code text} field that does not already declare {@code "index_options"}.
+         *
+         * <p>Strictly columnar mode defaults text {@code index_options} to {@code docs} (no positions),
+         * because positions are not needed to reconstruct values from doc values. That breaks positional
+         * queries (e.g. {@code MATCH_PHRASE}, {@code QSTR}/{@code KQL} phrases), which fail on a field
+         * indexed without position data and therefore diverge from the csv-spec oracle. Restoring the
+         * standard-mode {@code positions} default keeps those queries valid. Multi-fields (reachable via
+         * {@code "fields"}) are covered through {@link #walkFieldDefs}. {@code match_only_text} is a
+         * different type and mapper and is intentionally left untouched.
+         */
+        private static void fixTextIndexOptionsDefault(Map<String, Object> mappingObject) {
+            walkFieldDefs(mappingObject, fieldDef -> {
+                if ("text".equals(fieldDef.get("type")) && fieldDef.containsKey("index_options") == false) {
+                    fieldDef.put("index_options", "positions");
                 }
             });
         }

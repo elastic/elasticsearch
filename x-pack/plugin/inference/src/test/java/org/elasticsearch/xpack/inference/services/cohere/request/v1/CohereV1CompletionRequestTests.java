@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,17 +19,17 @@ import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CohereV1CompletionRequestTests extends ESTestCase {
 
-    public void testCreateRequest_UrlDefined() throws IOException {
+    public void testCreateRequest_UrlDefined() throws IOException, URISyntaxException {
         var request = new CohereV1CompletionRequest(
             List.of("abc"),
             CohereCompletionModelTests.createModel("http://localhost", "secret", null),
@@ -38,44 +37,41 @@ public class CohereV1CompletionRequestTests extends ESTestCase {
         );
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is("http://localhost/v1/chat"));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is("http://localhost/v1/chat"));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(), is(CohereUtils.ELASTIC_REQUEST_SOURCE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, is(Map.of("message", "abc")));
     }
 
-    public void testCreateRequest_ModelDefined() throws IOException {
+    public void testCreateRequest_ModelDefined() throws IOException, URISyntaxException {
         var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel(null, "secret", "model"), false);
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v1/chat"));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getUri().toString(), is("https://api.cohere.ai/v1/chat"));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(), is(CohereUtils.ELASTIC_REQUEST_SOURCE));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, is(Map.of("message", "abc", "model", "model")));
     }
 
-    public void testDefaultUrl() {
+    public void testDefaultUrl() throws URISyntaxException {
         var request = new CohereV1CompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel(null, "secret", null), false);
 
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        assertThat(httpPost.getURI().toString(), is("https://api.cohere.ai/v1/chat"));
+        assertThat(httpPost.getUri().toString(), is("https://api.cohere.ai/v1/chat"));
     }
 
     public void testTruncate_ReturnsSameInstance() {

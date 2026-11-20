@@ -75,7 +75,8 @@ public class GPUPluginInitializationWithoutGPUIT extends ESIntegTestCase {
             randomGPUSupportedSimilarity(indexOptions.getType()),
             DenseVectorFieldMapper.ElementType.FLOAT,
             null,
-            1
+            1,
+            null
         );
         assertNull(format);
     }

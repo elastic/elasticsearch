@@ -4,12 +4,12 @@ steps:
     if_changed:
       include:
         - "libs/simdvec/native/**"
+        - "libs/native-toolchain/**"
         - "build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/nativelibs/**"
         - "libs/native/libraries/build.gradle"
         - "libs/simdvec/build.gradle"
     env:
       VEC_NATIVE_BUILD: docker
-      USE_PROD_DOCKER_CREDENTIALS: "true"
     timeout_in_minutes: 10
     agents:
       provider: gcp

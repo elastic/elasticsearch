@@ -13,15 +13,26 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
 
+import java.util.Optional;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
-public class QueryLogger<Context extends QueryLoggerContext> extends ActivityLogger<Context> {
+/**
+ * The query logger is a {@link QuerySink}, registered with a {@link QueryInterceptor}.
+ * Queries against system indices are not logged by default and a configurable threshold against the query took time
+ * can be raised to act as a slow log filter.
+ *
+ * On {@link #accept} it uses its {@link ActivityLogProducer} to turn the capture context into an {@link ESLogMessage}, which it
+ * hands to its {@link ActivityLogWriter}.
+ */
+public class QueryLogger<Context extends QueryCaptureContext> extends QuerySink<Context> {
     /** Prefix for query log related settings */
     public static final String QUERY_LOGGER_SETTINGS_PREFIX = "elasticsearch.querylog.";
 
@@ -64,16 +75,15 @@ public class QueryLogger<Context extends QueryLoggerContext> extends ActivityLog
         Setting.Property.NodeScope
     );
 
-    private boolean logSystemSearches = false;
+    private final ActivityLogProducer<Context> producer;
+    private final ActivityLogWriter writer;
+    private final ActionLoggingFields additionalFields;
     private final Predicate<String> systemChecker;
 
-    @Override
-    protected boolean shouldLog(Context context) {
-        if (logSystemSearches == false && context.isSystemSearch(systemChecker)) {
-            return false;
-        }
-        return super.shouldLog(context);
-    }
+    private volatile boolean enabled = false;
+    private volatile long threshold = -1;
+    private volatile Level logLevel = Level.INFO;
+    private volatile boolean logSystemSearches = false;
 
     public QueryLogger(
         ClusterSettings settings,
@@ -92,23 +102,53 @@ public class QueryLogger<Context extends QueryLoggerContext> extends ActivityLog
         ActionLoggingFieldsProvider fieldsProvider,
         Predicate<String> systemChecker
     ) {
-        super(producer, writerProvider, fieldsProvider);
+        super(() -> "query_log/" + producer.getClass().getSimpleName());
+        this.producer = producer;
+        this.writer = writerProvider.getWriter(producer.loggerName());
+        var fieldsContext = new ActionLoggingFieldsContext(true);
+        this.additionalFields = fieldsProvider.create(fieldsContext);
+        this.systemChecker = systemChecker;
         settings.initializeAndWatch(QUERY_LOGGER_ENABLED, v -> enabled = v);
         settings.initializeAndWatch(QUERY_LOGGER_THRESHOLD, v -> threshold = v.nanos());
         settings.initializeAndWatch(QUERY_LOGGER_LEVEL, this::setLogLevel);
-        settings.initializeAndWatch(QUERY_LOGGER_INCLUDE_USER, this.setincludeUserInformation);
-        settings.initializeAndWatch(QUERY_LOGGER_LOG_SYSTEM, this::setLogSystemSearches);
-        this.systemChecker = systemChecker;
+        settings.initializeAndWatch(QUERY_LOGGER_INCLUDE_USER, fieldsContext::setIncludeUserInformation);
+        settings.initializeAndWatch(QUERY_LOGGER_LOG_SYSTEM, v -> logSystemSearches = v);
     }
 
-    public void setLogSystemSearches(boolean logSystemSearches) {
-        this.logSystemSearches = logSystemSearches;
-    }
-
-    protected void addFields(Context context, ESLogMessage logMessage) {
-        if (context.isSystemSearch(systemChecker)) {
-            logMessage.field(QueryLogging.QUERY_FIELD_IS_SYSTEM, true);
+    private void setLogLevel(Level level) {
+        if (level.equals(Level.ERROR) || level.equals(Level.FATAL)) {
+            throw new IllegalStateException("Log level can not be " + level.name());
         }
+        logLevel = level;
     }
 
+    @Override
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    @Override
+    public void accept(Context context) {
+        produce(context).ifPresent(this::write);
+    }
+
+    private Optional<ESLogMessage> produce(Context context) {
+        boolean isSystemSearch = context.isSystemSearch(systemChecker);
+        if (logSystemSearches == false && isSystemSearch) {
+            return Optional.empty();
+        }
+        long threshold = this.threshold;
+        if (threshold > 0 && context.getTookInNanos() < threshold) {
+            return Optional.empty();
+        }
+        Optional<ESLogMessage> event = producer.produce(context, additionalFields);
+        if (isSystemSearch) {
+            event.ifPresent(message -> message.field(QueryLogging.QUERY_FIELD_IS_SYSTEM, true));
+        }
+        return event;
+    }
+
+    private void write(ESLogMessage message) {
+        writer.write(logLevel, message);
+    }
 }

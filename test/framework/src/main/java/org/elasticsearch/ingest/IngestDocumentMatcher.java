@@ -37,7 +37,8 @@ public final class IngestDocumentMatcher {
         }
 
         if ((deepEquals(expected.getIngestMetadata(), actual.getIngestMetadata(), true)
-            && deepEquals(expected.getSourceAndMetadata(), actual.getSourceAndMetadata(), false)) == false) {
+            && deepEquals(expected.getSource(), actual.getSource(), false)
+            && expected.getMetadata().equals(actual.getMetadata())) == false) {
             throw new AssertionError("Expected [" + expected + "] but received [" + actual + "].");
         }
     }

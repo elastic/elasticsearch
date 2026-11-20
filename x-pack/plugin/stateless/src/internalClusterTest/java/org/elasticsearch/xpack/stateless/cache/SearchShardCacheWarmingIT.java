@@ -165,7 +165,7 @@ public class SearchShardCacheWarmingIT extends AbstractStatelessPluginIntegTestC
     /**
      * One primary and one replica, then {@code number_of_replicas} raised to 2 while clearing allocation exclude so a third copy can
      * allocate on a search node that had no shard. That node is the telemetry target: recovery is not a relocation, but another active
-     * copy exists, so {@link SharedBlobCacheWarmingService#searchRecoveryTimeout} awaits with the non-relocation timeout.
+     * copy exists, so {@link SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout} awaits with the non-relocation timeout.
      */
     public void testConcurrentSearchWhileAddingSecondReplicaDoesNotMissBlobCacheOnTarget() throws Exception {
         TwoSearchNodes nodes = startTwoSearchNodeCluster();

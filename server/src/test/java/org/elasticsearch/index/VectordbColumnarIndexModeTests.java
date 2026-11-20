@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,11 +28,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class VectordbColumnarIndexModeTests extends ESTestCase {
-
-    @Before
-    public void assumeFeatureFlagEnabled() {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
-    }
 
     public void testFromString() {
         assertThat(IndexMode.fromString("vectordb_columnar"), equalTo(IndexMode.VECTORDB_COLUMNAR));
@@ -59,8 +53,10 @@ public class VectordbColumnarIndexModeTests extends ESTestCase {
 
     public void testColumnarDefaults() {
         assertThat(IndexMode.VECTORDB_COLUMNAR.defaultSourceMode(), equalTo(SourceFieldMapper.Mode.SYNTHETIC));
-        // Unlike the other columnar modes, columnar_stored source is not supported yet.
-        assertThat(IndexMode.VECTORDB_COLUMNAR.supportedSourceModes(), equalTo(List.of(SourceFieldMapper.Mode.SYNTHETIC)));
+        assertThat(
+            IndexMode.VECTORDB_COLUMNAR.supportedSourceModes(),
+            equalTo(List.of(SourceFieldMapper.Mode.SYNTHETIC, SourceFieldMapper.Mode.COLUMNAR_STORED))
+        );
         assertThat(IndexMode.VECTORDB_COLUMNAR.getDefaultCodec(), equalTo(CodecService.BEST_COMPRESSION_CODEC));
         assertTrue(IndexMode.VECTORDB_COLUMNAR.isColumnar());
         assertTrue(IndexMode.VECTORDB_COLUMNAR.isStrictColumnar());

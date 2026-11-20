@@ -626,7 +626,7 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
 
         var indicesSegments = client().admin().indices().prepareSegments(indexName).get();
         assertThat(indicesSegments.getSuccessfulShards(), equalTo(numberOfShards + numberOfShards * numberOfReplicas));
-        assertThat(indicesSegments.getShardFailures().length, equalTo(0));
+        assertThat(indicesSegments.getShardFailures(), empty());
         assertThat(indicesSegments.getIndices().size(), equalTo(1));
 
         var indices = indicesSegments.getIndices().get(indexName);
@@ -1222,12 +1222,12 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         throws IOException {
         final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
             operationPurpose,
-            StatelessCompoundCommit.PREFIX
+            BatchedCompoundCommit.PREFIX
         )
             .values()
             .stream()
-            .filter(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
-            .max(Comparator.comparingLong(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name())))
+            .filter(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name()) <= maxGeneration)
+            .max(Comparator.comparingLong(m -> BatchedCompoundCommit.parseGenerationFromBlobName(m.name())))
             .orElseThrow(() -> new AssertionError("retry with assertBusy"));
         final var latestUploadedBcc = BatchedCompoundCommit.readFromStore(
             latestUploadBccMetadata.name(),

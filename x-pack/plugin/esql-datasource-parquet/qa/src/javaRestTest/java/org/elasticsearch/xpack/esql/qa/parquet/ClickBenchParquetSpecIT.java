@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  *   <li>A single-file dataset ({@code clickbench/hits.parquet})</li>
  *   <li>A 5-file split dataset ({@code clickbench_multi/hits_*.parquet})</li>
  * </ul>
- * Every query in {@code external-clickbench.csv-spec} uses the generic {@code {{clickbench}}} template.
+ * Every query in {@code clickbench/external-clickbench.csv-spec} uses the generic {@code {{clickbench}}} template.
  * This class cross-products each test with both {@link Layout} values, so every query runs once against
  * each dataset layout (43 queries x 2 layouts = 86 tests).
  * <p>
@@ -85,7 +85,7 @@ public class ClickBenchParquetSpecIT extends EsqlSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "clickbench:%2$s.%3$s[%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/external-clickbench.csv-spec");
+        List<URL> urls = classpathResources("/clickbench/external-clickbench.csv-spec");
         assertFalse("No clickbench csv-spec files found", urls.isEmpty());
         List<Object[]> baseTests = SpecReader.readScriptSpec(urls, CsvSpecReader::specParser);
         List<Object[]> parameterizedTests = new ArrayList<>();

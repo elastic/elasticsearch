@@ -17,26 +17,24 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.metric.DoubleAsyncCounter;
 import org.elasticsearch.telemetry.metric.DoubleAsyncGauge;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongAsyncGauge;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * Container for registering and fetching meterRegistrar by type and name.
@@ -116,11 +114,11 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleAsyncCounter registerDoublesAsyncCounter(
+    public DoubleAsyncCounter registerDoubleAsyncCounter(
         String name,
         String description,
         String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
+        Consumer<DoubleAsyncMeasurement> callback
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(
@@ -130,7 +128,7 @@ public class APMMeterRegistry implements MeterRegistry {
                     name,
                     description,
                     unit,
-                    timed(name, observer),
+                    timed(name, callback),
                     deregisterFunc(doubleAsynchronousCounters)
                 )
             );
@@ -152,16 +150,16 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleAsyncGauge registerDoublesAsyncGauge(
+    public DoubleAsyncGauge registerDoubleAsyncGauge(
         String name,
         String description,
         String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
+        Consumer<DoubleAsyncMeasurement> callback
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(
                 doubleAsyncGauges,
-                new DoubleAsyncGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(doubleAsyncGauges))
+                new DoubleAsyncGaugeAdapter(meter, name, description, unit, timed(name, callback), deregisterFunc(doubleAsyncGauges))
             );
         }
     }
@@ -188,16 +186,16 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongAsyncCounter registerLongsAsyncCounter(
+    public LongAsyncCounter registerLongAsyncCounter(
         String name,
         String description,
         String unit,
-        Supplier<Collection<LongWithAttributes>> observer
+        Consumer<LongAsyncMeasurement> callback
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(
                 longAsynchronousCounters,
-                new LongAsyncCounterAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(longAsynchronousCounters))
+                new LongAsyncCounterAdapter(meter, name, description, unit, timed(name, callback), deregisterFunc(longAsynchronousCounters))
             );
         }
     }
@@ -217,16 +215,11 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongAsyncGauge registerLongsAsyncGauge(
-        String name,
-        String description,
-        String unit,
-        Supplier<Collection<LongWithAttributes>> observer
-    ) {
+    public LongAsyncGauge registerLongAsyncGauge(String name, String description, String unit, Consumer<LongAsyncMeasurement> callback) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return register(
                 longAsyncGauges,
-                new LongAsyncGaugeAdapter(meter, name, description, unit, timed(name, observer), deregisterFunc(longAsyncGauges))
+                new LongAsyncGaugeAdapter(meter, name, description, unit, timed(name, callback), deregisterFunc(longAsyncGauges))
             );
         }
     }
@@ -269,15 +262,16 @@ public class APMMeterRegistry implements MeterRegistry {
         }
     }
 
-    private <T> Supplier<T> timed(String name, Supplier<T> observer) {
+    private <T> Consumer<T> timed(String name, Consumer<T> callback) {
         Map<String, Object> attributes = Map.of(INSTRUMENT_ATTRIBUTE, name);
-        return () -> {
+        return measurement -> {
             if (instrumentTimingEnabled == false) {
-                return observer.get();
+                callback.accept(measurement);
+                return;
             }
             long start = System.nanoTime();
             try {
-                return observer.get();
+                callback.accept(measurement);
             } finally {
                 instrumentCollectDuration.record((System.nanoTime() - start) / 1_000_000_000d, attributes);
             }

@@ -33,7 +33,7 @@ public class Extent {
     private static final byte CROSSES_LAT_AXIS = 3;
     private static final byte ALL_SET = 4;
 
-    Extent() {
+    public Extent() {
         this.top = Integer.MIN_VALUE;
         this.bottom = Integer.MAX_VALUE;
         this.negLeft = Integer.MAX_VALUE;
@@ -90,7 +90,7 @@ public class Extent {
         }
     }
 
-    static void readFromCompressed(StreamInput input, Extent extent) throws IOException {
+    public static void readFromCompressed(StreamInput input, Extent extent) throws IOException {
         final int top = input.readInt();
         final int bottom = Math.toIntExact(top - input.readVLong());
         final int negLeft;

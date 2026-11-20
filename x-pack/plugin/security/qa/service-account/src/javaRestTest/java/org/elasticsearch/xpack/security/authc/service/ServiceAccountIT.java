@@ -87,7 +87,8 @@ public class ServiceAccountIT extends ESRestTestCase {
             "cluster": [
                 "monitor",
                 "read_ilm",
-                "read_slm"
+                "read_slm",
+                "cluster:admin/xpack/searchable_snapshots/cache/stats"
             ],
             "indices": [
                 {
@@ -433,6 +434,7 @@ public class ServiceAccountIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .name("service-account-cluster")
         .nodes(2)
         .module("analysis-common")
         .module("reindex")
@@ -713,6 +715,54 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(e2.getResponse().getEntity()), equalTo("{\"found\":false}"));
     }
 
+    /**
+     * elastic/kibana can read service accounts, but cannot read, create, or delete their tokens.
+     */
+    public void testKibanaCanReadButNotManageServiceAccounts() throws IOException {
+        final Request createTokenRequest = new Request("POST", "_security/service/elastic/kibana/credential/token/kibana-read-token");
+        final Response createTokenResponse = client().performRequest(createTokenRequest);
+        assertOK(createTokenResponse);
+        @SuppressWarnings("unchecked")
+        final Map<String, String> tokenMap = (Map<String, String>) responseAsMap(createTokenResponse).get("token");
+        final RequestOptions kibanaOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", "Bearer " + tokenMap.get("value"))
+            .build();
+
+        final Request getServiceAccountRequest = new Request("GET", "_security/service/elastic/fleet-server");
+        getServiceAccountRequest.setOptions(kibanaOptions);
+        final Response getServiceAccountResponse = client().performRequest(getServiceAccountRequest);
+        assertOK(getServiceAccountResponse);
+        assertServiceAccountRoleDescriptor(getServiceAccountResponse, "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
+
+        final Request queryRequest = new Request("POST", "_security/_query/service");
+        queryRequest.setOptions(kibanaOptions);
+        assertOK(client().performRequest(queryRequest));
+
+        final Request getTokensRequest = new Request("GET", "_security/service/elastic/fleet-server/credential");
+        getTokensRequest.setOptions(kibanaOptions);
+        final ResponseException e1 = expectThrows(ResponseException.class, () -> client().performRequest(getTokensRequest));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        final Request forbiddenCreateTokenRequest = new Request(
+            "POST",
+            "_security/service/elastic/fleet-server/credential/token/kibana-forbidden-token"
+        );
+        forbiddenCreateTokenRequest.setOptions(kibanaOptions);
+        final ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenCreateTokenRequest));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        final Request forbiddenDeleteTokenRequest = new Request(
+            "DELETE",
+            "_security/service/elastic/kibana/credential/token/kibana-read-token"
+        );
+        forbiddenDeleteTokenRequest.setOptions(kibanaOptions);
+        final ResponseException e3 = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenDeleteTokenRequest));
+        assertThat(e3.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        final Request deleteTokenRequest = new Request("DELETE", "_security/service/elastic/kibana/credential/token/kibana-read-token");
+        assertOK(client().performRequest(deleteTokenRequest));
+    }
+
     public void testClearCache() throws IOException {
         final Request clearCacheRequest = new Request(
             "POST",
@@ -933,7 +983,12 @@ public class ServiceAccountIT extends ESRestTestCase {
             responseMap,
             hasEntry(
                 serviceAccountPrincipal,
-                Map.of("role_descriptor", XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())
+                Map.of(
+                    "type",
+                    "built_in",
+                    "role_descriptor",
+                    XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2()
+                )
             )
         );
     }
@@ -950,6 +1005,6 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> fileTokens = (Map<String, Object>) nodes.get("file_tokens");
         assertThat(fileTokens, hasKey("token1"));
         final Map<String, Object> token1 = (Map<String, Object>) fileTokens.get("token1");
-        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("test-cluster-0", "test-cluster-1")));
+        assertThat((List<String>) token1.get("nodes"), equalTo(List.of("service-account-cluster-0", "service-account-cluster-1")));
     }
 }

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
@@ -18,6 +17,7 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.applyGlobalBuildInfoIfRoot;
 import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class InternalClusterTestPlugin implements Plugin<Project> {
@@ -26,7 +26,7 @@ public class InternalClusterTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        applyGlobalBuildInfoIfRoot(project);
         var buildParams = loadBuildParams(project).get();
 
         TaskProvider<Test> internalClusterTest = GradleUtils.addTestSourceSet(project, SOURCE_SET_NAME);

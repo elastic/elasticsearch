@@ -313,6 +313,18 @@ public class AggregationOperator implements Operator {
             "agg",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("aggregation_nanos", ProfileSchema.integer())
+            .optional("aggregation_time", ProfileSchema.string())
+            .required("aggregation_finish_nanos", ProfileSchema.nullable(ProfileSchema.integer()))
+            .optional("aggregation_finish_time", ProfileSchema.nullable(ProfileSchema.string()))
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         /**
          * Nanoseconds this operator has spent running the aggregations.
@@ -408,8 +420,7 @@ public class AggregationOperator implements Operator {
             return rowsEmitted;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("aggregation_nanos", aggregationNanos);
             if (builder.humanReadable()) {
@@ -426,7 +437,11 @@ public class AggregationOperator implements Operator {
             builder.field("rows_received", rowsReceived);
             builder.field("rows_emitted", rowsEmitted);
             return builder.endObject();
+        }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

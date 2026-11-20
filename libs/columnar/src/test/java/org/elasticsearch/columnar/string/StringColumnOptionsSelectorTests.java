@@ -18,10 +18,9 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
-import org.elasticsearch.columnar.ColumnarFieldTypeSelector;
+import org.elasticsearch.columnar.FormatVersion;
 import org.elasticsearch.columnar.numeric.NumericPipeline;
 import org.elasticsearch.columnar.substrate.ChunkCodec;
 import org.elasticsearch.test.ESTestCase;
@@ -32,6 +31,7 @@ import java.util.List;
 
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarBinaryFieldType;
 import static org.elasticsearch.columnar.ColumnarTestUtils.columnarCodec;
+import static org.elasticsearch.columnar.ColumnarTestUtils.stringPayload;
 
 /**
  * Two fields of the same values written into one segment, each under the options its own name asks for. What
@@ -49,20 +49,31 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         for (int d = 0; d < 500; d++) {
             values.add("host-" + (d % 8));
         }
+        final boolean singleValued = randomBoolean();
         final StringColumnOptionsSelector selector = (fieldName, type) -> fieldName.equals(NAMED)
-            ? StringColumnOptions.DEFAULT
-            : StringColumnOptions.DEFAULT.withDictionary(DictionaryPolicy.NONE);
+            ? StringColumnOptions.DEFAULT.withSingleValued(singleValued)
+            : StringColumnOptions.DEFAULT.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).withSingleValued(singleValued);
 
         try (Directory dir = newDirectory()) {
-            write(dir, selector, values);
+            write(dir, selector, values, singleValued);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final LeafReader leaf = reader.leaves().get(0).reader();
                 assertTrue("the field asking for one was not named by a dictionary", readerOf(leaf, NAMED).hasDictionary());
                 assertFalse("the field asking for none was named by a dictionary", readerOf(leaf, STORED).hasDictionary());
-                assertEquals("named field values", values, valuesOf(leaf, NAMED));
-                assertEquals("stored field values", values, valuesOf(leaf, STORED));
+                assertEquals("named field values", values, valuesOf(leaf, NAMED, singleValued));
+                assertEquals("stored field values", values, valuesOf(leaf, STORED, singleValued));
             }
         }
+    }
+
+    public void testTheSkipIndexSwitchSurvivesChangingOtherOptions() {
+        final StringColumnOptions off = StringColumnOptions.DEFAULT.withoutSkipIndex();
+        assertTrue(StringColumnOptions.DEFAULT.enableSkipIndex());
+        assertFalse(off.enableSkipIndex());
+        assertFalse(off.withPolicies(DictionaryPolicy.NONE, SummaryPolicy.NONE).enableSkipIndex());
+        assertFalse(off.withSizes(StringColumnOptions.DEFAULT_SIZES).enableSkipIndex());
+        assertFalse(off.withSingleValued(true).enableSkipIndex());
+        assertTrue(StringColumnOptions.DEFAULT.withSingleValued(true).enableSkipIndex());
     }
 
     /** A field naming its own codec is read back through the codec its chunk index records, not a default. */
@@ -71,52 +82,159 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         for (int d = 0; d < 500; d++) {
             values.add("host-" + (d % 8));
         }
+        final boolean singleValued = randomBoolean();
         final StringColumnOptionsSelector selector = (fieldName, type) -> new StringColumnOptions(
             StringColumnOptions.DEFAULT_DICTIONARY,
+            StringColumnOptions.DEFAULT_SUMMARY,
             fieldName.equals(NAMED) ? ChunkCodec.ZSTD : ChunkCodec.IDENTITY,
-            StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES
+            StringColumnOptions.DEFAULT_SIZES,
+            singleValued,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+            StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
         );
 
         try (Directory dir = newDirectory()) {
-            write(dir, selector, values);
+            write(dir, selector, values, singleValued);
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 final LeafReader leaf = reader.leaves().get(0).reader();
-                assertEquals("compressed field values", values, valuesOf(leaf, NAMED));
-                assertEquals("verbatim field values", values, valuesOf(leaf, STORED));
+                assertEquals("compressed field values", values, valuesOf(leaf, NAMED, singleValued));
+                assertEquals("verbatim field values", values, valuesOf(leaf, STORED, singleValued));
             }
+        }
+    }
+
+    /** Every block size is read back by shifting, so every one of them has to be a power of two in range. */
+    public void testSizesRejectABlockSizeNoReaderCouldDecode() {
+        final StringColumnOptions.Sizes sizes = StringColumnOptions.DEFAULT_SIZES;
+        for (int blockSize : new int[] { 0, -1, 64, 1000, 16384 }) {
+            expectThrows(IllegalArgumentException.class, () -> withValuesPerBlock(sizes, blockSize));
+            expectThrows(IllegalArgumentException.class, () -> withPackedOrdinalBlockSize(sizes, blockSize));
+            expectThrows(IllegalArgumentException.class, () -> withCompressedOrdinalBlockSize(sizes, blockSize));
+            expectThrows(IllegalArgumentException.class, () -> withEscapeRankBlockSize(sizes, blockSize));
+            expectThrows(IllegalArgumentException.class, () -> withSlotCountsBlockSize(sizes, blockSize));
         }
     }
 
     public void testOptionsRejectWhatWouldNotRoundTrip() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(null, ChunkCodec.ZSTD, StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES)
+            () -> new StringColumnOptions(
+                null,
+                StringColumnOptions.DEFAULT_SUMMARY,
+                ChunkCodec.ZSTD,
+                StringColumnOptions.DEFAULT_SIZES,
+                randomBoolean(),
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
+            )
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, null, StringColumnOptions.DEFAULT_TARGET_CHUNK_BYTES)
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                StringColumnOptions.DEFAULT_SUMMARY,
+                null,
+                StringColumnOptions.DEFAULT_SIZES,
+                randomBoolean(),
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
+            )
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new StringColumnOptions(StringColumnOptions.DEFAULT_DICTIONARY, ChunkCodec.ZSTD, 0)
+            () -> new StringColumnOptions(
+                StringColumnOptions.DEFAULT_DICTIONARY,
+                StringColumnOptions.DEFAULT_SUMMARY,
+                ChunkCodec.ZSTD,
+                null,
+                randomBoolean(),
+                StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX,
+                StringColumnOptions.DEFAULT_ENABLE_PLAIN_SKIP_INDEX
+            )
         );
     }
 
-    private static void write(Directory dir, StringColumnOptionsSelector selector, List<String> values) throws IOException {
+    private static StringColumnOptions.Sizes withValuesPerBlock(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            size,
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            sizes.packedOrdinalBlockSize(),
+            sizes.compressedOrdinalBlockSize(),
+            sizes.escapeRankBlockSize(),
+            sizes.slotCountsBlockSize(),
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, size)
+        );
+    }
+
+    private static StringColumnOptions.Sizes withPackedOrdinalBlockSize(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            sizes.valuesPerBlock(),
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            size,
+            sizes.compressedOrdinalBlockSize(),
+            sizes.escapeRankBlockSize(),
+            sizes.slotCountsBlockSize(),
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, sizes.valuesPerBlock())
+        );
+    }
+
+    private static StringColumnOptions.Sizes withCompressedOrdinalBlockSize(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            sizes.valuesPerBlock(),
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            sizes.packedOrdinalBlockSize(),
+            size,
+            sizes.escapeRankBlockSize(),
+            sizes.slotCountsBlockSize(),
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, sizes.valuesPerBlock())
+        );
+    }
+
+    private static StringColumnOptions.Sizes withEscapeRankBlockSize(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            sizes.valuesPerBlock(),
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            sizes.packedOrdinalBlockSize(),
+            sizes.compressedOrdinalBlockSize(),
+            size,
+            sizes.slotCountsBlockSize(),
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, sizes.valuesPerBlock())
+        );
+    }
+
+    private static StringColumnOptions.Sizes withSlotCountsBlockSize(StringColumnOptions.Sizes sizes, int size) {
+        return new StringColumnOptions.Sizes(
+            sizes.valuesPerBlock(),
+            sizes.plainChunks(),
+            sizes.escapeChunks(),
+            sizes.packedOrdinalBlockSize(),
+            sizes.compressedOrdinalBlockSize(),
+            sizes.escapeRankBlockSize(),
+            size,
+            Math.max(StringColumnOptions.DEFAULT_LENGTH_BLOCK_SIZE, sizes.valuesPerBlock())
+        );
+    }
+
+    private static void write(Directory dir, StringColumnOptionsSelector selector, List<String> values, boolean singleValued)
+        throws IOException {
         final ColumNARDocValuesFormat format = new ColumNARDocValuesFormat(
             (fieldName, type) -> NumericPipeline::defaultPipeline,
-            (ColumnarFieldTypeSelector) ColumnarFieldType::fromField,
+            field -> ColumnarFieldType.STRING,
             ColumNARDocValuesFormat.DEFAULT_BLOCK_SIZE,
-            selector
+            selector,
+            FormatVersion.CURRENT
         );
-        final FieldType type = columnarBinaryFieldType(ColumnarFieldType.STRING);
-        final BytesRefBuilder builder = new BytesRefBuilder();
+        final FieldType type = columnarBinaryFieldType();
         try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig().setCodec(columnarCodec(format)))) {
             for (String value : values) {
                 final Document doc = new Document();
-                builder.copyChars(value);
-                doc.add(new Field(NAMED, BytesRef.deepCopyOf(builder.get()), type));
-                doc.add(new Field(STORED, BytesRef.deepCopyOf(builder.get()), type));
+                final BytesRef blob = singleValued ? new BytesRef(value) : stringPayload(value);
+                doc.add(new Field(NAMED, blob, type));
+                doc.add(new Field(STORED, blob, type));
                 writer.addDocument(doc);
             }
             writer.commit();
@@ -127,11 +245,17 @@ public class StringColumnOptionsSelectorTests extends ESTestCase {
         return ((ColumnarStringBinaryDocValues) leaf.getBinaryDocValues(field)).reader();
     }
 
-    private static List<String> valuesOf(LeafReader leaf, String field) throws IOException {
+    private static List<String> valuesOf(LeafReader leaf, String field, boolean singleValued) throws IOException {
         final ColumnarStringBinaryDocValues values = (ColumnarStringBinaryDocValues) leaf.getBinaryDocValues(field);
+        final StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
         final List<String> read = new ArrayList<>();
         for (int doc = values.nextDoc(); doc != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            read.add(values.binaryValue().utf8ToString());
+            if (singleValued) {
+                read.add(values.binaryValue().utf8ToString());
+            } else {
+                assertEquals("one slot a document", 1, decoder.reset(values.binaryValue()));
+                read.add(decoder.next().utf8ToString());
+            }
         }
         return read;
     }

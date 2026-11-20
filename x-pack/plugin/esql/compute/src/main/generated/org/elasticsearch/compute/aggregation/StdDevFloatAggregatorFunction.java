@@ -42,12 +42,15 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
 
   private final boolean stdDev;
 
-  StdDevFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      boolean stdDev) {
+  private final boolean allowNonFinite;
+
+  StdDevFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels, boolean stdDev,
+      boolean allowNonFinite) {
     this.stdDev = stdDev;
+    this.allowNonFinite = allowNonFinite;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = StdDevFloatAggregator.initSingle(stdDev);
+    this.state = StdDevFloatAggregator.initSingle(stdDev, allowNonFinite);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

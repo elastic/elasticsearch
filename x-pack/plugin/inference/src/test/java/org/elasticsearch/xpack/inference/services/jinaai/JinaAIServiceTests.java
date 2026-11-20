@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -24,7 +24,7 @@ import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -1020,7 +1020,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().getFirst().getUri().getQuery(), is(nullValue()));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var expectedRequestMap = new HashMap<>(
@@ -1098,7 +1098,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
 
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1177,7 +1177,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
 
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1267,7 +1267,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 )
             );
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1353,7 +1353,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                 )
             );
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
@@ -1714,18 +1714,34 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testRequiresSingleInputEmbeddingRequestForPdf() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            Model model = mock(Model.class);
+            var pdfInput = createRandomUsingDataTypes(EnumSet.of(PDF));
+            var nonPdfInput = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(PDF)));
+
+            assertTrue(service.requiresSingleInputEmbeddingRequest(model, pdfInput));
+            assertFalse(service.requiresSingleInputEmbeddingRequest(model, nonPdfInput));
+        }
+    }
+
     public void testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf_SingleInputPerGroup() throws IOException {
         testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf(
             List.of(
                 new InferenceStringGroup(new InferenceString(PDF, BASE64, TEST_DATA_URI)),
-                new InferenceStringGroup(InferenceStringTests.createRandom())
+                new InferenceStringGroup(InferenceStringTests.createRandomEmbeddingInput())
             )
         );
     }
 
     public void testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf_MultipleInputsInGroup() throws IOException {
         testEmbeddingInfer_ReturnsError_MoreThanOneInputIncludingPdf(
-            List.of(new InferenceStringGroup(List.of(new InferenceString(PDF, BASE64, TEST_DATA_URI), InferenceStringTests.createRandom())))
+            List.of(
+                new InferenceStringGroup(
+                    List.of(new InferenceString(PDF, BASE64, TEST_DATA_URI), InferenceStringTests.createRandomEmbeddingInput())
+                )
+            )
         );
     }
 
@@ -1854,7 +1870,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             assertThat(webServer.requests(), hasSize(1));
             assertThat(webServer.requests().getFirst().getUri().getQuery(), nullValue());
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), is(BEARER_PREFIX + API_KEY_VALUE));
 
             var expectedRequestMap = new HashMap<>(
@@ -1886,7 +1902,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     }
 
     public void testDefaultSimilarity_NotBinaryEmbedding() {
-        assertThat(JinaAIService.defaultSimilarity(JinaAIEmbeddingType.FLOAT), is(SimilarityMeasure.DOT_PRODUCT));
+        assertThat(JinaAIService.defaultSimilarity(JinaAIEmbeddingType.FLOAT), is(SimilarityMeasure.COSINE));
     }
 
     @SuppressWarnings("checkstyle:LineLength")
@@ -1928,7 +1944,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                                     "supported_task_types": ["text_embedding", "embedding"]
                                 },
                                 "similarity": {
-                                    "description": "The similarity measure. One of [cosine, dot_product, l2_norm]. For float embeddings, the default similarity is dot_product. For bit and binary embeddings, the default similarity is l2_norm.",
+                                    "description": "The similarity measure. One of [cosine, dot_product, l2_norm]. For float embeddings, the default similarity is cosine. For bit and binary embeddings, the default similarity is l2_norm.",
                                     "label": "Similarity",
                                     "required": false,
                                     "sensitive": false,
@@ -1958,7 +1974,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                         }
                     """
             );
-            var configuration = InferenceServiceConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+            var configuration = InferenceServiceConfigurationTests.fromXContentBytes(new BytesArray(content), XContentType.JSON);
             var humanReadable = true;
             var originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
             var serviceConfiguration = service.getConfiguration();

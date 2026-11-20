@@ -44,6 +44,6 @@
   "examples" : [
     "FROM flattened_otel_logs\n| WHERE @timestamp == \"2020-01-01T00:02:48.461Z\"\n| EVAL hn = field_extract(resource.attributes, \"host.name\")\n| KEEP hn"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

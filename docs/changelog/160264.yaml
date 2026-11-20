@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 160263
+pr: 160264
+summary: Name the last rules in rule execution limit errors
+type: enhancement

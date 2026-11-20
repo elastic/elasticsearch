@@ -146,6 +146,7 @@ public class Types {
     static final ClassName FLOAT_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "FloatVector", "FixedBuilder");
 
     static final ClassName AGGREGATOR_STATE = ClassName.get(AGGREGATION_PACKAGE, "AggregatorState");
+    static final ClassName AGGREGATOR_MODE = ClassName.get(AGGREGATION_PACKAGE, "AggregatorMode");
     static final ClassName GROUPING_AGGREGATOR_STATE = ClassName.get(AGGREGATION_PACKAGE, "GroupingAggregatorState");
 
     static final ClassName AGGREGATOR_FUNCTION = ClassName.get(AGGREGATION_PACKAGE, "AggregatorFunction");
@@ -162,6 +163,7 @@ public class Types {
         "PreparedForEvaluation"
     );
     static final ClassName SEEN_GROUP_IDS = ClassName.get(AGGREGATION_PACKAGE, "SeenGroupIds");
+    static final ClassName BYTES_REF_SEQUENCE = ClassName.get(AGGREGATION_PACKAGE, "BytesRefSequence");
 
     public static final ClassName INTERMEDIATE_STATE_DESC = ClassName.get(AGGREGATION_PACKAGE, "IntermediateStateDesc");
     public static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);

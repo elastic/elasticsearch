@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,6 +34,7 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.TEXT,
+            InputType.INTERNAL_INGEST,
             batchSize,
             BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING),
             Source.EMPTY,
@@ -42,7 +44,13 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("EmbeddingOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "]]");
+        return equalTo(
+            "EmbeddingOperator[inference_id=["
+                + SIMPLE_INFERENCE_ID
+                + "], batch_size=["
+                + InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE
+                + "]]"
+        );
     }
 
     public void testImageEmbeddingOperator() {
@@ -51,6 +59,7 @@ public class EmbeddingOperatorTests extends AbstractDenseEmbeddingOperatorTestCa
             SIMPLE_INFERENCE_ID,
             evaluatorFactory(inputChannel),
             DataType.IMAGE,
+            InputType.INTERNAL_INGEST,
             InferenceSettings.DENSE_VECTOR_DEFAULT_BATCH_SIZE,
             BaseInferenceActionRequest.getDefaultTimeoutForTaskType(TaskType.EMBEDDING),
             Source.EMPTY,

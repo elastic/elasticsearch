@@ -34,14 +34,22 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnarRowDropHelper;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Direct unit tests for {@link ColumnMapping#pruneToPerFileQuery} and
@@ -64,7 +72,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ColumnMappingTests extends ESTestCase {
 
     private final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("test"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     public void testPruneToPerFileQueryKeptZero() {
@@ -310,16 +318,11 @@ public class ColumnMappingTests extends ESTestCase {
         assertEquals(1, adapted.size());
     }
 
-    public void testMapFiltersDropsConjunctOnKeywordCast() {
+    public void testMapFiltersSkipsConjunctOnKeywordCast() {
         // The UBN KEYWORD fallback installs a stringify cast that has no safe inverse — "1" < "10"
         // is lexicographic, not numeric, so a pushed literal would produce wrong row-group skips.
-        // `mapFilters` must withhold the column name from the per-file allowlist so
-        // {@link FilterAdaptation} drops the conjunct entirely; RECHECK reruns the original
-        // predicate against the unified-shape page. The downstream AND-collapse semantics in
-        // FilterAdaptation treat a value comparison on a withheld column as unsatisfiable, so
-        // the whole pushdown empties for this file — equivalent to the missing-column case in
-        // {@link #testMapFiltersDropsAllWhenValueComparisonOnMissingColumn}. The empty pushdown
-        // is correct: RECHECK still runs the predicate post-stringification.
+        // The conjunct on that present-but-unadaptable column is left unpushed, while an
+        // independent conjunct remains available for file-level skipping.
         ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { null, DataType.KEYWORD });
         ExternalSchema query = new ExternalSchema(List.of(intAttr("id"), intAttr("col")));
         Expression idFilter = greaterThan(query.get(0), 10);
@@ -327,7 +330,32 @@ public class ColumnMappingTests extends ESTestCase {
 
         List<Expression> adapted = mapping.mapFilters(List.of(idFilter, colFilter), query);
 
-        assertTrue("filter on KEYWORD-cast column collapses pushdown; RECHECK is the backstop", adapted.isEmpty());
+        assertEquals(List.of(idFilter), adapted);
+    }
+
+    public void testMapFiltersDoesNotPushOrWithUnadaptableDoubleCast() {
+        ColumnMapping widenedMapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { DataType.DOUBLE, null });
+        ExternalSchema query = new ExternalSchema(List.of(doubleAttr("x"), longAttr("y")));
+        Expression yEqualsTwo = new Equals(Source.EMPTY, query.get(1), new Literal(Source.EMPTY, 2L, DataType.LONG));
+        Expression filter = new Or(Source.EMPTY, new IsNotNull(Source.EMPTY, query.get(0)), yEqualsTwo);
+
+        assertEquals(List.of(), widenedMapping.mapFilters(List.of(filter), query));
+
+        ColumnMapping missingMapping = new ColumnMapping(new int[] { -1, 0 }, null);
+        assertEquals(
+            "an actually absent x still simplifies the OR",
+            List.of(yEqualsTwo),
+            missingMapping.mapFilters(List.of(filter), query)
+        );
+    }
+
+    public void testMapFiltersSkipsConjunctOnDateNanosCast() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0, 1 }, new DataType[] { DataType.DATE_NANOS, null });
+        ExternalSchema query = new ExternalSchema(List.of(typedAttr("timestamp", DataType.DATE_NANOS), longAttr("id")));
+        Expression timestampFilter = new IsNotNull(Source.EMPTY, query.get(0));
+        Expression idFilter = greaterThan(query.get(1), 10L);
+
+        assertEquals(List.of(idFilter), mapping.mapFilters(List.of(timestampFilter, idFilter), query));
     }
 
     public void testMapFiltersKeywordCastWithoutReferencingFilterLeavesPushdownUnchanged() {
@@ -347,7 +375,7 @@ public class ColumnMappingTests extends ESTestCase {
     // ===== Four-schema combinatorial matrix =====
     //
     // pruneToPerFileQuery is the seam where the four-schema model meets a single per-file mapping.
-    // The bug class behind this PR (and B1 in particular) lives at one cell of a three-axis matrix:
+    // The bug class lives at one cell of a three-axis matrix:
     //
     // {reconciliation mode: FFW / STRICT / UBN}
     // × {partitioning: unpartitioned / Hive-style}
@@ -546,11 +574,17 @@ public class ColumnMappingTests extends ESTestCase {
         }
     }
 
+    /** Records each detail; one recorded as removed from a multi-valued cell is prefixed with {@code "removed: "}. */
     private static SkipWarnings capturing(List<String> into) {
         return new SkipWarnings("summary") {
             @Override
             public void add(String detail) {
                 into.add(detail);
+            }
+
+            @Override
+            public void addRemovedFromMultiValue(String detail) {
+                into.add("removed: " + detail);
             }
         };
     }
@@ -982,6 +1016,72 @@ public class ColumnMappingTests extends ESTestCase {
         }
     }
 
+    /**
+     * The 6-arg {@link ColumnMapping#mapPage} overload must call {@link ColumnarRowDropHelper#markFailed}
+     * for every position where the source was non-null and the cast produced null.
+     */
+    public void testMapPageWithDropHelperMarksCastFailurePositions() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+
+        long goodMillis = 1_711_800_000_000L;
+        long year3000Millis = 32_503_680_000_000L;
+
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
+            builder.appendLong(goodMillis);
+            builder.appendLong(year3000Millis);
+            builder.appendLong(goodMillis);
+            LongBlock src = builder.build();
+            Page filePage = new Page(3, new Block[] { src });
+
+            ErrorPolicy skipRow = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, false);
+            ColumnarRowDropHelper dropHelper = ColumnarRowDropHelper.forPolicy(skipRow, "test.parquet");
+            dropHelper.beginBatch(3);
+
+            List<String> captured = new ArrayList<>();
+            SkipWarnings warnings = capturing(captured);
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME }, null, warnings, dropHelper);
+            try {
+                assertThat("only the year-3000 row must be marked failed", dropHelper.failedCount(), equalTo(1));
+                LongBlock nanosBlock = out.getBlock(0);
+                assertFalse("position 0 must survive", nanosBlock.isNull(0));
+                assertTrue("position 1 must be null-filled (cast failed)", nanosBlock.isNull(1));
+                assertFalse("position 2 must survive", nanosBlock.isNull(2));
+            } finally {
+                out.releaseBlocks();
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
+    /**
+     * An inferred cross-file widening runs through the same multi-value arm as a declared cast: under a lenient
+     * policy an element with no date_nanos representation is removed from its cell and the others are kept.
+     */
+    public void testMapPageMultiValueCastFailureRemovesOnlyTheFailingElement() {
+        ColumnMapping mapping = new ColumnMapping(new int[] { 0 }, new DataType[] { DataType.DATE_NANOS });
+        long goodMillis = 1_711_800_000_000L;
+        long year3000Millis = 32_503_680_000_000L;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
+            builder.beginPositionEntry();
+            builder.appendLong(goodMillis);
+            builder.appendLong(year3000Millis);
+            builder.endPositionEntry();
+            Page filePage = new Page(1, new Block[] { builder.build() });
+            List<String> captured = new ArrayList<>();
+            Page out = mapping.mapPage(filePage, blockFactory, new DataType[] { DataType.DATETIME }, null, capturing(captured), null);
+            try {
+                LongBlock nanosBlock = out.getBlock(0);
+                assertThat(nanosBlock.getValueCount(0), equalTo(1));
+                assertThat(nanosBlock.getLong(nanosBlock.getFirstValueIndex(0)), equalTo(goodMillis * 1_000_000L));
+                assertThat(captured, hasSize(1));
+                assertThat(captured.get(0), startsWith("removed: "));
+            } finally {
+                out.releaseBlocks();
+                filePage.releaseBlocks();
+            }
+        }
+    }
+
     private static Expression greaterThan(Attribute attr, Object literalValue) {
         DataType type = literalValue instanceof Long ? DataType.LONG : DataType.INTEGER;
         return new GreaterThan(Source.EMPTY, attr, new Literal(Source.EMPTY, literalValue, type));
@@ -993,6 +1093,14 @@ public class ColumnMappingTests extends ESTestCase {
 
     private static Attribute longAttr(String name) {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.LONG, Nullability.TRUE, null, false);
+    }
+
+    private static Attribute doubleAttr(String name) {
+        return typedAttr(name, DataType.DOUBLE);
+    }
+
+    private static Attribute typedAttr(String name, DataType type) {
+        return new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false);
     }
 
     private static ExternalSchema schema(String... names) {

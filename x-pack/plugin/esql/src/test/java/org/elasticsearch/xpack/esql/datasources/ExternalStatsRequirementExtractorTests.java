@@ -19,8 +19,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.util.List;
@@ -29,9 +31,11 @@ import java.util.Set;
 
 /**
  * Unit tests for {@link ExternalStatsRequirementExtractor}. The detector marks a path only when an
- * <b>ungrouped</b> aggregate is an ancestor of its {@link UnresolvedExternalRelation}; every other
- * shape (grouped {@code STATS ... BY}, {@code INLINESTATS}, {@code LIMIT}, {@code SELECT *},
- * {@code WHERE}-only) leaves the path absent so the resolver defers its per-file footer reads.
+ * <b>ungrouped</b> aggregate is an ancestor of its {@link UnresolvedExternalRelation} and no
+ * {@link Filter}, {@link Limit}, or {@link Sample} sits on that path. {@code KEEP} (and other
+ * projection-like nodes) stay non-blocking. Every other shape (grouped {@code STATS ... BY},
+ * {@code INLINESTATS}, {@code LIMIT}-only, {@code SELECT *}, {@code WHERE}-only, filtered COUNT)
+ * leaves the path absent so the resolver defers its per-file footer reads.
  */
 public class ExternalStatsRequirementExtractorTests extends ESTestCase {
 
@@ -42,18 +46,50 @@ public class ExternalStatsRequirementExtractorTests extends ESTestCase {
         // ungrouped STATS COUNT(*) -> path present
         LogicalPlan plan = ungroupedAggregate(externalRelation(PATH));
 
-        Set<String> paths = ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan);
-        assertEquals(Set.of(PATH), paths);
+        Set<ExternalSourceSpec> paths = ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan);
+        assertEquals(Set.of(spec(PATH)), paths);
     }
 
-    public void testUngroupedStatsAboveIntermediateNodesStillRequiresEagerStats() {
-        // ... | WHERE x > 5 | LIMIT 10 | STATS COUNT(*) — the ancestor-anywhere safety bias keeps it eager
+    public void testFilterBetweenStatsAndRelationDoesNotRequireEagerStats() {
+        // ... | WHERE x > 5 | STATS COUNT(*) — skip-discovery cannot fire; do not harvest every footer
+        LogicalPlan filter = new Filter(SRC, externalRelation(PATH), new GreaterThan(SRC, unresolved("x"), intLiteral(5)));
+        LogicalPlan plan = ungroupedAggregate(filter);
+
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
+    }
+
+    public void testLimitBetweenStatsAndRelationDoesNotRequireEagerStats() {
+        // ... | LIMIT 10 | STATS COUNT(*)
+        LogicalPlan limit = new Limit(SRC, intLiteral(10), externalRelation(PATH));
+        LogicalPlan plan = ungroupedAggregate(limit);
+
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
+    }
+
+    public void testSampleBetweenStatsAndRelationDoesNotRequireEagerStats() {
+        // ... | SAMPLE 0.1 | STATS COUNT(*)
+        LogicalPlan sample = new Sample(SRC, new Literal(SRC, 0.1d, DataType.DOUBLE), externalRelation(PATH));
+        LogicalPlan plan = ungroupedAggregate(sample);
+
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
+    }
+
+    public void testFilterAndLimitBetweenStatsAndRelationDoesNotRequireEagerStats() {
+        // ... | WHERE x > 5 | LIMIT 10 | STATS COUNT(*) — the VPC hive-WHERE waste case
         LogicalPlan relation = externalRelation(PATH);
         LogicalPlan filter = new Filter(SRC, relation, new GreaterThan(SRC, unresolved("x"), intLiteral(5)));
         LogicalPlan limit = new Limit(SRC, intLiteral(10), filter);
         LogicalPlan plan = ungroupedAggregate(limit);
 
-        assertEquals(Set.of(PATH), ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan));
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
+    }
+
+    public void testKeepBetweenStatsAndRelationStillRequiresEagerStats() {
+        // ... | KEEP x | STATS COUNT(*) — KEEP is non-blocking (PruneColumns strips unused KEEP)
+        LogicalPlan keep = new Keep(SRC, externalRelation(PATH), List.of(unresolved("x")));
+        LogicalPlan plan = ungroupedAggregate(keep);
+
+        assertEquals(Set.of(spec(PATH)), ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan));
     }
 
     public void testUngroupedStatsBelowOtherNodesStillRequiresEagerStats() {
@@ -65,14 +101,14 @@ public class ExternalStatsRequirementExtractorTests extends ESTestCase {
         LogicalPlan agg = ungroupedAggregate(externalRelation(PATH));
         LogicalPlan plan = new Limit(SRC, intLiteral(5), agg);
 
-        assertEquals(Set.of(PATH), ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan));
+        assertEquals(Set.of(spec(PATH)), ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan));
     }
 
     public void testGroupedStatsDoesNotRequireEagerStats() {
         // STATS COUNT(*) BY g -> grouped aggregate, path absent
         LogicalPlan plan = new Aggregate(SRC, externalRelation(PATH), List.of(unresolved("g")), List.<NamedExpression>of());
 
-        assertTrue(ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan).isEmpty());
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
     }
 
     public void testInlineStatsDoesNotRequireEagerStats() {
@@ -81,26 +117,26 @@ public class ExternalStatsRequirementExtractorTests extends ESTestCase {
         Aggregate embedded = ungroupedAggregate(externalRelation(PATH));
         LogicalPlan plan = new InlineStats(SRC, embedded);
 
-        assertTrue(ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan).isEmpty());
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
     }
 
     public void testLimitOnlyDoesNotRequireEagerStats() {
         LogicalPlan plan = new Limit(SRC, intLiteral(10), externalRelation(PATH));
 
-        assertTrue(ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan).isEmpty());
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
     }
 
     public void testSelectStarDoesNotRequireEagerStats() {
         // A bare relation (SELECT *) has no aggregate ancestor.
         LogicalPlan plan = externalRelation(PATH);
 
-        assertTrue(ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan).isEmpty());
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
     }
 
     public void testWhereOnlyDoesNotRequireEagerStats() {
         LogicalPlan plan = new Filter(SRC, externalRelation(PATH), new GreaterThan(SRC, unresolved("salary"), intLiteral(100)));
 
-        assertTrue(ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan).isEmpty());
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
     }
 
     public void testMixedBranchesUnionMarksPathEager() {
@@ -110,7 +146,28 @@ public class ExternalStatsRequirementExtractorTests extends ESTestCase {
         LogicalPlan limitBranch = new Limit(SRC, intLiteral(10), externalRelation(PATH));
         LogicalPlan plan = new Fork(SRC, List.of(aggBranch, limitBranch), List.of());
 
-        assertEquals(Set.of(PATH), ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan));
+        assertEquals(Set.of(spec(PATH)), ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan));
+    }
+
+    public void testForkBareStatsArmKeepsPathEagerDespiteFilteredArm() {
+        // Bare ungrouped STATS in one arm, filtered COUNT in the other: union stays eager.
+        LogicalPlan bare = ungroupedAggregate(externalRelation(PATH));
+        LogicalPlan filtered = ungroupedAggregate(
+            new Filter(SRC, externalRelation(PATH), new GreaterThan(SRC, unresolved("x"), intLiteral(5)))
+        );
+        LogicalPlan plan = new Fork(SRC, List.of(bare, filtered), List.of());
+
+        assertEquals(Set.of(spec(PATH)), ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan));
+    }
+
+    public void testForkAllFilteredArmsStayDeferred() {
+        LogicalPlan filtered = ungroupedAggregate(
+            new Filter(SRC, externalRelation(PATH), new GreaterThan(SRC, unresolved("x"), intLiteral(5)))
+        );
+        LogicalPlan limited = ungroupedAggregate(new Limit(SRC, intLiteral(10), externalRelation(PATH)));
+        LogicalPlan plan = new Fork(SRC, List.of(filtered, limited), List.of());
+
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
     }
 
     public void testDistinctPathsTrackedIndependently() {
@@ -121,7 +178,7 @@ public class ExternalStatsRequirementExtractorTests extends ESTestCase {
         LogicalPlan plan = new Fork(SRC, List.of(aggBranch, limitBranch), List.of());
 
         // Only the path under the ungrouped aggregate is marked eager.
-        assertEquals(Set.of(aggPath), ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan));
+        assertEquals(Set.of(spec(aggPath)), ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan));
     }
 
     public void testNonLiteralTablePathIsSkipped() {
@@ -130,11 +187,16 @@ public class ExternalStatsRequirementExtractorTests extends ESTestCase {
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(SRC, unresolved("?param"), Map.of());
         LogicalPlan plan = ungroupedAggregate(relation);
 
-        assertTrue(ExternalStatsRequirementExtractor.pathsRequiringEagerStats(plan).isEmpty());
+        assertTrue(ExternalStatsRequirementExtractor.specsRequiringEagerStats(plan).isEmpty());
     }
 
     private static Aggregate ungroupedAggregate(LogicalPlan child) {
         return new Aggregate(SRC, child, List.of(), List.<NamedExpression>of());
+    }
+
+    /** The spec the relations above denote: they all carry an empty config. */
+    private static ExternalSourceSpec spec(String path) {
+        return new ExternalSourceSpec(path, Map.of());
     }
 
     private static UnresolvedExternalRelation externalRelation(String path) {

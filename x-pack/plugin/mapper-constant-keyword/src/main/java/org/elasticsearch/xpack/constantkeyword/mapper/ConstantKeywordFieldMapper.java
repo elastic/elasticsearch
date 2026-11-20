@@ -40,6 +40,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfColumnBuilder;
 import org.elasticsearch.escf.EscfColumnBuilder.CollisionPolicy;
+import org.elasticsearch.escf.EscfColumnData;
 import org.elasticsearch.escf.EscfColumnKind;
 import org.elasticsearch.escf.EscfColumnTransforms;
 import org.elasticsearch.escf.LuceneLongColumn;
@@ -56,7 +57,6 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
@@ -88,15 +88,6 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";
 
-    private static ConstantKeywordFieldMapper toType(FieldMapper in) {
-        return (ConstantKeywordFieldMapper) in;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         // This is defined as updateable because it can be updated once, from [null] to any value,
@@ -106,7 +97,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new MapperParsingException("Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]");
             }
             return o.toString();
-        }, m -> toType(m).fieldType().value, XContentBuilder::field, Objects::toString);
+        }, XContentBuilder::field, Objects::toString);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -118,6 +109,22 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         public Builder setValue(String v) {
             this.value.setValue(v);
             return this;
+        }
+
+        /**
+         * Sets the value inferred from a document. Throws an exception a different value has already been set.
+         */
+        public void setFromDocument(String v) {
+            if (value.isSet() && Objects.equals(value.getValue(), v) == false) {
+                throw new IllegalArgumentException(
+                    "[constant_keyword] field ["
+                        + leafName()
+                        + "] only accepts values that are equal to the value defined in the mappings, but got ["
+                        + v
+                        + "]"
+                );
+            }
+            setValue(v);
         }
 
         @Override
@@ -363,6 +370,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
         }
 
+        @Override
+        public ConstantFieldType applyFieldVisibility(boolean visible) {
+            if (visible || value == null) {
+                return this;
+            } else {
+                return new ConstantKeywordFieldType(name(), null, meta());
+            }
+        }
     }
 
     ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
@@ -377,8 +392,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     private static final IndexableFieldType MARKER_FIELD_TYPE = SortedNumericDocValuesField.TYPE;
 
     @Override
-    public boolean supportsColumnarParse(IndexSettings indexSettings) {
-        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+        return fieldType().value() != null;
     }
 
     /**
@@ -392,17 +407,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
      * canonicalization is accepted here but rejected by the row path; mismatches always fall back.
      */
     @Override
-    public void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
+    protected void doMapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
         final BytesRef expected = new BytesRef(fieldType().value()); // non-null: gated by supportsColumnarParse
-        final EscfColumnBuilder markers;
-        if (ctx.isSourceSynthetic()) {
-            markers = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler());
-            markers.lockScalar(EscfColumnKind.LONG);
-        } else {
-            markers = null;
-        }
-        boolean success = false;
-        try {
+        try (EscfColumnBuilder markers = ctx.isSourceSynthetic() ? newMarkerColumn(ctx) : null) {
             final ObjectTupleCursor<BytesRef> cursor = EscfColumnTransforms.utf8Cursor(source, false);
             // TODO: This is a mapper which could be optimized with bulk-oriented operations.
             for (int doc = cursor.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = cursor.nextDoc()) {
@@ -423,16 +430,20 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 }
             }
             if (markers != null) {
+                EscfColumnData markersData = markers.finish(ctx.docCount());
                 ctx.addColumn(
-                    LuceneLongColumn.of(markers.finish(ctx.docCount()), fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG)
+                    LuceneLongColumn.of(markersData, fieldType().name(), MARKER_FIELD_TYPE, LongColumn.NumericKind.LONG),
+                    markersData
                 );
             }
-            success = true;
-        } finally {
-            if (success == false && markers != null) {
-                markers.discard();
-            }
         }
+    }
+
+    /** The synthetic-source marker column: one LONG per accepted value, mirroring the row path's marker field. */
+    private static EscfColumnBuilder newMarkerColumn(BatchMappingContext ctx) {
+        EscfColumnBuilder markers = new EscfColumnBuilder(CollisionPolicy.MERGE, ctx.recycler());
+        markers.lockScalar(EscfColumnKind.LONG);
+        return markers;
     }
 
     @Override
@@ -445,17 +456,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            Builder builder = new Builder(leafName()).setValue(value);
-            Mapper result = context.getDynamicMapper(builder);
             // the mapper is already part of the mapping, we're just updating it with the new value
-            assert result != null;
+            context.updateMapping(fullPath(), builder -> ((Builder) builder).setFromDocument(value));
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["
                     + fullPath()
-                    + "] only accepts values that are equal to the value defined in the mappings ["
-                    + fieldType().value()
-                    + "], but got ["
+                    + "] only accepts values that are equal to the value defined in the mappings, but got ["
                     + value
                     + "]"
             );

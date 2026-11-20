@@ -39,7 +39,7 @@ public class LegacyIrateTests extends AbstractIrateTests {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new LegacyIrate(source, args.get(0), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(1), args.get(2));
+        return new LegacyIrate(source, args.get(0), args.get(1), Literal.TRUE, AggregateFunction.NO_WINDOW, args.get(2));
     }
 
 }

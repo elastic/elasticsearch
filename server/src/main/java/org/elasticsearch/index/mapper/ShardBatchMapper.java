@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.index.IndexSettings;
@@ -23,14 +24,18 @@ import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupLookup;
 import org.elasticsearch.index.mapper.ColumnGroupResolver.ColumnGroupResolution;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.MeteringModel;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.sourcebatch.SourceSchema;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.IntPredicate;
 
 /**
  * Batch-time mapper resolution and columnar batch mapping for the bulk batch-indexing fast path.
@@ -45,10 +50,11 @@ import java.util.List;
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
  *     unsupported mapper types, etc. — causes the method to return {@code null}, at which point
  *     {@link ShardBatchIndexer} falls back to the sequential path.</li>
- *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, IndexShard, int, int, BatchMapperResolution,
- *     Engine.Operation.Origin, Recycler)} runs per chunk. It invokes each mapper once for the whole chunk — attaching one Lucene
- *     column per batch-wide value (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles
- *     {@link Engine.Index} operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
+ *     <li>{@link #mapColumnBatch(BulkItemRequest[], SourceBatch, BatchMappingShardContext, int, int, BatchMapperResolution,
+ *     Engine.Operation.Origin, Recycler, DocumentParsingProvider)} runs per chunk. It meters the chunk under the provider's
+ *     metering model, then invokes each mapper once for the whole chunk — attaching one Lucene column per batch-wide value
+ *     (id, source, engine-assigned seq-no/version, ...) via {@link BatchMappingContext}, and assembles {@link Engine.Index}
+ *     operations plus the resulting {@link EngineBatch}. After the per-leaf loop, each group mapper is dispatched via
  *     {@link FieldMapper#mapColumnGroupBatch}.</li>
  * </ol>
  */
@@ -75,7 +81,36 @@ public final class ShardBatchMapper {
      * falls outside the v1 batch-indexing support matrix and the caller should fall back to the
      * sequential path.
      */
+    public static BatchMapperResolution resolveMappers(SourceBatch batch, MappingLookup lookup, IndexSettings indexSettings) {
+        ColumnSupport columnSupport = batch instanceof EscfBatch escf
+            ? (mapper, leaf) -> mapper.supportsColumnKind(escf.column(leaf).kind())
+            : (mapper, leaf) -> true;
+        return resolveMappers(batch.schema(), lookup, indexSettings, batch::isEmptyObjectColumn, columnSupport);
+    }
+
+    /**
+     * Overload for tests that only have a schema. Column data is unavailable, so empty-object columns
+     * cannot be detected and any unmapped leaf under a dynamic parent causes the usual fallback.
+     */
     public static BatchMapperResolution resolveMappers(SourceSchema schema, MappingLookup lookup, IndexSettings indexSettings) {
+        return resolveMappers(schema, lookup, indexSettings, leaf -> false, (mapper, leaf) -> true);
+    }
+
+    /**
+     * Whether {@code mapper} takes the column of schema leaf {@code leaf}.
+     */
+    @FunctionalInterface
+    private interface ColumnSupport {
+        boolean test(FieldMapper mapper, int leaf);
+    }
+
+    private static BatchMapperResolution resolveMappers(
+        SourceSchema schema,
+        MappingLookup lookup,
+        IndexSettings indexSettings,
+        IntPredicate isEmptyObjectColumn,
+        ColumnSupport columnSupport
+    ) {
         // Runtime fields or index-time scripts anywhere in the mapping would require the normal
         // parsing flow; the batch path does not support them.
         if (lookup.getMapping().getRoot().runtimeFields().isEmpty() == false) {
@@ -100,7 +135,18 @@ public final class ShardBatchMapper {
             return null;
         }
 
-        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
+        final MetadataFieldMapper[] metadataMappers = lookup.getMapping().getSortedMetadataMappers();
+
+        // An empty metadata mapper array means the index has not yet received its first mapping — the
+        // initial cluster-state mapping was null, so MapperService.mappingLookup() returned EMPTY. We
+        // cannot determine columnar eligibility without metadata mappers (e.g. SourceFieldMapper governs
+        // whether stored _source is compatible), so fall back to the sequential path.
+        if (metadataMappers.length == 0) {
+            logger.debug("batch indexing disabled: mapping not yet established (no metadata mappers)");
+            return null;
+        }
+
+        for (MetadataFieldMapper mapper : metadataMappers) {
             if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
@@ -110,15 +156,8 @@ public final class ShardBatchMapper {
             }
         }
 
-        for (MetadataFieldMapper mapper : lookup.getMapping().getSortedMetadataMappers()) {
-            if (mapper.supportsColumnarMetadataParse(indexSettings) == false) {
-                logger.debug(
-                    "columnar batch mapping disabled: metadata mapper of type [{}] does not support columnar parsing",
-                    mapper.typeName()
-                );
-                return null;
-            }
-        }
+        // Most mappings have no keep: all object, and then no leaf needs the walk up its parents.
+        final boolean anyKeepAllObject = hasKeepAllObject(lookup, indexSettings);
 
         final int leafCount = schema.leafCount();
         final FieldMapper[] columnMappers = new FieldMapper[leafCount];
@@ -126,11 +165,18 @@ public final class ShardBatchMapper {
         // Full paths of leaves bound to a per-leaf mapper, used to detect dotted/nested aliasing. Allocated lazily
         // because most batches resolve every leaf to a group or to nothing at all.
         HashSet<String> mappedPaths = null;
+        // Owner path → the one schema object a group that needs a single source object takes its leaves from.
+        HashMap<String, Integer> groupObjects = null;
 
         for (int leaf = 0; leaf < leafCount; leaf++) {
             final String fullPath = schema.getFullPath(leaf);
             if (hasBlankPathSegment(fullPath)) {
                 logger.debug("batch indexing disabled: malformed field name [{}]", fullPath);
+                return null;
+            }
+            // Checked for every leaf, whatever it resolves to, before any of the branches below that can accept it.
+            if (anyKeepAllObject && isUnderKeepAllObject(fullPath, lookup, indexSettings)) {
+                logger.debug("batch indexing disabled: leaf [{}] is under an object with synthetic_source_keep: all", fullPath);
                 return null;
             }
             final Mapper resolved = lookup.getMapper(fullPath);
@@ -142,9 +188,9 @@ public final class ShardBatchMapper {
                 // every flattened batch is incorrectly classified as containing a runtime-field shadow.
                 final ColumnGroupLookup group = ColumnGroupResolver.findColumnGroup(fullPath, lookup);
                 if (group instanceof ColumnGroupLookup.Conflict(FieldMapper mapper, String ownerPath)) {
-                    // The document nests values beneath a leaf field. The sequential path reports this as a document
-                    // parsing error, so fall back and let it do so rather than treating the leaf as unmapped, which
-                    // under a dynamic=false prefix would silently drop the value.
+                    // The document nests values beneath a leaf field. The sequential path reports this as a document parsing error or,
+                    // with subobjects disabled, flattens the object into dotted fields. Fall back and let it do either rather than
+                    // treating the leaf as unmapped, which could silently drop the value.
                     logger.debug(
                         "batch indexing disabled: leaf [{}] nests under the [{}] field mapper at [{}]",
                         fullPath,
@@ -162,6 +208,30 @@ public final class ShardBatchMapper {
                         );
                         return null;
                     }
+                    if (owned.mapper().resolvesColumnGroup() == FieldMapper.ColumnGroup.SINGLE_OBJECT) {
+                        if (ColumnGroupResolver.isDirectlyInOwnerObject(schema, leaf, fullPath, owned.ownerPath()) == false) {
+                            logger.debug(
+                                "batch indexing disabled: leaf [{}] is not directly in an object at the [{}] group mapper's path [{}]",
+                                fullPath,
+                                owned.mapper().typeName(),
+                                owned.ownerPath()
+                            );
+                            return null;
+                        }
+                        if (groupObjects == null) {
+                            groupObjects = new HashMap<>();
+                        }
+                        final int parent = schema.getLeafParent(leaf);
+                        final Integer groupObject = groupObjects.putIfAbsent(owned.ownerPath(), parent);
+                        if (groupObject != null && groupObject != parent) {
+                            logger.debug(
+                                "batch indexing disabled: the [{}] group mapper at [{}] is spelled as more than one object in this batch",
+                                owned.mapper().typeName(),
+                                owned.ownerPath()
+                            );
+                            return null;
+                        }
+                    }
                     if (groupBuilder == null) {
                         groupBuilder = new ColumnGroupResolver.Builder();
                     }
@@ -178,14 +248,32 @@ public final class ShardBatchMapper {
                 }
                 final ObjectMapper.Dynamic parentDynamic = findNearestParentDynamic(fullPath, lookup);
                 if (parentDynamic == ObjectMapper.Dynamic.FALSE) {
+                    // In strict-columnar modes an enabled: false prefix resolves to dynamic: false too, and the sequential path can keep
+                    // values here that the batch path cannot see. An array of objects is packed into one column named after the array, so
+                    // {"obj":[{"field":1}]} arrives as the unmapped leaf [obj] and dropping it would lose a mapped obj.field. With
+                    // subobjects disabled an object-matching dynamic template can also still map the value.
+                    if (indexSettings.getMode().isStrictColumnar()) {
+                        logger.debug("batch indexing disabled: unmapped leaf [{}] under dynamic=false", fullPath);
+                        return null;
+                    }
                     // The sequential path rejects an unmapped field that matches routing_path rather than dropping it,
                     // so fall back and let it raise the error with its own token location.
                     if (matchesRoutingPath(fullPath, indexSettings)) {
                         logger.debug("batch indexing disabled: unmapped leaf [{}] matches routing_path", fullPath);
                         return null;
                     }
-                    // TODO: Look into ignored source
-                    // leaf silently ignored
+                    // The sequential path copies the value of an unmapped leaf under dynamic: false into _ignored_source, when it
+                    // records ignored source for this index at all, so that synthetic source still returns it. The batch path writes no
+                    // such entry, so
+                    // dropping the leaf here would lose the value; leave those batches to the sequential path. Where it does not
+                    // capture (stored source), the value stays in _source and dropping the leaf is correct.
+                    if (sequentialPathCapturesDynamicFalseLeaves(lookup, indexSettings)) {
+                        logger.debug(
+                            "batch indexing disabled: unmapped leaf [{}] under dynamic=false is kept in _ignored_source",
+                            fullPath
+                        );
+                        return null;
+                    }
                     columnMappers[leaf] = null;
                     continue;
                 }
@@ -197,9 +285,16 @@ public final class ShardBatchMapper {
                     if (groupBuilder == null) {
                         groupBuilder = new ColumnGroupResolver.Builder();
                     }
-                    // The sink is keyed by the leaf's full dotted path, matching DynamicFieldsBuilder.FlattenedSink,
+                    // The sink is keyed by the leaf's full dotted path, matching UnmappedSinkFieldMapper.absorb,
                     // which calls indexValueAtPath with context.path().pathAsText(name).
                     groupBuilder.add(new ColumnGroupLookup.Owned(sink, FlattenedFieldMapper.UNMAPPED_SINK_NAME, fullPath), leaf);
+                    columnMappers[leaf] = null;
+                    continue;
+                }
+                // An empty-object column ({} in every present row) produces nothing in the sequential
+                // path regardless of dynamic setting — DocumentParser finds no children and emits no
+                // mapper, no value, and nothing to ignored source. Skip it rather than aborting.
+                if (indexSettings.getMode().isStrictColumnar() && isEmptyObjectColumn.test(leaf)) {
                     columnMappers[leaf] = null;
                     continue;
                 }
@@ -212,12 +307,20 @@ public final class ShardBatchMapper {
                 return null;
             }
             final FieldMapper fieldMapper = (FieldMapper) resolved;
+            if (isMultiFieldSubField(fullPath, lookup)) {
+                logger.debug("batch indexing disabled: field [{}] is a mapped as a multi-field", fullPath);
+                return null;
+            }
             if (fieldMapper.supportsColumnarParse(indexSettings) == false) {
                 logger.debug(
                     "columnar batch mapping disabled: mapper at [{}] of type [{}] does not support columnar parsing",
                     fullPath,
                     fieldMapper.typeName()
                 );
+                return null;
+            }
+            if (columnSupport.test(fieldMapper, leaf) == false) {
+                logger.debug("columnar batch mapping disabled: mapper at [{}] does not take this batch's column kind", fullPath);
                 return null;
             }
             // Two schema leaves can share a full path when a batch mixes the dotted and nested spellings of the same
@@ -263,11 +366,20 @@ public final class ShardBatchMapper {
         // RootObjectMapper. resolveDynamic() consults those when prefixProperties is non-empty,
         // and returns the fallback unchanged when it is empty (non-COLUMNAR path).
         //
-        // The root fallback must come from getRootDynamic rather than the raw root setting: an unset root
-        // dynamic resolves to FLATTENED, not TRUE, whenever the implicit _unmapped sink is present. This is
-        // the same value the sequential path seeds its root context with.
+        // The root fallback comes from getRootDynamic, the same value the sequential path seeds its root context with.
         final ObjectMapper.Dynamic rootFallback = ObjectMapper.Dynamic.getRootDynamic(lookup);
         return lookup.getMapping().getRoot().resolveDynamic(leafPath, rootFallback);
+    }
+
+    /**
+     * Mirrors {@link DocumentParserContext#canAddIgnoredField()}, minus the per-document {@code recordedSource} part, which can
+     * only make the sequential path capture less. When this is {@code true} the sequential path writes
+     * {@code _ignored_source} for values it would otherwise drop; refusing slightly more than needed is always safe.
+     */
+    private static boolean sequentialPathCapturesDynamicFalseLeaves(MappingLookup lookup, IndexSettings indexSettings) {
+        return lookup.isSourceSynthetic()
+            && indexSettings.getSkipIgnoredSourceWrite() == false
+            && indexSettings.getMode().isStrictColumnar() == false;
     }
 
     /**
@@ -283,16 +395,77 @@ public final class ShardBatchMapper {
             logger.debug("batch indexing disabled: dynamic templates may pre-empt the [{}] sink", FlattenedFieldMapper.UNMAPPED_SINK_NAME);
             return null;
         }
-        // getRootDynamic only reports FLATTENED when the sink exists, so this cast is safe.
-        final FlattenedFieldMapper sink = (FlattenedFieldMapper) lookup.getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-        if (sink.supportsColumnarParse(indexSettings) == false) {
+        // Asked here rather than with the other metadata mappers, so that a sink that cannot batch only turns off batches that absorb.
+        UnmappedSinkFieldMapper sink = lookup.getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
+        if (sink.supportsColumnarAbsorb(indexSettings) == false) {
             logger.debug(
-                "columnar batch mapping disabled: [{}] sink does not support columnar parsing",
+                "batch indexing disabled: the [{}] sink does not support columnar parsing",
                 FlattenedFieldMapper.UNMAPPED_SINK_NAME
             );
             return null;
         }
         return sink;
+    }
+
+    /**
+     * Whether any object in the mapping has {@code synthetic_source_keep: all}, which {@link #isUnderKeepAllObject} then has to look
+     * for above each leaf. Strict-columnar modes reject the setting, and there the sequential path never writes
+     * {@code _ignored_source} either, so no object counts.
+     */
+    private static boolean hasKeepAllObject(MappingLookup lookup, IndexSettings indexSettings) {
+        if (indexSettings.getMode().isStrictColumnar()) {
+            return false;
+        }
+        for (ObjectMapper object : lookup.objectMappers().values()) {
+            if (keepsWholeObject(object, indexSettings)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether an enclosing object has {@code synthetic_source_keep: all}. The sequential path then copies the whole object into
+     * {@code _ignored_source}, whatever its leaves' own mappers do, and the batch path writes no such entry. Call only when
+     * {@link #hasKeepAllObject} is {@code true}.
+     */
+    private static boolean isUnderKeepAllObject(String leafPath, MappingLookup lookup, IndexSettings indexSettings) {
+        String current = leafPath;
+        int dot;
+        while ((dot = current.lastIndexOf('.')) > 0) {
+            current = current.substring(0, dot);
+            final ObjectMapper parent = lookup.objectMappers().get(current);
+            // The root mapping and the index setting both reject synthetic_source_keep: all, so only named objects can carry it.
+            if (parent != null && keepsWholeObject(parent, indexSettings)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean keepsWholeObject(ObjectMapper object, IndexSettings indexSettings) {
+        return FallbackPostMapper.capturesWholeObject(FallbackPostMapper.effectiveKeepMode(object.sourceKeepMode(), indexSettings));
+    }
+
+    /**
+     * Detects whether a field is mapped as a multi-field. This to avoid trying to index a multi-field directly, which isn't allowed.
+     * If a field is a multi-field, then {@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)} should
+     * fall back to the sequential execution path, which will ignore the field in question. This is current behavior.
+     */
+    private static boolean isMultiFieldSubField(String fullPath, MappingLookup lookup) {
+        int dot = fullPath.lastIndexOf('.');
+        if (dot <= 0) {
+            return false;
+        }
+        // Only check immediate dotted parent, because multi-fields are always leaf fields:
+        if (lookup.getMapper(fullPath.substring(0, dot)) instanceof FieldMapper ancestor) {
+            for (FieldMapper subMapper : ancestor.multiFields()) {
+                if (subMapper.fullPath().equals(fullPath)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -342,24 +515,35 @@ public final class ShardBatchMapper {
     public static EngineBatch mapColumnBatch(
         BulkItemRequest[] items,
         SourceBatch batch,
-        IndexShard shard,
+        BatchMappingShardContext shard,
         int chunkStart,
         int chunkEnd,
         BatchMapperResolution resolution,
         Engine.Operation.Origin origin,
-        Recycler<BytesRef> recycler
+        Recycler<BytesRef> recycler,
+        DocumentParsingProvider documentParsingProvider
     ) {
         final MappingLookup mappingLookup = shard.mapperService().mappingLookup();
         final MetadataFieldMapper[] metadataMappers = mappingLookup.getMapping().getSortedMetadataMappers();
 
+        final SourceBatch chunkSource = batch.slice(chunkStart, chunkEnd);
+        final long[] normalizedSizes;
+        try {
+            normalizedSizes = meterRows(documentParsingProvider, chunkSource);
+        } catch (Exception e) {
+            logger.warn("metering columnar batch failed on [{}], falling back", origin, e);
+            return null;
+        }
         final IndexOperationBatch indexBatch = IndexOperationBatch.initFromBulk(
             items,
             chunkStart,
             chunkEnd,
-            batch.slice(chunkStart, chunkEnd),
+            chunkSource,
+            shard.indexSettings().getMode(),
             origin,
             shard.getOperationPrimaryTerm(),
-            shard.getRelativeTimeInNanos()
+            shard.getRelativeTimeInNanos(),
+            normalizedSizes
         );
         final BatchMappingContext context = new BatchMappingContext(indexBatch, mappingLookup, shard.indexSettings(), recycler);
 
@@ -386,17 +570,69 @@ public final class ShardBatchMapper {
                     }
                     group.mapper().mapColumnGroupBatch(context, groupColumns, group.relativeKeys());
                 }
+                // Enforce nullability=false for fields absent from the ESCF schema. Fields that
+                // are present in the schema but carry null/absent values are checked by
+                // FieldMapper.mapColumnBatch(); this block covers the remaining case where the
+                // field produced no column at all because every document in the batch omitted it.
+                if (mappingLookup.hasRequiredFields()) {
+                    final SourceSchema escfSchema = escfChunk.schema();
+                    final HashSet<String> schemaLeafPaths = new HashSet<>(escfSchema.leafCount() * 2);
+                    for (int c = 0; c < escfSchema.leafCount(); c++) {
+                        schemaLeafPaths.add(escfSchema.getFullPath(c));
+                    }
+                    final int batchDocCount = chunkEnd - chunkStart;
+                    // TODO: requiredFields("") returns only top-level required fields. This is
+                    // currently safe because resolveMappers() returns null for any mapping that
+                    // contains nested fields, so nested batches never reach this code. When batch
+                    // support is extended to nested fields, this will need to handle nested required
+                    // fields as well.
+                    for (String fieldName : mappingLookup.requiredFields("")) {
+                        // A multi-field has no column of its own: it is mapped from its parent's, so it is present whenever the parent is.
+                        final String sourcePath = isMultiFieldSubField(fieldName, mappingLookup)
+                            ? fieldName.substring(0, fieldName.lastIndexOf('.'))
+                            : fieldName;
+                        if (schemaLeafPaths.contains(sourcePath) == false) {
+                            final Mapper m = mappingLookup.getMapper(fieldName);
+                            assert m instanceof FieldMapper : "required field [" + fieldName + "] must be a FieldMapper";
+                            final FieldMapper fieldMapper = (FieldMapper) m;
+                            if (fieldMapper.onFailureBehavior() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
+                                for (int doc = 0; doc < batchDocCount; doc++) {
+                                    context.addIgnoredFieldColumnar(doc, fieldName);
+                                }
+                            } else {
+                                throw new UnsupportedOperationException(
+                                    "mapColumnBatch: nullability=false field [" + fieldName + "] is absent from the ESCF schema"
+                                );
+                            }
+                        }
+                    }
+                }
             } else {
                 throw new IllegalStateException("unexpected batch mapping - only use escf currently");
             }
             for (MetadataFieldMapper metadataMapper : metadataMappers) {
                 metadataMapper.postColumnarParse(context);
             }
+            // the engine's DocumentSizeReporter sees the metered sizes while columns can still be attached; a no-op without a reporter
+            shard.onBatchParsingCompleted(context);
         } catch (Exception e) {
             logger.warn("columnar batch mapping failed on [{}], falling back", origin, e);
+            context.close();
             return null;
         }
 
-        return new EngineBatch(indexBatch, context.columns());
+        return new EngineBatch(indexBatch, context.columns(), context);
+    }
+
+    /**
+     * Meters every row of {@code chunkSource} the way {@link DocumentParser} meters a row-parsed document, in one sweep over the
+     * batch's columns under the provider's {@link MeteringModel}. The model charges values only and excludes whole root
+     * fields. Returns {@code null} when documents are not metered.
+     */
+    @Nullable
+    private static long[] meterRows(DocumentParsingProvider documentParsingProvider, SourceBatch chunkSource) {
+        assert chunkSource instanceof EscfBatch : "Only ESCF batches are supported for metering on batch indexing";
+        final MeteringModel model = documentParsingProvider.newMeteringModel();
+        return model == null ? null : chunkSource.meteredRowSizes(model);
     }
 }

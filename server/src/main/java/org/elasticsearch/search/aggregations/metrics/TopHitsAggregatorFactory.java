@@ -9,6 +9,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -23,6 +26,7 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +42,21 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     private final boolean seqNoAndPrimaryTerm;
     private final boolean trackScores;
     private final Optional<SortAndFormats> sort;
+    /**
+     * The sort definitions from the request that {@link #sort} was built from, or {@code null} if the request has no sort. Keeping them
+     * is needed because {@link #sort} holds Lucene sort fields, which are what the Lucene collectors use, while a
+     * {@link BucketedTopHits} has to build its own {@code BucketedSort} and that can only be done from the sort definitions.
+     */
+    @Nullable
+    private final List<SortBuilder<?>> sortBuilders;
+    /**
+     * The nested level this factory was built in, or {@code null} for the root. A {@code nested} aggregation only enters its level
+     * while it builds its sub-factories, which is when the Lucene sort is resolved, but aggregators are created after it has left.
+     * A {@code BucketedSort} resolves its sort when the aggregator is created, so it needs the level entered again to accept a
+     * sort on a field of nested documents.
+     */
+    @Nullable
+    private final NestedObjectMapper nestedLevel;
     private final HighlightBuilder highlightBuilder;
     private final StoredFieldsContext storedFieldsContext;
     private final List<FieldAndFormat> docValueFields;
@@ -54,6 +73,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         boolean seqNoAndPrimaryTerm,
         boolean trackScores,
         Optional<SortAndFormats> sort,
+        @Nullable List<SortBuilder<?>> sortBuilders,
         HighlightBuilder highlightBuilder,
         StoredFieldsContext storedFieldsContext,
         List<FieldAndFormat> docValueFields,
@@ -76,6 +96,8 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         this.trackScores = trackScores;
         this.sort = sort;
+        this.sortBuilders = sortBuilders;
+        this.nestedLevel = context.nestedScope().getObjectMapper();
         this.highlightBuilder = highlightBuilder;
         this.storedFieldsContext = storedFieldsContext;
         this.docValueFields = docValueFields;
@@ -120,7 +142,27 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         if (highlightBuilder != null) {
             subSearchContext.highlight(highlightBuilder.build(subSearchContext.getSearchExecutionContext()));
         }
-        return new TopHitsAggregator(subSearchContext, name, context, parent, metadata);
+        BucketedTopHits bucketedTopHits;
+        if (nestedLevel == null) {
+            bucketedTopHits = BucketedTopHits.tryCreate(context, subSearchContext, sortBuilders);
+        } else {
+            context.nestedScope().nextLevel(nestedLevel);
+            try {
+                bucketedTopHits = BucketedTopHits.tryCreate(context, subSearchContext, sortBuilders);
+            } finally {
+                context.nestedScope().previousLevel();
+            }
+        }
+        boolean success = false;
+        try {
+            TopHitsAggregator aggregator = new TopHitsAggregator(subSearchContext, name, context, parent, metadata, bucketedTopHits);
+            success = true;
+            return aggregator;
+        } finally {
+            if (success == false) {
+                Releasables.close(bucketedTopHits);
+            }
+        }
     }
 
 }

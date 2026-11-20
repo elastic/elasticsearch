@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.fireworksai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -15,11 +15,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfigurationTests;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.http.MockResponse;
@@ -46,7 +48,6 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiServiceParameterizedTestConfiguration.createInternalChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiServiceParameterizedTestConfiguration.createInternalEmbeddingModel;
@@ -96,7 +97,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
             assertThat(result.asMap(), Matchers.is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo(Strings.format("Bearer %s", API_KEY)));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
@@ -151,9 +152,9 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
 
             var model = createInternalChatCompletionModel(getUrl(webServer), API_KEY, MODEL_ID);
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            var request = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
+            var request = UnifiedCompletionRequestBody.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
 
-            service.unifiedCompletionInfer(model, request, null, listener);
+            service.unifiedCompletionInfer(model, UnifiedCompletionRequest.streaming(request), null, listener);
 
             var inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -184,7 +185,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
 
             // Verify the request was sent
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo("application/json; charset=UTF-8"));
             assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo(Strings.format("Bearer %s", API_KEY)));
 
             var requestBody = webServer.requests().getFirst().getBody();
@@ -222,6 +223,11 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
                          "completion",
                          "chat_completion"
                      ],
+                     "features": {
+                         "non_streaming_chat": {
+                             "supported": true
+                         }
+                     },
                      "configurations": {
                          "api_key": {
                              "description": "API Key for the provider you're connecting to.",
@@ -289,7 +295,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
                      }
                  }
                 """, dimensionsDescription));
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            InferenceServiceConfiguration configuration = InferenceServiceConfigurationTests.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
             );
@@ -330,8 +336,4 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
         );
     }
 
-    @Override
-    public SimilarityMeasure getDefaultSimilarity() {
-        return SimilarityMeasure.COSINE;
-    }
 }

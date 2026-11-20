@@ -67,14 +67,13 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
         int bulkSize,
         ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) throws IOException {
-        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(queryBits, indexBits)) {
+        if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(indexBits, queryBits)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
                 return MemorySegmentES940OSQVectorsScorer.usingPanama(
                     unwrappedInput,
-                    queryBits,
-                    indexBits,
+                    new BBQEncoding(indexBits, queryBits),
                     dimension,
                     dataLength,
                     bulkSize,
@@ -82,7 +81,7 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
                 );
             }
         }
-        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
+        return new ES940OSQVectorsScorer(input, new BBQEncoding(indexBits, queryBits), dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override
@@ -109,16 +108,18 @@ final class PanamaVectorScorerFactory implements VectorScorerFactory {
     }
 
     @Override
-    public AshScorer<byte[]> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+    public AshScorer<ScoringQuery> newESNextAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
-                return new ESNextAshBBQVectorsScorer(PanamaBBQDotProduct.create(unwrappedInput, nDims, bitsPerDim, queryBitsPerDim));
+                return new ESNextAshBBQVectorsScorer(
+                    PanamaBBQDotProduct.create(unwrappedInput, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim))
+                );
             }
         }
-        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, bitsPerDim, queryBitsPerDim));
+        return new ESNextAshBBQVectorsScorer(BBQDotProduct.create(input, nDims, new BBQEncoding(bitsPerDim, queryBitsPerDim)));
     }
 
     @Override

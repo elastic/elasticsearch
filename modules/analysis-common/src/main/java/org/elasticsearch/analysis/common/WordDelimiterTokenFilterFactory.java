@@ -44,6 +44,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     private final byte[] charTypeTable;
     private final int flags;
     private final CharArraySet protoWords;
+    private final Object sharingKey;
 
     @SuppressWarnings("HiddenField")
     public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
@@ -84,6 +85,12 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
+        // Key on the type_table rules rather than the byte[] they build, which has identity equality.
+        this.sharingKey = new Key(
+            charTypeTableValues == null ? null : List.copyOf(charTypeTableValues),
+            flags,
+            protoWords == null ? null : new Analysis.StableCharArraySet(protoWords, settings.getAsBoolean("protected_words_case", false))
+        );
     }
 
     @Override
@@ -177,4 +184,11 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     public boolean breaksFastVectorHighlighter() {
         return true;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(List<String> typeTable, int flags, Analysis.StableCharArraySet protectedWords) {}
 }

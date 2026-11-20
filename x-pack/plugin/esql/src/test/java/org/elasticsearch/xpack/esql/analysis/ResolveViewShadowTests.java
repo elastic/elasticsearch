@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LoadMapping;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -24,14 +25,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
@@ -43,7 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  *       {@code EsRelation}; a valid-but-empty resolution counts as no match;</li>
  *   <li>shadow with no lenient entry (or an invalid resolution) → left unresolved, then stripped
  *       by {@code ViewCompactionPostIndexResolution};</li>
- *   <li>strict + matched shadow at the same level → both kept as siblings (Strategy A — no
+ *   <li>strict + matched shadow at the same level → both kept as siblings (no
  *       merging into a single combined {@code EsRelation});</li>
  *   <li>two shadows with the same view name but different exclusions resolve independently —
  *       the lookup key is the full {@link ViewShadowRelation#linkedIndexPattern()}, so the same view
@@ -58,7 +57,11 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  * "No limit defined" warning that {@code AddImplicitLimit} adds since the test inputs are bare
  * relations.
  */
-public class ResolveViewShadowTests extends ESTestCase {
+public class ResolveViewShadowTests extends AnalyzerTestCase {
+
+    public ResolveViewShadowTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     private static final Source EMPTY = Source.EMPTY;
     private static final String NO_LIMIT_WARNING = "No limit defined, adding default limit of [1000]";
@@ -90,7 +93,7 @@ public class ResolveViewShadowTests extends ESTestCase {
 
     /**
      * Shadow with no lenient match → falls through {@code ResolveViewShadow} unchanged. With a
-     * strict sibling in a {@link ViewUnionAll}, {@code ViewCompactionPostIndexResolution}'s strip
+     * strict sibling in a {@link BranchPlan}, {@code ViewCompactionPostIndexResolution}'s strip
      * removes the unresolved shadow; the surviving sibling is the strict {@link EsRelation}.
      */
     public void testShadowStrippedWhenNoLenientMatch() {
@@ -106,7 +109,7 @@ public class ResolveViewShadowTests extends ESTestCase {
         );
 
         var limit = as(plan, Limit.class);
-        // The ViewUnionAll has collapsed (one shadow stripped, leaving a single strict child).
+        // The BranchPlan has collapsed (one shadow stripped, leaving a single strict child).
         var esRelation = as(unwrapProject(limit.child()), EsRelation.class);
         assertEquals("strict_idx", esRelation.indexPattern());
         assertWarnings(NO_LIMIT_WARNING);
@@ -175,8 +178,8 @@ public class ResolveViewShadowTests extends ESTestCase {
     }
 
     /**
-     * Strategy A: when both strict and shadow resolve, they live as separate {@link EsRelation}
-     * siblings inside the {@link ViewUnionAll}. No merging into a single combined
+     * When both strict and shadow resolve, they live as separate {@link EsRelation}
+     * siblings inside the {@link BranchPlan}. No merging into a single combined
      * {@code EsRelation}.
      */
     public void testShadowResolvesAlongsideStrictResolution() {
@@ -197,7 +200,7 @@ public class ResolveViewShadowTests extends ESTestCase {
         );
 
         var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), ViewUnionAll.class);
+        var unionAll = as(limit.child(), BranchPlan.class);
         assertEquals("expected two children, got: " + unionAll, 2, unionAll.children().size());
         // Each child resolves to an EsRelation (possibly under analyzer-inserted Project wrappers
         // for output alignment across the UnionAll branches).
@@ -277,22 +280,22 @@ public class ResolveViewShadowTests extends ESTestCase {
     }
 
     /**
-     * Regression: a {@link ViewUnionAll} with both a strict UR whose resolution is
+     * Regression: a {@link BranchPlan} with both a strict UR whose resolution is
      * {@code EMPTY_SUBQUERY} (e.g. CCS subquery that didn't match anything) <em>and</em> a
-     * matched shadow used to trip the assertion in {@link ViewUnionAll#asSubqueryMap}. The
+     * matched shadow used to trip the assertion in {@link BranchPlan#asSubqueryMap}. The
      * {@code PruneEmptyUnionAllBranch} analyzer rule called
      * {@code unionAll.replaceChildren(shorterList)} which mismatched the named-subqueries map.
      * The fix routes the prune through {@link UnionAll#pruneEmptyBranches} — overridden in
-     * {@link ViewUnionAll} to filter the named map directly, preserving the surviving names.
+     * {@link BranchPlan} to filter the named map directly, preserving the surviving names.
      * <p>
-     * Setup: a ViewUnionAll with strict UR "missing_idx" (resolution {@code EMPTY_SUBQUERY})
+     * Setup: a BranchPlan with strict UR "missing_idx" (resolution {@code EMPTY_SUBQUERY})
      * and a shadow for view "v1" (lenient resolution found a remote index named "v1"). After
      * analysis the EMPTY_SUBQUERY branch is pruned and the shadow resolves to an
-     * {@code EsRelation}; the surviving wrapper is a single-child {@link ViewUnionAll} carrying
+     * {@code EsRelation}; the surviving wrapper is a single-child {@link BranchPlan} carrying
      * just the resolved {@code v1} branch under its preserved name. (The single-child wrapper
      * is preserved here — only {@code ViewCompaction.stripViewShadowRelations} collapses.)
      */
-    public void testPruneEmptySubqueryBranchPreservesShadowResolutionInViewUnionAll() {
+    public void testPruneEmptySubqueryBranchPreservesShadowResolutionInBranchPlan() {
         EsIndex remoteV1 = EsIndexGenerator.esIndex(
             "v1",
             LoadMapping.loadMapping("mapping-one-field.json"),
@@ -309,7 +312,7 @@ public class ResolveViewShadowTests extends ESTestCase {
         );
 
         var limit = as(plan, Limit.class);
-        var unionAll = as(limit.child(), ViewUnionAll.class);
+        var unionAll = as(limit.child(), BranchPlan.class);
         assertEquals("expected a single surviving child after pruning", 1, unionAll.children().size());
         var esRelation = as(unwrapProject(unionAll.children().getFirst()), EsRelation.class);
         assertEquals("v1", esRelation.indexPattern());
@@ -320,11 +323,11 @@ public class ResolveViewShadowTests extends ESTestCase {
         return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, pattern), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
-    private static ViewUnionAll viewUnionAllOf(String strictName, LogicalPlan strict, ViewShadowRelation shadow) {
+    private static BranchPlan viewUnionAllOf(String strictName, LogicalPlan strict, ViewShadowRelation shadow) {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put(strictName, strict);
         children.put(shadow.viewName() + "#shadow", shadow);
-        return new ViewUnionAll(EMPTY, children, List.of());
+        return new BranchPlan(EMPTY, children, Map.of(), List.of());
     }
 
     /** Walks past one analyzer-inserted {@link Project} wrapper to expose the underlying relation. */

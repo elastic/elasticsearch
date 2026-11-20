@@ -23,7 +23,17 @@ public class XPackFeatures implements FeatureSpecification {
 
     public static final NodeFeature VECTORDB_DOCUMENT_USAGE = new NodeFeature("vectordb_document.usage");
 
+    public static final NodeFeature LOGSDB_COLUMNAR_USAGE = new NodeFeature("logsdb_columnar.usage");
+
     public static final NodeFeature COLUMNAR_ENABLED_SETTING = new NodeFeature("columnar.enabled_setting");
+
+    public static final NodeFeature COLUMNAR_USAGE = new NodeFeature("columnar.usage");
+
+    public static final NodeFeature VECTORDB_COLUMNAR_USAGE = new NodeFeature("vectordb_columnar.usage");
+
+    public static final NodeFeature ILM_SEARCHABLE_SNAPSHOT_UNBOUNDED_TOTAL_SHARDS_PER_NODE = new NodeFeature(
+        "ilm.searchable_snapshot.unbounded_total_shards_per_node"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -32,6 +42,13 @@ public class XPackFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(VECTORDB_DOCUMENT_USAGE, COLUMNAR_ENABLED_SETTING);
+        return Set.of(
+            VECTORDB_DOCUMENT_USAGE,
+            COLUMNAR_ENABLED_SETTING,
+            LOGSDB_COLUMNAR_USAGE,
+            COLUMNAR_USAGE,
+            VECTORDB_COLUMNAR_USAGE,
+            ILM_SEARCHABLE_SNAPSHOT_UNBOUNDED_TOTAL_SHARDS_PER_NODE
+        );
     }
 }

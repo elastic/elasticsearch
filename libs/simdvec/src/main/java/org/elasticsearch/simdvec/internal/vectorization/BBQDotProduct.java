@@ -10,8 +10,12 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
+import org.elasticsearch.simdvec.BBQEncoding;
+import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ESVectorUtil;
-import org.elasticsearch.simdvec.internal.BufferScratch;
+import org.elasticsearch.simdvec.ScoringQuery;
+import org.elasticsearch.simdvec.internal.HeapBufferScratch;
 
 import java.io.IOException;
 
@@ -32,14 +36,9 @@ import java.io.IOException;
  */
 public class BBQDotProduct {
 
-    /** Widest quantization this kernel supports, matching the widest the formats above it can be configured with. */
-    public static final int MAX_BITS = Byte.SIZE;
-
     protected final IndexInput in;
-    /** Bits per dimension of the data vector */
-    protected final int docBits;
-    /** Bits per dimension of the query vector */
-    protected final int queryBits;
+    /** BBQ encoding sizes */
+    protected final BBQEncoding encoding;
     /** Byte length of a single plane, {@code ceil(dimensions / 8)} */
     protected final int planeBytes;
     /** Byte length of one data vector, {@code docBits * planeBytes} */
@@ -47,22 +46,24 @@ public class BBQDotProduct {
     /** Byte length of the query vector, {@code queryBits * planeBytes} */
     protected final int queryBytes;
 
-    protected final BufferScratch scratch = new BufferScratch();
+    protected final SegmentBufferScratch scratch = new SegmentBufferScratch();
+
+    /** Heap scratch for the scalar implementations below, which read the data vector in Java. */
+    private final HeapBufferScratch heapScratch = new HeapBufferScratch();
 
     /**
      * Factory method for a scalar dot-product implementation.
      *
-     * @param in         input positioned at the first data vector to score
-     * @param nDims      number of dimensions
-     * @param docBits    bits per dimension of the data vector, in {@code [1, MAX_BITS]}
-     * @param queryBits  bits per dimension of the query vector, in {@code [1, MAX_BITS]}
+     * @param in          input positioned at the first data vector to score
+     * @param nDims       number of dimensions
+     * @param bbqEncoding BBQ encoding sizes
      */
-    public static BBQDotProduct create(IndexInput in, int nDims, int docBits, int queryBits) {
+    public static BBQDotProduct create(IndexInput in, int nDims, BBQEncoding bbqEncoding) {
         int planeBytes = planeBytes(nDims);
-        return switch (queryBits) {
-            case 1 -> new DxQ1Impl(in, docBits, planeBytes);
-            case 4 -> new DxQ4Impl(in, docBits, planeBytes);
-            default -> new BBQDotProduct(in, docBits, queryBits, planeBytes);
+        return switch (bbqEncoding) {
+            case BBQEncoding(byte d, byte q) when q == 1 && d == 1 -> new D1Q1Impl(in, planeBytes);
+            case BBQEncoding(byte d, byte q) when q == 4 -> new DxQ4Impl(in, d, planeBytes);
+            default -> new BBQDotProduct(in, bbqEncoding, planeBytes);
         };
     }
 
@@ -76,26 +77,15 @@ public class BBQDotProduct {
         return dataLength / docBits;
     }
 
-    protected BBQDotProduct(IndexInput in, int docBits, int queryBits, int planeBytes) {
-        checkConfiguration(docBits, queryBits, planeBytes);
-        this.in = in;
-        this.docBits = docBits;
-        this.queryBits = queryBits;
-        this.planeBytes = planeBytes;
-        this.docBytes = docBits * planeBytes;
-        this.queryBytes = queryBits * planeBytes;
-    }
-
-    private static void checkConfiguration(int docBits, int queryBits, int planeBytes) {
-        if (docBits < 1 || docBits > MAX_BITS) {
-            throw new IllegalArgumentException("docBits must be in [1, " + MAX_BITS + "], got: " + docBits);
-        }
-        if (queryBits < 1 || queryBits > MAX_BITS) {
-            throw new IllegalArgumentException("queryBits must be in [1, " + MAX_BITS + "], got: " + queryBits);
-        }
+    protected BBQDotProduct(IndexInput in, BBQEncoding encoding, int planeBytes) {
         if (planeBytes < 1) {
             throw new IllegalArgumentException("planeBytes must be positive, got: " + planeBytes);
         }
+        this.in = in;
+        this.encoding = encoding;
+        this.planeBytes = planeBytes;
+        this.docBytes = encoding.dataBits() * planeBytes;
+        this.queryBytes = encoding.queryBits() * planeBytes;
     }
 
     /**
@@ -103,19 +93,20 @@ public class BBQDotProduct {
      *
      * @param query the query vector, of {@code queryBits * planeBytes} bytes
      */
-    public long dotProduct(byte[] query) throws IOException {
-        assert query.length == queryBytes : "query length " + query.length + " != " + queryBytes;
+    public long dotProduct(ScoringQuery query) throws IOException {
+        final byte[] q = query.bytes();
+        assert q.length == queryBytes : "query length " + q.length + " != " + queryBytes;
 
         /*
          * Basic generalized dot-product implementation using AND popcount on byte arrays
          */
-        byte[] data = scratch.apply(docBytes);
+        byte[] data = heapScratch.apply(docBytes);
         in.readBytes(data, 0, docBytes);
 
         long dot = 0;
-        for (int qp = 0; qp < queryBits; qp++) {
-            for (int dp = 0; dp < docBits; dp++) {
-                int popCount = ESVectorUtil.andBitCount(query, qp * planeBytes, data, dp * planeBytes, planeBytes);
+        for (int qp = 0; qp < encoding.queryBits(); qp++) {
+            for (int dp = 0; dp < encoding.dataBits(); dp++) {
+                int popCount = ESVectorUtil.andBitCount(q, qp * planeBytes, data, dp * planeBytes, planeBytes);
                 dot += (long) popCount << (qp + dp);
             }
         }
@@ -126,7 +117,7 @@ public class BBQDotProduct {
      * Scores the next {@code count} data vectors into {@code scores[0..count)} and advances the
      * input past all of them.
      */
-    public void dotProductBulk(byte[] query, int count, float[] scores) throws IOException {
+    public void dotProductBulk(ScoringQuery query, int count, float[] scores) throws IOException {
         for (int i = 0; i < count; i++) {
             scores[i] = dotProduct(query);
         }
@@ -135,17 +126,14 @@ public class BBQDotProduct {
     /**
      * Scores a subset of the next {@code count} data vectors, advancing the input past all of them
      * so a block can be consumed whole even when most of it is filtered out.
-     * Positions not listed in {@code offsets} are left untouched.
+     * The scores at the positions not selected in {@code mask} are unspecified and must not be read.
      *
-     * @param offsets      positions within the block to score, strictly ascending and all less than {@code count}
-     * @param offsetsCount number of valid entries in {@code offsets}
-     * @param scores       receives the score at each listed position
+     * @param mask   bit {@code i} selects the vector at position {@code i}; no bit at or above {@code count} is set
+     * @param scores receives the score at each selected position
      */
-    public void dotProductBulkOffsets(byte[] query, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        int next = 0;
+    public void dotProductBulkMasked(ScoringQuery query, int mask, float[] scores, int count) throws IOException {
         for (int i = 0; i < count; i++) {
-            if (next < offsetsCount && offsets[next] == i) {
-                next++;
+            if (BulkMask.isSelected(mask, i)) {
                 scores[i] = dotProduct(query);
             } else {
                 in.skipBytes(docBytes);
@@ -153,22 +141,15 @@ public class BBQDotProduct {
         }
     }
 
-    private static final class DxQ1Impl extends BBQDotProduct {
+    private static final class D1Q1Impl extends BBQDotProduct {
 
-        DxQ1Impl(IndexInput in, int docBits, int planeBytes) {
-            super(in, docBits, 1, planeBytes);
+        D1Q1Impl(IndexInput in, int planeBytes) {
+            super(in, new BBQEncoding(1, 1), planeBytes);
         }
 
         @Override
-        public long dotProduct(byte[] query) throws IOException {
-            long dot = 0;
-            for (int dp = 0; dp < docBits; dp++) {
-                dot += dotProductImpl(query) << dp;
-            }
-            return dot;
-        }
-
-        private long dotProductImpl(byte[] q) throws IOException {
+        public long dotProduct(ScoringQuery query) throws IOException {
+            final byte[] q = query.bytes();
             assert q.length == planeBytes : "length mismatch q " + q.length + " vs " + planeBytes;
             long ret = 0;
             int r = 0;
@@ -191,14 +172,14 @@ public class BBQDotProduct {
     private static final class DxQ4Impl extends BBQDotProduct {
 
         DxQ4Impl(IndexInput in, int docBits, int planeBytes) {
-            super(in, docBits, 4, planeBytes);
+            super(in, new BBQEncoding(docBits, 4), planeBytes);
         }
 
         @Override
-        public long dotProduct(byte[] query) throws IOException {
+        public long dotProduct(ScoringQuery query) throws IOException {
             long dot = 0;
-            for (int dp = 0; dp < docBits; dp++) {
-                dot += dotProductImpl(query) << dp;
+            for (int dp = 0; dp < encoding.dataBits(); dp++) {
+                dot += dotProductImpl(query.bytes()) << dp;
             }
             return dot;
         }

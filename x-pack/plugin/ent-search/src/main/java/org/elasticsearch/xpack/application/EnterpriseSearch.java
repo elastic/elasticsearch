@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalytic
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.connector.ConnectorAPIFeature;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.connector.ConnectorsConfig;
 import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.GetConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.ListConnectorAction;
@@ -513,7 +514,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             AnalyticsEventIngestConfig.FLUSH_DELAY_SETTING,
             AnalyticsEventIngestConfig.MAX_NUMBER_OF_RETRIES_SETTING,
             AnalyticsEventIngestConfig.MAX_BYTES_IN_FLIGHT_SETTING,
-            QueryRulesConfig.MAX_RULE_LIMIT_SETTING
+            QueryRulesConfig.MAX_RULE_LIMIT_SETTING,
+            ConnectorsConfig.MAX_DESCRIPTION_LENGTH_SETTING
         );
     }
 

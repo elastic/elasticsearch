@@ -953,6 +953,21 @@ _source:
       reason: "_source is available in 8.13+"
 
   - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              wow:
+                type: long
+              such:
+                type: keyword
+              "you'd":
+                type: keyword
+              expect:
+                type: keyword
+
+  - do:
       bulk:
         index: test
         refresh: true

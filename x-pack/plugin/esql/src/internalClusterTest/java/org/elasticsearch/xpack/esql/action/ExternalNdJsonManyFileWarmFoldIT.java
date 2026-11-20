@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
 import java.nio.file.Files;
@@ -104,7 +105,7 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
         ExternalSourceCacheService cacheService = internalCluster().getInstance(PlanExecutor.class, internalCluster().getMasterName())
             .cacheService();
         // Evict by directory substring so the count is deterministic regardless of what the tiny LRU
-        // budget already dropped; the dataset-aggregate entry (marker-keyed) is deliberately spared.
+        // budget already dropped; the dataset-aggregate entry, which its file-set fingerprint identifies, is deliberately spared.
         ExternalSourceCacheTestAccess.invalidatePerFileSchemaEntries(cacheService, dir.getFileName().toString());
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, total);
@@ -119,8 +120,9 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
     /**
      * Two layers, in order. The dataset aggregate is keyed by the listing's file-set fingerprint, so
      * a listing that actually changed (add or mtime touch) must miss it, re-scan, and re-warm. The
-     * listing cache sits in front of that: default inferred UNION_BY_NAME reuses the listing for the
-     * TTL, so a mutation is invisible until the listing expires. This arm asserts both — TTL-hot
+     * listing cache sits in front of that. TestValidator omit-key hydrates {@code union_by_name};
+     * the listing is still reused for the TTL, so a mutation is invisible until the listing expires.
+     * Homogeneous files: {@code COUNT(*)} folds on either rail. This arm asserts both — TTL-hot
      * listing keeps the old count, then a listing miss (TTL expiry, simulated by dropping listing
      * entries only) sees the live set. Serving a new count while the listing is still cached, or a
      * stale count after it has expired, is the failure this exists to catch.
@@ -161,20 +163,56 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
             assertThat("the grown set must warm again after one scan", response.documentsFound(), equalTo(0L));
         }
 
+        // A moved mtime is a new version of a local file, even with the same bytes: the listing still names the old one, so
+        // resolution's read of the touched file fails with the object-changed condition. That failure is caught during
+        // resolution, before anything has run, so resolution drops the listing and lists again: the query re-scans.
         Path touched = dir.resolve("part-0.ndjson");
         Files.setLastModifiedTime(touched, FileTime.fromMillis(Files.getLastModifiedTime(touched).toMillis() + 2_000));
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
-            assertThat("TTL-hot listing must ignore a touched mtime and keep the warm aggregate", response.documentsFound(), equalTo(0L));
-        }
-        ExternalSourceCacheTestAccess.invalidateListings(cacheService);
-        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
-            assertCount(response, newTotal);
-            assertThat("after listing expiry a touched mtime must re-scan", response.documentsFound(), equalTo(newTotal));
+            assertThat("resolution re-lists the touched set, so the query re-scans it", response.documentsFound(), equalTo(newTotal));
         }
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
             assertThat("the touched set must warm again after one scan", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    /**
+     * A partition filter lists the dataset under its own filter-hint key. A rewrite of a file under that filter fails the first read
+     * with the object-changed condition, and the failure drops the cached listings of the dataset. The next query lists again and
+     * returns the rewritten file's rows.
+     */
+    public void testRewrittenFileUnderPartitionFilterFailsThenReadsNewRows() throws Exception {
+        Path dir = createTempDir();
+        Path y2024 = Files.createDirectories(dir.resolve("year=2024"));
+        Path y2025 = Files.createDirectories(dir.resolve("year=2025"));
+        long part0Rows = writeNdjsonFile(y2024.resolve("part-0.ndjson"), 0);
+        long part1Rows = writeNdjsonFile(y2024.resolve("part-1.ndjson"), part0Rows);
+        writeNdjsonFile(y2025.resolve("part-0.ndjson"), 1_000_000L);
+        String dataset = registerDataset(
+            "ndjson_partition_rewrite",
+            globUri(dir, "*/*.ndjson"),
+            Map.of("segment_size", "64kb", "target_split_size", "256mb")
+        );
+        String query = "FROM " + dataset + " | WHERE year == 2024 | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertCount(response, part0Rows + part1Rows);
+        }
+
+        // A rewrite with two rows: a new length and a new modification time, so the listed version is stale.
+        Files.writeString(y2024.resolve("part-0.ndjson"), "{\"a\":0,\"b\":0}\n{\"a\":1,\"b\":10}\n");
+        Exception changed = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5)).close()
+        );
+        // The read ran on a data node, so the failure arrives as a wrapper that keeps the condition, not the exception class.
+        assertTrue(
+            "the first read under the stale listing must fail with the object-changed condition",
+            ExternalException.hasCondition(changed, ExternalException.Condition.OBJECT_CHANGED)
+        );
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertCount(response, 2L + part1Rows);
         }
     }
 
@@ -187,6 +225,25 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
             total += writeCsvFile(dir.resolve("part-" + f + ".csv"), total);
         }
         String dataset = registerDataset("csv_manyfile", globUri(dir, "*.csv"), Map.of("target_split_size", "256mb"));
+        assertWarmCountShortCircuits(dataset, total);
+    }
+
+    /**
+     * Same warm {@code COUNT(*)} fold on a {@code local} data source, so omitted
+     * {@code schema_resolution} persists as {@code first_file_wins}. Homogeneous files fold on
+     * either rail; this pins the product default path the TestValidator omit-key tests skip.
+     */
+    public void testNdjsonWarmCountShortCircuitsOnPersistedFirstFileWins() throws Exception {
+        Path dir = createTempDir();
+        long total = 0;
+        for (int f = 0; f < 4; f++) {
+            total += writeNdjsonFile(dir.resolve("part-" + f + ".ndjson"), total);
+        }
+        String dataset = registerLocalFileDataset(
+            "ndjson_ffw_warm",
+            globUri(dir, "*.ndjson"),
+            Map.of("segment_size", "64kb", "target_split_size", "256mb")
+        );
         assertWarmCountShortCircuits(dataset, total);
     }
 

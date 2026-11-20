@@ -16,6 +16,7 @@ import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNot
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
-public class Percentile extends NumericAggregate implements SurrogateExpression {
+public class Percentile extends NumericAggregate implements SurrogateExpression, NonFiniteSupport, UnitAware.PreservesUnit {
     private static final TransportVersion PERCENTILE_COMPRESSION = TransportVersion.fromName("esql_percentile_compression");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -56,6 +58,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Percentile.class).binary(Percentile::new).name("percentile");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        // PromQL requires IEEE-754 semantics: NaN and ±Inf are ordinary observations rather than errors.
         .acrossSeriesBinary(
             PromqlFunctionDefinition.QUANTILE,
             (source, field, filter, window, phi) -> new Percentile(
@@ -63,17 +66,29 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
                 field,
                 filter,
                 window,
-                PromqlFunctionDefinition.quantileToPercentile(source, phi)
+                PromqlFunctionDefinition.quantileToPercentile(source, phi),
+                QuantileStates.DEFAULT_COMPRESSION,
+                true
             )
         )
         .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.")
         .example("quantile(0.9, http_request_duration_seconds)")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.QUANTILE_NOTE)
+        .stdDivergence(
+            "A quantile that isn't a number literal, such as `quantile(scalar(a), b)`, isn't supported yet. "
+                + PromqlFunctionDefinition.QUANTILE_NOTE
+        )
         .name("quantile");
 
     private final Expression percentile;
     private final double tDigestStateCompression;
+
+    /**
+     * When {@code true}, the {@code double} percentile accepts non-finite observations and ranks them as
+     * {@code NaN < -Inf < finite < +Inf}. Set only by the PromQL translation; native ES|QL {@code PERCENTILE} uses the
+     * default strict aggregator, whose t-digest rejects non-finite input.
+     */
+    private final boolean allowNonFinite;
 
     @FunctionInfo(
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA) },
@@ -139,9 +154,22 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         Expression percentile,
         double tDigestStateCompression
     ) {
+        this(source, field, filter, window, percentile, tDigestStateCompression, false);
+    }
+
+    public Percentile(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression percentile,
+        double tDigestStateCompression,
+        boolean allowNonFinite
+    ) {
         super(source, field, filter, window, singletonList(percentile));
         this.percentile = percentile;
         this.tDigestStateCompression = tDigestStateCompression;
+        this.allowNonFinite = allowNonFinite;
     }
 
     private Percentile(StreamInput in) throws IOException {
@@ -150,6 +178,12 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         this.tDigestStateCompression = in.getTransportVersion().supports(PERCENTILE_COMPRESSION)
             ? in.readDouble()
             : QuantileStates.DEFAULT_COMPRESSION;
+        this.allowNonFinite = NonFiniteSupport.readNonFinite(in, NonFiniteSupport.ESQL_PROMQL_NON_FINITE_PERCENTILE);
+    }
+
+    @Override
+    public TransportVersion nonFiniteTransportVersion() {
+        return NonFiniteSupport.ESQL_PROMQL_NON_FINITE_PERCENTILE;
     }
 
     @Override
@@ -163,11 +197,23 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         if (out.getTransportVersion().supports(PERCENTILE_COMPRESSION)) {
             out.writeDouble(tDigestStateCompression);
         }
+        // The non-finite flag, when present, follows the base fields; version-gated so older nodes never see the byte.
+        writeNonFinite(out);
+    }
+
+    @Override
+    public boolean allowNonFinite() {
+        return allowNonFinite;
+    }
+
+    @Override
+    public Expression toStrictVariant() {
+        return new Percentile(source(), field(), filter(), window(), percentile, tDigestStateCompression, false);
     }
 
     @Override
     protected NodeInfo<Percentile> info() {
-        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile, tDigestStateCompression);
+        return NodeInfo.create(this, Percentile::new, field(), filter(), window(), percentile, tDigestStateCompression, allowNonFinite);
     }
 
     @Override
@@ -178,13 +224,9 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             newChildren.get(1),
             newChildren.get(2),
             newChildren.get(3),
-            tDigestStateCompression
+            tDigestStateCompression,
+            allowNonFinite
         );
-    }
-
-    @Override
-    public Percentile withFilter(Expression filter) {
-        return new Percentile(source(), field(), filter, window(), percentile, tDigestStateCompression);
     }
 
     public Expression percentile() {
@@ -196,7 +238,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     public Percentile withTDigestStateCompression(double newCompression) {
-        return new Percentile(source(), field(), filter(), window(), percentile, newCompression);
+        return new Percentile(source(), field(), filter(), window(), percentile, newCompression, allowNonFinite);
     }
 
     @Override
@@ -250,7 +292,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected AggregatorFunctionSupplier doubleSupplier() {
-        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression);
+        // The PromQL value column is always a double, so only the double path can be asked to preserve non-finite values.
+        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue(), tDigestStateCompression, allowNonFinite);
     }
 
     private double percentileValue() {

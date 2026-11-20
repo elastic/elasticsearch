@@ -52,7 +52,8 @@ public class Enrich extends UnaryPlan
         Streaming,
         SortAgnostic,
         SortPreserving,
-        ExecutesOn {
+        ExecutesOn,
+        DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Enrich",
@@ -65,7 +66,7 @@ public class Enrich extends UnaryPlan
     private final Map<String, String> concreteIndices; // cluster -> enrich indices
     // This could be simplified by just always using an Alias.
     private final List<NamedExpression> enrichFields;
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     private final Mode mode;
 

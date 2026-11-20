@@ -15,10 +15,6 @@ module org.elasticsearch.transform {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
-    requires org.apache.httpcomponents.httpcore;
-    requires org.apache.httpcomponents.httpclient;
-    requires org.apache.httpcomponents.httpasyncclient;
-    requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;

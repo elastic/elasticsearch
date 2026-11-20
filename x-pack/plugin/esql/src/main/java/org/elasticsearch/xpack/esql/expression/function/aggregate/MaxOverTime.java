@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -42,7 +44,9 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
         SurrogateExpression,
         TimestampAware,
         AggregateMetricDoubleNativeSupport,
-        ToAggregator {
+        ToAggregator,
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MaxOverTime.class)
         .ternary(MaxOverTime::new)
         .name("max_over_time");
@@ -94,11 +98,11 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public MaxOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public MaxOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
@@ -108,13 +112,8 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public MaxOverTime withFilter(Expression filter) {
-        return new MaxOverTime(source(), field(), filter, window(), timestamp);
-    }
-
-    @Override
     protected NodeInfo<MaxOverTime> info() {
-        return NodeInfo.create(this, MaxOverTime::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, MaxOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -140,7 +139,7 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
             return ExtractHistogramComponent.create(source(), mergeOverTime, Component.MAX);
         }
         return null;

@@ -40,6 +40,11 @@ public class ConstantShardContextIndexedByShardId implements IndexedByShardId<Es
         }
 
         @Override
+        public Query existsQuery(String fieldName) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public IndexSettings indexSettings() {
             throw new UnsupportedOperationException();
         }

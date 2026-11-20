@@ -37,6 +37,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
@@ -356,6 +357,12 @@ class S3BlobStore implements BlobStore {
         }
     }
 
+    /**
+     * Delete the provided collection of blobs.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html">DeleteObjects</a> particularly noting that this
+     * API returns success when deleting blobs that already do not exist.
+     */
     void deleteBlobs(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
@@ -364,16 +371,18 @@ class S3BlobStore implements BlobStore {
         final List<ObjectIdentifier> partition = new ArrayList<>();
         try {
             // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
-            final var deletionExceptions = new DeletionExceptions();
-            blobNames.forEachRemaining(key -> {
-                partition.add(ObjectIdentifier.builder().key(key).build());
-                if (partition.size() == bulkDeletionBatchSize) {
-                    deletePartition(purpose, partition, deletionExceptions);
+            final var batchIterator = Iterators.batching(
+                bulkDeletionBatchSize,
+                Iterators.map(blobNames, key -> ObjectIdentifier.builder().key(key).build()),
+                () -> {
+                    // re-use partition, no need to allocate afresh
                     partition.clear();
+                    return partition;
                 }
-            });
-            if (partition.isEmpty() == false) {
-                deletePartition(purpose, partition, deletionExceptions);
+            );
+            final var deletionExceptions = new DeletionExceptions();
+            while (batchIterator.hasNext()) {
+                deletePartition(purpose, batchIterator.next(), deletionExceptions);
             }
             if (deletionExceptions.exception != null) {
                 throw deletionExceptions.exception;
@@ -384,7 +393,10 @@ class S3BlobStore implements BlobStore {
     }
 
     /**
-     * Delete one partition of a batch of blobs
+     * Delete one partition of a batch of blobs.
+     *
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html">DeleteObjects</a> particularly noting that this
+     * API returns success when deleting blobs that already do not exist.
      *
      * @param purpose The {@link OperationPurpose} of the deletion
      * @param partition The list of blobs to delete

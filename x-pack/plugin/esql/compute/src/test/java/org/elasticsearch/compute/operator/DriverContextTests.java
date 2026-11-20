@@ -40,7 +40,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -48,6 +50,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -253,6 +256,68 @@ public class DriverContextTests extends ESTestCase {
             long onRemoval = chargedOnRemoval.get(10, TimeUnit.SECONDS);
             assertThat(onRemoval, greaterThan(0L));
             assertThat(chargedOnReturn.get(10, TimeUnit.SECONDS), greaterThan(onRemoval));
+        } finally {
+            ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * Work that throws is charged too, as the driver can report the usage of its failure before the pool charges the task.
+     */
+    public void testMeteredCpuChargesTheLoadOfFailedWork() throws Exception {
+        AtomicLong charged = new AtomicLong();
+        Exception failure = runFailingMeteredWork((nanos, cpuNanos, finishNanos) -> charged.addAndGet(nanos), () -> charged.get() > 0);
+        assertThat(failure.getMessage(), equalTo("work"));
+        assertThat(failure.getSuppressed(), emptyArray());
+    }
+
+    /**
+     * A failure to charge the load of work that throws doesn't hide the failure of the work.
+     */
+    public void testMeteredCpuKeepsTheFailureOfTheWorkWhenTheChargeFails() throws Exception {
+        // only the first charge fails, so the pool can charge the rest of the task
+        AtomicBoolean failCharge = new AtomicBoolean(true);
+        Exception failure = runFailingMeteredWork((nanos, cpuNanos, finishNanos) -> {
+            if (failCharge.getAndSet(false)) {
+                throw new IllegalStateException("charge");
+            }
+        }, () -> failCharge.get() == false);
+        assertThat(failure.getMessage(), equalTo("work"));
+        assertThat(failure.getSuppressed().length, equalTo(1));
+        assertThat(failure.getSuppressed()[0].getMessage(), equalTo("charge"));
+    }
+
+    /**
+     * Runs metered work that throws on a pool task charged to {@code target}, and returns the failure the work threw, once
+     * {@code chargedBeforeTheTaskEnds} held on the task right after the work threw.
+     */
+    private static Exception runFailingMeteredWork(TaskLoadAttribution.Target target, BooleanSupplier chargedBeforeTheTaskEnds)
+        throws Exception {
+        EsThreadPoolExecutor pool = EsExecutors.newFixed(
+            "test",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "load"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+        );
+        try {
+            DriverContext driverContext = new AssertingDriverContext();
+            PlainActionFuture<Exception> thrown = new PlainActionFuture<>();
+            pool.execute(ActionRunnable.supply(thrown, () -> {
+                TaskLoadAttribution.attribute(target);
+                try {
+                    driverContext.meteredCpu(() -> {
+                        spin(1_000);
+                        throw new IllegalArgumentException("work");
+                    });
+                } catch (IllegalArgumentException e) {
+                    assertTrue("charged before the task ends", chargedBeforeTheTaskEnds.getAsBoolean());
+                    return e;
+                }
+                throw new AssertionError("the work must throw");
+            }));
+            return thrown.get(10, TimeUnit.SECONDS);
         } finally {
             ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
         }

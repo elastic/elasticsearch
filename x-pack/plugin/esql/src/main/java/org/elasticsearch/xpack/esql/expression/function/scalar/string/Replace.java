@@ -62,6 +62,8 @@ public class Replace extends EsqlScalarFunction implements AnyNullIsNull {
         description = """
             The function substitutes in the string `str` any match of the regular expression `regex`
             with the replacement string `newStr`.""",
+        note = "When `regex` matches, the result can be at most 1MB long. "
+            + "For a longer one, `REPLACE` returns `null` and emits a warning.",
         examples = {
             @Example(
                 file = "string",

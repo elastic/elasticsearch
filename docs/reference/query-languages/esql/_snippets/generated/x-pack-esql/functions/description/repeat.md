@@ -4,3 +4,8 @@
 
 Returns a string constructed by concatenating `string` with itself the specified `number` of times.
 
+::::{note}
+The result can be at most 1MB long. For a longer one, `REPEAT` returns `null` and emits a warning.
+::::
+
+

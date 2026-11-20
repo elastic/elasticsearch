@@ -4,3 +4,8 @@
 
 Concatenates two or more strings.
 
+::::{note}
+The result can be at most 1MB long. A query that builds a longer one fails.
+::::
+
+

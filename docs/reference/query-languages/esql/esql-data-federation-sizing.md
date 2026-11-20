@@ -26,7 +26,7 @@ For data held in {{es}} indices, refer to the [Size your shards](docs-content://
 * **Add 1 core per 3 to 4 concurrent queries** on text, and 1 core per 8 to 10 on Parquet.
 * **Do not raise heap past 31 GB.** Scale horizontally across nodes instead.
 
-These figures are starting points. They assume cold reads, where every query fetches its data from object storage rather than from a cache. How a dataset behaves then depends on characteristics of your own data: how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects. A configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
+These figures are starting points. They assume cold reads, where every query fetches its data from object storage. How a dataset behaves then depends on characteristics of your own data: how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects. A configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
 
 ## Background [background]
 

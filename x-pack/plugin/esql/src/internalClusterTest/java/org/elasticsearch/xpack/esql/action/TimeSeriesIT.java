@@ -1581,6 +1581,131 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /** (... or ...) * scalar must pin UnionAll layout before the composed Eval (#158164). */
+    public void testPromqlOrUnderArithmetic() {
+        String index = "promql-or-under-arithmetic";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 20.0);
+        refresh(index);
+        assertRowsAnyOrder(promqlQuery(index, "(tx or (tx * 0)) * 2") + " | KEEP result", List.of(List.of(20.0), List.of(40.0)));
+    }
+
+    /** (agg or agg) under arithmetic / join must keep a pin-safe UnionAll layout. */
+    public void testPromqlOrUnderArithmeticJoin() {
+        String index = "promql-or-under-arithmetic-join";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 20.0);
+        refresh(index);
+        // join path: or x by-agg vector (series-preserving so labels match)
+        assertRowsAnyOrder(
+            promqlQuery(index, "((max by (cluster)(tx)) or (min by (cluster)(tx))) * (min by (cluster) (floor(tx)))")
+                + " | KEEP result, cluster",
+            List.of(List.of(200.0, "prod"))
+        );
+        // grafanalabs-shaped ratio of or-chains
+        assertRowsAnyOrder(
+            promqlQuery(
+                index,
+                "((max by (cluster)(tx)) or (min by (cluster)(tx)))"
+                    + " / (((max by (cluster)(tx)) or (min by (cluster)(tx)))"
+                    + " + ((max by (cluster)(tx)) or (min by (cluster)(tx))))"
+            ) + " | KEEP result, cluster",
+            List.of(List.of(0.5, "prod"))
+        );
+    }
+
+    /**
+     * or with on/ignoring keeps every left series, several sharing a match signature included, and adds the right series
+     * no left series matches on the listed labels, as in Prometheus.
+     */
+    public void testPromqlOrWithMatching() {
+        String index = "promql-or-with-matching";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "region", "east", "tx", 3.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "c", "region", "west", "tx", 5.0);
+        refresh(index);
+        String a = "{\"cluster\":\"prod\",\"host\":\"a\",\"region\":\"east\"}";
+        String b = "{\"cluster\":\"prod\",\"host\":\"b\",\"region\":\"east\"}";
+        String c = "{\"cluster\":\"prod\",\"host\":\"c\",\"region\":\"west\"}";
+
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{region=\"east\"} or on(region) tx{region=\"west\"}") + " | KEEP result, _timeseries | SORT result",
+            List.of(List.of(1.0, a), List.of(3.0, b), List.of(5.0, c))
+        );
+        // a and b share region east: both stay, and the right operand adds only c.
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{region=\"east\"} or on(region) tx") + " | KEEP result, _timeseries | SORT result",
+            List.of(List.of(1.0, a), List.of(3.0, b), List.of(5.0, c))
+        );
+        // b shares cluster and region with a, so only c is added.
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"a\"} or ignoring(host) tx{host=~\"b|c\"}") + " | KEEP result, _timeseries | SORT result",
+            List.of(List.of(1.0, a), List.of(5.0, c))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"a\"} or ignoring(host, region) tx") + " | KEEP result, _timeseries",
+            List.of(List.of(1.0, a))
+        );
+        // on () adds the right operand only at steps where the left one has no series.
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"nope\"} or on() tx{host=\"c\"}") + " | KEEP result, _timeseries",
+            List.of(List.of(5.0, c))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"a\"} or on() tx{host=\"c\"}") + " | KEEP result, _timeseries",
+            List.of(List.of(1.0, a))
+        );
+        // vector(7) has no region: its signature never matches a series that has one. Its constant holds on its own rows only.
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx{host=\"a\"} unless on(region) vector(7)") + " | KEEP result, _timeseries",
+            List.of(List.of(1.0, a))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "vector(7) or on(region) tx{host=\"c\"}") + " | KEEP result, _timeseries | SORT result",
+            List.of(List.of(5.0, c), List.of(7.0, "{}"))
+        );
+    }
+
+    /** unless with empty right keeps left. */
+    public void testPromqlUnlessEmptyRightKeepsLeft() {
+        String index = "promql-unless-empty-right-keeps-left";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "__name__", "rx", "rx", 80.0);
+        // tx exists but host filter matches nothing -> empty right
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 1.0);
+        refresh(index);
+        List<List<Object>> expected = List.of(
+            List.of(60.0, "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"a\"}"),
+            List.of(80.0, "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"b\"}")
+        );
+        assertRowsAnyOrder(promqlQuery(index, "rx") + " | KEEP result, _timeseries", expected);
+        assertRowsAnyOrder(promqlQuery(index, "(rx) unless (tx{host=\"nope\"})") + " | KEEP result, _timeseries", expected);
+    }
+
+    /** or ignores __name__: name-keeping left preferred over name-dropping right of the same labels. */
+    public void testPromqlOrNameKeepingVsNameDroppingRest() {
+        String index = "promql-or-name-keeping-vs-name-dropping-rest";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "__name__", "tx", "tx", 20.0);
+        refresh(index);
+        List<List<Object>> leftOnly = List.of(
+            List.of(10.0, "{\"__name__\":\"tx\",\"cluster\":\"prod\",\"host\":\"a\"}"),
+            List.of(20.0, "{\"__name__\":\"tx\",\"cluster\":\"prod\",\"host\":\"b\"}")
+        );
+        assertRowsAnyOrder(promqlQuery(index, "(tx) or (ceil(tx))") + " | KEEP result, _timeseries", leftOnly);
+        assertRowsAnyOrder(promqlQuery(index, "(tx) or (sum_over_time(tx[1m]))") + " | KEEP result, _timeseries", leftOnly);
+        // ceil over the collapsed or drops __name__ from the kept left limb.
+        assertRowsAnyOrder(
+            promqlQuery(index, "ceil((tx) or (sum_over_time(tx[1m])))") + " | KEEP result, _timeseries",
+            List.of(List.of(10.0, "{\"cluster\":\"prod\",\"host\":\"a\"}"), List.of(20.0, "{\"cluster\":\"prod\",\"host\":\"b\"}"))
+        );
+    }
+
     /**
      * Matching on __name__ is rejected even where the series store it, as here: which series store it is known only from
      * the data, and one whose metric is a field reads it as absent.
@@ -1591,10 +1716,75 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
         indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
         refresh(index);
-        for (String q : List.of("tx / on(__name__, host) rx")) {
+        for (String q : List.of("tx or on(__name__, host) rx", "tx / on(__name__, host) rx")) {
             var error = expectThrows(Exception.class, () -> run(promqlQuery(index, q)));
             assertThat(error.getMessage(), containsString("matching on __name__ is not supported at this time"));
         }
+    }
+
+    /** unless between operands whose series never share a group keeps the left operand whole, as in Prometheus. */
+    public void testPromqlUnlessAcrossLabelSets() {
+        String index = "promql-unless-across-label-sets";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "region", "east", "tx", 3.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "c", "region", "west", "tx", 5.0);
+        refresh(index);
+
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by (host) (tx) unless sum by (region) (tx)") + " | KEEP result, host",
+            List.of(List.of(1.0, "a"), List.of(3.0, "b"), List.of(5.0, "c"))
+        );
+        assertRowsAnyOrder(promqlQuery(index, "sum(tx) unless tx") + " | KEEP result", List.of(List.of(9.0)));
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by (region) (tx) unless sum by (region) (tx > 4)") + " | KEEP result, region",
+            List.of(List.of(4.0, "east"))
+        );
+    }
+
+    /** Arithmetic mask with and executes on the typed path. */
+    public void testPromqlAndWithArithmeticMask() {
+        String index = "promql-and-with-arithmetic-mask";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 20.0);
+        refresh(index);
+        assertRowsAnyOrder(
+            promqlQuery(index, "((max by (cluster)(tx) * 0 + 1) and ((max by (cluster)(tx) / max by (cluster)(tx)) >= 0.8))")
+                + " | KEEP result, cluster",
+            List.of(List.of(1.0, "prod"))
+        );
+    }
+
+    /** Empty left of or must not shadow the raw right limb. */
+    public void testPromqlOrAfterEmptyIgnoringArithKeepsRawRightLabels() {
+        String index = "promql-or-after-empty-ignoring-arith-keeps-raw-right-labels";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "rx", "rx", 60.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "__name__", "rx", "rx", 80.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "__name__", "tx", "tx", 20.0);
+        refresh(index);
+        List<List<Object>> expected = List.of(
+            List.of(60.0, "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"a\"}"),
+            List.of(80.0, "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"b\"}")
+        );
+        // Empty selector x ignoring: must be empty, not the right operand. One tx series, as ignoring (host) makes the two
+        // a duplicate match group, which fails the query.
+        assertRowsAnyOrder(
+            promqlQuery(index, "(rx{host=\"nope\"}) * ignoring (host) (tx{host=\"a\"})") + " | KEEP result, _timeseries",
+            List.of()
+        );
+        // Empty rate limb on the left (single tx sample) must not strip labels from the raw right.
+        assertRowsAnyOrder(promqlQuery(index, "(rate(tx[1m])) or (rx)") + " | KEEP result, _timeseries", expected);
+        // Empty matcher left of or -> raw right with full fingerprints.
+        assertRowsAnyOrder(promqlQuery(index, "(rx{host=\"nope\"}) or (rx)") + " | KEEP result, _timeseries", expected);
+        // Empty arith/compare left of or -> same (promfuzz-vm 436).
+        assertRowsAnyOrder(
+            promqlQuery(index, "(((rx{host=\"nope\"}) * ignoring (host) (tx{host=\"a\"})) == (rx)) or (rx)")
+                + " | KEEP result, _timeseries",
+            expected
+        );
     }
 
     /**
@@ -1612,6 +1802,41 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         assertRowsAnyOrder(promqlQuery(index, "tx > scalar(avg(tx))") + " | KEEP result, _timeseries", List.of(List.of(3.0, hostB)));
         assertRowsAnyOrder(promqlQuery(index, "scalar(avg(tx)) < tx") + " | KEEP result, _timeseries", List.of(List.of(3.0, hostB)));
         assertRowsAnyOrder(promqlQuery(index, "tx > bool scalar(avg(tx))") + " | KEEP result", List.of(List.of(0.0), List.of(1.0)));
+    }
+
+    /**
+     * A filter comparison keeps or drops each series on its own, whatever its consumer groups or matches by: series sharing
+     * the labels a by() or an on() reads are compared one by one, not merged first. bool yields 1 or 0 to aggregate.
+     */
+    public void testPromqlComparisonFiltersEachSeriesUnderGroupingAndMatching() {
+        String index = "promql-comparison-filters-each-series-under-grouping-and-matching";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "region", "east", "tx", 3.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "c", "region", "west", "tx", 5.0);
+        refresh(index);
+        String a = "{\"cluster\":\"prod\",\"host\":\"a\",\"region\":\"east\"}";
+        String b = "{\"cluster\":\"prod\",\"host\":\"b\",\"region\":\"east\"}";
+        String c = "{\"cluster\":\"prod\",\"host\":\"c\",\"region\":\"west\"}";
+
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by (region) (tx > 2)") + " | KEEP result, region",
+            List.of(List.of(3.0, "east"), List.of(5.0, "west"))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "sum by (region) (tx > bool 2)") + " | KEEP result, region",
+            List.of(List.of(1.0, "east"), List.of(1.0, "west"))
+        );
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx and on(region) (tx > 2)") + " | KEEP result, _timeseries",
+            List.of(List.of(1.0, a), List.of(3.0, b), List.of(5.0, c))
+        );
+        assertRowsAnyOrder(promqlQuery(index, "tx and on(region) (tx > 4)") + " | KEEP result, _timeseries", List.of(List.of(5.0, c)));
+        assertRowsAnyOrder(
+            promqlQuery(index, "tx unless on(region) (tx > 4)") + " | KEEP result, _timeseries",
+            List.of(List.of(1.0, a), List.of(3.0, b))
+        );
+        assertRowsAnyOrder(promqlQuery(index, "tx unless ignoring(host) (tx > 2)") + " | KEEP result, _timeseries", List.of());
     }
 
     /** A by() key no parent reads still decides the rows it aggregates. */

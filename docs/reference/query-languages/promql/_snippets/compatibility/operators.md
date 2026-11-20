@@ -68,6 +68,8 @@ Each [operator reference entry](/reference/query-languages/promql/operators.md) 
 {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` `or` between instant vectors, such as `rate(a[5m]) or rate(b[5m])`.
 An `or` chain takes at most 8 operands by default.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` `and`, `unless`, and `or` with `on(...)` or `ignoring(...)` or inside another expression, such as `a and on(job) b` and `(sum(a) or sum(b)) * 2`.
+
 {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Change the limit with the `esql.query.max_branch_count_per_merge` cluster setting.
 
 **Not supported yet**
@@ -77,9 +79,9 @@ An `or` chain takes at most 8 operands by default.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 20 | `and`, `unless` | `a and b`, `a unless b` | - | [#158184]({{es-issue}}158184) |
-| 21 | `or` with `on(...)` or `ignoring(...)` | `a or on(job) b` | - | [#158184]({{es-issue}}158184) |
-| 22 | `or` inside another expression | `(sum(a) or sum(b)) * 2`, `count(a or b)` | - | [#158184]({{es-issue}}158184) |
+| 20 | `and`, `unless` {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `a and b`, `a unless b` | - | [#158184]({{es-issue}}158184) |
+| 21 | `or` with `on(...)` or `ignoring(...)` {applies_to}`stack: ga 9.5-9.6` | `a or on(job) b` | - | [#158184]({{es-issue}}158184) |
+| 22 | `or` inside another expression {applies_to}`stack: ga 9.5-9.6` | `(sum(a) or sum(b)) * 2`, `count(a or b)` | - | [#158184]({{es-issue}}158184) |
 :::
 
 ### Vector matching [prometheus-compatibility-vector-matching]

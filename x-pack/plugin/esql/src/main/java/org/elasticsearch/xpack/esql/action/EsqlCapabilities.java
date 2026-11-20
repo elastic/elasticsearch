@@ -4394,6 +4394,12 @@ public class EsqlCapabilities {
         PROMQL_NESTED_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code and} and {@code unless}, and {@code or} with {@code on(...)}/{@code ignoring(...)} or below the top
+         * level: {@code or} keeps every left series and the right series no left series matches.
+         */
+        PROMQL_SET_OPERATOR_MATCHING(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Fix PromQL {@code count_over_time} and {@code present_over_time} over a series without a sample in the window,
          * and {@code count} over a group without a valued series: like Prometheus, they emit no element rather than
          * {@code 0}. {@code absent_over_time} likewise emits no element for a series with a sample, nor for a series its

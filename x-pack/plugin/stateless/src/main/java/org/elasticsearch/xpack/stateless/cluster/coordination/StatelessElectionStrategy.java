@@ -93,7 +93,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
 
     @Override
     public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
-        readLease(listener.delegateFailure((delegate, currentLeaseOpt) -> {
+        readLease(listener.delegateFailureAndWrap((delegate, currentLeaseOpt) -> {
             final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
             final StatelessLease newLease = new StatelessLease(
                 Math.max(proposedTerm, currentLease.currentTerm() + 1),

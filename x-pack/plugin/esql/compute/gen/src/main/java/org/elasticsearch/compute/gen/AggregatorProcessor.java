@@ -138,12 +138,6 @@ public class AggregatorProcessor implements Processor {
 
     /**
      * Writes the generated file with {@code \n} line endings on every platform.
-     * <p>
-     *     The generated sources are checked in and {@code .gitattributes} marks {@code *.java} as {@code eol=lf},
-     *     so they are LF in every checkout, Windows included. Emitting the platform's line separator would
-     *     rewrite them as CRLF on each compilation on Windows, which git reports as modifications and which
-     *     changes the compilation inputs, forcing the module to be recompiled.
-     * </p>
      */
     public static void write(Object origination, String what, JavaFile file, ProcessingEnvironment env) {
         try {

@@ -1289,6 +1289,73 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
+    public void testDisabledPageReserveSendsAnUnaccountedBulk() {
+        IndexingPressure pressure = pressure(Settings.EMPTY);
+        Settings nodeSettings = Settings.EMPTY;
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings.initializeAndWatch(IndexingPressure.REINDEX_PAGE_RESERVE_ENABLED, pressure::setReindexPageReserveEnabled);
+        clusterSettings.applySettings(Settings.builder().put(IndexingPressure.REINDEX_PAGE_RESERVE_ENABLED.getKey(), false).build());
+        Harness harness = new Harness(pressure, updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(16, 128)));
+        harness.client.handler = (bulk, listener) -> {
+            assertFalse(bulk.indexingPressureAccounted());
+            listener.onResponse(harness.success(bulk));
+        };
+        harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
+        assertThat(harness.client.searches.size(), equalTo(1));
+        harness.feed(List.of(hit));
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated(), equalTo(1L));
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
+    }
+
+    /**
+     * Turning the reserve off while a worker is waiting makes the next poll search, and that search takes no coordinating charge.
+     */
+    public void testDisablingPageReserveDuringAWaitSearchesWithNoCharge() {
+        ScriptedClock clock = new ScriptedClock();
+        int pageSize = 1;
+        long limit = rawEstimate(clock.getThreadPool(), pageSize);
+        IndexingPressure pressure = pressure(limit);
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
+            Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+            harness.start();
+            assertThat(harness.client.searches.size(), equalTo(0));
+            assertTrue(clock.hasDeferredTasks());
+
+            pressure.setReindexPageReserveEnabled(false);
+            clock.advanceTime();
+
+            assertThat(harness.client.searches.size(), equalTo(1));
+            assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(limit));
+            assertFalse(clock.hasDeferredTasks());
+        }
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    /**
+     * A proportion below one half cuts a large guess further. The next reserve reads the updated value.
+     */
+    public void testEstimateCapProportionCutsALargeGuess() {
+        ScriptedClock clock = new ScriptedClock();
+        int pageSize = 4;
+        long raw = rawEstimate(clock.getThreadPool(), pageSize);
+        long limit = raw;
+        Settings nodeSettings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), limit + "b").build();
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        IndexingPressure pressure = new IndexingPressure(nodeSettings);
+        clusterSettings.initializeAndWatch(IndexingPressure.REINDEX_ESTIMATE_CAP_PROPORTION, pressure::setReindexEstimateCapProportion);
+        assertThat(pressure.reindexEstimateCapInBytes(), equalTo(limit / 2));
+
+        clusterSettings.applySettings(Settings.builder().put(IndexingPressure.REINDEX_ESTIMATE_CAP_PROPORTION.getKey(), "0.25").build());
+        long cap = pressure.reindexEstimateCapInBytes();
+        assertThat(cap, equalTo((long) (limit * 0.25d)));
+        assertThat(raw, greaterThan(cap));
+        assertThat(reservedPage(clock, pressure, pageSize), equalTo(cap));
+    }
+
     public void testNullIndexingPressureSendsAnUnaccountedBulk() {
         Harness harness = new Harness(null, updateRequest(1), NoopCircuitBreaker.INSTANCE, null);
         CountingHit hit = harness.hit(bytes(between(16, 128)));
@@ -2229,10 +2296,10 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
-     * The most a page estimate may reserve. Two reserves of this size fill the budget on an empty node.
+     * The most a page estimate may reserve. At the default proportion, two reserves of this size fill the budget on an empty node.
      */
     private static long halfTheLimit(IndexingPressure pressure) {
-        return pressure.getCoordinatingLimitInBytes() / 2;
+        return pressure.reindexEstimateCapInBytes();
     }
 
     private static SystemIndices systemIndicesMatching(String pattern) {

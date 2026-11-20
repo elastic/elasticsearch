@@ -1218,7 +1218,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             return;
         }
         final IndexingPressure pressure = indexingPressure;
-        if (pressure != null) {
+        // Read once per page. A wait that fires after this is turned off searches without reserving.
+        if (pressure != null && pressure.reindexPageReserveEnabled()) {
             final IndexingPressure.Coordinating charge;
             try {
                 // The reserve is never forced, so a full coordinating budget refuses it instead of borrowing past the limit.
@@ -1329,12 +1330,12 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     /**
      * The bytes to reserve for the next page. That is the documents it may hold times the per document guess, plus the request context.
      * <p>
-     * The guess stops at half the coordinating limit. Two reserves of that size fill the budget on an empty node, and a third waits.
-     * A page whose real size is over half the limit reserves half and grows when it is resized.
+     * The guess stops at {@link IndexingPressure#reindexEstimateCapInBytes()}. At the default of one half, two reserves fill an
+     * empty node and a third waits. A page whose real size is over the cap reserves the cap and grows when it is resized.
      * That growth is refused only when the page's own size passes the limit.
      */
     private long estimatedPageBytes(IndexingPressure pressure) {
-        final long maxEstimate = pressure.getCoordinatingLimitInBytes() / 2;
+        final long maxEstimate = pressure.reindexEstimateCapInBytes();
         // Read at reserve time so a dynamic update applies to this reserve, not to a value captured when the node started.
         final long perDocument = pressure.reindexBytesEstimatePerDocument();
         final long raw;

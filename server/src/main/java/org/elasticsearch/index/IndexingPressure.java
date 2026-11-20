@@ -102,6 +102,30 @@ public class IndexingPressure implements IndexingPressureMonitor {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Whether a reindex, update-by-query, or delete-by-query page reserves coordinating bytes before it searches.
+     * When this is false the bulk is charged when it is sent, which is what a node with no indexing pressure does.
+     */
+    public static final Setting<Boolean> REINDEX_PAGE_RESERVE_ENABLED = Setting.boolSetting(
+        "indexing_pressure.reindex.page_reserve_enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The largest fraction of the coordinating limit a page estimate may reserve. A guess above that is cut down to it,
+     * and then it waits until the node has room, like any other reserve. One half means two such reserves fill an empty node.
+     */
+    public static final Setting<Double> REINDEX_ESTIMATE_CAP_PROPORTION = Setting.doubleSetting(
+        "indexing_pressure.reindex.estimate_cap_proportion",
+        0.5d,
+        0.01d,
+        1.0d,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
     private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
@@ -162,6 +186,8 @@ public class IndexingPressure implements IndexingPressureMonitor {
      * size it took.
      */
     private volatile long reindexBytesEstimatePerDocument;
+    private volatile boolean reindexPageReserveEnabled;
+    private volatile double reindexEstimateCapProportion;
 
     private final List<IndexingPressureListener> listeners = new CopyOnWriteArrayList<>();
 
@@ -175,6 +201,8 @@ public class IndexingPressure implements IndexingPressureMonitor {
         this.replicaLimit = MAX_REPLICA_BYTES.get(settings).getBytes();
         this.operationLimit = MAX_OPERATION_SIZE.get(settings).getBytes();
         this.reindexBytesEstimatePerDocument = REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.get(settings).getBytes();
+        this.reindexPageReserveEnabled = REINDEX_PAGE_RESERVE_ENABLED.get(settings);
+        this.reindexEstimateCapProportion = REINDEX_ESTIMATE_CAP_PROPORTION.get(settings);
     }
 
     /**
@@ -182,6 +210,24 @@ public class IndexingPressure implements IndexingPressureMonitor {
      */
     public long reindexBytesEstimatePerDocument() {
         return reindexBytesEstimatePerDocument;
+    }
+
+    /**
+     * Whether the next page reserve should run. A charge already held is not released by turning this off.
+     */
+    public boolean reindexPageReserveEnabled() {
+        return reindexPageReserveEnabled;
+    }
+
+    /**
+     * The most bytes a page estimate may reserve. A dynamic update applies to the next reserve.
+     */
+    public long reindexEstimateCapInBytes() {
+        long cap = (long) (coordinatingLimit * reindexEstimateCapProportion);
+        if (cap < 1) {
+            return 1;
+        }
+        return Math.min(cap, coordinatingLimit);
     }
 
     /**
@@ -223,6 +269,20 @@ public class IndexingPressure implements IndexingPressureMonitor {
         this.reindexBytesEstimatePerDocument = estimate.getBytes();
     }
 
+    /**
+     * Applies a dynamic update of {@link #REINDEX_PAGE_RESERVE_ENABLED}. The next page reserve reads it.
+     */
+    public void setReindexPageReserveEnabled(boolean enabled) {
+        this.reindexPageReserveEnabled = enabled;
+    }
+
+    /**
+     * Applies a dynamic update of {@link #REINDEX_ESTIMATE_CAP_PROPORTION}. The next page reserve reads it.
+     */
+    public void setReindexEstimateCapProportion(double proportion) {
+        this.reindexEstimateCapProportion = proportion;
+    }
+
     private static Releasable wrapReleasable(Releasable releasable) {
         final AtomicBoolean called = new AtomicBoolean();
         return () -> {
@@ -261,9 +321,9 @@ public class IndexingPressure implements IndexingPressureMonitor {
      * The reservation is never forced, so {@link Coordinating#increaseBytes} still refuses a page whose own size is above the
      * coordinating limit.
      * <p>
-     * Callers cap their estimate at half the coordinating limit. Two such reserves fill the budget on an empty node, and a third waits
-     * for one of them to be released. A page whose real size is between half the limit and the limit reserves half and grows when it
-     * is resized. That growth is refused only when the reservation's own new size passes the limit.
+     * Callers cap their estimate at {@link #reindexEstimateCapInBytes()}. The default proportion is one half, so two such reserves
+     * fill the budget on an empty node and a third waits. A page whose real size is above that cap reserves the cap and grows when
+     * it is resized. That growth is refused only when the reservation's own new size passes the limit.
      *
      * @param systemOnly true when every index the page writes is a system index. The reserve then skips the node total check, so
      *                   bytes the node already holds do not refuse it. A system-only bulk was never refused that way.

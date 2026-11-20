@@ -506,6 +506,16 @@ public class IndexingPressureTests extends ESTestCase {
         }
     }
 
+    public void testReindexEstimateCapDefaultsToHalfTheLimitAndFollowsTheProportion() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        long limit = indexingPressure.getCoordinatingLimitInBytes();
+        assertEquals(limit / 2, indexingPressure.reindexEstimateCapInBytes());
+        indexingPressure.setReindexEstimateCapProportion(1.0d);
+        assertEquals(limit, indexingPressure.reindexEstimateCapInBytes());
+        indexingPressure.setReindexEstimateCapProportion(0.25d);
+        assertEquals((long) (limit * 0.25d), indexingPressure.reindexEstimateCapInBytes());
+    }
+
     public void testSystemOnlyReserveLargerThanTheLimitIsRefusedAndCountsNoCoordinatingRejection() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         long limit = indexingPressure.getCoordinatingLimitInBytes();

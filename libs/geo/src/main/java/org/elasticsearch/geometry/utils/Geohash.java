@@ -248,6 +248,9 @@ public class Geohash {
      * Encode a string geohash to the geohash based long format (lon/lat interleaved, 4 least significant bits = level)
      */
     public static final long longEncode(String hash) {
+        if (hash.isEmpty()) {
+            throw new IllegalArgumentException("empty geohash");
+        }
         return longEncode(hash, hash.length());
     }
 
@@ -307,6 +310,9 @@ public class Geohash {
         long l = 0L;
         for (char c : hash.toCharArray()) {
             b = (long) (BASE_32_STRING.indexOf(c));
+            if (b < 0) {
+                throw new IllegalArgumentException("unsupported symbol [" + c + "] in geohash [" + hash + "]");
+            }
             l |= (b << (level-- * 5));
             if (level < 0) {
                 // We cannot handle more than 12 levels

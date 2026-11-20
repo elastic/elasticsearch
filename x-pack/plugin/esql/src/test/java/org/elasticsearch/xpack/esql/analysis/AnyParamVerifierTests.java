@@ -33,13 +33,9 @@ public class AnyParamVerifierTests extends ESTestCase {
 
     private static final String ANY = QuerySettings.PARAM_ANY_VALUE_DEFAULT;
 
-    /**
-     * The analyzer here follows the build, and release builds don't apply the default value of the setting, so no parameter stands
-     * for "Any" in them.
-     */
     @BeforeClass
     public static void requireAnyParam() {
-        assumeTrue("requires the Any query parameter", EsqlCapabilities.Cap.PARAM_ANY_VALUE_V1.isEnabled());
+        assumeTrue("requires the Any query parameter", EsqlCapabilities.Cap.PARAM_ANY_VALUE.isEnabled());
     }
 
     @Override

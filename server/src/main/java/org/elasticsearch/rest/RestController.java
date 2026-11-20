@@ -560,7 +560,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
-            if (handler.canTripCircuitBreaker()) {
+            if (handler.canTripCircuitBreaker() || contentLength > ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
             } else {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);

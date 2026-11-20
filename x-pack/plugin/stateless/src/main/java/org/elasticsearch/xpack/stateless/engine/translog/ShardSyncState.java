@@ -161,7 +161,7 @@ class ShardSyncState {
             syncedLocation = syncMarker.location();
             return true;
         } else {
-            if (startingPrimaryTerm < currentTerm) {
+            if (startingPrimaryTerm < currentTerm || currentTerm == Long.MIN_VALUE) {
                 // This state's own term is no longer current. The caller fails pending listeners after releasing a lock.
                 primaryTermIsStale = true;
             } // else syncMarker relates to an earlier incarnation of this shard with an older term, so there are no listeners to fail.

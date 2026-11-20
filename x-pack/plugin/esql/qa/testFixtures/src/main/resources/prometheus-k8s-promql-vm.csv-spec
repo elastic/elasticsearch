@@ -215,10 +215,12 @@ result:double | step:datetime            | cluster:keyword
 ;
 
 // `and on(cluster)` semi-join: every tx cluster also has an rx series, so all LHS (tx) series are kept (result = the tx sums).
-vector_match_and_keeps_all-Ignore
+vector_match_and_keeps_all
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+required_capability: promql_set_operator_matching
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
 
@@ -235,10 +237,12 @@ result:double | step:datetime            | cluster:keyword
 ;
 
 // `and on(cluster)` semi-join with the RHS restricted to prod: only tx series whose cluster is prod survive.
-vector_match_and_filters-Ignore
+vector_match_and_filters
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+required_capability: promql_set_operator_matching
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
 
@@ -377,10 +381,12 @@ result:double | step:datetime            | cluster:keyword
 ;
 
 // `and` with no on/ignoring matches on the full (shared) label set - here cluster - so all tx series are kept.
-vector_match_and_default-Ignore
+vector_match_and_default
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+required_capability: promql_set_operator_matching
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster) (network.eth0.tx) and sum by (cluster) (network.eth0.rx))
 | SORT cluster, step;
 
@@ -726,10 +732,12 @@ ratio:double        | step:datetime            | cluster:keyword | pod:keyword
 ;
 
 // and ignoring(...): set-intersection with an ignoring modifier keeps LHS pod series that match the filtered RHS cluster.
-vector_match_and_ignoring-Ignore
+vector_match_and_ignoring
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+required_capability: promql_set_operator_matching
 PROMQL index=prometheus-k8s step=10m result=(sum by (cluster, pod) (network.eth0.tx) and ignoring (pod) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, pod, step;
 
@@ -1218,13 +1226,19 @@ r:double | cluster:keyword | pod:keyword | step:datetime
 ;
 
 // The semi-join path uses the same key lowering: every tx series has a matching
-// rx series, so all LHS values survive unchanged.
-vector_match_matrix_and-Ignore
+// rx series, so all LHS values survive unchanged. A set operator keeps the LHS's whole label set, so the result stays
+// opaque: read the labels from _timeseries.
+vector_match_matrix_and
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: fn_json_extract
+required_capability: promql_timeseries_metadata_functions
+required_capability: promql_set_operator_matching
 PROMQL index=prometheus-k8s step=10m r=(network.eth0.tx and on (cluster, pod) network.eth0.rx)
-| WHERE cluster == "prod" AND step == "2024-05-10T00:10:00.000Z"
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| EVAL cluster = JSON_EXTRACT(_timeseries, "cluster"), pod = JSON_EXTRACT(_timeseries, "pod")
+| WHERE cluster == "prod"
 | KEEP r, cluster, pod, step
 | SORT pod;
 
@@ -1414,10 +1428,12 @@ result:double | step:datetime            | cluster:keyword
 
 // A match nested under a set operator: `and` keeps the ratio rows whose cluster
 // also has a prod-filtered rx series, i.e. only prod's ratios.
-vector_match_nested_join_in_and-Ignore
+vector_match_nested_join_in_and
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+required_capability: promql_set_operator_matching
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
 | SORT cluster, step;
 

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ResultOrderingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ResultOrderingFunction.ResultOrdering;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -150,7 +151,7 @@ public final class AddPromqlResultOrder extends ParameterizedRule<LogicalPlan, L
             return resultOrdering(relabel.child());
         }
         // A filter keeps the vector side's samples in their order; between vectors that is the left side, unless
-        // group_right makes the right side the one Prometheus iterates.
+        // group_right makes the right side the one Prometheus iterates. and and unless keep the left side's.
         if (plan instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
             if (PromqlPlan.returnsScalar(comparison.left())) {
                 return resultOrdering(comparison.right());
@@ -158,6 +159,9 @@ public final class AddPromqlResultOrder extends ParameterizedRule<LogicalPlan, L
             if (comparison.match().grouping() != VectorMatch.Joining.RIGHT) {
                 return resultOrdering(comparison.left());
             }
+        }
+        if (plan instanceof VectorBinarySet set && set.op() != VectorBinarySet.SetOp.UNION) {
+            return resultOrdering(set.left());
         }
         return null;
     }

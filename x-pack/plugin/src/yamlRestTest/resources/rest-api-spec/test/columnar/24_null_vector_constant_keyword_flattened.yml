@@ -663,4 +663,3 @@ exists on a constant_keyword field matches every document in every strict column
   - match: { hits.hits.9._id: empty_object }
   - match: { hits.hits.10._id: missing }
   - match: { hits.hits.11._id: vectors }
-

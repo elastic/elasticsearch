@@ -2828,4 +2828,3 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
-

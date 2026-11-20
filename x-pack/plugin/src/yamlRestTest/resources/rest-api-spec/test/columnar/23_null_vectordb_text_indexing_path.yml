@@ -132,4 +132,3 @@ exists matches only documents with a non-null value on a text field in vectordb_
   - match: { hits.hits.2._id: leading_null }
   - match: { hits.hits.3._id: trailing_null }
   - match: { hits.hits.4._id: both_ends_null }
-

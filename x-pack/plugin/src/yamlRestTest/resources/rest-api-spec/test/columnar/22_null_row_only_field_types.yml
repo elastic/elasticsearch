@@ -2579,4 +2579,3 @@ synthetic source drops the null elements of a tdigest field in columnar and logs
   - match: { hits.hits.7._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
-

@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -61,7 +60,6 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
@@ -87,17 +85,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DataStreamAutoshardingIT extends ESIntegTestCase {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // Index creation dates use the wall clock, whereas the auto sharding service uses the cached ThreadPool clock, which can lag
-            // by up to the estimated time interval. With a 0s cooldown that skew can make a freshly created index look like it is still
-            // within the cooldown, so disable the cached clock to keep the tests deterministic.
-            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
-            .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

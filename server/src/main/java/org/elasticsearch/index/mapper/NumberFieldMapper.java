@@ -22,6 +22,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -40,8 +41,10 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
@@ -2992,14 +2995,31 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     public void encodeDocValuesUpdate(List<Object> values, DocValuesUpdateSink sink) {
-        // Mirrors the doc-values value written by NumberType#addFields (dvFactory.addNumericField with the sortable-long encoding), so
-        // an in-place update stores exactly what a reindex would. A sorted-numeric column takes a single value per update.
-        sink.numeric(fullPath(), type.toSortableLong(type.parse(values.get(0), coerce())));
+        // Mirrors the doc-values value addLongFields writes, so an in-place update stores exactly what a reindex would. An updatable
+        // numeric takes a single value per update. Only LONG has a binary disk format, and its sortable long is the raw long.
+        final long value = type.toSortableLong(type.parse(values.get(0), coerce()));
+        if (fieldType.diskFormat() == DocValuesDiskFormat.BINARY) {
+            // A binary column holds a document's raw longs back to back; see ColumnarNumericDocValuesField.
+            sink.binary(fullPath(), NumericBinaryPayload.encode(new long[] { value }, 1, new BytesRefBuilder()));
+        } else {
+            sink.numeric(fullPath(), value);
+        }
     }
 
     @Override
     public DocValuesUpdateSourceReader docValuesUpdateSourceReader(LeafReader reader) throws IOException {
-        // An updatable numeric is single-valued sorted-numeric doc values (see DocValuesFieldFactory); decode the sortable long back.
+        // An updatable numeric is single-valued (see DocValuesFieldFactory); decode the sortable long back to a source value.
+        if (fieldType.diskFormat() == DocValuesDiskFormat.BINARY) {
+            final BinaryDocValues docValues = DocValues.getBinary(reader, fullPath());
+            final long[][] decoded = new long[][] { new long[1] };
+            return doc -> {
+                if (docValues.advanceExact(doc) == false) {
+                    return null;
+                }
+                NumericBinaryPayload.decode(docValues.binaryValue(), decoded);
+                return type.sortableLongToValue(decoded[0][0]);
+            };
+        }
         SortedNumericDocValues docValues = DocValues.getSortedNumeric(reader, fullPath());
         return doc -> docValues.advanceExact(doc) ? type.sortableLongToValue(docValues.nextValue()) : null;
     }

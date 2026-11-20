@@ -221,6 +221,53 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         );
     }
 
+    public void testInPlaceUpdateOfBinaryNumericLong() throws Exception {
+        assumeTrue("binary numeric doc values are behind a feature flag", IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled());
+        // A long opted into binary doc values (the ColumNAR binary layout) must still update in place: the update is encoded as a binary
+        // payload rather than a sorted-numeric value, and read back through the binary source reader when columnar_stored overlays it.
+        assertAcked(
+            prepareCreate("idx").setSettings(
+                Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                    .put("index.disable_sequence_numbers", false)
+                    .put(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING.getKey(), true)
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+            ).setMapping("""
+                {
+                  "properties": {
+                    "count": { "type": "long", "index": false, "doc_values": { "updatable": true } },
+                    "name":  { "type": "keyword" }
+                  }
+                }
+                """)
+        );
+        ensureGreen("idx");
+
+        prepareIndex("idx").setId("1").setSource("count", 1, "name", "widget").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        BulkRequest bulk = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        bulk.add(new UpdateRequest("idx", "1").doc(Map.of("count", 42)));
+        BulkResponse bulkResponse = client().bulk(bulk).actionGet();
+        assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+        assertThat(bulkResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
+
+        // The overlay reads the updated binary column back; the version is unchanged, so this was in place, not a reindex.
+        GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
+        assertThat("expected an in-place update, not a reindex", get.getVersion(), equalTo(1L));
+        Map<String, Object> source = get.getSourceAsMap();
+        assertThat(((Number) source.get("count")).longValue(), equalTo(42L));
+        assertThat(source.get("name"), equalTo("widget"));
+
+        // A force-merge folds the update into the stored blob and resets the doc-values generation, so the read-time overlay is skipped;
+        // the value must still be correct, proving the merge re-materialized the corrected binary column.
+        assertNoFailures(indicesAdmin().prepareForceMerge("idx").setMaxNumSegments(1).get());
+        GetResponse afterMerge = client().prepareGet("idx", "1").setRealtime(false).get();
+        assertThat(afterMerge.getVersion(), equalTo(1L));
+        assertThat(((Number) afterMerge.getSourceAsMap().get("count")).longValue(), equalTo(42L));
+    }
+
     public void testInPlaceUpdateOnLogsdbColumnar() throws Exception {
         assertAcked(
             prepareCreate("idx").setSettings(

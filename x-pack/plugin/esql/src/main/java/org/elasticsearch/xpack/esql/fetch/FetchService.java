@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -54,8 +56,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
@@ -87,6 +91,8 @@ import java.util.stream.IntStream;
  * drops its references once the response is sent, because dropping the last reference to a reader can block. Before that
  * it frees the contexts the request reads for the last time, like the fetch phase of {@code _search} frees the context it
  * read.
+ * <p>
+ * On the coordinator of a query, it builds the fetch operators that send these requests, see {@link #operatorProvider}.
  */
 public final class FetchService {
     private static final Logger logger = LogManager.getLogger(FetchService.class);
@@ -185,6 +191,39 @@ public final class FetchService {
         try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
             return new FetchResponse(blocks, threadContext);
         }
+    }
+
+    /**
+     * The fetch operators of the query that {@code scope} describes, on its coordinator. Each sends its requests through
+     * this service to the nodes of the local cluster, with the index expressions of its {@link FetchExec} and the indices
+     * options of the query's data node requests.
+     */
+    public FetchOperatorProvider operatorProvider(QueryFetchScope scope) {
+        return new FetchOperatorProvider() {
+            @Override
+            public Operator.OperatorFactory fetchOperator(FetchExec exec, int docChannel) {
+                OriginalIndices indices = new OriginalIndices(
+                    exec.originalIndices().toArray(String[]::new),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS
+                );
+                return FetchOperator.Factory.forExec(
+                    exec,
+                    docChannel,
+                    new QueryFetchClient(
+                        FetchService.this::sendFetch,
+                        clusterService.threadPool().getThreadContext(),
+                        () -> clusterService.state().nodes(),
+                        scope,
+                        indices
+                    )
+                );
+            }
+
+            @Override
+            public boolean receivesDetachedDocuments() {
+                return true;
+            }
+        };
     }
 
     /**

@@ -16,14 +16,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.function.Supplier;
 
 /**
- * @param queryId the task of the query's coordinator in this cluster
- * @param load where the time of a compute that reads no shard of its own is charged, or {@code null}
- * @param queryLoad what the compute charged outside its drivers, and its waiting
+ * @param queryId        the task of the query's coordinator in this cluster
+ * @param load           where the time of a compute that reads no shard of its own is charged, or {@code null}
+ * @param fetchOperators the fetch operators of the plan. Only the coordinator of a query that plans the fetch phase has
+ *                       them.
+ * @param queryLoad      what the compute charged outside its drivers, and its waiting
  */
 record ComputeContext(
     String sessionId,
@@ -39,8 +42,12 @@ record ComputeContext(
     boolean singleNodeOptimizations,
     @Nullable SharedSortBound sortBound,
     @Nullable TaskLoadAttribution.Target load,
+    FetchOperatorProvider fetchOperators,
     QueryLoad queryLoad
 ) {
+    /**
+     * For computes whose plans never fetch and share no sort bound.
+     */
     ComputeContext(
         String sessionId,
         TaskId queryId,
@@ -68,6 +75,7 @@ record ComputeContext(
             singleNodeOptimizations,
             null,
             null,
+            FetchOperatorProvider.UNSUPPORTED,
             new QueryLoad()
         );
     }

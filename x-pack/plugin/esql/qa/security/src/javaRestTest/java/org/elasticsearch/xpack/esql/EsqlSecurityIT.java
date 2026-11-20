@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -607,6 +608,77 @@ public class EsqlSecurityIT extends ESRestTestCase {
             ).entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
             assertMap(responseMap, matcher);
         }
+    }
+
+    /**
+     * With the fetch phase, a {@code TopN} loads the columns its sort doesn't need through fetch requests. Security
+     * authorizes those on their own, with the index expressions of the query, and they must return what the query returns
+     * without the fetch phase: the documents that document level security lets through, the fields that field level
+     * security grants, and an index that the role reads only through a filtered alias, matched with a wildcard. The
+     * cluster has one node, so every fetch request goes through the local transport.
+     */
+    public void testFetchPhaseReadsWhatTheQueryReads() throws Exception {
+        assumeTrue("the fetch_phase pragma needs a snapshot build", Build.current().isSnapshot());
+
+        // user3 reads the sales documents of index only
+        EsqlResult dls = assertFetchPhaseMatchesEager("user3", "FROM index | SORT value DESC | LIMIT 10");
+        assertThat(dls.values("org"), equalTo(List.of("sales")));
+
+        // fls_user reads value and partial of index, but not org. The values of partial depend on the index mode: synthetic
+        // source loads them from partial.keyword, which the role doesn't grant.
+        EsqlResult fls = assertFetchPhaseMatchesEager("fls_user", "FROM index | SORT value DESC | LIMIT 10");
+        assertThat(fls.columnNames(), not(hasItem("org")));
+        assertThat(fls.columnNames(), hasItem("partial"));
+
+        // alias_user1 reads index-user1 only through first-alias, whose filter keeps its sales documents
+        EsqlResult alias = assertFetchPhaseMatchesEager("alias_user1", "FROM first-*,index-* | SORT value DESC | LIMIT 10");
+        assertThat(alias.values("value"), equalTo(List.of(31.0d)));
+        assertThat(alias.values("org"), equalTo(List.of("sales")));
+    }
+
+    /**
+     * Runs {@code query} as {@code user} with the fetch phase and without it. Checks that both return the same columns and
+     * rows, and that the fetch phase fetched documents.
+     */
+    private EsqlResult assertFetchPhaseMatchesEager(String user, String query) throws IOException {
+        Map<String, Object> eager = entityAsMap(runWithFetchPhase(user, query, false));
+        Map<String, Object> fetched = entityAsMap(runWithFetchPhase(user, query, true));
+        assertThat(fetched.get("columns"), equalTo(eager.get("columns")));
+        assertThat(fetched.get("values"), equalTo(eager.get("values")));
+        assertThat("documents fetched by [" + query + "] as [" + user + "]", fetchedDocuments(fetched), greaterThan(0));
+        return EsqlResult.of(fetched);
+    }
+
+    /**
+     * Runs a profiled query that sets the {@code fetch_phase} pragma, and no other pragma.
+     */
+    private Response runWithFetchPhase(String user, String query, boolean fetchPhase) throws IOException {
+        XContentBuilder json = JsonXContent.contentBuilder().startObject();
+        json.field("query", query);
+        json.field("profile", true);
+        json.startObject("pragma").field("fetch_phase", fetchPhase).endObject();
+        json.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(Strings.toString(json));
+        request.setOptions(runAsUserOptions(user, null));
+        request.addParameter("error_trace", "true");
+        return client().performRequest(request);
+    }
+
+    /**
+     * The documents that the fetch operators of a profiled query fetched.
+     */
+    @SuppressWarnings("unchecked")
+    private static int fetchedDocuments(Map<String, Object> result) {
+        int documents = 0;
+        for (Map<String, Object> driver : (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers")) {
+            for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
+                if (((String) operator.get("operator")).startsWith("FetchOperator")) {
+                    documents += ((Number) ((Map<String, Object>) operator.get("status")).get("documents")).intValue();
+                }
+            }
+        }
+        return documents;
     }
 
     public void testUnauthorizedIndices() throws IOException {

@@ -68,7 +68,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -214,6 +213,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     private static final TimeValue MIN_RESERVATION_WAIT = timeValueMillis(50);
 
     /**
+     * The longest wait between reservation attempts, so a cancelled task is noticed within a second.
+     */
+    private static final TimeValue MAX_RESERVATION_WAIT = TimeValue.timeValueSeconds(1);
+
+    /**
      * How long a reserve is refused before the worker says so in the log.
      */
     private static final TimeValue RESERVATION_WAIT_WARN_AFTER = TimeValue.timeValueSeconds(60);
@@ -238,13 +242,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      * search fails before a page exists. One worker holds this or the page charge, not both.
      */
     private final AtomicReference<IndexingPressure.Coordinating> inFlightCharge = new AtomicReference<>();
-
-    /**
-     * The one delayed reservation attempt waiting for coordinating budget. Cancelled when the task is cancelled.
-     */
-    private final AtomicReference<ReservationRetry> reservationRetry = new AtomicReference<>();
-
-    private final AtomicBoolean listeningForCancellation = new AtomicBoolean();
 
     protected CircuitBreaker getCircuitBreaker() {
         return circuitBreaker;
@@ -1107,7 +1104,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
-        // A cancel can finish the task while a queued reservation attempt finishes it as well. The listener must hear once.
+        // More than one path can finish the task. The listener must hear once.
         if (requestFinishing.compareAndSet(false, true) == false) {
             logger.debug("[{}]: already finishing, ignoring a second finish", task.getId());
             return;
@@ -1135,10 +1132,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         );
         final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
         // A search that failed before a page existed still holds its estimate. A page that exists closes its own charge below.
-        ReservationRetry scheduledReservation = reservationRetry.getAndSet(null);
-        if (scheduledReservation != null) {
-            scheduledReservation.cancel();
-        }
         Releasables.close(inFlightCharge.getAndSet(null));
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
@@ -1175,15 +1168,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     void addDestinationIndices(Collection<String> indices) {
         destinationIndices.addAll(indices);
-    }
-
-    /**
-     * Occupies the reservation-retry slot. The next schedule finds it taken and fails the task. Exists entirely for testing.
-     */
-    void plantReservationRetryForTests() {
-        if (reservationRetry.compareAndSet(null, new ReservationRetry()) == false) {
-            throw new AssertionError("a reservation retry is already planted");
-        }
     }
 
     /**
@@ -1291,110 +1275,30 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
-     * Schedules another attempt to reserve the next page. One attempt is outstanding per worker. The delay is the request's initial retry
-     * backoff, but never less than {@link #MIN_RESERVATION_WAIT}, and the attempt is cancelled when the task is cancelled.
+     * Schedules another attempt to reserve the next page, after {@link #reservationWait()}.
+     * The attempt checks for cancellation first, so a cancelled task finishes on the next poll.
      */
     private void scheduleReservationRetry(Runnable search) {
-        if (task.isCancelled()) {
-            finishIfStillRunning(null);
-            return;
-        }
-        if (listeningForCancellation.compareAndSet(false, true)) {
-            task.addListener(this::onReservationRetryCancelled);
-        }
-        // Published before scheduling, so cancellation can see the attempt even when the scheduler runs it immediately.
-        ReservationRetry retry = new ReservationRetry();
-        if (reservationRetry.compareAndSet(null, retry) == false) {
-            // runReservationRetry clears the slot before it reserves, so this should not happen. Finishing the task is better than
-            // dropping the search continuation and leaving the task running with nothing scheduled.
-            final IllegalStateException e = new IllegalStateException(
-                "task [" + task.getId() + "] already has a reservation retry scheduled"
-            );
-            finishIfStillRunning(e);
-            assert false : e;
-            return;
-        }
-        final Scheduler.ScheduledCancellable scheduled;
         try {
-            // Generic, not the scheduler thread. The retry reserves and then searches, and a search listener can run inline.
-            scheduled = threadPool.schedule(() -> runReservationRetry(retry, search), reservationWait(), threadPool.generic());
+            // Generic, not the scheduler thread. The poll reserves and then searches, and a search listener can run inline.
+            threadPool.schedule(() -> reservePageThen(search), reservationWait(), threadPool.generic());
         } catch (Exception e) {
-            reservationRetry.compareAndSet(retry, null);
             finishIfStillRunning(e);
-            return;
-        }
-        // True when cancellation won before this attempt was attached, and the runnable will not start.
-        if (retry.attach(scheduled)) {
-            reservationRetry.compareAndSet(retry, null);
-            finishIfStillRunning(null);
-            return;
-        }
-        if (task.isCancelled() || requestFinishing.get()) {
-            onReservationRetryCancelled();
         }
     }
 
     /**
-     * The request's initial retry backoff, floored at {@link #MIN_RESERVATION_WAIT}. The setter allows zero, and the scheduler runs a
-     * zero delay straight away, so a full budget would otherwise spin and count a rejection on every spin.
+     * The wait between reservation polls. It is the request's initial retry backoff, kept between {@link #MIN_RESERVATION_WAIT} and
+     * {@link #MAX_RESERVATION_WAIT}. The setter allows zero, and the scheduler runs a zero delay straight away, so a full budget would
+     * otherwise spin and count a rejection on every spin. The cap applies only to this poll, not to the bulk retry backoff.
      */
     private TimeValue reservationWait() {
         final TimeValue initialBackoff = mainRequest.getRetryBackoffInitialTime();
-        return initialBackoff.nanos() < MIN_RESERVATION_WAIT.nanos() ? MIN_RESERVATION_WAIT : initialBackoff;
-    }
-
-    private void onReservationRetryCancelled() {
-        ReservationRetry scheduled = reservationRetry.getAndSet(null);
-        // cancel returns true only when the attempt will not run. That attempt is the one that has to finish the task.
-        if (scheduled != null && scheduled.cancel()) {
-            finishIfStillRunning(null);
+        if (initialBackoff.nanos() < MIN_RESERVATION_WAIT.nanos()) {
+            return MIN_RESERVATION_WAIT;
         }
-    }
-
-    private void runReservationRetry(ReservationRetry retry, Runnable search) {
-        // Drop only this attempt. A newer one, published if the scheduler ran us before attach returned, has to stay.
-        reservationRetry.compareAndSet(retry, null);
-        if (requestFinishing.get()) {
-            return;
-        }
-        reservePageThen(search);
-    }
-
-    /**
-     * One scheduled reservation attempt. Published before the scheduler runs it, so cancel still finds it when the delay is zero.
-     */
-    private static final class ReservationRetry {
-        private final AtomicBoolean cancelled = new AtomicBoolean();
-        @Nullable
-        private volatile Scheduler.ScheduledCancellable scheduled;
-
-        /**
-         * @return true when this attempt will not run
-         */
-        boolean cancel() {
-            if (cancelled.compareAndSet(false, true) == false) {
-                return false;
-            }
-            Scheduler.ScheduledCancellable current = scheduled;
-            // Not attached yet. attach cancels the future and reports whether that stopped the run.
-            // The caller onReservationRetryCancelled does not finish the task in that case. attach does, through
-            // scheduleReservationRetry.
-            if (current == null) {
-                return false;
-            }
-            return current.cancel();
-        }
-
-        /**
-         * @return true when this attempt was already cancelled and the scheduled run will not start
-         */
-        boolean attach(Scheduler.ScheduledCancellable scheduledRun) {
-            this.scheduled = scheduledRun;
-            if (cancelled.get() == false) {
-                return false;
-            }
-            return scheduledRun.cancel();
-        }
+        // A cancelled task is only noticed when the poll runs. It should not sit for a user-set backoff that might be minutes.
+        return initialBackoff.nanos() > MAX_RESERVATION_WAIT.nanos() ? MAX_RESERVATION_WAIT : initialBackoff;
     }
 
     private void finishIfStillRunning(@Nullable Exception failure) {

@@ -52,11 +52,10 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(25_059, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(188).getBytes()));
         assertEquals(68_246, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(512).getBytes()));
         assertEquals(136_492, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(1).getBytes()));
-        assertEquals(272_985, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(2).getBytes()));
-        assertEquals(545_970, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(4).getBytes()));
-        assertEquals(955_448, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(7).getBytes()));
-        assertEquals(1_000_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(8).getBytes()));
-        assertEquals(1_000_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(32).getBytes()));
+        assertEquals(200_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(2).getBytes()));
+        assertEquals(200_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(4).getBytes()));
+        assertEquals(200_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(8).getBytes()));
+        assertEquals(200_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(32).getBytes()));
     }
 
     public void testMaxDiscoveredFilesOverrideBeatsHeapDefault() {
@@ -67,7 +66,6 @@ public class ExternalSourceSettingsTests extends ESTestCase {
     }
 
     public void testPlanningBytesPerDiscoveredFileMatchesBreakerCharges() {
-        assertEquals(ExternalSourceResolver.SCHEMA_MAP_BYTES_PER_FILE, ExternalSourceSettings.SCHEMA_MAP_BYTES_PER_DISCOVERED_FILE);
         assertEquals(
             FileList.LISTING_BYTES_PER_ENTRY + ExternalSourceResolver.SCHEMA_MAP_BYTES_PER_FILE + Phase2Reservation.SHELL_BYTES,
             ExternalSourceSettings.PLANNING_BYTES_PER_DISCOVERED_FILE

@@ -165,7 +165,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
      * Together with the compacted listing that stays a few megabytes of slack under a 1 GB request breaker.
      * Pins the floor rather than {@code Settings.EMPTY} so a fat test JVM does not build a million entries.
      */
-    public void testPlanningChargeAtDefaultDiscoveredFilesCap() {
+    public void testPlanningChargeAtDiscoveredFilesFloor() {
         int files = 25_000;
         List<StorageEntry> entries = new ArrayList<>(files);
         for (int i = 0; i < files; i++) {

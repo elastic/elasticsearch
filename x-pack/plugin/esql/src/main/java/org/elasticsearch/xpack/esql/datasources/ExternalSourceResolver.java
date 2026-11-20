@@ -206,8 +206,8 @@ public class ExternalSourceResolver {
      * Not a measured deep size. A shared schema keeps one {@code ExternalSchema} and one {@code ColumnMapping};
      * each file adds a map node, a {@code FileSchemaInfo}, and a path key. 320 bytes covers that shape and
      * leaves a few megabytes of slack at the discovered-files floor. A file with its own attribute list
-     * can exceed it. Package-visible so tests can assert lock-step with the discovered-files default's
-     * per-file charge.
+     * can exceed it. Package-visible so {@link ExternalSourceSettings} can size the discovered-files
+     * default from the same billed bytes.
      */
     static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
 

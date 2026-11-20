@@ -116,7 +116,7 @@ $$$esql-external-max-discovered-files$$$
 `esql.external.max_discovered_files`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on files kept after listing filters (`_file.*`) during glob expansion before the query aborts. Protects against degenerate globs. An explicit value overrides the formula and is not clipped by heap. Planning memory for kept files is charged to the request circuit breaker, which remains the backstop if the cap is raised beyond what the node can hold.
 
-    - **Default:** 15% of the node's max heap at startup divided by about 1180 bytes per kept file, minimum `25000` and maximum `1000000`
+    - **Default:** 15% of the node's max heap at startup divided by about 1180 bytes per kept file, minimum `25000` and maximum `200000`. An explicit value may go up to `1000000`.
     - **Valid values:** `1` to `1000000`
 
 $$$esql-external-max-glob-expansion$$$

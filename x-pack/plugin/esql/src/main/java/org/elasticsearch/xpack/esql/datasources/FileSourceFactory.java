@@ -736,7 +736,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .parsingParallelism(context.parsingParallelism())
                     .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
                     .maxRecordBytes(context.maxRecordBytes())
-                    // A disabled cache accepts no statistics, so harvest none; the grid goes with the scope.
                     .statsStripeSize(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes() : -1L)
                     .statsColumnScope(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings) : StripeColumnScope.NONE)
                     .streamingSegmentatorAdmission(segmentatorAdmission)

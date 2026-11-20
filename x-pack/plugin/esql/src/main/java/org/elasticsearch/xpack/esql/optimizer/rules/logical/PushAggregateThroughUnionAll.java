@@ -420,10 +420,10 @@ public class PushAggregateThroughUnionAll extends OptimizerRules.OptimizerRule<A
             return new Sum(src, partialRef);
         } else if (aggFn instanceof Sum) {
             return new Sum(src, partialRef);
-        } else if (aggFn instanceof Min) {
-            return new Min(src, partialRef);
-        } else if (aggFn instanceof Max) {
-            return new Max(src, partialRef);
+        } else if (aggFn instanceof Min min) {
+            return new Min(src, partialRef, Literal.TRUE, AggregateFunction.NO_WINDOW, false, min.skipNan());
+        } else if (aggFn instanceof Max max) {
+            return new Max(src, partialRef, Literal.TRUE, AggregateFunction.NO_WINDOW, false, max.skipNan());
         }
         throw new IllegalStateException("isDecomposable should have rejected: " + aggFn.getClass().getSimpleName());
     }

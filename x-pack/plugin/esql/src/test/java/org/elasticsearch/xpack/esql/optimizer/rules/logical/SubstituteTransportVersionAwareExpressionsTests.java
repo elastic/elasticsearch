@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -294,6 +295,80 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
     }
 
     /**
+     * A cluster with a node that predates NaN skipping keeps the old rule, where a NaN input makes MIN/MAX of a double NaN, so
+     * every node combines partial results the same way.
+     */
+    public void testMinAndMaxOfDoubleKeepNanPropagationWithOldVersion() {
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Min.ESQL_MINMAX_SKIP_NAN);
+        Min min = new Min(EMPTY, getFieldAttribute("f", DataType.DOUBLE));
+        Max max = new Max(EMPTY, getFieldAttribute("f", DataType.DOUBLE));
+
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(min, oldVersion), sameInstance(min));
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(max, oldVersion), sameInstance(max));
+        assertThat(min.supplier().describe(), is("min_nan_propagating of doubles"));
+        assertThat(max.supplier().describe(), is("max_nan_propagating of doubles"));
+    }
+
+    public void testMinAndMaxOfDoubleSkipNanWithCurrentVersion() {
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(Min.ESQL_MINMAX_SKIP_NAN);
+        Min min = new Min(EMPTY, getFieldAttribute("f", DataType.DOUBLE));
+        Max max = new Max(EMPTY, getFieldAttribute("f", DataType.DOUBLE));
+
+        Expression skippingMin = SubstituteTransportVersionAwareExpressions.rule(min, newVersion);
+        Expression skippingMax = SubstituteTransportVersionAwareExpressions.rule(max, newVersion);
+
+        assertThat(skippingMin, instanceOf(Min.class));
+        assertThat(skippingMax, instanceOf(Max.class));
+        assertTrue(((Min) skippingMin).skipNan());
+        assertTrue(((Max) skippingMax).skipNan());
+        assertThat(((Min) skippingMin).supplier().describe(), is("min of doubles"));
+        assertThat(((Max) skippingMax).supplier().describe(), is("max of doubles"));
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(skippingMin, newVersion), sameInstance(skippingMin));
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(skippingMax, newVersion), sameInstance(skippingMax));
+    }
+
+    public void testMinAndMaxKeepTheirFilterAndWindowWhenSkippingNan() {
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(Min.ESQL_MINMAX_SKIP_NAN);
+        Expression field = getFieldAttribute("f", DataType.DOUBLE);
+        Expression filter = getFieldAttribute("flag", DataType.BOOLEAN);
+        Min min = new Min(EMPTY, field, filter, AggregateFunction.NO_WINDOW, false);
+
+        Min skipping = (Min) SubstituteTransportVersionAwareExpressions.rule(min, newVersion);
+
+        assertThat(skipping.field(), is(field));
+        assertThat(skipping.filter(), is(filter));
+        assertThat(skipping.window(), is(AggregateFunction.NO_WINDOW));
+    }
+
+    /**
+     * The PromQL variant already skips NaN in its own aggregator, so it only changes through its downgrade: it is replaced by
+     * the strict variant on a cluster that predates it, and left alone otherwise.
+     */
+    public void testNonFiniteMinAndMaxAreNotSwitchedToNanSkipping() {
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(Min.ESQL_MINMAX_SKIP_NAN);
+        Min nonFiniteMin = new Min(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true);
+        Max nonFiniteMax = new Max(EMPTY, getFieldAttribute("f", DataType.DOUBLE), true);
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(nonFiniteMin, newVersion), sameInstance(nonFiniteMin));
+        assertThat(SubstituteTransportVersionAwareExpressions.rule(nonFiniteMax, newVersion), sameInstance(nonFiniteMax));
+
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MAX_MIN);
+        Min downgraded = (Min) SubstituteTransportVersionAwareExpressions.rule(nonFiniteMin, oldVersion);
+        assertFalse(downgraded.allowNonFinite());
+        assertFalse(downgraded.skipNan());
+    }
+
+    /**
+     * Only the double aggregators differ between the two rules; every other type uses the same aggregator either way.
+     */
+    public void testNanModeDoesNotChangeTheAggregatorOfOtherTypes() {
+        for (DataType type : List.of(DataType.INTEGER, DataType.LONG, DataType.KEYWORD, DataType.IP, DataType.DATETIME)) {
+            Min old = new Min(EMPTY, getFieldAttribute("f", type));
+            Min skipping = new Min(EMPTY, getFieldAttribute("f", type), Literal.TRUE, AggregateFunction.NO_WINDOW, false, true);
+            assertThat(type.typeName(), old.supplier().describe(), is(skipping.supplier().describe()));
+        }
+    }
+
+    /**
      * The lenient (PromQL) {@code Percentile}, whose aggregator accepts non-finite observations, is downgraded to its
      * strict variant on a cluster that predates non-finite support, matching the other aggregations. The t-digest
      * compression must survive the downgrade, since it is unrelated to non-finite handling.
@@ -427,6 +502,60 @@ public class SubstituteTransportVersionAwareExpressionsTests extends ESTestCase 
         Expression evaluated = ((Eval) optimized).fields().getFirst().child();
         assertThat(evaluated, instanceOf(Sqrt.class));
         assertFalse("non-finite math must be downgraded on a cluster that predates it", ((Sqrt) evaluated).allowNonFinite());
+    }
+
+    /**
+     * The switch must survive being applied through a plan, and an aggregate holding both MIN and MAX switches both of them, so
+     * the partial and the final stage of a plan never disagree about NaN. On a cluster with a node that predates NaN skipping,
+     * neither is switched.
+     */
+    public void testNanSkippingAppliedThroughAggregatePlan() {
+        Expression field = getFieldAttribute("f", DataType.DOUBLE);
+        LogicalPlan plan = new Aggregate(
+            EMPTY,
+            relation(),
+            List.of(),
+            List.of(new Alias(EMPTY, "lo", new Min(EMPTY, field)), new Alias(EMPTY, "hi", new Max(EMPTY, field)))
+        );
+
+        TransportVersion newVersion = TransportVersionUtils.randomVersionSupporting(Min.ESQL_MINMAX_SKIP_NAN);
+        Aggregate skipping = (Aggregate) new SubstituteTransportVersionAwareExpressions().apply(
+            plan,
+            logicalOptimizerContext(TEST_CFG, FoldContext.small(), newVersion)
+        );
+        assertTrue(((Min) ((Alias) skipping.aggregates().get(0)).child()).skipNan());
+        assertTrue(((Max) ((Alias) skipping.aggregates().get(1)).child()).skipNan());
+
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(Min.ESQL_MINMAX_SKIP_NAN);
+        Aggregate propagating = (Aggregate) new SubstituteTransportVersionAwareExpressions().apply(
+            plan,
+            logicalOptimizerContext(TEST_CFG, FoldContext.small(), oldVersion)
+        );
+        assertFalse(((Min) ((Alias) propagating.aggregates().get(0)).child()).skipNan());
+        assertFalse(((Max) ((Alias) propagating.aggregates().get(1)).child()).skipNan());
+    }
+
+    /**
+     * A MIN/MAX that differs from the original only in a flag must still replace it in the plan, so the PromQL downgrade also
+     * reaches an aggregate.
+     */
+    public void testNonFiniteMinAndMaxDowngradeAppliedThroughAggregatePlan() {
+        Expression field = getFieldAttribute("f", DataType.DOUBLE);
+        LogicalPlan plan = new Aggregate(
+            EMPTY,
+            relation(),
+            List.of(),
+            List.of(new Alias(EMPTY, "lo", new Min(EMPTY, field, true)), new Alias(EMPTY, "hi", new Max(EMPTY, field, true)))
+        );
+
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(ESQL_PROMQL_NON_FINITE_MAX_MIN);
+        Aggregate downgraded = (Aggregate) new SubstituteTransportVersionAwareExpressions().apply(
+            plan,
+            logicalOptimizerContext(TEST_CFG, FoldContext.small(), oldVersion)
+        );
+
+        assertFalse(((Min) ((Alias) downgraded.aggregates().get(0)).child()).allowNonFinite());
+        assertFalse(((Max) ((Alias) downgraded.aggregates().get(1)).child()).allowNonFinite());
     }
 
     /**

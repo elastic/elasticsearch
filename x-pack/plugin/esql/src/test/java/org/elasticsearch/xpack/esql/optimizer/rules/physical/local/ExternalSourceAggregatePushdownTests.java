@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -78,6 +79,14 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
 
     private static final ReferenceAttribute AGE = referenceAttribute("age", DataType.INTEGER);
     private static final ReferenceAttribute SCORE = referenceAttribute("score", DataType.DOUBLE);
+
+    private static Min skipNanMin(Expression field) {
+        return new Min(Source.EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, false, true);
+    }
+
+    private static Max skipNanMax(Expression field) {
+        return new Max(Source.EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, false, true);
+    }
 
     public void testServableExtremumRejectsUnrepresentableButAllowsLosslessNarrowing() {
         // Same-type and lossless cases are served.
@@ -224,8 +233,8 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             AggregatorMode.INITIAL,
             externalSource(metadata),
             countStarAlias(),
-            alias("mn", new Min(Source.EMPTY, SCORE)),
-            alias("mx", new Max(Source.EMPTY, SCORE))
+            alias("mn", skipNanMin(SCORE)),
+            alias("mx", skipNanMax(SCORE))
         );
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
@@ -264,8 +273,8 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             AggregatorMode.INITIAL,
             externalSource(metadata),
             countStarAlias(),
-            alias("mn", new Min(Source.EMPTY, SCORE)),
-            alias("mx", new Max(Source.EMPTY, SCORE))
+            alias("mn", skipNanMin(SCORE)),
+            alias("mx", skipNanMax(SCORE))
         );
         List<Attribute> expectedOutput = agg.output();
 
@@ -407,11 +416,11 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         metadata.put("_stats.columns.age.max", 99);
 
         // MIN(score): score was never harvested -> must NOT push down; falls back to a scan.
-        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, SCORE)));
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", skipNanMin(SCORE)));
         as(applyRule(minAgg), AggregateExec.class);
 
         // MAX(score): same.
-        var maxAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Max(Source.EMPTY, SCORE)));
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", skipNanMax(SCORE)));
         as(applyRule(maxAgg), AggregateExec.class);
 
         // COUNT(*): independent of column stats -> still serves from the row count.
@@ -444,13 +453,13 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
 
         AggregatePushdownSupport support = new TextAggregatePushdownSupport();
         // The type-only criterion is unchanged (and still insufficient on its own): MIN(score) is pushable.
-        assertEquals(AggregatePushdownSupport.Pushability.YES, support.canPushAggregates(List.of(new Min(Source.EMPTY, SCORE)), List.of()));
+        assertEquals(AggregatePushdownSupport.Pushability.YES, support.canPushAggregates(List.of(skipNanMin(SCORE)), List.of()));
         // The shared servability probe the gate NOW additionally consults declines the unservable column —
         // the same decision the fold makes, so "gate skips" can no longer outrun "fold serves".
         assertFalse(
             "gate's servability probe must decline the unservable column, matching the fold safe-miss",
             ExternalSourceAggregatePushdown.canServeAllFromStats(
-                List.of(alias("m", new Min(Source.EMPTY, SCORE))),
+                List.of(alias("m", skipNanMin(SCORE))),
                 SplitStats.of(metadata),
                 support.appliesImplicitNullsForAbsentColumn(),
                 Set.of()
@@ -458,7 +467,7 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         );
 
         // FOLD rule: still safe-misses (aggregate not served) — the two now agree.
-        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", new Min(Source.EMPTY, SCORE)));
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("m", skipNanMin(SCORE)));
         as(applyRule(minAgg), AggregateExec.class);
     }
 
@@ -592,11 +601,11 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         metadata.put("_stats.columns.score.min", 1.0);
         metadata.put("_stats.columns.score.max", 100.0);
 
-        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mn", new Min(Source.EMPTY, SCORE)));
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mn", skipNanMin(SCORE)));
         LocalSourceExec minLocal = as(applyRule(minAgg), LocalSourceExec.class);
         assertEquals(1.0, as(minLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0);
 
-        var maxAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mx", new Max(Source.EMPTY, SCORE)));
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, externalSource(metadata), alias("mx", skipNanMax(SCORE)));
         LocalSourceExec maxLocal = as(applyRule(maxAgg), LocalSourceExec.class);
         assertEquals(100.0, as(maxLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0);
     }
@@ -611,6 +620,23 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    /**
+     * The statistics skip NaN, so a double MIN/MAX that keeps the old NaN-propagating rule must not resolve from them, while
+     * the same aggregate with NaN skipping, a non-finite (PromQL) aggregate and a non-double column still do.
+     */
+    public void testNanPropagatingDoubleMinMaxDoesNotResolveFromStats() {
+        Map<String, Object> metadata = statsMetadata(500L, "score", 10L);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+        SplitStats stats = SplitStats.of(metadata);
+
+        assertNull(ExternalSourceAggregatePushdown.resolveFromStats(new Min(Source.EMPTY, SCORE), stats, false, Set.of()));
+        assertNull(ExternalSourceAggregatePushdown.resolveFromStats(new Max(Source.EMPTY, SCORE), stats, false, Set.of()));
+        assertEquals(1.0, ExternalSourceAggregatePushdown.resolveFromStats(skipNanMin(SCORE), stats, false, Set.of()));
+        assertEquals(100.0, ExternalSourceAggregatePushdown.resolveFromStats(skipNanMax(SCORE), stats, false, Set.of()));
+        assertEquals(1.0, ExternalSourceAggregatePushdown.resolveFromStats(new Min(Source.EMPTY, SCORE, true), stats, false, Set.of()));
+    }
+
     public void testMultipleAggsPushedDown() {
         Map<String, Object> metadata = statsMetadata(500L, "score", 10L);
         metadata.put("_stats.columns.score.min", 1.0);
@@ -620,8 +646,8 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
             AggregatorMode.SINGLE,
             externalSource(metadata),
             countStarAlias(),
-            alias("mn", new Min(Source.EMPTY, SCORE)),
-            alias("mx", new Max(Source.EMPTY, SCORE))
+            alias("mn", skipNanMin(SCORE)),
+            alias("mx", skipNanMax(SCORE))
         );
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
@@ -776,12 +802,12 @@ public class ExternalSourceAggregatePushdownTests extends ESTestCase {
         split2Stats.put("_stats.columns.score.max", 100.5);
 
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1Stats, split2Stats);
-        var minAgg = aggregateExec(AggregatorMode.SINGLE, ext, alias("m", new Min(Source.EMPTY, SCORE)));
+        var minAgg = aggregateExec(AggregatorMode.SINGLE, ext, alias("m", skipNanMin(SCORE)));
         LocalSourceExec minLocal = as(applyRule(minAgg), LocalSourceExec.class);
         assertEquals(0.5, as(minLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0001);
 
         ExternalSourceExec ext2 = externalSourceWithSplits(Map.of(), split1Stats, split2Stats);
-        var maxAgg = aggregateExec(AggregatorMode.SINGLE, ext2, alias("m", new Max(Source.EMPTY, SCORE)));
+        var maxAgg = aggregateExec(AggregatorMode.SINGLE, ext2, alias("m", skipNanMax(SCORE)));
         LocalSourceExec maxLocal = as(applyRule(maxAgg), LocalSourceExec.class);
         assertEquals(100.5, as(maxLocal.supplier().get().getBlock(0), DoubleBlock.class).getDouble(0), 0.0001);
     }

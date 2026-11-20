@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.MaxDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MaxIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MaxNanPropagatingDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MaxNonFiniteDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -78,6 +80,13 @@ public class Max extends UnaryAggregateFunction
      * NaN but orders -0.0 below 0.0.
      */
     private final boolean allowNonFinite;
+
+    /**
+     * Whether the {@code double} maximum skips {@code NaN}. {@code false} by default, the behaviour of nodes that
+     * predate {@link Min#ESQL_MINMAX_SKIP_NAN}; {@link #forTransportVersion} switches it on once every node supports it. Not used by the
+     * PromQL variant, whose aggregator always skips NaN.
+     */
+    private final boolean skipNan;
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MaxBooleanAggregatorFunctionSupplier::new),
@@ -158,13 +167,19 @@ public class Max extends UnaryAggregateFunction
     }
 
     public Max(Source source, Expression field, Expression filter, Expression window, boolean allowNonFinite) {
+        this(source, field, filter, window, allowNonFinite, false);
+    }
+
+    public Max(Source source, Expression field, Expression filter, Expression window, boolean allowNonFinite, boolean skipNan) {
         super(source, field, filter, window, emptyList());
         this.allowNonFinite = allowNonFinite;
+        this.skipNan = skipNan;
     }
 
     private Max(StreamInput in) throws IOException {
         super(in);
         this.allowNonFinite = NonFiniteSupport.readNonFinite(in, NonFiniteSupport.ESQL_PROMQL_NON_FINITE_MAX_MIN);
+        this.skipNan = in.getTransportVersion().supports(Min.ESQL_MINMAX_SKIP_NAN) && in.readBoolean();
     }
 
     @Override
@@ -177,6 +192,9 @@ public class Max extends UnaryAggregateFunction
         // The non-finite flag, when present, follows the base fields; version-gated so older nodes never see the byte.
         super.writeTo(out);
         writeNonFinite(out);
+        if (out.getTransportVersion().supports(Min.ESQL_MINMAX_SKIP_NAN)) {
+            out.writeBoolean(skipNan);
+        }
     }
 
     @Override
@@ -189,19 +207,53 @@ public class Max extends UnaryAggregateFunction
         return allowNonFinite;
     }
 
+    public boolean skipNan() {
+        return skipNan;
+    }
+
     @Override
     public Expression toStrictVariant() {
-        return new Max(source(), field(), filter(), window(), false);
+        return new Max(source(), field(), filter(), window(), false, skipNan);
+    }
+
+    /**
+     * Downgrades the PromQL variant when a node predates it, then switches on {@code NaN} skipping when every node supports
+     * it. Both steps are returned together, because the substitution does not visit its own result again.
+     */
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        Max result = this;
+        if (allowNonFinite && minTransportVersion.supports(nonFiniteTransportVersion()) == false) {
+            result = (Max) toStrictVariant();
+        }
+        if (result.allowNonFinite == false && result.skipNan == false && minTransportVersion.supports(Min.ESQL_MINMAX_SKIP_NAN)) {
+            result = new Max(source(), field(), filter(), window(), false, true);
+        }
+        return result == this ? null : result;
+    }
+
+    /**
+     * The flags take part in equality because a transformation only keeps a rebuilt child when it is not equal to the
+     * original, so a change that only flips a flag would otherwise never reach the plan.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && allowNonFinite == ((Max) obj).allowNonFinite && skipNan == ((Max) obj).skipNan;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), allowNonFinite, skipNan);
     }
 
     @Override
     protected NodeInfo<Max> info() {
-        return NodeInfo.create(this, Max::new, field(), filter(), window(), allowNonFinite);
+        return NodeInfo.create(this, Max::new, field(), filter(), window(), allowNonFinite, skipNan);
     }
 
     @Override
     public Max replaceChildren(List<Expression> newChildren) {
-        return new Max(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), allowNonFinite);
+        return new Max(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), allowNonFinite, skipNan);
     }
 
     @Override
@@ -243,6 +295,9 @@ public class Max extends UnaryAggregateFunction
         if (allowNonFinite && type == DataType.DOUBLE) {
             return new MaxNonFiniteDoubleAggregatorFunctionSupplier();
         }
+        if (skipNan == false && type == DataType.DOUBLE) {
+            return new MaxNanPropagatingDoubleAggregatorFunctionSupplier();
+        }
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
@@ -258,7 +313,8 @@ public class Max extends UnaryAggregateFunction
                 FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MAX),
                 filter(),
                 window(),
-                allowNonFinite
+                allowNonFinite,
+                skipNan
             );
         }
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
@@ -267,7 +323,8 @@ public class Max extends UnaryAggregateFunction
                 ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MAX),
                 filter(),
                 window(),
-                allowNonFinite
+                allowNonFinite,
+                skipNan
             );
         }
         return field().foldable() ? new MvMax(source(), field()) : null;

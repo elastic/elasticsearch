@@ -18,6 +18,7 @@ import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier
 import org.elasticsearch.compute.aggregation.MinIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinIpAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.MinNanPropagatingDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.MinNonFiniteDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -73,11 +75,25 @@ public class Min extends UnaryAggregateFunction
         .name("min");
 
     /**
+     * First transport version whose {@code MIN} and {@code MAX} over {@code double} skip {@code NaN}. A node that predates it
+     * makes the result {@code NaN} when any input is {@code NaN}, and combines partial results the same way, so a plan that
+     * reaches such a node must keep the old rule everywhere. See {@link #forTransportVersion}.
+     */
+    public static final TransportVersion ESQL_MINMAX_SKIP_NAN = TransportVersion.fromName("esql_minmax_skip_nan");
+
+    /**
      * When {@code true}, the {@code double} minimum uses Prometheus non-finite semantics (NaN skipped unless all inputs
      * are NaN). Set only by the PromQL translation; native ES|QL {@code MIN} uses the default aggregator, which also skips
      * NaN but orders -0.0 below 0.0.
      */
     private final boolean allowNonFinite;
+
+    /**
+     * Whether the {@code double} minimum skips {@code NaN}. {@code false} by default, the behaviour of nodes that
+     * predate {@link ESQL_MINMAX_SKIP_NAN}; {@link #forTransportVersion} switches it on once every node supports it. Not used by the
+     * PromQL variant, whose aggregator always skips NaN.
+     */
+    private final boolean skipNan;
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MinBooleanAggregatorFunctionSupplier::new),
@@ -158,13 +174,19 @@ public class Min extends UnaryAggregateFunction
     }
 
     public Min(Source source, Expression field, Expression filter, Expression window, boolean allowNonFinite) {
+        this(source, field, filter, window, allowNonFinite, false);
+    }
+
+    public Min(Source source, Expression field, Expression filter, Expression window, boolean allowNonFinite, boolean skipNan) {
         super(source, field, filter, window, emptyList());
         this.allowNonFinite = allowNonFinite;
+        this.skipNan = skipNan;
     }
 
     private Min(StreamInput in) throws IOException {
         super(in);
         this.allowNonFinite = NonFiniteSupport.readNonFinite(in, NonFiniteSupport.ESQL_PROMQL_NON_FINITE_MAX_MIN);
+        this.skipNan = in.getTransportVersion().supports(ESQL_MINMAX_SKIP_NAN) && in.readBoolean();
     }
 
     @Override
@@ -177,6 +199,9 @@ public class Min extends UnaryAggregateFunction
         // The non-finite flag, when present, follows the base fields; version-gated so older nodes never see the byte.
         super.writeTo(out);
         writeNonFinite(out);
+        if (out.getTransportVersion().supports(ESQL_MINMAX_SKIP_NAN)) {
+            out.writeBoolean(skipNan);
+        }
     }
 
     @Override
@@ -189,19 +214,53 @@ public class Min extends UnaryAggregateFunction
         return allowNonFinite;
     }
 
+    public boolean skipNan() {
+        return skipNan;
+    }
+
     @Override
     public Expression toStrictVariant() {
-        return new Min(source(), field(), filter(), window(), false);
+        return new Min(source(), field(), filter(), window(), false, skipNan);
+    }
+
+    /**
+     * Downgrades the PromQL variant when a node predates it, then switches on {@code NaN} skipping when every node supports
+     * it. Both steps are returned together, because the substitution does not visit its own result again.
+     */
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        Min result = this;
+        if (allowNonFinite && minTransportVersion.supports(nonFiniteTransportVersion()) == false) {
+            result = (Min) toStrictVariant();
+        }
+        if (result.allowNonFinite == false && result.skipNan == false && minTransportVersion.supports(ESQL_MINMAX_SKIP_NAN)) {
+            result = new Min(source(), field(), filter(), window(), false, true);
+        }
+        return result == this ? null : result;
+    }
+
+    /**
+     * The flags take part in equality because a transformation only keeps a rebuilt child when it is not equal to the
+     * original, so a change that only flips a flag would otherwise never reach the plan.
+     */
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && allowNonFinite == ((Min) obj).allowNonFinite && skipNan == ((Min) obj).skipNan;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), allowNonFinite, skipNan);
     }
 
     @Override
     protected NodeInfo<Min> info() {
-        return NodeInfo.create(this, Min::new, field(), filter(), window(), allowNonFinite);
+        return NodeInfo.create(this, Min::new, field(), filter(), window(), allowNonFinite, skipNan);
     }
 
     @Override
     public Min replaceChildren(List<Expression> newChildren) {
-        return new Min(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), allowNonFinite);
+        return new Min(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), allowNonFinite, skipNan);
     }
 
     @Override
@@ -243,6 +302,9 @@ public class Min extends UnaryAggregateFunction
         if (allowNonFinite && type == DataType.DOUBLE) {
             return new MinNonFiniteDoubleAggregatorFunctionSupplier();
         }
+        if (skipNan == false && type == DataType.DOUBLE) {
+            return new MinNanPropagatingDoubleAggregatorFunctionSupplier();
+        }
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
@@ -258,7 +320,8 @@ public class Min extends UnaryAggregateFunction
                 FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN),
                 filter(),
                 window(),
-                allowNonFinite
+                allowNonFinite,
+                skipNan
             );
         }
         if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
@@ -267,7 +330,8 @@ public class Min extends UnaryAggregateFunction
                 ExtractHistogramComponent.create(source(), field(), HistogramBlock.Component.MIN),
                 filter(),
                 window(),
-                allowNonFinite
+                allowNonFinite,
+                skipNan
             );
         }
         return field().foldable() ? new MvMin(source(), field()) : null;

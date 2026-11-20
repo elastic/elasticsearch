@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrate
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -83,6 +84,15 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
 
     private static final ReferenceAttribute AGE = referenceAttribute("age", DataType.INTEGER);
     private static final ReferenceAttribute SCORE = referenceAttribute("score", DataType.DOUBLE);
+
+    private static Min skipNanMin(Expression field) {
+        return new Min(Source.EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, false, true);
+    }
+
+    private static Max skipNanMax(Expression field) {
+        return new Max(Source.EMPTY, field, Literal.TRUE, AggregateFunction.NO_WINDOW, false, true);
+    }
+
     private static final ReferenceAttribute SALARY = referenceAttribute("salary", DataType.INTEGER);
 
     public void testCountStarPushedDown() {
@@ -175,15 +185,37 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         metadata.put("_stats.columns.score.min", 1.0);
         metadata.put("_stats.columns.score.max", 100.0);
 
-        var agg = aggregateExec(
-            externalSource(metadata),
-            countStarAlias(),
-            alias("mn", new Min(Source.EMPTY, SCORE)),
-            alias("mx", new Max(Source.EMPTY, SCORE))
-        );
+        var agg = aggregateExec(externalSource(metadata), countStarAlias(), alias("mn", skipNanMin(SCORE)), alias("mx", skipNanMax(SCORE)));
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
         assertEquals(3, local.output().size());
+    }
+
+    /**
+     * A MIN/MAX over a double that keeps the old NaN-propagating rule (a plan that reaches a node predating NaN skipping) is
+     * scanned, because the statistics skip NaN and would disagree with that scan.
+     */
+    public void testNanPropagatingDoubleMinMaxIsNotPushed() {
+        Map<String, Object> metadata = statsMetadata(500L, "score", 10L, null);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+
+        as(applyRule(aggregateExec(externalSource(metadata), alias("mn", new Min(Source.EMPTY, SCORE)))), AggregateExec.class);
+        as(applyRule(aggregateExec(externalSource(metadata), alias("mx", new Max(Source.EMPTY, SCORE)))), AggregateExec.class);
+    }
+
+    /**
+     * One NaN-propagating MIN/MAX over a double keeps the whole aggregate on the scan, even beside aggregates that statistics
+     * could answer.
+     */
+    public void testNanPropagatingDoubleMinMaxBlocksTheOtherAggregates() {
+        Map<String, Object> metadata = statsMetadata(500L, "score", 10L, null);
+        metadata.put("_stats.columns.score.min", 1.0);
+        metadata.put("_stats.columns.score.max", 100.0);
+
+        var agg = aggregateExec(externalSource(metadata), countStarAlias(), alias("mn", new Min(Source.EMPTY, SCORE)));
+
+        as(applyRule(agg), AggregateExec.class);
     }
 
     // --- INITIAL mode: output schema must match AggregateExec.output() (regression for VerificationException) ---
@@ -209,8 +241,8 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
             AggregatorMode.INITIAL,
             externalSource(metadata),
             countStarAlias(),
-            alias("mn", new Min(Source.EMPTY, SCORE)),
-            alias("mx", new Max(Source.EMPTY, SCORE))
+            alias("mn", skipNanMin(SCORE)),
+            alias("mx", skipNanMax(SCORE))
         );
         List<Attribute> expectedOutput = agg.output();
 
@@ -570,7 +602,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         SplitStats split1 = buildSplitStatsWithMinMax("score", 3, 80, 500L, 0L);
         SplitStats split2 = buildSplitStatsWithMinMax("score", 1.5, 99.9, 500L, 0L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
-        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SCORE)), alias("mx", new Max(Source.EMPTY, SCORE)));
+        var agg = aggregateExec(ext, alias("mn", skipNanMin(SCORE)), alias("mx", skipNanMax(SCORE)));
 
         LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
         assertEquals(2, local.output().size());
@@ -591,7 +623,7 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         SplitStats split1 = buildSplitStatsWithMinMax("score", 10L, 50L, 500L, 0L);
         SplitStats split2 = buildSplitStatsWithMinMax("score", 5.0, 60.0, 500L, 0L);
         ExternalSourceExec ext = externalSourceWithSplits(Map.of(), split1, split2);
-        var agg = aggregateExec(ext, alias("mn", new Min(Source.EMPTY, SCORE)), alias("mx", new Max(Source.EMPTY, SCORE)));
+        var agg = aggregateExec(ext, alias("mn", skipNanMin(SCORE)), alias("mx", skipNanMax(SCORE)));
 
         PhysicalPlan result = applyRule(agg);
         // Should NOT be pushed down to LocalSourceExec — stats are incompatible and cleared

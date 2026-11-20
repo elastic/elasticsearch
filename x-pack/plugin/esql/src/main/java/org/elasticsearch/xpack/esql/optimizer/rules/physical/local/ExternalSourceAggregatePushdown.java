@@ -275,13 +275,22 @@ public final class ExternalSourceAggregatePushdown {
         return null;
     }
 
+    /**
+     * Whether a scan of this {@code MIN}/{@code MAX} makes the result {@code NaN} when any input is {@code NaN}. That is the rule
+     * of a plan that reaches a node predating {@code Min.ESQL_MINMAX_SKIP_NAN}, and statistics follow the new rule (they skip
+     * {@code NaN}), so serving them would disagree with the scan the other nodes run.
+     */
+    private static boolean scanPropagatesNaN(Expression field, boolean allowNonFinite, boolean skipNan) {
+        return field.dataType() == DataType.DOUBLE && allowNonFinite == false && skipNan == false;
+    }
+
     private static Object resolveMin(
         Min min,
         org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats,
         boolean implicitNullsForAbsentColumn,
         Set<String> pathDerivedColumns
     ) {
-        if (min.hasFilter()) {
+        if (min.hasFilter() || scanPropagatesNaN(min.field(), min.allowNonFinite(), min.skipNan())) {
             return null;
         }
         if (min.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {
@@ -308,7 +317,7 @@ public final class ExternalSourceAggregatePushdown {
         boolean implicitNullsForAbsentColumn,
         Set<String> pathDerivedColumns
     ) {
-        if (max.hasFilter()) {
+        if (max.hasFilter() || scanPropagatesNaN(max.field(), max.allowNonFinite(), max.skipNan())) {
             return null;
         }
         if (max.field() instanceof Attribute ref && PushdownPredicates.isVirtualColumn(ref) == false) {

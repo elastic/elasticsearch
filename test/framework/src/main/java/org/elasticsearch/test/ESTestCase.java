@@ -151,6 +151,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -183,6 +184,7 @@ import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -253,6 +255,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
+@RunWith(ESRandomizedRunner.class)
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering

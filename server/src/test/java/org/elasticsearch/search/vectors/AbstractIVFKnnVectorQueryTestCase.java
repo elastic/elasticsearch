@@ -76,7 +76,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.Before;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +95,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /** Test cases for {@link AbstractIVFKnnVectorQuery} objects. */
+@RunWith(ESRandomizedRunner.class)
 public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCase {
     // handle quantization noise
     static final float EPSILON = 0.001f;

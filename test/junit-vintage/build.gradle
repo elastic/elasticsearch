@@ -1,0 +1,45 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+dependencies {
+  api ("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+    exclude group: "junit", module: "junit"
+  }
+
+  // we do not want to expose a version conflict in transitive dependencies by
+  // bringing in different versions of dependencies.
+  // Therefore we exclude mismatches in our transitive dependencies explicitly.
+  // This also avoids jarHell issues with different hamcrest related dependencies
+  // like hamcrest and hamcrest-core
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api("junit:junit:${versions.junit4}") {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
+
+  implementation "org.junit.jupiter:junit-jupiter:${versions.junit}"
+  runtimeOnly "org.junit.vintage:junit-vintage-engine:${versions.junit}"
+  runtimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit}"
+}
+
+// the main files are actually test files, so use the appropriate forbidden api sigs
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
+}
+
+// TODO: should we have licenses for our test deps?
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
+
+tasks.named('splitPackagesAudit').configure {
+  // for now we always run tests with the classpath, so we are ok with split packages for tests
+  enabled = false
+}

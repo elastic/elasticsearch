@@ -40,6 +40,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,6 +54,7 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@RunWith(ESRandomizedRunner.class)
 public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private static final int NUM_DOCS = 10;

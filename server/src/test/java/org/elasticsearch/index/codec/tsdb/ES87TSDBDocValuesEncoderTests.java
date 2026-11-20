@@ -16,11 +16,14 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
+@RunWith(ESRandomizedRunner.class)
 public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
 
     private final TSDBDocValuesEncoder encoder;

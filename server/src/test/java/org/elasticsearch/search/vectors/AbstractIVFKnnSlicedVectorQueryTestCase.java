@@ -52,7 +52,9 @@ import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIndexFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.Before;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -66,6 +68,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Abstract test case for IVF KNN sliced vector queries. Provides shared test infrastructure
  * for both float and byte vector sliced query implementations.
  */
+@RunWith(ESRandomizedRunner.class)
 public abstract class AbstractIVFKnnSlicedVectorQueryTestCase extends LuceneTestCase {
 
     protected static final String SLICE_FIELD = "_slice";

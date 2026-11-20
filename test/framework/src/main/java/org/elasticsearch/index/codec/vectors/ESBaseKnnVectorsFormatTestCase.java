@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 /**
  * Common superclass for every Elasticsearch {@code KnnVectorsFormat} test, sitting between our
@@ -21,6 +23,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
  * runs for every format under test simply because the class extends this one, with no per-format
  * opt-in required.
  */
+@RunWith(ESRandomizedRunner.class)
 public abstract class ESBaseKnnVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
 
     static {

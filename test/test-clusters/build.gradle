@@ -11,8 +11,7 @@ dependencies {
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation "org.elasticsearch.gradle:reaper"
 
-  testImplementation "junit:junit:${versions.junit4}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation project(":test:junit-vintage")
   testImplementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 }
 

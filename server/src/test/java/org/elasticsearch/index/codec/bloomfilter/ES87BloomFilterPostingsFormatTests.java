@@ -22,6 +22,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.GraalVMThreadsFilter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -32,6 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ThreadLeakFilters(filters = { GraalVMThreadsFilter.class })
+@RunWith(ESRandomizedRunner.class)
 public class ES87BloomFilterPostingsFormatTests extends BasePostingsFormatTestCase {
 
     @Override

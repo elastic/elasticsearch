@@ -19,6 +19,8 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 /**
  * Extends Lucene's BaseDirectoryTestCase with ES test behavior.
@@ -27,6 +29,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@RunWith(ESRandomizedRunner.class)
 public abstract class EsBaseDirectoryTestCase extends BaseDirectoryTestCase {
     static {
         try {

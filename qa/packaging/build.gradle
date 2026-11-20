@@ -15,9 +15,7 @@ dependencies {
   testImplementation project(':server')
   testImplementation project(':libs:core')
   testImplementation(testArtifact(project(':x-pack:plugin:core')))
-  testImplementation "junit:junit:${versions.junit4}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation project(":test:junit-vintage")
   testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   testImplementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   testImplementation "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"

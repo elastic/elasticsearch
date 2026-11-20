@@ -1,5 +1,7 @@
 area: ES|QL
-issues: []
+issues:
+ - 152537
+ - 166713
 pr: 166940
 summary: Resolve keys of flattened fields by name
 type: enhancement

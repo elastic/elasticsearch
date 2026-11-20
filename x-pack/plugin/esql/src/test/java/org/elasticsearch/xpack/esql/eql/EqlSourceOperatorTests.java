@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
@@ -26,6 +27,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -54,6 +57,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -530,54 +534,89 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
 
     /** A partial EQL response (a shard failed while the enclosing query allowed partial results) surfaces as a warning. */
     public void testPartialResponseEmitsWarning() {
-        CapturingEqlClient client = new CapturingEqlClient(threadPool);
-        DriverContext driverContext = driverContext();
-        Source source = new Source(1, 0, "eqlq");
-        Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
-        EqlSearchResponse response = new EqlSearchResponse(
-            hits,
-            1,
-            false,
-            new ShardSearchFailure[] { new ShardSearchFailure(new IllegalStateException("shard failure")) }
+        DriverContext driverContext = pullEventPage(false, new ShardSearchFailure(new IllegalStateException("shard failure")));
+        assertThat(
+            collectWarnings(driverContext),
+            equalTo(List.of("Line 1:1: EQL query returned partial results, [1] failed shards: [illegal_state_exception: shard failure]"))
         );
+        assertTrue(driverContext.partial());
+    }
 
-        SourceOperator operator = operator(
-            client,
-            driverContext,
-            eqlRequest(1000),
-            EqlRelation.Mode.EVENT,
-            source,
-            List.of(fieldAttribute("process.name", KEYWORD))
+    public void testPartialWarningNamesTheViewWithoutEchoingItsDefinition() {
+        DriverContext driverContext = pullEventPage(
+            new Source(1, 0, "EQL logs \"process where secret_field == \\\"secret\\\"\"").withViewName("eql_view"),
+            false,
+            new ShardSearchFailure(new IllegalStateException("shard failure"))
         );
-        Page page = null;
-        try {
-            assertBlocked(operator);
-            client.capturedListener.onResponse(response);
-            page = operator.getOutput();
-            assertThat(page.getPositionCount(), equalTo(1));
-        } finally {
-            if (page != null) {
-                page.releaseBlocks();
-            }
-            operator.close();
-            response.decRef();
-        }
-        // The warning is registered on the driver context during getOutput(), not the response callback.
         assertThat(
             collectWarnings(driverContext),
             equalTo(
                 List.of(
-                    "Line "
-                        + source.lineNumber()
-                        + ":"
-                        + source.columnNumber()
-                        + " ["
-                        + source.text()
-                        + "]: EQL query returned partial results (one or more shards failed or timed out); some events may be missing"
+                    "Line 1:1 (in view [eql_view]): EQL query returned partial results, [1] failed shards: "
+                        + "[illegal_state_exception: shard failure]"
                 )
             )
         );
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+    }
+
+    public void testTimedOutResponseIsPartial() {
+        DriverContext driverContext = pullEventPage(true);
+        assertThat(collectWarnings(driverContext), equalTo(List.of("Line 1:1: EQL query returned partial results, the search timed out")));
+        assertTrue(driverContext.partial());
+    }
+
+    public void testCompleteResponseIsNotPartial() {
+        DriverContext driverContext = pullEventPage(false);
+        assertThat(collectWarnings(driverContext), empty());
+        assertFalse(driverContext.partial());
+    }
+
+    public void testPartialWarningListsExactlyThreeDistinctRootCausesWithoutASuffix() {
+        RuntimeException cyclic = new RuntimeException("cyclic");
+        cyclic.initCause(new RuntimeException("cause", cyclic));
+        DriverContext driverContext = pullEventPage(
+            false,
+            shardFailure(new IllegalStateException(), 0, "n1"),
+            shardFailure(new IllegalStateException(), 1, "n1"),
+            shardFailure(new IllegalArgumentException("second"), 2, "n1"),
+            shardFailure(cyclic, 3, "n1")
+        );
+        assertThat(
+            collectWarnings(driverContext),
+            equalTo(
+                List.of(
+                    "Line 1:1: EQL query returned partial results, [4] failed shards: "
+                        + "[illegal_argument_exception: second], [illegal_state_exception], [runtime_exception: cyclic]"
+                )
+            )
+        );
+    }
+
+    public void testPartialWarningCountsShardCopiesOnceAndListsSortedRootCausesUpToALimit() {
+        DriverContext driverContext = pullEventPage(
+            true,
+            shardFailure(new ElasticsearchException("wrapped", new IllegalStateException("first")), 0, "n1"),
+            shardFailure(new IllegalStateException("first"), 0, "n2"),
+            shardFailure(
+                new ElasticsearchException("remote", new NotSerializableExceptionWrapper(new NumberFormatException("second"))),
+                1,
+                "n1"
+            ),
+            shardFailure(new RuntimeException("third"), 2, "n1"),
+            shardFailure(new RuntimeException("fourth"), 3, "n1"),
+            shardFailure(new RuntimeException("fifth"), 4, "n1")
+        );
+        assertThat(
+            collectWarnings(driverContext),
+            equalTo(
+                List.of(
+                    "Line 1:1: EQL query returned partial results, the search timed out, [5] failed shards: "
+                        + "[illegal_state_exception: first], [number_format_exception: second], [runtime_exception: fifth]"
+                        + " and [2] more"
+                )
+            )
+        );
+        assertTrue(driverContext.partial());
     }
 
     public void testDefaultSizeWarningIsRegisteredWhenTheSearchIsIssued() {
@@ -662,6 +701,44 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         List<Attribute> schema
     ) {
         return new EqlSourceOperator.Factory(client, request, mode, schema, source, false).get(driverContext);
+    }
+
+    private static ShardSearchFailure shardFailure(Exception cause, int shard, String node) {
+        return new ShardSearchFailure(cause, new SearchShardTarget(node, new ShardId("logs", "_na_", shard), null));
+    }
+
+    private DriverContext pullEventPage(boolean timedOut, ShardSearchFailure... failures) {
+        return pullEventPage(new Source(1, 0, "eqlq"), timedOut, failures);
+    }
+
+    private DriverContext pullEventPage(Source source, boolean timedOut, ShardSearchFailure... failures) {
+        CapturingEqlClient client = new CapturingEqlClient(threadPool);
+        DriverContext driverContext = driverContext();
+        Hits hits = new Hits(List.of(fieldEvent("a")), null, new TotalHits(1, TotalHits.Relation.EQUAL_TO));
+        EqlSearchResponse response = new EqlSearchResponse(hits, 1, timedOut, failures);
+        SourceOperator operator = operator(
+            client,
+            driverContext,
+            eqlRequest(1000),
+            EqlRelation.Mode.EVENT,
+            source,
+            List.of(fieldAttribute("process.name", KEYWORD))
+        );
+        Page page = null;
+        try {
+            assertBlocked(operator);
+            client.capturedListener.onResponse(response);
+            page = operator.getOutput();
+            assertThat(page.getPositionCount(), equalTo(1));
+        } finally {
+            if (page != null) {
+                page.releaseBlocks();
+            }
+            operator.close();
+            response.decRef();
+        }
+        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
+        return driverContext;
     }
 
     private static void assertBlocked(SourceOperator operator) {

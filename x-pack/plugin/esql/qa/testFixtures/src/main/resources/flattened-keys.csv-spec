@@ -347,6 +347,42 @@ c
 null
 ;
 
+// [attributes] is flattened in every branch and no branch names a key: after the union it is one flattened column, and a key is read
+// from the value of whichever branch a row comes from
+keyAfterUnionOfSubqueriesThatAllHoldFlattened
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: subquery_in_from_command
+
+FROM (FROM flattened_paths_mapped), (FROM flattened_paths_lookup)
+| KEEP id, attributes.host, attributes.zone
+| SORT id, attributes.host
+;
+
+id:keyword | attributes.host:keyword | attributes.zone:keyword
+f1         | L                       | L
+f1         | a                       | null
+f2         | c                       | null
+k1         | L                       | L
+;
+
+keyAfterIndexAndSubqueryThatAllHoldFlattened
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: subquery_in_from_command
+
+FROM flattened_paths_mapped, (FROM flattened_paths_lookup)
+| KEEP id, attributes.host, attributes.zone
+| SORT id, attributes.host
+;
+
+id:keyword | attributes.host:keyword | attributes.zone:keyword
+f1         | L                       | L
+f1         | a                       | null
+f2         | c                       | null
+k1         | L                       | L
+;
+
 keyInFork
 skip_flattened_rewrite: keyword_also_a_flattened_key
 required_capability: flattened_keys

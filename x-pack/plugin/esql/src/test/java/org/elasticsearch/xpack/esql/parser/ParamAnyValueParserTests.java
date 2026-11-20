@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
@@ -33,21 +34,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The reserved value of the {@code param_any_value} setting is the only setting the parser needs while it builds the statement:
- * it starts from the request's value or the default, a {@code SET} in the statement overrides it, and release builds don't
- * recognize any. The tests run in snapshot and release builds, and require the capability for the build they check.
+ * it starts from the request's value or the default, and a {@code SET} in the statement overrides it. The feature is snapshot-only,
+ * so the tests require its capability.
  */
 public class ParamAnyValueParserTests extends ESTestCase {
 
-    /** The parser of the running build, once the test requires the Any controls to be enabled in it. */
-    private static EsqlParser parserWithAny() {
+    @BeforeClass
+    public static void requireAnyParam() {
         assumeTrue("requires the Any controls", EsqlCapabilities.Cap.PARAM_ANY_VALUE.isEnabled());
-        return TEST_PARSER;
-    }
-
-    /** The parser of the running build, once the test requires the Any controls to be disabled in it. */
-    private static EsqlParser parserWithoutAny() {
-        assumeFalse("requires the Any controls to be disabled", EsqlCapabilities.Cap.PARAM_ANY_VALUE.isEnabled());
-        return TEST_PARSER;
     }
 
     /**
@@ -79,26 +73,19 @@ public class ParamAnyValueParserTests extends ESTestCase {
     }
 
     public void testStartsFromTheDefault() {
-        assertThat(parserWithAny().anyParamValue(Map.of()), equalTo("__ANY__"));
+        assertThat(TEST_PARSER.anyParamValue(Map.of()), equalTo("__ANY__"));
     }
 
     public void testStartsFromTheRequestValue() {
-        assertThat(parserWithAny().anyParamValue(Map.of(QuerySettings.PARAM_ANY_VALUE, "custom")), equalTo("custom"));
+        assertThat(TEST_PARSER.anyParamValue(Map.of(QuerySettings.PARAM_ANY_VALUE, "custom")), equalTo("custom"));
     }
 
     public void testEmptyRequestValueIsRejectedBeforeParsing() {
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> parse(parserWithAny(), "ROW x = 1", new QueryParams(), Map.of(QuerySettings.PARAM_ANY_VALUE, ""))
+            () -> parse(TEST_PARSER, "ROW x = 1", new QueryParams(), Map.of(QuerySettings.PARAM_ANY_VALUE, ""))
         );
         assertThat(e.getMessage(), containsString("Error validating setting [param_any_value]: must not be empty"));
-    }
-
-    public void testReleaseBuildsHaveNoReservedValue() {
-        assertThat(parserWithoutAny().anyParamValue(Map.of()), is(nullValue()));
-        // a request value is left to the settings resolution after the parsing, which rejects it on release builds
-        assertThat(parserWithoutAny().anyParamValue(Map.of(QuerySettings.PARAM_ANY_VALUE, "custom")), is(nullValue()));
-        parse(parserWithoutAny(), "ROW x = 1", new QueryParams(), Map.of(QuerySettings.PARAM_ANY_VALUE, "custom"));
     }
 
     public void testContextValueIsKeptWithoutSet() {
@@ -108,7 +95,7 @@ public class ParamAnyValueParserTests extends ESTestCase {
 
     public void testNoReservedValueIsKept() {
         assertThat(valueAfterParsing("ROW x = 1", null), is(nullValue()));
-        // a SET can't turn the feature on: on release builds it's rejected, and the context has no value
+        // a SET can't turn the feature on when the context has no value
         assertThat(valueAfterParsing("SET param_any_value = \"custom\"; ROW x = 1", null), is(nullValue()));
     }
 
@@ -139,29 +126,15 @@ public class ParamAnyValueParserTests extends ESTestCase {
         QueryParams params = new QueryParams(List.of(paramAsConstant("v", "*")));
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> parse(parserWithAny(), "SET param_any_value = ?v; ROW x = 1", params, Map.of())
+            () -> parse(TEST_PARSER, "SET param_any_value = ?v; ROW x = 1", params, Map.of())
         );
         assertThat(e.getMessage(), containsString("Setting [param_any_value] can't be set with a parameter"));
-    }
-
-    public void testSetWithAParameterIsLeftToTheValidationInReleaseBuilds() {
-        QueryParams params = new QueryParams(List.of(paramAsConstant("v", "*")));
-        // the parser doesn't act on the setting in release builds, where the validation rejects it
-        parse(parserWithoutAny(), "SET param_any_value = ?v; ROW x = 1", params, Map.of());
-    }
-
-    public void testSetIsRejectedInReleaseBuilds() {
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            () -> parserWithoutAny().createStatement("SET param_any_value = \"custom\"; ROW x = 1")
-        );
-        assertThat(e.getMessage(), containsString("Setting [param_any_value] is only available in snapshot builds"));
     }
 
     public void testSetWithAnotherTypeIsRejected() {
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> parserWithAny().createStatement("SET param_any_value = 1; ROW x = 1")
+            () -> TEST_PARSER.createStatement("SET param_any_value = 1; ROW x = 1")
         );
         assertThat(e.getMessage(), containsString("Setting [param_any_value] must be of type KEYWORD"));
     }
@@ -169,7 +142,7 @@ public class ParamAnyValueParserTests extends ESTestCase {
     public void testEmptySetIsRejected() {
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> parserWithAny().createStatement("SET param_any_value = \"\"; ROW x = 1")
+            () -> TEST_PARSER.createStatement("SET param_any_value = \"\"; ROW x = 1")
         );
         assertThat(e.getMessage(), containsString("Error validating setting [param_any_value]: must not be empty"));
     }

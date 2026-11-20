@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166943
+summary: Sample each shard with its own random stream
+type: bug

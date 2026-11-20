@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Randomness;
@@ -16,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -119,7 +122,10 @@ public class RandomSamplingQueryBuilder extends LeafQueryBuilder<RandomSamplingQ
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return new RandomSamplingQuery(probability, seed, hash);
+        // Shards must not draw the same stream. Mixed, because the shard hashes of an index are consecutive: unmixed,
+        // seeds that differ in their low bits swap streams between neighbouring shards.
+        int shardSeed = BitMixer.mix(new ShardId(context.index(), context.getShardId()).hashCode());
+        return new RandomSamplingQuery(probability, seed, hash ^ shardSeed);
     }
 
     @Override

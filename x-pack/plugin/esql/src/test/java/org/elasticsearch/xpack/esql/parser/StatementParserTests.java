@@ -4523,7 +4523,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     /**
      * The single-FORK rule is applied while the parse tree is visited, so that a second FORK on one pipeline never reaches view
      * resolution or analysis, where it would multiply the plan below it by its branch count first. Every subquery, whether in FROM,
-     * in an IN condition or in a LET binding, is a FORK scope of its own; FORK branches share the scope of their pipeline.
+     * in an IN condition or in a LET named subquery, is a FORK scope of its own; FORK branches share the scope of their pipeline.
      */
     public void testSecondForkOnOnePipelineRejectedWhileParsing() {
         String error = "Only a single FORK command is supported, but found multiple";

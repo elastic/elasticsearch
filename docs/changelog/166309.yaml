@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166309
-summary: Raise the `CONCAT` limit from 1MB to 10MB, build its result without an extra copy, and reserve memory for single-value string blocks before allocating it
+summary: Raise the `CONCAT` result limit from 1MB to 10MB
 type: enhancement

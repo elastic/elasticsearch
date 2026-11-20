@@ -1,0 +1,4 @@
+pr: 157698
+area: Geo
+type: bug
+summary: Fix GeoHex grid aggregation missing bucket at dateline by raising BoundedGeoHexGridTiler FACTOR from 0.37 to 0.39

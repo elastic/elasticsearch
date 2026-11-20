@@ -52,9 +52,9 @@ File layout is a property of your data rather than of your cluster.
 
 Aim for mid-sized files, from tens of megabytes to several hundred megabytes.
 
-If a dataset holds too few files, there is not enough work to share out, and some of your cores sit idle however large the cluster is. If it holds too many, each file has to be fetched by its own request to the object store. Those requests are slow to start, so a query over very small files spends more of its time asking for data than reading it.
+Object storage has high latency on every request, so a query gets its throughput from reading many files in parallel rather than from any single read being fast. That cuts both ways. If a dataset holds too few files, there is not enough work to share out and some of your cores sit idle however large the cluster is. If it holds too many, each one still costs a full request, and a query over very small files spends more of its time waiting on those requests than reading data.
 
-A dataset is also limited to a fixed number of files, set by [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files). A query over a dataset that exceeds the limit fails rather than running slowly, so keep the file count comfortably inside it.
+There is also a hard limit on how many files one dataset can hold, set by [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files). A query over a dataset above that limit fails, so either keep the dataset within it, by narrowing the resource pattern or splitting the data across several datasets, or raise the setting.
 
 Compressing your files reduces what every query has to fetch, which makes queries faster and reduces what your storage provider bills you. For the text formats it costs you parallelism, because a compressed text file cannot be read from the middle and so is handled by a single reader.
 

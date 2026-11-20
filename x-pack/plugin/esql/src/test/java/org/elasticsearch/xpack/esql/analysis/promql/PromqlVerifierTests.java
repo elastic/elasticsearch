@@ -486,7 +486,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testNonScalarComparison() {
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m foo > bar",
             containsString("comparison operators with non-literal right-hand side are not supported at this time")
         );
@@ -625,7 +625,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testNestedComparisons() {
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m avg(foo > 5)",
             containsString("comparison operators are only supported at the top-level at this time")
         );

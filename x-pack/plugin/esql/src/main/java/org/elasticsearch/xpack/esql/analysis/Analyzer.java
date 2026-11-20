@@ -268,6 +268,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -1874,8 +1875,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
-                // Left unresolved: the Verifier rejects JOIN on a subquery before any resolution of its keys matters.
-                case SubqueryJoin sj -> sj;
+                case SubqueryJoin sj -> resolveSubqueryJoin(sj);
                 case FillNull f -> resolveFillNull(f, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
@@ -2506,6 +2506,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case 1 -> relation.concreteIndices().containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false;
                 default -> true;
             };
+        }
+
+        /**
+         * Resolves the keys of a {@code JOIN} on a subquery by name, each against its own side.
+         * <p>
+         * When the subquery has no {@link Project} or {@link Aggregate} of its own, its output is pinned with a {@link Project}, as
+         * for an {@code IN} subquery: without one, a data node running the subquery can replace its fields with just {@code _doc}.
+         */
+        private SubqueryJoin resolveSubqueryJoin(SubqueryJoin join) {
+            JoinConfig config = join.config();
+            // A key that was not found carries a message that names its side. Resolving it again would name the side once more, so
+            // the plan would change on every pass and never reach a fixed point.
+            if (Stream.concat(config.leftFields().stream(), config.rightFields().stream())
+                .anyMatch(key -> key instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                return join;
+            }
+            List<Attribute> leftKeys = resolveUsingColumns(config.leftFields(), join.left().output(), "left");
+            List<Attribute> rightKeys = resolveUsingColumns(config.rightFields(), join.right().output(), "right");
+
+            LogicalPlan right = join.right();
+            if (Resolvables.resolved(rightKeys)
+                && IndependentSubqueryJoin.anyMatchInMainScope(right, p -> p instanceof Project || p instanceof Aggregate) == false) {
+                right = new Project(join.source(), right, right.output());
+            }
+            return new SubqueryJoin(
+                join.source(),
+                join.left(),
+                right,
+                new JoinConfig(config.type(), leftKeys, rightKeys, config.joinOnConditions())
+            );
         }
 
         /**

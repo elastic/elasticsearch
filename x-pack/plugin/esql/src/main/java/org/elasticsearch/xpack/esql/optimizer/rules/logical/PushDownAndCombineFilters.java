@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -224,7 +225,13 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // motivation does not apply. The duplicate filter above the join already enforces the
             // predicate. The only producer today is AbstractSubqueryJoin.inlineAsHashJoin's sentinel filter
             // (which is a no-op against the constant-TRUE sentinel column anyway).
-            if (scoped.rightFilters.isEmpty() == false && join instanceof InlineJoin == false && right instanceof LocalRelation == false) {
+            // Nor do we push into the subquery of an IndependentSubqueryJoin: the subquery's own rules move the pushed filter below
+            // its projections, so the right side would never be recognized as already filtered, and the filter would be pushed again
+            // on every pass.
+            if (scoped.rightFilters.isEmpty() == false
+                && join instanceof InlineJoin == false
+                && join instanceof IndependentSubqueryJoin == false
+                && right instanceof LocalRelation == false) {
                 List<Expression> rightPushableFilters = buildRightPushableFilters(scoped.rightFilters, foldCtx);
                 if (rightPushableFilters.isEmpty() == false) {
                     if (join.right() instanceof Filter existingRightFilter) {

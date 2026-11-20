@@ -83,6 +83,6 @@ ProjectExec[[x{r}#0, cnt{r}#1, date{r}#2]]
         }
       }
     ],
-    "boost" : 1.0
+    "boost" : 0.0
   }
 }, tags=[null]]]}], query[][x{r}#68, $$cnt$count{r}#71, $$cnt$seen{r}#72], limit[], 

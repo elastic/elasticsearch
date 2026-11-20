@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -39,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
-public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpression, AnyNullIsNull {
+public class MvMin extends AbstractMultivalueFunction implements BlockLoaderExpression, AnyNullIsNull, Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMin", MvMin::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvMin.class).unary(MvMin::new).name("mv_min");
 

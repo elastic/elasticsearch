@@ -17,6 +17,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.NonFiniteSupport;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -32,7 +33,13 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongMultiplyExact;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.MUL;
 
-public class Mul extends DenseVectorArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull, NonFiniteSupport, UnitAware {
+public class Mul extends DenseVectorArithmeticOperation
+    implements
+        BinaryComparisonInversible,
+        AnyNullIsNull,
+        NonFiniteSupport,
+        UnitAware,
+        Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mul", Mul::new);
     public static final String OP_NAME = "Mul";
 

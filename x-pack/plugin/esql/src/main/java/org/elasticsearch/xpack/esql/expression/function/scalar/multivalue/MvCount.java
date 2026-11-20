@@ -15,6 +15,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInE
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
  */
-public class MvCount extends AbstractMultivalueFunction implements AnyNullIsNull {
+public class MvCount extends AbstractMultivalueFunction implements AnyNullIsNull, Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvCount", MvCount::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvCount.class)
         .unary(MvCount::new)

@@ -38,6 +38,12 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        // Recovering a cluster must work under memory pressure.
+        return false;
+    }
+
+    @Override
     public Set<String> supportedQueryParameters() {
         return SUPPORTED_QUERY_PARAMETERS;
     }

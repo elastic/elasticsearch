@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -856,6 +857,25 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
+    /** The listing reads a bare number as milliseconds, so a bound in nanoseconds must not reach it after analysis either. */
+    public void testResolvedNanosecondBoundOnFileModifiedEmitsNothing() {
+        Literal nanos = new Literal(SRC, 1_700_000_000_123_456_789L, DataType.DATE_NANOS);
+        Set<String> requested = Set.of(FileMetadataColumns.MODIFIED);
+        Expression modified = new ExternalMetadataAttribute(SRC, FileMetadataColumns.MODIFIED, DataType.DATETIME);
+
+        Expression nanosBound = new GreaterThanOrEqual(SRC, modified, nanos);
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(nanosBound), requested, Set.of()).isEmpty());
+        Expression nanosIn = new In(SRC, modified, List.of(nanos, new Literal(SRC, 1_700_000_001_000_000_000L, DataType.DATE_NANOS)));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(nanosIn), requested, Set.of()).isEmpty());
+
+        // A bound in milliseconds beside it is still a hint.
+        Expression millisBound = new LessThan(SRC, modified, datetimeLiteral(2L));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.MODIFIED, Operator.LESS_THAN, List.of(2L))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(nanosBound, millisBound), requested, Set.of())
+        );
+    }
+
     public void testUnresolvedEqualsIsEmptyOnResolvedFromConjuncts() {
         assertTrue(
             PartitionFilterHintExtractor.fromConjuncts(
@@ -974,6 +994,65 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
 
         List<PartitionFilterHint> hints = extractFolded(plan).get(PATH);
         assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), hints);
+    }
+
+    /**
+     * A partition picked relative to the time of the query, the way a dashboard asks for the current year. {@code NOW()}
+     * and the time span taken from it fold to the date that the query runs with, so the comparison becomes a hint that
+     * narrows the listing.
+     */
+    public void testPreprocessorFoldsDatesRelativeToNow() {
+        UnresolvedFunction now = new UnresolvedFunction(SRC, "NOW", List.of());
+        long thisYear = TEST_CFG.now().atZone(ZoneOffset.UTC).getYear();
+
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(now)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(thisYear))), extractFolded(plan).get(PATH));
+
+        Expression lastYear = new Sub(SRC, now, new Literal(SRC, Period.ofYears(1), DataType.DATE_PERIOD), TEST_CFG);
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(lastYear)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(thisYear - 1))), extractFolded(plan).get(PATH));
+    }
+
+    /** A date that is parsed with a pattern, or given as milliseconds since the epoch, is a constant like any other. */
+    public void testPreprocessorFoldsParsedAndNumericDates() {
+        UnresolvedFunction parsed = new UnresolvedFunction(
+            SRC,
+            "DATE_PARSE",
+            List.of(keywordLiteral("yyyy/MM/dd"), keywordLiteral("2026/07/13"))
+        );
+        LogicalPlan plan = filterAboveExternal(new Equals(SRC, unresolved("month"), monthFn(parsed)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("month", Operator.EQUALS, List.of(7L))), extractFolded(plan).get(PATH));
+
+        UnresolvedFunction epochMillis = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(new Literal(SRC, DASHBOARD_TS, DataType.LONG)));
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(epochMillis)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), extractFolded(plan).get(PATH));
+    }
+
+    /**
+     * A hint carries a bare number that the listing reads as milliseconds, so a constant in nanoseconds must not
+     * become one: it would stand for a time a million times later and prune every file that matches.
+     */
+    public void testPreprocessorKeepsNanosecondDatesOutOfHints() {
+        Literal day = keywordLiteral("2026-07-13T00:00:00Z");
+        UnresolvedFunction nanos = new UnresolvedFunction(SRC, "TO_DATE_NANOS", List.of(day));
+        UnresolvedFunction millis = new UnresolvedFunction(SRC, "TO_DATETIME", List.of(day));
+
+        LogicalPlan plan = filterAboveExternal(new GreaterThanOrEqual(SRC, unresolved("modified"), millis), PATH);
+        assertEquals(
+            List.of(new PartitionFilterHint("modified", Operator.GREATER_THAN_OR_EQUAL, List.of(DASHBOARD_TS))),
+            extractFolded(plan).get(PATH)
+        );
+
+        plan = filterAboveExternal(new GreaterThanOrEqual(SRC, unresolved("modified"), nanos), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+        plan = filterAboveExternal(new LessThan(SRC, nanos, unresolved("modified")), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+        plan = filterAboveExternal(new In(SRC, unresolved("modified"), List.of(millis, nanos)), PATH);
+        assertNull(extractFolded(plan).get(PATH));
+
+        // The year of a nanosecond date is a plain number, and still a hint.
+        plan = filterAboveExternal(new Equals(SRC, unresolved("year"), yearFn(nanos)), PATH);
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.EQUALS, List.of(2026L))), extractFolded(plan).get(PATH));
     }
 
     private static final String PATH = "s3://bucket/data/*.parquet";

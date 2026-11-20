@@ -41,6 +41,19 @@ public class CrossClusterIntoIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    public void testOnlyAnUnavailableRemoteIsRejected() throws Exception {
+        setupClusters(2);
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+        assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("dest-into"));
+        cluster(REMOTE_CLUSTER_1).close();
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM " + REMOTE_CLUSTER_1 + ":logs-* | KEEP v | INTO dest-into", null).close()
+        );
+        assertThat(e.getMessage(), containsString(Into.UNSUPPORTED_SOURCE));
+    }
+
     public void testUnavailableRemoteIsNotSilentlySkipped() throws Exception {
         setupClusters(2);
         setSkipUnavailable(REMOTE_CLUSTER_1, true);

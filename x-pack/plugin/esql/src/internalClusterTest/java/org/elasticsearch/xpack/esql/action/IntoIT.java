@@ -139,6 +139,25 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertIntoTarget("ROW k = \"x\"", dateMathDest, 1);
     }
 
+    public void testDateMathDestinationCannotAlsoBeRead() {
+        String dateMathDest = "<dest-into-{now/d}>";
+        String resolvedDest = IndexNameExpressionResolver.resolveDateMathExpression(dateMathDest);
+        assertAcked(
+            indicesAdmin().prepareCreate(resolvedDest)
+                .setSettings(batchIndexingSettings())
+                .setMapping("{\"properties\":{\"k\":{\"type\":\"keyword\"}}}")
+        );
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("FROM " + resolvedDest + " | INTO " + dateMathDest).close()
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("INTO destination [" + dateMathDest + "] is also read by the query, through [" + resolvedDest + "]")
+        );
+    }
+
     public void testZeroRows() {
         assertInto("ROW k = \"x\" | WHERE k == \"y\"", 0);
         assertInto("ROW k = \"x\" | WHERE false", 0);

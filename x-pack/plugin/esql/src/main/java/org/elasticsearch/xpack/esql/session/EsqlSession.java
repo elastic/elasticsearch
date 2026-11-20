@@ -687,6 +687,11 @@ public class EsqlSession {
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
         boolean hasInto = viewResolution.plan().anyMatch(Into.class::isInstance);
+        VerificationException remoteSource = hasInto ? remoteSourceOfInto(viewResolution.plan()) : null;
+        if (remoteSource != null) {
+            listener.onFailure(remoteSource);
+            return;
+        }
         if (hasInto && request.allowPartialResultsRequested()) {
             HeaderWarning.addWarning("INTO does not return partial results, so [allow_partial_results] is ignored");
         }
@@ -3678,9 +3683,10 @@ public class EsqlSession {
         }
         plan.setAnalyzed();
         if (plan instanceof Into into) {
-            rejectDestinationThatIsRead(into);
+            // The writer writes to the resolved name, so the checks look at it too
+            String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+            rejectDestinationThatIsRead(into, target);
             if (configuration.explainOnly() == false) {
-                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
                 boolean batchIndexingSupported = ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService);
                 IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported, projectMetadata, target);
             }
@@ -3700,8 +3706,8 @@ public class EsqlSession {
      * A later batch of shards opens its search contexts after an earlier batch may have written, so a query that reads its own
      * destination can read, and write again, the rows it wrote, depending on refreshes and on the order of the shards.
      */
-    private void rejectDestinationThatIsRead(Into into) {
-        IndexAbstraction destination = projectMetadata.getIndicesLookup().get(into.destination());
+    private void rejectDestinationThatIsRead(Into into, String target) {
+        IndexAbstraction destination = projectMetadata.getIndicesLookup().get(target);
         if (destination == null || destination.getWriteIndex() == null) {
             return;
         }
@@ -3712,6 +3718,23 @@ public class EsqlSession {
                 throw new VerificationException(List.of(Failure.fail(into, message, into.destination(), source.indexPattern())));
             }
         }
+    }
+
+    /**
+     * A remote cluster that is unavailable and can be skipped leaves no index to resolve, so planning can finish without analysis,
+     * and the verification of {@code INTO} never runs. This looks at the index patterns as they were written, before resolution.
+     */
+    @Nullable
+    private static VerificationException remoteSourceOfInto(LogicalPlan parsed) {
+        for (Into into : parsed.collect(Into.class)) {
+            for (UnresolvedRelation relation : into.child().collect(UnresolvedRelation.class)) {
+                String[] patterns = Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern());
+                if (Arrays.stream(patterns).anyMatch(RemoteClusterAware::isRemoteIndexName)) {
+                    return new VerificationException(List.of(Failure.fail(into, Into.UNSUPPORTED_SOURCE)));
+                }
+            }
+        }
+        return null;
     }
 
     private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {

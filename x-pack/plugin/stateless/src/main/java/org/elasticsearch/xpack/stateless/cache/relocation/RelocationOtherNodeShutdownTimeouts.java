@@ -69,9 +69,8 @@ public class RelocationOtherNodeShutdownTimeouts {
         if (shareSlotsWithShuttingDownNodes == false || SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state)) {
             return fallbackTimeout();
         }
-        // A deadline whose shards all get a slot does not limit the wait, as nobody queues behind this shard before it.
-        final var contendedDeadlineShares = deadlineShares(state, targetNodeId).stream().filter(share -> share.fits() == false).toList();
-        if (contendedDeadlineShares.isEmpty()) {
+        final var deadlineShares = deadlineShares(state, targetNodeId);
+        if (deadlineShares.stream().allMatch(DeadlineShare::fits)) {
             // no shutting-down node waits for this target before its deadline, or nobody queues behind anybody: treat this as if it were
             // not a shutting-down node
             return new SearchRecoveryTimeout(
@@ -81,7 +80,7 @@ public class RelocationOtherNodeShutdownTimeouts {
         }
 
         // Use the deadline with the smallest equal share, so that no deadline is missed.
-        final var tightestDeadline = Collections.min(contendedDeadlineShares, comparingDouble(DeadlineShare::equalShareMs));
+        final var tightestDeadline = Collections.min(deadlineShares, comparingDouble(DeadlineShare::equalShareMs));
         final double timePerShardMs = tightestDeadline.timePerShardMs();
         final double waitMs;
         if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {
@@ -99,12 +98,9 @@ public class RelocationOtherNodeShutdownTimeouts {
     /// What each grace deadline that has not passed leaves to the shards competing for the target, from the earliest deadline to the
     /// latest.
     private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
-        // This shard is itself an initializing relocation on the target from a non-shutting-down node, so the count includes it: it is
-        // added to the competing shards (+1) below, and left out of the "other" recoveries here.
-        final int otherRecoveriesOnTarget = Math.max(
-            0,
-            SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, targetNodeId) - 1
-        );
+        // All the recoveries on the target share its slots, also the ones of the shutting-down nodes with a later deadline, as the
+        // recoveries are not scheduled by the deadline.
+        final int recoveriesOnTarget = SearchShardRelocations.countNonCriticalInitializing(state, targetNodeId);
         final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
         final long now = threadPool.absoluteTimeInMillis();
         // the shards competing before each deadline rely on the order
@@ -123,7 +119,7 @@ public class RelocationOtherNodeShutdownTimeouts {
                     new DeadlineShare(
                         remainingMs,
                         shardsCompetingForTarget,
-                        slotShareOfCompetingShards(slots, shardsCompetingForTarget, otherRecoveriesOnTarget)
+                        slotShareOfCompetingShards(slots, shardsCompetingForTarget, recoveriesOnTarget)
                     )
                 );
             }
@@ -150,11 +146,12 @@ public class RelocationOtherNodeShutdownTimeouts {
     }
 
     /// The slots of the target are shared equally by all the recoveries on it. This is the part of them that the `shardsCompetingForTarget`
-    /// shards get next to the `otherRecoveriesOnTarget` other recoveries: `min(N, slots * N / (N + others))`. It can be fractional.
-    private static double slotShareOfCompetingShards(int slots, long shardsCompetingForTarget, int otherRecoveriesOnTarget) {
+    /// shards get: `min(N, slots * N / recoveries)`. It can be fractional. A cluster state that does not show all the competing shards yet
+    /// gives fewer recoveries than shards, so the recoveries are taken to be at least the competing shards.
+    private static double slotShareOfCompetingShards(int slots, long shardsCompetingForTarget, int recoveriesOnTarget) {
         return Math.min(
             shardsCompetingForTarget,
-            (double) slots * shardsCompetingForTarget / (shardsCompetingForTarget + otherRecoveriesOnTarget)
+            (double) slots * shardsCompetingForTarget / Math.max(shardsCompetingForTarget, recoveriesOnTarget)
         );
     }
 

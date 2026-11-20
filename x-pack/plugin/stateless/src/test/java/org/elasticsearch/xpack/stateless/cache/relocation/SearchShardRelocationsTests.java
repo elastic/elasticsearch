@@ -130,25 +130,18 @@ public class SearchShardRelocationsTests extends ESTestCase {
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, OTHER_TARGET), equalTo(0));
     }
 
-    public void testNonCriticalInitializingNotFromShuttingDownNodesCountsTheRelocationsFromOtherNodesAndTheOtherRecoveries() {
+    public void testNonCriticalInitializingCountsTheRelocationsAndTheOtherNonCriticalRecoveries() {
         final var state = clusterState(
             List.of(
                 new Relocation(SOURCE_A, TARGET),
                 new Relocation(SOURCE_A, OTHER_TARGET),
-                // restarting node is not marked for removal
                 new Relocation(SOURCE_B, TARGET),
                 new Relocation(SOURCE_B, TARGET),
-                // not shutting down
                 new Relocation(SOURCE_C, TARGET),
                 new Relocation(SOURCE_C, OTHER_TARGET)
             ),
             List.of(),
-            Map.of(
-                SOURCE_A,
-                randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM),
-                SOURCE_B,
-                SingleNodeShutdownMetadata.Type.RESTART
-            ),
+            Map.of(),
             List.of(),
             List.of(
                 new Recovery(TARGET, RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING),
@@ -159,12 +152,12 @@ public class SearchShardRelocationsTests extends ESTestCase {
             )
         );
 
-        // 3 relocations from the nodes that are not marked for removal, and 1 other non-critical recovery
-        assertThat(SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, TARGET), equalTo(4));
-        // 1 relocation and 2 other non-critical recoveries
-        assertThat(SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, OTHER_TARGET), equalTo(3));
-        assertThat(SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, SOURCE_A), equalTo(0));
-        assertThat(SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, "no-such-node"), equalTo(0));
+        // 4 relocations and 1 other non-critical recovery
+        assertThat(SearchShardRelocations.countNonCriticalInitializing(state, TARGET), equalTo(5));
+        // 2 relocations and 2 other non-critical recoveries
+        assertThat(SearchShardRelocations.countNonCriticalInitializing(state, OTHER_TARGET), equalTo(4));
+        assertThat(SearchShardRelocations.countNonCriticalInitializing(state, SOURCE_A), equalTo(0));
+        assertThat(SearchShardRelocations.countNonCriticalInitializing(state, "no-such-node"), equalTo(0));
     }
 
     public void testPendingRelocationsCountsOnlyTheStartedSearchShardsOfTheNode() {

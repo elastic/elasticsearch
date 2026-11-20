@@ -11,6 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
@@ -19,8 +20,9 @@ import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +39,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -65,8 +68,8 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     private static final String OTHER_DATA_STREAM = "dls-ds-web";
     private static final String DATA_STREAM_ALIAS = "dls-ds-all";
 
-    private final List<String> usersToDelete = new ArrayList<>();
-    private final List<String> rolesToDelete = new ArrayList<>();
+    private final Set<String> usersToDelete = new HashSet<>();
+    private final Set<String> rolesToDelete = new HashSet<>();
 
     @After
     public void deleteUsersAndRoles() throws IOException {
@@ -103,9 +106,7 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
 
         // async search
-        final Request asyncSearch = new Request("POST", "/" + DATA_STREAM + "/_async_search");
-        asyncSearch.addParameter("wait_for_completion_timeout", "30s");
-        asyncSearch.setJsonEntity(MATCH_ALL);
+        final Request asyncSearch = asyncSearchRequest(DATA_STREAM, false);
         final ObjectPath asyncResponse = ObjectPath.createFromResponse(performRequest(user, asyncSearch));
         assertThat(asyncResponse.evaluate("is_running"), is(false));
         assertThat(asyncResponse.evaluate("is_partial"), is(false));
@@ -408,6 +409,873 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertRequestCacheState(2 * shards, 2 * shards);
     }
 
+    public void testFieldLevelSecurityGrantListShowsTimestampOnQualifyingIndices() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_implicit_user", "ts_implicit_role", timestampRole("""
+            {"grant": ["host", "cpu"]}"""));
+
+        for (String target : List.of(TS_METRICS, TS_LOGS, TS_STANDALONE)) {
+            assertSourceHasOnly(hits(search(user, target, MATCH_ALL)).get(0), "@timestamp", "host", "cpu");
+            assertThat(target, timestampCount(user, target), equalTo(1));
+            assertThat(target, hasTimestampFieldCaps(user, target), is(true));
+            assertThat(target, esqlValues(user, "FROM " + target + " | KEEP @timestamp, host | LIMIT 10").get(0).get(0), notNullValue());
+        }
+        assertSourceHasOnly(hits(search(user, TS_PLAIN, MATCH_ALL)).get(0), "host", "cpu");
+        assertThat(timestampCount(user, TS_PLAIN), equalTo(0));
+        assertThat(hasTimestampFieldCaps(user, TS_PLAIN), is(false));
+
+        final Map<String, Map<String, Object>> mixed = hitsByIndex(search(user, TS_PLAIN + "," + TS_STANDALONE, MATCH_ALL));
+        assertSourceHasOnly(mixed.get(TS_STANDALONE), "@timestamp", "host", "cpu");
+        assertSourceHasOnly(mixed.get(TS_PLAIN), "host", "cpu");
+
+        final String id = firstDocumentId(TS_STANDALONE);
+        final Map<String, Object> get = responseAsMap(performRequest(user, new Request("GET", "/" + TS_STANDALONE + "/_doc/" + id)));
+        assertThat(get.get("found"), equalTo(true));
+        assertThat(XContentMapValues.extractValue("_source.@timestamp", get), notNullValue());
+        assertThat(esqlValues(user, "FROM " + TS_STANDALONE + " METADATA _id | KEEP _id | LIMIT 10").get(0).get(0), equalTo(id));
+    }
+
+    public void testStandaloneStandardIndexTimestampIsNotMandatory() throws IOException {
+        createTypeIndex(TYPE_STANDARD, "");
+        assertTimestampNotMandatory(TYPE_STANDARD);
+    }
+
+    public void testStandaloneTimeSeriesIndexTimestampIsMandatory() throws IOException {
+        final String index = "fls-type-time-series";
+        createTypeIndex(index, TYPE_TIME_SERIES + TYPE_TIME_SERIES_BOUNDS);
+        assertTimestampMandatory(index);
+    }
+
+    public void testStandaloneLogsdbIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-logsdb";
+        createTypeIndex(index, MODE_LOGSDB);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testStandaloneLogsdbColumnarIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-logsdb-columnar";
+        createTypeIndex(index, MODE_LOGSDB_COLUMNAR);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testStandaloneLookupIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-lookup";
+        createTypeIndex(index, MODE_LOOKUP);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testStandaloneColumnarIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-columnar";
+        createTypeIndex(index, MODE_COLUMNAR);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testStandaloneVectordbDocumentIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-vectordb-document";
+        createTypeIndex(index, MODE_VECTORDB_DOCUMENT);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testStandaloneVectordbColumnarIndexTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-vectordb-columnar";
+        createTypeIndex(index, MODE_VECTORDB_COLUMNAR);
+        assertTimestampNotMandatory(index);
+    }
+
+    public void testDataStreamStandardBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-standard";
+        createTypeDataStream(dataStream, "");
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamTimeSeriesBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-time-series";
+        createTypeDataStream(dataStream, TYPE_TIME_SERIES);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamLogsdbBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-logsdb";
+        createTypeDataStream(dataStream, MODE_LOGSDB);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamLogsdbColumnarBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-logsdb-columnar";
+        createTypeDataStream(dataStream, MODE_LOGSDB_COLUMNAR);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamLookupBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-lookup";
+        createTypeDataStream(dataStream, MODE_LOOKUP);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamColumnarBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-columnar";
+        createTypeDataStream(dataStream, MODE_COLUMNAR);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamVectordbDocumentBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-vectordb-document";
+        createTypeDataStream(dataStream, MODE_VECTORDB_DOCUMENT);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testDataStreamVectordbColumnarBackingIndexTimestampIsMandatory() throws IOException {
+        final String dataStream = "fls-type-ds-vectordb-columnar";
+        createTypeDataStream(dataStream, MODE_VECTORDB_COLUMNAR);
+        assertTimestampMandatory(dataStream);
+    }
+
+    public void testStandaloneLogsdbIndexWithoutDataStreamTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-logsdb-no-timestamp";
+        createTypeIndexWithoutDataStreamTimestamp(index, MODE_LOGSDB);
+        assertTimestampNotMandatoryWithoutTimestampField(index);
+    }
+
+    public void testStandaloneLogsdbColumnarIndexWithoutDataStreamTimestampIsNotMandatory() throws IOException {
+        final String index = "fls-type-logsdb-columnar-no-timestamp";
+        createTypeIndexWithoutDataStreamTimestamp(index, MODE_LOGSDB_COLUMNAR);
+        assertTimestampNotMandatoryWithoutTimestampField(index);
+    }
+
+    public void testStandaloneTimeSeriesIndexCannotDisableDataStreamTimestamp() throws IOException {
+        final String settings = TYPE_TIME_SERIES + TYPE_TIME_SERIES_BOUNDS;
+        assertOK(adminClient().performRequest(typeIndexWithDataStreamTimestampRequest("fls-type-time-series-timestamp", settings, true)));
+        final Request disabled = typeIndexWithDataStreamTimestampRequest("fls-type-time-series-no-timestamp", settings, false);
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(disabled));
+        assertThat(e.getMessage(), containsString("[_data_stream_timestamp] meta field has been disabled"));
+    }
+
+    public void testStandaloneTimeSeriesIndexTimestampStaysMandatoryAcrossDataStreamMembership() throws IOException {
+        final String index = "fls-type-member-time-series";
+        final String dataStream = "fls-type-ds-member-time-series";
+        // NOTE: the time ranges of the backing indices of a time series data stream cannot overlap
+        createTypeIndex(index, TYPE_TIME_SERIES + TYPE_TIME_SERIES_PAST_BOUNDS, TYPE_TIME_SERIES_PAST_TIMESTAMP);
+        assertTimestampMandatory(index);
+        createTypeDataStream(dataStream, TYPE_TIME_SERIES);
+        modifyDataStream("add_backing_index", dataStream, index);
+        assertTimestampMandatory(index);
+        modifyDataStream("remove_backing_index", dataStream, index);
+        assertTimestampMandatory(index);
+    }
+
+    public void testStandaloneLogsdbIndexTimestampFollowsDataStreamMembership() throws IOException {
+        final String index = "fls-type-member-logsdb";
+        createTypeIndex(index, MODE_LOGSDB);
+        assertTimestampFollowsDataStreamMembership("fls-type-ds-member-logsdb", index);
+    }
+
+    public void testStandaloneLogsdbColumnarIndexTimestampFollowsDataStreamMembership() throws IOException {
+        final String index = "fls-type-member-logsdb-columnar";
+        createTypeIndex(index, MODE_LOGSDB_COLUMNAR);
+        assertTimestampFollowsDataStreamMembership("fls-type-ds-member-logsdb-columnar", index);
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampFailsWholeRequest() throws IOException {
+        createTimestampIndices();
+        final String role = timestampRole("""
+            {"grant": ["*"], "except": ["@timestamp"]}""");
+        final String user = createUserWithRole("ts_explicit_user", "ts_explicit_role", role);
+
+        final Request partialSearch = new Request("GET", "/" + TS_METRICS + "/_search");
+        partialSearch.addParameter("allow_partial_search_results", "true");
+        partialSearch.setJsonEntity(MATCH_ALL);
+        assertTimestampExclusionRejected(user, partialSearch);
+        assertTimestampExclusionRejected(user, new Request("GET", "/" + TS_LOGS + "/_count"));
+        final Request fieldCaps = new Request("GET", "/" + TS_STANDALONE + "/_field_caps");
+        fieldCaps.addParameter("fields", "*");
+        assertTimestampExclusionRejected(user, fieldCaps);
+        assertTimestampExclusionRejected(user, esqlRequest("/_query", "FROM " + TS_METRICS + " | LIMIT 10"));
+        final Request eql = new Request("POST", "/" + TS_METRICS + "/_eql/search");
+        eql.setJsonEntity("""
+            {"query": "any where true"}""");
+        assertTimestampExclusionRejected(user, eql);
+        final Request openPointInTime = new Request("POST", "/" + TS_STANDALONE + "/_pit");
+        openPointInTime.addParameter("keep_alive", "1m");
+        assertTimestampExclusionRejected(user, openPointInTime);
+        final String id = firstDocumentId(TS_STANDALONE);
+        assertTimestampExclusionRejected(user, new Request("GET", "/" + TS_STANDALONE + "/_doc/" + id));
+        final Request termVectors = new Request("GET", "/" + TS_STANDALONE + "/_termvectors/" + id);
+        termVectors.addParameter("fields", "host");
+        assertTimestampExclusionRejected(user, termVectors);
+        final Request termsEnum = new Request("POST", "/" + TS_STANDALONE + "/_terms_enum");
+        termsEnum.setJsonEntity("""
+            {"field": "host"}""");
+        assertTimestampExclusionRejected(user, termsEnum);
+
+        assertSourceHasOnly(hits(search(user, TS_PLAIN, MATCH_ALL)).get(0), "host", "cpu");
+        assertOK(adminClient().performRequest(new Request("GET", "/_security/role/ts_explicit_role")));
+        upsertRole(role, "ts_explicit_role");
+        assertTimestampExclusionRejected(user, partialSearch);
+
+        final String unionUser = "ts_union_user";
+        upsertRole(timestampRole("""
+            {"grant": ["@timestamp"]}"""), "ts_grant_role");
+        rolesToDelete.add("ts_grant_role");
+        createUser(unionUser, PASSWORD, List.of("ts_explicit_role", "ts_grant_role"));
+        usersToDelete.add(unionUser);
+        assertThat(timestampCount(unionUser, TS_METRICS), equalTo(1));
+
+        final String omittingUnionUser = "ts_omitting_union_user";
+        upsertRole(timestampRole(IMPLICIT_TIMESTAMP), "ts_omit_role");
+        rolesToDelete.add("ts_omit_role");
+        createUser(omittingUnionUser, PASSWORD, List.of("ts_explicit_role", "ts_omit_role"));
+        usersToDelete.add(omittingUnionUser);
+        assertTimestampExclusionRejected(omittingUnionUser, partialSearch);
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampFailsEsqlQueries() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_esql_user", "ts_esql_role", timestampRole(EXCLUDED_TIMESTAMP));
+        final List<String> queries = List.of(
+            "FROM " + TS_METRICS + " | LIMIT 10",
+            "FROM " + TS_STANDALONE + " METADATA _id | KEEP _id | LIMIT 10",
+            "FROM " + TS_STANDALONE + " | STATS c = COUNT(*) | LIMIT 10",
+            "FROM " + TS_STANDALONE + "," + TS_PLAIN + " | KEEP host | LIMIT 10",
+            "FROM " + TS_PLAIN + "," + TS_METRICS + " | KEEP host | LIMIT 10"
+        );
+        for (String endpoint : List.of("/_query", "/_query/async")) {
+            for (String query : queries) {
+                assertTimestampExclusionRejected(user, esqlRequest(endpoint, query));
+            }
+        }
+        assertThat(esqlValues(user, "FROM " + TS_PLAIN + " | STATS c = COUNT(*) | LIMIT 10"), equalTo(List.of(List.of(1))));
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampFailsAsyncSearch() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_async_excluding_user", "ts_async_excluding_role", timestampRole(EXCLUDED_TIMESTAMP));
+        for (boolean keepOnCompletion : new boolean[] { true, false }) {
+            for (String target : List.of(TS_METRICS, TS_STANDALONE + "," + TS_PLAIN)) {
+                assertTimestampExclusionRejected(user, asyncSearchRequest(target, keepOnCompletion));
+            }
+        }
+        assertSourceHasOnly(hits(search(user, TS_PLAIN, MATCH_ALL)).get(0), "host", "cpu");
+    }
+
+    public void testAsyncSearchResultKeepsTimestampAfterRoleChange() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_async_user", "ts_async_role", timestampRole(IMPLICIT_TIMESTAMP));
+        final String asyncId = ObjectPath.createFromResponse(performRequest(user, asyncSearchRequest(TS_STANDALONE, true))).evaluate("id");
+        try {
+            upsertRole(timestampRole(EXCLUDED_TIMESTAMP), "ts_async_role");
+            assertTimestampExclusionRejected(user, asyncSearchRequest(TS_STANDALONE, true));
+            final List<Map<String, Object>> storedHits = ObjectPath.createFromResponse(
+                performRequest(user, new Request("GET", "/_async_search/" + asyncId))
+            ).evaluate("response.hits.hits");
+            assertThat(storedHits, hasSize(1));
+            assertSourceHasOnly(storedHits.get(0), "@timestamp", "host", "cpu");
+        } finally {
+            assertOK(adminClient().performRequest(new Request("DELETE", "/_async_search/" + asyncId)));
+        }
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampFailsThroughAliases() throws IOException {
+        createTimestampIndices();
+        final Request aliases = new Request("POST", "/_aliases");
+        aliases.setJsonEntity(Strings.format("""
+            {"actions": [
+              {"add": {"index": "%s", "alias": "%s"}},
+              {"add": {"index": "%s", "alias": "%s"}},
+              {"add": {"index": "%s", "alias": "%s"}}
+            ]}""", TS_STANDALONE, TS_ALIAS, TS_PLAIN, TS_ALIAS, TS_METRICS, TS_DATA_STREAM_ALIAS));
+        assertOK(adminClient().performRequest(aliases));
+        final String excludingUser = createUserWithRole(
+            "ts_alias_excluding_user",
+            "ts_alias_excluding_role",
+            timestampRole(EXCLUDED_TIMESTAMP)
+        );
+        final String implicitUser = createUserWithRole(
+            "ts_alias_implicit_user",
+            "ts_alias_implicit_role",
+            timestampRole(IMPLICIT_TIMESTAMP)
+        );
+
+        for (String alias : List.of(TS_ALIAS, TS_DATA_STREAM_ALIAS)) {
+            assertTimestampExclusionRejected(excludingUser, searchRequest(alias));
+            assertTimestampExclusionRejected(excludingUser, esqlRequest("/_query", "FROM " + alias + " | LIMIT 10"));
+            assertThat(alias, timestampCount(implicitUser, alias), equalTo(1));
+        }
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampFailsMixedIndexSearch() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_mixed_user", "ts_mixed_role", timestampRole("""
+            {"grant": ["*"], "except": ["@timestamp"]}"""));
+        for (boolean allowPartialSearchResults : new boolean[] { true, false }) {
+            final Request search = new Request("GET", "/" + TS_METRICS + "," + TS_PLAIN + "/_search");
+            search.addParameter("allow_partial_search_results", Boolean.toString(allowPartialSearchResults));
+            search.setJsonEntity(MATCH_ALL);
+            assertTimestampExclusionRejected(user, search);
+        }
+        assertSourceHasOnly(hits(search(user, TS_PLAIN, MATCH_ALL)).get(0), "host", "cpu");
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampKeepsNonReadActions() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole(
+            "ts_non_read_user",
+            "ts_non_read_role",
+            Strings.format(
+                """
+                    {"indices": [{"names": ["fls-ts-*"], "privileges": ["read", "view_index_metadata", "write"], "field_security": %s}]}""",
+                EXCLUDED_TIMESTAMP
+            )
+        );
+
+        final Map<String, Object> mappings = responseAsMap(performRequest(user, new Request("GET", "/" + TS_STANDALONE + "/_mapping")));
+        assertThat(XContentMapValues.extractValue(TS_STANDALONE + ".mappings.properties.host", mappings), notNullValue());
+        assertThat(XContentMapValues.extractValue(TS_STANDALONE + ".mappings.properties.@timestamp", mappings), nullValue());
+
+        final Request index = new Request("POST", "/" + TS_STANDALONE + "/_doc");
+        index.addParameter("refresh", "true");
+        index.setJsonEntity(Strings.format("""
+            {"@timestamp": %d, "host": "c", "cpu": 3.0}""", System.currentTimeMillis()));
+        assertThat(performRequest(user, index).getStatusLine().getStatusCode(), equalTo(201));
+        final Response count = adminClient().performRequest(new Request("GET", "/" + TS_STANDALONE + "/_count"));
+        assertThat(ObjectPath.createFromResponse(count).evaluate("count"), equalTo(2));
+    }
+
+    public void testFieldLevelSecurityExcludingTimestampFailsCompositeItems() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_composite_user", "ts_composite_role", timestampRole("""
+            {"grant": ["*"], "except": ["@timestamp"]}"""));
+        final String excludedId = firstDocumentId(TS_STANDALONE);
+        final String plainId = firstDocumentId(TS_PLAIN);
+
+        final Request mget = new Request("GET", "/_mget");
+        mget.setJsonEntity(Strings.format("""
+            {"docs": [{"_index": "%s", "_id": "%s"}, {"_index": "%s", "_id": "%s"}]}""", TS_STANDALONE, excludedId, TS_PLAIN, plainId));
+        final ObjectPath mgetResponse = ObjectPath.createFromResponse(performRequest(user, mget));
+        assertThat(mgetResponse.evaluate("docs.0.error.type"), equalTo("security_exception"));
+        assertThat(mgetResponse.evaluate("docs.0.error.reason"), containsString(TIMESTAMP_EXCLUDED));
+        assertThat(mgetResponse.evaluate("docs.1.found"), equalTo(true));
+
+        final Request mtv = new Request("GET", "/_mtermvectors");
+        mtv.setJsonEntity(
+            Strings.format(
+                """
+                    {"docs": [{"_index": "%s", "_id": "%s", "fields": ["host"]}, {"_index": "%s", "_id": "%s", "fields": ["host"]}]}""",
+                TS_STANDALONE,
+                excludedId,
+                TS_PLAIN,
+                plainId
+            )
+        );
+        final ObjectPath mtvResponse = ObjectPath.createFromResponse(performRequest(user, mtv));
+        assertThat(mtvResponse.evaluate("docs.0.error.type"), equalTo("security_exception"));
+        assertThat(mtvResponse.evaluate("docs.0.error.reason"), containsString(TIMESTAMP_EXCLUDED));
+        assertThat(mtvResponse.evaluate("docs.1.found"), equalTo(true));
+
+        final Request msearch = new Request("GET", "/_msearch");
+        msearch.setJsonEntity(Strings.format("""
+            {"index": "%s"}
+            {"query": {"match_all": {}}}
+            {"index": "%s"}
+            {"query": {"match_all": {}}}
+            """, TS_METRICS, TS_PLAIN));
+        final ObjectPath msearchResponse = ObjectPath.createFromResponse(performRequest(user, msearch));
+        assertThat(msearchResponse.evaluate("responses.0.status"), equalTo(403));
+        assertThat(msearchResponse.evaluate("responses.0.error.reason"), containsString(TIMESTAMP_EXCLUDED));
+        assertThat(msearchResponse.evaluate("responses.1.hits.total.value"), equalTo(1));
+    }
+
+    public void testFieldLevelSecurityOfApiKeyExcludingTimestampFailsRequest() throws IOException {
+        createTimestampIndices();
+        final String excludingKey = createApiKey("ts_excluding_key", """
+            {"ts_key_role": {"indices": [{"names": ["fls-ts-*"], "privileges": ["read"],
+              "field_security": {"grant": ["*"], "except": ["@timestamp"]}}]}}""");
+        final String grantListKey = createApiKey("ts_grant_list_key", """
+            {"ts_key_role": {"indices": [{"names": ["fls-ts-*"], "privileges": ["read"],
+              "field_security": {"grant": ["host"]}}]}}""");
+
+        final Request search = new Request("GET", "/" + TS_METRICS + "/_search");
+        search.setJsonEntity(MATCH_ALL);
+        search.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + excludingKey));
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(search));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString(TIMESTAMP_EXCLUDED));
+
+        search.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + grantListKey));
+        assertSourceHasOnly(hits(client().performRequest(search)).get(0), "@timestamp", "host");
+    }
+
+    public void testDataStreamMembershipDecidesTimestampVisibility() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_member_user", "ts_member_role", timestampRole("""
+            {"grant": ["host", "cpu"]}"""));
+        assertThat(timestampCount(user, TS_PLAIN), equalTo(0));
+
+        modifyDataStream("add_backing_index", TS_LOGS, TS_PLAIN);
+        assertThat(timestampCount(user, TS_PLAIN), equalTo(1));
+
+        modifyDataStream("remove_backing_index", TS_LOGS, TS_PLAIN);
+        assertThat(timestampCount(user, TS_PLAIN), equalTo(0));
+    }
+
+    public void testDataStreamTimestampMappingAloneDoesNotShowTimestamp() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_mapping_user", "ts_mapping_role", timestampRole("""
+            {"grant": ["host", "cpu"]}"""));
+        final Request putMapping = new Request("PUT", "/" + TS_PLAIN + "/_mapping");
+        putMapping.setJsonEntity("""
+            {"_data_stream_timestamp": {"enabled": true}}""");
+        assertOK(adminClient().performRequest(putMapping));
+
+        assertThat(timestampCount(user, TS_PLAIN), equalTo(0));
+        assertSourceHasOnly(hits(search(user, TS_PLAIN, MATCH_ALL)).get(0), "host", "cpu");
+    }
+
+    public void testTimestampVisibleOnEveryBackingIndexAfterRollover() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_rollover_user", "ts_rollover_role", timestampRole(IMPLICIT_TIMESTAMP));
+        final String firstBackingIndex = backingIndices(TS_METRICS).get(0);
+        final String secondBackingIndex = rolloverAndIndexDocument(TS_METRICS);
+
+        final Map<String, Map<String, Object>> hits = hitsByIndex(search(user, TS_METRICS, MATCH_ALL));
+        assertThat(hits.keySet(), containsInAnyOrder(firstBackingIndex, secondBackingIndex));
+        for (Map<String, Object> hit : hits.values()) {
+            assertSourceHasOnly(hit, "@timestamp", "host", "cpu");
+        }
+        assertThat(timestampCount(user, TS_METRICS), equalTo(2));
+    }
+
+    public void testRoleChangeAfterRolloverAppliesToEveryBackingIndex() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_role_change_user", "ts_role_change_role", timestampRole(IMPLICIT_TIMESTAMP));
+        rolloverAndIndexDocument(TS_LOGS);
+        assertThat(timestampCount(user, TS_LOGS), equalTo(2));
+
+        upsertRole(timestampRole(EXCLUDED_TIMESTAMP), "ts_role_change_role");
+        assertTimestampExclusionRejected(user, searchRequest(TS_LOGS));
+
+        upsertRole(timestampRole(IMPLICIT_TIMESTAMP), "ts_role_change_role");
+        assertThat(timestampCount(user, TS_LOGS), equalTo(2));
+    }
+
+    public void testIndexModeChangeAtRolloverKeepsTimestampPolicy() throws IOException {
+        createTimestampIndices();
+        final String implicitUser = createUserWithRole("ts_mode_implicit_user", "ts_mode_implicit_role", timestampRole(IMPLICIT_TIMESTAMP));
+        final String excludingUser = createUserWithRole(
+            "ts_mode_excluding_user",
+            "ts_mode_excluding_role",
+            timestampRole(EXCLUDED_TIMESTAMP)
+        );
+        final Request timeSeriesTemplate = new Request("PUT", "/_index_template/fls-ts-logs");
+        timeSeriesTemplate.setJsonEntity(Strings.format("""
+            {"index_patterns": ["%s"], "data_stream": {}, "priority": 500, "template": {
+              "settings": {"index.mode": "time_series", "index.routing_path": ["host"], "number_of_shards": 1, "number_of_replicas": 0},
+              "mappings": %s}}""", TS_LOGS, TIMESTAMP_MAPPINGS));
+        assertOK(adminClient().performRequest(timeSeriesTemplate));
+        final String timeSeriesBackingIndex = rolloverAndIndexDocument(TS_LOGS);
+        assertThat(indexSetting(timeSeriesBackingIndex, "index.mode"), equalTo("time_series"));
+        final List<String> backingIndices = backingIndices(TS_LOGS);
+        assertThat(indexSetting(backingIndices.get(0), "index.mode"), is(nullValue()));
+
+        assertThat(timestampCount(implicitUser, TS_LOGS), equalTo(2));
+        assertTimestampExclusionRejected(excludingUser, searchRequest(TS_LOGS));
+    }
+
+    public void testPointInTimeSearchAfterRoleChangeIsDenied() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_pit_user", "ts_pit_role", timestampRole(IMPLICIT_TIMESTAMP));
+        final Request openPointInTime = new Request("POST", "/" + TS_LOGS + "/_pit");
+        openPointInTime.addParameter("keep_alive", "1m");
+        final String pitId = ObjectPath.createFromResponse(performRequest(user, openPointInTime)).evaluate("id");
+        try {
+            rolloverAndIndexDocument(TS_LOGS);
+            final Request pitSearch = new Request("POST", "/_search");
+            pitSearch.setJsonEntity(Strings.format("""
+                {"size": 10, "pit": {"id": "%s"}}""", pitId));
+            assertThat(hits(performRequest(user, pitSearch)), hasSize(1));
+
+            upsertRole(timestampRole(EXCLUDED_TIMESTAMP), "ts_pit_role");
+            assertTimestampExclusionRejected(user, pitSearch);
+        } finally {
+            final Request closePointInTime = new Request("DELETE", "/_pit");
+            closePointInTime.setJsonEntity(Strings.format("""
+                {"id": "%s"}""", pitId));
+            assertOK(adminClient().performRequest(closePointInTime));
+        }
+    }
+
+    public void testScrollKeepsTimestampAfterRoleChange() throws IOException {
+        createTimestampIndices();
+        final String user = createUserWithRole("ts_scroll_user", "ts_scroll_role", timestampRole(IMPLICIT_TIMESTAMP));
+        rolloverAndIndexDocument(TS_LOGS);
+        final Request openScroll = new Request("GET", "/" + TS_LOGS + "/_search");
+        openScroll.addParameter("scroll", "1m");
+        openScroll.setJsonEntity("""
+            {"size": 1, "query": {"match_all": {}}}""");
+        final ObjectPath firstPage = ObjectPath.createFromResponse(performRequest(user, openScroll));
+        final String scrollId = firstPage.evaluate("_scroll_id");
+        try {
+            final List<Map<String, Object>> firstHits = firstPage.evaluate("hits.hits");
+            assertSourceHasOnly(firstHits.get(0), "@timestamp", "host", "cpu");
+
+            upsertRole(timestampRole(EXCLUDED_TIMESTAMP), "ts_scroll_role");
+            assertTimestampExclusionRejected(user, searchRequest(TS_LOGS));
+            final Request continueScroll = new Request("POST", "/_search/scroll");
+            continueScroll.setJsonEntity(Strings.format("""
+                {"scroll": "1m", "scroll_id": "%s"}""", scrollId));
+            final List<Map<String, Object>> secondPage = hits(performRequest(user, continueScroll));
+            assertThat(secondPage, hasSize(1));
+            assertSourceHasOnly(secondPage.get(0), "@timestamp", "host", "cpu");
+        } finally {
+            final Request clearScroll = new Request("DELETE", "/_search/scroll");
+            clearScroll.setJsonEntity(Strings.format("""
+                {"scroll_id": "%s"}""", scrollId));
+            assertOK(adminClient().performRequest(clearScroll));
+        }
+    }
+
+    public void testFailureStoreRolloverKeepsTimestampHidden() throws IOException {
+        createDataStreamWithThreeBackingIndices(DATA_STREAM);
+        final List<String> failureIndices = createFailureStoreWithTwoIndices(DATA_STREAM);
+        final String implicitUser = createUserWithRole(
+            "ts_failures_implicit_user",
+            "ts_failures_implicit_role",
+            Strings.format(
+                """
+                    {"indices": [{"names": ["%s"], "privileges": ["read_failure_store"], "field_security": {"grant": ["document.id"]}}]}""",
+                DATA_STREAM
+            )
+        );
+        final String excludingUser = createUserWithRole("ts_failures_excluding_user", "ts_failures_excluding_role", Strings.format("""
+            {"indices": [{"names": ["%s"], "privileges": ["read_failure_store"],
+              "field_security": {"grant": ["*"], "except": ["@timestamp"]}}]}""", DATA_STREAM));
+
+        for (String user : List.of(implicitUser, excludingUser)) {
+            final Map<String, Map<String, Object>> hits = hitsByIndex(search(user, DATA_STREAM + "::failures", MATCH_ALL));
+            assertThat(user, hits.keySet(), containsInAnyOrder(failureIndices.toArray()));
+            for (Map<String, Object> hit : hits.values()) {
+                assertThat(user, XContentMapValues.extractValue("_source.@timestamp", hit), is(nullValue()));
+                assertThat(user, XContentMapValues.extractValue("_source.document.id", hit), is(notNullValue()));
+            }
+        }
+    }
+
+    public void testSearchAcrossBackingIndicesBeforeAndAfterRollover() throws IOException {
+        createTimestampIndices();
+        final String implicitUser = createUserWithRole(
+            "ts_across_implicit_user",
+            "ts_across_implicit_role",
+            backingIndicesRole(IMPLICIT_TIMESTAMP)
+        );
+        final String excludingUser = createUserWithRole(
+            "ts_across_excluding_user",
+            "ts_across_excluding_role",
+            backingIndicesRole(EXCLUDED_TIMESTAMP)
+        );
+        final String first = backingIndices(TS_LOGS).get(0);
+        assertThat(timestampCount(implicitUser, first), equalTo(1));
+        assertTimestampExclusionRejected(excludingUser, searchRequest(first));
+
+        final String second = rolloverAndIndexDocument(TS_LOGS);
+        final String both = first + "," + second;
+        final String backingPattern = DataStream.BACKING_INDEX_PREFIX + TS_LOGS + "-*";
+        for (String target : List.of(first, second)) {
+            assertThat(target, timestampCount(implicitUser, target), equalTo(1));
+        }
+        for (String target : List.of(both, TS_LOGS, backingPattern)) {
+            assertThat(target, timestampCount(implicitUser, target), equalTo(2));
+        }
+        assertTimestampExclusionRejected(excludingUser, searchRequest(second));
+        for (String target : List.of(both, TS_LOGS, backingPattern)) {
+            assertTimestampExclusionRejected(excludingUser, searchRequest(target));
+        }
+        assertTimestampExclusionRejected(excludingUser, searchRequest(second + "," + TS_PLAIN));
+
+        modifyDataStream("remove_backing_index", TS_LOGS, first);
+        assertThat(timestampCount(implicitUser, first), equalTo(0));
+        assertThat(timestampCount(implicitUser, both), equalTo(1));
+        assertSourceHasOnly(hits(search(excludingUser, first, MATCH_ALL)).get(0), "host", "cpu");
+        assertTimestampExclusionRejected(excludingUser, searchRequest(both));
+    }
+
+    private static final String IMPLICIT_TIMESTAMP = """
+        {"grant": ["host", "cpu"]}""";
+    private static final String EXCLUDED_TIMESTAMP = """
+        {"grant": ["*"], "except": ["@timestamp"]}""";
+    private static final String TIMESTAMP_MAPPINGS = """
+        {"properties": {
+          "@timestamp": {"type": "date"},
+          "host": {"type": "keyword", "time_series_dimension": true},
+          "cpu": {"type": "double"}
+        }}""";
+
+    private static String backingIndicesRole(String fieldSecurity) {
+        return Strings.format(
+            """
+                {"indices": [{"names": ["fls-ts-*", ".ds-fls-ts-*"], "privileges": ["read", "view_index_metadata"], "field_security": %s}]}""",
+            fieldSecurity
+        );
+    }
+
+    private String rolloverAndIndexDocument(String dataStream) throws IOException {
+        final Response rollover = adminClient().performRequest(new Request("POST", "/" + dataStream + "/_rollover"));
+        final String newIndex = ObjectPath.createFromResponse(rollover).evaluate("new_index");
+        final String startTime = indexSetting(newIndex, "index.time_series.start_time");
+        final long timestamp = startTime == null ? System.currentTimeMillis() : Instant.parse(startTime).toEpochMilli();
+        final Request index = new Request("POST", "/" + dataStream + "/_doc");
+        index.addParameter("refresh", "true");
+        index.setJsonEntity(Strings.format("""
+            {"@timestamp": %d, "host": "b", "cpu": 2.0}""", timestamp));
+        assertThat(ObjectPath.createFromResponse(adminClient().performRequest(index)).evaluate("_index"), equalTo(newIndex));
+        return newIndex;
+    }
+
+    private String indexSetting(String index, String setting) throws IOException {
+        final Request request = new Request("GET", "/" + index + "/_settings/" + setting);
+        request.addParameter("flat_settings", "true");
+        final Map<?, ?> indexSettings = (Map<?, ?>) entityAsMap(adminClient().performRequest(request)).get(index);
+        return indexSettings == null ? null : (String) ((Map<?, ?>) indexSettings.get("settings")).get(setting);
+    }
+
+    private static Request searchRequest(String target) {
+        final Request request = new Request("GET", "/" + target + "/_search");
+        request.addParameter("expand_wildcards", "open,hidden");
+        request.setJsonEntity(MATCH_ALL);
+        return request;
+    }
+
+    private static final String TS_METRICS = "fls-ts-metrics";
+    private static final String TS_LOGS = "fls-ts-logs";
+    private static final String TS_STANDALONE = "fls-ts-standalone";
+    private static final String TS_PLAIN = "fls-ts-plain";
+    private static final String TS_ALIAS = "fls-ts-alias";
+    private static final String TS_DATA_STREAM_ALIAS = "fls-ts-ds-alias";
+    private static final String TIMESTAMP_EXCLUDED = "because field level security excludes [@timestamp]";
+
+    private static String timestampRole(String fieldSecurity) {
+        return Strings.format("""
+            {"indices": [{"names": ["fls-ts-*"], "privileges": ["read", "view_index_metadata"], "field_security": %s}]}""", fieldSecurity);
+    }
+
+    private static final String TYPE_STANDARD = "fls-type-standard";
+    private static final String TYPE_MAPPINGS = """
+        {"properties": {
+          "@timestamp": {"type": "date"},
+          "host": {"properties": {"name": {"type": "keyword", "time_series_dimension": true}}},
+          "cpu": {"type": "double"}
+        }}""";
+    private static final String MODE_LOGSDB = ", \"index.mode\": \"logsdb\"";
+    private static final String MODE_LOGSDB_COLUMNAR = ", \"index.mode\": \"logsdb_columnar\"";
+    private static final String MODE_LOOKUP = ", \"index.mode\": \"lookup\"";
+    private static final String MODE_COLUMNAR = ", \"index.mode\": \"columnar\"";
+    private static final String MODE_VECTORDB_DOCUMENT = ", \"index.mode\": \"vectordb_document\"";
+    private static final String MODE_VECTORDB_COLUMNAR = ", \"index.mode\": \"vectordb_columnar\"";
+    private static final String TYPE_TIME_SERIES = ", \"index.mode\": \"time_series\", \"index.routing_path\": [\"host.name\"]";
+    private static final String TYPE_TIME_SERIES_PAST_BOUNDS =
+        ", \"index.time_series.start_time\": \"2020-01-01T00:00:00Z\", \"index.time_series.end_time\": \"2020-01-02T00:00:00Z\"";
+    private static final long TYPE_TIME_SERIES_PAST_TIMESTAMP = 1577880000000L;
+    private static final String TYPE_TIME_SERIES_BOUNDS =
+        ", \"index.time_series.start_time\": \"2020-01-01T00:00:00Z\", \"index.time_series.end_time\": \"2100-01-01T00:00:00Z\"";
+
+    private static final String TYPE_OMIT = """
+        {"grant": ["host.name", "cpu"]}""";
+    private static final String TYPE_EXCLUDE = """
+        {"grant": ["*"], "except": ["@timestamp"]}""";
+    private static final String TYPE_GRANT = """
+        {"grant": ["@timestamp", "host.name"]}""";
+
+    private void createTypeIndex(String index, String settings) throws IOException {
+        createTypeIndex(index, settings, System.currentTimeMillis());
+    }
+
+    private void createTypeIndex(String index, String settings, long timestamp) throws IOException {
+        final Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(Strings.format("""
+            {"settings": {"number_of_shards": 1, "number_of_replicas": 0%s}, "mappings": %s}""", settings, TYPE_MAPPINGS));
+        assertOK(adminClient().performRequest(create));
+        indexTypeDocument(index, timestamp);
+    }
+
+    private void createTypeDataStream(String dataStream, String settings) throws IOException {
+        final Request template = new Request("PUT", "/_index_template/" + dataStream);
+        template.setJsonEntity(Strings.format("""
+            {"index_patterns": ["%s"], "data_stream": {}, "priority": 500, "template": {
+              "settings": {"number_of_shards": 1, "number_of_replicas": 0%s}, "mappings": %s}}""", dataStream, settings, TYPE_MAPPINGS));
+        assertOK(adminClient().performRequest(template));
+        indexTypeDocument(dataStream);
+    }
+
+    private void indexTypeDocument(String target) throws IOException {
+        indexTypeDocument(target, System.currentTimeMillis());
+    }
+
+    private void indexTypeDocument(String target, long timestamp) throws IOException {
+        final Request index = new Request("POST", "/" + target + "/_doc");
+        index.addParameter("refresh", "true");
+        index.setJsonEntity(Strings.format("""
+            {"@timestamp": %d, "host": {"name": "a"}, "cpu": 1.0}""", timestamp));
+        assertThat(target, adminClient().performRequest(index).getStatusLine().getStatusCode(), equalTo(201));
+    }
+
+    private static Request typeIndexWithDataStreamTimestampRequest(String index, String settings, boolean enabled) {
+        final Request create = new Request("PUT", "/" + index);
+        create.setJsonEntity(Strings.format("""
+            {"settings": {"number_of_shards": 1, "number_of_replicas": 0%s},
+             "mappings": {"_data_stream_timestamp": {"enabled": %s}, "properties": {
+               "host": {"properties": {"name": {"type": "keyword", "time_series_dimension": true}}},
+               "cpu": {"type": "double"}
+             }}}""", settings, enabled));
+        return create;
+    }
+
+    private void createTypeIndexWithoutDataStreamTimestamp(String index, String settings) throws IOException {
+        assertOK(adminClient().performRequest(typeIndexWithDataStreamTimestampRequest(index, settings, false)));
+        final Request document = new Request("POST", "/" + index + "/_doc");
+        document.addParameter("refresh", "true");
+        document.setJsonEntity("""
+            {"host": {"name": "a"}, "cpu": 1.0}""");
+        assertThat(index, adminClient().performRequest(document).getStatusLine().getStatusCode(), equalTo(201));
+    }
+
+    private void assertTimestampNotMandatoryWithoutTimestampField(String target) throws IOException {
+        assertThat(typeSourceFields("omit", TYPE_OMIT, target), equalTo(Set.of("host.name", "cpu")));
+        assertThat(typeSourceFields("exclude", TYPE_EXCLUDE, target), equalTo(Set.of("host.name", "cpu")));
+        assertThat(typeSourceFields("grant", TYPE_GRANT, target), equalTo(Set.of("host.name")));
+    }
+
+    private void assertTimestampFollowsDataStreamMembership(String dataStream, String index) throws IOException {
+        createTypeDataStream(dataStream, "");
+        assertTimestampNotMandatory(index);
+        modifyDataStream("add_backing_index", dataStream, index);
+        assertTimestampMandatory(index);
+        modifyDataStream("remove_backing_index", dataStream, index);
+        assertTimestampNotMandatory(index);
+    }
+
+    private void assertTimestampMandatory(String target) throws IOException {
+        assertThat(typeSourceFields("omit", TYPE_OMIT, target), equalTo(Set.of("@timestamp", "host.name", "cpu")));
+        final Request search = new Request("GET", "/" + target + "/_search");
+        search.setJsonEntity(MATCH_ALL);
+        assertTimestampExclusionRejected(typeUser("exclude", TYPE_EXCLUDE), search);
+        assertThat(typeSourceFields("grant", TYPE_GRANT, target), equalTo(Set.of("@timestamp", "host.name")));
+    }
+
+    private void assertTimestampNotMandatory(String target) throws IOException {
+        assertThat(typeSourceFields("omit", TYPE_OMIT, target), equalTo(Set.of("host.name", "cpu")));
+        assertThat(typeSourceFields("exclude", TYPE_EXCLUDE, target), equalTo(Set.of("host.name", "cpu")));
+        assertThat(typeSourceFields("grant", TYPE_GRANT, target), equalTo(Set.of("@timestamp", "host.name")));
+    }
+
+    // NOTE: synthetic source of a columnar index returns flat keys such as "host.name", other modes return nested objects
+    @SuppressWarnings("unchecked")
+    private Set<String> typeSourceFields(String name, String fieldSecurity, String target) throws IOException {
+        final Map<String, Object> source = (Map<String, Object>) hits(search(typeUser(name, fieldSecurity), target, MATCH_ALL)).get(0)
+            .get("_source");
+        final Set<String> fields = new HashSet<>();
+        addSourceFields("", source, fields);
+        return fields;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void addSourceFields(String prefix, Map<String, Object> source, Set<String> fields) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?> object) {
+                addSourceFields(prefix + entry.getKey() + ".", (Map<String, Object>) object, fields);
+            } else {
+                fields.add(prefix + entry.getKey());
+            }
+        }
+    }
+
+    private String typeUser(String name, String fieldSecurity) throws IOException {
+        return createUserWithRole("type_" + name + "_user", "type_" + name + "_role", Strings.format("""
+            {"indices": [{"names": ["fls-type-*"], "privileges": ["read"], "field_security": %s}]}""", fieldSecurity));
+    }
+
+    private void createTimestampIndices() throws IOException {
+        final String mappings = TIMESTAMP_MAPPINGS;
+        final Request metricsTemplate = new Request("PUT", "/_index_template/fls-ts-metrics");
+        metricsTemplate.setJsonEntity(Strings.format("""
+            {"index_patterns": ["%s"], "data_stream": {}, "priority": 500, "template": {
+              "settings": {"index.mode": "time_series", "index.routing_path": ["host"], "number_of_shards": 2, "number_of_replicas": 0},
+              "mappings": %s}}""", TS_METRICS, mappings));
+        assertOK(adminClient().performRequest(metricsTemplate));
+        final Request logsTemplate = new Request("PUT", "/_index_template/fls-ts-logs");
+        logsTemplate.setJsonEntity(Strings.format("""
+            {"index_patterns": ["%s"], "data_stream": {}, "priority": 500, "template": {
+              "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+              "mappings": %s}}""", TS_LOGS, mappings));
+        assertOK(adminClient().performRequest(logsTemplate));
+
+        final Request standalone = new Request("PUT", "/" + TS_STANDALONE);
+        standalone.setJsonEntity(Strings.format("""
+            {"settings": {"index.mode": "time_series", "index.routing_path": ["host"], "number_of_shards": 1, "number_of_replicas": 0,
+              "index.time_series.start_time": "2020-01-01T00:00:00Z", "index.time_series.end_time": "2100-01-01T00:00:00Z"},
+             "mappings": %s}""", mappings));
+        assertOK(adminClient().performRequest(standalone));
+        final Request plain = new Request("PUT", "/" + TS_PLAIN);
+        plain.setJsonEntity(Strings.format("""
+            {"settings": {"number_of_shards": 1, "number_of_replicas": 0}, "mappings": %s}""", mappings));
+        assertOK(adminClient().performRequest(plain));
+
+        for (String target : List.of(TS_METRICS, TS_LOGS, TS_STANDALONE, TS_PLAIN)) {
+            final Request index = new Request("POST", "/" + target + "/_doc");
+            index.addParameter("refresh", "true");
+            index.setJsonEntity(Strings.format("""
+                {"@timestamp": %d, "host": "a", "cpu": 1.0}""", System.currentTimeMillis()));
+            assertThat(adminClient().performRequest(index).getStatusLine().getStatusCode(), equalTo(201));
+        }
+    }
+
+    private String firstDocumentId(String target) throws IOException {
+        final Request request = new Request("GET", "/" + target + "/_search");
+        request.setJsonEntity(MATCH_ALL);
+        return (String) hits(adminClient().performRequest(request)).get(0).get("_id");
+    }
+
+    private int timestampCount(String user, String target) throws IOException {
+        final Request request = new Request("GET", "/" + target + "/_search");
+        request.addParameter("expand_wildcards", "open,hidden");
+        request.setJsonEntity("""
+            {"size": 0, "track_total_hits": true, "query": {"exists": {"field": "@timestamp"}}}""");
+        return ObjectPath.createFromResponse(performRequest(user, request)).evaluate("hits.total.value");
+    }
+
+    private boolean hasTimestampFieldCaps(String user, String target) throws IOException {
+        final Request request = new Request("GET", "/" + target + "/_field_caps");
+        request.addParameter("fields", "@timestamp");
+        final Map<String, Object> fields = ObjectPath.createFromResponse(performRequest(user, request)).evaluate("fields");
+        return fields.containsKey("@timestamp");
+    }
+
+    private void assertTimestampExclusionRejected(String user, Request request) {
+        final ResponseException e = expectThrows(ResponseException.class, () -> performRequest(user, request));
+        assertThat(request.getEndpoint(), e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(request.getEndpoint(), e.getMessage(), containsString("security_exception"));
+        assertThat(request.getEndpoint(), e.getMessage(), containsString(TIMESTAMP_EXCLUDED));
+    }
+
+    private String createApiKey(String name, String roleDescriptors) throws IOException {
+        final Request request = new Request("POST", "/_security/api_key");
+        request.setJsonEntity(Strings.format("""
+            {"name": "%s", "role_descriptors": %s}""", name, roleDescriptors));
+        return ObjectPath.createFromResponse(adminClient().performRequest(request)).evaluate("encoded");
+    }
+
+    private void modifyDataStream(String action, String dataStream, String index) throws IOException {
+        final Request request = new Request("POST", "/_data_stream/_modify");
+        request.setJsonEntity(Strings.format("""
+            {"actions": [{"%s": {"data_stream": "%s", "index": "%s"}}]}""", action, dataStream, index));
+        assertOK(adminClient().performRequest(request));
+    }
+
+    private static Map<String, Map<String, Object>> hitsByIndex(Response response) throws IOException {
+        final Map<String, Map<String, Object>> hitsByIndex = new HashMap<>();
+        for (Map<String, Object> hit : hits(response)) {
+            hitsByIndex.put((String) hit.get("_index"), hit);
+        }
+        return hitsByIndex;
+    }
+
     private static final String MATCH_ALL = """
         {"size": 10, "query": {"match_all": {}}}""";
     private static final String SUGGEST = """
@@ -568,10 +1436,22 @@ public class DataStreamDlsFlsRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     private List<List<Object>> esqlValues(String user, String query) throws IOException {
-        final Request request = new Request("POST", "/_query");
+        return ObjectPath.createFromResponse(performRequest(user, esqlRequest("/_query", query))).evaluate("values");
+    }
+
+    private static Request asyncSearchRequest(String target, boolean keepOnCompletion) {
+        final Request request = new Request("POST", "/" + target + "/_async_search");
+        request.addParameter("wait_for_completion_timeout", "30s");
+        request.addParameter("keep_on_completion", Boolean.toString(keepOnCompletion));
+        request.setJsonEntity(MATCH_ALL);
+        return request;
+    }
+
+    private static Request esqlRequest(String endpoint, String query) {
+        final Request request = new Request("POST", endpoint);
         request.setJsonEntity(Strings.format("""
             {"query": "%s"}""", query));
-        return ObjectPath.createFromResponse(performRequest(user, request)).evaluate("values");
+        return request;
     }
 
     private int cachedTotalHits(String user) throws IOException {

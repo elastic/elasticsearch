@@ -1262,6 +1262,7 @@ public class Security extends Plugin
             allRolesStore,
             fieldPermissionsCache,
             clusterService,
+            featureService,
             auditTrailService,
             failureHandler,
             threadPool,

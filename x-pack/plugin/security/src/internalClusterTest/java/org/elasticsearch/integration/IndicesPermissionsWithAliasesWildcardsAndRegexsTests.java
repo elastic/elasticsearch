@@ -227,7 +227,8 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             response -> {
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 Map<String, Object> source = response.getHits().getHits()[0].getSourceAsMap();
-                assertThat(source.size(), equalTo(1));
+                assertThat(source.size(), equalTo(2));
+                assertThat(source.get(DEFAULT_TIMESTAMP_FIELD), equalTo(value));
                 assertThat((String) source.get("field1"), equalTo("value1"));
             }
         );
@@ -239,7 +240,8 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             response -> {
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 var source = response.getHits().getHits()[0].getSourceAsMap();
-                assertThat(source.size(), equalTo(1));
+                assertThat(source.size(), equalTo(2));
+                assertThat(source.get(DEFAULT_TIMESTAMP_FIELD), equalTo(value));
                 assertThat((String) source.get("field2"), equalTo("value2"));
             }
         );
@@ -251,7 +253,8 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             response -> {
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 var source = response.getHits().getHits()[0].getSourceAsMap();
-                assertThat(source.size(), equalTo(1));
+                assertThat(source.size(), equalTo(2));
+                assertThat(source.get(DEFAULT_TIMESTAMP_FIELD), equalTo(value));
                 assertThat((String) source.get("field3"), equalTo("value3"));
             }
         );
@@ -263,7 +266,8 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             response -> {
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 var source = response.getHits().getHits()[0].getSourceAsMap();
-                assertThat(source.size(), equalTo(2));
+                assertThat(source.size(), equalTo(3));
+                assertThat(source.get(DEFAULT_TIMESTAMP_FIELD), equalTo(value));
                 assertThat((String) source.get("field2"), equalTo("value2"));
                 assertThat((String) source.get("field3"), equalTo("value3"));
             }
@@ -276,7 +280,8 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
             response -> {
                 assertThat(response.getHits().getHits().length, equalTo(1));
                 var source = response.getHits().getHits()[0].getSourceAsMap();
-                assertThat(source.size(), equalTo(3));
+                assertThat(source.size(), equalTo(4));
+                assertThat(source.get(DEFAULT_TIMESTAMP_FIELD), equalTo(value));
                 assertThat((String) source.get("field1"), equalTo("value1"));
                 assertThat((String) source.get("field2"), equalTo("value2"));
                 assertThat((String) source.get("field3"), equalTo("value3"));

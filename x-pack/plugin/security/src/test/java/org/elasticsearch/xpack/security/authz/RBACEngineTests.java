@@ -152,6 +152,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -174,7 +175,7 @@ public class RBACEngineTests extends ESTestCase {
         final LoadAuthorizedIndicesTimeChecker.Factory timerFactory = mock(LoadAuthorizedIndicesTimeChecker.Factory.class);
         when(timerFactory.newTimer(any())).thenReturn(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
         rolesStore = mock(CompositeRolesStore.class);
-        engine = new RBACEngine(Settings.EMPTY, rolesStore, new FieldPermissionsCache(Settings.EMPTY), timerFactory);
+        engine = new RBACEngine(Settings.EMPTY, rolesStore, new FieldPermissionsCache(Settings.EMPTY), timerFactory, () -> false);
     }
 
     public void testResolveAuthorizationInfoForEmptyRolesWithAuthentication() {
@@ -2045,7 +2046,7 @@ public class RBACEngineTests extends ESTestCase {
                 assertTrue(indexAuthorizationResult.isGranted());
                 // Child authorization should be skipped since we passed parent authorization.
                 Mockito.verify(role, never()).checkIndicesAction(action);
-                Mockito.verify(role, never()).authorize(eq(action), any(), any(), any());
+                Mockito.verify(role, never()).authorize(eq(action), any(), any(), any(), anyBoolean());
             }
 
             @Override
@@ -2069,7 +2070,7 @@ public class RBACEngineTests extends ESTestCase {
             public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
                 assertTrue(indexAuthorizationResult.isGranted());
                 // Child action should have been authorized normally since we did not pass parent authorization
-                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any(), anyBoolean());
             }
 
             @Override
@@ -2105,7 +2106,7 @@ public class RBACEngineTests extends ESTestCase {
             public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
                 assertTrue(indexAuthorizationResult.isGranted());
                 // Child action authorization should not be skipped, even though the parent authorization was present
-                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any(), anyBoolean());
             }
 
             @Override
@@ -2126,7 +2127,7 @@ public class RBACEngineTests extends ESTestCase {
             @Override
             public void onResponse(IndexAuthorizationResult indexAuthorizationResult) {
                 assertTrue(indexAuthorizationResult.isGranted());
-                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any());
+                Mockito.verify(role, atLeastOnce()).authorize(eq(action), any(), any(), any(), anyBoolean());
             }
 
             @Override

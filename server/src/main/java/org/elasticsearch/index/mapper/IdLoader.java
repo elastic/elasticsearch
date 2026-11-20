@@ -112,6 +112,46 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     BlockLoader blockLoader(ByteSizeValue ordinalsByteSize);
 
+    private static void advanceExactOrThrow(SortedDocValues docValues, String field, int docId) throws IOException {
+        if (docValues.advanceExact(docId) == false) {
+            throw fieldNotAccessible(field, "for doc [" + docId + "]");
+        }
+    }
+
+    private static void advanceExactOrThrow(SortedNumericDocValues docValues, String field, int docId) throws IOException {
+        if (docValues.advanceExact(docId) == false) {
+            throw fieldNotAccessible(field, "for doc [" + docId + "]");
+        }
+    }
+
+    private static IllegalStateException fieldNotAccessible(String field, String scope) {
+        return new IllegalStateException(
+            "cannot synthesize [_id] of a time series document: field [" + field + "] is not accessible " + scope
+        );
+    }
+
+    private static TrackingSortedDocValues sortedDocValuesOrThrow(
+        CircuitBreaker breaker,
+        ByteSizeValue ordinalsByteSize,
+        LeafReaderContext ctx,
+        String field
+    ) throws IOException {
+        SortedDvSingletonOrSet docValues = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, field);
+        if (docValues == null) {
+            throw fieldNotAccessible(field, "in the segment");
+        }
+        return docValues.forceSingle();
+    }
+
+    private static TrackingSortedNumericDocValues timestampDocValuesOrThrow(CircuitBreaker breaker, LeafReaderContext ctx)
+        throws IOException {
+        NumericDvSingletonOrSorted docValues = NumericDvSingletonOrSorted.get(breaker, ctx, DataStream.TIMESTAMP_FIELD_NAME);
+        if (docValues == null) {
+            throw fieldNotAccessible(DataStream.TIMESTAMP_FIELD_NAME, "in the segment");
+        }
+        return docValues.forceSorted();
+    }
+
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
@@ -186,19 +226,16 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
 
-                boolean found = tsIdDocValues.advanceExact(docId);
-                assert found;
+                advanceExactOrThrow(tsIdDocValues, TimeSeriesIdFieldMapper.NAME, docId);
                 BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
-                found = timestampDocValues.advanceExact(docId);
-                assert found;
+                advanceExactOrThrow(timestampDocValues, DataStream.TIMESTAMP_FIELD_NAME, docId);
                 assert timestampDocValues.docValueCount() == 1;
                 long timestamp = timestampDocValues.nextValue();
                 if (builders != null) {
                     var routingBuilder = builders[i];
                     ids[i] = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, new byte[16]);
                 } else {
-                    found = routingHashDocValues.advanceExact(docId);
-                    assert found;
+                    advanceExactOrThrow(routingHashDocValues, TimeSeriesRoutingHashFieldMapper.NAME, docId);
                     BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
                     int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
                         Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
@@ -246,10 +283,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 TrackingSortedNumericDocValues timestampDVs = null;
                 TrackingSortedDocValues routingHashDVs = null;
                 try {
-                    tsidDVs = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, TimeSeriesIdFieldMapper.NAME).forceSingle();
-                    timestampDVs = NumericDvSingletonOrSorted.get(breaker, ctx, DataStream.TIMESTAMP_FIELD_NAME).forceSorted();
-                    routingHashDVs = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, TimeSeriesRoutingHashFieldMapper.NAME)
-                        .forceSingle();
+                    tsidDVs = sortedDocValuesOrThrow(breaker, ordinalsByteSize, ctx, TimeSeriesIdFieldMapper.NAME);
+                    timestampDVs = timestampDocValuesOrThrow(breaker, ctx);
+                    routingHashDVs = sortedDocValuesOrThrow(breaker, ordinalsByteSize, ctx, TimeSeriesRoutingHashFieldMapper.NAME);
                     success = true;
                 } finally {
                     if (success == false) {
@@ -284,12 +320,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             }
 
             private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
-                if (tsidDVs.docValues().advanceExact(docId) == false
-                    || timestampDVs.docValues().advanceExact(docId) == false
-                    || routingHashDVs.docValues().advanceExact(docId) == false) {
-                    assert false : "_tsid or @timestamp or _ts_routing_hash missing for docId " + docId;
-                    throw new IllegalStateException("_tsid or @timestamp or _ts_routing_hash missing for docId " + docId);
-                }
+                advanceExactOrThrow(tsidDVs.docValues(), TimeSeriesIdFieldMapper.NAME, docId);
+                advanceExactOrThrow(timestampDVs.docValues(), DataStream.TIMESTAMP_FIELD_NAME, docId);
+                advanceExactOrThrow(routingHashDVs.docValues(), TimeSeriesRoutingHashFieldMapper.NAME, docId);
                 BytesRef tsid = tsidDVs.docValues().lookupOrd(tsidDVs.docValues().ordValue());
                 long timestamp = timestampDVs.docValues().nextValue();
                 BytesRef routingHashBytes = routingHashDVs.docValues().lookupOrd(routingHashDVs.docValues().ordValue());
@@ -332,8 +365,8 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 TrackingSortedNumericDocValues timestampDVs = null;
                 TrackingSortedDocValues[] routingHashDVs = new TrackingSortedDocValues[routingPaths.size()];
                 try {
-                    tsidDVs = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, TimeSeriesIdFieldMapper.NAME).forceSingle();
-                    timestampDVs = NumericDvSingletonOrSorted.get(breaker, ctx, DataStream.TIMESTAMP_FIELD_NAME).forceSorted();
+                    tsidDVs = sortedDocValuesOrThrow(breaker, ordinalsByteSize, ctx, TimeSeriesIdFieldMapper.NAME);
+                    timestampDVs = timestampDocValuesOrThrow(breaker, ctx);
                     for (int i = 0; i < routingPaths.size(); i++) {
                         routingHashDVs[i] = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, routingPaths.get(i)).forceSingle();
                     }
@@ -372,10 +405,8 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             }
 
             private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
-                if (tsidDVs.docValues().advanceExact(docId) == false || timestampDVs.docValues().advanceExact(docId) == false) {
-                    assert false : "_tsid or @timestamp missing for docId " + docId;
-                    throw new IllegalStateException("_tsid or @timestamp missing for docId " + docId);
-                }
+                advanceExactOrThrow(tsidDVs.docValues(), TimeSeriesIdFieldMapper.NAME, docId);
+                advanceExactOrThrow(timestampDVs.docValues(), DataStream.TIMESTAMP_FIELD_NAME, docId);
                 routingBuilder.clear();
                 BytesRef tsid = tsidDVs.docValues().lookupOrd(tsidDVs.docValues().ordValue());
                 long timestamp = timestampDVs.docValues().nextValue();
@@ -478,15 +509,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         @Override
         public String getId(int subDocId) {
             try {
-                boolean found = tsIdDocValues.advanceExact(subDocId);
-                assert found;
+                advanceExactOrThrow(tsIdDocValues, TimeSeriesIdFieldMapper.NAME, subDocId);
                 BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
-                found = timestampDocValues.advanceExact(subDocId);
-                assert found;
+                advanceExactOrThrow(timestampDocValues, DataStream.TIMESTAMP_FIELD_NAME, subDocId);
                 assert timestampDocValues.docValueCount() == 1;
                 long timestamp = timestampDocValues.nextValue();
-                found = routingHashDocValues.advanceExact(subDocId);
-                assert found;
+                advanceExactOrThrow(routingHashDocValues, TimeSeriesRoutingHashFieldMapper.NAME, subDocId);
                 BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
                 int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
                     Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
@@ -533,11 +561,9 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         @Override
         public String getId(int subDocId) {
             try {
-                boolean found = tsIdDocValues.advanceExact(subDocId);
-                assert found;
+                advanceExactOrThrow(tsIdDocValues, TimeSeriesIdFieldMapper.NAME, subDocId);
                 BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
-                found = timestampDocValues.advanceExact(subDocId);
-                assert found;
+                advanceExactOrThrow(timestampDocValues, DataStream.TIMESTAMP_FIELD_NAME, subDocId);
                 assert timestampDocValues.docValueCount() == 1;
                 long timestamp = timestampDocValues.nextValue();
                 routingBuilder.clear();

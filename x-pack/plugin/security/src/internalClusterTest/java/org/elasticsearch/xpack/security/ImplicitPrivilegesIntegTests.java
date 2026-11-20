@@ -235,14 +235,15 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
         assertThat(backingIndices, hasSize(2));
         final String writeIndex = backingIndices.get(1);
 
-        // implicit DLS hides the classified documents of both backing indices, implicit FLS leaves only "clearance"
+        // implicit DLS hides the classified documents of both backing indices, implicit FLS leaves only "clearance" and
+        // "@timestamp", which field level security always grants on data streams, as for explicit roles
         createUserWithRole("thor", createRoleWithApplicationPrivilege("asgardian"));
         final Client thor = clientFor("thor");
         for (String[] target : List.of(new String[] { dataStream }, backingIndices.toArray(String[]::new))) {
             assertResponse(thor.prepareSearch(target).setSize(10), response -> {
                 assertHitCount(response, 2);
                 for (SearchHit hit : response.getHits()) {
-                    assertThat(hit.getSourceAsMap(), is(Map.of("clearance", "public")));
+                    assertThat(hit.getSourceAsMap(), is(Map.of("@timestamp", "2026-01-01T00:00:00Z", "clearance", "public")));
                 }
             });
         }
@@ -266,7 +267,7 @@ public class ImplicitPrivilegesIntegTests extends SecurityIntegTestCase {
                 if (hit.getIndex().equals(writeIndex)) {
                     assertThat(hit.getSourceAsMap().keySet(), containsInAnyOrder("@timestamp", "clearance", "codename"));
                 } else {
-                    assertThat(hit.getSourceAsMap(), is(Map.of("clearance", "public")));
+                    assertThat(hit.getSourceAsMap(), is(Map.of("@timestamp", "2026-01-01T00:00:00Z", "clearance", "public")));
                 }
             }
         });

@@ -3,15 +3,12 @@ navigation_title: "Create and manage"
 description: "Create, inspect, update, and delete ES|QL Data Federation datasets in Kibana or with the Elasticsearch API."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
 
 # Create and manage datasets for {{esql}} Data Federation
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 Create and manage {{esql}} Data Federation datasets in {{kib}} or with the {{es}} API. Before
 creating a dataset, [connect a data source](esql-data-federation-sources.md) and review how to

@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ParsedContentReservation;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
@@ -349,10 +348,10 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Returns a parser that charges the REST request this rewrite runs for, see {@link ParsedContentReservation#track(ThreadContext,
-     * XContentParser)}. Use it for content that the rewrite parses, such as the query inside a {@code wrapper} query, which the request's
-     * own parsers never read. Away from the REST request, such as on a data node, the parse is checked against
-     * {@link #parsedContentBreaker()} instead, if there is one.
+     * Returns a parser for content the rewrite parses that the request's own parsers never read, such as the query inside a {@code wrapper}
+     * query. It is checked against the breaker of the REST request this rewrite runs for, and charged only until it closes, see
+     * {@link ParsedContentReservation#trackWhileParsing(XContentParser)}. Away from the REST request, such as on a data node, it is checked
+     * against {@link #parsedContentBreaker()} instead, if there is one.
      */
     public XContentParser trackParsedContent(XContentParser parser) {
         final ThreadPool threadPool = client == null ? null : client.threadPool();
@@ -360,7 +359,7 @@ public class QueryRewriteContext {
             ? null
             : threadPool.getThreadContext().getTransient(ParsedContentReservation.TRANSIENT_NAME);
         if (reservation != null) {
-            return reservation.track(parser);
+            return reservation.trackWhileParsing(parser);
         }
         final CircuitBreaker breaker = parsedContentBreaker();
         return breaker == null ? parser : ParsedContentReservation.trackWhileParsing(breaker, parser);

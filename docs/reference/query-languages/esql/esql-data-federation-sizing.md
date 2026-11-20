@@ -1,6 +1,6 @@
 ---
 navigation_title: "Sizing and performance"
-description: "Size nodes and lay out files for ES|QL Data Federation, by file format, compression, and query concurrency."
+description: "Size heap, processors, and nodes for ES|QL Data Federation workloads, by file format and query concurrency."
 applies_to:
   stack: preview 9.6+, experimental =9.5
   serverless: unavailable
@@ -8,46 +8,52 @@ products:
   - id: elasticsearch
 ---
 
-# Size nodes for {{esql}} Data Federation
+# Size your {{es}} cluster for {{esql}} Data Federation
 
-A dataset is queried where it lives, in object storage, rather than from a local index. Nothing is stored in {{es}}, so the resources a node needs don't follow from the size of your data. They follow from how much of it the node holds in memory at one time.
+A dataset is queried where it lives, in object storage, rather than from a local index. Nothing is stored in {{es}}, so the resources a node needs don't follow from how much data you have. They follow from how much of it the node holds in memory at one time, and from how fast you need your queries to come back.
 
-Sizing for this workload has two parts, and this page covers both: how much heap a node needs to run your queries at the concurrency you expect, and how much read parallelism the node and your files can sustain. For data held in {{es}} indices, refer to [size your shards](docs-content://deploy-manage/production-guidance/optimize-performance/size-shards.md) instead.
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
+For data held in {{es}} indices, refer to [size your shards](docs-content://deploy-manage/production-guidance/optimize-performance/size-shards.md) instead.
 
 ## General guidelines [federation-sizing-guidelines]
 
-Use the following as starting points, then refer to [sizing considerations](#federation-sizing-considerations) for the reasoning behind them:
+Balancing heap, processors, and the layout of your files is what makes this workload stable and fast:
 
-* Prefer Parquet to the text formats where you have the choice, especially on wide data
-* Declare a schema on CSV, TSV, and NDJSON datasets
-* Aim for compressed files in the tens to hundreds of megabytes, and write enough of them to keep your nodes busy
-* Allow `[[N]]` GB of heap per node, plus `[[N]]` GB for each query you expect to run concurrently
-* Keep heap at or below 31 GB and add nodes beyond that
+* Too little heap and queries are rejected by a circuit breaker rather than running slowly.
+* Too few processors, or too few files, and queries run but take much longer than they need to.
 
-There is no one-size-fits-all configuration. A setup that works for one dataset may not for another, because file format, compression ratio, and column count each change the result. The best way to size this workload is to run your own queries, at your expected concurrency, against your own files.
+To avoid either, implement the following guidelines:
+
+### General sizing guidelines
+
+* Size every node to at least 8 GB of heap, whatever the format
+* Then allow 150 MB to 400 MB of heap per processor, depending on format and compression
+* Add 1 GB of heap for each query you expect to run concurrently
+* Declare a schema on CSV and TSV datasets, or allow 31 GB per node
+* Provision twice the heap in machine memory
+* Keep heap at or below 31 GB, and add nodes rather than growing one past it
+* Write compressed files of tens to hundreds of megabytes
+
+### Create a sizing strategy [create-a-sizing-strategy]
+
+There is no one-size-fits-all configuration. The figures on this page come from one corpus, and your file format, compression ratio, and column count each move them.
+
+The best way to size this workload is to run your own queries, at the concurrency you expect, against your own files. The figures here are deliberately worst-case — every column selected, a cold node, and an aggregate on top of the scan — so they over-provision a narrower query by a margin that has not been measured. Treat them as starting points, and measure your own if the number decides a purchase.
 
 ## Sizing considerations [federation-sizing-considerations]
 
-Keep the following things in mind when sizing nodes for federated queries.
+Keep the following things in mind when sizing for federated queries.
 
 ### Datasets use the {{esql}} engine, with extra stages for reading [extra-read-stages]
 
-Datasets run on the same query engine as indices. Aggregation, filtering, sorting, and the rest of the {{esql}} pipeline are the same code, which is why a dataset supports the same commands and functions an index does.
+Datasets run on the same query engine as indices, which is why a dataset supports the same commands and functions an index does. What differs is the work of reading data from outside the cluster. Three stages exist only on this path, and each one holds memory:
 
-What differs is the work of reading data from outside the cluster. Three stages exist only on this path, and each one holds memory:
-
-* **Schema inference.** CSV, TSV, and NDJSON files don't describe their own columns, so {{es}} [infers a schema](esql-data-federation-schema.md) by sampling rows. This runs on the coordinating node at planning time, before any data is read, and its cost grows with the number of columns rather than with the size of the dataset. Adding data nodes doesn't divide it.
-* **The units being read.** {{es}} divides your files into units of work and reads several at a time. A reader holds the bytes of the unit it's working on, expanded if they were compressed, until it has finished with them. What a unit is depends on the format and the compression, and that difference is the largest single influence on how much heap a node needs.
-* **Decompression and parsing buffers.** A compressed unit expands in memory before it can be read, so a file that compresses well costs *more* heap per reader, not less. Rows that have been parsed queue as pages ahead of the rest of the query.
-
-How many units a node reads at once follows its processor count, bounded by how many units its share of your files divides into. [`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) bounds the storage requests those readers have in flight, per storage scheme and per node, which is a separate and looser limit.
+* **Schema inference.** CSV, TSV, and NDJSON files don't describe their own columns, so {{es}} [infers a schema](esql-data-federation-schema.md) by sampling rows. This runs on the coordinating node at planning time, before any data is read, and its cost grows with the number of columns rather than with the size of the dataset. Adding data nodes doesn't divide it, and the coordinating node reads many files' metadata at once, so this is a node-level cost rather than a per-file one. It is what drives the 31 GB figure above.
+* **The units being read.** {{es}} divides your files into units of work and reads several at a time. A reader holds the bytes of the unit it's working on, expanded if they were compressed, until it has finished with them.
+* **Decompression and parsing buffers.** A compressed unit expands in memory before it can be read, so a file that compresses well costs *more* heap per reader, not less.
 
 ### Parquet follows your projection, and the text formats don't [format-read-differences]
 
-Parquet carries its schema in the file, so no inference is needed. It fetches and decodes only the columns a query names, so both the bytes read and the work done scale with your projection rather than with how wide the file is. A reader decodes one row group at a time and holds the groups it has already fetched ahead of that one, so budget for more than a single row group per reader.
+Parquet carries its schema in the file, so no inference is needed. It fetches and decodes only the columns a query names, so both the bytes read and the work done scale with your projection rather than with how wide the file is.
 
 The text formats are row-oriented, and a narrow projection buys almost nothing on the read. Every byte of a unit is fetched and decompressed, and every record is parsed in full to find its field boundaries. Selecting fewer columns with [`KEEP`](/reference/query-languages/esql/commands/keep.md) saves only the building of the result columns, not the reading or the parsing.
 
@@ -57,9 +63,7 @@ That is the case for Parquet on wide data in one sentence.
 
 Compression reduces what every query fetches from storage, which is both faster and cheaper. For text, it costs you parallelism.
 
-An uncompressed text file is cut at record boundaries into splits sized by [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size), and each split is read as several ranges in parallel.
-
-A gzip or zstd file can't be read from the middle, so the whole file is one unit, read by one reader and decompressed on one thread. No setting divides it. A single large compressed text file is a single-threaded decompression however many processors the node has, so for compressed text, parallelism comes from the number of files rather than from the size of the node.
+An uncompressed text file is cut at record boundaries into splits sized by [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size), and each split is read as several ranges in parallel. A gzip or zstd file can't be read from the middle, so the whole file is one unit, read by one reader and decompressed on one thread. No setting divides it, so for compressed text, parallelism comes from the number of files rather than from the size of the node.
 
 Parquet is unaffected: it compresses each column chunk separately and is divided on row groups.
 
@@ -67,49 +71,41 @@ Parquet is unaffected: it compresses each column chunk separately and is divided
 
 A reader holds the unit it's working on, not the file that unit came from, and units waiting their turn cost nothing. A dataset of many objects needs roughly the same heap as one of few.
 
-What sets the heap a node needs is how much is held at one time: the units being read, the queries running together, and the schema being inferred. Dataset size decides how long a query takes, not whether it succeeds.
-
-One exception is worth knowing for Parquet. A Parquet file is divided on row groups rather than at a fixed stride, so the list of units the coordinating node plans grows with the total size of the dataset. Very large Parquet datasets therefore cost the coordinating node more at planning time than text datasets of the same size do.
+What sets the heap a node needs is how much is held at one time: the units being read, the queries running together, and the schema being inferred. Dataset size decides how long a query takes, which is what the [processor count](#processor-recommendation) is for.
 
 ## Best practices [federation-size-best-practices]
 
 Where applicable, use the following best practices as starting points.
 
-### Declare a schema on CSV, TSV, and NDJSON datasets [declare-a-schema]
+### Size every node to at least 8 GB, then allow for each processor [heap-recommendation]
 
-Schema inference is the largest single memory cost on the coordinating node for the text formats, and it's the one you can remove outright. Set `dynamic` to `false` in a [declared mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) to treat the declaration as the complete schema and skip inference.
-
-Because inference runs on the coordinating node, adding data nodes doesn't reduce it. Declaring a schema is the only remedy.
-
-### Aim for compressed files in the tens to hundreds of megabytes [file-size-recommendation]
-
-File layout is a property of your data rather than of your cluster, so you can get it right without knowing what will query it.
-
-Too few files leave readers idle, and for compressed text this is a hard ceiling rather than a preference, because one file is one reader. Too many files cost more than they return, because each object is fetched over its own high-latency requests, so a query over very small objects spends more time asking for data than reading it. A dataset is also capped at [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files).
-
-For Parquet, the equivalent lever is the row group rather than the file, because one large Parquet file still parallelizes. Leave row group sizes at their defaults unless your files are very wide.
-
-### Allow enough heap for the units being read and for concurrent queries [heap-recommendation]
-
-The mechanisms above interact, but a single rule of thumb is enough to provision against:
+Two things set the heap a node needs: a floor it needs to run this workload at all, and an allowance for each processor, because processors are what decide how many units the node reads at once.
 
 ```
-heap  >=  [[base]]  +  [[per reader]] x readers  +  [[per query]] x concurrent queries
+heap per node  =  max( 8 GB , 2 GB + allowance x processors )  +  1 GB x concurrent queries
 ```
 
-`readers` is how many units the node reads at once: a few per processor by default, capped by how many units your files divide into.
+| Dataset | Allowance per processor |
+|---|---|
+| NDJSON, zstd | 400 MB |
+| NDJSON, gzip | 330 MB |
+| CSV, TSV, zstd | 170 MB |
+| CSV, TSV, gzip | 150 MB |
+| Uncompressed text | 30 MB |
 
-For compressed text, what a reader holds is decompressed chunks and the pages parsed from them, so the per-reader term scales both with your compression ratio and with the node's processor count. Measure the ratio on one of your own files with `gzip -l` or `zstd -l`. It varies widely by data, and better compression raises the heap a reader needs in proportion: storing your data in half the space roughly doubles it.
+The allowance follows your compression ratio, because what a reader holds is the decompressed bytes rather than the stored ones. Better compression raises it in proportion: NDJSON costs more per processor than CSV for the same rows because it compresses better. Measure your own ratio with `gzip -l` or `zstd -l` and scale the row accordingly.
 
-For example, `[[a worked configuration: dataset, format, processors, concurrency, and the heap the rule gives]]`.
+The allowance stops growing at about 34 processors, where the node reaches the most reads it will keep in flight. Beyond that, more processors need no more heap.
 
-This rule is calibrated for the text formats. Parquet isn't driven by the same term, because a reader holds row groups it has fetched ahead rather than chunks of a stream, so its floor follows from how your files were written. `[[Parquet coefficient and its denominator, pending measurement.]]`
+Parquet isn't in the table. Its reads are bounded across the node rather than growing with each processor you add, so the 8 GB floor is what governs it. How far that holds on large nodes is still being measured.
 
-Note that this rule defines a floor rather than a target. Below it, {{es}} rejects queries with a circuit breaker rather than running them slowly, and close to it the outcome isn't reliably repeatable from one run to the next. Round up, and give the node more if you have it.
+A CSV or TSV dataset with an inferred schema needs 31 GB per node regardless of this rule, because schema inference dominates everything else. [Declare a schema](#declare-a-schema) and the rule above applies instead.
+
+Note that these are floors rather than targets, and that the two terms were measured separately: the per-processor allowance over-provisions a large node, asking for about 13 GB on a 48-processor NDJSON node where one measured configuration ran in 8 GB. The rule takes the higher of the two on purpose. Below these figures {{es}} rejects queries with a circuit breaker rather than running them slowly, and close to them the outcome isn't reliably repeatable from one run to the next.
+
+Provision twice the heap in machine memory, following the standing guidance that heap should not exceed half a node's memory.
 
 Not all of this memory is attributed to the query that allocated it, so the error reporting the failure may name an unrelated operation rather than the read that filled the heap. Refer to [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
-
-If queries are being rejected on a text dataset, lowering `esql.external.max_concurrent_requests` is a more reliable remedy than adding heap, at the cost of some wall-clock time. The setting is static, so each node needs a restart.
 
 To check the configured size of each node's heap, use the [cat nodes API]({{es-apis}}operation/operation-cat-nodes).
 
@@ -117,20 +113,52 @@ To check the configured size of each node's heap, use the [cat nodes API]({{es-a
 GET _cat/nodes?v=true&h=name,heap.max
 ```
 
+### Declare a schema on CSV and TSV datasets [declare-a-schema]
+
+Schema inference is what makes CSV and TSV need 31 GB where Parquet and NDJSON need 8 GB, and it's the one cost you can remove outright. Set `dynamic` to `false` in a [declared mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) to treat the declaration as the complete schema and skip inference.
+
+Because inference runs on the coordinating node, adding data nodes doesn't reduce it. Declaring a schema is the only remedy.
+
+Declaring a schema doesn't remove every planning-time read. A query that needs statistics still reads metadata from each file, whatever the schema resolution strategy.
+
+### Size processors from the query time you'll accept [processor-recommendation]
+
+Processors are what buy query speed. As a rule of thumb:
+
+```
+processors  =  stored GB  x  concurrent queries  x  K  /  target seconds
+```
+
+`K` is the cost in processor-seconds per stored GB: **300** for gzipped NDJSON, **400** for gzipped CSV, and **250** for gzipped TSV. Parquet is priced per column rather than per byte, because it reads only the columns a query names.
+
+For example, a 19 GB NDJSON dataset, four queries at once, answered inside a minute, needs `19 x 4 x 300 / 60` = 380 processors, so eight 48-processor nodes. Accept ten minutes instead and the same workload needs 38 processors, which is one node.
+
+This holds only while your files divide into more units than the node is already reading. For compressed text, one file is one unit on one thread, so more processors never make a single object read faster. They let more objects be read at the same time, which is why file count is the lever for that format.
+
+### Aim for compressed files of tens to hundreds of megabytes [file-size-recommendation]
+
+File layout is a property of your data rather than of your cluster, so you can get it right without knowing what will query it.
+
+Too few files leave readers idle, and for compressed text this is a hard ceiling rather than a preference, because one file is one reader. Too many files cost more than they return, because each object is fetched over its own high-latency requests, so a query over very small objects spends more time asking for data than reading it. A dataset is also capped at [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files).
+
+For Parquet, the equivalent lever is the row group rather than the file, because one large Parquet file still parallelizes. Leave row group sizes at their defaults unless your files are very wide.
+
 ### Add nodes rather than heap above 31 GB [scale-out-recommendation]
 
-Heap has a ceiling independent of this workload. Past about 31 GB the JVM stops compressing object pointers, so each object takes more space and a larger heap holds less. Keep heap at or below 31 GB.
+Heap has a ceiling independent of this workload. Past about 31 GB the JVM stops compressing object pointers, so each object takes more space and a larger heap holds less.
 
-When the rule above asks for more than that, add nodes instead of growing one. Each node has its own heap and reads its own share of the files.
+When the figures above ask for more than that, add nodes instead of growing one. Each node has its own heap and reads its own share of the files.
 
-### Add processors while there are units waiting to be read [processor-recommendation]
+### Lower read concurrency before adding heap [lower-concurrency]
 
-Query time is set chiefly by how many units a node reads in parallel, and that count follows the processor count. As a rule of thumb, to make a query roughly twice as fast, double the size of the instance and raise the heap in the same proportion as the rule above.
+If queries are being rejected on a text dataset, lowering [`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) is a more reliable remedy than adding heap, at the cost of some wall-clock time. The setting is static, so each node needs a restart.
 
-This holds only while your files divide into more units than the node is already reading. Once every unit is in flight, more processors have nothing to pick up, and more throughput comes from more nodes or from more files rather than from larger instances.
+## Where these figures come from [provenance]
 
-For compressed text, the second limit binds sooner than you might expect, because one file is one unit on one thread. More processors never make a single gzip object read faster. They let more objects be read at the same time, which is why file count is the lever for that format.
+The figures on this page were measured on a single node of 48 processors, against one corpus of gzipped files with an inferred schema, running a full scan with an aggregate over every column at four concurrent queries.
 
-Concurrent queries divide this capacity rather than adding to it. Queries share the node's read capacity, so running N queries at once takes each of them roughly N times as long as running one on its own.
+The per-processor allowances are derived from how much each reader holds at a measured compression ratio, rather than measured across processor counts directly.
 
-To reduce the work itself rather than add capacity to it, refer to [how external data is read](esql-data-federation-querying.md#how-external-data-is-read) and [optimize {{esql}} query performance](esql-query-performance.md).
+Not yet measured: Parquet's per-processor allowance, uncompressed files, clusters of more than one node, concurrency other than four queries, and the heap a text dataset needs once its schema is declared.
+
+To reduce the work a query does rather than add capacity to it, refer to [how external data is read](esql-data-federation-querying.md#how-external-data-is-read) and [optimize {{esql}} query performance](esql-query-performance.md).

@@ -12,7 +12,6 @@ package org.elasticsearch;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -88,8 +87,6 @@ public final class ExceptionsHelper {
             if (t instanceof ElasticsearchException) {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
-                return RestStatus.BAD_REQUEST;
-            } else if (t instanceof IndexSearcher.TooManyClauses) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof XContentParseException) {
                 return RestStatus.BAD_REQUEST;

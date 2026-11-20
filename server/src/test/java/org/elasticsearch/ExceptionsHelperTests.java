@@ -12,7 +12,6 @@ package org.elasticsearch;
 import org.apache.commons.codec.DecoderException;
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -95,8 +94,6 @@ public class ExceptionsHelperTests extends ESTestCase {
         assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new XContentParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new EsRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        assertThat(ExceptionsHelper.status(new IndexSearcher.TooManyClauses()), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new IndexSearcher.TooManyNestedClauses()), equalTo(RestStatus.BAD_REQUEST));
     }
 
     public void testStatusOfCircuitBreakingExceptionWrappedByParser() {

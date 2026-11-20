@@ -64,8 +64,7 @@ public final class ExternalSourceCacheSettings {
      * cache nor, in the row formats that harvest them, collects statistics for it. Planning still resolves
      * schema and file metadata and pays more for them — the loader runs on every resolve, not only on a miss.
      * <p>
-     * A read takes the flag once, when its operators are built, so a toggle governs the reads configured after
-     * each node sees it and leaves those already in flight on the scope they resolved.
+     * A read takes the flag once, when its operators are built, so a toggle leaves reads already in flight alone.
      * <p>
      * Node-scoped, so set it cluster-wide unless an asymmetry is wanted: off at a data node and on at the
      * coordinator, that node harvests nothing and the coordinator never warms for its files; the reverse

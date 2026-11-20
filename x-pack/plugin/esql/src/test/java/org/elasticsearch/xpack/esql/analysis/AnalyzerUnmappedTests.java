@@ -1402,6 +1402,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * earlier one.
      */
     public void testUnmappedTypoWarningNeverSuggestsMissingField() {
+        // No assertWarnings: the test base class fails on any warning that is not expected, so none of these may suggest a missing field.
         test().statement(setUnmappedNullify("FROM test | EVAL x = missing_1, y = missing_2"));
         test().statement(setUnmappedNullify("FROM test | EVAL x = missing_1 | EVAL y = missing_2"));
         test().statement(setUnmappedLoad("FROM test | EVAL x = missing_1 | WHERE missing_2 IS NULL"));
@@ -1475,19 +1476,36 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     public void testUnmappedTypoWarningNotEmittedWhenVerificationFails() {
         test().statementError(
             setUnmappedNullify("FROM test | EVAL x = fist_name | WHERE first_name + 1 > 0"),
-            containsString("first_name")
+            containsString("first argument of [first_name + 1] must be")
         );
         assertWarnings();
     }
 
     /**
-     * The warning lists at most {@link Analyzer#MAX_LISTED_UNMAPPED_TYPOS} fields with their suggestions and only counts the rest.
+     * There is at most one warning per outcome, nullified or loaded, that lists the fields with their suggestions, but at most
+     * {@link Analyzer#MAX_LISTED_UNMAPPED_TYPOS} of them. References without a suggestion, or that some index maps, are not warned
+     * about.
      */
-    public void testUnmappedTypoWarningCapsFields() {
-        List<AnalyzerContext.UnmappedReference> typos = new ArrayList<>();
+    public void testUnmappedTypoWarningText() {
+        Map<String, AnalyzerContext.UnmappedReference> references = new LinkedHashMap<>();
+        references.put("does_not_exist", new AnalyzerContext.UnmappedReference(false, null));
+        references.put("mapped_elsewhere", new AnalyzerContext.UnmappedReference(false, "mapped_elsewhere_2"));
+        references.put("fist_name", new AnalyzerContext.UnmappedReference(false, "first_name"));
+        references.put("lst_name", new AnalyzerContext.UnmappedReference(true, "last_name"));
+        assertThat(
+            unmappedTypoWarnings(references, Set.of("mapped_elsewhere")),
+            equalTo(
+                List.of(
+                    "Field [fist_name] is not mapped and is null; did you mean [first_name]?",
+                    "Field [lst_name] is not mapped and is loaded from _source as KEYWORD; did you mean [last_name]?"
+                )
+            )
+        );
+
+        Map<String, String> typos = new LinkedHashMap<>();
         int count = MAX_LISTED_UNMAPPED_TYPOS + between(1, 5);
         for (int i = 0; i < count; i++) {
-            typos.add(new AnalyzerContext.UnmappedReference("fielx_" + i, randomBoolean(), "field_" + i));
+            typos.put("fielx_" + i, "field_" + i);
         }
         String warning = unmappedTypoWarning(typos, false);
         assertThat(warning, startsWith("Fields [fielx_0], [fielx_1], "));
@@ -1503,30 +1521,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             )
         );
         assertThat(warning, not(containsString("fielx_10")));
-    }
-
-    /**
-     * References without a suggestion only keep later suggestions honest and are never warned about; nullified and loaded fields
-     * get a warning each.
-     */
-    public void testUnmappedTypoWarningsPerOutcome() {
-        assertThat(unmappedTypoWarnings(List.of(new AnalyzerContext.UnmappedReference("does_not_exist", false, null)), Set.of()), empty());
-        assertThat(
-            unmappedTypoWarnings(
-                List.of(
-                    new AnalyzerContext.UnmappedReference("fist_name", false, "first_name"),
-                    new AnalyzerContext.UnmappedReference("does_not_exist", true, null),
-                    new AnalyzerContext.UnmappedReference("lst_name", true, "last_name")
-                ),
-                Set.of()
-            ),
-            equalTo(
-                List.of(
-                    "Field [fist_name] is not mapped and is null; did you mean [first_name]?",
-                    "Field [lst_name] is not mapped and is loaded from _source as KEYWORD; did you mean [last_name]?"
-                )
-            )
-        );
     }
 
     public void testLoadModeDisallowsCrossBranchTypeConflict() {

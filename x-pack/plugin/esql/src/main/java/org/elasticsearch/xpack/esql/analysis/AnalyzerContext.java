@@ -355,11 +355,10 @@ public class AnalyzerContext {
     }
 
     /**
-     * {@code name} has no mapping and was {@code loaded} from {@code _source} or else nullified. {@code suggestion} is an in-scope
-     * column whose name is a likely typo of {@code name}, or {@code null} when there is none or nothing but a {@code DROP} references
-     * {@code name}.
+     * An unmapped field that was {@code loaded} from {@code _source} or else nullified. {@code suggestion} is an in-scope column whose
+     * name is a likely typo of the field, or {@code null} when there is none or nothing but a {@code DROP} references the field.
      */
-    public record UnmappedReference(String name, boolean loaded, @Nullable String suggestion) {}
+    public record UnmappedReference(boolean loaded, @Nullable String suggestion) {}
 
     /**
      * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.

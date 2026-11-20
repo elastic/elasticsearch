@@ -213,7 +213,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     // package-private for testing
     static final FrequencyCappedAction SLOW_METADATA_HOT_THREADS_CAP = new FrequencyCappedAction(
-        System::currentTimeMillis,
+        () -> TimeValue.nsecToMSec(System.nanoTime()),
         TimeValue.ZERO,
         TimeValue.timeValueMinutes(5)
     );

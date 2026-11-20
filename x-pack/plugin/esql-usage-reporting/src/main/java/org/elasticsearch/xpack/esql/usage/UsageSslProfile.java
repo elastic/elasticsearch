@@ -17,8 +17,9 @@ import java.util.Set;
  * connection to the Usage API. It is an {@link SslProfileExtension} rather than ad hoc settings so that the configuration is
  * validated at node startup and the profile is reloaded when its files change, with no restart.
  * <p>
- * It keeps no state. The plugin resolves the profile from the shared SSL service of x-pack-core, which avoids a JVM-global holder
- * (with several nodes in one JVM, such as internal test clusters, the last node would win).
+ * It keeps no state, so that nothing of this plugin is JVM-global. The plugin resolves the profile from the SSL service of x-pack-core
+ * ({@link EsqlUsageReportingPlugin#getSslService()}): in production that is the shared one, as for the other x-pack plugins; tests
+ * that run several nodes in one JVM override that method per node.
  */
 public final class UsageSslProfile implements SslProfileExtension {
 

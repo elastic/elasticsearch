@@ -13,6 +13,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.time.Clock;
@@ -83,11 +84,15 @@ public class EsqlUsageReportingPlugin extends Plugin {
         UsageAccumulator newAccumulator = UsageComponents.newAccumulator(settings);
         UsagePublisher newPublisher = buildPublisher(settings);
         UsageReporter newReporter;
+        boolean built = false;
         try {
             newReporter = buildReporter(settings, newAccumulator, newPublisher, identity, services);
-        } catch (RuntimeException e) {
-            Releasables.closeWhileHandlingException(newPublisher);
-            throw e;
+            built = true;
+        } finally {
+            // Whatever is thrown, an Error included: no lifecycle component owns the publisher yet.
+            if (built == false) {
+                Releasables.closeWhileHandlingException(newPublisher);
+            }
         }
         this.reportExempt = settings.reportExempt();
         this.accumulator = newAccumulator;
@@ -111,7 +116,16 @@ public class EsqlUsageReportingPlugin extends Plugin {
      * test.
      */
     SslProfile sslProfile() {
-        return XPackPlugin.getSharedSslService().profile(UsageReportingSettings.SSL_PREFIX);
+        return getSslService().profile(UsageReportingSettings.SSL_PREFIX);
+    }
+
+    /**
+     * The SSL service of x-pack-core. Overridable by tests, like in the other x-pack plugins: the shared one is a JVM-wide static
+     * that the in-JVM test clusters (which run several nodes in one JVM) never set, so their local-state wrappers of this plugin
+     * override this method with the service of their node.
+     */
+    protected SSLService getSslService() {
+        return XPackPlugin.getSharedSslService();
     }
 
     /** Builds the reporter with the other pieces; a seam so that tests can make the reporter fail. */

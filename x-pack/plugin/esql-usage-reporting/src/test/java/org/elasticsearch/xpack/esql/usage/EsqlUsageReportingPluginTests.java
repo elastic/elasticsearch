@@ -90,6 +90,8 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         private final boolean failToBuildReporter;
         private final boolean failToStartReporter;
         boolean reporterCloseError;
+        boolean reporterCloseFailure;
+        boolean buildError;
 
         RecordingPlugin(boolean failToBuildReporter, boolean failToStartReporter) {
             this.failToBuildReporter = failToBuildReporter;
@@ -119,6 +121,9 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
             SourceIdentity identity,
             PluginServices services
         ) {
+            if (buildError) {
+                throw new AssertionError("build error");
+            }
             if (failToBuildReporter) {
                 throw new IllegalStateException("cannot build");
             }
@@ -139,6 +144,9 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                     events.add("reporter closed");
                     if (reporterCloseError) {
                         throw new AssertionError("reporter close error");
+                    }
+                    if (reporterCloseFailure) {
+                        throw new IllegalStateException("flush failed");
                     }
                 }
             };
@@ -249,6 +257,39 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
             component.start();
             assertThat(plugin.reportExempt(), is(false));
             assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
+            mockLog.assertAllExpectationsMatched();
+            // Released at once, not at the shutdown of the node, and the later stop and close do not release again.
+            assertThat(plugin.events, equalTo(List.of("reporter started", "reporter closed", "publisher closed")));
+            component.stop();
+            component.close();
+            assertThat(plugin.events, equalTo(List.of("reporter started", "reporter closed", "publisher closed")));
+        }
+    }
+
+    /** Whatever is thrown, an Error included, nothing owns the publisher yet, so it is closed. */
+    public void testAnErrorWhileBuildingTheReporterClosesThePublisher() throws Exception {
+        RecordingPlugin plugin = new RecordingPlugin(false, false);
+        plugin.buildError = true;
+        expectThrows(AssertionError.class, () -> createComponents(plugin, complete().build()));
+        assertThat(plugin.events, equalTo(List.of("publisher closed")));
+    }
+
+    /** Node#close calls stop without a guard: a failed final flush must not abort the shutdown of the node. */
+    public void testAFailedFinalFlushDoesNotAbortTheStop() throws Exception {
+        try (MockLog mockLog = MockLog.capture(UsageReportingLifecycle.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "flush failed",
+                    UsageReportingLifecycle.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to flush the usage of this node while stopping: some usage may not be reported"
+                )
+            );
+            RecordingPlugin plugin = new RecordingPlugin(false, false);
+            LifecycleComponent component = lifecycleOf(createComponents(plugin, complete().build()));
+            component.start();
+            plugin.reporterCloseFailure = true;
+            component.stop();
             mockLog.assertAllExpectationsMatched();
             component.close();
             assertThat(plugin.events, equalTo(List.of("reporter started", "reporter closed", "publisher closed")));

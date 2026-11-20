@@ -30,6 +30,7 @@ final class UsageReportingLifecycle extends AbstractLifecycleComponent {
     private final UsagePublisher publisher;
     private final Runnable onStartFailure;
     private boolean reporterClosed;
+    private boolean publisherClosed;
 
     UsageReportingLifecycle(UsageReporter reporter, UsagePublisher publisher, Runnable onStartFailure) {
         this.reporter = reporter;
@@ -43,22 +44,39 @@ final class UsageReportingLifecycle extends AbstractLifecycleComponent {
             reporter.start();
         } catch (Exception e) {
             logger.error("usage reporting failed to start: it stays inactive and nothing is reported", e);
+            // Release at once: the node keeps serving, and nothing else would stop a partly started reporter before the shutdown.
+            try {
+                closeReporter();
+            } catch (Exception closeFailure) {
+                logger.warn("failed to close the usage reporter after it failed to start", closeFailure);
+            }
+            try {
+                closePublisher();
+            } catch (Exception closeFailure) {
+                logger.warn("failed to close the usage publisher after the reporter failed to start", closeFailure);
+            }
             onStartFailure.run();
         }
     }
 
     @Override
     protected void doStop() {
-        closeReporter();
+        // A failed final flush loses usage, which can only under-count, but must not abort the shutdown of the node: Node#close calls
+        // stop and does not guard it, so an exception here would skip the rest of the node's close list.
+        try {
+            closeReporter();
+        } catch (Exception e) {
+            logger.warn("failed to flush the usage of this node while stopping: some usage may not be reported", e);
+        }
     }
 
     @Override
     protected void doClose() throws IOException {
-        // Closing without a stop (the node never started) still has to close the reporter, which is idempotent here.
+        // Closing without a stop (the node never started) still has to close the reporter; the closes are idempotent here.
         try {
             closeReporter();
         } finally {
-            publisher.close();
+            closePublisher();
         }
     }
 
@@ -66,6 +84,13 @@ final class UsageReportingLifecycle extends AbstractLifecycleComponent {
         if (reporterClosed == false) {
             reporterClosed = true;
             reporter.close();
+        }
+    }
+
+    private void closePublisher() {
+        if (publisherClosed == false) {
+            publisherClosed = true;
+            publisher.close();
         }
     }
 }

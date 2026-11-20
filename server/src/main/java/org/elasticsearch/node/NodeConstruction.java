@@ -1502,7 +1502,6 @@ class NodeConstruction {
         DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
             settings,
             clusterService,
-            // Compared against wall clock timestamps, so not the cached ThreadPool clock, which can lag.
             System::currentTimeMillis
         );
         dataStreamAutoShardingService.init();

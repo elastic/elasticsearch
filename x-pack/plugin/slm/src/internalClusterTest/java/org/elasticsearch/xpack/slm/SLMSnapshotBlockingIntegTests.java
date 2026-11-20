@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -62,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
@@ -349,6 +351,13 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             waitForBlockOnAnyDataNode(REPO);
             final String initialMaster = internalCluster().getMasterName();
             final long initialTerm = internalCluster().getInstance(ClusterService.class, initialMaster).state().term();
+
+            // The data node blocks as soon as it applies the cluster state that adds the snapshot, which can happen before the master has
+            // finished publishing that state and registered SnapshotsService's finalization listener. The master failure triggered by
+            // startInitialJoin() occurs on the applier thread which can also precede the registration of the listener. If so, the listener
+            // is registered and then can be completed successfully by the re-elected master. Here we wait until that publication and its
+            // completion callbacks are done, so the listener is always registered before startInitialJoin() is called below.
+            assertNoTimeout(client(initialMaster).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID));
 
             // Keep the snapshot out of finalization so SnapshotsService fails its listener immediately on losing mastership.
             // Step down without stopping the node so its state applier notifies SLM's pending completion listener.

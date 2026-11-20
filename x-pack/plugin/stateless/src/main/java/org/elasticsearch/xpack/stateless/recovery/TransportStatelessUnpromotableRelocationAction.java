@@ -62,7 +62,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.StatelessComponents;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -450,7 +450,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             final var luceneCommitPointMetadata = searchDirectory.getBlobFileRangesForFile(indexCommit.getSegmentsFileName());
             assert luceneCommitPointMetadata != null : "commit point [" + indexCommit + "] not found in search directory";
             final var bccTermAndGen = luceneCommitPointMetadata.getBatchedCompoundCommitTermAndGeneration();
-            final var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation());
+            final var bccBlobName = BccBlob.blobNameFromGeneration(bccTermAndGen.generation());
             final var metadataFromSearchDirectory = searchDirectory.getBlobFileRangesForFiles(indexCommit.getFileNames());
 
             recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {

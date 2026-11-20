@@ -37,6 +37,7 @@ import java.util.List;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.ESTestCase.indexSettings;
@@ -88,6 +89,16 @@ public final class OtherNodeShutdownClusterStates {
 
     /// Like [#relocationWithOtherNodeShuttingDown], with several shutting-down nodes, which may have different deadlines.
     static ClusterState relocationWithOtherNodesShuttingDown(Index index, List<ShuttingDownNode> shuttingDownNodes) {
+        return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 0);
+    }
+
+    /// As above, with `otherRecoveriesOnTarget` more shards initializing on the target, which are not relocations, as the recoveries of
+    /// unassigned shards.
+    static ClusterState relocationWithOtherNodesShuttingDown(
+        Index index,
+        List<ShuttingDownNode> shuttingDownNodes,
+        int otherRecoveriesOnTarget
+    ) {
         // shard 0 is the one under test, the relocating and the pending shards of each shutting-down node follow it
         final var searchShards = new ArrayList<SearchShardSpec>();
         searchShards.add(new SearchShardSpec(RELOCATION_SOURCE_NODE, RELOCATING));
@@ -99,6 +110,7 @@ public final class OtherNodeShutdownClusterStates {
                 Collections.nCopies(shuttingDownNode.pendingShards(), new SearchShardSpec(shuttingDownNode.nodeId(), STARTED))
             );
         }
+        searchShards.addAll(Collections.nCopies(otherRecoveriesOnTarget, new SearchShardSpec(RELOCATION_TARGET_NODE, INITIALIZING)));
         return ClusterState.builder(new ClusterName("test"))
             .nodes(nodes(shuttingDownNodes))
             .metadata(

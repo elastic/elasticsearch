@@ -104,6 +104,27 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
         }
     }
 
+    /// The recoveries on the target that are not relocations, as the ones of unassigned shards, use its slots as well. With 3 relocating
+    /// shards, this shard and 1 such recovery, the slots (2) are split between 5 recoveries: the 4 competing shards get `2 * 4 / 5 = 1.6`
+    /// of them, so the equal share is `8s / 4 * 1.6 = 3.2s`, instead of 4s without the other recovery.
+    public void testCountsTheOtherRecoveriesOnTheTargetAsUsingTheSlots() {
+        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
+            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final var state = relocationWithOtherNodesShuttingDown(
+                new Index("idx", randomUUID()),
+                List.of(new ShuttingDownNode("shutting-node", 3, threadPool.absoluteTimeInMillis())),
+                1
+            );
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 2000);
+
+            final var plan = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
+            assertThat(plan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(plan.timeout().millis(), equalTo(3200L));
+        }
+    }
+
     /// The equal share can be longer than the relocation-with-shutdown timeout (60s), when there is a lot of time left. With a 10m grace
     /// period, 5 shards relocating from the shutting-down node and a limit of 2 the equal share is `600s / 6 * 2 = 200s`, and the plan
     /// can be extended when the slots get free.

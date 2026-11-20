@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,7 +126,7 @@ public class SearchShardRelocationsTests extends ESTestCase {
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, OTHER_TARGET), equalTo(0));
     }
 
-    public void testFromNodesNotShuttingDownCountsOnlyRelocationsFromNodesNotMarkedForRemoval() {
+    public void testInitializingNotFromShuttingDownNodesCountsTheRelocationsFromOtherNodesAndTheOtherRecoveries() {
         final var state = clusterState(
             List.of(
                 new Relocation(SOURCE_A, TARGET),
@@ -143,13 +144,18 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM),
                 SOURCE_B,
                 SingleNodeShutdownMetadata.Type.RESTART
-            )
+            ),
+            List.of(),
+            // recoveries that are not relocations, as of an unassigned shard or a snapshot restore
+            List.of(TARGET, OTHER_TARGET, OTHER_TARGET)
         );
 
-        assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, TARGET), equalTo(3));
-        assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, OTHER_TARGET), equalTo(1));
-        assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, SOURCE_A), equalTo(0));
-        assertThat(SearchShardRelocations.countFromNodesNotShuttingDownTo(state, "no-such-node"), equalTo(0));
+        // 3 relocations from the nodes that are not marked for removal, and 1 other recovery
+        assertThat(SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, TARGET), equalTo(4));
+        // 1 relocation and 2 other recoveries
+        assertThat(SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, OTHER_TARGET), equalTo(3));
+        assertThat(SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, SOURCE_A), equalTo(0));
+        assertThat(SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, "no-such-node"), equalTo(0));
     }
 
     public void testPendingRelocationsCountsOnlyTheStartedSearchShardsOfTheNode() {
@@ -219,7 +225,19 @@ public class SearchShardRelocationsTests extends ESTestCase {
         Map<String, SingleNodeShutdownMetadata.Type> shutdowns,
         List<String> startedSearchShardNodes
     ) {
-        final int numShards = searchRelocations.size() + promotableRelocations.size() + startedSearchShardNodes.size();
+        return clusterState(searchRelocations, promotableRelocations, shutdowns, startedSearchShardNodes, List.of());
+    }
+
+    /// As above, with one more search replica initializing on the node, without a relocation, per entry of `initializingSearchShardNodes`.
+    private static ClusterState clusterState(
+        List<Relocation> searchRelocations,
+        List<Relocation> promotableRelocations,
+        Map<String, SingleNodeShutdownMetadata.Type> shutdowns,
+        List<String> startedSearchShardNodes,
+        List<String> initializingSearchShardNodes
+    ) {
+        final int numShards = searchRelocations.size() + promotableRelocations.size() + startedSearchShardNodes.size()
+            + initializingSearchShardNodes.size();
         final var index = new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE);
         final var indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
@@ -251,6 +269,16 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 .withRole(ShardRouting.Role.INDEX_ONLY)
                 .build();
             final var replica = TestShardRouting.shardRoutingBuilder(shardId, nodeId, false, STARTED)
+                .withRole(ShardRouting.Role.SEARCH_ONLY)
+                .build();
+            routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica));
+        }
+        for (final var nodeId : initializingSearchShardNodes) {
+            final var shardId = new ShardId(index, shard++);
+            final var primary = TestShardRouting.shardRoutingBuilder(shardId, PRIMARY_NODE, true, STARTED)
+                .withRole(ShardRouting.Role.INDEX_ONLY)
+                .build();
+            final var replica = TestShardRouting.shardRoutingBuilder(shardId, nodeId, false, INITIALIZING)
                 .withRole(ShardRouting.Role.SEARCH_ONLY)
                 .build();
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica));

@@ -33,15 +33,15 @@ final class SearchShardRelocations {
         return countRelocationsToTarget(state, targetNodeId, nodeShutdowns::isNodeMarkedForRemoval);
     }
 
-    /// The relocations to `targetNodeId` from the nodes that are not marked for removal.
-    static int countFromNodesNotShuttingDownTo(ClusterState state, String targetNodeId) {
-        final var nodeShutdowns = state.metadata().nodeShutdowns();
-        return countRelocationsToTarget(state, targetNodeId, sourceNodeId -> nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId) == false);
+    /// The shards initializing on `targetNodeId` other than the relocations from the nodes marked for removal: the relocations from the
+    /// other nodes, the recoveries of unassigned shards and the snapshot restores, which use the slots of the target as well.
+    static int countInitializingNotFromShuttingDownNodes(ClusterState state, String targetNodeId) {
+        return countWithState(state, targetNodeId, ShardRoutingState.INITIALIZING) - countFromShuttingDownNodesTo(state, targetNodeId);
     }
 
     /// The search shards started on `nodeId`, which have not begun to relocate yet.
     static int countPendingRelocationsOn(ClusterState state, String nodeId) {
-        return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(ShardRoutingState.STARTED)).orElse(0);
+        return countWithState(state, nodeId, ShardRoutingState.STARTED);
     }
 
     /// Whether a search node marked for removal still holds shards that have not begun to relocate. The master holds them back while it
@@ -70,6 +70,11 @@ final class SearchShardRelocations {
             }
         }
         return count;
+    }
+
+    /// The shards of the search node `nodeId` in the state `shardState`.
+    private static int countWithState(ClusterState state, String nodeId, ShardRoutingState shardState) {
+        return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(shardState)).orElse(0);
     }
 
     /// The `RoutingNode` of `nodeId` if it is a search node in the cluster. A search node only holds search shards, as a promotable shard

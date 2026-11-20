@@ -19,9 +19,11 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationS
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static java.util.Comparator.comparingDouble;
 import static java.util.Comparator.comparingLong;
 
 /// The warming timeouts of search shards that relocate from a source node that is not shutting down while other nodes are, which must
@@ -78,10 +80,7 @@ public class RelocationOtherNodeShutdownTimeouts {
         }
 
         // Use the deadline with the smallest equal share, so that no deadline is missed.
-        final var tightestDeadline = deadlineShares.stream()
-            .reduce((tightest, share) -> share.equalShareMs() <= tightest.equalShareMs() ? share : tightest)
-            .orElseThrow();
-
+        final var tightestDeadline = Collections.min(deadlineShares, comparingDouble(DeadlineShare::equalShareMs));
         final double timePerShardMs = tightestDeadline.timePerShardMs();
         final double waitMs;
         if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {
@@ -100,8 +99,11 @@ public class RelocationOtherNodeShutdownTimeouts {
     /// latest.
     private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
         // This shard is itself an initializing relocation on the target from a non-shutting-down node, so the count includes it: it is
-        // added to the competing shards (+1) below, and left out of the "other" relocations here.
-        final int otherRelocationsToTarget = Math.max(0, SearchShardRelocations.countFromNodesNotShuttingDownTo(state, targetNodeId) - 1);
+        // added to the competing shards (+1) below, and left out of the "other" recoveries here.
+        final int otherRecoveriesOnTarget = Math.max(
+            0,
+            SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, targetNodeId) - 1
+        );
         final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
         final long now = threadPool.absoluteTimeInMillis();
         // the shards competing before each deadline rely on the order
@@ -120,7 +122,7 @@ public class RelocationOtherNodeShutdownTimeouts {
                     new DeadlineShare(
                         remainingMs,
                         shardsCompetingForTarget,
-                        slotShareOfCompetingShards(slots, shardsCompetingForTarget, otherRelocationsToTarget)
+                        slotShareOfCompetingShards(slots, shardsCompetingForTarget, otherRecoveriesOnTarget)
                     )
                 );
             }
@@ -146,13 +148,12 @@ public class RelocationOtherNodeShutdownTimeouts {
             .filter(nodeShards -> nodeShards.shards() > 0);
     }
 
-    /// The share of the target's `slots` that the `shardsCompetingForTarget` shards get, when `otherRelocationsToTarget`
-    /// relocations from nodes that are not shutting down hold part of them as well. It is split by the number of shards, can be fractional,
-    /// and never exceeds the number of competing shards: `min(N, slots * N / (N + others))`.
-    private static double slotShareOfCompetingShards(int slots, long shardsCompetingForTarget, int otherRelocationsToTarget) {
+    /// The slots of the target are shared equally by all the recoveries on it. This is the part of them that the `shardsCompetingForTarget`
+    /// shards get next to the `otherRecoveriesOnTarget` other recoveries: `min(N, slots * N / (N + others))`. It can be fractional.
+    private static double slotShareOfCompetingShards(int slots, long shardsCompetingForTarget, int otherRecoveriesOnTarget) {
         return Math.min(
             shardsCompetingForTarget,
-            (double) slots * shardsCompetingForTarget / (shardsCompetingForTarget + otherRelocationsToTarget)
+            (double) slots * shardsCompetingForTarget / (shardsCompetingForTarget + otherRecoveriesOnTarget)
         );
     }
 

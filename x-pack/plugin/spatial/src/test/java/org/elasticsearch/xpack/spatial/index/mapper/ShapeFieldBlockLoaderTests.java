@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -81,11 +82,11 @@ public class ShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
         }
         try {
             CartesianShapeIndexer indexer = new CartesianShapeIndexer("test");
-            BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("test", CoordinateEncoder.CARTESIAN);
+            BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("test", CoordinateEncoder.CARTESIAN, GeometryDocValueFormat.V2);
             for (Geometry geometry : geometries) {
                 field.add(indexer.indexShape(geometry), geometry);
             }
-            GeometryDocValueReader reader = new GeometryDocValueReader();
+            GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
             reader.reset(field.binaryValue());
             Geometry reconstructed = reader.getGeometry(CoordinateEncoder.CARTESIAN);
             if (reconstructed == null) {

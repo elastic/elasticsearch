@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.test.ESTestCase;
@@ -154,7 +155,7 @@ public class ShapeGeometryBlockLoaderTests extends ESTestCase {
     /** Recomputes the expected value of every document straight from the doc values, in index order. */
     private static List<BytesRef> expected(LeafReaderContext ctx, boolean pointsAreNull) throws IOException {
         var docValues = ctx.reader().getBinaryDocValues(FIELD);
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         List<BytesRef> expected = new ArrayList<>();
         for (int doc = 0; doc < ctx.reader().numDocs(); doc++) {
             if (docValues == null || docValues.advanceExact(doc) == false) {

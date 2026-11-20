@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -184,6 +185,19 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
                     assertEquals("extractor id matches file index", fileIdx, SourceExtractors.decodeExtractorId(encodedValue));
                     assertEquals("local position is the file-local row index", row, SourceExtractors.decodeLocalPosition(encodedValue));
                 }
+            }
+
+            // The arm's own premise, which none of the assertions above can see: under NONE the factory
+            // builds no sink, so no wrapper binds one and the reader's close publishes nowhere. Without
+            // this a scan that kept passing a non-null sink would still satisfy every assertion, because
+            // the wrapper forwards the handshake. PROJECTED is the control -- the same close must land
+            // there, or an empty map under NONE would also be met by a reader that never published at all.
+            AsyncExternalSourceOperator asyncOperator = (AsyncExternalSourceOperator) operator;
+            Map<String, List<Map<String, Object>>> captured = asyncOperator.status().capturedSourceMetadata();
+            if (scope == StripeColumnScope.NONE) {
+                assertEquals("a read that installs no capture sink publishes no statistics", Map.of(), captured);
+            } else {
+                assertEquals("the control must publish one contribution per file", 3, captured.size());
             }
         } finally {
             for (Page p : pages) {
@@ -1308,7 +1322,12 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            // A text reader's close hook publishes to whatever sink is bound on this thread, and only a
+            // StatsCapturingIterator above us binds one, so with no wrapper this is a no-op. That is what
+            // lets a test tell the two chains apart, the wrapper being a pass-through in every other respect.
+            ExternalStatsCapture.record("s3://bucket/data/f" + (fileIndex + 1) + ".parquet", Map.of("rows", rowsPerFile));
+        }
     }
 
     /** Same shape as the row-position emitting reader minus the {@link ColumnExtractorAware} mixin. */

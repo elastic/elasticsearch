@@ -60,9 +60,9 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Whether this node serves row-format reads from the external-source cache: with it off a read neither
-     * reads from the cache nor harvests statistics for it, those statistics having no other consumer. The
-     * planning path still measures schema and file metadata, running its loader either way.
+     * Whether this node serves reads from the external-source cache: with it off a read neither reads from the
+     * cache nor, in the row formats that harvest them, collects statistics for it. Planning still resolves
+     * schema and file metadata and pays more for them — the loader runs on every resolve, not only on a miss.
      * <p>
      * A read takes the flag once, when its operators are built, so a toggle governs the reads configured after
      * each node sees it and leaves those already in flight on the scope they resolved.

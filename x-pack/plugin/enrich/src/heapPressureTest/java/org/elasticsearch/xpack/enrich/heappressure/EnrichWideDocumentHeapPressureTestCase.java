@@ -74,7 +74,9 @@ public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestC
         .setting("enrich.coordinator_proxy.queue_capacity", "4096")
         // Only charged bytes count towards the parent breaker. Real memory accounting would also trip on uncharged memory, which hides
         // the accounting gaps these tests look for. Production runs with the default (true); the test is deliberately stricter.
+        // Turning it off also lowers the default parent limit to 70%, so keep production's 95%.
         .setting("indices.breaker.total.use_real_memory", "false")
+        .setting("indices.breaker.total.limit", "95%")
         // Ingest only, with the search pool of a 4-vCPU pod (7 threads), so up to 7 lookup responses are expanded at once.
         // The 512 MB heap is what the bulk sizes of the scenarios are calibrated against (the test-clusters default today,
         // pinned so a default change does not silently resize the scenario).

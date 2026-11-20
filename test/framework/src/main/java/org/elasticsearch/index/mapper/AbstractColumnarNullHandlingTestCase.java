@@ -20,7 +20,9 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -59,6 +61,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -550,6 +554,74 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                 assertEquals("only the valued document has postings", 1, terms == null ? 0 : terms.getDocCount());
             }
         }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoValueInColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoValue(IndexMode.COLUMNAR);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoValueInVectordbColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoValue(IndexMode.VECTORDB_COLUMNAR);
+    }
+
+    private record ExistsAndNorms(List<Integer> exists, List<Integer> withNorm) {}
+
+    private void assertNullOnlyArraysHaveNoValue(IndexMode indexMode) throws IOException {
+        final MapperService mapperService = createMapperService(
+            IndexVersion.current(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject();
+            })
+        );
+        final List<String> shapes = new ArrayList<>(valuedBatch());
+        shapes.addAll(VALUELESS_FIELD_SHAPES);
+        final List<String> sources = shapes.stream().map(AbstractColumnarNullHandlingTestCase::timestamped).toList();
+
+        final ExistsAndNorms oneByOne;
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
+            for (int i = 0; i < sources.size(); i++) {
+                final SourceToParse source = new SourceToParse("d" + i, new BytesArray(sources.get(i)), XContentType.JSON);
+                iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                oneByOne = existsAndNorms(mapperService, reader);
+            }
+        }
+
+        final ExistsAndNorms batch;
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
+            withMappedColumns(mapperService, sources, columns -> iw.addBatch(columns.toColumnBatch()));
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                batch = existsAndNorms(mapperService, reader);
+            }
+        }
+
+        assertEquals("documents that match exists, indexed one by one", List.of(0), oneByOne.exists());
+        assertEquals("documents that match exists, indexed as a batch", List.of(0), batch.exists());
+        assertThat("documents that have a norm, indexed one by one", oneByOne.withNorm(), everyItem(equalTo(0)));
+        assertThat("documents that have a norm, indexed as a batch", batch.withNorm(), everyItem(equalTo(0)));
+    }
+
+    private ExistsAndNorms existsAndNorms(MapperService mapperService, DirectoryReader reader) throws IOException {
+        final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
+        final List<Integer> matched = Arrays.stream(new IndexSearcher(reader).search(exists, reader.maxDoc()).scoreDocs)
+            .map(scoreDoc -> scoreDoc.doc)
+            .sorted()
+            .toList();
+        final List<Integer> withNorm = new ArrayList<>();
+        for (LeafReaderContext leaf : reader.leaves()) {
+            final NumericDocValues norms = leaf.reader().getNormValues(FIELD);
+            if (norms != null) {
+                for (int doc = norms.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = norms.nextDoc()) {
+                    withNorm.add(leaf.docBase + doc);
+                }
+            }
+        }
+        return new ExistsAndNorms(matched, withNorm);
     }
 
     private static String timestamped(String field) {

@@ -72,12 +72,10 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
     /// How recoveries are throttled in the test cluster.
     ///
     /// - `MASTER`: master only, with its default limits.
-    /// - `DNRT_PROD`: DNRT with the target serverless production limits, the master does not throttle.
-    /// - `DNRT_TIGHT`: DNRT with very low limits, the master does not throttle.
+    /// - `DNRT`: DNRT with random limits, the master does not throttle.
     private enum RecoveryThrottlingMode {
         MASTER,
-        DNRT_PROD,
-        DNRT_TIGHT
+        DNRT
     }
 
     /// First version in which the stateless plugin registers all the DNRT settings used below.
@@ -104,21 +102,12 @@ public class DefaultStatelessSettingsProvider extends DefaultSettingsProvider {
             case MASTER -> {
                 // Keep the default master-side throttling and leave DNRT unbounded
             }
-            case DNRT_PROD -> {
-                // Target values for `serverless-default-settings.yml`. Recovery gates are left disabled.
+            case DNRT -> {
+                // Recovery gates are left disabled.
                 settings.putAll(UNTHROTTLED_MASTER_RECOVERY_SETTINGS);
-                settings.put("indices.recovery.max_concurrent_incoming_recoveries", "32");
-                settings.put("indices.recovery.max_concurrent_incoming_recoveries_per_heap_gb", "1.5");
-                settings.put("indices.recovery.max_non_critical_incoming_recoveries_proportion", "0.5");
-                settings.put("indices.recovery.max_concurrent_outgoing_recoveries", "16");
-                settings.put("indices.recovery.max_concurrent_outgoing_recoveries_per_heap_gb", "0.75");
-                settings.put("indices.recovery.enable_direct_cancellations", "true");
-            }
-            case DNRT_TIGHT -> {
-                settings.putAll(UNTHROTTLED_MASTER_RECOVERY_SETTINGS);
-                settings.put("indices.recovery.max_concurrent_incoming_recoveries", String.valueOf(random.nextInt(1, 4)));
-                settings.put("indices.recovery.max_non_critical_incoming_recoveries_proportion", random.nextInt(1, 101) + "%");
-                settings.put("indices.recovery.max_concurrent_outgoing_recoveries", String.valueOf(random.nextInt(1, 4)));
+                settings.put("indices.recovery.max_concurrent_incoming_recoveries", String.valueOf(random.nextInt(1, 17)));
+                settings.put("indices.recovery.max_non_critical_incoming_recoveries_proportion", random.nextInt(50, 101) + "%");
+                settings.put("indices.recovery.max_concurrent_outgoing_recoveries", String.valueOf(random.nextInt(1, 17)));
                 settings.put("indices.recovery.enable_direct_cancellations", String.valueOf(random.nextBoolean()));
             }
         }

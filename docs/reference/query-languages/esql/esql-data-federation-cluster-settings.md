@@ -108,8 +108,8 @@ $$$esql-external-max-listed-objects$$$
 `esql.external.max_listed_objects` {applies_to}`stack: preview 9.6+`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Hard cap on objects visited while listing a glob, including keys that don't match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings, and a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list.
 
-    - **Default:** `1000000`
-    - **Valid values:** `1` to `10000000`
+    - **Default:** `10000000`
+    - **Valid values:** `1` to `100000000`
 
 $$$esql-external-max-discovered-files$$$
 

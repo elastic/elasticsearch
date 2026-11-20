@@ -368,10 +368,23 @@ public final class ExternalSourceSettings {
 
     /**
      * Ceiling of the heap-derived default and the setting's max. Degenerate globs that visit more keys
-     * than they keep still hit {@link #MAX_LISTED_OBJECTS} first (default 1,000,000). This bound is the
-     * kept-file / planning cap.
+     * than they keep still hit {@link #MAX_LISTED_OBJECTS} first (default
+     * {@value #MAX_LISTED_OBJECTS_DEFAULT}). This bound is the kept-file / planning cap.
      */
     static final int MAX_DISCOVERED_FILES_LIMIT = 10_000_000;
+
+    /**
+     * Default {@link #MAX_LISTED_OBJECTS}. About 10,000 S3 {@code ListObjectsV2} pages at 1,000
+     * keys/page. Equal to {@link #MAX_DISCOVERED_FILES_LIMIT} so a matching listing can keep the
+     * heap-derived file cap; operators can raise it toward {@link #MAX_LISTED_OBJECTS_LIMIT}.
+     */
+    static final int MAX_LISTED_OBJECTS_DEFAULT = 10_000_000;
+
+    /**
+     * Max of {@link #MAX_LISTED_OBJECTS}. Visit-count only: kept files still stop at
+     * {@link #MAX_DISCOVERED_FILES}.
+     */
+    static final int MAX_LISTED_OBJECTS_LIMIT = 100_000_000;
 
     /**
      * Share of max heap one query's discovered-file planning may occupy when the operator has not set
@@ -439,15 +452,17 @@ public final class ExternalSourceSettings {
      * objects than the query will keep. Applied independently to each glob listing, not to the query
      * as a whole: a comma-separated resource of {@code N} globs does {@code N} listings, each against
      * this cap. A rewrite-empty fallback can list the same glob a second time. The kept-files cap
-     * ({@link #MAX_DISCOVERED_FILES}) is shared across that comma list. Default: 1,000,000 — about
-     * 1,000 S3 {@code ListObjectsV2} pages at the default page size of 1,000 keys. Operators can
-     * raise it; the default is not the max.
+     * ({@link #MAX_DISCOVERED_FILES}) is shared across that comma list. Default:
+     * {@value #MAX_LISTED_OBJECTS_DEFAULT} — about 10,000 S3 {@code ListObjectsV2} pages at the
+     * default page size of 1,000 keys, matching {@link #MAX_DISCOVERED_FILES_LIMIT} so a tight glob
+     * can keep the heap-derived file cap. Operators can raise it up to
+     * {@value #MAX_LISTED_OBJECTS_LIMIT}.
      */
     public static final Setting<Integer> MAX_LISTED_OBJECTS = Setting.intSetting(
         "esql.external.max_listed_objects",
-        1_000_000,
+        MAX_LISTED_OBJECTS_DEFAULT,
         1,
-        10_000_000,
+        MAX_LISTED_OBJECTS_LIMIT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

@@ -42,6 +42,7 @@ public class ExternalSourceSettingsTests extends ESTestCase {
             (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings)
         );
         assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.blobStoreConcurrency(settings));
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(settings));
     }
 
     public void testDefaultMaxDiscoveredFilesMatrix() {
@@ -65,6 +66,18 @@ public class ExternalSourceSettingsTests extends ESTestCase {
         assertEquals(42, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(pinned));
         Settings atMax = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10_000_000).build();
         assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(atMax));
+    }
+
+    public void testMaxListedObjectsBounds() {
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(Settings.EMPTY));
+        Settings atMax = Settings.builder().put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 100_000_000).build();
+        assertEquals(100_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(atMax));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_LISTED_OBJECTS.get(
+                Settings.builder().put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 100_000_001).build()
+            )
+        );
     }
 
     public void testPlanningBytesPerDiscoveredFileMatchesBreakerCharges() {

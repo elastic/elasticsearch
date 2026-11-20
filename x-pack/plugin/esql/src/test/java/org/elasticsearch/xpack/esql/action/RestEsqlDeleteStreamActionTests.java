@@ -91,9 +91,10 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
     }
 
     /**
-     * The route is registered exactly when the feature flag for stored stream results is enabled, as that is what a delete removes.
+     * The route is registered exactly when the stream POST is registered and the feature flag for stored stream results is enabled:
+     * a stream can be deleted only where it can be created, and a delete removes what is stored.
      */
-    public void testRegisteredOnlyWhenStoredStreamResultsEnabled() throws IOException {
+    public void testRegisteredOnlyWhenStreamsAndStoredStreamResultsEnabled() throws IOException {
         try (EsqlPlugin plugin = new EsqlPlugin()) {
             List<RestHandler> handlers = plugin.getRestHandlers(
                 // only the settings are read while the handlers are created
@@ -102,7 +103,7 @@ public class RestEsqlDeleteStreamActionTests extends ESTestCase {
                 null
             );
             boolean delete = handlers.stream().anyMatch(h -> h instanceof RestEsqlDeleteStreamAction);
-            assertThat(delete, equalTo(EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()));
+            assertThat(delete, equalTo(RestEsqlStreamQueryAction.ENABLED && EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()));
         }
     }
 }

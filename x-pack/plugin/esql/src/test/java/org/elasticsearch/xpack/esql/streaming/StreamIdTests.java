@@ -108,6 +108,25 @@ public class StreamIdTests extends ESTestCase {
         })), equalTo(new StreamId("key", new TaskId("node", 1))));
     }
 
+    /** The first byte is reserved and unset: an id is written with {@code 0} there, and no other value is accepted. */
+    public void testReservedByte() throws IOException {
+        StreamId id = randomStreamId();
+        assertThat(Base64.getUrlDecoder().decode(id.encoded())[0], equalTo(StreamId.RESERVED));
+        assertThat(StreamId.RESERVED, equalTo((byte) 0));
+
+        byte set = randomValueOtherThan(StreamId.RESERVED, ESTestCase::randomByte);
+        assertInvalid(encode(set, out -> {
+            out.writeString(id.streamKey());
+            out.writeString(id.taskId().toString());
+        }));
+        // the layout without the reserved byte is not accepted either
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeString(id.streamKey());
+            out.writeString(id.taskId().toString());
+            assertInvalid(Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes())));
+        }
+    }
+
     /** A stream has one id: the same parts written with other padding are not accepted, because the storage knows one string. */
     public void testDecodeRejectsOtherEncodingsOfTheSameId() {
         StreamId id;
@@ -127,8 +146,14 @@ public class StreamIdTests extends ESTestCase {
         void write(BytesStreamOutput out) throws IOException;
     }
 
+    /** Encodes the parts after the reserved byte, unset. */
     private static String encode(Parts parts) throws IOException {
+        return encode(StreamId.RESERVED, parts);
+    }
+
+    private static String encode(byte reserved, Parts parts) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte(reserved);
             parts.write(out);
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
         }

@@ -135,11 +135,7 @@ public abstract class AbstractStreamTestCase extends ESTestCase {
             values[i] = firstValue + i;
         }
         LongBlock block = blockFactory.newLongArrayVector(values, rows).asBlock();
-        Page page = new Page(block);
-        // The in-memory store hands shallow copies of the same blocks to readers on several threads. Block reference counts are not
-        // thread safe until the page is allowed to pass to another thread, so a test that reads concurrently has to do this.
-        page.allowPassingToDifferentDriver();
-        return page;
+        return new Page(block);
     }
 
     protected final void awaitVoid(CheckedConsumer<ActionListener<Void>, ?> consumer) {

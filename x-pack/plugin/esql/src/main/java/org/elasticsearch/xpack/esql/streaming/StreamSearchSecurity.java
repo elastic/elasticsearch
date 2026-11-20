@@ -11,12 +11,10 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.async.AsyncSearchSecurity;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 
 import java.io.IOException;
@@ -29,8 +27,9 @@ import java.util.function.Consumer;
  * Checks that the current user may read or delete a stream, the counterpart of {@code AsyncSearchSecurity}.
  * <p>
  * The rule is the one async results use: the stored security headers of the creator are compared with the current authentication
- * through {@link SecurityContext#canIAccessResourcesCreatedWithHeaders}. {@code AsyncSearchSecurity} itself is not reused because
- * its constructor needs an index name and an origin that streams do not have.
+ * through {@link SecurityContext#canIAccessResourcesCreatedWithHeaders}. The {@code cancel_task} lookup sends its request through
+ * {@link AsyncSearchSecurity#checkClusterPrivilege}. An instance of {@code AsyncSearchSecurity} is not used, because its
+ * constructor needs an index name and an origin that streams do not have.
  */
 public class StreamSearchSecurity {
 
@@ -67,31 +66,31 @@ public class StreamSearchSecurity {
             consumer.accept(false);
             return;
         }
-        HasPrivilegesRequest request = new HasPrivilegesRequest();
-        request.username(current.getEffectiveSubject().getUser().principal());
-        request.clusterPrivileges(ClusterPrivilegeResolver.CANCEL_TASK.name());
-        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
-        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
         // The consumer gets one answer, the first one. ActionListener#wrap is not used: it would call the consumer again, with
         // false, if the consumer itself threw, and so run whatever it guards a second time. The action that answers may do the
         // same with an exception of the consumer, so a second answer is dropped.
         final AtomicBoolean answered = new AtomicBoolean();
         try {
-            client.execute(HasPrivilegesAction.INSTANCE, request, new ActionListener<>() {
-                @Override
-                public void onResponse(HasPrivilegesResponse response) {
-                    if (answered.compareAndSet(false, true)) {
-                        consumer.accept(response.isCompleteMatch());
+            AsyncSearchSecurity.checkClusterPrivilege(
+                securityContext,
+                client,
+                ClusterPrivilegeResolver.CANCEL_TASK.name(),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(HasPrivilegesResponse response) {
+                        if (answered.compareAndSet(false, true)) {
+                            consumer.accept(response.isCompleteMatch());
+                        }
                     }
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (answered.compareAndSet(false, true)) {
-                        consumer.accept(false);
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (answered.compareAndSet(false, true)) {
+                            consumer.accept(false);
+                        }
                     }
                 }
-            });
+            );
         } catch (Exception e) {
             if (answered.compareAndSet(false, true) == false) {
                 throw e;

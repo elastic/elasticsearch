@@ -37,11 +37,14 @@ import java.util.function.Supplier;
  *   a malformed id, an unknown id, a stream of another user.</li>
  *   <li>A failure of the storage or of the cancellation is passed on (a {@code 500}). The async service answers {@code 404} to
  *   every failure, which tells a client the result is gone while it may still be stored.</li>
+ *   <li>A query that something else has already cancelled is waited for too. The async service deletes at once in that case,
+ *   which is fine for a result that is written once at the end. A stream is written page by page while its query runs, and a
+ *   cancelled query may not have stopped yet.</li>
  * </ul>
  */
-public class StreamDeleteService {
+public class DeleteStreamResultsService {
 
-    private static final Logger logger = LogManager.getLogger(StreamDeleteService.class);
+    private static final Logger logger = LogManager.getLogger(DeleteStreamResultsService.class);
 
     static final String CANCEL_REASON = "cancelled by user";
 
@@ -54,7 +57,7 @@ public class StreamDeleteService {
      * @param localNodeId the id of this node. A task is cancelled only if the stream id names this node, because a task number
      *                    means nothing on another node
      */
-    public StreamDeleteService(
+    public DeleteStreamResultsService(
         StreamStorage storage,
         StreamSearchSecurity security,
         TaskManager taskManager,
@@ -119,8 +122,10 @@ public class StreamDeleteService {
             }
         }
         final CancellableTask task = findQueryTask(streamId);
-        if (task != null && task.isCancelled() == false) {
-            // Wait for the cancellation before deleting, so the query has stopped writing when its rows are removed.
+        if (task != null) {
+            // Wait for the cancellation before deleting, so the query has stopped writing when its rows are removed. This is done
+            // for a task that is already cancelled as well (an earlier delete, a cancellation of the task, the closed connection of
+            // the POST): it may still be running. Cancelling again changes nothing, and the listener is called when the task ends.
             call(
                 (ActionListener<Void> l) -> taskManager.cancelTaskAndDescendants(task, CANCEL_REASON, true, l),
                 ignored -> deleteFromStorage(id, true, listener),
@@ -148,7 +153,7 @@ public class StreamDeleteService {
      * </ul>
      * Then replace the check of the action below with {@code task.streamId().equals(streamId)}, the guard of
      * {@code AsyncTaskIndexService#getTask}. The whole id must be compared: the task ids are equal by construction, the key is the
-     * part that differs. Keep the check of the node. {@code StreamDeleteServiceTests#testTaskOfAnotherStreamIsCancelled} pins
+     * part that differs. Keep the check of the node. {@code DeleteStreamResultsServiceTests#testTaskOfAnotherStreamIsCancelled} pins
      * today's behaviour and has to be turned around.
      */
     @Nullable

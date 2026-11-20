@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -59,16 +60,32 @@ public class AsyncSearchSecurity {
         hasClusterPrivilege(GetAsyncStatusAction.NAME, listener);
     }
 
+    /**
+     * Sends a {@link HasPrivilegesRequest} for one cluster privilege of the current user.
+     * <p>
+     * The caller has checked that {@link SecurityContext#getAuthentication()} is present. The listener receives the raw response,
+     * and an exception it throws is not caught here. Callers do not agree on whether that exception is a failed lookup or a
+     * failure of the action that runs after a successful one, so each caller keeps that decision.
+     */
+    public static void checkClusterPrivilege(
+        SecurityContext securityContext,
+        Client client,
+        String privilegeName,
+        ActionListener<HasPrivilegesResponse> listener
+    ) {
+        Authentication current = securityContext.getAuthentication();
+        HasPrivilegesRequest request = new HasPrivilegesRequest();
+        request.username(current.getEffectiveSubject().getUser().principal());
+        request.clusterPrivileges(privilegeName);
+        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
+        client.execute(HasPrivilegesAction.INSTANCE, request, listener);
+    }
+
     private void hasClusterPrivilege(String privilegeName, ActionListener<Boolean> listener) {
-        final Authentication current = securityContext.getAuthentication();
-        if (current != null) {
-            HasPrivilegesRequest req = new HasPrivilegesRequest();
-            req.username(current.getEffectiveSubject().getUser().principal());
-            req.clusterPrivileges(privilegeName);
-            req.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
-            req.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
+        if (securityContext.getAuthentication() != null) {
             try {
-                client.execute(HasPrivilegesAction.INSTANCE, req, listener.map(resp -> resp.isCompleteMatch()));
+                checkClusterPrivilege(securityContext, client, privilegeName, listener.map(resp -> resp.isCompleteMatch()));
             } catch (Exception exc) {
                 listener.onFailure(exc);
             }

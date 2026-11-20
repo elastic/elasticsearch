@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -48,31 +49,31 @@ import static org.hamcrest.Matchers.sameInstance;
  * The delete of a stored stream against a real {@link InMemoryStreamStore} and a real {@link TaskManager}, the counterpart of the
  * delete cases of {@code AsyncResultsServiceTests} and {@code AsyncSearchSecurityTests}.
  */
-public class StreamDeleteServiceTests extends AbstractStreamTestCase {
+public class DeleteStreamResultsServiceTests extends AbstractStreamTestCase {
 
-    private StreamDeleteService service() {
+    private DeleteStreamResultsService service() {
         return service(store);
     }
 
-    private StreamDeleteService service(StreamStorage storage) {
+    private DeleteStreamResultsService service(StreamStorage storage) {
         return service(storage, taskManager);
     }
 
-    private StreamDeleteService service(StreamStorage storage, TaskManager manager) {
-        return new StreamDeleteService(storage, security(), manager, () -> LOCAL_NODE_ID);
+    private DeleteStreamResultsService service(StreamStorage storage, TaskManager manager) {
+        return new DeleteStreamResultsService(storage, security(), manager, () -> LOCAL_NODE_ID);
     }
 
-    private static void assertAcknowledged(StreamDeleteService service, String id) {
+    private static void assertAcknowledged(DeleteStreamResultsService service, String id) {
         AcknowledgedResponse response = safeAwait(l -> service.deleteStream(new DeleteStreamResultRequest(id), l));
         assertThat(response.isAcknowledged(), is(true));
     }
 
-    private static Exception deleteFailure(StreamDeleteService service, String id) {
+    private static Exception deleteFailure(DeleteStreamResultsService service, String id) {
         return safeAwaitFailure(AcknowledgedResponse.class, l -> service.deleteStream(new DeleteStreamResultRequest(id), l));
     }
 
     /** Not found, with the id as the whole message, so that every "no such stream for you" looks the same. */
-    private static void assertNotFound(StreamDeleteService service, String id) {
+    private static void assertNotFound(DeleteStreamResultsService service, String id) {
         Exception e = deleteFailure(service, id);
         assertThat(e, instanceOf(ResourceNotFoundException.class));
         assertThat(e.getMessage(), equalTo(id));
@@ -207,23 +208,42 @@ public class StreamDeleteServiceTests extends AbstractStreamTestCase {
         assertAcknowledged(service(storage), id);
 
         assertThat(task.isCancelled(), is(true));
-        assertThat(task.getReasonCancelled(), equalTo(StreamDeleteService.CANCEL_REASON));
+        assertThat(task.getReasonCancelled(), equalTo(DeleteStreamResultsService.CANCEL_REASON));
         assertThat("the delete waits for the query to end", taskManager.getTask(task.getId()), nullValue());
         assertThat(cancelledBeforeDelete.get(), is(true));
         assertThat(metadata(id), nullValue());
     }
 
     /**
-     * A query that was cancelled by something else and has not stopped yet is not cancelled again, and the delete does not wait
-     * for it: what is stored is deleted.
+     * A query that was cancelled by something else may not have stopped yet, and may still be writing. The delete waits for it to
+     * end before it removes the rows, as it does for a query that it cancels itself. The first reason of the cancellation is kept.
      */
-    public void testDeleteStreamOfCancelledTask() {
+    public void testDeleteWaitsForTaskThatIsAlreadyCancelled() {
+        // the task does not end when it is cancelled: it stands for a query that was cancelled and has not stopped yet
         CancellableTask task = registerTask(taskManager, EsqlStreamQueryAction.NAME, false);
         String id = createStream(streamId(task));
         safeAwait((ActionListener<Void> l) -> taskManager.cancelTaskAndDescendants(task, "by the test", false, l));
+        AtomicBoolean endedBeforeDelete = new AtomicBoolean();
+        StreamStorage storage = new DelegatingStreamStorage(store) {
+            @Override
+            public void delete(String streamId, ActionListener<Void> listener) {
+                endedBeforeDelete.set(taskManager.getTask(task.getId()) == null);
+                super.delete(streamId, listener);
+            }
+        };
 
-        assertAcknowledged(service(), id);
+        PlainActionFuture<AcknowledgedResponse> delete = new PlainActionFuture<>();
+        service(storage).deleteStream(new DeleteStreamResultRequest(id), delete);
 
+        // the query has not ended, so the delete has not answered and the rows are still stored
+        assertThat(delete.isDone(), is(false));
+        assertThat(metadata(id), notNullValue());
+
+        // the query ends
+        taskManager.unregister(task);
+
+        assertThat(safeGet(delete).isAcknowledged(), is(true));
+        assertThat("the rows are removed after the query has ended", endedBeforeDelete.get(), is(true));
         assertThat(task.getReasonCancelled(), equalTo("by the test"));
         assertThat(metadata(id), nullValue());
     }
@@ -274,7 +294,7 @@ public class StreamDeleteServiceTests extends AbstractStreamTestCase {
      * With a storage that outlives a node restart, the id of an old stream can name the running query of a newer one, and deleting
      * the old stream cancels it. It cannot happen with the in-memory storage, which does not outlive the node.
      * <p>
-     * When the task holds its id (see the TODO in {@code StreamDeleteService#findQueryTask}), flip this to "not cancelled".
+     * When the task holds its id (see the TODO in {@code DeleteStreamResultsService#findQueryTask}), flip this to "not cancelled".
      */
     public void testTaskOfAnotherStreamIsCancelled() {
         CancellableTask queryOfNewStream = registerQueryTask();
@@ -300,11 +320,11 @@ public class StreamDeleteServiceTests extends AbstractStreamTestCase {
             }
         };
 
-        try (MockLog mockLog = MockLog.capture(StreamDeleteService.class)) {
+        try (MockLog mockLog = MockLog.capture(DeleteStreamResultsService.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "the failed delete",
-                    StreamDeleteService.class.getCanonicalName(),
+                    DeleteStreamResultsService.class.getCanonicalName(),
                     Level.WARN,
                     "failed to delete stream [" + id + "]"
                 )
@@ -333,11 +353,11 @@ public class StreamDeleteServiceTests extends AbstractStreamTestCase {
             }
         };
 
-        try (MockLog mockLog = MockLog.capture(StreamDeleteService.class)) {
+        try (MockLog mockLog = MockLog.capture(DeleteStreamResultsService.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "the failed read",
-                    StreamDeleteService.class.getCanonicalName(),
+                    DeleteStreamResultsService.class.getCanonicalName(),
                     Level.WARN,
                     "failed to read stream [" + id + "]"
                 )
@@ -557,9 +577,9 @@ public class StreamDeleteServiceTests extends AbstractStreamTestCase {
         };
         IllegalStateException thrown = new IllegalStateException("simulated failure of the listener");
         List<Object> outcomes = Collections.synchronizedList(new ArrayList<>());
-        try (MockLog mockLog = MockLog.capture(StreamDeleteService.class)) {
+        try (MockLog mockLog = MockLog.capture(DeleteStreamResultsService.class)) {
             mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation("no storage failure", StreamDeleteService.class.getName(), Level.WARN, "*")
+                new MockLog.UnseenEventExpectation("no storage failure", DeleteStreamResultsService.class.getName(), Level.WARN, "*")
             );
             ActionListener<AcknowledgedResponse> throwing = new ActionListener<>() {
                 @Override

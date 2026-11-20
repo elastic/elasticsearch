@@ -129,8 +129,6 @@ public class StreamDeleteIT extends AbstractPausableIntegTestCase {
                 values[i] = rows + i;
             }
             Page page = new Page(blockFactory.newLongArrayVector(values, pageRows).asBlock());
-            // the store is used from several threads
-            page.allowPassingToDifferentDriver();
             long offset = rows;
             safeAwait((ActionListener<Void> l) -> StreamTestEsqlPlugin.STORE.appendPage(encoded, offset, page, l));
             rows += pageRows;

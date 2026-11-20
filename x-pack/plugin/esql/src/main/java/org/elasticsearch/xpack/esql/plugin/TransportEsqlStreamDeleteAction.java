@@ -24,9 +24,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.esql.action.EsqlStreamDeleteAction;
 import org.elasticsearch.xpack.esql.streaming.DeleteStreamResultRequest;
+import org.elasticsearch.xpack.esql.streaming.DeleteStreamResultsService;
 import org.elasticsearch.xpack.esql.streaming.InMemoryStreamStore;
 import org.elasticsearch.xpack.esql.streaming.NoopStreamStore;
-import org.elasticsearch.xpack.esql.streaming.StreamDeleteService;
 import org.elasticsearch.xpack.esql.streaming.StreamId;
 import org.elasticsearch.xpack.esql.streaming.StreamSearchSecurity;
 import org.elasticsearch.xpack.esql.streaming.StreamStorage;
@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.esql.streaming.StreamStorage;
  */
 public class TransportEsqlStreamDeleteAction extends HandledTransportAction<DeleteStreamResultRequest, AcknowledgedResponse> {
 
-    private final StreamDeleteService deleteService;
+    private final DeleteStreamResultsService deleteService;
     private final ClusterService clusterService;
     private final TransportService transportService;
 
@@ -62,7 +62,7 @@ public class TransportEsqlStreamDeleteAction extends HandledTransportAction<Dele
         );
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.deleteService = new StreamDeleteService(
+        this.deleteService = new DeleteStreamResultsService(
             createStreamStorage(clusterService, threadPool, client),
             new StreamSearchSecurity(new SecurityContext(clusterService.getSettings(), threadPool.getThreadContext()), client),
             transportService.getTaskManager(),

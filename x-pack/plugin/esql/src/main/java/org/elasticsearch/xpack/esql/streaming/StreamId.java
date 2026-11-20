@@ -31,8 +31,19 @@ import java.util.Objects;
  * <p>
  * The {@link StreamStorage} is keyed by the {@link #encoded()} string. An id has exactly one encoded form: {@link #decode} rejects
  * a string that decodes to the same parts but is written differently, so two different strings never name the same stream.
+ * <p>
+ * The encoded form starts with one {@link #RESERVED reserved} byte, so that the layout of the id can change later without an old
+ * id being read as a new one.
  */
 public final class StreamId {
+
+    /**
+     * The first byte of the encoded form. It is reserved and has no meaning yet: it is always written as {@code 0} (unset), and
+     * {@link #decode} rejects any other value. A later change of the layout, or a kind of stream that is read in another way, can
+     * give other values a meaning. Rejecting them today means that a node which does not know such a value answers "no such
+     * stream", and does not misread the rest of the id.
+     */
+    static final byte RESERVED = 0;
 
     private final String streamKey;
     private final TaskId taskId;
@@ -71,6 +82,7 @@ public final class StreamId {
 
     private static String encode(String streamKey, TaskId taskId) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte(RESERVED);
             out.writeString(streamKey);
             out.writeString(taskId.toString());
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
@@ -89,6 +101,10 @@ public final class StreamId {
         try {
             ByteBuffer byteBuffer = ByteBuffer.wrap(Base64.getUrlDecoder().decode(id));
             try (StreamInput in = new ByteBufferStreamInput(byteBuffer)) {
+                byte reserved = in.readByte();
+                if (reserved != RESERVED) {
+                    throw new IllegalArgumentException("unexpected value of the reserved byte [" + reserved + "]");
+                }
                 String streamKey = in.readString();
                 String taskId = in.readString();
                 if (in.available() > 0) {
@@ -97,7 +113,7 @@ public final class StreamId {
                 decoded = new StreamId(streamKey, new TaskId(taskId));
             }
         } catch (Exception e) {
-            // Whatever a client sends must end here: bad base64, a truncated string, a malformed task id.
+            // Whatever a client sends must end here: bad base64, a reserved byte that is set, a truncated string, a malformed task id.
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
         if (decoded.encoded.equals(id) == false) {

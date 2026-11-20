@@ -824,11 +824,6 @@ tests:
   - :x-pack:plugin:ml:internalClusterTest
   method: testNodeChurnDuringLookbackShouldRecoverAndKeepDatafeedStarted
   issue: https://github.com/elastic/elasticsearch/issues/166782
-- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitorTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testRerouteBasedOnEstimatedHeapUsage
-  issue: https://github.com/elastic/elasticsearch/issues/166784
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   tasks:
   - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest

@@ -226,6 +226,28 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * The filter of an aggregate function is evaluated against the Lucene document of each row. When it is not shared by all
+     * the aggregate functions it stays in the aggregation, so the query has to be rejected when the aggregation runs on rows
+     * that are no longer tied to a document, instead of failing while it executes.
+     */
+    public void testMatchInStatsFilterAfterCommands() {
+        String stats = " | STATS c = count(*) WHERE match(content, \"fox\"), d = count(*)";
+
+        for (String commands : List.of("LIMIT 10", "SORT id | LIMIT 10", "STATS m = max(id) BY content")) {
+            var error = expectThrows(VerificationException.class, () -> run("FROM test | " + commands + stats));
+            assertThat(commands, error.getMessage(), containsString("[MATCH] function cannot be used after "));
+        }
+
+        // these keep the rows tied to their documents
+        for (String commands : List.of("MV_EXPAND id", "EVAL x = id + 1", "KEEP content, id", "WHERE id > 0", "SORT id")) {
+            try (var resp = run("FROM test | " + commands + stats)) {
+                assertColumnNames(resp.columns(), List.of("c", "d"));
+                assertValues(resp.values(), List.of(List.of(2L, 6L)));
+            }
+        }
+    }
+
     public void testMatchWithStats() {
         var errorQuery = """
             FROM test

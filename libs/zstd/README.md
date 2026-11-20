@@ -23,8 +23,8 @@ libs/zstd/
 
 Applying `elasticsearch.native-library-build` makes `libs:zstd` a native
 library producer. By default it downloads a published artifact addressed by the
-hash of its pinned source and inputs. The native-library collector
-aggregates that output with the other native libraries.
+hash of its pinned source and inputs. The `:distribution:archives` and `:distribution:packages`
+projects copy libzstd into `lib/platform`, with the other native libraries.
 
 ## Building libzstd locally
 

@@ -44,8 +44,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges;
@@ -623,7 +622,7 @@ public class TransportGetShardWarmingInfoActionTests extends ESTestCase {
         @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange
     ) {
         return new BlobFileRanges(
-            new BlobLocation(new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(generation), 1L), offset, length),
+            new BlobLocation(new BccBlob(BccBlob.blobNameFromGeneration(generation), 1L), offset, length),
             timestampRange
         );
     }

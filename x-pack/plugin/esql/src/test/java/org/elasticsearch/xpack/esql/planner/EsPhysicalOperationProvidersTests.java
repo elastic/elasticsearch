@@ -783,6 +783,16 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
         assertTrue(provider.isGroupKeyPrimarySortField(counterId, aggregateExec));
     }
 
+    /** Only the int key hash uses the sort order so far, so a long or date key on a sorted field is not marked as sorted. */
+    public void testIsGroupKeyPrimarySortFieldDisabledForNonIntegerKeys() throws IOException {
+        for (DataType type : List.of(DataType.LONG, DataType.DATETIME, DataType.DOUBLE, DataType.KEYWORD)) {
+            var provider = providerWithSortedField(sortedFieldSettings("counter_id"), "counter_id");
+            FieldAttribute counterId = fieldAttribute("counter_id", type);
+            AggregateExec aggregateExec = aggregateExec(AggregatorMode.INITIAL, counterId, esQueryExec(null));
+            assertFalse("type " + type, provider.isGroupKeyPrimarySortField(counterId, aggregateExec));
+        }
+    }
+
     /**
      * A {@code STATS AVG(fn(field)) BY key} plan has an {@link EvalExec} computing the aggregated expression
      * between the {@link AggregateExec} and the {@link EsQueryExec} (e.g. a surrogate feeding SUM/COUNT). It must

@@ -104,19 +104,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     /**
-     * The key the tests group by. Half the time it is built as the index's primary sort field, which hands its group ids
-     * to the aggregators as runs; that must agree with the plain path for any ids, sorted or not.
+     * The key the tests group by. Half the time it is declared the index's primary sort field. Only the int key hash acts on
+     * that, so a long key must behave exactly as without it: the flag is a hint about speed that the other hashes ignore.
      */
     private BlockHash.GroupSpec longGroup() {
-        primarySortedGroup = randomBoolean();
-        return new BlockHash.GroupSpec(0, ElementType.LONG, null, null, primarySortedGroup);
+        return new BlockHash.GroupSpec(0, ElementType.LONG, null, null, randomBoolean());
     }
-
-    /**
-     * Whether the last {@link #longGroup()} was built as the primary sort field. A hash built that way says so in its
-     * {@link Object#toString}.
-     */
-    private boolean primarySortedGroup;
 
     protected List<Integer> channels(AggregatorMode mode) {
         return mode.isInputPartial()
@@ -166,9 +159,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=LongBlockHash{channel=0, entries=0, seenNull=false"
-            + (primarySortedGroup ? ", primarySorted=true, sortedPages=0" : "")
-            + "}";
+        String hash = "blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}";
         return equalTo(
             "HashAggregationOperator["
                 + hash

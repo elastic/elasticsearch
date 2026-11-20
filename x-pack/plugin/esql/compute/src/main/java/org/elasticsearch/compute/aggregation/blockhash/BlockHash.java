@@ -167,10 +167,11 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      * One grouping key.
      *
      * @param primarySorted whether this key is the shard's primary {@code index.sort.field} and the rows arrive from Lucene in
-     *                      that order, so equal keys sit next to each other. Only the single int or long key hashes use it: they
-     *                      find the runs of equal keys without probing the hash table for each row and hand them to the
-     *                      aggregators as {@link org.elasticsearch.compute.aggregation.GroupRuns}. It is a hint about speed,
-     *                      never about results: unsorted input gives the same answer, only without the savings.
+     *                      that order, so equal keys sit next to each other. Only the single int key hash uses it: it
+     *                      finds the runs of equal keys without probing the hash table for each row and hands them to the
+     *                      aggregators as {@link org.elasticsearch.compute.aggregation.GroupRuns}, unless a page has too few
+     *                      repeated keys to gain from it. It is a hint about speed, never about results: unsorted input
+     *                      gives the same answer, only without the savings.
      */
     public record GroupSpec(
         int channel,
@@ -308,7 +309,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case NULL -> new NullBlockHash(channel, blockFactory);
             case BOOLEAN -> new BooleanBlockHash(channel, blockFactory);
             case INT -> new IntBlockHash(channel, blockFactory, primarySorted);
-            case LONG -> new LongBlockHash(channel, blockFactory, primarySorted);
+            case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
             case DOUBLE_RANGE -> new DoubleRangeBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);

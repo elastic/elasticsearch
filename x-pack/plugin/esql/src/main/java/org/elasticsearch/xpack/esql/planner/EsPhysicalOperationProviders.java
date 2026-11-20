@@ -686,6 +686,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     @Override
     protected boolean isGroupKeyPrimarySortField(FieldAttribute fieldAttribute, AggregateExec aggregateExec) {
+        if (fieldAttribute.dataType() != DataType.INTEGER) {
+            // Only the int key hash knows how to use the sort order so far; ES|QL reads byte and short fields as integer.
+            return false;
+        }
         if (aggregateExec.getMode().isInputPartial()) {
             // Only a stage reading raw rows directly from Lucene (INITIAL, SINGLE) can rely on the index sort order;
             // a stage merging intermediate state from other nodes (INTERMEDIATE, FINAL) has no such guarantee.

@@ -1341,7 +1341,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    public void copyShard(CancellableTask task, ShardId source, ShardId destination, long primaryTerm) throws IOException {
+    public void copyShard(
+        CancellableTask task,
+        ShardId source,
+        ShardId destination,
+        long primaryTerm,
+        @Nullable PrimaryTermAndGeneration latestCommitToCopy
+    ) throws IOException {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
 
@@ -1355,6 +1361,14 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
             var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
             for (BlobMetadata blob : blobs.values()) {
+                if (latestCommitToCopy != null
+                    && startsWithBlobPrefix(blob.name())
+                    && new PrimaryTermAndGeneration(blobContainerWithTerm.v1(), parseGenerationFromBlobName(blob.name())).after(
+                        latestCommitToCopy
+                    )) {
+                    logger.debug("CopyShard skipping {} as it was uploaded after {}", blob.name(), latestCommitToCopy);
+                    continue;
+                }
                 tasks.add(new BlobCopyTask(sourceContainerForTerm, destinationContainerForTerm, blob));
             }
         }

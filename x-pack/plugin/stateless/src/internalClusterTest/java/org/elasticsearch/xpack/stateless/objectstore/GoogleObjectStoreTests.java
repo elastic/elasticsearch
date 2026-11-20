@@ -181,7 +181,7 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
                 .writeBlob(OperationPurpose.INDICES, "commit-1", blobData, true);
 
             final var task = new CancellableTask(1L, "test", "copyShard", "", TaskId.EMPTY_TASK_ID, Map.of());
-            objectStoreService.copyShard(task, sourceShardId, destShardId, primaryTerm);
+            objectStoreService.copyShard(task, sourceShardId, destShardId, primaryTerm, null);
 
             try (
                 var is = objectStoreService.getProjectBlobContainer(destShardId, primaryTerm).readBlob(OperationPurpose.INDICES, "commit-1")

@@ -72,6 +72,7 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - ES|QL CSV tests: `./gradlew ":x-pack:plugin:esql:internalClusterTest" --tests "org.elasticsearch.xpack.esql.CsvIT.*<csv-file>*"` (e.g. `--tests "...CsvIT.*stats_first_last*"`); append `*<test-name>*` to target a single test within the file.
 - Use the Elasticsearch testing framework where possible for unit and yaml tests and be consistent in style with other elasticsearch tests.
 - Use real classes over mocks or stubs for unit tests, unless the real class is complex then either a simplified subclass should be created within the test or, as a last resort, a mock or stub can be used. Unit tests must be as close to real-world scenarios as possible.
+- When a mock or stub is genuinely needed, prefer the standard mocking framework (Mockito) over hand-rolled `java.lang.reflect.Proxy`/`InvocationHandler` doubles. Mockito is idiomatic across the repo, more readable, and immediately recognizable to reviewers; bespoke proxy handlers obscure intent and duplicate framework behaviour. Reserve a hand-written double only for a case Mockito genuinely cannot express, and document why.
 - Ensure mocks or stubs are well-documented and clearly indicate why they were necessary.
 
 ### Test Types

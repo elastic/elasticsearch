@@ -230,12 +230,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         record FailureReported(ShardRouting routing, long primaryTerm, ShardFailureType failureType) implements PendingAllocationState {}
     }
 
+    /// Keyed by allocation id (not just ShardId) so a new allocation of a shard can never collide with, or
+    /// be confused for, bookkeeping left behind by a previous allocation of the same shard. The primary term
+    /// lives in the value, not the key, so it can differentiate creation attempts that don't change
+    /// allocation id (e.g. a primary reassigned with the same allocation id after a recovery failed, or a
+    /// restore from snapshot that reused allocation id).
     // Visible for tests
-    // Keyed by allocation id (not just ShardId) so a new allocation of a shard can never collide with, or
-    // be confused for, bookkeeping left behind by a previous allocation of the same shard. The primary term
-    // lives in the value, not the key, so it can differentiate creation attempts that don't change
-    // allocation id (e.g. a primary reassigned with the same allocation id after a recovery failed, or a
-    // restore from snapshot that reused allocation id).
     final ConcurrentMap<ShardAllocationKey, PendingAllocationState> pendingAllocationStates = ConcurrentCollections.newConcurrentMap();
 
     /// Whether this shard has any pending allocation state (a recovery attempt in flight, awaiting local

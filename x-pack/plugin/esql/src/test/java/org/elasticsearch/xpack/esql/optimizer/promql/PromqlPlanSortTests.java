@@ -59,8 +59,14 @@ public class PromqlPlanSortTests extends AbstractPromqlPlanOptimizerTests {
     public void testInstantSortBelowValuePreservingStepsInjectsOrderBy() {
         for (String query : List.of(
             "label_replace(sort(sum by (cluster) (network.bytes_in)), \"dst\", \"$1\", \"cluster\", \"(.*)\")",
-            "sort(network.bytes_in) > 100"
+            "sort(network.bytes_in) > 100",
+            "100 < sort_desc(network.bytes_in)",
+            "sort(network.bytes_in) > network.cost"
         )) {
+            if (query.endsWith("network.cost") && containerFunctions() == false) {
+                // two vectors compare as a join, which takes the label container functions
+                continue;
+            }
             assertEquals(query, 1, planInstant(query).collect(OrderBy.class).size());
         }
     }

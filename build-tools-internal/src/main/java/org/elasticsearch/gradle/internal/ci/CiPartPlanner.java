@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,6 +41,11 @@ import java.util.TreeSet;
  * keeps test tasks that must not share a part apart regardless of durations, and the shards of a split test
  * task go to different parts while there are parts left, since a task is split so that its shards run in parallel.
  *
+ * <p>The planner also decides which test tasks to split and into how many shards, from the durations of the items
+ * a task can be split by (its test classes or YAML files, see {@link Durations#items()}): the fewest shards whose
+ * longest one, fixed cost included, fits {@link Config#shardTargetSeconds()}. Shards are estimated with the same
+ * {@link CiShards} buckets the build uses to pick a shard's items, so one long item is never spread thin.
+ *
  * <p>The result depends only on the inputs: units are visited in a fixed order and ties broken by part number.
  */
 public final class CiPartPlanner {
@@ -51,7 +57,7 @@ public final class CiPartPlanner {
      *
      * @param parts        number of CI parts
      * @param workers      effective parallel test tasks per CI part (calibrated from CI timelines)
-     * @param splits       test tasks that run as several shards
+     * @param pinnedSplits test tasks that always run as these shards, whatever their durations
      * @param antiAffinity groups of test task paths that must run in different parts
      * @param runFirstSeconds test tasks whose work in one part takes at least this long are listed in
      *                        {@link CiPartAssignment#runFirst()}; 0 lists none
@@ -59,59 +65,103 @@ public final class CiPartPlanner {
      *                        limit beyond {@code workers}
      * @param shardOverheadSeconds the fixed cost of one execution of a split test task, for tasks without a measured
      *                             one in {@link Durations#overheads()}
+     * @param shardTargetSeconds   the longest a shard of a split test task should take, fixed cost included; test tasks
+     *                             with {@link Durations#items()} are split into the fewest shards that fit it. 0 splits
+     *                             only the pinned tasks
+     * @param maxShards            the most shards the planner splits a test task into
+     * @param neverSplit           test tasks the planner must not split (for example one whose items are not all run
+     *                             by CI)
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Config(
         @JsonProperty("parts") int parts,
         @JsonProperty("workers") int workers,
-        @JsonProperty("splits") Map<String, CiPartAssignment.Split> splits,
+        @JsonProperty("pinnedSplits") Map<String, CiPartAssignment.Split> pinnedSplits,
         @JsonProperty("antiAffinity") List<List<String>> antiAffinity,
         @JsonProperty("runFirstSeconds") int runFirstSeconds,
         @JsonProperty("heavyTestLimit") int heavyTestLimit,
-        @JsonProperty("shardOverheadSeconds") int shardOverheadSeconds
+        @JsonProperty("shardOverheadSeconds") int shardOverheadSeconds,
+        @JsonProperty("shardTargetSeconds") int shardTargetSeconds,
+        @JsonProperty("maxShards") int maxShards,
+        @JsonProperty("neverSplit") List<String> neverSplit
     ) {
+        static final int DEFAULT_MAX_SHARDS = 8;
+
         public Config {
             if (parts < 1 || workers < 1) {
                 throw new IllegalArgumentException("parts and workers must be positive");
             }
-            if (runFirstSeconds < 0 || heavyTestLimit < 0 || shardOverheadSeconds < 0) {
-                throw new IllegalArgumentException("runFirstSeconds, heavyTestLimit and shardOverheadSeconds must not be negative");
+            if (runFirstSeconds < 0 || heavyTestLimit < 0 || shardOverheadSeconds < 0 || shardTargetSeconds < 0 || maxShards < 0) {
+                throw new IllegalArgumentException(
+                    "runFirstSeconds, heavyTestLimit, shardOverheadSeconds, shardTargetSeconds and maxShards must not be negative"
+                );
             }
-            splits = splits == null ? Map.of() : splits;
+            pinnedSplits = pinnedSplits == null ? Map.of() : pinnedSplits;
             antiAffinity = antiAffinity == null ? List.of() : antiAffinity;
+            maxShards = maxShards == 0 ? DEFAULT_MAX_SHARDS : maxShards;
+            neverSplit = neverSplit == null ? List.of() : neverSplit;
         }
 
-        public Config(int parts, int workers, Map<String, CiPartAssignment.Split> splits, List<List<String>> antiAffinity) {
-            this(parts, workers, splits, antiAffinity, 0, 0, 0);
+        public Config(
+            int parts,
+            int workers,
+            Map<String, CiPartAssignment.Split> pinnedSplits,
+            List<List<String>> antiAffinity,
+            int runFirstSeconds,
+            int heavyTestLimit,
+            int shardOverheadSeconds
+        ) {
+            this(parts, workers, pinnedSplits, antiAffinity, runFirstSeconds, heavyTestLimit, shardOverheadSeconds, 0, 0, List.of());
+        }
+
+        public Config(int parts, int workers, Map<String, CiPartAssignment.Split> pinnedSplits, List<List<String>> antiAffinity) {
+            this(parts, workers, pinnedSplits, antiAffinity, 0, 0, 0);
         }
     }
 
     /**
-     * Median executed durations in seconds ({@code .ci/test-parts/durations.json}).
+     * Median executed durations in seconds ({@code .ci/test-parts/durations.json}), exported from CI by
+     * {@code .buildkite/scripts/ci-parts/export.ts}. Only measured values: shard estimates are derived here.
      *
      * @param tests     test task path to the duration of one execution of the whole task
-     * @param shards    optional estimate per shard of a split test task ({@code <task path>#<shard>}) of its work,
-     *                  without the task's fixed cost; shards without one get an even share of the task's work
      * @param projects  project path to the summed duration of its non-test tasks, without the ones its tests depend
      *                  on (compilation, jars), which every part running one of its test tasks runs anyway
      * @param overheads optional measured fixed cost of one execution of a test task, paid again by every shard
+     * @param items     for test tasks that could be split, the duration of each item a shard would run: top-level test
+     *                  classes, or the YAML files of a single YAML suite
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Durations(
         @JsonProperty("tests") Map<String, Double> tests,
-        @JsonProperty("shards") Map<String, Double> shards,
         @JsonProperty("projects") Map<String, Double> projects,
-        @JsonProperty("overheads") Map<String, Double> overheads
+        @JsonProperty("overheads") Map<String, Double> overheads,
+        @JsonProperty("items") Map<String, Items> items
     ) {
         public Durations {
             tests = tests == null ? Map.of() : tests;
-            shards = shards == null ? Map.of() : shards;
             projects = projects == null ? Map.of() : projects;
             overheads = overheads == null ? Map.of() : overheads;
+            items = items == null ? Map.of() : items;
         }
 
-        public Durations(Map<String, Double> tests, Map<String, Double> shards, Map<String, Double> projects) {
-            this(tests, shards, projects, Map.of());
+        public Durations(Map<String, Double> tests, Map<String, Double> projects) {
+            this(tests, projects, Map.of(), Map.of());
+        }
+    }
+
+    /**
+     * The durations of the items a test task's shards would run.
+     *
+     * @param by      what the items are, which is also how the task would be split
+     * @param seconds item name (a top-level class name, or a YAML suite path {@code <api>/<file name>}) to duration
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Items(@JsonProperty("by") CiPartAssignment.SplitBy by, @JsonProperty("seconds") Map<String, Double> seconds) {
+        public Items {
+            if (by == null) {
+                throw new IllegalArgumentException("items need a 'by' mode");
+            }
+            seconds = seconds == null ? Map.of() : seconds;
         }
     }
 
@@ -196,6 +246,7 @@ public final class CiPartPlanner {
     }
 
     public static CiPartAssignment plan(Config config, Durations durations) {
+        Map<String, CiPartAssignment.Split> splits = splits(config, durations);
         Parts parts = new Parts(config);
         Map<String, Set<String>> antiAffinity = antiAffinityIndex(config.antiAffinity());
         Map<String, Integer> placedTasks = new HashMap<>();
@@ -204,7 +255,7 @@ public final class CiPartPlanner {
         // the part holding each project's heaviest test unit; its non-test work goes there too when that is free
         Map<String, Integer> heaviestTestPart = new HashMap<>();
 
-        for (Unit unit : testUnits(config, durations)) {
+        for (Unit unit : testUnits(splits, config, durations)) {
             String taskPath = unit.taskPath();
             Set<Integer> forbidden = new HashSet<>();
             for (String other : antiAffinity.getOrDefault(taskPath, Set.of())) {
@@ -232,7 +283,90 @@ public final class CiPartPlanner {
             parts.place(unit, part);
             projects.put(unit.key(), part + 1);
         }
-        return new CiPartAssignment(config.parts(), config.splits(), tests, projects, runFirst(parts.chains, config.runFirstSeconds()));
+        return new CiPartAssignment(config.parts(), splits, tests, projects, runFirst(parts.chains, config.runFirstSeconds()));
+    }
+
+    /**
+     * How every split test task is split: the pinned ones as configured, and each other task with item durations into
+     * the fewest shards whose longest one, fixed cost included, fits {@link Config#shardTargetSeconds()}. When no count
+     * up to {@link Config#maxShards()} fits (one item alone is too long), the count with the shortest longest shard wins,
+     * the fewest shards on a tie. A task that fits as a whole is not split.
+     */
+    static Map<String, CiPartAssignment.Split> splits(Config config, Durations durations) {
+        Map<String, CiPartAssignment.Split> splits = new TreeMap<>(config.pinnedSplits());
+        if (config.shardTargetSeconds() == 0) {
+            return splits;
+        }
+        Set<String> neverSplit = new HashSet<>(config.neverSplit());
+        for (Map.Entry<String, Items> e : new TreeMap<>(durations.items()).entrySet()) {
+            String taskPath = e.getKey();
+            Double seconds = durations.tests().get(taskPath);
+            if (seconds == null || splits.containsKey(taskPath) || neverSplit.contains(taskPath)) {
+                continue;
+            }
+            int count = shardCount(taskPath, seconds, e.getValue(), config, durations);
+            if (count > 1) {
+                splits.put(taskPath, new CiPartAssignment.Split(count, e.getValue().by()));
+            }
+        }
+        return splits;
+    }
+
+    private static int shardCount(String taskPath, double seconds, Items items, Config config, Durations durations) {
+        double overhead = overhead(taskPath, seconds, config, durations);
+        double work = work(seconds, overhead);
+        int best = 1;
+        long bestLongest = Long.MAX_VALUE;
+        for (int count = 1; count <= config.maxShards(); count++) {
+            double longest = overhead + Arrays.stream(shardWork(items, work, count)).max().orElse(0);
+            if (longest <= config.shardTargetSeconds()) {
+                return count;
+            }
+            if (Math.round(longest) < bestLongest) {
+                best = count;
+                bestLongest = Math.round(longest);
+            }
+        }
+        return best;
+    }
+
+    /** The fixed cost of one execution of a test task: measured if there is a measurement, else the configured default. */
+    private static double overhead(String taskPath, double seconds, Config config, Durations durations) {
+        return Math.min(seconds, durations.overheads().getOrDefault(taskPath, (double) config.shardOverheadSeconds()));
+    }
+
+    /**
+     * The work of a test task without its fixed cost. At least a fifth of the task, so that a fixed cost measured
+     * higher than it really is cannot make the task look free to split.
+     */
+    private static double work(double seconds, double overhead) {
+        return Math.max(seconds - overhead, 0.2 * seconds);
+    }
+
+    /**
+     * The estimated work of each shard when {@code items} are split into {@code count} shards by the same buckets the
+     * build uses: each shard's share of the task's work by its items' durations, and at least its longest item, since
+     * one long class or file cannot be spread over shards.
+     */
+    static double[] shardWork(Items items, double work, int count) {
+        double[] shards = new double[count];
+        if (count == 1) {
+            shards[0] = work;
+            return shards;
+        }
+        double[] sum = new double[count];
+        double[] longest = new double[count];
+        double total = 0;
+        for (Map.Entry<String, Double> item : new TreeMap<>(items.seconds()).entrySet()) {
+            int shard = CiShards.bucket(item.getKey(), count);
+            sum[shard] += item.getValue();
+            longest[shard] = Math.max(longest[shard], item.getValue());
+            total += item.getValue();
+        }
+        for (int shard = 0; shard < count; shard++) {
+            shards[shard] = total > 0 ? Math.max(work * sum[shard] / total, longest[shard]) : work / count;
+        }
+        return shards;
     }
 
     /** Test tasks whose work in their part takes at least {@code minSeconds}, longest first. */
@@ -259,7 +393,7 @@ public final class CiPartPlanner {
      */
     public static double[] estimatedMinutes(CiPartAssignment assignment, Config config, Durations durations) {
         Parts parts = new Parts(config);
-        for (Unit unit : testUnits(config, durations)) {
+        for (Unit unit : testUnits(assignment.splits(), config, durations)) {
             int part = unit.shard() < 0 ? assignment.partOfTest(unit.taskPath()) : assignment.partOfShard(unit.taskPath(), unit.shard());
             parts.place(unit, part - 1);
         }
@@ -273,24 +407,24 @@ public final class CiPartPlanner {
         return minutes;
     }
 
-    private static List<Unit> testUnits(Config config, Durations durations) {
+    private static List<Unit> testUnits(Map<String, CiPartAssignment.Split> splits, Config config, Durations durations) {
         List<Unit> units = new ArrayList<>();
         for (Map.Entry<String, Double> e : durations.tests().entrySet()) {
             String taskPath = e.getKey();
-            CiPartAssignment.Split split = config.splits().get(taskPath);
+            CiPartAssignment.Split split = splits.get(taskPath);
             if (split == null) {
                 units.add(new Unit(taskPath, taskPath, -1, projectOf(taskPath), e.getValue()));
             } else {
-                double overhead = Math.min(
-                    e.getValue(),
-                    durations.overheads().getOrDefault(taskPath, (double) config.shardOverheadSeconds())
-                );
+                double overhead = overhead(taskPath, e.getValue(), config, durations);
+                double work = work(e.getValue(), overhead);
+                // estimates from the items' durations beat an even share, since one long class or file can dominate a
+                // shard; either way every shard pays the fixed cost
+                Items items = durations.items().get(taskPath);
+                double[] shardWork = items != null && items.by() == split.by() ? shardWork(items, work, split.count()) : null;
                 for (int shard = 0; shard < split.count(); shard++) {
                     String key = CiPartAssignment.shardKey(taskPath, shard);
-                    // a shard's own estimate (from per-class or per-file durations) beats an even share, since one
-                    // long class or file can dominate a shard; either way every shard pays the fixed cost
-                    double work = durations.shards().getOrDefault(key, (e.getValue() - overhead) / split.count());
-                    units.add(new Unit(key, taskPath, shard, projectOf(taskPath), work + overhead));
+                    double seconds = shardWork != null ? shardWork[shard] : work / split.count();
+                    units.add(new Unit(key, taskPath, shard, projectOf(taskPath), seconds + overhead));
                 }
             }
         }

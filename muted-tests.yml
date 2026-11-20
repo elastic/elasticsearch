@@ -839,3 +839,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithoutPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/166894
+- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166909

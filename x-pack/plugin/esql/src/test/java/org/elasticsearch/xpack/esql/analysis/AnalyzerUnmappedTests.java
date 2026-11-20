@@ -19,11 +19,15 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -84,6 +88,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -2464,6 +2469,30 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
      * PROMQL is rewritten into a TS aggregate before verification, so LOAD_ALL rejects it via the shared load-mode check - which names
      * the mode the user asked for - as well as via the allow-list.
      */
+    /**
+     * With two groupings of the same name the last wins, and the aggregates refer to it. When the last is an unmapped field, which is
+     * not resolved until the unmapped fields are, the aggregates used to bind to the first one, that the aggregate then drops.
+     */
+    public void testStatsGroupingTwiceByTheSameNameResolvesToTheLastWhenItIsUnmapped() {
+        for (String mode : new String[] { "nullify", "load" }) {
+            LogicalPlan plan = test().statement(
+                "SET unmapped_fields=\"" + mode + "\"; FROM test | STATS x = MAX(emp_no), y = COUNT(x) BY x = emp_no, x = does_not_exist"
+            );
+            Aggregate aggregate = as(plan.collect(Aggregate.class).getFirst(), Aggregate.class);
+            NameId last = as(aggregate.groupings().get(1), Alias.class).id();
+            List<NameId> referenced = new ArrayList<>();
+            for (NamedExpression expression : aggregate.aggregates()) {
+                expression.forEachDown(ReferenceAttribute.class, reference -> {
+                    if (reference.name().equals("x")) {
+                        referenced.add(reference.id());
+                    }
+                });
+            }
+            assertThat(mode, referenced.isEmpty(), is(false));
+            assertThat(mode, referenced, everyItem(equalTo(last)));
+        }
+    }
+
     public void testLoadAllModeRejectsPromQl() {
         test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
             .statementError(

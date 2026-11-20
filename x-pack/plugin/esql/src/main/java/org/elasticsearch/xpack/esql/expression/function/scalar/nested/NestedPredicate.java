@@ -23,6 +23,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -70,7 +72,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         List<String> relativePaths,
         Configuration configuration
     ) {
-        super(source, List.of(), configuration);
+        super(source, List.of(body), configuration);
         this.path = path;
         this.body = body;
         this.inputs = List.copyOf(inputs);
@@ -86,6 +88,13 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             in.readStringCollectionAsList(),
             ((PlanStreamInput) in).configuration()
         );
+    }
+
+    /** Whether any expression of this node, not of its children, is a {@link NestedPredicate}. */
+    public static boolean usedBy(QueryPlan<?> plan) {
+        boolean[] found = { false };
+        plan.forEachExpression(NestedPredicate.class, predicate -> found[0] = true);
+        return found[0];
     }
 
     public static void checkVersion(StreamOutput out) throws IOException {
@@ -152,7 +161,13 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     @Override
     public NestedPredicate replaceChildren(List<Expression> newChildren) {
-        return this;
+        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths, configuration());
+    }
+
+    /** The inputs are loaded from the child documents by {@link NestedChildren}, so they are not columns of the parent row. */
+    @Override
+    public AttributeSet references() {
+        return body.references().subtract(AttributeSet.of(inputs));
     }
 
     @Override
@@ -256,8 +271,9 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             try {
                 values = predicate.eval(fields);
                 for (int c = 0; c < values.getPositionCount(); c++) {
-                    if (values.getValueCount(c) > 1) {
-                        throw new IllegalArgumentException("NESTED_ANY requires a scalar predicate result per child");
+                    // As for a WHERE, a null or multivalued result is like false
+                    if (values.getValueCount(c) != 1) {
+                        continue;
                     }
                     boolean childMatched = Boolean.TRUE.equals(BlockUtils.toJavaObject(values, c));
                     matched[parents.getInt(c)] |= childMatched;

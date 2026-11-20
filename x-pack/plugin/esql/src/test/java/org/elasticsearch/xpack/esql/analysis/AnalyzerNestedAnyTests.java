@@ -113,7 +113,7 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
     public void testNonBooleanBodyIsRejected() {
         nestedAnalyzer().error(
             "FROM ne | EVAL x = NESTED_ANY(items.qty) | KEEP id, x",
-            containsString("NESTED_ANY requires a predicate, not [items.qty]")
+            containsString("first argument of [NESTED_ANY(items.qty)] must be [boolean], found value [items.qty] type [long]")
         );
     }
 

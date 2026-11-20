@@ -17,10 +17,16 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
 
 /**
  * True when a predicate holds for at least one of a parent's nested objects. Analysis lowers it to
@@ -90,8 +96,15 @@ public final class NestedAny extends Function implements OptionalArgument {
         if (children().size() > 2) {
             return new TypeResolution("NESTED_ANY takes a predicate, or a collection and a predicate");
         }
-        if (body().dataType() != DataType.BOOLEAN) {
-            return new TypeResolution("NESTED_ANY requires a predicate, not [" + body().sourceText() + "]");
+        TypeResolution predicate = isBoolean(body(), sourceText(), collection() == null ? FIRST : SECOND);
+        if (predicate.unresolved()) {
+            return predicate;
+        }
+        if (body().anyMatch(e -> e instanceof NestedAny || e instanceof NestedPredicate || e instanceof FullTextFunction)) {
+            return new TypeResolution("NESTED_ANY does not allow inner scopes or full-text functions");
+        }
+        if (body().anyMatch(AggregateFunction.class::isInstance)) {
+            return new TypeResolution("NESTED_ANY takes a predicate; use NESTED for a reduction such as SUM");
         }
         return TypeResolution.TYPE_RESOLVED;
     }

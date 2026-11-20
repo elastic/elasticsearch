@@ -996,7 +996,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            if (plan.anyMatch(NestedExpand.class::isInstance) == false && usesNestedPredicate(plan) == false) {
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false && plan.anyMatch(NestedPredicate::usedBy) == false) {
                 return plan;
             }
             return plan.transformUp(EsRelation.class, relation -> {
@@ -1007,12 +1007,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static boolean isNestedScope(Attribute attribute) {
             return attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField;
-        }
-
-        private static boolean usesNestedPredicate(LogicalPlan plan) {
-            boolean[] found = { false };
-            plan.forEachExpressionDown(NestedPredicate.class, predicate -> found[0] = true);
-            return found[0];
         }
     }
 

@@ -40,7 +40,7 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
             PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
             return child == unary.child() ? plan : unary.replaceChild(child);
         }
-        if (plan instanceof UnaryExec unary && usesNestedPredicate(unary)) {
+        if (plan instanceof UnaryExec unary && NestedPredicate.usedBy(unary)) {
             PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
             if (child == unary.child()) {
                 return plan;
@@ -59,12 +59,6 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
             return new ProjectExec(replaced.source(), replaced, projections);
         }
         return plan;
-    }
-
-    private static boolean usesNestedPredicate(PhysicalPlan plan) {
-        boolean[] found = { false };
-        plan.forEachExpression(NestedPredicate.class, predicate -> found[0] = true);
-        return found[0];
     }
 
     /**

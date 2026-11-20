@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.common.Failure;
-import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -23,8 +22,6 @@ import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -73,10 +70,11 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 return p;
             }
             LogicalPlan input = p.children().getFirst();
-            return p.transformExpressionsOnlyUp(
-                NestedAny.class,
-                any -> any.anyMatch(UnsupportedAttribute.class::isInstance) ? any : bind(any, input, context.configuration())
-            );
+            return p.transformExpressionsOnlyUp(NestedAny.class, any -> {
+                // An aggregate drops the nested documents before the fields can be bound, so report that first.
+                checkReadsIndexRows(input, any);
+                return any.resolved() ? bind(any, input, context.configuration()) : any;
+            });
         });
     }
 
@@ -87,21 +85,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
     }
 
     private static Expression bind(NestedAny nested, LogicalPlan input, Configuration configuration) {
-        if (nested.children().size() > 2) {
-            throw error(nested, "NESTED_ANY takes a predicate, or a collection and a predicate");
-        }
         Expression body = nested.body();
-        if (body.anyMatch(e -> e instanceof NestedAny || e instanceof NestedPredicate || e instanceof FullTextFunction)) {
-            throw error(nested, "NESTED_ANY does not allow inner scopes or full-text functions");
-        }
-        if (body.anyMatch(AggregateFunction.class::isInstance)) {
-            throw error(nested, "NESTED_ANY takes a predicate; use NESTED for a reduction such as SUM");
-        }
-        if (body.dataType() != DataType.BOOLEAN) {
-            throw error(nested, "NESTED_ANY requires a predicate, not [" + body.sourceText() + "]");
-        }
-        // An aggregate drops the nested documents before the fields can be bound, so report that first.
-        checkReadsIndexRows(input, nested);
         String collection = collection(nested, input);
         List<Attribute> output = input.output();
         Map<String, FieldAttribute> schema = new HashMap<>();
@@ -177,11 +161,6 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 replacement.put(attribute.id(), ref);
             }
         }
-        body.forEachUp(e -> {
-            if (e instanceof Unresolvable == false && e.childrenResolved() && e.typeResolved().unresolved()) {
-                throw error(e, e.typeResolved().message());
-            }
-        });
         Expression bound = body.transformUp(Attribute.class, attribute -> replacement.getOrDefault(attribute.id(), attribute));
         return new NestedPredicate(nested.source(), path, bound, channels, paths, configuration);
     }
@@ -229,9 +208,9 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 }
                 return new FieldAttribute(
                     attribute.source(),
-                    field.parentName(),
-                    null,
                     field.name(),
+                    null,
+                    attribute.name(),
                     field.field(),
                     field.nullable(),
                     field.id(),
@@ -316,10 +295,11 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
      * one, the schema attribute named by its parent. {@code null} for a name outside the nested scope.
      */
     private static FieldAttribute schemaOf(FieldAttribute field, Map<String, FieldAttribute> schema) {
-        if (field.field() instanceof NestedScopeField) {
-            return field;
+        FieldAttribute named = field.parentName() == null ? null : schema.get(field.parentName());
+        if (named != null) {
+            return named;
         }
-        return field.parentName() == null ? null : schema.get(field.parentName());
+        return field.field() instanceof NestedScopeField ? field : null;
     }
 
     /** Whether the attribute reads a child of a nested collection through the private schema. */

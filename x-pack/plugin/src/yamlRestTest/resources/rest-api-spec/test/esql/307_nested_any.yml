@@ -127,7 +127,7 @@ setup:
 ---
 "NESTED_ANY rejects a non-boolean":
   - do:
-      catch: /NESTED_ANY requires a predicate/
+      catch: /first argument of \[NESTED_ANY\(items.qty\)\] must be \[boolean\], found value \[items.qty\] type \[long\]/
       esql.query:
         body:
           query: 'FROM nested_any | EVAL x = NESTED_ANY(items.qty) | KEEP id, x'

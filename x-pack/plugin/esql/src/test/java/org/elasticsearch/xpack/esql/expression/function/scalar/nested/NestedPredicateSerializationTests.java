@@ -77,7 +77,7 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         SerializationTestUtils.assertSerialization(analyzedPredicate("FROM ne | EVAL hit = NESTED_ANY(items, true) | LIMIT 10"));
     }
 
-    private static NestedPredicate analyzedPredicate(String query) {
+    static NestedPredicate analyzedPredicate(String query) {
         assumeTrue("NESTED_ANY is snapshot-only", Build.current().isSnapshot());
         assumeTrue("NESTED_EXPAND is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
         List<NestedPredicate> found = new ArrayList<>();

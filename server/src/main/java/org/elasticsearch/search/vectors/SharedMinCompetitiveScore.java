@@ -44,13 +44,13 @@ public final class SharedMinCompetitiveScore {
      * a no-op on a {@link #readOnly()} view.
      * <p>
      * Collectors skip candidates that do not score strictly above the bound, so the stored bound is one ulp below the
-     * published score, with the least competitive doc id in place of the segment-local one, to keep candidates that tie it.
+     * published score, with no segment-local doc id, to keep candidates that tie it.
      */
     void publish(long minCompetitiveDocScore) {
         if (canPublish == false) {
             return;
         }
-        long bound = NeighborQueue.encodeRaw(Integer.MAX_VALUE, Math.nextDown(NeighborQueue.decodeScoreRaw(minCompetitiveDocScore)));
+        long bound = NeighborQueue.encodeLeastCompetitive(Math.nextDown(NeighborQueue.decodeScoreRaw(minCompetitiveDocScore)));
         if (bound > value.get()) {
             value.accumulateAndGet(bound, Math::max);
         }

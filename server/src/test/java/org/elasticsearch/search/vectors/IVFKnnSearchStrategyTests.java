@@ -94,6 +94,6 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
 
     /** The encoded bound {@link SharedMinCompetitiveScore#get()} returns once {@code score} is the shared score. */
     static long sharedBound(float score) {
-        return NeighborQueue.encodeRaw(Integer.MAX_VALUE, Math.nextDown(score));
+        return NeighborQueue.encodeLeastCompetitive(Math.nextDown(score));
     }
 }

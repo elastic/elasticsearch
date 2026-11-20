@@ -54,8 +54,17 @@ dependencies {
 sourceSets {
   integTest {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
-    runtimeClasspath += output + compileClasspath
+    // The integTest task gets the native libraries of the projects that the integTestRuntimeClasspath
+    // configuration depends on (see ElasticsearchJavaBasePlugin).
+    // Adding the dependencies to a plain file collection (e.g. `runtimeClasspath += ...`) won't work,
+    // as it would hide server and its native libraries.
+    runtimeClasspath = output + sourceSets["main"].output + configurations["integTestRuntimeClasspath"]
   }
+}
+
+configurations {
+  integTestImplementation.extendsFrom testImplementation
+  integTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 // log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former

@@ -298,8 +298,6 @@ public class CompositeRolesStore {
 
         final var cacheKey = new ProjectScoped<>(projectId, roleKey);
         final SubscribableListener<Role> newLookup = new SubscribableListener<>();
-        // Subscribed first so a failed lookup is evicted before any caller is notified, however it was completed.
-        newLookup.addListener(ActionListener.wrap(role -> {}, e -> invalidateRoleCache(cacheKey, newLookup)));
         final SubscribableListener<Role> sharedLookup;
         final InvalidationCounters invalidationCounters;
         try (ReleasableLock ignored = cacheUpdateLock.acquire()) {
@@ -328,7 +326,7 @@ public class CompositeRolesStore {
         // Detach the shared lookup from caller authentication while preserving project and tracing headers.
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             final ActionListener<Role> lookupResultListener = sharedLookup.delegateResponse((subscribers, e) -> {
-                // The superuser fallback completes successfully, so it is not covered by the failure listener on newLookup.
+                // Evict before notifying subscribers so a retry starts a fresh lookup instead of joining the failed one.
                 invalidateRoleCache(cacheKey, sharedLookup);
                 // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
                 // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a

@@ -93,6 +93,10 @@ public abstract class AbstractEsqlSpecExemplarsSmokeIT extends AbstractEsqlSpecI
             testCase.datasetSources.isEmpty() == false
         );
         CsvTestUtils.assumeTrueLogging("Only TS ... | STATS and PROMQL queries aggregate metrics", isMetricsQuery(testCase.query));
+        CsvTestUtils.assumeFalseLogging(
+            "The redirect to the exemplars fixture doesn't see a PROMQL index passed as a query parameter",
+            testCase.hasPromqlIndexParam()
+        );
     }
 
     /**
@@ -112,6 +116,9 @@ public abstract class AbstractEsqlSpecExemplarsSmokeIT extends AbstractEsqlSpecI
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values())).query(query)
             .settings("{\"exemplars\": " + exemplarsSetting + "}");
+        if (testCase.paramsJson() != null) {
+            builder.params(testCase.paramsJson());
+        }
         if (Strings.isNullOrEmpty(testCase.requestTimeRangeGte) == false) {
             // TSTEP and PROMQL range queries take their time range from the request filter
             String gte = testCase.requestTimeRangeGte;

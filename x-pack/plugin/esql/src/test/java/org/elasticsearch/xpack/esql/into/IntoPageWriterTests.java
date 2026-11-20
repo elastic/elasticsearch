@@ -506,9 +506,9 @@ public class IntoPageWriterTests extends ComputeTestCase {
         client.answer(CREATED);
         assertThat(writer.isBlocked(), equalTo(Operator.NOT_BLOCKED));
         assertThat(writerB.isBlocked(), equalTo(Operator.NOT_BLOCKED));
-        client.answer(CREATED);
-        client.answer(CREATED);
-        client.answer(CREATED);
+        while (client.bulks.isEmpty() == false) {
+            client.answer(CREATED);
+        }
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 

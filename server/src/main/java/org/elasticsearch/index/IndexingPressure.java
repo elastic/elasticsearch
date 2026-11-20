@@ -714,6 +714,15 @@ public class IndexingPressure implements IndexingPressureMonitor {
         return operationLimit;
     }
 
+    public long coordinatingLimit() {
+        return coordinatingLimit;
+    }
+
+    /** The bytes counted now in this node's coordinating, primary and replica operations. */
+    public long currentUsageInBytes() {
+        return currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get();
+    }
+
     public long splitBulkLowWatermark() {
         return lowWatermark;
     }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfBatchBuilder;
 import org.elasticsearch.escf.EscfRowBuffer;
@@ -272,29 +273,78 @@ public class EscfBulkWriterTests extends ESTestCase {
     }
 
     public void testDefaultPolicyFollowsIndexingPressure() {
-        assertThat(defaultPolicy("20mb", "4mb"), equalTo(new EscfBulkWriter.Policy(5, ONE_MB * 4)));
+        assertThat(defaultPolicy("20mb", "4mb", "1gb"), equalTo(new EscfBulkWriter.Policy(5, ONE_MB * 4, ONE_MB * 20)));
         // a large heap still keeps few bulks in flight until rejected bulks are retried
         assertThat(
-            defaultPolicy("2gb", "4mb"),
-            equalTo(new EscfBulkWriter.Policy(EscfBulkWriter.Policy.MAX_DEFAULT_BULKS_IN_FLIGHT, ONE_MB * 4))
+            defaultPolicy("2gb", "4mb", "8gb"),
+            equalTo(new EscfBulkWriter.Policy(EscfBulkWriter.Policy.MAX_DEFAULT_BULKS_IN_FLIGHT, ONE_MB * 4, ONE_MB * 2048))
         );
-        // a watermark below one batch still lets a bulk go
-        assertThat(defaultPolicy("1mb", "4mb"), equalTo(new EscfBulkWriter.Policy(1, ONE_MB * 4)));
+        // half the coordinating limit when it is below the watermark
+        assertThat(defaultPolicy("64mb", "4mb", "8mb"), equalTo(new EscfBulkWriter.Policy(1, ONE_MB * 4, ONE_MB * 4)));
+        // batches shrink to a budget below one batch
+        assertThat(defaultPolicy("1mb", "4mb", "1gb"), equalTo(new EscfBulkWriter.Policy(1, ONE_MB, ONE_MB)));
         // batches stay within what a writer may build
         assertThat(
-            defaultPolicy("1gb", "1gb"),
-            equalTo(new EscfBulkWriter.Policy(EscfBulkWriter.Policy.MAX_DEFAULT_BULKS_IN_FLIGHT, MAX_TARGET))
+            defaultPolicy("1gb", "1gb", "4gb"),
+            equalTo(new EscfBulkWriter.Policy(EscfBulkWriter.Policy.MAX_DEFAULT_BULKS_IN_FLIGHT, MAX_TARGET, ONE_MB * 1024))
         );
     }
 
-    private static EscfBulkWriter.Policy defaultPolicy(String lowWatermark, String lowWatermarkSize) {
+    private static EscfBulkWriter.Policy defaultPolicy(String lowWatermark, String lowWatermarkSize, String coordinatingLimit) {
         IndexingPressure pressure = new IndexingPressure(
             Settings.builder()
                 .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), lowWatermark)
                 .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), lowWatermarkSize)
+                .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), coordinatingLimit)
                 .build()
         );
         return new EscfBulkService(pressure, Runnable::run, BytesRefRecycler.NON_RECYCLING_INSTANCE).defaultPolicy();
+    }
+
+    public void testOpenBatchesCountTowardsTheNodeLimit() {
+        long oneRow;
+        EscfBulkService measure = service(UNBOUNDED);
+        try (EscfBulkWriter.Producer producer = writer(measure, new EscfBulkWriter.Policy(1, MAX_TARGET)).newProducer()) {
+            producer.add(page(0, 1), false);
+            oneRow = coordinatingBytes(measure);
+        }
+        answer();
+        EscfBulkService service = service(UNBOUNDED);
+        // free slots and batches that never fill: only the node's usage holds the producers
+        EscfBulkWriter writer = writer(service, new EscfBulkWriter.Policy(8, MAX_TARGET, 2 * oneRow + oneRow / 2));
+        List<EscfBulkWriter.Producer> producers = List.of(writer.newProducer(), writer.newProducer(), writer.newProducer());
+        for (int i = 0; i < producers.size(); i++) {
+            assertTrue(producers.get(i).hasCapacity());
+            producers.get(i).add(page(i, 1), false);
+        }
+        // the row that reached the limit sent the open batches
+        assertThat(client.bulks, hasSize(3));
+        assertThat(coordinatingBytes(service), equalTo(3 * oneRow));
+        for (EscfBulkWriter.Producer producer : producers) {
+            assertFalse(producer.hasCapacity());
+        }
+        // two rows are below the limit
+        answer();
+        assertTrue(producers.get(0).hasCapacity());
+        answer();
+        answer();
+        Releasables.close(producers);
+    }
+
+    public void testNodeUsageLeavesOneBulkInFlight() {
+        EscfBulkService service = service(UNBOUNDED);
+        EscfBulkWriter writer = writer(service, new EscfBulkWriter.Policy(8, MAX_TARGET, ONE_MB));
+        // other bulks of the node take the writer's share
+        Releasable others = service.indexingPressure().markCoordinatingOperationStarted(1, ONE_MB, true);
+        try (EscfBulkWriter.Producer producer = writer.newProducer()) {
+            assertTrue(producer.hasCapacity());
+            producer.add(page(0, 1), false);
+            assertThat(client.bulks, hasSize(1));
+            assertFalse(producer.hasCapacity());
+            answer();
+            assertTrue(producer.hasCapacity());
+        }
+        others.close();
     }
 
     public void testRowsGoToTheBatchInOrder() {

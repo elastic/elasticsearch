@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -94,18 +95,19 @@ class IntoTestUtils {
     }
 
     /** Bulks in flight in the default policy of {@link #bulks()}. */
-    static final int IN_FLIGHT = 3;
+    static final int IN_FLIGHT = EscfBulkWriter.Policy.MAX_DEFAULT_BULKS_IN_FLIGHT;
 
     /**
      * An {@link EscfBulkService} whose callbacks run on the calling thread, so {@code answer()} settles a writer before it returns.
-     * Its default policy takes {@link #IN_FLIGHT} bulks of {@link Operator#TARGET_PAGE_SIZE}, whatever the test heap.
+     * Its default policy takes {@link #IN_FLIGHT} bulks of {@link Operator#TARGET_PAGE_SIZE}, whatever the test heap, and the node's
+     * usage never holds it back.
      */
     static EscfBulkService bulks() {
         IndexingPressure pressure = new IndexingPressure(
             Settings.builder()
-                .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1gb")
+                .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "2gb")
                 .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), Operator.TARGET_PAGE_SIZE + "b")
-                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), (long) IN_FLIGHT * Operator.TARGET_PAGE_SIZE + "b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "1gb")
                 .build()
         );
         return new EscfBulkService(pressure, Runnable::run, mockBigArrays().bytesRefRecycler());

@@ -1,7 +1,7 @@
 // Query parameters with the value reserved to stand for "Any" (param_any_value, "__ANY__" by default).
 
 anyGroupKeyIsDropped
-required_capability: param_any_value_v2
+required_capability: param_any_value
 param: g = "__ANY__"
 FROM employees
 | STATS c = COUNT(*) BY ??g
@@ -12,7 +12,7 @@ c:long
 ;
 
 anyGroupKeyIsDroppedNextToAggregates
-required_capability: param_any_value_v2
+required_capability: param_any_value
 param: g = "__ANY__"
 FROM employees
 | WHERE emp_no < 10003
@@ -24,7 +24,7 @@ c:long | m:integer
 ;
 
 anyGroupKeyIsDroppedNextToAnotherKey
-required_capability: param_any_value_v2
+required_capability: param_any_value
 param: g = "__ANY__"
 FROM employees
 | WHERE emp_no < 10003
@@ -38,7 +38,7 @@ c:long | emp_no:integer
 ;
 
 anyIdentifierGroupKeyIsDropped
-required_capability: param_any_value_v2
+required_capability: param_any_value
 param: g = {"identifier": "__ANY__"}
 FROM employees
 | STATS c = COUNT(*) BY ?g
@@ -49,7 +49,7 @@ c:long
 ;
 
 anyGroupKeysAreAllDropped
-required_capability: param_any_value_v2
+required_capability: param_any_value
 param: g = "__ANY__"
 param: h = "__ANY__"
 FROM employees
@@ -61,7 +61,7 @@ c:long
 ;
 
 anyGroupKeyIsDroppedInInlineStats
-required_capability: param_any_value_v2
+required_capability: param_any_value
 required_capability: inline_stats
 param: g = "__ANY__"
 FROM employees
@@ -77,7 +77,7 @@ emp_no:integer | c:long
 ;
 
 groupKeyWithAnotherValueIsKept
-required_capability: param_any_value_v2
+required_capability: param_any_value
 param: g = "emp_no"
 FROM employees
 | WHERE emp_no < 10003
@@ -91,7 +91,7 @@ c:long | emp_no:integer
 ;
 
 literalWithTheReservedValueIsAnOrdinaryString
-required_capability: param_any_value_v2
+required_capability: param_any_value
 ROW a = "__ANY__"
 | STATS c = COUNT(*) BY a
 ;

@@ -5022,18 +5022,10 @@ public class EsqlCapabilities {
         FIX_TS_FIRST_LAST_SAMPLES,
 
         /**
-         * A query parameter with the value of the {@code param_any_value} setting (by default {@code "__ANY__"}) stands for "Any":
-         * it is recognized by the parser, and rejected with an error that says so, until later versions drop the part of the
-         * query that uses it or replace it with a condition that is always true. Snapshot-only while the setting is.
+         * The ES|QL "Any" controls: the {@code param_any_value} query setting, and the query parameters holding its value, which stand
+         * for "no filter on this". Snapshot-only for now: remove the snapshot check when the feature is released.
          */
-        PARAM_ANY_VALUE_V1(Build.current().isSnapshot()),
-
-        /**
-         * Adds to {@link #PARAM_ANY_VALUE_V1} that an unnamed {@code STATS ... BY ??g} key, or {@code BY ?g} with an identifier
-         * parameter, is dropped when the parameter stands for "Any" and the command keeps an aggregate or another key.
-         * Snapshot-only while the setting is.
-         */
-        PARAM_ANY_VALUE_V2(Build.current().isSnapshot()),
+        PARAM_ANY_VALUE(Build.current().isSnapshot()),
 
         /**
          * Adds to {@link #PARAM_ANY_VALUE_V2} that a condition that compares with a parameter that stands for "Any" is replaced

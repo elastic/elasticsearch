@@ -24,12 +24,18 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestMultiGetAction extends BaseRestHandler {
+    /**
+     * Capability advertising that the response includes the {@code _ignored} metadata field by default.
+     */
+    static final String IGNORED_META_FIELD_BY_DEFAULT_CAPABILITY = "ignored_meta_field_by_default";
+
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in multi get requests is deprecated.";
 
     private final boolean allowExplicitIndex;
@@ -53,6 +59,11 @@ public class RestMultiGetAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "document_mget_action";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(IGNORED_META_FIELD_BY_DEFAULT_CAPABILITY);
     }
 
     @Override

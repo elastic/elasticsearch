@@ -24,6 +24,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -32,6 +33,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAction extends BaseRestHandler {
+    /**
+     * Capability advertising that the response includes the {@code _ignored} metadata field by default.
+     */
+    static final String IGNORED_META_FIELD_BY_DEFAULT_CAPABILITY = "ignored_meta_field_by_default";
+
     @Override
     public String getName() {
         return "document_get_action";
@@ -45,6 +51,11 @@ public class RestGetAction extends BaseRestHandler {
             new Route(GET, "/{index}/{_slice}/_doc/{id}"),
             new Route(HEAD, "/{index}/{_slice}/_doc/{id}")
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of(IGNORED_META_FIELD_BY_DEFAULT_CAPABILITY);
     }
 
     @Override

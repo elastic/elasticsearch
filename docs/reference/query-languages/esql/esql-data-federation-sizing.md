@@ -111,11 +111,16 @@ Select a size per zone of twice the heap you need, then check its core count aga
 
 ### Sizing for {{es-serverless}} [sizing-serverless]
 
-On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores. The unit is the virtual compute unit, and the Search tier scales with your load, so the figures above do not translate directly.
+On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores, so you cannot apply the figures above directly. Capacity is managed for you and billed in [virtual compute units](docs-content://deploy-manage/cloud-organization/billing/elasticsearch-billing-dimensions.md#elasticsearch-billing-information-about-the-vcu-types-search-ingest-and-ml). A project scales on its own search load, and data federation is not sized separately from it.
 
-You can, however, set a floor under that scaling. [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus) stops the Search tier scaling below a value you choose, even while the project is idle, so capacity stays ready for the concurrency you expect. Raise it 30 to 60 minutes ahead of an expected increase in federated query load. You are billed for at least that many Search VCUs for as long as it is set, so lower it again once the load has passed.
+**To follow this guide on serverless, use an {{es-serverless}} project.** It is the only project type that lets you set a capacity floor, through [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus), which stops the Search tier scaling below a value you choose, even while the project is idle.
 
-If you set a high minimum, raise [Search Power](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#elasticsearch-manage-project-search-power-settings) alongside it, to make use of the capacity you have pre-scaled.
+Raise the minimum 30 to 60 minutes ahead of an expected increase in federated query load, and lower it afterwards, because you are billed for at least that many Search VCUs while it is set.
+
+You can run federated queries from the other project types as well, but with less control over the capacity they get:
+
+* In {{es}} {{vectordb}} projects, [Search Power](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#elasticsearch-manage-project-search-power-settings) reserves capacity rather than following query load, so a federated workload does not cause the project to scale.
+* In {{obs-serverless}} and {{sec-serverless}} projects, search capacity is sized from the volume of search-ready data rather than from query load, and there is no minimum to set.
 
 The guidance on [file layout](#file-layout) and on [specifying a mapping](#declare-schema) still applies, because both are properties of your data. The cluster settings named on this page are not available on serverless.
 

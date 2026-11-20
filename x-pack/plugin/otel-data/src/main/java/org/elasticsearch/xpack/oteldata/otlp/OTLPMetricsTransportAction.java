@@ -254,7 +254,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         // Collect the per-row IndexRequests locally; they are only added to the real bulkRequestBuilder
         // (and the batch only registered) once every group has been written successfully, so a mid-batch
         // failure leaves bulkRequestBuilder untouched and safe to replay via doc-mode.
-        int[] totalDataPoints = new int[1];
+        int[] totalDataPoints = new int[1]; // needs to be an object because we update it from the lambda expression below
         List<IndexRequest> indexRequests = new ArrayList<>();
         try (OTLPMetricBatchBuilder batchBuilder = new OTLPMetricBatchBuilder(bytesRefRecycler, defaultMappingHints)) {
             for (DataPointGroupingContext.ResourceGroup resourceGroup : resourceGroups) {

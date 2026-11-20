@@ -140,13 +140,17 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
             int resourceFillFrom = prepareFill();
             for (DataPointGroupingContext.ScopeGroup scopeGroup : resourceGroup.scopes()) {
                 int scopeFillFrom = prepareFill();
-                scopeGroup.forEach(dataPointGroup -> {
-                    int expectedSize = dataPointGroup.dataPoints().size();
-                    Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(expectedSize);
-                    Map<String, Map<String, String>> dynamicTemplateParams = Maps.newHashMapWithExpectedSize(expectedSize);
-                    writeRow(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
-                    rowConsumer.accept(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
-                });
+                for (var dpByTimestamp : scopeGroup.dataPointGroups().values()) {
+                    for (var dpByHash : dpByTimestamp.values()) {
+                        for (var dataPointGroup : dpByHash.values()) {
+                            int expectedSize = dataPointGroup.dataPoints().size();
+                            Map<String, String> dynamicTemplates = Maps.newHashMapWithExpectedSize(expectedSize);
+                            Map<String, Map<String, String>> dynamicTemplateParams = Maps.newHashMapWithExpectedSize(expectedSize);
+                            writeRow(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
+                            rowConsumer.accept(dataPointGroup, dynamicTemplates, dynamicTemplateParams);
+                        }
+                    }
+                }
                 fillScope(scopeGroup.scope(), scopeGroup.scopeSchemaUrl(), scopeFillFrom);
             }
             fillResource(resourceGroup.resource(), resourceGroup.resourceSchemaUrl(), resourceFillFrom);
@@ -180,7 +184,7 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
 
         writeDataStream(dataPointGroup.targetIndex());
         // datapoint attributes (top-level "attributes" object)
-        writeAttributes(attributesParentCol, dataPointGroup.dataPointAttributes(), -1);
+        writeAttributes(attributesParentCol, dataPointGroup.dataPointAttributes());
 
         String unit = dataPointGroup.unit();
         if (Strings.hasLength(unit)) {
@@ -234,7 +238,7 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         if (resource.getDroppedAttributesCount() > 0) {
             fillLong(resourceDroppedAttributesCountCol(), resource.getDroppedAttributesCount(), fillFrom);
         }
-        writeAttributes(resourceAttributesParentCol, resource.getAttributesList(), fillFrom);
+        fillAttributes(resourceAttributesParentCol, resource.getAttributesList(), fillFrom);
     }
 
     /** Writes the scope fields for every row committed since {@code fillFrom}. */
@@ -253,7 +257,7 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         if (scope.getDroppedAttributesCount() > 0) {
             fillLong(scopeDroppedAttributesCountCol(), scope.getDroppedAttributesCount(), fillFrom);
         }
-        writeAttributes(scopeAttributesParentCol, scope.getAttributesList(), fillFrom);
+        fillAttributes(scopeAttributesParentCol, scope.getAttributesList(), fillFrom);
     }
 
     private void writeDataStream(TargetIndex targetIndex) {
@@ -271,24 +275,18 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         }
     }
 
-    /**
-     * Writes {@code attributes} into the object at {@code parentIdx}: into the current row if {@code fillFrom} is
-     * {@code -1}, otherwise into every row committed since {@code fillFrom} (see {@link #prepareFill}).
-     */
-    private void writeAttributes(int parentIdx, List<KeyValue> attributes, int fillFrom) {
+    /** Writes {@code attributes} into the object at {@code parentIdx} of the current row. */
+    private void writeAttributes(int parentIdx, List<KeyValue> attributes) {
         for (int i = 0; i < attributes.size(); i++) {
             KeyValue kv = attributes.get(i);
             if (OTelDocumentBuilder.isIgnoredAttribute(kv.getKey()) == false) {
-                writeAttributeValue(parentIdx, kv.getKey(), kv.getValue(), fillFrom);
+                writeAttributeValue(parentIdx, kv.getKey(), kv.getValue());
             }
         }
     }
 
-    /**
-     * Writes attribute {@code key} into the object at {@code parentIdx} as a single leaf column: into the current row
-     * if {@code fillFrom} is {@code -1}, otherwise into every row committed since {@code fillFrom}.
-     */
-    private void writeAttributeValue(int parentIdx, String key, AnyValue value, int fillFrom) {
+    /** Writes attribute {@code key} into the object at {@code parentIdx} of the current row as a single leaf column. */
+    private void writeAttributeValue(int parentIdx, String key, AnyValue value) {
         // An unset value is dropped rather than registering a column: it contributes nothing to the tsid, creates
         // no mapping, and indexes no value, so the only trace it could leave is in a stored _source which we are not interested in
         if (value.getValueCase() == AnyValue.ValueCase.VALUE_NOT_SET) {
@@ -300,46 +298,51 @@ public final class OTLPMetricBatchBuilder extends AbstractOTLPBatchBuilder {
         // however it leaves the door open for SDKs to opt-in into allowing duplicate keys for e.g. performance reasons.
         // Backends in this case are free to do what they want, we took the "drop" approach here
         // See https://opentelemetry.io/docs/specs/otel/common/#attribute-collections
-        if (fillFrom == -1 ? hasValue(col) : isFilled(col, fillFrom)) {
+        if (hasValue(col)) {
             return;
         }
         switch (value.getValueCase()) {
-            case STRING_VALUE -> {
-                if (fillFrom == -1) {
-                    stringField(col, value.getStringValueBytes());
-                } else {
-                    fillString(col, value.getStringValueBytes(), fillFrom);
-                }
+            case STRING_VALUE -> stringField(col, value.getStringValueBytes());
+            case BOOL_VALUE -> booleanField(col, value.getBoolValue());
+            case INT_VALUE -> longField(col, value.getIntValue());
+            case DOUBLE_VALUE -> doubleField(col, value.getDoubleValue());
+            case ARRAY_VALUE -> arrayField(col, packArray(value.getArrayValue().getValuesList()));
+            case BYTES_VALUE, KVLIST_VALUE -> throw RowIneligibleException.INSTANCE;
+            case VALUE_NOT_SET -> throw new AssertionError("an unset value is dropped before a column is resolved");
+        }
+    }
+
+    /**
+     * Writes {@code attributes} into the object at {@code parentIdx} of every row committed since {@code fillFrom}
+     * (see {@link #prepareFill}).
+     */
+    private void fillAttributes(int parentIdx, List<KeyValue> attributes, int fillFrom) {
+        for (int i = 0; i < attributes.size(); i++) {
+            KeyValue kv = attributes.get(i);
+            if (OTelDocumentBuilder.isIgnoredAttribute(kv.getKey()) == false) {
+                fillAttributeValue(parentIdx, kv.getKey(), kv.getValue(), fillFrom);
             }
-            case BOOL_VALUE -> {
-                if (fillFrom == -1) {
-                    booleanField(col, value.getBoolValue());
-                } else {
-                    fillBoolean(col, value.getBoolValue(), fillFrom);
-                }
-            }
-            case INT_VALUE -> {
-                if (fillFrom == -1) {
-                    longField(col, value.getIntValue());
-                } else {
-                    fillLong(col, value.getIntValue(), fillFrom);
-                }
-            }
-            case DOUBLE_VALUE -> {
-                if (fillFrom == -1) {
-                    doubleField(col, value.getDoubleValue());
-                } else {
-                    fillDouble(col, value.getDoubleValue(), fillFrom);
-                }
-            }
-            case ARRAY_VALUE -> {
-                SourceBatchEncodeHelper.PackedArray array = packArray(value.getArrayValue().getValuesList());
-                if (fillFrom == -1) {
-                    arrayField(col, array);
-                } else {
-                    fillArray(col, array, fillFrom);
-                }
-            }
+        }
+    }
+
+    /**
+     * Writes attribute {@code key} into the object at {@code parentIdx} of every row committed since {@code fillFrom}
+     * as a single leaf column. Unset values and repeated keys are handled as in {@link #writeAttributeValue}.
+     */
+    private void fillAttributeValue(int parentIdx, String key, AnyValue value, int fillFrom) {
+        if (value.getValueCase() == AnyValue.ValueCase.VALUE_NOT_SET) {
+            return;
+        }
+        int col = leafField(key, parentIdx);
+        if (isFilled(col, fillFrom)) {
+            return;
+        }
+        switch (value.getValueCase()) {
+            case STRING_VALUE -> fillString(col, value.getStringValueBytes(), fillFrom);
+            case BOOL_VALUE -> fillBoolean(col, value.getBoolValue(), fillFrom);
+            case INT_VALUE -> fillLong(col, value.getIntValue(), fillFrom);
+            case DOUBLE_VALUE -> fillDouble(col, value.getDoubleValue(), fillFrom);
+            case ARRAY_VALUE -> fillArray(col, packArray(value.getArrayValue().getValuesList()), fillFrom);
             case BYTES_VALUE, KVLIST_VALUE -> throw RowIneligibleException.INSTANCE;
             case VALUE_NOT_SET -> throw new AssertionError("an unset value is dropped before a column is resolved");
         }

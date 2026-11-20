@@ -383,6 +383,10 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return scopeSchemaUrl;
         }
 
+        public Map<TargetIndex, Map<Hash128, Map<Hash128, DataPointGroup>>> dataPointGroups() {
+            return dataPointGroupsByIndexAndTimestamp;
+        }
+
         public <E extends Exception> void forEach(CheckedConsumer<DataPointGroup, E> consumer) throws E {
             for (var dataPointGroupsByTime : dataPointGroupsByIndexAndTimestamp.values()) {
                 for (var dataPointGroups : dataPointGroupsByTime.values()) {

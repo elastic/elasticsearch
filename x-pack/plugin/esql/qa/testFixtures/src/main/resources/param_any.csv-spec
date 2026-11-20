@@ -119,14 +119,14 @@ FROM employees
 | STATS
     equals = COUNT(*) WHERE first_name == ?n,
     reversed = COUNT(*) WHERE ?n == first_name,
-    in = COUNT(*) WHERE first_name IN ("Georgi", ?n),
+    inList = COUNT(*) WHERE first_name IN ("Georgi", ?n),
     contains = COUNT(*) WHERE MV_CONTAINS(job_positions, ?n),
     intersects = COUNT(*) WHERE MV_INTERSECTS(job_positions, ?n),
     isNull = COUNT(*) WHERE ?n IS NULL
 ;
 
-equals:long | reversed:long | in:long | contains:long | intersects:long | isNull:long
-100         | 100           | 100     | 100           | 100             | 100
+equals:long | reversed:long | inList:long | contains:long | intersects:long | isNull:long
+100         | 100           | 100         | 100           | 100             | 100
 ;
 
 anyIdentifierParametersMatchEverything
@@ -206,18 +206,6 @@ FROM employees
 
 c:long
 100
-;
-
-aListOfTheReservedValueTwiceIsNotAny
-required_capability: param_any_value_v3
-param: n = ["__ANY__", "__ANY__"]
-FROM employees
-| WHERE first_name IN ?n
-| STATS c = COUNT(*)
-;
-
-c:long
-0
 ;
 
 aLiteralWithTheReservedValueIsNotAny

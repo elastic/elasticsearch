@@ -311,9 +311,9 @@ public class MeteredInputStreamTests extends ESTestCase {
         }
     }
 
-    private static void assertAbortDuringRead(byte[] payload, int prefixLen, int parkedResult, boolean withOnAbort) throws Exception {
+    private void assertAbortDuringRead(byte[] payload, int prefixLen, int parkedResult, boolean withOnAbort) throws Exception {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
-        assertAbortDuringRead(payload, prefixLen, parkedResult, withOnAbort, true, registry);
+        assertAbortDuringRead(payload, prefixLen, parkedResult, withOnAbort, randomBoolean(), registry);
     }
 
     /**

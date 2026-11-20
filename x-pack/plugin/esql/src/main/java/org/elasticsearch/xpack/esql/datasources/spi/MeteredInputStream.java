@@ -27,8 +27,8 @@ import java.io.InputStream;
  * so cancel is not stuck behind the GET. Bytes the inner stream still delivers after that abort
  * are folded into the same remainder; profile {@code bytesRead} and APM
  * {@code storage.bytes_read.total} stay equal to bytes handed to the caller — no drop, no
- * double-count. A remainder APM event is emitted only when abort flushes before the last
- * {@code account}; otherwise there is a single publish of the stream total.
+ * double-count. Post-abort reads each emit their APM delta (the sum stays exact); otherwise
+ * there is a single publish of the stream total.
  * <p>
  * {@link #abort()} publishes the same delivered totals, then runs the optional {@code onAbort}
  * callback instead of {@link InputStream#close()}. S3 sets that callback so the HTTP connection is

@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VersionMode;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Systematic grid of unmapped_fields × join-key-mapping cases for LOOKUP JOIN.
@@ -105,5 +111,37 @@ public class AnalyzerUnmappedJoinKeyTests extends AnalyzerUnmappedTestBase {
                 setUnmappedLoad(lookupJoinQuery("languages_lookup", "does_not_exist")),
                 containsString("Unknown column [does_not_exist] in right side of join")
             );
+    }
+
+    // -------------------------------------------------------------------------
+    // Category 5: a join ON expression with an unmapped left key
+    // -------------------------------------------------------------------------
+
+    private static final String UNMAPPED_LEFT_KEY =
+        "FROM test | RENAME languages AS lang_left, does_not_exist AS name_left | LOOKUP JOIN languages_lookup ON ";
+
+    /**
+     * The parser puts both operands of every equality of a join ON expression in the left fields, as it cannot tell the sides apart. With
+     * an unmapped left key the join does not resolve before the unmapped fields do, and the right operand was loaded onto the left side
+     * as an unmapped field, which made the name ambiguous once the join resolved.
+     */
+    public void testExpressionJoinWithUnmappedLeftKeyDoesNotLoadTheRightOperand() {
+        for (String on : new String[] {
+            "name_left == language_name",
+            "lang_left == language_code AND name_left == language_name",
+            "lang_left == language_code AND name_left == language_name AND lang_left < language_code" }) {
+            for (String setting : new String[] {
+                setUnmappedNullify(UNMAPPED_LEFT_KEY + on),
+                setUnmappedLoad(UNMAPPED_LEFT_KEY + on),
+                setUnmappedLoadAll(UNMAPPED_LEFT_KEY + on) }) {
+                LogicalPlan plan = test().addLanguagesLookup().statement(setting);
+                for (EsRelation relation : plan.collect(EsRelation.class)) {
+                    if (relation.indexMode() != IndexMode.LOOKUP) {
+                        assertThat(setting, Expressions.names(relation.output()), not(hasItem("language_name")));
+                        assertThat(setting, Expressions.names(relation.output()), not(hasItem("language_code")));
+                    }
+                }
+            }
+        }
     }
 }

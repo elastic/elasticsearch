@@ -143,21 +143,6 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 "Found 1 problem\\nline \\d+:\\d+: Plan \\[Aggregate\\[\\[gender\\{f}#\\d+],\\[COUNT\\(x\\{r}#\\d+,true\\[BOOLEAN],"
                     + "PT0S\\[TIME_DURATION]\\) AS y#\\d+, x\\{r}#\\d+]]] optimized incorrectly due to missing references \\[x\\{r}#\\d+]"
             )
-        ),
-        // Remove when fixed: LOOKUP JOIN whose left join key is unmapped fails with "ambiguous reference"
-        new KnownError(
-            "https://github.com/elastic/elasticsearch/issues/165755",
-            "multi_column_joinable",
-            "name_str",
-            Set.of(
-                "lookup-join-expression.lookupJoinOnSameLeftFieldTwice",
-                "lookup-join-expression.lookupJoinOnSameFieldTwiceWithOrNot",
-                "lookup-join-expression.lookupJoinOnSameFieldWithPushableRightFilterAfter"
-            ),
-            VerificationException.class,
-            Pattern.compile(
-                "Found ambiguous reference to \\[other2]; matches any of \\[line \\d+:\\d+ \\[other2], line \\d+:\\d+ \\[other2]]"
-            )
         )
     );
 

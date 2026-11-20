@@ -144,6 +144,12 @@ ClickBench's (68 integers, 10 longs, 27 keywords) with ZSTD, one thread on a lap
 11.2 s, and the files had the same size. The rest of the time is parquet-mr itself: the dictionaries, the min/max statistics of the
 binary columns, and the compression (about 14% of the samples). A merge of the columns on several threads is not built.
 
+The local file of a bulk is written the same way, column by column: each mapped column is read from its cursor of Lucene's column
+batch and written to the column writer of parquet-mr, with no `Group` for each row. A bulk is one row group with one page for each
+column (the server hands the engine at most 5,000 documents at a time, and the merge of the flush makes the row groups that readers
+want). In a test node with one shard, four clients, local durability and 105 fields like ClickBench's, bulk indexing went from about
+88,000 to about 180,000 documents per second with this change (a laptop, the time of parsing and of the client included).
+
 On start, the engine finishes a flush that a crash cut off. The table, and not the commit, is the source of truth for what is uploaded.
 
 **Every file has a column for every mapped field.** A batch has a column only for the fields that one of its documents has a value for,

@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.parquet.write;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.store.Directory;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -28,6 +32,9 @@ import org.elasticsearch.test.JnaCleanerThreadsFilter;
 import org.elasticsearch.test.NettyGlobalThreadsFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.esql.datasource.parquet.PlainCompressionCodecFactory;
+import org.elasticsearch.xpack.esql.datasource.parquet.PlainParquetReadOptions;
+import org.elasticsearch.xpack.parquet.write.file.IndexInputFile;
 import org.elasticsearch.xpack.parquet.write.file.LocalParquetFiles;
 import org.elasticsearch.xpack.parquet.write.file.TestParquetBytes;
 import org.elasticsearch.xpack.parquet.write.table.CatalogEntry;
@@ -281,6 +288,64 @@ public class ParquetFlushIT extends ESIntegTestCase {
             equalTo((long) writers * bulksEach * docsPerBulk)
         );
         assertUploaded(1, writers * bulksEach * docsPerBulk);
+        assertThat("local files", localFiles(0), equalTo(0L));
+    }
+
+    /**
+     * A bulk is written column by column as one row group with one page for each column, whatever its size, and the page and the
+     * footer have the counts of the rows. The server hands the engine at most 5,000 documents at a time, and the long keywords make a
+     * column of each file 2 MB, over the default size of a page (1 MB). The flush has to read the files back and upload every row once.
+     * (This guards the structure of the files. It also passed when I wrote the files with the default page limits of parquet-mr.)
+     */
+    public void testALocalFileHasOneRowGroupAndOnePageForEachColumnWhateverItsSize() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.compaction.enabled", false));
+        final int rows = 30_000;
+        final String padding = "x".repeat(400);
+        final BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        for (int i = 0; i < rows; i++) {
+            bulk.add(
+                new IndexRequest(INDEX).source(
+                    "@timestamp",
+                    BASE_TIMESTAMP + i * 1000L,
+                    "host.name",
+                    "host-" + i + "-" + padding,
+                    "count",
+                    i,
+                    "bytes",
+                    i % 1000
+                )
+            );
+        }
+        assertFalse(bulk.get().hasFailures());
+
+        // the local files, before a flush merges them
+        final Directory directory = shard(0).store().directory();
+        final List<LocalParquetFiles.LocalFile> local = LocalParquetFiles.list(directory);
+        assertThat(local.size(), greaterThan(1));
+        long rowsInFiles = 0;
+        for (LocalParquetFiles.LocalFile file : local) {
+            try (
+                ParquetFileReader reader = ParquetFileReader.open(
+                    new IndexInputFile(directory, file.name()),
+                    PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+                )
+            ) {
+                assertThat(reader.getFooter().getBlocks(), hasSize(1));
+                final BlockMetaData block = reader.getFooter().getBlocks().get(0);
+                rowsInFiles += block.getRowCount();
+                for (ColumnChunkMetaData column : block.getColumns()) {
+                    final OffsetIndex pages = reader.readOffsetIndex(column);
+                    assertThat(file.name() + " pages of " + column.getPath(), pages.getPageCount(), equalTo(1));
+                    assertThat(file.name() + " values of " + column.getPath(), column.getValueCount(), equalTo(block.getRowCount()));
+                }
+            }
+        }
+        assertThat(rowsInFiles, equalTo((long) rows));
+
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+
+        assertUploaded(1, rows);
         assertThat("local files", localFiles(0), equalTo(0L));
     }
 

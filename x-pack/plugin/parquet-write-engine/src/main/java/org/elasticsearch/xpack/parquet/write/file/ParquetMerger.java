@@ -13,16 +13,11 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
-import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ColumnWriter;
-import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
-import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
-import org.apache.parquet.hadoop.ColumnChunkPageWriteStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.io.InputFile;
@@ -164,7 +159,13 @@ public final class ParquetMerger {
         try (IndexOutput out = directory.createTempOutput(LocalParquetFiles.TEMP_PREFIX, "parquet", IOContext.DEFAULT)) {
             tempName = out.getName();
             try (
-                ColumnarWriter writer = new ColumnarWriter(new BatchParquetWriter.IndexOutputFile(out), outputSchema, codec, rowGroupBytes)
+                ColumnarParquetWriter writer = new ColumnarParquetWriter(
+                    new BatchParquetWriter.IndexOutputFile(out),
+                    outputSchema,
+                    codec,
+                    rowGroupBytes,
+                    ColumnarParquetWriter.rowProperties()
+                )
             ) {
                 for (Input input : inputs) {
                     rows += copyRows(input, outputSchema, writer);
@@ -187,7 +188,7 @@ public final class ParquetMerger {
         return new Merged(outputName, directory.fileLength(outputName), rows);
     }
 
-    private static long copyRows(Input input, MessageType outputSchema, ColumnarWriter writer) throws IOException {
+    private static long copyRows(Input input, MessageType outputSchema, ColumnarParquetWriter writer) throws IOException {
         long rows = 0;
         try (ParquetFileReader reader = ParquetFileReader.open(input.file(), readOptions())) {
             final FileMetaData metaData = reader.getFooter().getFileMetaData();
@@ -229,7 +230,7 @@ public final class ParquetMerger {
      * values up to the next one with the repetition level 0, which is one value for a flat column and all the elements of a list.
      */
     private static final class ColumnCopier {
-        private final ColumnarWriter writer;
+        private final ColumnarParquetWriter writer;
         private final int index;
         /** Null when the input file has no such column. */
         private final ColumnReader reader;
@@ -237,7 +238,7 @@ public final class ParquetMerger {
         private final PrimitiveType.PrimitiveTypeName type;
         private long remaining;
 
-        ColumnCopier(ColumnarWriter writer, int index, ColumnReader reader, ColumnDescriptor target, String inputName) {
+        ColumnCopier(ColumnarParquetWriter writer, int index, ColumnReader reader, ColumnDescriptor target, String inputName) {
             this.writer = writer;
             this.index = index;
             this.reader = reader;
@@ -284,110 +285,6 @@ public final class ParquetMerger {
                 reader.consume();
                 remaining--;
             } while (remaining > 0 && reader.getCurrentRepetitionLevel() != 0);
-        }
-    }
-
-    /**
-     * The output file: column writers that buffer a row group, and the cut of a row group when the buffered data reaches the size. It is
-     * what the parquet-mr record writer does between its record consumer and the file, without the record consumer.
-     */
-    private static final class ColumnarWriter implements AutoCloseable {
-        /** The bounds of the number of records between two checks of the buffered size, as in the parquet-mr record writer. */
-        private static final long MIN_RECORDS_BETWEEN_CHECKS = 100;
-        private static final long MAX_RECORDS_BETWEEN_CHECKS = 10_000;
-
-        private final MessageType schema;
-        private final List<ColumnDescriptor> columns;
-        private final long rowGroupBytes;
-        private final ParquetProperties properties = ParquetProperties.builder()
-            .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
-            .build();
-        private final CompressionCodecFactory codecs = new ParquetCodecs();
-        private final CompressionCodecFactory.BytesInputCompressor compressor;
-        private final ParquetFileWriter fileWriter;
-        private ColumnChunkPageWriteStore pageStore;
-        private ColumnWriteStore store;
-        private ColumnWriter[] writers;
-        private long recordCount;
-        private long recordCountForNextCheck = MIN_RECORDS_BETWEEN_CHECKS;
-
-        ColumnarWriter(BatchParquetWriter.IndexOutputFile file, MessageType schema, CompressionCodecName codec, long rowGroupBytes)
-            throws IOException {
-            this.schema = schema;
-            this.columns = schema.getColumns();
-            this.rowGroupBytes = rowGroupBytes;
-            this.compressor = codecs.getCompressor(codec);
-            this.fileWriter = new ParquetFileWriter(file, schema, ParquetFileWriter.Mode.CREATE, rowGroupBytes, 0, null, properties);
-            fileWriter.start();
-            startRowGroup();
-        }
-
-        private void startRowGroup() {
-            pageStore = new ColumnChunkPageWriteStore(
-                compressor,
-                schema,
-                properties.getAllocator(),
-                properties.getColumnIndexTruncateLength(),
-                properties.getPageWriteChecksumEnabled()
-            );
-            store = properties.newColumnWriteStore(schema, pageStore);
-            writers = new ColumnWriter[columns.size()];
-            for (int i = 0; i < writers.length; i++) {
-                writers[i] = store.getColumnWriter(columns.get(i));
-            }
-            recordCount = 0;
-            recordCountForNextCheck = MIN_RECORDS_BETWEEN_CHECKS;
-        }
-
-        ColumnWriter columnWriter(int index) {
-            return writers[index];
-        }
-
-        void endRecord() throws IOException {
-            store.endRecord();
-            recordCount++;
-            if (recordCount >= recordCountForNextCheck) {
-                final long buffered = store.getBufferedSize();
-                final long recordSize = Math.max(1, buffered / recordCount);
-                if (buffered > rowGroupBytes - 2 * recordSize) {
-                    endRowGroup();
-                    startRowGroup();
-                } else {
-                    recordCountForNextCheck = Math.min(
-                        Math.max(MIN_RECORDS_BETWEEN_CHECKS, (recordCount + (long) (rowGroupBytes / (double) recordSize)) / 2),
-                        recordCount + MAX_RECORDS_BETWEEN_CHECKS
-                    );
-                }
-            }
-        }
-
-        private void endRowGroup() throws IOException {
-            if (recordCount > 0) {
-                fileWriter.startBlock(recordCount);
-                store.flush();
-                pageStore.flushToFileWriter(fileWriter);
-                fileWriter.endBlock();
-            }
-            store.close();
-            pageStore.close();
-            store = null;
-            pageStore = null;
-        }
-
-        /** Writes the last row group and the footer, which closes the output. */
-        void finish() throws IOException {
-            endRowGroup();
-            fileWriter.end(Map.of());
-        }
-
-        @Override
-        public void close() {
-            // after finish() the stores are gone; after a failure they are still open
-            if (store != null) {
-                store.close();
-                pageStore.close();
-            }
-            codecs.release();
         }
     }
 }

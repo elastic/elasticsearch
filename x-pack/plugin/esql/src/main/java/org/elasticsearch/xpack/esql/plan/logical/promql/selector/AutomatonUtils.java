@@ -254,6 +254,11 @@ public final class AutomatonUtils {
             return null; // Contains escaped pipe, too complex
         }
 
+        // \Q...\E quotes its text, | included
+        if (normalized.contains("\\Q")) {
+            return null;
+        }
+
         // same string IS a regex pattern and thus search for |
         // which gets optimized internally by the JVM
         String[] parts = normalized.split("\\|");

@@ -186,6 +186,12 @@ public class AutomatonUtilsTests extends ESTestCase {
         assertThat(fragments, nullValue());
     }
 
+    public void testExtractFragments_QuotedPipe() {
+        // \Q...\E quotes the pipe, so this is the literal a|b rather than an alternation
+        assertThat(extractFragments("\\Qa|b"), nullValue());
+        assertThat(extractFragments("x|\\Q|\\E"), nullValue());
+    }
+
     public void testExtractFragments_RegexMetacharactersInAlternation() {
         // Pattern with regex metacharacters - should classify correctly
         List<PatternFragment> fragments = extractFragments("test.*|prod[0-9]");

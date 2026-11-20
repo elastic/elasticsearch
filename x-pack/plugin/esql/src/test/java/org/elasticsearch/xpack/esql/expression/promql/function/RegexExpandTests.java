@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
-import com.google.re2j.Matcher;
-import com.google.re2j.Pattern;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -26,6 +23,8 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Matcher;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;

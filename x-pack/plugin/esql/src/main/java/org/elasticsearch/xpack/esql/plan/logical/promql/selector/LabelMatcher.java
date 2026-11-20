@@ -10,15 +10,14 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
-import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -153,7 +152,7 @@ public class LabelMatcher implements NodeStringRenderable {
         } catch (TooComplexToDeterminizeException e) {
             throw new IllegalArgumentException("The regex used in a label matcher is too complex to determinize", e);
         } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
-            // Lucene's parser recurses on nested groups; this Error must not escape the request.
+            // Compiling the regex recurses on nested groups; this Error must not escape the request.
             throw new IllegalArgumentException("The regex used in a label matcher is too deeply nested");
         }
         return automaton;
@@ -219,13 +218,11 @@ public class LabelMatcher implements NodeStringRenderable {
                     + "]"
             );
         }
-        CircuitBreakingRegExp re;
         try {
-            re = new CircuitBreakingRegExp(regex, RegExp.ALL, 0);
+            return new Re2Pattern(regex).createAutomaton(false, breaker, BREAKER_LABEL);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("Cannot parse regex " + regex, ex);
         }
-        return re.toAutomaton(breaker, BREAKER_LABEL);
     }
 
     public boolean matchesAll() {

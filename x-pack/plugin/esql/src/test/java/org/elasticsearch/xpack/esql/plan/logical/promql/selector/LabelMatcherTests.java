@@ -7,12 +7,20 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
+import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
 
 import java.util.List;
@@ -121,20 +129,20 @@ public class LabelMatcherTests extends ESTestCase {
     }
 
     /**
-     * Nested bounded repeats expand far beyond the pattern's length: the budget must refuse a repeat before it is built,
-     * in a single-value and in a multi-value matcher alike. The middle repeat fits the work limit and predicts well past
-     * the budget, so that is where the build stops. The budget is 5% of the heap and the middle repeat reserves about
-     * 155 MB, so a heap over 3 GB has room for it and the work limit refuses the outer repeat instead.
+     * Nested bounded repeats expand far beyond the pattern's length. RE2 refuses them while parsing, as Prometheus does:
+     * a repeat directly on a repeat is invalid, and repeats nested through groups may expand to at most 1000 copies. So
+     * the pattern is a client error before any automaton is built, in a single-value and in a multi-value matcher alike.
      */
     public void testHugeRegexIsRefusedBeforeItIsBuilt() {
-        assumeTrue(
-            "the budget has room for the middle repeat",
-            FoldContext.small().initialAllowedBytes() < ByteSizeValue.ofMb(100).getBytes()
-        );
-        LabelMatcher single = new LabelMatcher("l", "[ab]{1000}{900}{1000}", Matcher.REG);
-        expectThrows(FoldContext.FoldTooMuchMemoryException.class, single::automaton);
-        LabelMatcher multi = new LabelMatcher("l", List.of("a", "[ab]{1000}{900}{1000}"), Matcher.NREG);
-        expectThrows(FoldContext.FoldTooMuchMemoryException.class, multi::automaton);
+        String regex = randomFrom("[ab]{1000}{900}{1000}", "(?:(?:[ab]{1000}){900}){1000}");
+        for (LabelMatcher matcher : List.of(
+            new LabelMatcher("l", regex, Matcher.REG),
+            new LabelMatcher("l", List.of("a", regex), Matcher.NREG)
+        )) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
+            assertThat(e.getMessage(), equalTo("Cannot parse regex " + regex));
+            assertThat(e.getCause().getMessage(), containsString("repe"));
+        }
     }
 
     public void testMatchesEmpty() {
@@ -162,6 +170,97 @@ public class LabelMatcherTests extends ESTestCase {
 
         LabelMatcher specific = new LabelMatcher("label", "value", Matcher.EQ);
         assertFalse(specific.matchesNone());
+    }
+
+    /** RE2 reads Lucene-only operators as literals: empty language, intersection, interval, any string, complement. */
+    public void testRegexLuceneOnlyOperatorsAreLiterals() {
+        for (String regex : List.of("#", "a&b", "a<1-3>", "@", "~a")) {
+            LabelMatcher matcher = new LabelMatcher("label", regex, Matcher.REG);
+            assertThat(regex, AutomatonUtils.matchesExact(matcher.automaton()), equalTo(regex));
+
+            LabelMatcher negated = new LabelMatcher("label", regex, Matcher.NREG);
+            assertFalse(regex, Operations.run(negated.automaton(), regex));
+            assertTrue(regex, Operations.run(negated.automaton(), "q"));
+            assertFalse(regex, negated.matchesAll());
+        }
+    }
+
+    public void testRegexLuceneOnlyOperatorsInsideExpression() {
+        LabelMatcher matcher = new LabelMatcher("label", "(a<1-3>|b)", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "a<1-3>"));
+        assertTrue(Operations.run(matcher.automaton(), "b"));
+        assertFalse(Operations.run(matcher.automaton(), "a1"));
+
+        matcher = new LabelMatcher("label", "x|#|a.*@", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "x"));
+        assertTrue(Operations.run(matcher.automaton(), "#"));
+        assertTrue(Operations.run(matcher.automaton(), "abc@"));
+        assertFalse(Operations.run(matcher.automaton(), "abc"));
+        assertFalse(matcher.matchesEmpty());
+    }
+
+    public void testRegexEscapes() {
+        // an escaped operator stays a single literal
+        LabelMatcher matcher = new LabelMatcher("label", "a\\<1-3>\\&", Matcher.REG);
+        assertThat(AutomatonUtils.matchesExact(matcher.automaton()), equalTo("a<1-3>&"));
+        // an escaped backslash does not escape the operator after it
+        matcher = new LabelMatcher("label", "\\\\#", Matcher.REG);
+        assertThat(AutomatonUtils.matchesExact(matcher.automaton()), equalTo("\\#"));
+    }
+
+    public void testRegexCharacterClass() {
+        LabelMatcher matcher = new LabelMatcher("label", "[#-@]", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "#"));
+        assertTrue(Operations.run(matcher.automaton(), "1"));
+        assertTrue(Operations.run(matcher.automaton(), "@"));
+        assertFalse(Operations.run(matcher.automaton(), "a"));
+
+        // a ']' right after '[' or '[^' is a literal; the '&' after the class is an RE2 literal again
+        matcher = new LabelMatcher("label", "[]~]&", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "]&"));
+        assertTrue(Operations.run(matcher.automaton(), "~&"));
+        matcher = new LabelMatcher("label", "[^]]&", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "a&"));
+        assertFalse(Operations.run(matcher.automaton(), "]&"));
+    }
+
+    /** RE2 syntax that Lucene's regexp syntax lacks or reads otherwise. */
+    public void testRegexRe2Syntax() {
+        LabelMatcher matcher = new LabelMatcher("label", "(?i)(?:prod|stag)-\\d+", Matcher.REG);
+        assertTrue(Operations.run(matcher.automaton(), "PROD-12"));
+        assertFalse(Operations.run(matcher.automaton(), "prod-"));
+
+        matcher = new LabelMatcher("label", "\"a\"\\n", Matcher.REG);
+        assertThat(AutomatonUtils.matchesExact(matcher.automaton()), equalTo("\"a\"\n"));
+    }
+
+    /** The filter gets the regex as written, in RE2 syntax like the automaton. */
+    public void testRegexPattern() {
+        Re2Pattern pattern = new Re2Pattern("(?i)(a<1-3>|~b&c)");
+        assertThat(pattern.pattern(), equalTo("(?i)(a<1-3>|~b&c)"));
+        Automaton expected = new LabelMatcher("label", "(?i)(a<1-3>|~b&c)", Matcher.REG).automaton();
+        assertTrue(AutomatonTestUtil.sameLanguage(expected, pattern.createAutomaton(false)));
+    }
+
+    public void testInvalidRegex() {
+        for (String regex : List.of("(", "[a", "\\", "a**", "(?=a)")) {
+            LabelMatcher matcher = new LabelMatcher("label", regex, Matcher.REG);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
+            assertThat(e.getMessage(), equalTo("Cannot parse regex " + regex));
+            assertNotNull("the RE2 parse error is kept as the cause", e.getCause());
+        }
+    }
+
+    /** The value of {@code !=} is a literal, so regex metacharacters in it, as in {@code le!="+Inf"}, match themselves. */
+    public void testNegatedLiteralIsNotARegex() {
+        String value = randomFrom("+Inf", "*", "a(b", "[x", "a|b");
+        Expression condition = LabelMatchers.condition(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "le", DataType.KEYWORD),
+            new LabelMatcher("le", value, Matcher.NEQ)
+        );
+        assertFalse(condition.anyMatch(e -> e instanceof Re2Like));
+        assertTrue(condition.anyMatch(e -> e instanceof Literal literal && value.equals(BytesRefs.toString(literal.value()))));
     }
 
     public void testIsNegation() {
@@ -226,7 +325,7 @@ public class LabelMatcherTests extends ESTestCase {
     }
 
     /**
-     * {@code RegExp.toAutomaton()} succeeds on this pattern; the blow-up happens when the NFA is determinized, which must be a
+     * Parsing succeeds on this pattern; the blow-up happens when the NFA is determinized, which must be a
      * client error too, not a 500. The negated matcher takes the same path, since its complement needs the DFA first.
      */
     public void testTooComplexRegexIsAClientError() {
@@ -242,11 +341,11 @@ public class LabelMatcherTests extends ESTestCase {
         LabelMatcher matcher = new LabelMatcher("host", List.of("server-.*", "web-("), Matcher.REG);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
         assertThat(e.getMessage(), containsString("Cannot parse regex web-("));
-        assertNotNull("the Lucene parse error is kept as the cause", e.getCause());
+        assertNotNull("the RE2 parse error is kept as the cause", e.getCause());
     }
 
     /**
-     * Lucene compiles nested groups recursively, so a deep pattern overflows the stack. It must surface as a client error,
+     * Compiling nested groups recurses, so a deep pattern overflows the stack. It must surface as a client error,
      * not an {@link Error}. Runs on a thread with a fixed, small stack so the depth needed does not depend on the platform's
      * default stack size.
      */

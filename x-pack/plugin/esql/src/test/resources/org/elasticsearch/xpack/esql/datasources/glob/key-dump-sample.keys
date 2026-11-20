@@ -1,10 +1,10 @@
 # Sample key dump for ListingWalkHarness.loadKeyDumpResource.
 # Unsorted on purpose; the harness sorts. Duplicate of the us-west-2 key is ignored (first wins).
-# TSV: path, length, lastModified (ISO-8601).
+# Fields: path|length|lastModified (ISO-8601 or epoch millis).
 
 s3://bucket/AWSLogs/aws-account-id=000000000002/aws-service=vpcflowlogs/aws-region=us-west-2/year=2026/month=06/day=01/hour=00/f-0.parquet
 
-s3://bucket/AWSLogs/aws-account-id=000000000001/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=06/day=01/hour=00/f-0.parquet	50	2026-06-01T00:00:00Z
+s3://bucket/AWSLogs/aws-account-id=000000000001/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=06/day=01/hour=00/f-0.parquet|50|2026-06-01T00:00:00Z
 s3://bucket/AWSLogs/aws-account-id=000000000001/aws-service=vpcflowlogs/aws-region=us-east-1/year=2026/month=07/day=01/hour=00/f-0.parquet
-s3://bucket/AWSLogs/aws-account-id=000000000002/aws-service=vpcflowlogs/aws-region=us-west-2/year=2026/month=06/day=01/hour=00/f-0.parquet	999	0
-s3://bucket/AWSLogs/aws-account-id=000000000003/aws-service=vpcflowlogs/aws-region=eu-west-1/year=2026/month=06/day=01/hour=00/f-0.parquet	10	0
+s3://bucket/AWSLogs/aws-account-id=000000000002/aws-service=vpcflowlogs/aws-region=us-west-2/year=2026/month=06/day=01/hour=00/f-0.parquet|999|0
+s3://bucket/AWSLogs/aws-account-id=000000000003/aws-service=vpcflowlogs/aws-region=eu-west-1/year=2026/month=06/day=01/hour=00/f-0.parquet|10|-1000

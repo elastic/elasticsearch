@@ -43,8 +43,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
-import java.util.function.LongSupplier;
 
 /**
  * Counting in-memory store for listing-walk tests. {@link #listObjects} pages at {@link #LIST_PAGE_SIZE}
@@ -52,8 +50,7 @@ import java.util.function.LongSupplier;
  * the flat {@code listObjects} path used as the reference.
  *
  * <p>Replay a sorted key dump with {@link #loadKeyDump} / {@link #loadKeyDumpResource}, or synthesize the
- * 154-prefix AWS VPC Hive tree with {@link #wideHiveTree}. Optional {@link #setListChildrenDelayNanos} /
- * {@link #setListObjectPageDelayNanos} inject per-call latency for parallel-walk ordering tests.
+ * 154-prefix AWS VPC Hive tree with {@link #wideHiveTree}.
  *
  * <p>The reference is a flat prefix listing plus {@link PartitionValueMatcher},
  * {@link PartitionSpec#overlaps}, {@link GlobExpander#applyFileMetadataFilters}, then
@@ -82,7 +79,6 @@ public final class ListingWalkHarness implements StorageProvider {
      */
     public static final int WIDE_HIVE_ACCOUNTS = 131;
     public static final int WIDE_HIVE_PREFIXES = 154;
-    public static final int WIDE_HIVE_REGION_NAMES = 20;
     public static final int WIDE_HIVE_FILES_PER_LEAF = 2;
     public static final int WIDE_HIVE_HOURS = 2;
     public static final String WIDE_HIVE_PREFIX = "s3://bucket/AWSLogs";
@@ -99,15 +95,14 @@ public final class ListingWalkHarness implements StorageProvider {
     /**
      * {@code listChildren} (including peeks) to reach matching day directories on {@link #wideHiveTree()}
      * with a 1-day filter: root + accounts + services + regions + years + matching months + July peeks.
-     * Gates the walk directory-listing ceiling default. Finish {@code listObjects} are
-     * {@link #WIDE_HIVE_ONE_DAY_FINISH_PAGES} extra and are not counted by {@code MAX_DIRECTORY_LISTINGS}.
-     * On this sparse tree RULE still flattens after a complete walk ({@code k=4}); a dense production
-     * prefix makes finish cheaper.
+     * Today's {@code MAX_DIRECTORY_LISTINGS} aborts earlier, at {@link #WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN}.
      */
     public static final int WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES = 1 + 2 * WIDE_HIVE_ACCOUNTS + 4 * WIDE_HIVE_PREFIXES;
-    /** One recursive {@code listObjects} per matching day directory if finish wins. */
-    public static final int WIDE_HIVE_ONE_DAY_FINISH_PAGES = WIDE_HIVE_PREFIXES;
-    public static final int WIDE_HIVE_ONE_DAY_COMPLETE_WALK = WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES + WIDE_HIVE_ONE_DAY_FINISH_PAGES;
+    /**
+     * {@code listChildren} issued before the 512 cap trips at region→year
+     * ({@code listings + dirs = 417 + 154 = 571}): root + accounts + services + regions.
+     */
+    public static final int WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN = 1 + 2 * WIDE_HIVE_ACCOUNTS + WIDE_HIVE_PREFIXES;
 
     private static final String[] WIDE_HIVE_REGIONS = {
         "us-east-1",
@@ -151,8 +146,6 @@ public final class ListingWalkHarness implements StorageProvider {
     final AtomicInteger listObjectPages = new AtomicInteger();
     final AtomicInteger listChildrenRequests = new AtomicInteger();
     boolean childrenUnsupported;
-    private volatile LongSupplier listChildrenDelayNanos = () -> 0L;
-    private volatile LongSupplier listObjectPageDelayNanos = () -> 0L;
 
     public ListingWalkHarness(List<StorageEntry> allEntries) {
         List<StorageEntry> sorted = new ArrayList<>(allEntries);
@@ -192,22 +185,6 @@ public final class ListingWalkHarness implements StorageProvider {
 
     public void setChildrenUnsupported(boolean childrenUnsupported) {
         this.childrenUnsupported = childrenUnsupported;
-    }
-
-    /**
-     * Called once per {@link #listChildren} before the directory is enumerated. Return {@code 0} for no
-     * pause. Parallel-walk ordering tests supply a per-call latency; the default is a no-op.
-     */
-    public void setListChildrenDelayNanos(LongSupplier delayNanos) {
-        this.listChildrenDelayNanos = delayNanos == null ? () -> 0L : delayNanos;
-    }
-
-    /**
-     * Called once per {@link #listObjects} page before keys of that page are yielded. Return {@code 0}
-     * for no pause.
-     */
-    public void setListObjectPageDelayNanos(LongSupplier delayNanos) {
-        this.listObjectPageDelayNanos = delayNanos == null ? () -> 0L : delayNanos;
     }
 
     /** LIST pages a recursive {@code listObjects} of {@code objects} keys costs. An empty listing is still one page. */
@@ -256,7 +233,7 @@ public final class ListingWalkHarness implements StorageProvider {
      * (prune siblings), {@link #WIDE_HIVE_HOURS} hours × {@link #WIDE_HIVE_FILES_PER_LEAF} files per leaf.
      */
     public static List<StorageEntry> wideHiveTree() {
-        assert WIDE_HIVE_REGIONS.length == WIDE_HIVE_REGION_NAMES : WIDE_HIVE_REGIONS.length;
+        assert WIDE_HIVE_REGIONS.length == 20 : WIDE_HIVE_REGIONS.length;
         int extraDualRegionAccounts = WIDE_HIVE_PREFIXES - WIDE_HIVE_ACCOUNTS;
         List<StorageEntry> entries = new ArrayList<>();
         int prefixes = 0;
@@ -311,7 +288,7 @@ public final class ListingWalkHarness implements StorageProvider {
 
     /**
      * Load a key dump: one object URI per line. Blank lines and {@code #} comments are skipped. Optional
-     * tab-separated {@code path}, {@code length}, {@code lastModified} (ISO-8601 or epoch millis). First
+     * pipe-separated {@code path}|{@code length}|{@code lastModified} (ISO-8601 or epoch millis). First
      * occurrence of a path wins. The harness sorts on construct.
      */
     public static List<StorageEntry> loadKeyDump(InputStream in) throws IOException {
@@ -337,12 +314,11 @@ public final class ListingWalkHarness implements StorageProvider {
         String line;
         while ((line = reader.readLine()) != null) {
             lineNo++;
-            String trimmed = line.trim();
-            if (trimmed.isEmpty() || trimmed.charAt(0) == '#') {
+            if (line.isBlank() || line.stripLeading().charAt(0) == '#') {
                 continue;
             }
             try {
-                StorageEntry parsed = parseDumpLine(trimmed);
+                StorageEntry parsed = parseDumpLine(line);
                 unique.putIfAbsent(parsed.path().toString(), parsed);
             } catch (RuntimeException e) {
                 throw new IllegalArgumentException("key dump line " + lineNo + ": " + e.getMessage(), e);
@@ -352,64 +328,25 @@ public final class ListingWalkHarness implements StorageProvider {
     }
 
     private static StorageEntry parseDumpLine(String line) {
-        String path = line;
-        long length = 100L;
-        Instant lastModified = Instant.EPOCH;
-        int tab = line.indexOf('\t');
-        if (tab >= 0) {
-            path = line.substring(0, tab);
-            String rest = line.substring(tab + 1);
-            int tab2 = rest.indexOf('\t');
-            String lengthPart = tab2 < 0 ? rest : rest.substring(0, tab2);
-            if (lengthPart.isBlank() == false) {
-                length = Long.parseLong(lengthPart.trim());
-            }
-            if (tab2 >= 0) {
-                String timePart = rest.substring(tab2 + 1);
-                int extra = timePart.indexOf('\t');
-                if (extra >= 0) {
-                    timePart = timePart.substring(0, extra);
-                }
-                timePart = timePart.trim();
-                if (timePart.isEmpty() == false) {
-                    lastModified = parseDumpTime(timePart);
-                }
-            }
-        }
-        path = path.trim();
+        String[] cols = line.split("\\|", -1);
+        String path = cols[0];
         if (path.isEmpty()) {
             throw new IllegalArgumentException("empty path");
         }
+        long length = 100L;
+        Instant lastModified = Instant.EPOCH;
+        if (cols.length > 1 && cols[1].isBlank() == false) {
+            length = Long.parseLong(cols[1].trim());
+        }
+        if (cols.length > 2 && cols[2].isBlank() == false) {
+            String timePart = cols[2].trim();
+            try {
+                lastModified = Instant.ofEpochMilli(Long.parseLong(timePart));
+            } catch (NumberFormatException e) {
+                lastModified = Instant.parse(timePart);
+            }
+        }
         return new StorageEntry(StoragePath.of(path), length, lastModified);
-    }
-
-    private static Instant parseDumpTime(String timePart) {
-        if (isEpochMillisToken(timePart)) {
-            return Instant.ofEpochMilli(Long.parseLong(timePart));
-        }
-        return Instant.parse(timePart);
-    }
-
-    /** Signed integer, including negative pre-1970 millis. ISO-8601 instants contain {@code T} or extra dashes. */
-    private static boolean isEpochMillisToken(String timePart) {
-        if (timePart.isEmpty()) {
-            return false;
-        }
-        int i = 0;
-        char first = timePart.charAt(0);
-        if (first == '-' || first == '+') {
-            if (timePart.length() == 1) {
-                return false;
-            }
-            i = 1;
-        }
-        for (; i < timePart.length(); i++) {
-            char c = timePart.charAt(i);
-            if (c < '0' || c > '9') {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static List<StorageEntry> calendarTree(String prefix, int filesPerDay) {
@@ -502,9 +439,9 @@ public final class ListingWalkHarness implements StorageProvider {
         List<StorageEntry> afterPartition = kept;
         kept = new ArrayList<>(GlobExpander.applyFileMetadataFilters(afterPartition, matcherHints));
         int excludedByFileHint = afterPartition.size() - kept.size();
-        // Partition-value all-miss is an inference anchor. An all-filtered _file.* hint stashes the first
-        // listing-order reject as a schema file and does not set the anchor flag.
-        boolean inferenceAnchor = afterPartition.isEmpty() && excludedByPartition > 0;
+        // Partition-value all-miss is an inference anchor. Overlaps-only drops do not promote. An
+        // all-filtered _file.* hint stashes the first listing-order reject and does not set the flag.
+        boolean inferenceAnchor = afterPartition.isEmpty() && excludedByMatcher > 0;
         if (kept.isEmpty() && excludedByFileHint > 0) {
             kept.add(afterPartition.get(0));
         }
@@ -649,25 +586,6 @@ public final class ListingWalkHarness implements StorageProvider {
         return prefix.endsWith("/") ? prefix : prefix + "/";
     }
 
-    private static void delay(LongSupplier nanos) {
-        long n = nanos.getAsLong();
-        if (n <= 0L) {
-            return;
-        }
-        long deadline = System.nanoTime() + n;
-        while (true) {
-            long remaining = deadline - System.nanoTime();
-            if (remaining <= 0L) {
-                return;
-            }
-            LockSupport.parkNanos(remaining);
-            if (Thread.interrupted()) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-        }
-    }
-
     @Override
     public boolean listsInKeyOrder() {
         return true;
@@ -693,7 +611,6 @@ public final class ListingWalkHarness implements StorageProvider {
             public boolean hasNext() {
                 if (started == false) {
                     listObjectPages.incrementAndGet();
-                    delay(listObjectPageDelayNanos);
                     fetched = Math.min(under.size(), LIST_PAGE_SIZE);
                     started = true;
                 }
@@ -704,7 +621,6 @@ public final class ListingWalkHarness implements StorageProvider {
                     return false;
                 }
                 listObjectPages.incrementAndGet();
-                delay(listObjectPageDelayNanos);
                 fetched = Math.min(under.size(), cursor + LIST_PAGE_SIZE);
                 return cursor < fetched;
             }
@@ -733,7 +649,6 @@ public final class ListingWalkHarness implements StorageProvider {
         String p = withTrailingSlash(prefix.toString());
         childListedPrefixes.add(p);
         listChildrenRequests.incrementAndGet();
-        delay(listChildrenDelayNanos);
         List<StorageEntry> files = new ArrayList<>();
         Set<String> dirs = new LinkedHashSet<>();
         for (StorageEntry e : allEntries) {

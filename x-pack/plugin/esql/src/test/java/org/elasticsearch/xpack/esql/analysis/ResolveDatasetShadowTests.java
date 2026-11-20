@@ -32,12 +32,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewSubquery;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -193,7 +193,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
     /**
      * Regression for the CPS view-over-dataset failure: a view whose body applies a pipeline stage to a
      * dataset produces, before analysis,
-     * {@code BranchPlan(NamedSubquery(Eval(BranchPlan(external, datasetShadow))), viewShadow)}. When
+     * {@code BranchPlan(ViewSubquery(Eval(BranchPlan(external, datasetShadow))), viewShadow)}. When
      * neither shadow matches a linked index (both lenient entries are valid-but-empty), both shadows must
      * be stripped and both unions must collapse, leaving the {@code Eval} directly over the dataset's
      * {@link ExternalRelation} with no {@code UnionAll} anywhere in the plan. Folding either shadow into
@@ -490,7 +490,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
 
     /**
      * The pre-analysis shape produced for a view whose body applies a pipeline stage to a dataset:
-     * {@code BranchPlan(NamedSubquery(Eval(BranchPlan(external, datasetShadow))), viewShadow)}. The
+     * {@code BranchPlan(ViewSubquery(Eval(BranchPlan(external, datasetShadow))), viewShadow)}. The
      * {@code Eval} between the two unions is what makes the shape interesting: view compaction only
      * flattens a union that is a direct child, so an inner union that survives here cannot be lifted.
      */
@@ -505,7 +505,7 @@ public class ResolveDatasetShadowTests extends AnalyzerTestCase {
 
     private static BranchPlan viewOver(String name, LogicalPlan body, ViewShadowRelation shadow) {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
-        children.put(name, new NamedSubquery(EMPTY, body, name));
+        children.put(name, new ViewSubquery(EMPTY, body, name));
         children.put(name + "#shadow", shadow);
         return new BranchPlan(EMPTY, children, Map.of(name, BranchIdentity.view(name)), List.of());
     }

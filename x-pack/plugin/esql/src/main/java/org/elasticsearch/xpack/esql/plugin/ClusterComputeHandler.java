@@ -136,7 +136,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         return r.getCompletionInfo();
                     });
                     ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
+                    var sinkPart = computeService.remoteSinkPart(computeService.queryId(rootTask), groupTask);
+                    var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, cluster.connection, sinkPart);
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
@@ -154,7 +155,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         failFast,
                         () -> pagesFetched.set(true),
                         queryPragmas.concurrentExchangeClients(),
-                        computeListener.acquireAvoid()
+                        ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)
                     );
                 }
             })
@@ -383,7 +384,11 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     concreteIndices,
                     originalIndices,
                     exchangeSource,
+                    // the fetch phase reads the local cluster only, so the data nodes of a remote cluster keep no fetch contexts
+                    null,
                     cancelQueryOnFailure,
+                    // the usage of a failed compute on a remote cluster is not reported yet
+                    usage -> {},
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
                         return r.getCompletionInfo();

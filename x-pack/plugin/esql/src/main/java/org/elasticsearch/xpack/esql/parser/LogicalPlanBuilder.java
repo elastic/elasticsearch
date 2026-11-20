@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
@@ -86,15 +87,14 @@ import org.elasticsearch.xpack.esql.plan.logical.InfoCommandPlanUtils;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
-import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
-import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -166,6 +166,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
+    /**
+     * Words lexed as keywords in {@code FROM} mode (see {@code lexer/From.g4}). A named subquery with one of these names
+     * could be declared but never referenced, because {@code FROM <name>} would not parse.
+     */
+    private static final Set<String> FROM_MODE_KEYWORDS = Set.of("metadata", "with");
+
     private static final String HIGHLIGHT_PREFIX_KEYWORD = "prefix";
     private static final String DENSE_VECTOR_SUFFIX_KEYWORD = "suffix";
 
@@ -215,7 +221,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (EsqlBaseParser.LetCommandContext letCommandContext : ctx.letCommand()) {
             LetBinding binding = visitLetCommand(letCommandContext);
             if (seenNames.add(binding.name()) == false) {
-                throw new ParsingException(source(letCommandContext), "duplicate LET binding name [{}]", binding.name());
+                throw new ParsingException(source(letCommandContext), "duplicate LET subquery name [{}]", binding.name());
             }
             letBindings.add(binding);
         }
@@ -234,7 +240,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         String name = ctx.UNQUOTED_IDENTIFIER().getText();
         if (name.equals(name.toLowerCase(Locale.ROOT)) == false) {
-            throw new ParsingException(source, "LET binding name [{}] must be lowercase", name);
+            throw new ParsingException(source, "LET subquery name [{}] must be lowercase", name);
+        }
+        // Named subqueries are referenced through FROM, so the name must also be usable there as an index name
+        MetadataCreateIndexService.validateIndexOrAliasName(
+            name,
+            (n, reason) -> new ParsingException(source, "LET subquery name [{}] {}", n, reason)
+        );
+        if (FROM_MODE_KEYWORDS.contains(name)) {
+            throw new ParsingException(source, "LET subquery name [{}] is a reserved keyword in FROM", name);
         }
         LogicalPlan plan = visitSubquery(ctx.subquery());
         return new LetBinding(source, name, plan);
@@ -400,6 +414,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx) {
+        UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
+        Source src = source(ctx);
+        return child -> new NestedExpand(src, child, field);
+    }
+
+    @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         UnresolvedAttribute field = visitQualifiedName(ctx.qualifiedName());
         Source src = source(ctx);
@@ -509,6 +530,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             plan = processingCommand.apply(plan);
         }
         forkSeenInScope = forkSeenInEnclosingScope;
+        plan.forEachDown(Into.class, into -> { throw new ParsingException(into.source(), "INTO must be the last command of the query"); });
         return plan;
     }
 
@@ -564,10 +586,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitIntoCommand(EsqlBaseParser.IntoCommandContext ctx) {
         Source source = source(ctx);
-        if ((ctx.getParent().getParent() instanceof EsqlBaseParser.CompositeQueryContext parent
-            && parent.getParent() instanceof EsqlBaseParser.SingleStatementContext) == false) {
-            throw new ParsingException(source, "INTO must be the last command of the query");
-        }
         Source destinationSource = source(ctx.indexPattern());
         String destination = visitIndexPattern(List.of(ctx.indexPattern()));
         if (destination.contains(WILDCARD)) {
@@ -587,12 +605,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 destination
             );
         }
-        return input -> {
-            if (input.anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && p instanceof Row == false))) {
-                throw new ParsingException(source, "INTO currently only supports ROW as a source, without FORK");
-            }
-            return new Into(source, input, destination);
-        };
+        return input -> new Into(source, input, destination);
     }
 
     @Override
@@ -2152,20 +2165,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         PromqlParser promqlParser = new PromqlParser();
-        LogicalPlan promqlPlan;
-        try {
-            // The existing PromqlParser is used to parse the inner query
-            promqlPlan = promqlParser.createStatement(
-                promqlQuery,
-                params.startLiteral(),
-                params.endLiteral(),
-                promqlStartLine,
-                promqlStartColumn,
-                context.params()
-            );
-        } catch (ParsingException pe) {
-            throw PromqlParserUtils.adjustParsingException(pe, promqlStartLine, promqlStartColumn);
-        }
+        // The existing PromqlParser is used to parse the inner query
+        LogicalPlan promqlPlan = promqlParser.createStatement(
+            promqlQuery,
+            params.startLiteral(),
+            params.endLiteral(),
+            promqlStartLine,
+            promqlStartColumn,
+            context.params(),
+            context.viewName()
+        );
 
         String valueColumnName = getValueColumnName(ctx.valueName(), promqlQuery);
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
 import java.io.BufferedInputStream;
-import java.io.Closeable;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -255,6 +255,26 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
+    public NdJsonFormatReader withBlockFactory(@Nullable BlockFactory factory) {
+        if (factory == null || factory == blockFactory) {
+            return this;
+        }
+        return new NdJsonFormatReader(
+            settings,
+            factory,
+            resolvedSchema,
+            schemaSampleSize,
+            schemaSampleBytes,
+            schemaMaxFields,
+            segmentSizeBytes,
+            datetimeFormatter,
+            canonicalConfig,
+            declaredDateFormats,
+            readConfig
+        );
+    }
+
+    @Override
     public NdJsonFormatReader withSchemaSampleShare(int files) {
         int sharedRows = FormatReader.sharedSchemaSampleSize(schemaSampleSize, files);
         // The schema-cache key is the effective row count. Divide the byte cap only when that count
@@ -432,7 +452,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
             } catch (IOException e) {
                 try {
-                    object.abortStream(raw);
+                    raw.close();
                 } catch (IOException ignored) {}
                 throw e;
             }
@@ -453,7 +473,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
                 closed = true;
                 // only abort the raw stream; the PushbackInputStream/BufferedInputStream wrappers hold no external resources
-                object.abortStream(raw);
+                raw.close();
             }
         };
     }
@@ -591,7 +611,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // the connection (the schema sample touches only a small prefix). Wrapping the abort in
         // a Closeable lets try-with-resources attach any abort-time error as a suppressed
         // exception on the primary failure rather than replacing it.
-        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+        try (stream) {
             CountingInputStream counted = new CountingInputStream(stream);
             InputStream limited = Streams.limitStream(counted, schemaSampleBytes);
             List<NdJsonSchemaInferrer.Widening> widenings = new ArrayList<>();
@@ -780,6 +800,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             context.statsStripeSize(),
             context.statsFileFinal(),
             context.statsColumnScope(),
+            context.statsStripeSink(),
             context.informationalWarningSink()
         );
     }
@@ -804,8 +825,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
-     * key in the per-query {@code WITH {...}} config, defaulting to {@link #DEFAULT_SEGMENT_SIZE}, then trimmed by
+     * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the per-dataset
+     * {@code segment_size} setting, defaulting to {@link #DEFAULT_SEGMENT_SIZE}, then trimmed by
      * {@link #effectiveSegmentSize(long)}.
      */
     @Override

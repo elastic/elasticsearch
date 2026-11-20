@@ -11,10 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -44,7 +46,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -241,8 +242,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
     public void testAbortStreamForwardsInnerStreamAndReleasesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
-        InputStream inner = new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8));
-        when(delegate.newStream()).thenReturn(inner);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
@@ -251,8 +251,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
 
         obj.abortStream(wrapper);
 
-        verify(delegate).abortStream(inner);
-        assertEquals("permit must be released by abortStream", 0, budget.inFlight());
+        assertEquals("permit must be released by close", 0, budget.inFlight());
     }
 
     /**
@@ -285,17 +284,30 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
     public void testAbortStreamReleasesBudgetEvenIfDelegateThrows() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObject delegate = mock(StorageObject.class);
-        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public void close() throws IOException {
+                super.close();
+                throw new IOException("abort failed");
+            }
+        });
         when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
-        doAnswer(inv -> { throw new IOException("abort failed"); }).when(delegate).abortStream(any(InputStream.class));
-
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         InputStream wrapper = obj.newStream();
         assertEquals(1, budget.inFlight());
 
         expectThrows(IOException.class, () -> obj.abortStream(wrapper));
-        assertEquals("permit must be released even if delegate.abortStream throws", 0, budget.inFlight());
-        verify(delegate, times(1)).abortStream(any(InputStream.class));
+        assertEquals("permit must be released on close", 0, budget.inFlight());
+    }
+
+    public void testBindRowGroupStampsQueryIdWhenBudgetIsUnlimited() {
+        TaskId queryId = new TaskId("coord", 11);
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(0, 60_000L, null, AdmissionTracker.NOOP, queryId);
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(mock(StorageObject.class), budget);
+        RowGroupIo lease = new RowGroupIo();
+        obj.bindRowGroup(lease);
+        assertEquals(queryId, lease.queryId());
+        assertFalse(budget.isEnabled());
     }
 
     public void testAdmissionTimeoutFollowsBudgetConstructor() {

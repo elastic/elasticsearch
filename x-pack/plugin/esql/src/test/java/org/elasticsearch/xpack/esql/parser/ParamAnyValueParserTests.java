@@ -13,16 +13,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,20 +34,22 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The reserved value of the {@code param_any_value} setting is the only setting the parser needs while it builds the statement:
- * it starts from the request's value or the default, a {@code SET} in the statement overrides it, and release builds don't
- * recognize any. The configs here state if they are a snapshot build, so the tests don't depend on the build that runs them.
+ * it starts from the request's value or the default, and a {@code SET} in the statement overrides it. The feature is snapshot-only,
+ * so the tests require its capability.
  */
 public class ParamAnyValueParserTests extends ESTestCase {
 
-    private static final EsqlParser SNAPSHOT_PARSER = new EsqlParser(new EsqlConfig(true, TEST_FUNCTION_REGISTRY));
-    private static final EsqlParser RELEASE_PARSER = new EsqlParser(new EsqlConfig(false, TEST_FUNCTION_REGISTRY));
+    @BeforeClass
+    public static void requireAnyParam() {
+        assumeTrue("requires the Any controls", EsqlCapabilities.Cap.PARAM_ANY_VALUE.isEnabled());
+    }
 
     /**
      * The value the statement builder ends with after visiting {@code query}, starting from {@code contextValue}. It runs the
      * builder on its own because the value is internal to the parsing: nothing reads it yet.
      */
     private static String valueAfterParsing(String query, @Nullable String contextValue) {
-        EsqlConfig config = new EsqlConfig(true, TEST_FUNCTION_REGISTRY);
+        EsqlConfig config = new EsqlConfig(TEST_FUNCTION_REGISTRY);
         EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
         lexer.setEsqlConfig(config);
         EsqlBaseParser parser = new EsqlBaseParser(new CommonTokenStream(lexer));
@@ -68,26 +73,19 @@ public class ParamAnyValueParserTests extends ESTestCase {
     }
 
     public void testStartsFromTheDefault() {
-        assertThat(SNAPSHOT_PARSER.anyParamValue(Map.of()), equalTo("__ANY__"));
+        assertThat(TEST_PARSER.anyParamValue(Map.of()), equalTo("__ANY__"));
     }
 
     public void testStartsFromTheRequestValue() {
-        assertThat(SNAPSHOT_PARSER.anyParamValue(Map.of(QuerySettings.PARAM_ANY_VALUE, "custom")), equalTo("custom"));
+        assertThat(TEST_PARSER.anyParamValue(Map.of(QuerySettings.PARAM_ANY_VALUE, "custom")), equalTo("custom"));
     }
 
     public void testEmptyRequestValueIsRejectedBeforeParsing() {
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> parse(SNAPSHOT_PARSER, "ROW x = 1", new QueryParams(), Map.of(QuerySettings.PARAM_ANY_VALUE, ""))
+            () -> parse(TEST_PARSER, "ROW x = 1", new QueryParams(), Map.of(QuerySettings.PARAM_ANY_VALUE, ""))
         );
         assertThat(e.getMessage(), containsString("Error validating setting [param_any_value]: must not be empty"));
-    }
-
-    public void testReleaseBuildsHaveNoReservedValue() {
-        assertThat(RELEASE_PARSER.anyParamValue(Map.of()), is(nullValue()));
-        // a request value is left to the settings resolution after the parsing, which rejects it on release builds
-        assertThat(RELEASE_PARSER.anyParamValue(Map.of(QuerySettings.PARAM_ANY_VALUE, "custom")), is(nullValue()));
-        parse(RELEASE_PARSER, "ROW x = 1", new QueryParams(), Map.of(QuerySettings.PARAM_ANY_VALUE, "custom"));
     }
 
     public void testContextValueIsKeptWithoutSet() {
@@ -97,7 +95,7 @@ public class ParamAnyValueParserTests extends ESTestCase {
 
     public void testNoReservedValueIsKept() {
         assertThat(valueAfterParsing("ROW x = 1", null), is(nullValue()));
-        // a SET can't turn the feature on: on release builds it's rejected, and the context has no value
+        // a SET can't turn the feature on when the context has no value
         assertThat(valueAfterParsing("SET param_any_value = \"custom\"; ROW x = 1", null), is(nullValue()));
     }
 
@@ -128,29 +126,15 @@ public class ParamAnyValueParserTests extends ESTestCase {
         QueryParams params = new QueryParams(List.of(paramAsConstant("v", "*")));
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> parse(SNAPSHOT_PARSER, "SET param_any_value = ?v; ROW x = 1", params, Map.of())
+            () -> parse(TEST_PARSER, "SET param_any_value = ?v; ROW x = 1", params, Map.of())
         );
         assertThat(e.getMessage(), containsString("Setting [param_any_value] can't be set with a parameter"));
-    }
-
-    public void testSetWithAParameterIsLeftToTheValidationInReleaseBuilds() {
-        QueryParams params = new QueryParams(List.of(paramAsConstant("v", "*")));
-        // the parser doesn't act on the setting in release builds, where the validation rejects it
-        parse(RELEASE_PARSER, "SET param_any_value = ?v; ROW x = 1", params, Map.of());
-    }
-
-    public void testSetIsRejectedInReleaseBuilds() {
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            () -> RELEASE_PARSER.createStatement("SET param_any_value = \"custom\"; ROW x = 1")
-        );
-        assertThat(e.getMessage(), containsString("Setting [param_any_value] is only available in snapshot builds"));
     }
 
     public void testSetWithAnotherTypeIsRejected() {
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> SNAPSHOT_PARSER.createStatement("SET param_any_value = 1; ROW x = 1")
+            () -> TEST_PARSER.createStatement("SET param_any_value = 1; ROW x = 1")
         );
         assertThat(e.getMessage(), containsString("Setting [param_any_value] must be of type KEYWORD"));
     }
@@ -158,7 +142,7 @@ public class ParamAnyValueParserTests extends ESTestCase {
     public void testEmptySetIsRejected() {
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> SNAPSHOT_PARSER.createStatement("SET param_any_value = \"\"; ROW x = 1")
+            () -> TEST_PARSER.createStatement("SET param_any_value = \"\"; ROW x = 1")
         );
         assertThat(e.getMessage(), containsString("Error validating setting [param_any_value]: must not be empty"));
     }

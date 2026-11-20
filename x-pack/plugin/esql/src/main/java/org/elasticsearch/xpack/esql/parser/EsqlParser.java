@@ -21,6 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -288,7 +289,7 @@ public class EsqlParser {
      */
     @Nullable
     String anyParamValue(Map<QuerySettingDef<?>, Object> requestSettings) {
-        if (config.isDevVersion() == false) {
+        if (EsqlCapabilities.Cap.PARAM_ANY_VALUE.isEnabled() == false) {
             return null;
         }
         ResolvedSettings resolved = QuerySettings.resolve(

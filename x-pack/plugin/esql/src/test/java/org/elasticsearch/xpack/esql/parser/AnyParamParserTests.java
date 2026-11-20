@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.AnyParam;
@@ -18,12 +19,13 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
@@ -41,8 +43,11 @@ import static org.hamcrest.Matchers.hasSize;
 public class AnyParamParserTests extends ESTestCase {
 
     private static final String ANY = QuerySettings.PARAM_ANY_VALUE_DEFAULT;
-    private static final EsqlParser SNAPSHOT_PARSER = new EsqlParser(new EsqlConfig(true, TEST_FUNCTION_REGISTRY));
-    private static final EsqlParser RELEASE_PARSER = new EsqlParser(new EsqlConfig(false, TEST_FUNCTION_REGISTRY));
+
+    @BeforeClass
+    public static void requireAnyParam() {
+        assumeTrue("requires the Any controls", EsqlCapabilities.Cap.PARAM_ANY_VALUE.isEnabled());
+    }
 
     private static List<AnyParam> markers(LogicalPlan plan) {
         List<AnyParam> markers = new ArrayList<>();
@@ -55,13 +60,13 @@ public class AnyParamParserTests extends ESTestCase {
     }
 
     private static AnyParam onlyMarker(String query, QueryParams params) {
-        List<AnyParam> markers = markers(SNAPSHOT_PARSER.parseQuery(query, params));
+        List<AnyParam> markers = markers(TEST_PARSER.parseQuery(query, params));
         assertThat(query, markers, hasSize(1));
         return markers.getFirst();
     }
 
     private static String parsingError(String query, QueryParams params) {
-        return expectThrows(ParsingException.class, query, () -> SNAPSHOT_PARSER.parseQuery(query, params)).getMessage();
+        return expectThrows(ParsingException.class, query, () -> TEST_PARSER.parseQuery(query, params)).getMessage();
     }
 
     private static String anyError(String parameter, String where) {
@@ -115,24 +120,24 @@ public class AnyParamParserTests extends ESTestCase {
     }
 
     public void testListWithMoreThanOneValueIsNotAMarker() {
-        LogicalPlan plan = SNAPSHOT_PARSER.parseQuery("FROM t | WHERE a == ?x", params(paramAsConstant("x", List.of(ANY, ANY))));
+        LogicalPlan plan = TEST_PARSER.parseQuery("FROM t | WHERE a == ?x", params(paramAsConstant("x", List.of(ANY, ANY))));
         assertThat(markers(plan), empty());
     }
 
     public void testPatternIsNotAMarker() {
-        LogicalPlan plan = SNAPSHOT_PARSER.parseQuery("FROM t | KEEP ?p", params(paramAsPattern("p", ANY)));
+        LogicalPlan plan = TEST_PARSER.parseQuery("FROM t | KEEP ?p", params(paramAsPattern("p", ANY)));
         assertThat(markers(plan), empty());
     }
 
     public void testOtherValuesAndTheLiteralAreNotMarkers() {
-        assertThat(markers(SNAPSHOT_PARSER.parseQuery("FROM t | WHERE a == ?x", params(paramAsConstant("x", "other")))), empty());
-        assertThat(markers(SNAPSHOT_PARSER.parseQuery("FROM t | WHERE a == ?x", params(paramAsConstant("x", 1)))), empty());
-        assertThat(markers(SNAPSHOT_PARSER.parseQuery("FROM t | WHERE a == \"" + ANY + "\"", new QueryParams())), empty());
+        assertThat(markers(TEST_PARSER.parseQuery("FROM t | WHERE a == ?x", params(paramAsConstant("x", "other")))), empty());
+        assertThat(markers(TEST_PARSER.parseQuery("FROM t | WHERE a == ?x", params(paramAsConstant("x", 1)))), empty());
+        assertThat(markers(TEST_PARSER.parseQuery("FROM t | WHERE a == \"" + ANY + "\"", new QueryParams())), empty());
     }
 
     public void testRequestValueChangesTheReservedValue() {
         var requestSettings = Map.<QuerySettingDef<?>, Object>of(QuerySettings.PARAM_ANY_VALUE, "*");
-        LogicalPlan plan = SNAPSHOT_PARSER.parse(
+        LogicalPlan plan = TEST_PARSER.parse(
             "FROM t | WHERE a == ?x AND b == ?y",
             params(paramAsConstant("x", "*"), paramAsConstant("y", ANY)),
             new InferenceSettings(Settings.EMPTY),
@@ -147,18 +152,11 @@ public class AnyParamParserTests extends ESTestCase {
 
     public void testSetChangesTheReservedValue() {
         QueryParams params = params(paramAsConstant("x", "*"), paramAsConstant("y", ANY));
-        LogicalPlan plan = SNAPSHOT_PARSER.createStatement("SET param_any_value = \"*\"; FROM t | WHERE a == ?x AND b == ?y", params)
+        LogicalPlan plan = TEST_PARSER.createStatement("SET param_any_value = \"*\"; FROM t | WHERE a == ?x AND b == ?y", params)
             .plan();
         List<AnyParam> markers = markers(plan);
         assertThat(markers, hasSize(1));
         assertThat(markers.getFirst().parameterText(), equalTo("?x"));
-    }
-
-    public void testReleaseBuildsHaveNoMarkers() {
-        LogicalPlan plan = RELEASE_PARSER.parseQuery("FROM t | WHERE a == ?x", params(paramAsConstant("x", ANY)));
-        assertThat(markers(plan), empty());
-        // it's a plain value, as valid as any other where a constant goes
-        RELEASE_PARSER.parseQuery("FROM t | WHERE MATCH(a, \"q\", {\"fuzziness\": ?x})", params(paramAsConstant("x", ANY)));
     }
 
     public void testMarkerIsAnUnresolvableLeafThatCantBeFolded() {
@@ -184,7 +182,7 @@ public class AnyParamParserTests extends ESTestCase {
     public void testSetValueIsRejected() {
         ParsingException e = expectThrows(
             ParsingException.class,
-            () -> SNAPSHOT_PARSER.createStatement("SET unmapped_fields = ?x; FROM t", params(paramAsConstant("x", ANY)))
+            () -> TEST_PARSER.createStatement("SET unmapped_fields = ?x; FROM t", params(paramAsConstant("x", ANY)))
         );
         assertThat(e.getMessage(), containsString(anyError("?x", "in this position")));
     }

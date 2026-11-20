@@ -1247,21 +1247,42 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
-    public void testOfflineWarmingTasksSkippedOnCancellationOnlyWhileRecoveryAwaitsWarming() throws Exception {
+    public void testOfflineWarmingTasksSkippedOnCancellationWhileRecoveryAwaitsWarming() throws Exception {
+        runWarmingCancellationTest(false, true);
+    }
+
+    public void testOfflineWarmingTasksNotSkippedOnCancellationWhenRecoveryIsNotAwaitingWarming() throws Exception {
+        runWarmingCancellationTest(false, false);
+    }
+
+    public void testHeaderFooterWarmingTasksSkippedOnCancellationWhileRecoveryAwaitsWarming() throws Exception {
+        runWarmingCancellationTest(true, true);
+    }
+
+    public void testHeaderFooterWarmingTasksNotSkippedOnCancellationWhenRecoveryIsNotAwaitingWarming() throws Exception {
+        runWarmingCancellationTest(true, false);
+    }
+
+    private void runWarmingCancellationTest(boolean headerFooterWarming, boolean recoveryAwaitingWarming) throws Exception {
         final long primaryTerm = randomLongBetween(1, 10);
-        final boolean recoveryAwaitingWarming = randomBoolean();
         final var capturedTasks = new ArrayList<ActionListener<Releasable>>();
         final var readBlobCalls = new AtomicInteger();
 
         try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
-                return Settings.builder()
+                final var settings = Settings.builder()
                     .put(super.nodeSettings())
                     .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(9))
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE))
-                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE))
-                    .build();
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE));
+                if (headerFooterWarming) {
+                    // Only warm headers and footers: FakeStatelessNode has no BCC blob data, so reading the referenced compound commits for
+                    // offline warming would hang the async chain.
+                    settings.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), false)
+                        .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
+                }
+                return settings.build();
             }
 
             @Override
@@ -1347,19 +1368,44 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 node.warmingService.shardsAwaitingRecoveryWarming.add(indexShard);
             }
 
-            final int numBlobs = randomIntBetween(1, 5);
-            final Map<BccBlob, SharedBlobCacheWarmingService.WarmTarget> warmTargets = new HashMap<>();
-            for (int i = 0; i < numBlobs; i++) {
-                final long gen = i + 1L;
-                warmTargets.put(
-                    new BccBlob(BccBlob.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
-                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(randomLongBetween(1, 1024), 1024)
-                );
-            }
-
             final PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
-            node.warmingService.warmBlobOffsets(indexShard, node.searchDirectory, warmTargets, warmListener);
-            assertThat(capturedTasks, hasSize(numBlobs));
+            if (headerFooterWarming) {
+                when(indexShard.state()).thenReturn(IndexShardState.RECOVERING);
+                when(indexShard.routingEntry()).thenReturn(
+                    TestShardRouting.newShardRouting(node.shardId, node.node.getId(), true, ShardRoutingState.INITIALIZING)
+                );
+                final long generation = randomLongBetween(3, 42);
+                final var commit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
+                    node.shardId,
+                    new BccBlob(BccBlob.blobNameFromGeneration(generation), new PrimaryTermAndGeneration(primaryTerm, generation)),
+                    node.node.getEphemeralId(),
+                    0,
+                    node.sharedCacheService.getRegionSize()
+                );
+                node.warmingService.warmCache(
+                    SEARCH,
+                    indexShard,
+                    commit,
+                    node.searchDirectory,
+                    mock(WarmingRatioProvider.class),
+                    null,
+                    false,
+                    warmListener
+                );
+                assertThat(capturedTasks, not(empty()));
+            } else {
+                final int numBlobs = randomIntBetween(1, 5);
+                final Map<BccBlob, SharedBlobCacheWarmingService.WarmTarget> warmTargets = new HashMap<>();
+                for (int i = 0; i < numBlobs; i++) {
+                    final long gen = i + 1L;
+                    warmTargets.put(
+                        new BccBlob(BccBlob.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                        SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(randomLongBetween(1, 1024), 1024)
+                    );
+                }
+                node.warmingService.warmBlobOffsets(indexShard, node.searchDirectory, warmTargets, warmListener);
+                assertThat(capturedTasks, hasSize(numBlobs));
+            }
             assertFalse("listener must not fire while tasks are pending", warmListener.isDone());
 
             // The store stays open: only the shard's recovery cancellation flag is set.

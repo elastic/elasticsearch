@@ -757,7 +757,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         }
         // See CsvFormatReader: only FAIL_FAST makes a committed row count read-config-independent.
         if (rowCountReadConfigIndependent) {
-            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         }
         if (chunkMode) {
             base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);

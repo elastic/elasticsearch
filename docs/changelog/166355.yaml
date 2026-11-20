@@ -1,0 +1,5 @@
+pr: 166355
+summary: A short CSV or TSV row is a row error rather than silent nulls
+area: ES|QL
+type: bug
+issues: []

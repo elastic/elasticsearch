@@ -117,7 +117,7 @@ sealed interface SourceStatsContribution {
         long mtime = raw.get(ExternalStats.MTIME_MILLIS_KEY) instanceof Number n ? n.longValue() : -1L;
         String fingerprint = raw.get(ExternalStats.CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
         String readConfig = raw.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY) instanceof String s ? s : null;
-        boolean rowCountReadConfigIndependent = Boolean.TRUE.equals(raw.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        boolean rowCountReadConfigIndependent = ExternalStats.rowCountCrossesReadConfigs(raw);
         if (Boolean.TRUE.equals(raw.get(ExternalStats.PARTIAL_CHUNK_KEY)) == false) {
             return new WholeFile(stats, mtime, fingerprint, readConfig, rowCountReadConfigIndependent);
         }

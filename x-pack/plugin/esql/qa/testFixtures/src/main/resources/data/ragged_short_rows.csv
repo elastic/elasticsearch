@@ -1,0 +1,4 @@
+id:integer,name:keyword,score:integer
+1,alice,10
+2,bob
+3,carol,30

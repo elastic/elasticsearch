@@ -965,7 +965,7 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
     /** The one licensed crossing: under FAIL_FAST the physical record count is the same number for every read. */
     public void testRestrictToReadConfigKeepsOnlyTheLicensedCount() {
         Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
-        stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
 
         Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
 
@@ -974,6 +974,28 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
             "a column extremum depends on the type the column was read at and never crosses",
             restricted.containsKey(SourceStatisticsSerializer.columnMinKey("id"))
         );
+    }
+
+    /**
+     * The licence is granted under a decode-semantics revision and honoured only under the same one. A producer
+     * from before the value carried a revision wrote {@code Boolean.TRUE}; one from a later revision writes that
+     * revision. Either way the count measured rows this node would not produce, and the rolling upgrade across a
+     * revision bump is exactly when both appear, so the count is refused rather than served under a rule it never
+     * ran. Without this the fingerprint bump separates only the per-column statistics, since the count is the one
+     * measurement licensed to cross a fingerprint mismatch.
+     */
+    public void testRestrictToReadConfigRefusesACountLicensedUnderAnotherRevision() {
+        for (Object foreign : List.of(Boolean.TRUE, ExternalStats.ROW_COUNT_LICENCE + 1)) {
+            Map<String, Object> stats = statsWithReadConfig("config-inferred", 100L, 7L);
+            stats.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, foreign);
+
+            Map<String, Object> restricted = SourceStatisticsSerializer.restrictToReadConfig(stats, "config-declared");
+
+            assertFalse(
+                "a count licensed under [" + foreign + "] must not cross: " + restricted,
+                restricted.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
     }
 
     /** Its own configuration serves everything, or the gate would take every warm read cold. */
@@ -1078,12 +1100,12 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
      */
     public void testMergeStatisticsLicenceRequiresEveryInput() {
         Map<String, Object> first = statsWithReadConfig("aaa", 100L, 7L);
-        first.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        first.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         Map<String, Object> second = statsWithReadConfig("ccc", 200L, 9L);
-        second.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+        second.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
 
         Map<String, Object> allLicensed = SourceStatisticsSerializer.mergeStatistics(List.of(first, second));
-        assertEquals(Boolean.TRUE, allLicensed.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        assertEquals(ExternalStats.ROW_COUNT_LICENCE, allLicensed.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
         Map<String, Object> served = SourceStatisticsSerializer.restrictToReadConfig(allLicensed, "foreign");
         assertEquals("the licensed count crosses", 300L, served.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
         assertFalse("the extrema do not", served.containsKey(SourceStatisticsSerializer.columnMinKey("id")));

@@ -5022,6 +5022,13 @@ public class EsqlCapabilities {
          */
         FIX_TS_FIRST_LAST_SAMPLES,
 
+        /**
+         * A CSV or TSV row with fewer fields than the file's width is a row error, like a wider one is, rather
+         * than being read with its missing trailing fields as null; the new {@code pad_short_rows} dataset
+         * setting asks for the null-padding back, and reports each padded row.
+         */
+        EXTERNAL_CSV_SHORT_ROW_IS_A_ROW_ERROR,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

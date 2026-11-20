@@ -525,7 +525,7 @@ public final class SourceStatisticsSerializer {
         if (entryReadConfig == null || Objects.equals(entryReadConfig, expectedReadConfig)) {
             return stats;
         }
-        boolean countSurvives = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        boolean countSurvives = ExternalStats.rowCountCrossesReadConfigs(stats);
         Map<String, Object> restricted = new HashMap<>(stats.size());
         for (Map.Entry<String, Object> entry : stats.entrySet()) {
             String key = entry.getKey();
@@ -871,7 +871,7 @@ public final class SourceStatisticsSerializer {
             } else if (Objects.equals(agreed, fingerprint) == false) {
                 mixed = true;
             }
-            allLicensed &= Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+            allLicensed &= ExternalStats.rowCountCrossesReadConfigs(stats);
         }
         attachFoldedReadConfigIdentity(mixed, agreed, allLicensed, merged);
     }
@@ -897,7 +897,7 @@ public final class SourceStatisticsSerializer {
             merged.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, agreed);
         }
         if (allLicensed) {
-            merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            merged.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         }
     }
 

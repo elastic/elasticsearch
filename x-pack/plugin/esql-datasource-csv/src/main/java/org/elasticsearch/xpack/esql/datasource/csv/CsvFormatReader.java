@@ -197,6 +197,11 @@ import java.util.regex.Pattern;
  *       <td>When {@code true}, surrounding ASCII whitespace is trimmed from field values. Default
  *           {@code false} keeps values verbatim (RFC 4180 — spaces are part of a field). Applies to
  *           string content only; typed columns tolerate padding regardless.</td></tr>
+ *   <tr><td>{@code pad_short_rows}</td><td>{@code false}</td>
+ *       <td>When {@code true}, a row that stops before the file's width is read with its missing trailing fields
+ *           as {@code null}, and each such row is reported by a warning. Default {@code false}: such a row is a
+ *           row error like a wider one, which {@code error_mode} then decides the fate of — a padded
+ *           {@code null} cannot be told from one the file carries, so padding is the user's to ask for.</td></tr>
  * </table>
  *
  * <h2>Mode, quote and escape — the override matrix</h2>
@@ -426,6 +431,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     static final String CONFIG_SKIP_ROWS = "skip_rows";
     static final String CONFIG_SCHEMA_MAX_FIELDS = "schema_max_fields";
     static final String CONFIG_MULTILINE_FIELDS = "multiline_fields";
+    static final String CONFIG_PAD_SHORT_ROWS = "pad_short_rows";
 
     /** Context prefix {@link ExternalFailures#surface} puts on an I/O failure of the record iterator. */
     static final String READ_RECORD_FAILURE = "Failed to read CSV record";
@@ -444,6 +450,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Jackson message still does not name a Jackson class.
      */
     private static final Pattern JACKSON_CONSTRAINT_REFERENCE = Pattern.compile(",?\\s*from\\s+`?StreamReadConstraints[\\w.()]*`?");
+
+    /**
+     * What a row narrower than the file's width is called, in the error that rejects it and in the warning that
+     * reports it padded. One constant so the two cannot drift apart, and so a test can pin either by naming the
+     * fault rather than by quoting a sentence.
+     */
+    static final String MISSING_TRAILING_FIELDS = "missing trailing fields";
 
     /** Mode [escaped] plus an explicit [quote]: the PUT-time error and the read-time warning say the same thing. */
     static final String ESCAPED_WITH_QUOTE_MESSAGE =
@@ -486,7 +499,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         CONFIG_SCHEMA_SAMPLE_SIZE,
         CONFIG_SKIP_ROWS,
         CONFIG_SCHEMA_MAX_FIELDS,
-        CONFIG_MULTILINE_FIELDS
+        CONFIG_MULTILINE_FIELDS,
+        CONFIG_PAD_SHORT_ROWS
     );
 
     private final BlockFactory blockFactory;
@@ -550,8 +564,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * True when the pinned schema's provenance is {@code DECLARED} (set by {@code FileSourceFactory} from
      * {@link org.elasticsearch.xpack.esql.datasources.SchemaProvenance#DECLARED}), see
      * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReader#withDeclaredProvenanceBinding}. It decides only how
-     * a HEADERLESS file binds a pinned schema: a declared one by {@code col<N>} name, with no row-width limit, an inferred
-     * one by position, bounded by the schema's width. A headered file binds by its own header whatever the provenance.
+     * a HEADERLESS file binds a pinned schema: a declared one by {@code col<N>} name, with no row-width bound either
+     * way -- such a file states no width, and the columns a mapping names are the positions to read rather than a
+     * count of the fields a row carries -- an inferred one by position, bounded from above by the schema's width. A
+     * headered file binds by its own header whatever the provenance.
      */
     private final boolean declaredProvenanceBinding;
     /**
@@ -953,6 +969,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int skipRows = parseInt(CONFIG_SKIP_ROWS, config.get(CONFIG_SKIP_ROWS), baseline.skipRows());
         Check.clientError(skipRows >= 0, CONFIG_SKIP_ROWS + " must be non-negative, got: {}", skipRows);
         Check.clientError(skipRows <= SKIP_ROWS_MAX, CONFIG_SKIP_ROWS + " must be at most {}, got: {}", SKIP_ROWS_MAX, skipRows);
+        boolean padShortRows = parseBooleanOption(CONFIG_PAD_SHORT_ROWS, config.get(CONFIG_PAD_SHORT_ROWS), baseline.padShortRows());
 
         CsvFormatOptions merged = new CsvFormatOptions(
             delimiter,
@@ -969,7 +986,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             quoting,
             escaping,
             trimSpaces,
-            skipRows
+            skipRows,
+            padShortRows
         );
         return new ParsedOptions(merged.equals(baseline) ? null : merged, multilineFields, configWarnings);
     }
@@ -1271,13 +1289,76 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * @param maxRowWidth a headered file's header width, or {@link #NO_FILE_WIDTH} for a headerless file
      */
     private record HeaderBinding(int[] fieldIndex, int maxRowWidth) {
-        /** A headerless file's names ARE positions ({@code col4} -> field 4), so it states no width to bound rows by. */
+        /**
+         * A headerless file's names ARE positions ({@code col4} -> field 4), so it states no width at all -- neither
+         * a bound on rows from above, nor one from below, see {@link CsvBatchIterator#fileStatedRowWidth}.
+         */
         static final int NO_FILE_WIDTH = Integer.MAX_VALUE;
 
         static HeaderBinding withoutFileWidth(int[] fieldIndex) {
             return new HeaderBinding(fieldIndex, NO_FILE_WIDTH);
         }
+
+        /**
+         * The file's header width with no names bound: an inferred schema over a HEADERED file reads by position,
+         * so it binds no names, but the file's header still states how wide its rows are. That width has to come
+         * from this file rather than from the pinned schema, which cross-file resolution may have taken from a
+         * wider sibling -- {@code first_file_wins} over a three-column anchor would otherwise make every complete
+         * row of a two-column sibling fall short.
+         */
+        static HeaderBinding fileWidthOnly(int maxRowWidth) {
+            return new HeaderBinding(null, maxRowWidth);
+        }
     }
+
+    /**
+     * What kind of fault dropped a row. It fixes two things at once, which is why it is one value and not two
+     * booleans: the way out the {@code fail_fast} error names, and whether the drop depends on the query's
+     * projection (the discriminator the statistics publish gate reads — see {@code projectionDependentDrop}).
+     */
+    private enum RowFault {
+        /**
+         * A tokeniser fault or a row wider than the file: unreadable whatever is projected, and {@code skip_row} is
+         * the way to keep reading.
+         */
+        STRUCTURAL("; set [error_mode] to [skip_row] to skip the row instead"),
+        /**
+         * A row narrower than the file: structural in the same way, with a second way out — {@code pad_short_rows}
+         * reads the fields it stops short of as null and keeps the row.
+         */
+        SHORT_ROW(
+            "; set [error_mode] to [skip_row] to skip the row instead, or ["
+                + CONFIG_PAD_SHORT_ROWS
+                + "] to read its missing fields as null"
+        ),
+        /** A projected column's value that will not coerce: {@code null_field} keeps the row with that cell null. */
+        FIELD("; set [error_mode] to [null_field] to return null instead");
+
+        private final String hint;
+
+        RowFault(String hint) {
+            this.hint = hint;
+        }
+
+        /** What a {@code fail_fast} error tells the user to set to read this file anyway. */
+        String hint() {
+            return hint;
+        }
+
+        /**
+         * Whether the surviving row set is independent of the query's projection. Only {@link #FIELD} is not: it is
+         * a failure to read a column this query happened to ask for.
+         */
+        boolean projectionIndependent() {
+            return this != FIELD;
+        }
+    }
+
+    /**
+     * A row the width rule refuses: why, in the user's words, and which way out the {@code fail_fast} error offers.
+     * One value, because the two are decided together and the call sites only relay them.
+     */
+    private record RowWidthFault(String message, RowFault fault) {}
 
     /**
      * Maps each position of a pinned schema to the raw field index it reads, so each column binds the file column it
@@ -1322,6 +1403,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return;
         }
         int[] schemaFieldIndex = binding.fieldIndex();
+        if (schemaFieldIndex == null) {
+            // A binding carrying only the file's width (HeaderBinding#fileWidthOnly) bound no names, so no column of
+            // the schema can be absent from the file BY NAME -- there is nothing here to warn about.
+            return;
+        }
         for (int i = 0; i < schemaFieldIndex.length; i++) {
             if (schemaFieldIndex[i] == ABSENT_FIELD) {
                 String name = readSchema.get(i).name();
@@ -1336,7 +1422,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * NON-CANONICAL ({@code col007} is not how the file names field 7; inference produces exactly {@code col7}), or
      * names an index beyond {@link #MAX_HEADERLESS_COLUMN_INDEX}. The cap keeps a pathological declaration
      * ({@code col500000000}) from sizing a multi-gigabyte projection array or overflowing the bound; a real
-     * {@code col<N>} beyond the row's width still null-fills structurally at read time.
+     * {@code col<N>} beyond a row's trailing edge null-fills, a headerless file stating no width for the row to
+     * fall short of (see {@link CsvBatchIterator#fileStatedRowWidth}).
      */
     private int headerlessFieldIndex(String physical, StorageObject object) {
         String prefix = options.columnPrefix();
@@ -1751,6 +1838,49 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
+    /**
+     * Whether a row short of the file's header width never becomes a row of the result: dropped under a lenient
+     * policy, fatal under {@code fail_fast}. Padding fills such a row out and keeps it, so under padding it is data.
+     * This is the condition under which its vote on a column's type is withheld.
+     */
+    private boolean shortRowIsNotData() {
+        return options.headerRow() && options.padShortRows() == false;
+    }
+
+    /**
+     * The sampled rows type inference may read: the ones the reader goes on to keep. A row narrower than the file's
+     * header is not a row of that file (see {@link CsvBatchIterator#fileStatedRowWidth}), so where it never becomes
+     * data its values must not decide a column's type -- one short row would otherwise widen a numeric column to
+     * {@code keyword} and fail an aggregation over a file in which no surviving value is text. Under
+     * {@code fail_fast} that failure arrives before the read that would have refused the row: the query is rejected
+     * at analysis over the widened type, so the error naming the row and the two widths is never reached.
+     *
+     * <p>Only the VOTE is withheld, never the row: the sample is replayed as data unchanged, so a short row is still
+     * reported and still charged to the error budget. Padding keeps such rows, so under it they keep their vote. A
+     * file whose every sampled row is short leaves nothing else to type from, so the sample stands as it is rather
+     * than inferring from no evidence.
+     */
+    private static List<String[]> typeInferenceRows(List<String[]> rows, int fileWidth, boolean shortRowIsNotData) {
+        if (shortRowIsNotData == false) {
+            return rows;
+        }
+        // A zero-length row holds no value for any column, so standing in for a short row withholds that row's vote
+        // while leaving the rows after it at the sample positions the widening warnings name.
+        String[] noVote = Strings.EMPTY_ARRAY;
+        List<String[]> voting = null;
+        int withheld = 0;
+        for (int i = 0; i < rows.size(); i++) {
+            if (rows.get(i).length < fileWidth) {
+                if (voting == null) {
+                    voting = new ArrayList<>(rows);
+                }
+                voting.set(i, noVote);
+                withheld++;
+            }
+        }
+        return voting == null || withheld == rows.size() ? rows : voting;
+    }
+
     private InferredSchema inferSchemaFromSample(
         String headerLine,
         CsvLogicalRecordReader recordReader,
@@ -1783,7 +1913,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
-                sample.rows(),
+                typeInferenceRows(sample.rows(), columnNames.length, shortRowIsNotData()),
                 options.datetimeFormatter(),
                 sawUndecodableTemporal,
                 widenings
@@ -2622,11 +2752,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     );
                 } else if (options.headerRow() == false && declaredProvenanceBinding) {
                     // A headerless file's physical names ARE positions (col4 -> field 4), so binding needs no file content
-                    // and runs on EVERY split. Its rows are not bounded by a width the file does not state.
+                    // and runs on EVERY split. Such a file states no width, so its rows are bounded neither from above
+                    // nor from below -- a mapping over it declares which positions to read, not how many fields a row has.
                     headerBinding = HeaderBinding.withoutFileWidth(fieldIndexes(readSchema, null, object));
+                } else if (options.headerRow()) {
+                    // An inferred schema over a HEADERED file reads by position -- always for a headerless-style
+                    // positional read, and under headerBindingByProvenance for a headered one -- so no names bind. The
+                    // file's own header still states its width, which is the floor; the schema's width stays the limit.
+                    List<String> fileHeader = context.firstSplit() ? leadingColumns : context.fileHeaderColumns();
+                    if (fileHeader != null) {
+                        headerBinding = HeaderBinding.fileWidthOnly(fileHeader.size());
+                    }
                 }
-                // An inferred headerless schema binds positionally, as does an inferred headered one under
-                // headerBindingByProvenance: no binding, rows bounded by the schema's width.
+                // An inferred headerless schema binds positionally: no binding, and no width either way.
             } catch (Exception e) {
                 abortRead(rawStream, e);
                 throw e;
@@ -2722,6 +2860,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             context.batchSize(),
             effectiveSchema,
             headerBinding,
+            readSchema != null,
             effective,
             object.path().toString(),
             object.path(),
@@ -3305,7 +3444,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * or {@code \} inside the cell is data, not a quote toggle — otherwise real-world rows like
      * {@code [text",1,2013-...,38,-12345]} would look unclosed here, the splitter would treat the leading {@code [}
      * as literal, and the inner commas would become delimiters, yielding extra columns and the
-     * {@code "[N+k] columns, the schema has [N]"} failure.
+     * {@code "[N+k] columns, the header has [N]"} failure.
      */
     private static boolean hasMvcBracketClose(String line, int openBracketIndex) {
         if (openBracketIndex < 0 || openBracketIndex >= line.length() || line.charAt(openBracketIndex) != '[') {
@@ -4216,6 +4355,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final List<String> projectedColumns;
         private final int batchSize;
         private final List<Attribute> preResolvedSchema;
+        /**
+         * Whether the schema was pinned by the plan rather than read off this file's own header. It is what a
+         * missing binding means: with no pinned schema the schema IS that header, so its size states this file's
+         * width; with one, a split that bound nothing was never told this file's width. See
+         * {@link #fileStatedRowWidth}.
+         */
+        private final boolean pinnedSchema;
         private final ErrorPolicy errorPolicy;
         private final int modeOrdinal;
         private final boolean logErrors;
@@ -4233,6 +4379,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final boolean emptyCellIsEmptyString;
         private final DateFormatter datetimeFormatter;
         private final boolean bracketMultiValues;
+        /** The dataset's {@code pad_short_rows}; read per row, hence hoisted off {@link #options}. */
+        private final boolean padShortRows;
         private final String sourceLocation;
         /**
          * Object name (last path segment) used in user-facing messages; avoids leaking bucket/prefix for
@@ -4240,6 +4388,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private final String messageLocation;
         private final SkipWarnings skipWarnings;
+        /**
+         * The channel the padded short rows are reported on, or {@link SkipWarnings#NOOP} when padding is off.
+         * Deliberately NOT {@link SkipWarnings#of}, which vends {@code NOOP} for the strict policy: padding is
+         * orthogonal to {@code error_mode}, and a padded row has to be visible under {@code fail_fast} too — that
+         * is the mode where the user asked for nothing to be invented. Its cap, summary and overflow marker are
+         * the same machinery {@link #skipWarnings} uses, so a file of short rows cannot flood the response.
+         */
+        private final SkipWarnings padWarnings;
+
+        /**
+         * The pad notice this row staged, or {@code null} when it needed none. Staged rather than emitted at the
+         * width check because a short row is not yet a kept row: one of the fields it DOES carry can still fail
+         * conversion and drop it under {@code skip_row}, and a notice saying its missing fields were read as null
+         * would then describe a row the reader never returned. {@link #flushPadNotice()} emits it where the row is
+         * committed; the next width check overwrites it, so a dropped row's notice never reaches a later row.
+         */
+        private String pendingPadNotice;
         /** The read context's informational sink; the read-time null-marker hint goes here. */
         @Nullable
         private final Consumer<String> warningSink;
@@ -4258,9 +4423,37 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * width, never the schema's, so naming 5 columns of a 105-column file still bounds rows at 105. Positional
          * binding (an inferred headerless schema) takes {@code schema.size()}; by-name binding takes
          * {@link #bindingMaxRowWidth}, which is {@link HeaderBinding#NO_FILE_WIDTH} for a declared headerless schema.
-         * Short rows are not this field's concern — they null-fill.
+         * A row narrower than the file's width is {@link #rowWidthFloor}'s concern, not this field's.
          */
         private int rowWidthLimit;
+        /** The floor for a file that states no width: every row clears it, so none of them is ever short. */
+        private static final int NO_ROW_WIDTH_FLOOR = 0;
+
+        /**
+         * Narrowest row this file accepts: the width the file states, which a row has to fill. Only a header states
+         * one, so this is the FILE's own header width wherever the file has a header, and {@link #NO_ROW_WIDTH_FLOOR}
+         * for a headerless file, whatever schema is pinned over it -- see {@link #fileStatedRowWidth}.
+         *
+         * <p>It is a field of its own rather than {@link #rowWidthLimit} read the other way, because the two are not
+         * the same number on every path: a headerless file bounded from above by its inferred schema's width still
+         * has no floor, that schema being a bound on what the sample saw rather than a width the file declares.
+         *
+         * <p>Set even when {@code pad_short_rows} turns the rejection off, because the padding warning names it.
+         */
+        private int rowWidthFloor;
+        /**
+         * Whether {@link #rowWidthLimit} is a width the FILE states rather than the pinned schema's own, which is what
+         * a width message names it after. {@link #rowWidthFloor} needs no such field: it is only ever a width the file
+         * states, see {@link #fileStatedRowWidth}.
+         */
+        private boolean rowWidthLimitIsFileStated;
+        /**
+         * Whether this split has reached a record of the width its file states. Taken as evidence that it is past
+         * the value a cut at its start could have landed inside -- evidence, not proof, since an inner line of such
+         * a value can carry that many delimiters itself. {@link #cutQuotedValueClause()} is the only reader, and
+         * weighs that against what the alternative costs.
+         */
+        private boolean pastCutTail;
         /** The binding's widest row, or {@link HeaderBinding#NO_FILE_WIDTH}; resolves {@link #rowWidthLimit}. Unused when no binding. */
         private final int bindingMaxRowWidth;
         /**
@@ -4514,6 +4707,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int batchSize,
             List<Attribute> preResolvedSchema,
             @Nullable HeaderBinding headerBinding,
+            boolean pinnedSchema,
             ErrorPolicy errorPolicy,
             String sourceLocation,
             StoragePath objectPath,
@@ -4539,6 +4733,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.preResolvedSchema = preResolvedSchema;
             this.schemaFieldIndex = headerBinding == null ? null : headerBinding.fieldIndex();
             this.bindingMaxRowWidth = headerBinding == null ? HeaderBinding.NO_FILE_WIDTH : headerBinding.maxRowWidth();
+            this.pinnedSchema = pinnedSchema;
             this.errorPolicy = errorPolicy;
             this.modeOrdinal = errorPolicy.mode().ordinal();
             this.logErrors = errorPolicy.logErrors();
@@ -4548,6 +4743,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.emptyCellIsEmptyString = "".equals(options.nullValue()) == false;
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
+            this.padShortRows = options.padShortRows();
             this.sourceLocation = sourceLocation;
             this.messageLocation = objectPath.objectName();
             this.cacheableObject = cacheableObject;
@@ -4574,6 +4770,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 "Some values in [" + messageLocation + "] cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 this.warningSink
             );
+            this.padWarnings = options.padShortRows()
+                ? new SkipWarnings(
+                    "Some rows in [" + messageLocation + "] are " + MISSING_TRAILING_FIELDS + "; reading those fields as null",
+                    this.warningSink
+                )
+                : SkipWarnings.NOOP;
         }
 
         @Override
@@ -4900,7 +5102,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // so a committed count is the physical record count for every declaration. Under the lenient policies dropped rows make a
             // committed count a survivor count for this read, not the file's physical record count.
             if (errorPolicy.isStrict()) {
-                base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+                base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
             }
             if (chunkMode) {
                 base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
@@ -5145,7 +5347,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                                     // pragma-dependent count.
                                     recordCapDropped = true;
                                 }
-                                onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, true);
+                                onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, RowFault.STRUCTURAL);
                             }
                         }
                     }
@@ -5191,7 +5393,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // loss is not reproducible from the cache key. Mark the scan uncacheable (safe-miss) so a warm
                 // query under a different cap re-scans rather than serving this pragma-dependent count.
                 recordCapDropped = true;
-                onRowError(e.getMessage(), e, EMPTY_ROW, true);
+                onRowError(e.getMessage(), e, EMPTY_ROW, RowFault.STRUCTURAL);
                 return "";
             }
         }
@@ -5214,7 +5416,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 } catch (MalformedRowException e) {
                     totalRowCount++;
-                    onRowError(e.getMessage(), e, EMPTY_ROW, true);
+                    onRowError(e.getMessage(), e, EMPTY_ROW, RowFault.STRUCTURAL);
                 }
             }
         }
@@ -5282,7 +5484,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
-                sample.rows(),
+                typeInferenceRows(sample.rows(), columnNames.length, shortRowIsNotData()),
                 options.datetimeFormatter(),
                 sawUndecodableTemporal,
                 widenings
@@ -5343,15 +5545,47 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * The width guard's message, naming the number the guard actually compared against: the schema's width under
-         * positional binding, the file's header width under by-name binding (where the two differ).
+         * The width clause every width message carries: the row's own width, and the width it was measured against,
+         * named by where that width comes from -- the file's {@code header}, or the pinned {@code schema}.
+         *
+         * <p>The caller states which, because the two bounds do not always share a source: under a width-only
+         * binding ({@link HeaderBinding#fileWidthOnly}) the floor is the file's header while the limit is the
+         * pinned schema's own width, so a single test on the binding would mislabel one of them. A bound this
+         * class derived from the file's header is the header's however it reached it, including where no binding
+         * was made at all and the schema was inferred from that very header.
          */
-        private String rowTooWideMessage(int actualFields) {
-            // Discriminates on the binding, not on whether the two numbers happen to coincide: a schema that names as
-            // many columns as the file still bound the row by the FILE's width, and should say so.
-            return schemaFieldIndex == null
-                ? "[" + actualFields + "] columns, the schema has [" + schemaColumnCount + "]"
-                : "[" + actualFields + "] columns, the header has [" + rowWidthLimit + "]";
+        private String rowWidthClause(int actualFields, int expectedFields, boolean fileStated) {
+            return "[" + actualFields + "] columns, the " + (fileStated ? "header" : "schema") + " has [" + expectedFields + "]";
+        }
+
+        /**
+         * The other thing a short row can be, where the file was cut at a plain newline: not a row that ends early,
+         * but the tail of a quoted value the cut landed inside, which {@code multiline_fields: true} would have read
+         * whole. The split that OWNS such a value's start does report the broken contract itself, see
+         * {@link CsvLogicalRecordReader#failOnLineSpan()} -- but a split that BEGINS inside the value reaches its own
+         * first record first, and nothing in that record distinguishes the two, so the message names both.
+         *
+         * <p>Empty unless this split could STILL be holding one. Its start has to be a quote-blind cut, which is a
+         * quoting dialect read under {@link #newlineSplitting()} from somewhere other than the file's first byte --
+         * an escaping dialect is excluded with it, no record of one spanning a raw newline -- and it has to be
+         * before {@link #pastCutTail}, the first record of the file's own width.
+         *
+         * <p>That second half is a heuristic, and so is its absence: a split reading blind to quotes cannot know
+         * where a value ends, which is what {@code multiline_fields: false} means. Both directions of the error
+         * exist. Without it, EVERY short row of every non-first split carries the clause, so row 500 of a perfectly
+         * well-formed split is sent after a setting that will not help it -- and most splits of a large file start
+         * after byte 0, so that is the ordinary case rather than a corner. With it, a cut value whose inner lines
+         * happen to carry exactly the file's delimiter count ends the clause early, and a genuinely cut row after
+         * one loses it. The first costs every reader of a ragged file wrong advice; the second costs a coincidence
+         * one hint, while the row is still refused, still named, and the split that OWNS the value's start still
+         * reports the broken contract through {@link CsvLogicalRecordReader#failOnLineSpan()}, whose own javadoc
+         * concedes the same limit. So it errs toward silence, which is the cheaper way to be wrong here.
+         */
+        private String cutQuotedValueClause() {
+            return pastCutTail == false && newlineSplitting() && options.quoting() && splitStartByte > 0
+                ? "; or a quoted value spans several lines while [multiline_fields] is not [true] and this split begins "
+                    + "inside one, in which case set [multiline_fields] to [true]"
+                : "";
         }
 
         /** The raw field index a pinned-schema position reads; the identity under positional binding. */
@@ -5359,10 +5593,53 @@ public class CsvFormatReader implements SegmentableFormatReader {
             return schemaFieldIndex == null ? schemaPosition : schemaFieldIndex[schemaPosition];
         }
 
+        /**
+         * The width this file states, which every row of it has to fill — {@link #rowWidthFloor}. Only the file's
+         * own header states one: its field count, the same number {@link #rowWidthLimit} bounds rows by from above,
+         * so a row of a headered file must be exactly that wide. It reaches this either as the schema's size, when
+         * an inferred schema was read off that header, or as the binding's width, when a pinned schema binds to it
+         * by name.
+         *
+         * <p>The width is always THIS file's, never the pinned schema's: cross-file resolution can take the schema
+         * from a wider sibling, and a complete row of a narrower file is not a short row.
+         *
+         * <p>A headerless file states no width and so gets no floor, whatever schema is pinned over it. A mapping
+         * is deliberately NOT an authority here: the reader is told only that the schema's provenance is
+         * {@code DECLARED}, which {@code ExternalSourceResolver} sets both for a {@code dynamic: false} mapping and
+         * for a non-strict overlay that appends the columns an inferred sample never reached. Those appended
+         * columns are contractually absent-and-null-filled rather than required, and nothing reaching this class
+         * tells the two apart -- so a floor taken from the bound columns would make one dataset's optional trailing
+         * column another's mandatory one. Being a function of the file alone also keeps the floor out of the
+         * read-configuration fingerprint: two datasets declaring different columns over one file still agree about
+         * which of its rows are well-formed.
+         */
+        private int fileStatedRowWidth(int schemaSize) {
+            if (bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH) {
+                return bindingMaxRowWidth;
+            }
+            // Nothing bound. With no pinned schema the schema IS this file's header, read off it by this very read,
+            // so its size is that header's width. With one, this split was told neither the file's header nor its
+            // width: the width-only branch builds no binding where a later split arrives without the file's header
+            // columns, and the pinned schema's size is then a SIBLING's width under cross-file resolution, which no
+            // row of this file has to fill. So that file states no width here, and its rows keep the null-filling
+            // they had before this rule -- rather than being measured against a number that is not the file's and
+            // told it is the header's. A headerless file states none either way.
+            return pinnedSchema == false && schemaFieldIndex == null && options.headerRow() ? schemaSize : NO_ROW_WIDTH_FLOOR;
+        }
+
         private void initProjection() {
             int schemaSize = schema.size();
             schemaColumnCount = schemaSize;
             rowWidthLimit = schemaFieldIndex == null ? schemaSize : bindingMaxRowWidth;
+            // Where that number came from, which is what a width message names it after. Where names bound it is the
+            // binding's file width. Where they did not it is the schema's own size, which is this file's header only
+            // when the schema was read off that header -- that is, when nothing bound AND nothing was pinned. A
+            // width-only binding is the case this separates: its floor is the file's header while its limit is a
+            // pinned schema's.
+            rowWidthLimitIsFileStated = schemaFieldIndex != null
+                ? bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH
+                : bindingMaxRowWidth == HeaderBinding.NO_FILE_WIDTH && options.headerRow() && pinnedSchema == false;
+            rowWidthFloor = fileStatedRowWidth(schemaSize);
             // Schema position per projected slot, tracked alongside projectedIdx because by-name binding makes the
             // two diverge: projectedIdx is the RAW FIELD INDEX to read out of the record, schemaPos names the
             // schema attribute. Where schemaFieldIndex is null (no pinned schema, or an inferred headerless one)
@@ -5512,13 +5789,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
-                    if (rowWidthRejected(row.length)) {
-                        onRowError(rowTooWideMessage(row.length), null, row, true);
+                    RowWidthFault widthFault = rowWidthError(row.length);
+                    if (widthFault != null) {
+                        onRowError(widthFault.message(), null, row, widthFault.fault());
                         continue;
                     }
                     // ALL scope: COUNT(*) projects zero columns, so the page carries no blocks — harvest
                     // every file column's min/max/null straight from the raw record here. rowIdx indexes
                     // rowStartBytes (built parallel to rows) so the stripe attribution is exact.
+                    flushPadNotice();
                     harvestAllColumns(row, rowIdx);
                     survivors.accept(rowIdx);
                     acceptedRows++;
@@ -5558,11 +5837,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 for (int rowIdx = 0; rowIdx < rows.size(); rowIdx++) {
                     String[] row = rows.get(rowIdx);
                     totalRowCount++;
-                    if (rowWidthRejected(row.length)) {
-                        onRowError(rowTooWideMessage(row.length), null, row, true);
+                    RowWidthFault widthFault = rowWidthError(row.length);
+                    if (widthFault != null) {
+                        onRowError(widthFault.message(), null, row, widthFault.fault());
                         continue;
                     }
                     if (convertRowInPlace(row, rowIdx)) {
+                        flushPadNotice();
                         for (int i = 0; i < columnCount; i++) {
                             builders[i].append().accept(rowBuffer[i]);
                         }
@@ -5608,7 +5889,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     } else {
                         String err = lastFieldError;
                         lastFieldError = null;
-                        onRowError(err, null, row, false);
+                        onRowError(err, null, row, RowFault.FIELD);
                         return false;
                     }
                 } else {
@@ -5729,7 +6010,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             acceptedRows++;
                         }
                     } catch (MalformedRowException e) {
-                        onRowError(e.getMessage(), e, line, true);
+                        onRowError(e.getMessage(), e, line, RowFault.STRUCTURAL);
                     }
                 }
                 acceptedRowStartBytes = survivors.finish();
@@ -5761,7 +6042,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
             } catch (CsvRecordTooLargeException e) {
                 totalRowCount++;
-                onRowError(e.getMessage(), e, EMPTY_ROW, true);
+                onRowError(e.getMessage(), e, EMPTY_ROW, RowFault.STRUCTURAL);
                 // Cap-determined survivor loss on the direct path — the harvested stats now under-count, so the
                 // whole-file/stripe publish must safe-miss (matches the bracket, Jackson-bulk, and sampling
                 // catch sites; the publish gate at closeInternal checks recordCapDropped == false).
@@ -6255,7 +6536,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String rowError = pendingRowError;
             if (rowError != null) {
                 clearPendingErrors();
-                onRowError(rowError, null, rawLine, false);
+                onRowError(rowError, null, rawLine, RowFault.FIELD);
                 return false;
             }
             for (int i = 0; i < pendingFieldErrors.size(); i++) {
@@ -6344,7 +6625,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @return always {@code false}, so callers can {@code return rejectFieldTooLarge(len)} to drop the row
          */
         private boolean rejectFieldTooLarge(int valueLen) {
-            onRowError(fieldSizeExceededDetail(valueLen, maxFieldChars), null, EMPTY_ROW, true);
+            onRowError(fieldSizeExceededDetail(valueLen, maxFieldChars), null, EMPTY_ROW, RowFault.STRUCTURAL);
             return false;
         }
 
@@ -6397,7 +6678,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         try {
                             return splitAndConvertQuoted(buf, from, to);
                         } catch (MalformedRowException e) {
-                            onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, true);
+                            onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, RowFault.STRUCTURAL);
                             return false;
                         }
                     }
@@ -6415,7 +6696,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     try {
                         return splitAndConvertQuoted(buf, from, to);
                     } catch (MalformedRowException e) {
-                        onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, true);
+                        onRowError(rowErrorReason(e.getMessage()), e, EMPTY_ROW, RowFault.STRUCTURAL);
                         return false;
                     }
                 }
@@ -6454,6 +6735,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
+         * Whether anything goes on to read a row error's MESSAGE: the {@code FAIL_FAST} throw, the per-row line
+         * {@code log_errors} writes, or a warning the collector is still taking details for
+         * ({@link SkipWarnings#acceptsDetail()}). False past all three, where {@link #onRowErrorImpl} hands the
+         * message to an {@code add} that discards its argument -- so a caller that BUILDS one per row can skip the
+         * formatting, as {@link #excerptIsRead} already lets it skip the excerpt. It answers about the message and
+         * never about the row: the row is still refused, still counted and still charged to the error budget.
+         *
+         * <p>It earns its place on the width path because a short row is the ordinary row of a ragged file rather
+         * than the rarity a wide row is, and {@code max_error_ratio} admits a budget that covers every row of it.
+         */
+        private boolean messageIsRead() {
+            return modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal() || logErrors || skipWarnings.acceptsDetail();
+        }
+
+        /**
          * The record text for a row error on the direct path, or {@code null} where nothing reads one.
          *
          * <p>The consumers above already decline to summarize an unread excerpt; this declines to BUILD one. The
@@ -6466,16 +6762,72 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
-         * Whether a row of {@code actualFields} fields falls outside the width its binding allows: the file's header
-         * width when the schema binds by name, the schema's own width when it binds by position. A declared headerless
-         * file states no width, so its limit is {@link HeaderBinding#NO_FILE_WIDTH} and this is never true there.
+         * The whole row-width rule, and the only place either bound is compared: why a row of {@code actualFields}
+         * fields is rejected, or {@code null} when its width is acceptable. A row is measured against the width the
+         * file states (see {@link #fileStatedRowWidth}) and is a structural fault either side of it — too many
+         * fields, or too few, which is the same drift seen from below and a null the reader invented rather than one
+         * the file carries.
          *
-         * <p>It decides only that. A caller that gets {@code true} still raises the error itself, because what a
+         * <p>A short row is instead kept, null-padded, when the dataset sets {@code pad_short_rows}; this reports
+         * each such row on {@link #padWarnings}, so nothing is padded silently.
+         *
+         * <p>It decides only that. A caller that gets a message still raises the error itself, because what a
          * rejection costs differs: the materialized path has nothing staged to discard and moves to the next row,
          * while a walker has to abandon the row it was midway through converting.
          */
-        private boolean rowWidthRejected(int actualFields) {
-            return actualFields > rowWidthLimit;
+        @Nullable
+        private RowWidthFault rowWidthError(int actualFields) {
+            pendingPadNotice = null;
+            if (actualFields > rowWidthLimit) {
+                return new RowWidthFault(
+                    messageIsRead() ? rowWidthClause(actualFields, rowWidthLimit, rowWidthLimitIsFileStated) : "",
+                    RowFault.STRUCTURAL
+                );
+            }
+            if (actualFields < rowWidthFloor) {
+                if (padShortRows == false) {
+                    // Composed only while something still reads it, like the pad notice below and for the same
+                    // reason -- the difference being that the rejection spends the error budget, so what this
+                    // bounds is a ratio limit wide enough to carry a whole ragged file rather than an unbounded run.
+                    return new RowWidthFault(
+                        messageIsRead()
+                            ? MISSING_TRAILING_FIELDS + ": " + rowWidthClause(actualFields, rowWidthFloor, true) + cutQuotedValueClause()
+                            : "",
+                        RowFault.SHORT_ROW
+                    );
+                }
+                // Composed only while the collector would still deliver it. Padding keeps its rows without spending
+                // the error budget, so unlike a skip this runs on every short row of the file however many there
+                // are, long after the warning cap is gone -- and every one of those notices would be built to be
+                // dropped. It is the formatting that is skipped, not the padding, which is unconditional.
+                if (padWarnings.acceptsDetail()) {
+                    // Padding does not change what the row might be, only what happens to it: a split that begins
+                    // inside a quoted value reaches the same fragment here, and padding it hides the cut behind a
+                    // row of nulls rather than refusing it. So the reading that would have carried the hint is the
+                    // one that most needs it, and it is the same clause on the same terms.
+                    pendingPadNotice = "row ["
+                        + totalRowCount
+                        + "]: "
+                        + MISSING_TRAILING_FIELDS
+                        + ", read as null: "
+                        + rowWidthClause(actualFields, rowWidthFloor, true)
+                        + cutQuotedValueClause();
+                }
+            } else if (pastCutTail == false) {
+                // A record of the width the file states, taken as evidence that whatever cut this split's start is
+                // behind it -- evidence rather than proof, since an inner line of a cut value can carry that many
+                // delimiters itself. What it costs either way is weighed in cutQuotedValueClause.
+                pastCutTail = true;
+            }
+            return null;
+        }
+
+        /** Emits the notice {@link #rowWidthError} staged, at the point the row it describes is kept. */
+        private void flushPadNotice() {
+            if (pendingPadNotice != null) {
+                padWarnings.add(pendingPadNotice);
+                pendingPadNotice = null;
+            }
         }
 
         /**
@@ -6483,9 +6835,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *
          * <p>Two distinct absences return the same {@code null}: a negative index, which is {@link #ABSENT_FIELD}
          * for a schema column this file does not carry, and an index past the row's trailing edge, which is a row
-         * shorter than the binding allows. The negative arm is reachable -- a by-name binding produces it -- so it
-         * is a guard rather than defensive habit. A caller that only needs to know whether the field is there asks
-         * for the value and compares it to {@code null}.
+         * the width rule let through narrower than the file ({@code pad_short_rows}), or one whose binding states
+         * no width to fill. Both arms are reachable -- a by-name binding produces the negative one -- so they are
+         * guards rather than defensive habit. A caller that only needs to know whether the field is there asks for
+         * the value and compares it to {@code null}.
          */
         private static String fieldOrNull(String[] row, int idx) {
             return idx >= 0 && idx < row.length ? row[idx] : null;
@@ -6494,7 +6847,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /**
          * Closes out a direct-path row once its last field is consumed, which is the first moment the row is whole:
          * enforce the width rule, surface any field errors the walk staged, then null-fill every projected column the
-         * row has no field for -- past its trailing edge, or {@link #ABSENT_FIELD} because the file lacks that column.
+         * row has no field for -- {@link #ABSENT_FIELD} because the file lacks that column, or past its trailing edge,
+         * which the width rule only lets through under {@code pad_short_rows} or where no width is stated.
          *
          * <p>The three direct walkers share this -- plain, and the quoted dialect's optimistic and full walkers. The
          * fused projected walker does not, because it interleaves trailing-field handling with its own fill.
@@ -6507,10 +6861,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @return {@code true} if the row was accepted, {@code false} if the error policy rejected it
          */
         private boolean finishDirectRow(int totalFields) {
-            if (rowWidthRejected(totalFields)) {
-                // The structural error wins: a row this wide has no meaningful columns to report field errors about.
+            RowWidthFault widthFault = rowWidthError(totalFields);
+            if (widthFault != null) {
+                // The structural error wins: a row of the wrong width has no meaningful columns to report field
+                // errors about.
                 clearPendingErrors();
-                onRowError(rowTooWideMessage(totalFields), null, rowExcerptIfRead(), true);
+                onRowError(widthFault.message(), null, rowExcerptIfRead(), widthFault.fault());
                 return false;
             }
             // hasPendingErrors keeps a clean row out of the call; rowExcerptIfRead() keeps every lenient mode from
@@ -6518,6 +6874,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (hasPendingErrors && flushPendingErrors(rowExcerptIfRead()) == false) {
                 return false;
             }
+            flushPadNotice();
             // Null-fill projected columns whose source index falls past the row's trailing edge.
             for (int c = 0; c < columnCount; c++) {
                 if (projectedIdx[c] < 0 || projectedIdx[c] >= totalFields) {
@@ -6869,7 +7226,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         r++;
                     }
                     if (r < len && buf[r] != delim) {
-                        onRowError("unexpected content after a closing quote", null, EMPTY_ROW, true);
+                        onRowError("unexpected content after a closing quote", null, EMPTY_ROW, RowFault.STRUCTURAL);
                         return false;
                     }
                     if (projected) {
@@ -7192,10 +7549,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // excludes a tokenization that produced no fields at all; blank lines are skipped before tokenization.
             boolean presentTrailingEmpty = fieldIndex > 0;
             int totalFields = (trailingFieldHasContent || presentTrailingEmpty) ? fieldIndex + 1 : fieldIndex;
-            if (rowWidthRejected(totalFields)) {
-                // The structural error wins: a row this wide has no meaningful columns to report field errors about.
+            RowWidthFault widthFault = rowWidthError(totalFields);
+            if (widthFault != null) {
+                // The structural error wins: a row of the wrong width has no meaningful columns to report field
+                // errors about.
                 clearPendingErrors();
-                onRowError(rowTooWideMessage(totalFields), null, line, true);
+                onRowError(widthFault.message(), null, line, widthFault.fault());
                 return false;
             }
 
@@ -7217,6 +7576,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (flushPendingErrors(line) == false) {
                 return false;
             }
+            flushPadNotice();
 
             for (int c = 0; c < columnCount; c++) {
                 int si = projectedIdx[c];
@@ -7702,40 +8062,34 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * Single point of truth for what happens to a row that failed structural parsing or
          * row-shape validation.
          *
-         * @param structural {@code true} for tokeniser errors (Jackson, bracket parser) and
-         *                   row-shape mismatches (column count) where {@code skip_row} is the
-         *                   natural escape hatch; {@code false} for field-type errors where
-         *                   {@code null_field} is the better suggestion. Besides selecting that hint, this is the
-         *                   discriminator the stats publish gate reads: a {@code false} here is a projected column's
-         *                   coercion failure, which makes the surviving row set a function of the query's
-         *                   projection, so the publish is suppressed (see {@code projectionDependentDrop}).
+         * @param fault which fault dropped the row: it names the way out the {@code fail_fast} error suggests, and
+         *              it is the discriminator the stats publish gate reads -- a {@link RowFault#FIELD} here is a
+         *              projected column's coercion failure, which makes the surviving row set a function of the
+         *              query's projection, so the publish is suppressed (see {@code projectionDependentDrop}).
          */
-        private void onRowError(String message, Exception cause, String[] row, boolean structural) {
-            onRowErrorImpl(message, cause, excerptIsRead() ? CsvErrorMessages.summarizeRow(row) : null, structural);
+        private void onRowError(String message, Exception cause, String[] row, RowFault fault) {
+            onRowErrorImpl(message, cause, excerptIsRead() ? CsvErrorMessages.summarizeRow(row) : null, fault);
         }
 
         /**
          * Overload for the fused bracket-aware path where the row has not been split into a
          * {@code String[]}. Uses the raw CSV line for the error excerpt instead.
          */
-        private void onRowError(String message, Exception cause, String rawLine, boolean structural) {
-            onRowErrorImpl(message, cause, excerptIsRead() ? ErrorExcerpts.summarize(rawLine) : null, structural);
+        private void onRowError(String message, Exception cause, String rawLine, RowFault fault) {
+            onRowErrorImpl(message, cause, excerptIsRead() ? ErrorExcerpts.summarize(rawLine) : null, fault);
         }
 
-        private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
+        private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, RowFault fault) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
                 assert rowExcerpt != null : "fail_fast quotes the row, so a caller must supply its excerpt";
-                String hint = structural
-                    ? "; set [error_mode] to [skip_row] to skip the row instead"
-                    : "; set [error_mode] to [null_field] to return null instead";
                 throw ExternalFailures.rowError(
                     cause,
-                    "Row [" + totalRowCount + "] of [" + messageLocation + "]: " + message + "; row: " + rowExcerpt + hint
+                    "Row [" + totalRowCount + "] of [" + messageLocation + "]: " + message + "; row: " + rowExcerpt + fault.hint()
                 );
             }
-            if (structural == false) {
+            if (fault.projectionIndependent() == false) {
                 // Reached only under SKIP_ROW: NULL_FIELD routes coercion failures to onFieldError and keeps the
-                // row, and FAIL_FAST threw above. A non-structural row error is precisely a projected column's
+                // row, and FAIL_FAST threw above. A field row error is precisely a projected column's
                 // coercion failure -- the projection-dependent drop the publish gate refuses to commit.
                 projectionDependentDrop = true;
             }

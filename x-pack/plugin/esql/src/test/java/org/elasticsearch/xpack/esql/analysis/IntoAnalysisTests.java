@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -72,17 +73,17 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         analyzer().error("ROW a = 1 | FORK (WHERE true) (WHERE false) | INTO dst", containsString(error));
     }
 
-    public void testDescribeOfRowRemainsEligible() {
+    public void testDescribeIsAnEligibleSource() {
         assumeTrue("DESCRIBE is only enabled in snapshot builds", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
-        LogicalPlan plan = analyzer().query("ROW a = 1 | DESCRIBE | INTO dst");
-        Into into = as(plan, Into.class);
-        assertThat(into.child().anyMatch(LocalRelation.class::isInstance), equalTo(true));
-        assertThat(into.child().anyMatch(Row.class::isInstance), equalTo(false));
-
-        String error = Into.UNSUPPORTED_SOURCE_BELOW_DESCRIBE;
-        analyzer().addEmployees().error("FROM employees | DESCRIBE | INTO dst", containsString(error));
-        analyzer().addIndex("remote:employees", "mapping-default.json")
-            .error("FROM remote:employees | DESCRIBE | INTO dst", containsString(error));
-        analyzer().error("ROW a = 1 | FORK (WHERE true) (WHERE false) | DESCRIBE | INTO dst", containsString(error));
+        List<String> queries = List.of(
+            "ROW a = 1 | DESCRIBE | INTO dst",
+            "FROM employees | DESCRIBE | INTO dst",
+            "FROM employees | KEEP emp_no, salary | DESCRIBE | INTO dst"
+        );
+        for (String query : queries) {
+            Into into = as(analyzer().addEmployees().query(query), Into.class);
+            assertThat(query, into.child().anyMatch(LocalRelation.class::isInstance), equalTo(true));
+            assertThat(query, into.child().anyMatch(p -> p instanceof Row || p instanceof EsRelation), equalTo(false));
+        }
     }
 }

@@ -45,8 +45,6 @@ public class Into extends UnaryPlan
         PostAnalysisPlanVerificationAware,
         PostAnalysisVerificationAware {
     public static final String UNSUPPORTED_SOURCE = "INTO currently only supports ROW or local FROM as a source, without FORK";
-    public static final String UNSUPPORTED_SOURCE_BELOW_DESCRIBE =
-        "INTO after DESCRIBE currently only supports ROW as a source, without FORK";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
 
@@ -139,15 +137,9 @@ public class Into extends UnaryPlan
         );
     }
 
-    /** {@code DESCRIBE} replaces its producer with a {@link LocalRelation}, so only a ROW producer is accepted below it. */
-    public static boolean unsupportedSourceBelowDescribe(LogicalPlan child) {
-        return child.anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && p instanceof Row == false));
-    }
-
     @Override
     public void postAnalysisVerification(Failures failures) {
         // TODO: before INTO leaves snapshot, gate Into on a minimum TransportVersion in Verifier for mixed-version clusters
-        // RejectUnsupportedIntoSource already saw the original producer. DESCRIBE has since replaced it with a LocalRelation.
         if (unsupportedSource(child())) {
             failures.add(fail(this, UNSUPPORTED_SOURCE));
         }

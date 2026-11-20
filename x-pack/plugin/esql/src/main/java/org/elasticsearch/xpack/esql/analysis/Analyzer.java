@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
@@ -369,8 +368,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 "Finish Analysis",
                 Limiter.ONCE,
                 new HideNestedScopeFields(),
-                // Before ResolveDescribe replaces a ROW producer with a LocalRelation.
-                new RejectUnsupportedIntoSource(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
@@ -548,27 +545,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             throw new VerificationException(failures);
         }
         return plan;
-    }
-
-    /**
-     * Rejects an INTO whose producer is not ROW when {@code DESCRIBE} is about to replace that producer.
-     * A producer that verification can still see fails in {@link Into#postAnalysisVerification}, which
-     * {@code analyzeWithoutVerification} skips.
-     */
-    private static class RejectUnsupportedIntoSource extends AnalyzerRule<Into> {
-        @Override
-        protected boolean skipResolved() {
-            // Into is resolved by this batch, and the check still has to see it.
-            return false;
-        }
-
-        @Override
-        protected LogicalPlan rule(Into into) {
-            if (into.child().anyMatch(Describe.class::isInstance) && Into.unsupportedSourceBelowDescribe(into.child())) {
-                throw new VerificationException(List.of(Failure.fail(into, Into.UNSUPPORTED_SOURCE_BELOW_DESCRIBE)));
-            }
-            return into;
-        }
     }
 
     /**

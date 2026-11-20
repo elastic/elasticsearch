@@ -199,6 +199,47 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertThat(e.getMessage(), containsString("ingest pipelines"));
     }
 
+    public void testDescribeOutputIsWritten() {
+        assumeTrue("DESCRIBE is only enabled in snapshot builds", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
+        createSource();
+        String describeDestination = "dest-describe";
+        assertAcked(indicesAdmin().prepareCreate(describeDestination).setSettings(batchIndexingSettings()).setMapping("""
+            {
+              "dynamic": "strict",
+              "properties": {
+                "name": { "type": "keyword" },
+                "type": { "type": "keyword" },
+                "role": { "type": "keyword" },
+                "field": { "type": "keyword" },
+                "origin": { "type": "keyword" },
+                "metric_type": { "type": "keyword" },
+                "unit": { "type": "keyword" },
+                "interval": { "type": "keyword" },
+                "time_zone": { "type": "keyword" },
+                "description": { "type": "keyword" }
+              }
+            }
+            """));
+
+        assertIntoTarget("FROM " + SOURCE + " | DESCRIBE", describeDestination, 6);
+        refresh(describeDestination);
+        try (EsqlQueryResponse response = run("FROM " + describeDestination + " | KEEP name, type | SORT name")) {
+            assertThat(
+                getValuesList(response),
+                equalTo(
+                    List.of(
+                        List.of("b", "boolean"),
+                        List.of("d", "double"),
+                        List.of("dt", "date"),
+                        List.of("ip", "ip"),
+                        List.of("k", "keyword"),
+                        List.of("l", "long")
+                    )
+                )
+            );
+        }
+    }
+
     public void testFromWithCommandsBeforeInto() {
         createSource();
         assertInto("FROM " + SOURCE + " | WHERE l > 1 | EVAL d = l * 10.0 | KEEP k, d", 2);

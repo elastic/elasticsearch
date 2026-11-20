@@ -1351,6 +1351,35 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.note"), DataType.TEXT));
     }
 
+    /** A runtime field under a nested path is read from the parent document, so a query on the child cannot match what is read. */
+    public void testNestedRuntimeChildIsNotQueryable() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": {
+              "runtime": { "items.calc": { "type": "long" } },
+              "properties": { "items": { "type": "nested", "properties": {
+                "price": { "type": "long" }
+              } } } } }""");
+        SearchStats stats = SearchContextStats.from(List.of(mapped));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.LONG));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.calc"), DataType.LONG));
+    }
+
+    public void testNestedChildThatIsARuntimeFieldOnOneShardIsNotQueryable() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "calc": { "type": "long" }
+            } } } } }""");
+        SearchExecutionContext runtime = statsContext("""
+            { "doc": {
+              "runtime": { "items.calc": { "type": "long" } },
+              "properties": { "items": { "type": "nested", "properties": {
+                "price": { "type": "long" }
+              } } } } }""");
+        var field = new FieldAttribute.FieldName("items.calc");
+        assertTrue(SearchContextStats.from(List.of(mapped)).nestedFieldIsQueryable(field, DataType.LONG));
+        assertFalse(SearchContextStats.from(List.of(mapped, runtime)).nestedFieldIsQueryable(field, DataType.LONG));
+    }
+
     /** One incompatible shard must prevent a node-wide prefilter; an entirely unmapped collection is harmless. */
     public void testNestedChildQueryEligibilityAcrossShards() throws IOException {
         SearchExecutionContext mapped = statsContext("""

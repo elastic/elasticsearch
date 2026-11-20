@@ -351,3 +351,111 @@ setup:
           query: 'FROM na_push_normalized_eval | EVAL h = NESTED_ANY(items.sku == "A") | KEEP id, h | LIMIT 10'
   - match: { values: [["n1", false]] }
 
+---
+"a runtime field under a nested path reads the parent document, so the predicate is not pushed":
+  - do:
+      indices.create:
+        index: na_runtime
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              items.calculated:
+                type: long
+                script:
+                  source: "emit(doc['parent_value'].value)"
+            properties:
+              id: { type: keyword }
+              parent_value: { type: long }
+              items:
+                type: nested
+                properties:
+                  qty: { type: long }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "na_runtime", "_id": "a" } }
+          - { "id": "a", "parent_value": 5, "items": [ { "qty": 1 }, { "qty": 2 } ] }
+          - { "index": { "_index": "na_runtime", "_id": "b" } }
+          - { "id": "b", "parent_value": 7, "items": [ { "qty": 3 } ] }
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_runtime | WHERE NESTED_ANY(items.calculated == 5) | KEEP id | SORT id | LIMIT 10'
+  - match: { values: [["a"]] }
+  - match: { documents_found: 2 }
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_runtime | EVAL h = NESTED_ANY(items.calculated == 5) | KEEP id, h | SORT id | LIMIT 10'
+  - match: { values: [["a", true], ["b", false]] }
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_runtime | WHERE NESTED_ANY(items.calculated == 5 AND items.qty + 0 >= 0) | KEEP id | SORT id | LIMIT 10'
+  - match: { values: [["a"]] }
+
+---
+"a child mapped in one index and a runtime field in another is read per index, not pushed":
+  - do:
+      indices.create:
+        index: na_runtime_mixed_a
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              id: { type: keyword }
+              parent_value: { type: long }
+              items:
+                type: nested
+                properties:
+                  qty: { type: long }
+                  calculated: { type: long }
+  - do:
+      indices.create:
+        index: na_runtime_mixed_b
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              items.calculated:
+                type: long
+                script:
+                  source: "emit(doc['parent_value'].value)"
+            properties:
+              id: { type: keyword }
+              parent_value: { type: long }
+              items:
+                type: nested
+                properties:
+                  qty: { type: long }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "na_runtime_mixed_a", "_id": "a1" } }
+          - { "id": "a1", "parent_value": 1, "items": [ { "qty": 1, "calculated": 5 } ] }
+          - { "index": { "_index": "na_runtime_mixed_a", "_id": "a2" } }
+          - { "id": "a2", "parent_value": 1, "items": [ { "qty": 1, "calculated": 6 } ] }
+          - { "index": { "_index": "na_runtime_mixed_b", "_id": "b1" } }
+          - { "id": "b1", "parent_value": 5, "items": [ { "qty": 1 } ] }
+          - { "index": { "_index": "na_runtime_mixed_b", "_id": "b2" } }
+          - { "id": "b2", "parent_value": 6, "items": [ { "qty": 1 } ] }
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_runtime_mixed_* | WHERE NESTED_ANY(items.calculated == 5) | KEEP id | SORT id | LIMIT 10'
+  - match: { values: [["a1"], ["b1"]] }
+  - match: { documents_found: 4 }
+

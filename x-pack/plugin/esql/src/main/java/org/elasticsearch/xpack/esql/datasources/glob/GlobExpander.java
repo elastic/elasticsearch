@@ -38,8 +38,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -70,6 +72,13 @@ public final class GlobExpander {
     private static final int LISTING_RESERVE_BATCH = 1000;
 
     private static final Logger logger = LogManager.getLogger(GlobExpander.class);
+
+    /**
+     * Exact-string TEMPLATE splice and exact-prefix empty retry. Default false so this change can merge
+     * without listing numeric {@code *} levels wider on snapshot. Tests set it true. Delete the field in
+     * the template-walk PR and keep the true path.
+     */
+    public static boolean TEMPLATE_EXACT_SPLICE = false;
 
     private GlobExpander() {}
 
@@ -763,8 +772,9 @@ public final class GlobExpander {
 
         FileList narrowed = null;
         // A rewritten prefix may name a folder that does not exist; the local filesystem throws where object stores
-        // return empty. Hive treats that throw as empty and retries the original glob. TEMPLATE surfaces it: the
-        // exact prefix is the dataset at that folder, so the original glob must not be listed.
+        // return empty. Hive treats that throw as empty and retries the original glob. TEMPLATE's exact prefix is
+        // the dataset at that folder: a missing prefix is empty (same as S3) and must not list the original glob.
+        // Any other listing IO still fails.
         IOException failure = null;
         try {
             narrowed = doExpandGlob(
@@ -784,7 +794,11 @@ public final class GlobExpander {
                 folderRange
             );
         } catch (IOException e) {
-            failure = e;
+            if (keepExactTemplatePrefix(partitionConfig) && isMissingPrefix(e)) {
+                narrowed = FileList.EMPTY;
+            } else {
+                failure = e;
+            }
         }
         if (failure == null && (narrowed.isResolved() == false || narrowed.fileCount() > 0)) {
             return narrowed;
@@ -798,8 +812,8 @@ public final class GlobExpander {
         }
         // Only the rewrite can throw spuriously — it may name a folder that does not exist, where the local
         // filesystem throws and object stores return empty. A bound cannot invent an IOException, so when it was
-        // the only narrowing the error is the storage's own and is surfaced rather than retried. TEMPLATE's exact
-        // prefix is the dataset at that folder; a throw is not a reason to list the original glob.
+        // the only narrowing the error is the storage's own and is surfaced rather than retried. TEMPLATE already
+        // mapped a missing prefix to empty above; any other throw is the storage's own and is surfaced.
         if (failure != null && (rewritten == false || keepExactTemplatePrefix(partitionConfig))) {
             throw failure;
         }
@@ -836,9 +850,24 @@ public final class GlobExpander {
     /**
      * TEMPLATE splice is an exact string folder name, so the narrowed glob is already the longest exact prefix.
      * Hive still retries the original glob because {@link #rewriteSegment} may have printed a typed value.
+     * Requires a non-null template: that is the same gate {@link #rewriteGlobWithHints} uses, so a
+     * {@code TEMPLATE} config with no template (unreachable via {@link PartitionConfig#fromConfig}) cannot
+     * Hive-splice then skip the original-glob retry.
      */
     private static boolean keepExactTemplatePrefix(PartitionConfig partitionConfig) {
-        return PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy();
+        return TEMPLATE_EXACT_SPLICE
+            && partitionConfig != null
+            && PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null;
+    }
+
+    /**
+     * Local filesystems throw when a directory is absent; object stores list the prefix as empty.
+     * {@link NoSuchFileException} and {@link FileNotFoundException} are that absence. Other listing IO is
+     * still a failure.
+     */
+    private static boolean isMissingPrefix(Throwable e) {
+        return e instanceof NoSuchFileException || e instanceof FileNotFoundException;
     }
 
     /**
@@ -1637,10 +1666,15 @@ public final class GlobExpander {
                     listener
                 );
             }, narrowFailure -> {
+                // Local-filesystem missing prefix is empty, same as the sync path and same as S3. Other listing
+                // IO still fails. Neither case lists the original glob.
+                if (keepExactPrefix && isMissingPrefix(narrowFailure)) {
+                    listener.onResponse(FileList.EMPTY);
+                    return;
+                }
                 // Only the rewrite can throw spuriously (a folder that does not exist on a local filesystem).
                 // A bound cannot invent an IOException from a path that exists, so when it was the only narrowing
-                // the error is the storage's own and is surfaced rather than retried. TEMPLATE's exact prefix is
-                // the dataset at that folder; a throw is not a reason to list the original glob.
+                // the error is the storage's own and is surfaced rather than retried.
                 if (finalRewritten == false || keepExactPrefix) {
                     listener.onFailure(narrowFailure);
                     return;
@@ -3600,11 +3634,25 @@ public final class GlobExpander {
                         // folders while one guessed hit keeps the listing non-empty, so the empty fallback never runs.
                         continue;
                     }
-                    // Only a string is the folder name itself. String.valueOf(6) would splice "6" and miss "06".
-                    if (values.get(0) instanceof String value && globExpressible(value)) {
-                        raw[rawIdx] = value;
-                        changed = true;
+                    if (TEMPLATE_EXACT_SPLICE) {
+                        // Only a string is the folder name itself. String.valueOf(6) would splice "6" and miss "06".
+                        if (values.get(0) instanceof String value && globExpressible(value)) {
+                            raw[rawIdx] = value;
+                            changed = true;
+                        }
+                        continue;
                     }
+                    // A non-integral number's printed form is one spelling. 6.0 would miss price=6.00, and 1.10
+                    // would hit price=1.1. Leave the wildcard; the typed folder filter keeps the matches.
+                    if (containsNonIntegralNumber(values)) {
+                        continue;
+                    }
+                    String value = String.valueOf(values.get(0));
+                    if (globExpressible(value) == false) {
+                        continue;
+                    }
+                    raw[rawIdx] = value;
+                    changed = true;
                 }
             }
         }

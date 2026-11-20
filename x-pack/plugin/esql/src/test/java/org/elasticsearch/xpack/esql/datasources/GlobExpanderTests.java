@@ -42,9 +42,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -104,6 +107,16 @@ public class GlobExpanderTests extends ESTestCase {
         ExclusionConfig.CONFIG_FILE_EXCLUSIONS,
         List.of()
     );
+
+    @Before
+    public void enableExactTemplateSplice() {
+        GlobExpander.TEMPLATE_EXACT_SPLICE = true;
+    }
+
+    @After
+    public void resetExactTemplateSplice() {
+        GlobExpander.TEMPLATE_EXACT_SPLICE = false;
+    }
 
     /** The settings map a PartitionConfig-shaped test intent resolves from. */
     private static Map<String, Object> configMapOf(PartitionConfig config) {
@@ -1520,6 +1533,14 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/*/*/*.parquet", rewritten);
     }
 
+    /** Production default: integer year still splices until P1 deletes {@code TEMPLATE_EXACT_SPLICE}. */
+    public void testRewriteGlobWithTemplateSplicesIntegerWhenExactSpliceOff() {
+        GlobExpander.TEMPLATE_EXACT_SPLICE = false;
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}/{month}");
+        assertEquals("s3://bucket/2024/*/*.parquet", GlobExpander.rewriteGlobWithHints("s3://bucket/*/*/*.parquet", hints, config));
+    }
+
     /** A string is the folder name itself, so a TEMPLATE placeholder splices it. */
     public void testRewriteGlobWithTemplateSplicesExactString() {
         var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east-1"));
@@ -1606,8 +1627,10 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     public void testRewriteGlobDeclinesWhenTheBucketIsNotAPathSlot() {
-        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
-        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{month}");
+        // A string that would splice when alignment works. Integer year never splices after exact-string
+        // TEMPLATE, so it cannot prove the bucket-is-not-a-path-slot decline.
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east-1"));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "logs/{year}/{region}");
         String pattern = "s3://logs/*/*/*.parquet";
         assertEquals(pattern, GlobExpander.rewriteGlobWithHints(pattern, hints, config));
     }
@@ -2499,6 +2522,98 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Local filesystem throws {@link NoSuchFileException} on a missing directory where S3 lists empty. TEMPLATE
+     * maps that throw to empty and still does not list {@code AWSLogs/}.
+     */
+    public void testTemplateMissingLocalPrefixIsEmptyNotOriginalGlob() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/AWSLogs/",
+                List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1)),
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/",
+                List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1))
+            )
+        );
+        provider.throwOnUnknownPrefix = true;
+        var hints = List.of(
+            hint("account", PartitionFilterHintExtractor.Operator.EQUALS, "012345678901"),
+            hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "no-such-region")
+        );
+
+        FileList result = GlobExpander.expand(AWS_LOGS_GLOB, provider, hints, templateAwsLogs(), MAX, MAX);
+
+        assertEquals(0, result.fileCount());
+        assertTrue(result.isResolved());
+        assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/no-such-region/"), provider.listedPrefixes);
+        assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/AWSLogs/")));
+    }
+
+    /**
+     * A missing prefix is empty. A connection reset (or any other listing IO) is still a failure, and still
+     * must not flatten onto {@code AWSLogs/}.
+     */
+    public void testTemplateOtherListingIoStillFails() {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/AWSLogs/", List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1)))
+        );
+        provider.throwOnUnknownPrefix = true;
+        provider.unknownPrefixFailure = new IOException("connection reset");
+        var hints = List.of(
+            hint("account", PartitionFilterHintExtractor.Operator.EQUALS, "012345678901"),
+            hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "no-such-region")
+        );
+
+        IOException thrown = expectThrows(
+            IOException.class,
+            () -> GlobExpander.expand(AWS_LOGS_GLOB, provider, hints, templateAwsLogs(), MAX, MAX)
+        );
+        assertThat(thrown.getMessage(), containsString("connection reset"));
+        assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/no-such-region/"), provider.listedPrefixes);
+        assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/AWSLogs/")));
+    }
+
+    /**
+     * A bound that fills with {@code _file.*} rejects is truncated-empty, not a conclusive miss. TEMPLATE retries
+     * the exact spliced prefix unbounded and must not list the parent.
+     */
+    public void testTemplateTruncatedEmptyRetryListsExactPrefix() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of(
+                "s3://bucket/logs/us-east-1/",
+                List.of(entry("s3://bucket/logs/us-east-1/small.parquet", 10), entry("s3://bucket/logs/us-east-1/big.parquet", 5000)),
+                "s3://bucket/logs/",
+                List.of(
+                    entry("s3://bucket/logs/us-east-1/small.parquet", 10),
+                    entry("s3://bucket/logs/us-east-1/big.parquet", 5000),
+                    entry("s3://bucket/logs/eu-west-1/other.parquet", 5000)
+                )
+            )
+        );
+        var hints = List.of(
+            hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "us-east-1"),
+            hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 100)
+        );
+        Map<String, Object> config = configMapOf(new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}"));
+
+        FileList result = GlobExpander.expand(
+            "s3://bucket/logs/*/*.parquet",
+            provider,
+            hints,
+            config,
+            MAX,
+            MAX,
+            MAX,
+            new ListingExtents(1),
+            PlanningMemory.NONE
+        );
+
+        assertEquals(List.of("s3://bucket/logs/us-east-1/big.parquet"), paths(result));
+        assertFalse(result.isTruncated());
+        assertEquals(List.of("s3://bucket/logs/us-east-1/", "s3://bucket/logs/us-east-1/"), provider.listedPrefixes);
+        assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/logs/")));
+    }
+
+    /**
      * A query whose rewrite AND file filter both exclude everything still leaves an anchor: the rewrite fallback
      * re-lists {@code month=*}, the exact size filter prunes it to empty, and retention keeps the file so the
      * resolver never sees zero files (the row filter yields zero rows downstream).
@@ -3188,8 +3303,9 @@ public class GlobExpanderTests extends ESTestCase {
      * whole listing whatever the prefix, which makes a glob narrowed onto a missing folder indistinguishable from an
      * un-narrowed one — the reason the listing layer's pruning bugs never surfaced in these tests.
      *
-     * <p>{@code throwOnUnknownPrefix} models {@code LocalStorageProvider}, which throws on a missing directory where
-     * an object store returns an empty listing.
+     * <p>{@code throwOnUnknownPrefix} models {@code LocalStorageProvider}, which throws
+     * {@link NoSuchFileException} on a missing directory where an object store returns an empty listing.
+     * {@code unknownPrefixFailure} overrides that exception so a test can pin other listing IO.
      */
     private static class PrefixAwareStubProvider implements StorageProvider {
         @Override
@@ -3200,6 +3316,7 @@ public class GlobExpanderTests extends ESTestCase {
         private final Map<String, List<StorageEntry>> listingsByPrefix;
         final List<String> listedPrefixes = new ArrayList<>();
         boolean throwOnUnknownPrefix = false;
+        IOException unknownPrefixFailure;
         int listCallCount = 0;
 
         PrefixAwareStubProvider(Map<String, List<StorageEntry>> listingsByPrefix) {
@@ -3228,7 +3345,10 @@ public class GlobExpanderTests extends ESTestCase {
             List<StorageEntry> entries = listingsByPrefix.get(prefix.toString());
             if (entries == null) {
                 if (throwOnUnknownPrefix) {
-                    throw new IOException("Directory does not exist: " + prefix);
+                    if (unknownPrefixFailure != null) {
+                        throw unknownPrefixFailure;
+                    }
+                    throw new NoSuchFileException(prefix.toString());
                 }
                 entries = List.of();
             }
@@ -4926,6 +5046,24 @@ public class GlobExpanderTests extends ESTestCase {
         assertNotEquals(
             GlobExpander.listingCacheDiscriminator(pattern, in2024, TEMPLATE_YEAR),
             GlobExpander.listingCacheDiscriminator(pattern, in2025, TEMPLATE_YEAR)
+        );
+    }
+
+    /**
+     * Integer EQUALS no longer splices the TEMPLATE glob, so {@code year==7} and {@code year==8} share an
+     * effective pattern. Only the hint channel keeps them from poisoning each other. IN already had a
+     * discriminator test; EQUALS is the case exact-string splice actually moved off the pattern.
+     */
+    public void testListingCacheDiscriminatorSeparatesTemplateEqualsValues() {
+        String pattern = "s3://bucket/logs/*/*.parquet";
+        var seven = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 7));
+        var eight = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 8));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{year}");
+        assertEquals(pattern, GlobExpander.rewriteGlobWithHints(pattern, seven, config));
+        assertEquals(pattern, GlobExpander.rewriteGlobWithHints(pattern, eight, config));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(pattern, seven, TEMPLATE_YEAR),
+            GlobExpander.listingCacheDiscriminator(pattern, eight, TEMPLATE_YEAR)
         );
     }
 

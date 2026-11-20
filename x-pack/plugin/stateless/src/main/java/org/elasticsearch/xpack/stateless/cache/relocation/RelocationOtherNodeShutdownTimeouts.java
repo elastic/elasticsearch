@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutCont
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeoutCalculationService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static java.util.Comparator.comparingLong;
@@ -65,21 +67,8 @@ public class RelocationOtherNodeShutdownTimeouts {
         if (shareSlotsWithShuttingDownNodes == false || SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state)) {
             return fallbackTimeout();
         }
-        // This shard is itself an initializing relocation on the target from a non-shutting-down node, so the count includes it: it is
-        // added to the competing shards (+1) below, and left out of the "other" relocations here.
-        final int otherRelocationsToTarget = Math.max(0, SearchShardRelocations.countFromNodesNotShuttingDownTo(state, targetNodeId) - 1);
-        final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
-        final long now = threadPool.absoluteTimeInMillis();
-
-        // the latest deadline and the shards competing before each deadline rely on the order
-        final var shardsOfShuttingDownNodes = shardsOfShuttingDownNodes(state, targetNodeId) //
-            .sorted(comparingLong(ShuttingDownNodeShards::graceDeadlineMillis))
-            .toList();
-        final long allCompetingShards = 1 + shardsOfShuttingDownNodes.stream().mapToLong(ShuttingDownNodeShards::shards).sum();
-        final double allCompetingShardsSlotShare = slotShareOfCompetingShards(slots, allCompetingShards, otherRelocationsToTarget);
-        if (shardsOfShuttingDownNodes.isEmpty()
-            || shardsOfShuttingDownNodes.getLast().graceDeadlineMillis() <= now
-            || allCompetingShardsSlotShare >= allCompetingShards) {
+        final var deadlineShares = deadlineShares(state, targetNodeId);
+        if (deadlineShares.stream().allMatch(DeadlineShare::fits)) {
             // no shutting-down node waits for this target before its deadline, or nobody queues behind anybody: treat this as if it were
             // not a shutting-down node
             return new SearchRecoveryTimeout(
@@ -88,31 +77,10 @@ public class RelocationOtherNodeShutdownTimeouts {
             );
         }
 
-        // The deadline that leaves the smallest equal share decides, so that no deadline is missed. The latest deadline has time left, as
-        // the check above did not return, and all the shards compete for the target before it, which is where the search starts from.
-        var tightestDeadline = new DeadlineShare(
-            shardsOfShuttingDownNodes.getLast().graceDeadlineMillis() - now,
-            allCompetingShards,
-            allCompetingShardsSlotShare
-        );
-        long shardsWithEarlierOrSameDeadline = 0;
-        for (ShuttingDownNodeShards nodeShards : shardsOfShuttingDownNodes) {
-            shardsWithEarlierOrSameDeadline += nodeShards.shards();
-            final long remainingMs = nodeShards.graceDeadlineMillis() - now;
-            if (remainingMs <= 0) {
-                // waiting less cannot help the shards of a deadline that has passed, but they still compete with the later deadlines
-                continue;
-            }
-            final long shardsCompetingForTarget = shardsWithEarlierOrSameDeadline + 1;
-            final var deadlineShare = new DeadlineShare(
-                remainingMs,
-                shardsCompetingForTarget,
-                slotShareOfCompetingShards(slots, shardsCompetingForTarget, otherRelocationsToTarget)
-            );
-            if (deadlineShare.equalShareMs() < tightestDeadline.equalShareMs()) {
-                tightestDeadline = deadlineShare;
-            }
-        }
+        // Use the deadline with the smallest equal share, so that no deadline is missed.
+        final var tightestDeadline = deadlineShares.stream()
+            .reduce((tightest, share) -> share.equalShareMs() <= tightest.equalShareMs() ? share : tightest)
+            .orElseThrow();
 
         final double timePerShardMs = tightestDeadline.timePerShardMs();
         final double waitMs;
@@ -126,6 +94,38 @@ public class RelocationOtherNodeShutdownTimeouts {
             TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE,
             timePerShardMs
         );
+    }
+
+    /// What each grace deadline that has not passed leaves to the shards competing for the target, from the earliest deadline to the
+    /// latest.
+    private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
+        // This shard is itself an initializing relocation on the target from a non-shutting-down node, so the count includes it: it is
+        // added to the competing shards (+1) below, and left out of the "other" relocations here.
+        final int otherRelocationsToTarget = Math.max(0, SearchShardRelocations.countFromNodesNotShuttingDownTo(state, targetNodeId) - 1);
+        final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
+        final long now = threadPool.absoluteTimeInMillis();
+        // the shards competing before each deadline rely on the order
+        final var shardsOfShuttingDownNodes = shardsOfShuttingDownNodes(state, targetNodeId).sorted(
+            comparingLong(ShuttingDownNodeShards::graceDeadlineMillis)
+        ).toList();
+        final var deadlineShares = new ArrayList<DeadlineShare>();
+        long shardsWithEarlierOrSameDeadline = 0;
+        for (final var nodeShards : shardsOfShuttingDownNodes) {
+            shardsWithEarlierOrSameDeadline += nodeShards.shards();
+            final long remainingMs = nodeShards.graceDeadlineMillis() - now;
+            // waiting less cannot help the shards of a deadline that has passed, but they still compete with the later deadlines
+            if (remainingMs > 0) {
+                final long shardsCompetingForTarget = shardsWithEarlierOrSameDeadline + 1;
+                deadlineShares.add(
+                    new DeadlineShare(
+                        remainingMs,
+                        shardsCompetingForTarget,
+                        slotShareOfCompetingShards(slots, shardsCompetingForTarget, otherRelocationsToTarget)
+                    )
+                );
+            }
+        }
+        return deadlineShares;
     }
 
     private SearchRecoveryTimeout fallbackTimeout() {
@@ -170,6 +170,11 @@ public class RelocationOtherNodeShutdownTimeouts {
 
         double equalShareMs() {
             return timePerShardMs() * slotShare;
+        }
+
+        /// Whether the shards competing before this deadline get a slot each, so nobody queues behind anybody.
+        boolean fits() {
+            return slotShare >= shardsCompetingForTarget;
         }
     }
 

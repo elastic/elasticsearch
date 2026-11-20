@@ -2419,11 +2419,11 @@ public class ComputeService {
         Exception e,
         List<Driver> drivers,
         long planningBytesRead,
-        QueryLoad computeLoad,
+        QueryLoad queryLoad,
         boolean approximated
     ) {
         if (listener instanceof ComputeCompletionListener completionListener) {
-            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, computeLoad, approximated));
+            completionListener.onFailure(e, usageOfFailedDrivers(drivers, planningBytesRead, queryLoad, approximated));
         } else {
             listener.onFailure(e);
         }
@@ -2438,11 +2438,11 @@ public class ComputeService {
     private static DriverCompletionInfo usageOfFailedDrivers(
         List<Driver> drivers,
         long planningBytesRead,
-        QueryLoad computeLoad,
+        QueryLoad queryLoad,
         boolean approximated
     ) {
         try {
-            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, computeLoad, approximated);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead, queryLoad, approximated);
         } catch (Exception e) {
             LOGGER.debug("failed to read the usage of the drivers of a failed compute", e);
             return DriverCompletionInfo.EMPTY;

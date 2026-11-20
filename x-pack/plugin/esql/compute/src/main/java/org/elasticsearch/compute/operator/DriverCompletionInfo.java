@@ -15,6 +15,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.scheduling.QueryLoad;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -222,7 +223,7 @@ public record DriverCompletionInfo(
      *                          (query rewriting, weight construction, {@code SearchStats} lookups,
      *                          sort builders, etc.) before drivers were dispatched. Added to the
      *                          aggregate {@code bytesRead}.
-     * @param computeLoad The load of the compute outside its drivers, and its waiting
+     * @param queryLoad The load of the compute outside its drivers, and its waiting
      */
     public static DriverCompletionInfo includingProfiles(
         List<Driver> drivers,
@@ -233,7 +234,7 @@ public record DriverCompletionInfo(
         String logicalPlanTree,
         PlanTimeProfile planTimeProfile,
         long planningBytesRead,
-        QueryLoad computeLoad,
+        QueryLoad queryLoad,
         boolean approximationApplied,
         @Nullable String planJson,
         @Nullable String logicalPlanJson
@@ -246,13 +247,15 @@ public record DriverCompletionInfo(
         long readCpuNanos = 0;
         long cpuNanos = 0;
         long driverNanos = 0;
-        long searchLoadNanos = computeLoad.nanos();
-        long searchCpuNanos = computeLoad.cpuNanos();
-        long searchWaitingNanos = computeLoad.waitingNanos();
+        SearchLoadMetrics computeSearchLoad = queryLoad.snapshot();
+        long searchLoadNanos = computeSearchLoad.loadNanos();
+        long searchCpuNanos = computeSearchLoad.cpuNanos();
+        long searchWaitingNanos = computeSearchLoad.waitingNanos();
         List<DriverProfile> collectedProfiles = new ArrayList<>(drivers.size());
         for (Driver d : drivers) {
-            searchLoadNanos += d.searchLoad().nanos();
-            searchCpuNanos += d.searchLoad().cpuNanos();
+            SearchLoadMetrics driverSearchLoad = d.searchLoad().snapshot();
+            searchLoadNanos += driverSearchLoad.loadNanos();
+            searchCpuNanos += driverSearchLoad.cpuNanos();
             DriverProfile p = d.profile();
             for (OperatorStatus o : p.operators()) {
                 documentsFound += o.documentsFound();
@@ -296,12 +299,12 @@ public record DriverCompletionInfo(
      *                          (query rewriting, weight construction, {@code SearchStats} lookups,
      *                          sort builders, etc.) before drivers were dispatched. Added to the
      *                          aggregate {@code bytesRead}.
-     * @param computeLoad The load of the compute outside its drivers, and its waiting
+     * @param queryLoad The load of the compute outside its drivers, and its waiting
      */
     public static DriverCompletionInfo excludingProfiles(
         List<Driver> drivers,
         long planningBytesRead,
-        QueryLoad computeLoad,
+        QueryLoad queryLoad,
         boolean approximationApplied
     ) {
         long documentsFound = 0;
@@ -312,12 +315,14 @@ public record DriverCompletionInfo(
         long readCpuNanos = 0;
         long cpuNanos = 0;
         long driverNanos = 0;
-        long searchLoadNanos = computeLoad.nanos();
-        long searchCpuNanos = computeLoad.cpuNanos();
-        long searchWaitingNanos = computeLoad.waitingNanos();
+        SearchLoadMetrics computeSearchLoad = queryLoad.snapshot();
+        long searchLoadNanos = computeSearchLoad.loadNanos();
+        long searchCpuNanos = computeSearchLoad.cpuNanos();
+        long searchWaitingNanos = computeSearchLoad.waitingNanos();
         for (Driver d : drivers) {
-            searchLoadNanos += d.searchLoad().nanos();
-            searchCpuNanos += d.searchLoad().cpuNanos();
+            SearchLoadMetrics driverSearchLoad = d.searchLoad().snapshot();
+            searchLoadNanos += driverSearchLoad.loadNanos();
+            searchCpuNanos += driverSearchLoad.cpuNanos();
             DriverStatus s = d.status();
             assert s.status() == DriverStatus.Status.DONE;
             for (OperatorStatus o : s.completedOperators()) {

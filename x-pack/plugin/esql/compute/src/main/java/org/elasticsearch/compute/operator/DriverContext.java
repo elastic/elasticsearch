@@ -320,11 +320,9 @@ public class DriverContext {
      * {@code work} returns. See {@link CpuTracker}.
      */
     public <T, E extends Exception> T meteredCpu(CheckedSupplier<T, E> work) throws E {
-        try {
-            return cpuTracker.meteredCpu(work);
-        } finally {
-            chargeLoadSoFar();
-        }
+        T result = cpuTracker.meteredCpu(work);
+        chargeLoadSoFar();
+        return result;
     }
 
     /**

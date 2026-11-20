@@ -36,6 +36,15 @@ public class SearchLoadMetricsTests extends ESTestCase {
     }
 
     /**
+     * The CPU time of a snapshot is at most its load.
+     */
+    public void testSnapshotCapsTheCpuAtTheLoad() {
+        QueryLoad load = new QueryLoad();
+        load.charging((nanos, cpuNanos, finishNanos) -> {}).charge(100, 150, 0);
+        assertThat(load.snapshot(), equalTo(new SearchLoadMetrics(100, 100, 0)));
+    }
+
+    /**
      * A search reports the sum of the loads of its results.
      */
     public void testMergedLoadsReportTheirSums() {

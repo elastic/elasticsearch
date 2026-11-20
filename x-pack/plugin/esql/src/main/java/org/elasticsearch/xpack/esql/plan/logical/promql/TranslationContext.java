@@ -67,12 +67,10 @@ import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
-import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -435,16 +433,6 @@ public record TranslationContext(
                 IntermediateResult collapsed = collapse(ir.with(plan, ir.schema(), value), ir.schema(), value);
                 plan = collapsed.plan();
                 value = collapsed.value();
-            }
-            if (branch instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
-                VectorMatch match = comparison.match();
-                if ((match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) == false) {
-                    // Filter-mode comparison (metric > x): keep the left operand's value, filter rows by the comparison.
-                    // A vector-matched comparison already applied its filter inside the join translation.
-                    ToDouble right = new ToDouble(comparison.right().source(), ((LiteralSelector) comparison.right()).literal());
-                    var condition = comparison.op().asFunction().create(comparison.source(), value, right, configuration());
-                    plan = new Filter(comparison.source(), plan, condition);
-                }
             }
         }
 

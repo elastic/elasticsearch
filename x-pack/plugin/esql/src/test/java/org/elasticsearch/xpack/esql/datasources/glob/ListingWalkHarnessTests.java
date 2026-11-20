@@ -73,12 +73,6 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.w
  * Named-tree harness: listing must match a flat prefix listing plus {@code PartitionValueMatcher},
  * {@code PartitionSpec.overlaps}, and {@code _file.*} hints. LIST pins record request counts under the
  * request-count finish rule. Key-dump replay and the 154-prefix AWS VPC Hive tree pin listing cost.
- *
- * <p>Documented holes (flipped by later PRs):
- * <ul>
- *   <li>Mixed-tree {@code month == 6} returns only {@code month=6}. {@code 006} is another spelling of 6;
- *       {@code 007} is integer 7.</li>
- * </ul>
  */
 public class ListingWalkHarnessTests extends ESTestCase {
 
@@ -260,7 +254,7 @@ public class ListingWalkHarnessTests extends ESTestCase {
         }
         assertEquals(WIDE_HIVE_PREFIXES, accountRegions.size());
 
-        // Folder-range only: grain-IN listing hints would splice month=6 vs disk 06 and retry the glob.
+        // Folder-range only. Grain-IN listing hints no longer splice integers; this pin stays on the range path.
         ListingWalkHarness walk = new ListingWalkHarness(tree);
         FileList walked = expand(walk, WIDE_HIVE_GLOB, List.of(), MAX, pred);
         assertObserved(walked, ref);
@@ -290,9 +284,8 @@ public class ListingWalkHarnessTests extends ESTestCase {
 
     /**
      * 154-prefix Hive tree, 7 June days and {@code hour == 0}. Walk and forced-flat keep the same files as
-     * the oracle. {@code hour=0} splices miss padded {@code hour=00}, so listing retries the original glob
-     * and today's 512 cap aborts twice at
-     * {@link ListingWalkHarness#WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN}. {@link
+     * the oracle. Integer {@code hour == 0} leaves {@code hour=*}, so the walk is not retried. Today's 512
+     * cap aborts once at {@link ListingWalkHarness#WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN}. {@link
      * ListingWalkHarness#WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES} is the derived directory count to reach
      * matching hour folders; not observed under the cap.
      */
@@ -333,12 +326,11 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertObserved(flattened, ref);
         assertEquals(pathsOf(walked), pathsOf(flattened));
 
-        // hour=0 splices to hour=0, misses padded hour=00, retries the original glob, then the 512
-        // cap aborts the walk the same way as the 1-day test (417 children and a prefix listing each
-        // attempt).
-        assertEquals(2 * WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN, walk.listChildrenRequests());
-        assertEquals(2 * objectPages(tree.size()), walk.listObjectPages());
-        assertEquals(2 * objectPages(tree.size()), flatExpand.listObjectPages());
+        // Integer hour==0 does not splice, so the walk runs once and the 512 cap aborts the same way
+        // as the 1-day test (417 children and a prefix listing).
+        assertEquals(WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN, walk.listChildrenRequests());
+        assertEquals(objectPages(tree.size()), walk.listObjectPages());
+        assertEquals(objectPages(tree.size()), flatExpand.listObjectPages());
         assertTrue(walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
     }
 
@@ -419,30 +411,23 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     /**
-     * Unpadded {@code month=6} exists, so the splice hits and padded siblings are not listed. The matcher
-     * keeps {@code 6}/{@code 06}/{@code 006}.
+     * Integer {@code month == 6} leaves {@code month=*}. Walk and forced-flat keep every typed spelling
+     * ({@code 6}/{@code 06}/{@code 006}), matching the matcher.
      */
-    public void testMixedTreeMonthEqualsSixReturnsOnlyUnpaddedSpelling() throws IOException {
+    public void testMixedTreeMonthEqualsSixKeepsEveryTypedSpelling() throws IOException {
         List<StorageEntry> tree = mixedTree();
         List<PartitionFilterHint> hints = List.of(new PartitionFilterHint("month", Operator.EQUALS, List.of(6)));
         ListingWalkHarness.Reference ref = reference(tree, MIXED_GLOB, hints, PartitionSpec.EMPTY, List.of(), HIVE_ON);
         assertEquals("matcher keeps 6, 06, and 006", 3 * FILES_PER_DAY, ref.paths().size());
 
         ListingWalkHarness walk = new ListingWalkHarness(tree);
-        assertSplicedUnpaddedOnly(expand(walk, MIXED_GLOB, hints, MAX));
+        FileList walked = expand(walk, MIXED_GLOB, hints, MAX);
+        assertObserved(walked, ref);
         ListingWalkHarness flat = new ListingWalkHarness(tree);
         flat.childrenUnsupported = true;
-        assertSplicedUnpaddedOnly(expand(flat, MIXED_GLOB, hints, MAX));
-    }
-
-    private static void assertSplicedUnpaddedOnly(FileList result) {
-        assertEquals(FILES_PER_DAY, result.fileCount());
-        assertFalse(result.isInferenceAnchor());
-        for (String path : pathsOf(result)) {
-            assertTrue(path, path.contains("/month=6/"));
-            assertFalse(path, path.contains("/month=06/"));
-            assertFalse(path, path.contains("/month=006/"));
-        }
+        FileList flattened = expand(flat, MIXED_GLOB, hints, MAX);
+        assertObserved(flattened, ref);
+        assertEquals(pathsOf(walked), pathsOf(flattened));
     }
 
     /**

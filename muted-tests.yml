@@ -206,9 +206,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: "test {yaml=search/397_match_only_text_doc_values_multiterm_search/*}"
   issue: https://github.com/elastic/elasticsearch/issues/159693
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
-  method: testPreferredNodeIdsAreUsedDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/159502
 - class: org.elasticsearch.upgrades.MLModelDeploymentsUpgradeIT
   method: testTrainedModelDeployment {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/159947
@@ -715,23 +712,43 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testClosingNodeShouldWaitForOngoingMerge
   issue: https://github.com/elastic/elasticsearch/issues/166623
-- class: org.elasticsearch.indices.recovery.RetryRecoveryIT
-  tasks:
-  - :server:internalClusterTest
-  method: testDontRetryAfterShardClosedDuringRecoveryFromEmptyStore
-  issue: https://github.com/elastic/elasticsearch/issues/166633
-- class: org.elasticsearch.xpack.search.AsyncSearchAggregationChargeIT
-  tasks:
-  - :x-pack:plugin:async-search:internalClusterTest
-  method: testChargeIsReleasedOnceTheTaskStoredItsResponse
-  issue: https://github.com/elastic/elasticsearch/issues/166638
-- class: org.elasticsearch.indices.recovery.RetryRecoveryIT
-  tasks:
-  - :server:internalClusterTest
-  method: testRetryOnFailureOnRecoveryFromEmptyStoreRaceWithIndexDeletion
-  issue: https://github.com/elastic/elasticsearch/issues/166644
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchShardGenerationFilesRetention
   issue: https://github.com/elastic/elasticsearch/issues/166692
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testUnpromotableRegisterCommitForRecoveryTracksAllBlobsPessimisticallyAndWaitsUntilShardStarts
+  issue: https://github.com/elastic/elasticsearch/issues/166734
+- class: org.elasticsearch.xpack.esql.into.IntoPageWriterTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testCrankyBreakerReleasesAndStatsMatchWrittenRows
+  issue: https://github.com/elastic/elasticsearch/issues/166741
+- class: org.elasticsearch.xpack.ml.integration.EsqlDatafeedNodeChurnIT
+  tasks:
+  - :x-pack:plugin:ml:internalClusterTest
+  method: testNodeChurnDuringRealtimeShouldRecoverAndKeepDatafeedStarted
+  issue: https://github.com/elastic/elasticsearch/issues/166780
+- class: org.elasticsearch.xpack.ml.integration.EsqlDatafeedNodeChurnIT
+  tasks:
+  - :x-pack:plugin:ml:internalClusterTest
+  method: testNodeChurnDuringLookbackShouldRecoverAndKeepDatafeedStarted
+  issue: https://github.com/elastic/elasticsearch/issues/166782
+- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitorTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testRerouteBasedOnEstimatedHeapUsage
+  issue: https://github.com/elastic/elasticsearch/issues/166784
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=indices.sort/50_sort_expression/Sort expression configures the index sort}
+  issue: https://github.com/elastic/elasticsearch/issues/166730
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
+  tasks:
+  - :server:test
+  method: testDimsDerivedConfigFollowsFieldDimension
+  issue: https://github.com/elastic/elasticsearch/issues/166795

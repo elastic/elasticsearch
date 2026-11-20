@@ -19,22 +19,21 @@ import java.util.Map;
 /// Metrics describing the requests sent by search nodes to indexing nodes to read a chunk of a virtual batched compound commit
 /// (see [TransportGetVirtualBatchedCompoundCommitChunkAction]). Two views are provided, both tagged with the [#OUTCOME_ATTRIBUTE]:
 ///
-/// - per attempt ([#REQUEST_TOTAL_METRIC], [#REQUEST_DURATION_HISTOGRAM_METRIC]): time between sending a request to the indexing node
+/// - per request, i.e. per attempt ([#REQUESTS_TOTAL_METRIC], [#REQUESTS_DURATION_HISTOGRAM_METRIC]): time between sending a request to the indexing node
 ///   and receiving its response (or failure), measured before the response is used. Each retry is measured separately;
-/// - per action execution ([#REQUEST_WITH_RETRIES_TOTAL_METRIC], [#REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC]): time between the
+/// - per operation, i.e. per action execution ([#OPERATIONS_TOTAL_METRIC], [#OPERATIONS_DURATION_HISTOGRAM_METRIC]): time between the
 ///   start of the action on the search node and the completion of its listener, including all the retries and backoff delays.
 public record GetVirtualBatchedCompoundCommitChunkMetrics(
     LongCounter requestCounter,
     LongHistogram requestDurationHistogram,
-    LongCounter requestWithRetriesCounter,
-    LongHistogram requestWithRetriesDurationHistogram
+    LongCounter operationCounter,
+    LongHistogram operationDurationHistogram
 ) {
 
-    public static final String REQUEST_TOTAL_METRIC = "es.stateless.search.vbcc_chunk.requests.total";
-    public static final String REQUEST_DURATION_HISTOGRAM_METRIC = "es.stateless.search.vbcc_chunk.requests.duration.histogram";
-    public static final String REQUEST_WITH_RETRIES_TOTAL_METRIC = "es.stateless.search.vbcc_chunk.requests_including_retries.total";
-    public static final String REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC =
-        "es.stateless.search.vbcc_chunk.requests_including_retries.duration.histogram";
+    public static final String REQUESTS_TOTAL_METRIC = "es.stateless.search.vbcc_chunk.requests.total";
+    public static final String REQUESTS_DURATION_HISTOGRAM_METRIC = "es.stateless.search.vbcc_chunk.requests.duration.histogram";
+    public static final String OPERATIONS_TOTAL_METRIC = "es.stateless.search.vbcc_chunk.operations.total";
+    public static final String OPERATIONS_DURATION_HISTOGRAM_METRIC = "es.stateless.search.vbcc_chunk.operations.duration.histogram";
 
     public static final String OUTCOME_ATTRIBUTE = "es_vbcc_chunk_outcome";
 
@@ -42,7 +41,7 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
     public static final String OUTCOME_SUCCESS = "success";
     /// The request failed with a [ResourceNotFoundException]. When the indexing node replies with it, the virtual batched compound commit has
     /// been uploaded and must be read from the blob store instead: this is an expected outcome, not an error. This is exact for the
-    /// per attempt metrics. For the per action execution metrics, which see the failure the action completes with, it is an approximation:
+    /// per attempt metrics. For the per operation metrics, which see the failure the action completes with, it is an approximation:
     /// the action also fails with a [ResourceNotFoundException] without having reached an indexing node when the node it prefers is not in
     /// the cluster state, in which case the VBCC may not have been uploaded.
     public static final String OUTCOME_UPLOADED = "uploaded";
@@ -50,32 +49,32 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
     public static final String OUTCOME_FAILURE = "failure";
 
     public static final GetVirtualBatchedCompoundCommitChunkMetrics NOOP = new GetVirtualBatchedCompoundCommitChunkMetrics(
-        MeterRegistry.NOOP.registerLongCounter(REQUEST_TOTAL_METRIC + ".noop", "noop", "count"),
-        MeterRegistry.NOOP.registerLongHistogram(REQUEST_DURATION_HISTOGRAM_METRIC + ".noop", "noop", "ms"),
-        MeterRegistry.NOOP.registerLongCounter(REQUEST_WITH_RETRIES_TOTAL_METRIC + ".noop", "noop", "count"),
-        MeterRegistry.NOOP.registerLongHistogram(REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC + ".noop", "noop", "ms")
+        MeterRegistry.NOOP.registerLongCounter(REQUESTS_TOTAL_METRIC + ".noop", "noop", "count"),
+        MeterRegistry.NOOP.registerLongHistogram(REQUESTS_DURATION_HISTOGRAM_METRIC + ".noop", "noop", "ms"),
+        MeterRegistry.NOOP.registerLongCounter(OPERATIONS_TOTAL_METRIC + ".noop", "noop", "count"),
+        MeterRegistry.NOOP.registerLongHistogram(OPERATIONS_DURATION_HISTOGRAM_METRIC + ".noop", "noop", "ms")
     );
 
     public static GetVirtualBatchedCompoundCommitChunkMetrics register(MeterRegistry registry) {
         return new GetVirtualBatchedCompoundCommitChunkMetrics(
             registry.registerLongCounter(
-                REQUEST_TOTAL_METRIC,
+                REQUESTS_TOTAL_METRIC,
                 "Number of get virtual batched compound commit chunk requests sent",
                 "count"
             ),
             registry.registerLongHistogram(
-                REQUEST_DURATION_HISTOGRAM_METRIC,
+                REQUESTS_DURATION_HISTOGRAM_METRIC,
                 "Time in milliseconds between sending a get virtual batched compound commit chunk request and receiving its response",
                 "ms"
             ),
             registry.registerLongCounter(
-                REQUEST_WITH_RETRIES_TOTAL_METRIC,
-                "Number of get virtual batched compound commit chunk actions executed, regardless of the number of retries",
+                OPERATIONS_TOTAL_METRIC,
+                "Number of get virtual batched compound commit chunk operations, i.e. actions executed regardless of the number of retries",
                 "count"
             ),
             registry.registerLongHistogram(
-                REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC,
-                "Time in milliseconds taken by a get virtual batched compound commit chunk action, including retries",
+                OPERATIONS_DURATION_HISTOGRAM_METRIC,
+                "Time in milliseconds taken by a get virtual batched compound commit chunk operation, i.e. an action including retries",
                 "ms"
             )
         );
@@ -84,8 +83,10 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
     /// What a measurement covers:
     ///
     /// - `SINGLE_REQUEST`: one request sent to the indexing node, from sending it to receiving its response or failure. Each retry is
-    ///   measured separately;
-    /// - `END_TO_END`: one execution of the action on the search node, including all the retries and backoff delays.
+    ///   measured separately and counted as a request, in the `requests` metrics ([#REQUESTS_TOTAL_METRIC] and
+    ///   [#REQUESTS_DURATION_HISTOGRAM_METRIC]);
+    /// - `END_TO_END`: one execution of the action on the search node, including all the retries and backoff delays. It is counted as an
+    ///   operation, in the `operations` metrics ([#OPERATIONS_TOTAL_METRIC] and [#OPERATIONS_DURATION_HISTOGRAM_METRIC]).
     public enum Scope {
         SINGLE_REQUEST,
         END_TO_END
@@ -104,8 +105,8 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
                 requestDurationHistogram.record(durationInMillis, attributes);
             }
             case END_TO_END -> {
-                requestWithRetriesCounter.incrementBy(1L, attributes);
-                requestWithRetriesDurationHistogram.record(durationInMillis, attributes);
+                operationCounter.incrementBy(1L, attributes);
+                operationDurationHistogram.record(durationInMillis, attributes);
             }
         }
     }

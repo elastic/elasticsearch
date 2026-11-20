@@ -17,14 +17,14 @@ import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitC
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_DURATION_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_TOTAL_METRIC;
 import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_ATTRIBUTE;
 import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_FAILURE;
 import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_SUCCESS;
 import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_UPLOADED;
-import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_DURATION_HISTOGRAM_METRIC;
-import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_TOTAL_METRIC;
-import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC;
-import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_WITH_RETRIES_TOTAL_METRIC;
+import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_DURATION_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_TOTAL_METRIC;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -55,21 +55,18 @@ public class GetVirtualBatchedCompoundCommitChunkMetricsTests extends ESTestCase
 
         final var expectedAttributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, testCase.expectedOutcome());
 
-        final var counts = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REQUEST_TOTAL_METRIC);
+        final var counts = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REQUESTS_TOTAL_METRIC);
         assertThat(counts, hasSize(1));
         assertThat(counts.getFirst().getLong(), equalTo(1L));
         assertThat(counts.getFirst().attributes(), equalTo(expectedAttributes));
 
-        final var durations = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REQUEST_DURATION_HISTOGRAM_METRIC);
+        final var durations = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REQUESTS_DURATION_HISTOGRAM_METRIC);
         assertThat(durations, hasSize(1));
         assertThat(durations.getFirst().getLong(), equalTo(millis));
         assertThat(durations.getFirst().attributes(), equalTo(expectedAttributes));
 
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REQUEST_WITH_RETRIES_TOTAL_METRIC), empty());
-        assertThat(
-            registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC),
-            empty()
-        );
+        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, OPERATIONS_TOTAL_METRIC), empty());
+        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, OPERATIONS_DURATION_HISTOGRAM_METRIC), empty());
     }
 
     public void testRecordRequestIncludingRetriesOnlyUpdatesRetriesMetrics() {
@@ -82,18 +79,17 @@ public class GetVirtualBatchedCompoundCommitChunkMetricsTests extends ESTestCase
 
         final var expectedAttributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, testCase.expectedOutcome());
 
-        final var counts = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REQUEST_WITH_RETRIES_TOTAL_METRIC);
+        final var counts = registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, OPERATIONS_TOTAL_METRIC);
         assertThat(counts, hasSize(1));
         assertThat(counts.getFirst().getLong(), equalTo(1L));
         assertThat(counts.getFirst().attributes(), equalTo(expectedAttributes));
 
-        final var durations = registry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_HISTOGRAM, REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC);
+        final var durations = registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, OPERATIONS_DURATION_HISTOGRAM_METRIC);
         assertThat(durations, hasSize(1));
         assertThat(durations.getFirst().getLong(), equalTo(millis));
         assertThat(durations.getFirst().attributes(), equalTo(expectedAttributes));
 
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REQUEST_TOTAL_METRIC), empty());
-        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REQUEST_DURATION_HISTOGRAM_METRIC), empty());
+        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, REQUESTS_TOTAL_METRIC), empty());
+        assertThat(registry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, REQUESTS_DURATION_HISTOGRAM_METRIC), empty());
     }
 }

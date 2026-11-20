@@ -906,15 +906,15 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         validateSearchResponse(indexName, randomFrom(TestSearchType.values()), indexedDocs);
 
         assertBusy(() -> {
-            final var attempts = metricsPlugin.getLongCounterMeasurement(GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_TOTAL_METRIC);
+            final var attempts = metricsPlugin.getLongCounterMeasurement(GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_TOTAL_METRIC);
             final var attemptDurations = metricsPlugin.getLongHistogramMeasurement(
-                GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_DURATION_HISTOGRAM_METRIC
+                GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_DURATION_HISTOGRAM_METRIC
             );
             final var executions = metricsPlugin.getLongCounterMeasurement(
-                GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_WITH_RETRIES_TOTAL_METRIC
+                GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_TOTAL_METRIC
             );
             final var executionDurations = metricsPlugin.getLongHistogramMeasurement(
-                GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC
+                GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_DURATION_HISTOGRAM_METRIC
             );
 
             final long numberOfAttempts = sumOfMeasurements(attempts);
@@ -980,15 +980,15 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         validateSearchResponse(indexName, randomFrom(TestSearchType.values()), indexedDocs);
 
         assertBusy(() -> {
-            final var attempts = metricsPlugin.getLongCounterMeasurement(GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_TOTAL_METRIC);
+            final var attempts = metricsPlugin.getLongCounterMeasurement(GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_TOTAL_METRIC);
             final var attemptDurations = metricsPlugin.getLongHistogramMeasurement(
-                GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_DURATION_HISTOGRAM_METRIC
+                GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_DURATION_HISTOGRAM_METRIC
             );
             final var executions = metricsPlugin.getLongCounterMeasurement(
-                GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_WITH_RETRIES_TOTAL_METRIC
+                GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_TOTAL_METRIC
             );
             final var executionDurations = metricsPlugin.getLongHistogramMeasurement(
-                GetVirtualBatchedCompoundCommitChunkMetrics.REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC
+                GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_DURATION_HISTOGRAM_METRIC
             );
 
             // Every failed attempt was retried: they are all counted per attempt, none per execution

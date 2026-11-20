@@ -7,31 +7,22 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
-import org.elasticsearch.telemetry.metric.MetricAttributes;
+import java.util.Locale;
 
-/**
- * Who sent an ES|QL query, a closed set derived by {@link QueryCallerClassifier} from the {@code X-elastic-product-origin} header:
- * one value per Elastic product in {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS}, labelled with that origin, {@link #OTHER} for any
- * other origin, and {@link #REST} for a request without the header.
- */
 public enum QueryMetric {
-    KIBANA("kibana"),
-    FLEET("fleet"),
-    LOGSTASH("logstash"),
-    OBSERVABILITY("observability"),
-    CONNECTORS("connectors"),
-    ELASTIC_SYNTHETICS("elastic-synthetics"),
-    OTHER("other"),
-    REST("rest");
+    KIBANA,
+    REST;
 
-    private final String label;
-
-    QueryMetric(String label) {
-        this.label = label;
+    public static QueryMetric fromString(String metric) {
+        try {
+            return QueryMetric.valueOf(metric.toUpperCase(Locale.ROOT));
+        } catch (Exception e) {
+            return REST;
+        }
     }
 
     @Override
     public String toString() {
-        return label;
+        return this.name().toLowerCase(Locale.ROOT);
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.tasks.CancellableTask;
@@ -77,6 +78,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String newIndexName;
     private boolean dryRun;
     private boolean lazy;
+    @Nullable
+    private String expectedSourceIndex;
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
@@ -201,6 +204,23 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      */
     public void lazy(boolean lazy) {
         this.lazy = lazy;
+    }
+
+    /**
+     * Makes this rollover conditional on the rollover target still having {@code expectedSourceIndex} as its (failure store) write
+     * index. If the write index is different by the time the rollover executes, the request completes without rolling over.
+     * <p>
+     * This makes unconditional rollovers idempotent: a {@link org.elasticsearch.action.support.master.TransportMasterNodeAction}
+     * retries the same request on a new master after a failover, and without this guard the retry would roll over the index that the
+     * first attempt had just created.
+     */
+    public void setExpectedSourceIndex(@Nullable String expectedSourceIndex) {
+        this.expectedSourceIndex = expectedSourceIndex;
+    }
+
+    @Nullable
+    public String getExpectedSourceIndex() {
+        return expectedSourceIndex;
     }
 
     public boolean isDryRun() {

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -916,4 +918,91 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/166865">#166865</a>: ILM sends an unconditional rollover,
+     * and if the master fails over while it is in flight, the {@code TransportMasterNodeAction} retries the very same request on the
+     * new master. Replaying the request here is exactly what that retry does. Because the request names the source index it expects to
+     * roll over, the replay must not roll over the index that the first attempt created.
+     */
+    public void testRetriedUnconditionalRolloverWithExpectedSourceIndexRollsOverAliasOnce() {
+        // given an alias whose write index is logs-000001
+        assertAcked(prepareCreate("logs-000001").addAlias(new Alias("logs").writeIndex(true)).get());
+        final RolloverRequest rolloverRequest = new RolloverRequest("logs", null);
+        rolloverRequest.setExpectedSourceIndex("logs-000001");
+
+        // when the same unconditional rollover request is executed twice
+        final RolloverResponse firstResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
+        final RolloverResponse retryResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
+
+        // then only the first one rolls over
+        assertThat(firstResponse.isRolledOver(), is(true));
+        assertThat(firstResponse.getOldIndex(), equalTo("logs-000001"));
+        assertThat(firstResponse.getNewIndex(), equalTo("logs-000002"));
+        assertThat(retryResponse.isRolledOver(), is(false));
+        assertThat(retryResponse.getOldIndex(), equalTo("logs-000002"));
+        assertFalse(indexExists("logs-000003"));
+        final IndexMetadata writeIndex = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index("logs-000002");
+        assertThat(writeIndex.getAliases().get("logs").writeIndex(), is(true));
+        assertThat(writeIndex.getRolloverInfos().get("logs"), nullValue());
+    }
+
+    /**
+     * Same as {@link #testRetriedUnconditionalRolloverWithExpectedSourceIndexRollsOverAliasOnce()} but for a data stream, where the
+     * expected source index is the current backing write index.
+     */
+    public void testRetriedUnconditionalRolloverWithExpectedSourceIndexRollsOverDataStreamOnce() {
+        // given a data stream with a single backing index
+        final String dataStreamName = "logs-retry";
+        final var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("logs-retry-template");
+        putTemplateRequest.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName + "*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
+        prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource("@timestamp", "2026-11-20T00:00:00Z").get();
+        final String firstWriteIndex = getDataStreamWriteIndex(dataStreamName);
+        final RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName, null);
+        rolloverRequest.setExpectedSourceIndex(firstWriteIndex);
+
+        // when the same unconditional rollover request is executed twice
+        final RolloverResponse firstResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
+        final RolloverResponse retryResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
+
+        // then only the first one rolls over
+        assertThat(firstResponse.isRolledOver(), is(true));
+        assertThat(firstResponse.getOldIndex(), equalTo(firstWriteIndex));
+        assertThat(retryResponse.isRolledOver(), is(false));
+        assertThat(retryResponse.getOldIndex(), equalTo(firstResponse.getNewIndex()));
+        assertThat(getDataStreamWriteIndex(dataStreamName), equalTo(firstResponse.getNewIndex()));
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject()
+                .dataStreams()
+                .get(dataStreamName)
+                .getIndices(),
+            hasSize(2)
+        );
+    }
+
+    private static String getDataStreamWriteIndex(String dataStreamName) {
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .dataStreams()
+            .get(dataStreamName)
+            .getWriteIndex()
+            .getName();
+    }
 }

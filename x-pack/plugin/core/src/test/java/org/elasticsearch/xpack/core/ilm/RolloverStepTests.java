@@ -29,6 +29,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
@@ -69,7 +70,12 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             .build();
     }
 
-    private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget, boolean targetFailureStores) {
+    private static void assertRolloverIndexRequest(
+        RolloverRequest request,
+        String rolloverTarget,
+        boolean targetFailureStores,
+        String expectedSourceIndex
+    ) {
         String target = targetFailureStores
             ? IndexNameExpressionResolver.combineSelector(rolloverTarget, IndexComponentSelector.FAILURES)
             : rolloverTarget;
@@ -80,6 +86,8 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         assertEquals(target, request.getRolloverTarget());
         assertFalse(request.isDryRun());
         assertEquals(0, request.getConditions().getConditions().size());
+        // guards against rolling over twice when the request is retried, see https://github.com/elastic/elasticsearch/issues/166865
+        assertEquals(expectedSourceIndex, request.getExpectedSourceIndex());
     }
 
     public void testPerformAction() throws Exception {
@@ -88,7 +96,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
         RolloverStep step = createRandomInstance();
 
-        mockClientRolloverCall(alias, false);
+        mockClientRolloverCall(alias, false, indexMetadata.getIndex().getName());
 
         ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
         performActionAndWait(step, indexMetadata, state, null);
@@ -124,7 +132,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         );
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
-        mockClientRolloverCall(dataStreamName, useFailureStore);
+        mockClientRolloverCall(dataStreamName, useFailureStore, indexToOperateOn.getIndex().getName());
         performActionAndWait(step, indexToOperateOn, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
@@ -183,13 +191,13 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         verifyNoMoreInteractions(indicesClient);
     }
 
-    private void mockClientRolloverCall(String rolloverTarget, boolean targetFailureStore) {
+    private void mockClientRolloverCall(String rolloverTarget, boolean targetFailureStore, String expectedSourceIndex) {
         Mockito.doAnswer(invocation -> {
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            assertRolloverIndexRequest(request, rolloverTarget, targetFailureStore);
-            listener.onResponse(new RolloverResponse(null, null, Map.of(), request.isDryRun(), true, true, true, false));
+            assertRolloverIndexRequest(request, rolloverTarget, targetFailureStore, expectedSourceIndex);
+            listener.onResponse(new RolloverResponse(expectedSourceIndex, null, Map.of(), request.isDryRun(), true, true, true, false));
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -231,6 +239,47 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
+    /**
+     * The rollover was already performed by an earlier attempt of the same step (e.g. the request was retried on a new master after a
+     * failover), so the master no-ops and reports the current write index as the source. The step must treat that as success.
+     */
+    public void testPerformActionSucceedsWhenRolloverWasAlreadyPerformedByAnEarlierAttempt() throws Exception {
+        String alias = randomAlphaOfLength(5);
+        IndexMetadata indexMetadata = getIndexMetadata(alias);
+        String newerWriteIndex = randomValueOtherThan(indexMetadata.getIndex().getName(), () -> randomAlphaOfLength(10));
+        RolloverStep step = createRandomInstance();
+        mockClientRolloverResponse(new RolloverResponse(newerWriteIndex, "next-index", Map.of(), false, false, false, false, false));
+
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        performActionAndWait(step, indexMetadata, state, null);
+
+        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testPerformActionFailsWhenManagedIndexWasNotRolledOver() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetadata indexMetadata = getIndexMetadata(alias);
+        RolloverStep step = createRandomInstance();
+        mockClientRolloverResponse(
+            new RolloverResponse(indexMetadata.getIndex().getName(), "next-index", Map.of(), false, false, false, false, false)
+        );
+
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> performActionAndWait(step, indexMetadata, state, null));
+
+        assertThat(e.getMessage(), containsString("unexpected response on unconditional rollover"));
+        Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    private void mockClientRolloverResponse(RolloverResponse response) {
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
+            listener.onResponse(response);
+            return null;
+        }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
     public void testPerformActionFailure() {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = getIndexMetadata(alias);
@@ -241,7 +290,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             RolloverRequest request = (RolloverRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<RolloverResponse> listener = (ActionListener<RolloverResponse>) invocation.getArguments()[1];
-            assertRolloverIndexRequest(request, alias, false);
+            assertRolloverIndexRequest(request, alias, false, indexMetadata.getIndex().getName());
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());

@@ -17,11 +17,13 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class QueriesTests extends ESTestCase {
@@ -107,7 +109,24 @@ public class QueriesTests extends ESTestCase {
         assertThat(Queries.combine(clause, asList(query, query)), equalTo(query));
     }
 
+    /** Whether {@link Queries#combine} keeps the first query as a clause of its own, as it does a query that is not a bool. */
+    private static boolean wrapsFirstBool(QueryBuilder first, Queries.Clause clause) {
+        return first instanceof BoolQueryBuilder bool
+            && (clause == Queries.Clause.FILTER || clause == Queries.Clause.MUST)
+            && bool.should().isEmpty() == false
+            && bool.must().isEmpty()
+            && bool.filter().isEmpty()
+            && bool.minimumShouldMatch() == null;
+    }
+
     private void assertBoolQueryMerge(QueryBuilder[] queries, BoolQueryBuilder bool, Queries.Clause clause) {
+        if (wrapsFirstBool(queries[0], clause)) {
+            var wrappedList = clause.innerQueries.apply(bool);
+            for (QueryBuilder query : queries) {
+                assertThat(query, in(wrappedList));
+            }
+            return;
+        }
         BoolQueryBuilder first = (BoolQueryBuilder) queries[0];
         for (QueryBuilder b : first.must()) {
             assertThat(bool.must(), hasItem(b));
@@ -126,6 +145,41 @@ public class QueriesTests extends ESTestCase {
         for (int i = 1; i < queries.length; i++) {
             assertThat(queries[i], in(clauseList));
         }
+    }
+
+    /**
+     * A bool of {@code should} clauses is an {@code OR}. Adding a {@code filter} or a {@code must} clause to it would make those clauses
+     * optional, so it stays a clause of its own and the outer bool has no {@code should} clause.
+     */
+    public void testCombineKeepsTheShouldClausesOfTheFirstBoolRequired() {
+        var or = QueryBuilders.boolQuery().should(QueryBuilders.termQuery("a", 1)).should(QueryBuilders.termQuery("b", 2));
+        var other = QueryBuilders.termQuery("c", 3);
+        for (var clause : asList(Queries.Clause.FILTER, Queries.Clause.MUST)) {
+            var combination = (BoolQueryBuilder) Queries.combine(clause, asList(or, other));
+            assertThat(clause.innerQueries.apply(combination), equalTo(asList(or, other)));
+            assertThat(combination.should(), empty());
+        }
+    }
+
+    /** Adding a clause to the first bool is still fine when it does not change what that bool matches. */
+    public void testCombineStillReusesTheFirstBoolWhenItsMeaningIsKept() {
+        var other = QueryBuilders.termQuery("c", 3);
+        var withFilter = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("a", 1)).should(QueryBuilders.termQuery("b", 2));
+        var withMinimum = QueryBuilders.boolQuery()
+            .should(QueryBuilders.termQuery("a", 1))
+            .should(QueryBuilders.termQuery("b", 2))
+            .minimumShouldMatch(1);
+        var onlyFilter = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("a", 1));
+        for (var first : asList(withFilter, withMinimum, onlyFilter)) {
+            var combination = (BoolQueryBuilder) Queries.combine(Queries.Clause.FILTER, asList(first, other));
+            assertThat(combination.should(), equalTo(first.should()));
+            assertThat(combination.filter(), hasItem(other));
+            assertThat(combination.filter(), not(hasItem(first)));
+        }
+        // A should or must_not clause is added to the bool as before.
+        var or = QueryBuilders.boolQuery().should(QueryBuilders.termQuery("a", 1));
+        assertThat(((BoolQueryBuilder) Queries.combine(Queries.Clause.SHOULD, asList(or, other))).should(), hasItem(other));
+        assertThat(((BoolQueryBuilder) Queries.combine(Queries.Clause.MUST_NOT, asList(or, other))).mustNot(), hasItem(other));
     }
 
     public void testCombineMixedBoolAndNonBoolQueries() {

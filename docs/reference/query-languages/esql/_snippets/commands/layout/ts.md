@@ -53,6 +53,12 @@ If a query is missing an inner (time series) aggregation function,
 [`LAST_OVER_TIME()`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/last_over_time.md),
 while histogram fields are merged
 {applies_to}`stack: preview 9.3, ga 9.4`.
+[`FIRST()`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md),
+[`LAST()`](/reference/query-languages/esql/functions-operators/aggregation-functions/last.md),
+[`EARLIEST()`](/reference/query-languages/esql/functions-operators/aggregation-functions/earliest.md), and
+[`LATEST()`](/reference/query-languages/esql/functions-operators/aggregation-functions/latest.md)
+are an exception. They take the first or last sample of each time series for every field type, histograms included,
+and return the same values as outside of `TS`.
 For example, two equivalent queries that return the average of the last memory usage values per time series are shown in [Aggregate with implicit LAST_OVER_TIME](#aggregate-with-implicit-last_over_time).
 To calculate the average memory usage across per-time-series averages, refer to [Calculate the average of per-time-series averages](#calculate-the-average-of-per-time-series-averages).
 For histogram examples, refer to

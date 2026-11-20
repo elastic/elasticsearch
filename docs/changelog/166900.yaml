@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 166844
+pr: 166900
+summary: Skip text-only validation probe for EIS chat completion endpoints
+type: bug

@@ -106,6 +106,8 @@ import org.elasticsearch.xpack.inference.services.elastic.documentextraction.Ela
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidationResult;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -154,6 +156,7 @@ import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -851,6 +854,27 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(exception.getMessage(), containsString("The internal model was invalid"));
+        }
+    }
+
+    public void testChatCompletionValidation_DoesNotSendTextOnlyProbeRequest() throws IOException {
+        var sender = createMockSender();
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        // Image-only models such as jina-ocr-v1 reject text-only requests, so validation must not send a probe request
+        var model = getInvalidModel("jina-ocr-v1", "elastic", TaskType.CHAT_COMPLETION);
+
+        try (var service = createService(factory)) {
+            assertNull(service.getServiceIntegrationValidator(TaskType.TEXT_EMBEDDING));
+
+            var validator = ModelValidatorBuilder.buildModelValidator(TaskType.CHAT_COMPLETION, service);
+            var listener = new TestPlainActionFuture<ModelValidationResult>();
+            validator.validate(service, model, TEST_REQUEST_TIMEOUT, listener);
+
+            assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT).model(), is(model));
+            verify(sender, never()).send(any(), any(), any(), any());
         }
     }
 

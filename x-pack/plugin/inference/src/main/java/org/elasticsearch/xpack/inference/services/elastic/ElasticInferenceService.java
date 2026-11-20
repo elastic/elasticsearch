@@ -33,6 +33,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
 import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -218,6 +219,19 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     @Override
     public boolean supportsNonStreamingChatCompletion() {
         return true;
+    }
+
+    /**
+     * EIS chat completion models can have input requirements that a generic text-only probe can't satisfy (for example, image-only
+     * models such as jina-ocr-v1 reject requests that don't contain an image). EIS doesn't tell Elasticsearch which input types a model
+     * accepts, so skip the probe request for chat completion endpoints rather than reject valid models.
+     */
+    @Override
+    public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        if (taskType == CHAT_COMPLETION) {
+            return (service, model, timeout, listener) -> listener.onResponse(null);
+        }
+        return null;
     }
 
     @Override

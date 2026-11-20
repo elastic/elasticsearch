@@ -104,7 +104,7 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
     /** Object paths ({@code /bucket/key}) served as SSE-KMS objects, mapped to whether the object uses an S3 Bucket Key. */
     private final Map<String, Boolean> kmsObjects = new ConcurrentHashMap<>();
 
-    /** Names of the request headers that ask S3 to encrypt or decrypt: {@code x-amz-server-side-encryption*}. */
+    /** Every {@code x-amz-server-side-encryption*} request header received, as {@code "<METHOD> <path>: <header>"}. */
     private final List<String> serverSideEncryptionRequestHeaders = Collections.synchronizedList(new ArrayList<>());
 
     /**
@@ -116,7 +116,7 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         kmsObjects.put("/" + bucket + "/" + key, bucketKeyEnabled);
     }
 
-    /** Names of every {@code x-amz-server-side-encryption*} header any request carried, in arrival order. */
+    /** Every {@code x-amz-server-side-encryption*} request header received, as {@code "<METHOD> <path>: <header>"}, in arrival order. */
     public List<String> serverSideEncryptionRequestHeaders() {
         return List.copyOf(serverSideEncryptionRequestHeaders);
     }
@@ -138,7 +138,9 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
                 requestLog.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
                 for (String header : exchange.getRequestHeaders().keySet()) {
                     if (header.toLowerCase(Locale.ROOT).startsWith("x-amz-server-side-encryption")) {
-                        serverSideEncryptionRequestHeaders.add(header);
+                        serverSideEncryptionRequestHeaders.add(
+                            exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + ": " + header
+                        );
                     }
                 }
                 // Region-validating mode: simulate a custom endpoint that rejects wrong-region signing.
@@ -176,7 +178,7 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
                         }
                     }
                     Boolean bucketKey = kmsObjects.get(exchange.getRequestURI().getPath());
-                    if (bucketKey != null) {
+                    if (bucketKey != null && ("GET".equals(exchange.getRequestMethod()) || "HEAD".equals(exchange.getRequestMethod()))) {
                         exchange.getResponseHeaders().add("x-amz-server-side-encryption", "aws:kms");
                         exchange.getResponseHeaders()
                             .add(

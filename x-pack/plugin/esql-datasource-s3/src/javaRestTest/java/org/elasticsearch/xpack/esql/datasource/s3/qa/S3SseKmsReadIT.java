@@ -30,19 +30,21 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 
 /**
  * Reads of SSE-KMS objects, with and without S3 Bucket Keys, return the same rows as the unencrypted copy.
  *
- * <p>S3 decrypts server-side on a plain GET, so a correct read sends nothing for encryption and must accept the
- * {@code x-amz-server-side-encryption*} response headers. This test pins that contract against the in-process fixture:
- * it cannot prove KMS itself (it stores and serves plain bytes), but it fails if the read path starts sending
- * encryption headers (SSE-C style) or rejects an SSE-KMS response.
+ * <p>S3 decrypts server-side on a plain GET, so a correct read sends nothing for encryption. This test pins that contract
+ * against the in-process fixture, which answers the KMS objects with {@code x-amz-server-side-encryption*} response headers.
+ * It cannot prove KMS itself (the fixture stores and serves plain bytes), but it fails if the read path starts sending
+ * encryption headers (SSE-C style) or fails on an SSE-KMS response.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class S3SseKmsReadIT extends ESRestTestCase {
@@ -106,10 +108,15 @@ public class S3SseKmsReadIT extends ESRestTestCase {
         putDataset("kms_bucket_key_rows", KMS_BUCKET_KEY_CSV);
 
         Object expected = query("plain_rows").get("values");
-        assertThat(expected.toString(), equalTo("[[1, Vienna], [2, Berlin]]"));
+        assertThat(expected, equalTo(List.of(List.of(1, "Vienna"), List.of(2, "Berlin"))));
         assertThat(query("kms_rows").get("values"), equalTo(expected));
         assertThat(query("kms_bucket_key_rows").get("values"), equalTo(expected));
 
+        assertThat(
+            "the reads of the KMS objects must have reached the fixture",
+            s3HttpFixture.requestLog(),
+            hasItems("GET /" + BUCKET + "/" + KMS_CSV, "GET /" + BUCKET + "/" + KMS_BUCKET_KEY_CSV)
+        );
         assertThat(
             "a read must not ask S3 for encryption; S3 decrypts SSE-KMS objects server-side",
             s3HttpFixture.serverSideEncryptionRequestHeaders(),

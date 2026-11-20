@@ -47,8 +47,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Streams an {@code INTO} query's pages through one {@link EscfBulkWriter}. Each driver has
- * its own producer. The writer bounds the bulks in flight and charges the query breaker and coordinating indexing pressure.
- * Rows need no order, so the writer takes the node's {@link EscfBulkService#defaultPolicy()}.
+ * its own producer. The writer bounds the bulks in flight with the node's {@link EscfBulkService#defaultPolicy()} and
+ * charges the query breaker and coordinating indexing pressure.
  */
 public final class IntoPageWriter {
 

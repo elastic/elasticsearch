@@ -39,10 +39,7 @@ public final class EscfBulkService {
         this.defaultPolicy = EscfBulkWriter.Policy.fromIndexingPressure(indexingPressure);
     }
 
-    /**
-     * The policy for writers that do not need their rows in order, sized by this node's indexing pressure settings.
-     * See {@link EscfBulkWriter.Policy#fromIndexingPressure}.
-     */
+    /** This node's {@link EscfBulkWriter.Policy#fromIndexingPressure} policy. */
     public EscfBulkWriter.Policy defaultPolicy() {
         return defaultPolicy;
     }

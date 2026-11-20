@@ -714,16 +714,10 @@ public class IndexingPressure implements IndexingPressureMonitor {
         return operationLimit;
     }
 
-    /**
-     * The usage from which a streaming bulk starts to split, see {@link #SPLIT_BULK_LOW_WATERMARK}.
-     */
     public long splitBulkLowWatermark() {
         return lowWatermark;
     }
 
-    /**
-     * The size at which a streaming bulk splits above the low watermark, see {@link #SPLIT_BULK_LOW_WATERMARK_SIZE}.
-     */
     public long splitBulkLowWatermarkSize() {
         return lowWatermarkSize;
     }

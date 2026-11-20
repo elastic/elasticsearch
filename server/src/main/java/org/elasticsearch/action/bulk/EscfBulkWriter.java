@@ -59,10 +59,7 @@ public final class EscfBulkWriter implements Releasable {
      */
     public record Policy(int maxBulksInFlight, long targetBulkBytes) {
         public static final long MAX_TARGET_BULK_BYTES = ByteSizeValue.ofMb(64).getBytes();
-        /**
-         * The most bulks a {@link #fromIndexingPressure default} writer keeps in flight. A rejected bulk fails the writer, so
-         * this bounds how hard one writer can push the destination until rejected bulks are retried.
-         */
+        /** Caps the bulks in flight of a {@link #fromIndexingPressure default} writer until rejected bulks are retried. */
         public static final int MAX_DEFAULT_BULKS_IN_FLIGHT = 8;
 
         public Policy {
@@ -77,10 +74,8 @@ public final class EscfBulkWriter implements Releasable {
         }
 
         /**
-         * A policy sized by the node's indexing pressure settings, for writers that do not need their rows in order. Batches
-         * are as large as the chunks of a streaming bulk above the low watermark, and a writer holds at most the low watermark
-         * in flight, and at most {@link #MAX_DEFAULT_BULKS_IN_FLIGHT} bulks. So a writer alone stays below the usage at which
-         * the node starts to split streaming bulks, and never takes the whole coordinating limit.
+         * A policy for writers that do not need their rows in order. Batches take the size of a streaming bulk chunk above the
+         * low watermark, and a writer holds at most the low watermark in flight, so it alone never makes streaming bulks split.
          */
         public static Policy fromIndexingPressure(IndexingPressure indexingPressure) {
             long targetBulkBytes = Math.clamp(indexingPressure.splitBulkLowWatermarkSize(), 1, MAX_TARGET_BULK_BYTES);

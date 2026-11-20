@@ -13,6 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +41,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourceIT {
 
     private static final int FILE_COUNT = 4;
+
+    /** Above one, so a compressed read enters {@code StreamingParallelParsingCoordinator} whatever the runner's processor count. */
+    private static final QueryPragmas PARALLEL_PARSE = new QueryPragmas(Settings.builder().put("external_parsing_parallelism", 2).build());
 
     @Override
     protected Collection<Class<? extends Plugin>> formatPlugins() {
@@ -108,8 +112,12 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
      * The same, over gzipped files. A compressed object has no known decompressed length, so it is read as a
      * stream through {@code StreamingParallelParsingCoordinator} rather than split into ranges — a different
      * forward of the same setting out of the operator factory, and one the plain-CSV case above never reaches.
+     * The parallelism pragma is what puts the read there: {@code openWithParallelism} returns null at one, and
+     * the single-threaded reader it falls back to receives the width by a different route, so on a one-processor
+     * runner this would pass without the streaming forward ever running.
      */
     public void testTheSettingReachesTheStreamingReadOfACompressedFile() throws Exception {
+        assumeTrue("the streaming read is reached by pinning external_parsing_parallelism, a snapshot-only pragma", canUseQueryPragmas());
         Path dir = createTempDir();
         for (int i = 0; i < FILE_COUNT; i++) {
             try (OutputStream gz = new GZIPOutputStream(Files.newOutputStream(dir.resolve("part" + i + ".csv.gz")))) {
@@ -123,20 +131,30 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
 
         try (
             var response = run(
-                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(id), MAX(id)"),
+                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(id), MAX(id)").pragmas(PARALLEL_PARSE),
                 TimeValue.timeValueMinutes(5)
             )
         ) {
             assertThat("the harvesting read scans", response.documentsFound(), equalTo((long) FILE_COUNT));
         }
 
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(id), MAX(id)"), TimeValue.timeValueMinutes(5))) {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(id), MAX(id)").pragmas(PARALLEL_PARSE),
+                TimeValue.timeValueMinutes(5)
+            )
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows.get(0).get(0), equalTo(0));
             assertThat("a numeric extremum is served warm, so the record is cached", response.documentsFound(), equalTo(0L));
         }
 
-        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag)"), TimeValue.timeValueMinutes(5))) {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag)").pragmas(PARALLEL_PARSE),
+                TimeValue.timeValueMinutes(5)
+            )
+        ) {
             List<List<Object>> rows = getValuesList(response);
             assertThat("the answer is still correct, by scanning", rows.get(0).get(0), equalTo(expectedTagMin));
             assertThat("the answer is still correct, by scanning", rows.get(0).get(1), equalTo(expectedTagMax));

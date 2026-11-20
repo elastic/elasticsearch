@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
@@ -1091,7 +1092,7 @@ public final class GlobExpander {
         // again. A second scan was a second opinion that had to agree with the matcher by hand; when the two drifted
         // the only symptom was silently choosing the wrong strategy.
         GlobMatcher matcher = new GlobMatcher(glob);
-        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
+        FileMetadataFilter fileHints = FileMetadataFilter.resolve(hints);
 
         // Enumerable pattern: probe each key with exists() instead of listing a prefix that may hold millions.
         List<String> candidates = matcher.enumerateKeys(maxGlobExpansion);
@@ -1360,7 +1361,7 @@ public final class GlobExpander {
         List<StorageEntry> matched,
         List<StorageEntry> valueExcluded,
         @Nullable StorageEntry fileHintAnchor,
-        List<PartitionFilterHint> fileHints,
+        FileMetadataFilter fileHints,
         int excludedCount,
         int globKeptCount,
         @Nullable String excludedExample,
@@ -1790,7 +1791,7 @@ public final class GlobExpander {
         // Fan-out: try to build slots for the parallel drain.
         StoragePath prefix = storagePath.patternPrefix();
         boolean recursive = matcher.needsRecursion();
-        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
+        FileMetadataFilter fileHints = FileMetadataFilter.resolve(hints);
 
         // Count objects seen during slot construction so fan-out drains start from a correct baseline.
         AtomicInteger sharedListedCount = new AtomicInteger();
@@ -2033,7 +2034,7 @@ public final class GlobExpander {
         String rootPrefixStr,
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
-        List<PartitionFilterHint> fileHints,
+        FileMetadataFilter fileHints,
         int maxDiscoveredFiles,
         AtomicInteger sharedKeptCount
     ) {
@@ -2045,7 +2046,7 @@ public final class GlobExpander {
         if (matcher.matches(relativePath)) {
             String excludedBy = nameFilter.excludedBy(relativePath);
             if (excludedBy == null) {
-                if (fileHints.isEmpty() || matchesAllFileHints(entry, fileHints)) {
+                if (fileHints.isEmpty() || fileHints.matches(entry)) {
                     checkDiscoveredFilesLimit(sharedKeptCount.incrementAndGet(), maxDiscoveredFiles);
                     return new SlotResult(new ArrayList<>(List.of(entry)), null, 0, 1, null, null);
                 } else {
@@ -2070,7 +2071,7 @@ public final class GlobExpander {
         StorageProvider provider,
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
-        List<PartitionFilterHint> fileHints,
+        FileMetadataFilter fileHints,
         int maxDiscoveredFiles,
         int maxListedObjects,
         boolean recursive,
@@ -2102,7 +2103,7 @@ public final class GlobExpander {
                     String excludedBy = nameFilter.excludedBy(relativePath);
                     if (excludedBy == null) {
                         globKeptCount++;
-                        if (fileHints.isEmpty() || matchesAllFileHints(entry, fileHints)) {
+                        if (fileHints.isEmpty() || fileHints.matches(entry)) {
                             localMatched.add(entry);
                             // Reserved as the drain grows, as the flat listing does, so a dataset too large for the node
                             // trips partway through rather than after the list exists.
@@ -2146,7 +2147,7 @@ public final class GlobExpander {
         ExclusionConfig.NameFilter nameFilter,
         List<Slot> slots,
         @Nullable List<PartitionFilterHint> hints,
-        List<PartitionFilterHint> fileHints,
+        FileMetadataFilter fileHints,
         int maxDiscoveredFiles,
         int maxListedObjects,
         boolean recursive,
@@ -2458,12 +2459,12 @@ public final class GlobExpander {
 
     private static StorageEntry addOrStashAnchor(
         StorageEntry entry,
-        List<PartitionFilterHint> fileHints,
+        FileMetadataFilter fileHints,
         List<StorageEntry> matched,
         @Nullable StorageEntry anchor,
         int maxDiscoveredFiles
     ) {
-        if (fileHints.isEmpty() || matchesAllFileHints(entry, fileHints)) {
+        if (fileHints.isEmpty() || fileHints.matches(entry)) {
             matched.add(entry);
             checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
             return anchor;
@@ -2498,7 +2499,7 @@ public final class GlobExpander {
         StoragePath listingPrefix,
         GlobMatcher matcher,
         ExclusionConfig.NameFilter nameFilter,
-        List<PartitionFilterHint> fileHints,
+        FileMetadataFilter fileHints,
         Set<String> requiredKeys,
         BooleanSupplier cancelled,
         int maxListedObjects
@@ -3669,7 +3670,7 @@ public final class GlobExpander {
     private static boolean rangeOperator(Operator operator) {
         return switch (operator) {
             case GREATER_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN, LESS_THAN_OR_EQUAL -> true;
-            case EQUALS, NOT_EQUALS, IN -> false;
+            case EQUALS, NOT_EQUALS, IN, LIKE -> false;
         };
     }
 
@@ -3709,7 +3710,7 @@ public final class GlobExpander {
                     upper = hasUpper ? Math.min(upper, inclusive) : inclusive;
                     hasUpper = true;
                 }
-                case EQUALS, NOT_EQUALS, IN -> throw new IllegalArgumentException("not a range operator [" + hint.operator() + "]");
+                case EQUALS, NOT_EQUALS, IN, LIKE -> throw new IllegalArgumentException("not a range operator [" + hint.operator() + "]");
             }
         }
         if (hasLower == false || hasUpper == false || upper < lower) {
@@ -3935,7 +3936,7 @@ public final class GlobExpander {
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {
-        List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
+        FileMetadataFilter fileHints = FileMetadataFilter.resolve(hints);
         if (fileHints.isEmpty()) {
             return entries;
         }
@@ -3943,7 +3944,7 @@ public final class GlobExpander {
         int beforeCount = entries.size();
         List<StorageEntry> filtered = new ArrayList<>(entries.size());
         for (StorageEntry entry : entries) {
-            if (matchesAllFileHints(entry, fileHints)) {
+            if (fileHints.matches(entry)) {
                 filtered.add(entry);
             }
         }
@@ -3954,16 +3955,75 @@ public final class GlobExpander {
         return filtered;
     }
 
-    private static boolean matchesAllFileHints(StorageEntry entry, List<PartitionFilterHint> fileHints) {
-        for (PartitionFilterHint hint : fileHints) {
-            if (matchesFileHint(entry, hint) == false) {
-                return false;
-            }
+    /**
+     * Requested {@code _file.*} hints with LIKE automata compiled once for the listing. A pattern that
+     * cannot be compiled is undecidable and keeps every file, matching {@link PartitionValueMatcher}.
+     */
+    private static final class FileMetadataFilter {
+        static final FileMetadataFilter NONE = new FileMetadataFilter(List.of(), null);
+
+        private final List<PartitionFilterHint> hints;
+        @Nullable
+        private final ByteRunAutomaton[] likeRuns;
+
+        private FileMetadataFilter(List<PartitionFilterHint> hints, ByteRunAutomaton[] likeRuns) {
+            this.hints = hints;
+            this.likeRuns = likeRuns;
         }
-        return true;
+
+        static FileMetadataFilter resolve(@Nullable List<PartitionFilterHint> hints) {
+            List<PartitionFilterHint> fileHints = resolveModifiedHints(fileMetadataHints(hints));
+            if (fileHints.isEmpty()) {
+                return NONE;
+            }
+            ByteRunAutomaton[] likeRuns = null;
+            for (int i = 0; i < fileHints.size(); i++) {
+                PartitionFilterHint hint = fileHints.get(i);
+                if (hint.operator() != Operator.LIKE) {
+                    continue;
+                }
+                if (likeRuns == null) {
+                    likeRuns = new ByteRunAutomaton[fileHints.size()];
+                }
+                likeRuns[i] = PartitionValueMatcher.compileLike(hint);
+            }
+            return new FileMetadataFilter(fileHints, likeRuns);
+        }
+
+        boolean isEmpty() {
+            return hints.isEmpty();
+        }
+
+        boolean matches(StorageEntry entry) {
+            for (int i = 0; i < hints.size(); i++) {
+                PartitionFilterHint hint = hints.get(i);
+                ByteRunAutomaton likeRun = likeRuns == null ? null : likeRuns[i];
+                if (matchesFileHint(entry, hint, likeRun) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
-    private static boolean matchesFileHint(StorageEntry entry, PartitionFilterHint hint) {
+    private static boolean matchesFileHint(StorageEntry entry, PartitionFilterHint hint, @Nullable ByteRunAutomaton likeRun) {
+        if (hint.operator() == Operator.LIKE) {
+            // FileMetadataFilter already compiled; null means the pattern was undecidable. Do not compile again.
+            if (likeRun == null) {
+                return true;
+            }
+            Object pattern = hint.values().isEmpty() ? null : hint.values().get(0);
+            return switch (hint.columnName()) {
+                case FileMetadataColumns.PATH -> kept(PartitionValueMatcher.matchesLike(entry.path().toString(), pattern, likeRun));
+                case FileMetadataColumns.NAME -> kept(PartitionValueMatcher.matchesLike(entry.path().objectName(), pattern, likeRun));
+                case FileMetadataColumns.DIRECTORY -> {
+                    StoragePath parent = entry.path().parentDirectory();
+                    yield parent == null || kept(PartitionValueMatcher.matchesLike(parent.toString(), pattern, likeRun));
+                }
+                case FileMetadataColumns.MODIFIED, FileMetadataColumns.SIZE, FileMetadataColumns.RECORD_REF -> true;
+                default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
+            };
+        }
         return switch (hint.columnName()) {
             case FileMetadataColumns.MODIFIED -> matchesModified(entry.lastModified(), hint);
             case FileMetadataColumns.SIZE -> kept(PartitionValueMatcher.matches(entry.length(), hint));

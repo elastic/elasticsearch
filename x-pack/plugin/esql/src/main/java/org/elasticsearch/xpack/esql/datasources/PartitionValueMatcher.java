@@ -8,11 +8,16 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMatch;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -130,8 +135,54 @@ public final class PartitionValueMatcher {
             case GREATER_THAN_OR_EQUAL -> compareValues(partitionValue, literal) >= 0;
             case LESS_THAN -> compareValues(partitionValue, literal) < 0;
             case LESS_THAN_OR_EQUAL -> compareValues(partitionValue, literal) <= 0;
+            case LIKE -> matchesLike(partitionValue, literal, null);
             case IN -> null; // handled above
         };
+    }
+
+    /**
+     * Case-sensitive {@code LIKE} against {@code partitionValue}, using the same automaton as the row
+     * filter. {@code compiled} is the listing-scoped automaton when the caller compiled once; {@code null}
+     * compiles here. A pattern that cannot be compiled is undecidable — keep — never a silent drop.
+     */
+    @Nullable
+    public static Boolean matchesLike(Object partitionValue, Object patternLiteral, @Nullable ByteRunAutomaton compiled) {
+        if (partitionValue == null || patternLiteral == null) {
+            return null;
+        }
+        if (kindOf(partitionValue) != Kind.TEXT || kindOf(patternLiteral) != Kind.TEXT) {
+            return null;
+        }
+        ByteRunAutomaton run = compiled != null ? compiled : compileLike(patternLiteral);
+        if (run == null) {
+            return null;
+        }
+        BytesRef input = partitionValue instanceof BytesRef bytesRef ? bytesRef : new BytesRef(stringOf(partitionValue));
+        return AutomataMatch.matches(input, run);
+    }
+
+    /**
+     * UTF-8 automaton for a {@link Operator#LIKE} hint, or {@code null} when the pattern cannot be
+     * compiled. The listing compiles once per hint and reuses the result for every file.
+     */
+    @Nullable
+    public static ByteRunAutomaton compileLike(PartitionFilterHint hint) {
+        if (hint.operator() != Operator.LIKE || hint.values().isEmpty() || hint.values().get(0) == null) {
+            return null;
+        }
+        return compileLike(hint.values().get(0));
+    }
+
+    @Nullable
+    private static ByteRunAutomaton compileLike(Object patternLiteral) {
+        if (kindOf(patternLiteral) != Kind.TEXT) {
+            return null;
+        }
+        try {
+            return AutomataMatch.compile(new WildcardPattern(stringOf(patternLiteral)).createAutomaton(false));
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** The comparison classes a folder value or hint literal can belong to; only equal kinds are comparable. */

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.glob.ExclusionConfig;
@@ -40,7 +41,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -1679,6 +1682,31 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(paths.contains("s3://bucket/data/file14.parquet"));
     }
 
+    public void testExpandGlobFileNameLikeBeatsDiscoveredFilesCap() throws IOException {
+        List<StorageEntry> listing = new ArrayList<>();
+        for (int i = 0; i < 15; i++) {
+            String hour = i >= 12 ? "14" : "15";
+            listing.add(entry("s3://bucket/data/acct_vpcflowlogs_eu-west-1_fl_20261118T" + hour + "05Z_" + i + ".log.gz", 100));
+        }
+        StubProvider provider = new StubProvider(listing);
+        var hints = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*"));
+
+        FileList result = GlobExpander.expandGlob(
+            "s3://bucket/data/*.log.gz",
+            provider,
+            hints,
+            HIVE_ON,
+            10,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE
+        );
+        assertTrue(result.isResolved());
+        assertEquals(3, result.fileCount());
+        for (int i = 0; i < result.fileCount(); i++) {
+            assertThat(result.path(i).objectName(), containsString("_20261118T14"));
+        }
+    }
+
     public void testExpandGlobFileModifiedHintPrunesAtListingWalk() throws IOException {
         Instant old = Instant.parse("2020-01-01T00:00:00Z");
         Instant mid = Instant.parse("2023-06-15T00:00:00Z");
@@ -2000,6 +2028,19 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals(1, result.fileCount());
         assertEquals("s3://bucket/data/a.parquet", result.path(0).toString());
         assertEquals("an exact _file.* prune is retained in one listing pass, not re-listed", 1, provider.listCallCount);
+    }
+
+    public void testFileMetadataLikePruneToEmptyRetainsAnchorWithoutRelisting() throws IOException {
+        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/a.parquet", 100), entry("s3://bucket/data/b.parquet", 200)))
+        );
+
+        var hints = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*"));
+        FileList result = GlobExpander.expand("s3://bucket/data/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertEquals("s3://bucket/data/a.parquet", result.path(0).toString());
+        assertEquals("an all-filtered LIKE prune keeps one inference-anchor file in one listing pass", 1, provider.listCallCount);
     }
 
     /**
@@ -2591,7 +2632,8 @@ public class GlobExpanderTests extends ESTestCase {
             List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2024)),
             List.of(hint("year", PartitionFilterHintExtractor.Operator.IN, 2025)),
             List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "a.parquet")),
-            List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150))
+            List.of(hint(FileMetadataColumns.SIZE, PartitionFilterHintExtractor.Operator.GREATER_THAN, 150)),
+            List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*"))
         );
 
         // Crossing hive with the exclusion settings: the default (absent keys), the explicitly-spelled default
@@ -2790,6 +2832,21 @@ public class GlobExpanderTests extends ESTestCase {
         assertNotEquals(
             GlobExpander.listingCacheDiscriminator(plain, nameSix, HIVE_ON),
             GlobExpander.listingCacheDiscriminator(plain, nameSixInt, HIVE_ON)
+        );
+
+        var likeHour = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*"));
+        var likeNextHour = List.of(hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T15*"));
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(plain, null, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(plain, likeHour, HIVE_ON)
+        );
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(plain, likeHour, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(plain, likeNextHour, HIVE_ON)
+        );
+        assertNotEquals(
+            GlobExpander.listingCacheDiscriminator(plain, fileName, HIVE_ON),
+            GlobExpander.listingCacheDiscriminator(plain, likeHour, HIVE_ON)
         );
     }
 
@@ -3604,6 +3661,121 @@ public class GlobExpanderTests extends ESTestCase {
 
         List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(in));
         assertEquals(List.of("s3://b/a.parquet"), filtered.stream().map(e -> e.path().toString()).toList());
+    }
+
+    public void testFileMetadataFilterByNameLikeContainsTimestamp() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(
+                StoragePath.of("s3://b/108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1405Z_3f2a.log.gz"),
+                100,
+                Instant.EPOCH
+            ),
+            new StorageEntry(
+                StoragePath.of("s3://b/108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1505Z_9c1d.log.gz"),
+                100,
+                Instant.EPOCH
+            ),
+            new StorageEntry(
+                StoragePath.of("s3://b/108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261119T1405Z_3f2a.log.gz"),
+                100,
+                Instant.EPOCH
+            )
+        );
+        var hint = hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*");
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(
+            List.of("s3://b/108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1405Z_3f2a.log.gz"),
+            filtered.stream().map(e -> e.path().toString()).toList()
+        );
+
+        Expression like = new WildcardLike(
+            Source.EMPTY,
+            new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.NAME, DataType.KEYWORD),
+            new WildcardPattern("*_20261118T14*")
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> fromExtractor = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(like),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        assertEquals(filtered, GlobExpander.applyFileMetadataFilters(entries, fromExtractor));
+        assertEquals(
+            Boolean.TRUE,
+            FileSplitProvider.evaluateFilter(like, Map.of(FileMetadataColumns.NAME, new BytesRef(entries.get(0).path().objectName())))
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(like, Map.of(FileMetadataColumns.NAME, new BytesRef(entries.get(1).path().objectName())))
+        );
+        assertEquals(
+            Boolean.FALSE,
+            FileSplitProvider.evaluateFilter(like, Map.of(FileMetadataColumns.NAME, new BytesRef(entries.get(2).path().objectName())))
+        );
+
+        Expression contains = new Contains(
+            Source.EMPTY,
+            new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.NAME, DataType.KEYWORD),
+            Literal.keyword(Source.EMPTY, "_20261118T14")
+        );
+        List<PartitionFilterHintExtractor.PartitionFilterHint> fromContains = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(contains),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        assertEquals(filtered, GlobExpander.applyFileMetadataFilters(entries, fromContains));
+    }
+
+    public void testFileMetadataFilterByNameLikeUnderscoreIsLiteral() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/file_1.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/fileX1.parquet"), 100, Instant.EPOCH)
+        );
+        var hint = hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "file_*.parquet");
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(List.of("s3://b/file_1.parquet"), filtered.stream().map(e -> e.path().toString()).toList());
+    }
+
+    public void testFileMetadataFilterByNameLikeSingleCharWildcard() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/fileA.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/fileAB.parquet"), 100, Instant.EPOCH)
+        );
+        var hint = hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "file?.parquet");
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(List.of("s3://b/fileA.parquet"), filtered.stream().map(e -> e.path().toString()).toList());
+    }
+
+    public void testFileMetadataFilterByNameLikeEscapedStar() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/file*.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/fileX.parquet"), 100, Instant.EPOCH)
+        );
+        var hint = hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "file\\*.parquet");
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(List.of("s3://b/file*.parquet"), filtered.stream().map(e -> e.path().toString()).toList());
+
+        List<StorageEntry> question = List.of(
+            new StorageEntry(StoragePath.of("s3://b/file?.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/fileA.parquet"), 100, Instant.EPOCH)
+        );
+        var escapedQuestion = hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "file\\?.parquet");
+        assertEquals(
+            List.of("s3://b/file?.parquet"),
+            GlobExpander.applyFileMetadataFilters(question, List.of(escapedQuestion)).stream().map(e -> e.path().toString()).toList()
+        );
+    }
+
+    public void testFileMetadataFilterByPathLike() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/AWSLogs/acct/vpcflowlogs/eu-west-1/2026/11/18/a.log.gz"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/AWSLogs/acct/vpcflowlogs/eu-west-1/2026/11/19/b.log.gz"), 100, Instant.EPOCH)
+        );
+        var hint = hint(FileMetadataColumns.PATH, PartitionFilterHintExtractor.Operator.LIKE, "*/2026/11/18/*");
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(
+            List.of("s3://b/AWSLogs/acct/vpcflowlogs/eu-west-1/2026/11/18/a.log.gz"),
+            filtered.stream().map(e -> e.path().toString()).toList()
+        );
     }
 
     /**

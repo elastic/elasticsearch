@@ -20,10 +20,13 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -71,7 +74,13 @@ public final class PartitionFilterHintExtractor {
         GREATER_THAN_OR_EQUAL,
         LESS_THAN,
         LESS_THAN_OR_EQUAL,
-        IN;
+        IN,
+        /**
+         * Case-sensitive {@code LIKE} on a listing value. The hint's single value is the
+         * wildcard pattern string; matching uses {@link WildcardPattern} so listing agrees
+         * with the row filter. Not a glob rewrite: a pattern is not a folder spelling.
+         */
+        LIKE;
 
         public boolean canRewriteGlob() {
             return this == EQUALS || this == IN;
@@ -151,13 +160,18 @@ public final class PartitionFilterHintExtractor {
      * This overload reads <em>resolved</em> columns ({@link FieldAttribute}, {@link ReferenceAttribute},
      * {@link ExternalMetadataAttribute}) against literals. Unresolved names are ignored — {@link #extract} is the
      * pre-analysis path. Comparison, {@code IN}, prefix predicates ({@code STARTS_WITH}, case-sensitive
-     * {@code LIKE 'lit*'}), {@code MV_IN_RANGE}, {@code MV_GREATER}, {@code MV_LESS}, and {@code Range} emit hints
+     * {@code LIKE 'lit*'} on a partition key), case-sensitive {@code LIKE} of any shape on a requested
+     * {@code _file.*} column, {@code MV_IN_RANGE}, {@code MV_GREATER}, {@code MV_LESS}, and {@code Range} emit hints
      * only for requested {@code _file.*} columns or names in {@code partitionKeys}; a data column is not a listing
-     * key and must not join the listing cache identity. Prefix predicates become a GTE/LT range.
-     * {@code MV_IN_RANGE} is always a closed GTE+LTE (inclusivity is not read). {@code MV_GREATER}/{@code MV_LESS}
-     * are GTE/LTE ({@code include_bound} is not read). {@code Range} keeps {@code includeLower}/{@code includeUpper}
-     * as written. {@code RLIKE}, {@code NOT}, and {@code OR} emit nothing. Bounds use {@link #LISTING}, which keeps
-     * no units, so a conjunct with a {@code date_nanos} constant emits nothing either.
+     * key and must not join the listing cache identity. Prefix predicates on partition keys become a GTE/LT range.
+     * {@code _file.*} {@code LIKE} becomes {@link Operator#LIKE} and is applied during listing, before
+     * {@code max_discovered_files}. {@code MV_IN_RANGE} is always a closed GTE+LTE (inclusivity is not read).
+     * {@code MV_GREATER}/{@code MV_LESS} are GTE/LTE ({@code include_bound} is not read). {@code Range} keeps
+     * {@code includeLower}/{@code includeUpper} as written. Case-insensitive {@code LIKE}, {@code RLIKE},
+     * {@code NOT}, and {@code OR} emit nothing. After {@code ReplaceRegexMatch}, prefix/suffix/contains
+     * {@code LIKE} arrives as {@code STARTS_WITH}/{@code ENDS_WITH}/{@code CONTAINS}; those reconstruct
+     * the equivalent {@link Operator#LIKE} pattern on requested {@code _file.*}. Bounds use {@link #LISTING},
+     * which keeps no units, so a conjunct with a {@code date_nanos} constant emits nothing either.
      */
     public static List<PartitionFilterHint> fromConjuncts(
         List<Expression> conjuncts,
@@ -378,36 +392,52 @@ public final class PartitionFilterHintExtractor {
             } else if (conjunct instanceof In in) {
                 extractResolvedFromIn(in, hints, requestedMetadata, partitionKeys, normalizer);
             } else if (conjunct instanceof StartsWith startsWith) {
-                extractResolvedPrefix(startsWith.str(), startsWith.prefix(), hints, requestedMetadata, partitionKeys, normalizer);
-            } else if (conjunct instanceof WildcardLike like
-                && like.caseInsensitive() == false
-                && like.pattern().shape() instanceof WildcardPattern.Shape.Prefix prefix) {
-                    extractResolvedPrefix(like.field(), prefix.literal(), hints, requestedMetadata, partitionKeys);
-                } else if (conjunct instanceof MvInRange mvInRange) {
-                    extractResolvedMvInRange(mvInRange, hints, requestedMetadata, partitionKeys, normalizer);
-                } else if (conjunct instanceof MvGreater mvGreater) {
-                    extractResolvedMvCompare(
-                        mvGreater.field(),
-                        mvGreater.bound(),
-                        Operator.GREATER_THAN_OR_EQUAL,
-                        hints,
-                        requestedMetadata,
-                        partitionKeys,
-                        normalizer
-                    );
-                } else if (conjunct instanceof MvLess mvLess) {
-                    extractResolvedMvCompare(
-                        mvLess.field(),
-                        mvLess.bound(),
-                        Operator.LESS_THAN_OR_EQUAL,
-                        hints,
-                        requestedMetadata,
-                        partitionKeys,
-                        normalizer
-                    );
-                } else if (conjunct instanceof Range range) {
-                    extractResolvedRange(range, hints, requestedMetadata, partitionKeys, normalizer);
+                if (extractResolvedFileAffixLike(
+                    startsWith.str(),
+                    startsWith.prefix(),
+                    "",
+                    "*",
+                    hints,
+                    requestedMetadata,
+                    normalizer
+                ) == false) {
+                    extractResolvedPrefix(startsWith.str(), startsWith.prefix(), hints, requestedMetadata, partitionKeys, normalizer);
                 }
+            } else if (conjunct instanceof Contains contains) {
+                extractResolvedFileAffixLike(contains.str(), contains.substr(), "*", "*", hints, requestedMetadata, normalizer);
+            } else if (conjunct instanceof EndsWith endsWith) {
+                extractResolvedFileAffixLike(endsWith.str(), endsWith.suffix(), "*", "", hints, requestedMetadata, normalizer);
+            } else if (conjunct instanceof WildcardLike like && like.caseInsensitive() == false) {
+                if (extractResolvedFileLike(like, hints, requestedMetadata) == false
+                    && like.pattern().shape() instanceof WildcardPattern.Shape.Prefix prefix) {
+                    // Partition keys still take the prefix range; _file.* already emitted LIKE above.
+                    extractResolvedPrefix(like.field(), prefix.literal(), hints, requestedMetadata, partitionKeys);
+                }
+            } else if (conjunct instanceof MvInRange mvInRange) {
+                extractResolvedMvInRange(mvInRange, hints, requestedMetadata, partitionKeys, normalizer);
+            } else if (conjunct instanceof MvGreater mvGreater) {
+                extractResolvedMvCompare(
+                    mvGreater.field(),
+                    mvGreater.bound(),
+                    Operator.GREATER_THAN_OR_EQUAL,
+                    hints,
+                    requestedMetadata,
+                    partitionKeys,
+                    normalizer
+                );
+            } else if (conjunct instanceof MvLess mvLess) {
+                extractResolvedMvCompare(
+                    mvLess.field(),
+                    mvLess.bound(),
+                    Operator.LESS_THAN_OR_EQUAL,
+                    hints,
+                    requestedMetadata,
+                    partitionKeys,
+                    normalizer
+                );
+            } else if (conjunct instanceof Range range) {
+                extractResolvedRange(range, hints, requestedMetadata, partitionKeys, normalizer);
+            }
         }
     }
 
@@ -576,6 +606,63 @@ public final class PartitionFilterHintExtractor {
                 extractResolvedPrefix(column, prefix, hints, requestedMetadata, partitionKeys);
             }
         }
+    }
+
+    /**
+     * Case-sensitive {@code LIKE} on a requested {@code _file.*} column. The pattern is stored as-is;
+     * {@link PartitionValueMatcher} matches with
+     * {@link WildcardPattern} so listing cannot drop a file the row filter would keep. Returns
+     * {@code true} when a hint was added, so prefix {@code LIKE} on a partition key can still become
+     * a GTE/LT range.
+     */
+    private static boolean extractResolvedFileLike(WildcardLike like, List<PartitionFilterHint> hints, Set<String> requestedMetadata) {
+        String columnName = resolvedColumnName(like.field());
+        if (columnName == null || FileMetadataColumns.isFileMetadataColumn(columnName) == false) {
+            return false;
+        }
+        if (requestedMetadata.contains(columnName) == false) {
+            return false;
+        }
+        hints.add(new PartitionFilterHint(columnName, Operator.LIKE, List.of(like.pattern().pattern())));
+        return true;
+    }
+
+    /**
+     * {@code STARTS_WITH}/{@code CONTAINS}/{@code ENDS_WITH} that {@code ReplaceRegexMatch} emits
+     * for affix {@code LIKE}. Reconstruct the equivalent wildcard so listing uses the same automaton
+     * as the original {@code LIKE}. Literal metacharacters are escaped. Returns {@code true} when
+     * this is a requested {@code _file.*} column so a prefix {@code STARTS_WITH} does not also
+     * become a GTE/LT range.
+     */
+    private static boolean extractResolvedFileAffixLike(
+        Expression field,
+        Expression literalExpr,
+        String patternPrefix,
+        String patternSuffix,
+        List<PartitionFilterHint> hints,
+        Set<String> requestedMetadata,
+        LiteralNormalizer normalizer
+    ) {
+        String columnName = resolvedColumnName(field);
+        if (columnName == null || FileMetadataColumns.isFileMetadataColumn(columnName) == false) {
+            return false;
+        }
+        if (requestedMetadata.contains(columnName) == false) {
+            return true;
+        }
+        if (literalExpr instanceof Literal lit && lit.value() != null) {
+            Object normalized = normalizer.apply(lit);
+            if (normalized instanceof String literal && literal.isEmpty() == false) {
+                hints.add(
+                    new PartitionFilterHint(
+                        columnName,
+                        Operator.LIKE,
+                        List.of(patternPrefix + StringUtils.escapeWildcardLiteral(literal) + patternSuffix)
+                    )
+                );
+            }
+        }
+        return true;
     }
 
     private static void extractResolvedPrefix(

@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -886,19 +888,11 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
-    public void testResolvedStartsWithFileNameEmitsRange() {
+    public void testResolvedStartsWithFileNameEmitsLike() {
         Expression filter = new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("2024-03-15"));
-        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
-            List.of(filter),
-            Set.of(FileMetadataColumns.NAME),
-            Set.of()
-        );
         assertEquals(
-            List.of(
-                new PartitionFilterHint(FileMetadataColumns.NAME, Operator.GREATER_THAN_OR_EQUAL, List.of("2024-03-15")),
-                new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LESS_THAN, List.of("2024-03-16"))
-            ),
-            hints
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("2024-03-15*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
         );
     }
 
@@ -942,21 +936,70 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
     }
 
-    public void testResolvedWildcardLikePrefixEmitsRange() {
+    public void testResolvedWildcardLikePrefixOnFileNameEmitsLike() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"));
-        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
-            List.of(filter),
-            Set.of(FileMetadataColumns.NAME),
-            Set.of()
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
         );
-        assertEquals(Operator.GREATER_THAN_OR_EQUAL, hints.get(0).operator());
-        assertEquals("a-", hints.get(0).values().get(0));
-        assertEquals(Operator.LESS_THAN, hints.get(1).operator());
     }
 
-    public void testResolvedWildcardLikeNonPrefixEmitsNothing() {
+    public void testResolvedWildcardLikeNonPrefixOnFileNameEmitsLike() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"));
-        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*z"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeContainsTimestampEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*_20261118T14*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeEscapeEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("file\\*.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("file\\*.parquet"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeSingleCharWildcardEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("file?.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("file?.parquet"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedWildcardLikeOnFilePathEmitsLike() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.PATH), new WildcardPattern("*/2026/11/18/*"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.PATH, Operator.LIKE, List.of("*/2026/11/18/*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.PATH), Set.of())
+        );
+    }
+
+    public void testUnrequestedFileNameLikeEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
+    }
+
+    public void testResolvedWildcardLikeNonPrefixOnPartitionKeyEmitsNothing() {
+        Expression filter = new WildcardLike(SRC, keywordField("year"), new WildcardPattern("*24"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year")).isEmpty());
+    }
+
+    public void testResolvedWildcardLikePrefixOnPartitionKeyEmitsRange() {
+        Expression filter = new WildcardLike(SRC, keywordField("year"), new WildcardPattern("2024*"));
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of("year"));
+        assertEquals(Operator.GREATER_THAN_OR_EQUAL, hints.get(0).operator());
+        assertEquals("2024", hints.get(0).values().get(0));
+        assertEquals(Operator.LESS_THAN, hints.get(1).operator());
     }
 
     public void testResolvedEqualsOnAliasEmitsNothing() {
@@ -982,6 +1025,61 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
     public void testResolvedCaseInsensitiveLikeEmitsNothing() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*"), true);
         assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedNotLikeEmitsNothing() {
+        Expression filter = new Not(SRC, new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*")));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of()).isEmpty());
+    }
+
+    public void testResolvedContainsFileNameEmitsLike() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("_20261118T14"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*_20261118T14*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedContainsEscapesWildcardMetacharacters() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("file*.parquet"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*file\\*.parquet*"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedEndsWithFileNameEmitsLike() {
+        Expression filter = new EndsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral(".log.gz"));
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("*.log.gz"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testUnrequestedContainsFileNameEmitsNothing() {
+        Expression filter = new Contains(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("_20261118T14"));
+        assertTrue(PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(), Set.of()).isEmpty());
+    }
+
+    public void testTimeRangeDoesNotInventFileNameLike() {
+        Expression filter = new Range(
+            SRC,
+            datetimeField(MetadataAttribute.TIMESTAMP_FIELD),
+            datetimeLiteral(1L),
+            true,
+            datetimeLiteral(2L),
+            false,
+            ZoneOffset.UTC
+        );
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        for (PartitionFilterHint hint : hints) {
+            assertNotEquals(FileMetadataColumns.NAME, hint.columnName());
+            assertNotEquals(Operator.LIKE, hint.operator());
+        }
     }
 
     public void testPreprocessorFoldsNestedDateExtractOverDateTrunc() {

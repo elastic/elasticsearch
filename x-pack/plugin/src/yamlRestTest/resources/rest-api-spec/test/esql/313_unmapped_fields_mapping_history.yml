@@ -14,10 +14,17 @@ setup:
         such a shard returns when it is not read.
 
   # Indexed under dynamic:false, so "extra" stays in _source only. The mapping is tightened afterwards.
+  #
+  # Created with no replica. A replica built by recovery replays the translog with the current mapping, so replaying
+  # the first document would try a dynamic mapping update for "extra", which is not allowed during recovery and fails
+  # the shard in a retry loop that never converges. The query results do not depend on a replica, so none is expected.
+  # See https://github.com/elastic/elasticsearch/issues/164963.
   - do:
       indices.create:
         index: unmapped-history
         body:
+          settings:
+            index.number_of_replicas: 0
           mappings:
             dynamic: false
             properties:
@@ -85,10 +92,17 @@ setup:
           f2: 2
 
   # "note" is a runtime field while the document is indexed, so no field holds its value once it is removed.
+  #
+  # Created with no replica. A replica built by recovery replays the translog with the current mapping, and replaying
+  # the first document then hits "note" as an unknown field under dynamic:strict, which fails the shard in a retry
+  # loop that never converges. The query results do not depend on a replica, so none is expected. See
+  # https://github.com/elastic/elasticsearch/issues/164963.
   - do:
       indices.create:
         index: unmapped-runtime
         body:
+          settings:
+            index.number_of_replicas: 0
           mappings:
             dynamic: strict
             properties:

@@ -42,26 +42,10 @@ public final class DocumentFieldRamUsageEstimator {
     private static final int ARRAY_HEADER_BYTES = RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
     private static final int OBJECT_HEADER_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
 
-    private static final long HASH_MAP_ENTRY_BYTES;
-    private static final long LINKED_HASH_MAP_ENTRY_BYTES;
-    private static final long TREE_MAP_ENTRY_BYTES;
-    private static final long LINKED_LIST_NODE_BYTES;
-
-    static {
-        HashMap<Integer, Integer> hm = new HashMap<>();
-        hm.put(0, 0);
-        HASH_MAP_ENTRY_BYTES = RamUsageEstimator.shallowSizeOf(hm.entrySet().iterator().next());
-
-        LinkedHashMap<Integer, Integer> lhm = new LinkedHashMap<>();
-        lhm.put(0, 0);
-        LINKED_HASH_MAP_ENTRY_BYTES = RamUsageEstimator.shallowSizeOf(lhm.entrySet().iterator().next());
-
-        TreeMap<Integer, Integer> tm = new TreeMap<>();
-        tm.put(0, 0);
-        TREE_MAP_ENTRY_BYTES = RamUsageEstimator.shallowSizeOf(tm.entrySet().iterator().next());
-
-        LINKED_LIST_NODE_BYTES = RamUsageEstimator.alignObjectSize(OBJECT_HEADER_BYTES + 3L * REF_BYTES);
-    }
+    private static final long HASH_MAP_ENTRY_BYTES = RamUsageEstimates.HASH_MAP_NODE_SIZE;
+    private static final long LINKED_HASH_MAP_ENTRY_BYTES = RamUsageEstimates.LINKED_HASH_MAP_NODE_SIZE;
+    private static final long TREE_MAP_ENTRY_BYTES = RamUsageEstimates.TREE_MAP_NODE_SIZE;
+    private static final long LINKED_LIST_NODE_BYTES = RamUsageEstimator.alignObjectSize(OBJECT_HEADER_BYTES + 3L * REF_BYTES);
 
     private DocumentFieldRamUsageEstimator() {}
 
@@ -136,12 +120,7 @@ public final class DocumentFieldRamUsageEstimator {
     }
 
     private static long hashTableCapacity(int size) {
-        long minSlots = Math.max(16L, (long) Math.ceil(size / 0.75f));
-        long capacity = 16L;
-        while (capacity < minSlots) {
-            capacity <<= 1;
-        }
-        return capacity;
+        return Math.max(16L, RamUsageEstimates.hashTableSlots(size));
     }
 
     private static long estimateCollection(Collection<?> collection, int depth) {

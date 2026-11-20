@@ -8,72 +8,83 @@
 package org.elasticsearch.xpack.esql.into;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.bulk.EscfBulkService;
+import org.elasticsearch.action.bulk.EscfBulkWriter;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.escf.EscfBatchBuilder;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.time.ZoneOffset;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 /**
- * Streams an {@code INTO} query's pages to its destination as bulk {@code create} requests. At most
- * {@link #MAX_IN_FLIGHT_BYTES} of source bytes wait for an acknowledgement per driver, and each row's source is
- * reserved on the request circuit breaker until that bulk settles. The caller's {@link ThreadContext} is restored
- * around each request.
+ * Streams an {@code INTO} query's pages through one {@link EscfBulkWriter}. Each driver has
+ * its own producer. The writer bounds the bulks in flight and charges the query breaker and coordinating indexing pressure.
  */
 public final class IntoPageWriter {
-    // visible for testing
-    // TODO: once FROM supports INTO, share a per-node or per-query in-flight byte budget across drivers
-    static final long MAX_IN_FLIGHT_BYTES = 3L * Operator.TARGET_PAGE_SIZE;
+    static final EscfBulkWriter.Policy POLICY = new EscfBulkWriter.Policy(3, Operator.TARGET_PAGE_SIZE);
 
-    private static final String BREAKER_LABEL = "into";
-
-    /** Holds the per-node configuration and failure state shared across drivers on one node for one {@code INTO} run. */
+    /** Holds the query-scoped configuration, counters, and failure state across drivers for one {@code INTO} run. */
     public static final class Factory {
-        private final Client client;
-        private final Supplier<ThreadContext.StoredContext> caller;
-        private final String destination;
-        private final List<String> columns;
-        private final List<DataType> types;
-        private final Indexing indexing;
-        private final AtomicReference<Exception> failure = new AtomicReference<>();
-
         public enum Indexing {
-            /** Sends incoming pages to the destination as bulk requests. */
+            /** Sends incoming pages to the destination as ESCF batches. */
             INDEX,
-            /** Releases incoming pages without sending any bulk requests. */
+            /** Releases incoming pages without writing anything. */
             DISCARD
         }
 
-        public static Factory createFactory(Client client, String destination, List<Attribute> output, Indexing indexing) {
+        private final String destination;
+        private final List<String> columns;
+        private final List<DataType> types;
+        @Nullable
+        private final EscfBulkWriter writer;
+        private final AtomicLong total = new AtomicLong();
+        private final AtomicLong created = new AtomicLong();
+        private final AtomicReference<Exception> failure = new AtomicReference<>();
+        private final AtomicInteger openProducers = new AtomicInteger();
+        private final List<IntoPageWriter> drivers = new CopyOnWriteArrayList<>();
+        private volatile boolean settled;
+
+        public static Factory createFactory(
+            EscfBulkService bulks,
+            Client client,
+            CircuitBreaker breaker,
+            String destination,
+            List<Attribute> output,
+            Indexing indexing
+        ) {
             return new Factory(
+                bulks,
                 client,
-                client.threadPool().getThreadContext().newRestorableContext(false),
+                breaker,
                 destination,
                 Expressions.names(output),
                 output.stream().map(Attribute::dataType).toList(),
@@ -82,19 +93,20 @@ public final class IntoPageWriter {
         }
 
         private Factory(
+            EscfBulkService bulks,
             Client client,
-            Supplier<ThreadContext.StoredContext> caller,
+            CircuitBreaker breaker,
             String destination,
             List<String> columns,
             List<DataType> types,
             Indexing indexing
         ) {
-            this.client = client;
-            this.caller = caller;
             this.destination = destination;
             this.columns = columns;
             this.types = types;
-            this.indexing = indexing;
+            this.writer = indexing == Indexing.INDEX
+                ? bulks.newWriter(client, breaker, destination, POLICY, this::onResponse, this::onCapacity)
+                : null;
         }
 
         String destination() {
@@ -102,135 +114,205 @@ public final class IntoPageWriter {
         }
 
         public IntoPageWriter create(DriverContext driverContext) {
-            return new IntoPageWriter(this, Objects.requireNonNull(driverContext), LocalCircuitBreaker.forAsyncIo(driverContext.breaker()));
+            openProducers.incrementAndGet();
+            IntoPageWriter pageWriter = new IntoPageWriter(
+                this,
+                writer == null ? null : writer.newProducer(),
+                Objects.requireNonNull(driverContext),
+                drivers.isEmpty()
+            );
+            drivers.add(pageWriter);
+            return pageWriter;
+        }
+
+        private Exception onResponse(BulkResponse response) {
+            for (BulkItemResponse item : response) {
+                if (item.isFailed()) {
+                    Exception cause = item.getFailure().getCause();
+                    ElasticsearchStatusException failed = new ElasticsearchStatusException(
+                        "INTO [{}] failed: {}",
+                        item.getFailure().getStatus(),
+                        cause,
+                        destination,
+                        cause.getMessage()
+                    );
+                    failure.compareAndSet(null, failed);
+                    return failed;
+                }
+            }
+            long rows = response.getItems().length;
+            total.addAndGet(rows);
+            created.addAndGet(rows);
+            return null;
+        }
+
+        private void onCapacity() {
+            for (IntoPageWriter pageWriter : drivers) {
+                pageWriter.wake();
+            }
+        }
+
+        private void producerClosed() {
+            if (openProducers.decrementAndGet() == 0) {
+                writer.finish(ActionListener.wrap(ignored -> settled(null), this::settled));
+            }
+        }
+
+        private void settled(Exception failed) {
+            if (failed != null) {
+                failure.compareAndSet(null, failed);
+            }
+            settled = true;
+            for (IntoPageWriter pageWriter : drivers) {
+                pageWriter.settled();
+            }
+        }
+
+        IntoStats stats() {
+            return new IntoStats(total.get(), created.get());
         }
 
         /** Returns the first bulk or item failure recorded by this run, or {@code null} if every write succeeded. */
         @Nullable
-        Exception failure() {
+        public Exception failure() {
             return failure.get();
+        }
+
+        /**
+         * Fails the query when {@code target} cannot be written as a pre-built ESCF batch.
+         * Checked once on the coordinator.
+         */
+        public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
+            // TODO: authorize write access to the destination before reporting destination-specific errors below, which would
+            // otherwise reveal an inaccessible index's pipeline or routing. Tracked with the destination authorization in EsqlSession.
+            if (batchIndexingSupported == false) {
+                throw rejection("INTO [%s] requires batch indexing", target);
+            }
+            if (hasPipeline(project, target)) {
+                throw rejection("INTO [%s] does not support ingest pipelines", target);
+            }
+            if (routesFromSource(project, target)) {
+                throw rejection("INTO [%s] does not support indices that route from _source", target);
+            }
+        }
+
+        private static boolean hasPipeline(ProjectMetadata project, String target) {
+            IndexRequest probe = new IndexRequest(target);
+            IngestService.setPipelineOnRequest(probe, IngestService.resolvePipelines(probe, probe, project, System.currentTimeMillis()));
+            return IngestService.hasPipeline(probe);
+        }
+
+        private static ElasticsearchStatusException rejection(String format, Object... args) {
+            return new ElasticsearchStatusException(Strings.format(format, args), RestStatus.BAD_REQUEST);
+        }
+
+        private static boolean routesFromSource(ProjectMetadata project, String target) {
+            IndexAbstraction abstraction = project.getIndicesLookup().get(target);
+            if (abstraction == null) {
+                // Any matching template can create the index with source routing. Applying the template
+                // is what resolves that routing, so a match is rejected.
+                return MetadataIndexTemplateService.findV2Template(project, target, false) != null
+                    || MetadataIndexTemplateService.findV1Templates(project, target, Boolean.FALSE).isEmpty() == false;
+            }
+            Index writeIndex = abstraction.getWriteIndex();
+            return writeIndex != null
+                && IndexRouting.fromIndexMetadata(project.getIndexSafe(writeIndex)) instanceof IndexRouting.ExtractFromSource;
         }
     }
 
     private final Factory sink;
+    @Nullable
+    private final EscfBulkWriter.Producer producer;
     private final DriverContext driverContext;
-    private final CircuitBreaker breaker;
+    // The factory's counters are query-wide, so only one driver reports them; the merge step sums every driver's row.
+    private final boolean reportsStats;
 
-    private final AtomicLong total = new AtomicLong();
-    private final AtomicLong created = new AtomicLong();
-    private long inFlightBytes;
     private boolean finished;
+    private boolean producerClosed;
+    private final AtomicBoolean asyncAction = new AtomicBoolean();
     // null whenever no driver is blocked on this writer; allocated in isBlocked() and cleared in wake().
     @Nullable
     private SubscribableListener<Void> waiting;
 
-    private IntoPageWriter(Factory sink, DriverContext driverContext, CircuitBreaker breaker) {
+    private IntoPageWriter(Factory sink, @Nullable EscfBulkWriter.Producer producer, DriverContext driverContext, boolean reportsStats) {
         this.sink = sink;
+        this.producer = producer;
         this.driverContext = driverContext;
-        this.breaker = breaker;
+        this.reportsStats = reportsStats;
+        if (producer == null) {
+            // Nothing is written, so there is nothing to settle.
+            producerClosed = true;
+        }
+    }
+
+    IntoStats stats() {
+        return reportsStats ? sink.stats() : new IntoStats(0, 0);
+    }
+
+    /** Returns the first bulk or item failure recorded by this run, or {@code null} if every write succeeded. */
+    @Nullable
+    Exception failure() {
+        return sink.failure();
     }
 
     public void consume(Page page) {
         try {
-            if (sink.indexing == Factory.Indexing.INDEX && sink.failure.get() == null) {
-                send(bulkFor(page));
+            if (producer != null && page.getPositionCount() > 0 && sink.failure.get() == null) {
+                if (asyncAction.compareAndSet(false, true)) {
+                    driverContext.addAsyncAction();
+                }
+                producer.add(new PageRows(page, sink.columns, sink.types, sink.destination), false);
+                Exception failed = sink.writer.failure();
+                if (failed != null) {
+                    sink.failure.compareAndSet(null, failed);
+                    throw ExceptionsHelper.convertToRuntime(failed);
+                }
             }
         } finally {
             page.releaseBlocks();
         }
     }
 
-    private ReservedBulk bulkFor(Page page) {
-        BulkRequest bulk = new BulkRequest();
-        long reserved = 0;
-        try {
-            // Render dates in UTC regardless of the query's time zone so the destination parses them unambiguously.
-            Iterator<Iterator<Object>> rows = ResponseValueUtils.pagesToValues(sink.types, List.of(page), ZoneOffset.UTC);
-            while (rows.hasNext()) {
-                Iterator<Object> values = rows.next();
-                Map<String, Object> source = new LinkedHashMap<>();
-                for (String column : sink.columns) {
-                    Object value = values.next();
-                    if (value != null) {
-                        source.put(column, value);
-                    }
-                }
-                IndexRequest request = new IndexRequest(sink.destination).opType(DocWriteRequest.OpType.CREATE).source(source);
-                long bytes = request.indexSource().byteLength();
-                breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
-                reserved += bytes;
-                bulk.add(request);
-            }
-            return new ReservedBulk(bulk, reserved);
-        } catch (Exception e) {
-            release(reserved);
-            throw e;
+    public void finish() {
+        closeProducer();
+        wake(() -> finished = true);
+    }
+
+    public void close() {
+        // finish() keeps the async action until the bulks settle. A failure never calls finish().
+        if (producerClosed == false) {
+            // Closing without finish() means the driver failed or was cancelled, so drop the rows not sent yet instead of
+            // letting the producer hand its open batch to the writer to be flushed.
+            sink.writer.close();
+            closeProducer();
+            releaseAsyncAction();
         }
     }
 
-    private void send(ReservedBulk reservedBulk) {
-        BulkRequest bulk = reservedBulk.bulk();
-        long bytes = reservedBulk.bytes();
-        int actions = bulk.numberOfActions();
-        if (actions == 0) {
-            release(bytes);
-            return;
-        }
-        total.addAndGet(actions);
+    private void closeProducer() {
         synchronized (this) {
-            inFlightBytes += bytes;
-        }
-        driverContext.addAsyncAction();
-        ActionListener<BulkResponse> listener = ActionListener.runAfter(
-            ActionListener.wrap(this::onBulkResponse, this::recordFailure),
-            () -> settle(bytes)
-        );
-        try (ThreadContext.StoredContext ignored = sink.caller.get()) {
-            sink.client.execute(TransportBulkAction.TYPE, bulk, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private void onBulkResponse(BulkResponse response) {
-        for (BulkItemResponse item : response) {
-            if (item.isFailed()) {
-                Exception cause = item.getFailure().getCause();
-                // TODO: once FROM supports INTO, do not let DataNodeRequestSender treat destination errors as missing source shards
-                recordFailure(
-                    new ElasticsearchStatusException(
-                        "INTO [{}] failed: {}",
-                        item.getFailure().getStatus(),
-                        cause,
-                        sink.destination,
-                        cause.getMessage()
-                    )
-                );
+            if (producerClosed) {
                 return;
             }
+            producerClosed = true;
         }
-        created.addAndGet(response.getItems().length);
+        producer.close();
+        sink.producerClosed();
     }
 
-    private void recordFailure(Exception e) {
-        sink.failure.compareAndSet(null, e);
+    private void settled() {
+        releaseAsyncAction();
+        wake(() -> {});
     }
 
-    // Complete the async action before unblocking the driver so a finishing driver sees zero pending actions, and do
-    // so outside synchronized (this) because removing the last action on a failed driver runs its completion listener
-    // synchronously on this thread.
-    private void settle(long bytes) {
-        release(bytes);
-        driverContext.removeAsyncAction();
-        wake(() -> inFlightBytes -= bytes);
+    private void releaseAsyncAction() {
+        if (asyncAction.compareAndSet(true, false)) {
+            driverContext.removeAsyncAction();
+        }
     }
 
-    private void release(long bytes) {
-        breaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
-    }
-
-    public void finish() {
-        wake(() -> finished = true);
+    private void wake() {
+        wake(() -> {});
     }
 
     private void wake(Runnable change) {
@@ -257,26 +339,34 @@ public final class IntoPageWriter {
         return new IsBlockedResult(waiting, "INTO " + sink.destination);
     }
 
-    // Blocking until inFlightBytes == 0 once finished to prevent a parked driver from spinning while bulks settle.
     private boolean mayContinue() {
         if (Thread.holdsLock(this) == false) {
             throw new IllegalStateException("mayContinue() must be called while holding this monitor");
         }
-        return finished ? inFlightBytes == 0 : inFlightBytes < MAX_IN_FLIGHT_BYTES;
+        if (producer == null) {
+            return true;
+        }
+        return finished ? sink.settled : producer.hasCapacity();
     }
 
     public synchronized boolean isFinished() {
-        return finished && inFlightBytes == 0;
+        return finished && (producer == null || sink.settled);
     }
 
-    IntoStats stats() {
-        return new IntoStats(total.get(), created.get());
-    }
+    private record PageRows(Page page, List<String> columns, List<DataType> types, String destination) implements EscfBulkWriter.Rows {
+        @Override
+        public int count() {
+            return page.getPositionCount();
+        }
 
-    @Nullable
-    Exception failure() {
-        return sink.failure();
-    }
+        @Override
+        public void append(EscfBatchBuilder batch) {
+            PageToEscfBatch.append(batch, page, columns, types);
+        }
 
-    private record ReservedBulk(BulkRequest bulk, long bytes) {}
+        @Override
+        public IndexRequest request(int row) {
+            return new IndexRequest(destination).opType(DocWriteRequest.OpType.CREATE);
+        }
+    }
 }

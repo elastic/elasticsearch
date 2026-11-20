@@ -660,11 +660,6 @@ tests:
   - :server:test
   method: testDocsOnly
   issue: https://github.com/elastic/elasticsearch/issues/165819
-- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
-  tasks:
-  - :x-pack:plugin:slm:internalClusterTest
-  method: testSnapshotFailureOnMasterStepDown
-  issue: https://github.com/elastic/elasticsearch/issues/165822
 - class: org.elasticsearch.xpack.vectortile.feature.FeatureFactoryTests
   tasks:
   - :x-pack:plugin:vector-tile:test
@@ -714,11 +709,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testBlobsNotDeletedDuringFailedRelocation
   issue: https://github.com/elastic/elasticsearch/issues/166242
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  tasks:
-  - :modules:data-streams:yamlRestCompatTest
-  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
-  issue: https://github.com/elastic/elasticsearch/issues/166250
 - class: org.elasticsearch.search.ccs.CrossClusterSearchDirectoryMetricsIT
   tasks:
   - :server:internalClusterTest
@@ -729,16 +719,15 @@ tests:
   - :server:internalClusterTest
   method: testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsTrue
   issue: https://github.com/elastic/elasticsearch/issues/166260
+- class: org.elasticsearch.ingest.attachment.heappressure.AttachmentTextCopiesHeapPressureIT
+  issue: https://github.com/elastic/incident-management/issues/3577
+- class: org.elasticsearch.ingest.attachment.heappressure.AttachmentOversizedTextHeapPressureIT
+  issue: https://github.com/elastic/incident-management/issues/3577
 - class: org.elasticsearch.action.search.QueryPhaseTopHitsLeakIT
   tasks:
   - :server:internalClusterTest
   method: testTopHitsReleasedAfterSuccessfulHighlight
   issue: https://github.com/elastic/elasticsearch/issues/166292
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
-  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
-  issue: https://github.com/elastic/elasticsearch/issues/166322
 - class: org.elasticsearch.xpack.esql.action.SubPlanResultLimitIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

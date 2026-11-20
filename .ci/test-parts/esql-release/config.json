@@ -1,0 +1,14 @@
+{
+  "parts": 2,
+  "workers": 13,
+  "heavyTestLimit": 8,
+  "shardOverheadSeconds": 90,
+  "runFirstSeconds": 240,
+  "antiAffinity": [],
+  "splits": {
+    ":x-pack:plugin:esql:qa:server:single-node:csvSpecTests": {
+      "by": "class",
+      "count": 2
+    }
+  }
+}

@@ -47,8 +47,8 @@ import java.util.function.Supplier;
  * <p>
  * It frees each context with the free action of {@code _search}, one request per context, as the user who ran the query,
  * also when an administrator cancels it. It doesn't wait for the requests. A request that fails, or a node that left,
- * leaves the context to the reaper of its node, which frees it once its keep-alive passed. So do the contexts of pages that
- * never reach the coordinator.
+ * leaves the context to the reaper of its node, which frees it once its keep-alive passed. So does a page that left its
+ * node but never reaches the coordinator. A data node frees the contexts of the pages its sink discards itself.
  * <p>
  * The fetch phase reads the local cluster only, so the tracker frees the contexts of local nodes only. It is thread-safe:
  * the exchange and the fetch operator call it from their own threads.

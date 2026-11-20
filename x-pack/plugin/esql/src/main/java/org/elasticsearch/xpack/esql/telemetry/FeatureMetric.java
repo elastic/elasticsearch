@@ -152,7 +152,7 @@ public enum FeatureMetric {
     // InSubquery expression is still in place); by the time the Analyzer/Verifier walk runs,
     // InSubquery has already been rewritten to SemiJoin/AntiJoin/MarkJoin.
     IN_SUBQUERY(plan -> false),
-    // LET bindings are consumed by LetResolver before analysis, so they are never visible to the plan walk.
+    // LET named subqueries are consumed by LetResolver before analysis, so they are never visible to the plan walk.
     // The counter is incremented in EsqlSession.gatherLetMetrics, from the parsed statement.
     LET(plan -> false);
 
@@ -169,7 +169,7 @@ public enum FeatureMetric {
         Aggregate.class, // STATS is managed in another way, see above
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
         UnresolvedMetadata.class, // temporary plan node stripped in the Analyzer
-        // temporary plan node removed by Analyzer: a resolved view (ViewSubquery) or a LET binding carrying its name to
+        // temporary plan node removed by Analyzer: a resolved view (ViewSubquery) or a LET named subquery carrying its name to
         // METADATA _name; VIEW and LET have their own counters
         NamedSubquery.class,
         ViewShadowRelation.class, // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable

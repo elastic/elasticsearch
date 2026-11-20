@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
@@ -97,6 +98,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case DenseVector dv -> pruneUnusedDenseVector(dv, used, recheck);
                     case Highlight h -> pruneUnusedHighlight(h, used, recheck);
                     case NestedExpand expand -> pruneNestedExpand(expand, used);
+                    case NestedFlatten flatten -> pruneNestedFlatten(flatten, used);
                     default -> p;
                 };
             } while (recheck.get());
@@ -126,6 +128,26 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             return expand;
         }
         return new NestedExpand(expand.source(), expand.child(), null, expand.path(), kept, paths);
+    }
+
+    /** Drops child columns nothing above the flatten reads, so their loaders do not run. */
+    private static LogicalPlan pruneNestedFlatten(NestedFlatten flatten, AttributeSet.Builder used) {
+        if (flatten.bound() == false) {
+            return flatten;
+        }
+        List<Attribute> kept = new ArrayList<>();
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < flatten.expanded().size(); i++) {
+            Attribute attribute = flatten.expanded().get(i);
+            if (used.contains(attribute)) {
+                kept.add(attribute);
+                paths.add(flatten.paths().get(i));
+            }
+        }
+        if (kept.size() == flatten.expanded().size()) {
+            return flatten;
+        }
+        return new NestedFlatten(flatten.source(), flatten.child(), null, flatten.path(), kept, paths);
     }
 
     private static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {

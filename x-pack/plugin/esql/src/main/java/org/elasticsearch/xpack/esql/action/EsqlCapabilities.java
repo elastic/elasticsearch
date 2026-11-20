@@ -4992,6 +4992,12 @@ public class EsqlCapabilities {
         NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
+         * {@code NESTED_FLATTEN} keeps one parent row and packs the objects of a mapped nested field into multivalued
+         * columns. Snapshot-only until the command is advertised.
+         */
+        NESTED_FLATTEN(Build.current().isSnapshot()),
+
+        /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.

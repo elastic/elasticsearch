@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedFlattenExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -35,7 +36,7 @@ public final class LoadNestedFromIndex extends PhysicalOptimizerRules.OptimizerR
 
     @Override
     protected PhysicalPlan rule(PhysicalPlan plan) {
-        if (plan instanceof NestedExpandExec) {
+        if (plan instanceof NestedExpandExec || plan instanceof NestedFlattenExec) {
             UnaryExec unary = (UnaryExec) plan;
             PhysicalPlan child = keepDoc(unary.child(), carriedDocName(plan));
             return child == unary.child() ? plan : unary.replaceChild(child);

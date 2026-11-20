@@ -722,6 +722,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterNestedFlattenCommand(EsqlBaseParser.NestedFlattenCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitNestedFlattenCommand(EsqlBaseParser.NestedFlattenCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterExplainCommand(EsqlBaseParser.ExplainCommandContext ctx) { }
   /**
    * {@inheritDoc}

@@ -431,6 +431,16 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 )
             );
         }
+        if (p instanceof NestedFlatten nestedFlatten) {
+            failures.add(
+                fail(
+                    nestedFlatten,
+                    "nested_flatten [{}] in the time-series before the first aggregation [{}] is not allowed",
+                    nestedFlatten.sourceText(),
+                    this.sourceText()
+                )
+            );
+        }
         for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(p)) {
             checkCommandsBeforeAggregation(child, failures);
         }

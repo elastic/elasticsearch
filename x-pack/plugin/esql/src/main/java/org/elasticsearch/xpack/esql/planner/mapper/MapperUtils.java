@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedFlattenExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -242,6 +244,10 @@ public class MapperUtils {
 
         if (p instanceof NestedExpand expand) {
             return new NestedExpandExec(expand.source(), child, expand.path(), expand.expanded(), expand.paths());
+        }
+
+        if (p instanceof NestedFlatten flatten) {
+            return new NestedFlattenExec(flatten.source(), child, flatten.path(), flatten.expanded(), flatten.paths());
         }
 
         if (p instanceof Fetch fetch) {

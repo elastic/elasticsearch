@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -599,6 +600,11 @@ public abstract class FullTextFunction extends Function
         Holder<Boolean> expanded = new Holder<>(false);
         plan.forEachDown(NestedExpand.class, expand -> {
             if (expand.expanded().stream().anyMatch(child -> child.id().equals(field.id()))) {
+                expanded.set(true);
+            }
+        });
+        plan.forEachDown(NestedFlatten.class, flatten -> {
+            if (flatten.expanded().stream().anyMatch(child -> child.id().equals(field.id()))) {
                 expanded.set(true);
             }
         });

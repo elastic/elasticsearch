@@ -11,6 +11,7 @@ lexer grammar MvExpand;
 //
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 DEV_NESTED_EXPAND : 'nested_expand' {this.isDevVersion()}? -> pushMode(MVEXPAND_MODE);
+DEV_NESTED_FLATTEN : 'nested_flatten' {this.isDevVersion()}? -> pushMode(MVEXPAND_MODE);
 
 
 mode MVEXPAND_MODE;

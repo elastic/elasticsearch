@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -241,6 +242,12 @@ public class Mapper {
         if (unary instanceof NestedExpand) {
             throw new VerificationException(
                 "NESTED_EXPAND must run on the data nodes, so it cannot follow [{}]",
+                unary.child().sourceText()
+            );
+        }
+        if (unary instanceof NestedFlatten) {
+            throw new VerificationException(
+                "NESTED_FLATTEN must run on the data nodes, so it cannot follow [{}]",
                 unary.child().sourceText()
             );
         }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -73,6 +74,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         Map<Attribute, Expression> attrToConstant = new HashMap<>();
         plan.forEachUp(ExternalRelation.class, external -> externalFieldsBuilder.addAll(external.output()));
         plan.forEachUp(NestedExpand.class, expand -> nestedChildrenBuilder.addAll(expand.expanded()));
+        plan.forEachUp(NestedFlatten.class, flatten -> nestedChildrenBuilder.addAll(flatten.expanded()));
         plan.forEachUp(p -> p.forEachExpression(NestedPredicate.class, predicate -> nestedChildrenBuilder.addAll(predicate.inputs())));
         plan.forEachUp(EsRelation.class, esRelation -> {
             // Looking for indices in LOOKUP mode is correct: during parsing, we assign the expected mode and even if a lookup index

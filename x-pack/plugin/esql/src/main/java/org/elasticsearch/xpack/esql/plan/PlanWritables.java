@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedFlattenExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
@@ -127,6 +129,7 @@ public class PlanWritables {
             Lookup.ENTRY,
             MvExpand.ENTRY,
             NestedExpand.ENTRY,
+            NestedFlatten.ENTRY,
             OrderBy.ENTRY,
             ParameterizedQuery.ENTRY,
             Project.ENTRY,
@@ -175,6 +178,7 @@ public class PlanWritables {
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,
             NestedExpandExec.ENTRY,
+            NestedFlattenExec.ENTRY,
             ProjectExec.ENTRY,
             RerankExec.ENTRY,
             SampleExec.ENTRY,

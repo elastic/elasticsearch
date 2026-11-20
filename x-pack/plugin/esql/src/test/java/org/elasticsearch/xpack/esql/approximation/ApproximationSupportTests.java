@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -208,6 +209,8 @@ public class ApproximationSupportTests extends ESTestCase {
 
         // NESTED_EXPAND is snapshot-only and its expanded columns have no confidence-interval buckets yet.
         NestedExpand.class,
+        // NESTED_FLATTEN is snapshot-only and its packed columns have no confidence-interval buckets yet.
+        NestedFlatten.class,
 
         // These source commands makes no sense for approximation.
         Explain.class,

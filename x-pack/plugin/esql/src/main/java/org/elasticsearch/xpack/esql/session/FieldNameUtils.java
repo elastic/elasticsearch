@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -119,6 +120,11 @@ public class FieldNameUtils {
                 // TODO: When collection aliases/references are supported, resolve their owning
                 // source and mapped path here; the target name may be an alias in the query.
                 collections.add(expand.target().name());
+            }
+        });
+        parsed.forEachDown(NestedFlatten.class, flatten -> {
+            if (flatten.bound() == false && flatten.target() != null) {
+                collections.add(flatten.target().name());
             }
         });
         // NESTED_ANY names child fields the same way. The marker keeps them in the private schema instead of dropping them.
@@ -661,6 +667,7 @@ public class FieldNameUtils {
             || p instanceof Limit
             || p instanceof MvExpand
             || p instanceof NestedExpand
+            || p instanceof NestedFlatten
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract

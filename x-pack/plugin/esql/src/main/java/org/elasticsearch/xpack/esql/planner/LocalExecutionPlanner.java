@@ -187,6 +187,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunctio
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedFlattenOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -240,6 +241,7 @@ import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedFlattenExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -581,6 +583,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof NestedExpandExec nestedExpand) {
             return planNestedExpand(nestedExpand, context);
+        } else if (node instanceof NestedFlattenExec nestedFlatten) {
+            return planNestedFlatten(nestedFlatten, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof HighlightExec highlight) {
@@ -3038,6 +3042,36 @@ public class LocalExecutionPlanner {
             configuration
         );
         return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
+    }
+
+    private PhysicalOperation planNestedFlatten(NestedFlattenExec flatten, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(flatten.child(), context);
+        if (flatten.expanded().isEmpty()) {
+            return source;
+        }
+        int docChannel = -1;
+        for (Attribute attribute : flatten.child().output()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                docChannel = source.layout.get(attribute.id()).channel();
+                break;
+            }
+        }
+        if (docChannel < 0) {
+            throw new IllegalStateException("NESTED_FLATTEN requires [_doc]");
+        }
+        Layout.Builder layout = source.layout.builder();
+        layout.append(flatten.expanded());
+        List<DataType> types = flatten.expanded().stream().map(Attribute::dataType).toList();
+        NestedChildren.Factory children = NestedChildren.factory(
+            context.shardContexts,
+            flatten.path(),
+            flatten.paths(),
+            types,
+            flatten.expanded().stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
+            context.plannerSettings,
+            configuration
+        );
+        return source.with(new NestedFlattenOperator.Factory(docChannel, children, flatten.path(), types), layout.build());
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {

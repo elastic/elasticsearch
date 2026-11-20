@@ -611,6 +611,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#nestedFlattenCommand}.
+   * @param ctx the parse tree
+   */
+  void enterNestedFlattenCommand(EsqlBaseParser.NestedFlattenCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#nestedFlattenCommand}.
+   * @param ctx the parse tree
+   */
+  void exitNestedFlattenCommand(EsqlBaseParser.NestedFlattenCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#explainCommand}.
    * @param ctx the parse tree
    */

@@ -137,6 +137,7 @@ public class CommandLicenseTests extends ESTestCase {
             Map.entry("LookupJoin", "LOOKUP_JOIN"),
             Map.entry("MvExpand", "MV_EXPAND"),
             Map.entry("NestedExpand", "NESTED_EXPAND"),
+            Map.entry("NestedFlatten", "NESTED_FLATTEN"),
             Map.entry("InlineStats", "INLINE_STATS"),
             Map.entry("RegisteredDomain", "REGISTERED_DOMAIN"),
             Map.entry("UriParts", "URI_PARTS"),

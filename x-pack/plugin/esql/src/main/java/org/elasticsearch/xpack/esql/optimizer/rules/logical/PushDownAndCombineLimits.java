@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -84,6 +85,9 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 // The copy under the expansion stays on the data node with the command. A coordinator limit would
                 // pull NESTED_EXPAND above the exchange, where it cannot read child documents.
                 return duplicateLimitAsFirstGrandchild(limit, true);
+            } else if (unary instanceof NestedFlatten flatten) {
+                // Flattening keeps one row per parent, so the limit applies to the same rows underneath it.
+                return flatten.replaceChild(limit.replaceChild(flatten.child()));
             } else if (unary instanceof Enrich enrich) {
                 if (enrich.mode() == Enrich.Mode.REMOTE) {
                     return duplicateLimitAsFirstGrandchild(limit, true);

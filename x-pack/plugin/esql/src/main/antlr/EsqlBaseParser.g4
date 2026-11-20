@@ -88,6 +88,7 @@ processingCommand
     | {this.isDevVersion()}? describeCommand
     | {this.isDevVersion()}? intoCommand
     | {this.isDevVersion()}? nestedExpandCommand
+    | {this.isDevVersion()}? nestedFlattenCommand
     ;
 
 whereCommand
@@ -309,6 +310,10 @@ mvExpandCommand
 
 nestedExpandCommand
     : DEV_NESTED_EXPAND qualifiedName
+    ;
+
+nestedFlattenCommand
+    : DEV_NESTED_FLATTEN qualifiedName
     ;
 
 explainCommand

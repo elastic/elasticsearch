@@ -375,6 +375,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitNestedExpandCommand(EsqlBaseParser.NestedExpandCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#nestedFlattenCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitNestedFlattenCommand(EsqlBaseParser.NestedFlattenCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#explainCommand}.
    * @param ctx the parse tree
    * @return the visitor result

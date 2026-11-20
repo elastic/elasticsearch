@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -126,6 +127,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         } else if (child instanceof NestedExpand expand) {
             AttributeSet expanded = AttributeSet.of(expand.expanded());
             return maybePushDownPastUnary(filter, expand, expanded::contains, NO_OP);
+        } else if (child instanceof NestedFlatten flatten) {
+            // A filter on a packed child column needs the values. A filter on a parent column can run before the read.
+            AttributeSet flattened = AttributeSet.of(flatten.expanded());
+            return maybePushDownPastUnary(filter, flatten, flattened::contains, NO_OP);
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;

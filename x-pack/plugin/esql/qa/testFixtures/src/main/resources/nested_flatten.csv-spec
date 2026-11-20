@@ -1,0 +1,47 @@
+// NESTED_FLATTEN over nested_orders: order 1 has items a/1 and b/2, order 2 has none, order 3 has item c/5.
+
+packEachObject
+required_capability: nested_flatten
+
+FROM nested_orders
+| NESTED_FLATTEN items
+| KEEP id, items.sku, items.qty
+| SORT id
+;
+
+id:keyword | items.sku:keyword | items.qty:long
+1          | [a, b]            | [1, 2]
+2          | null              | null
+3          | c                 | 5
+;
+
+filterOnChild
+required_capability: nested_flatten
+
+FROM nested_orders
+| NESTED_FLATTEN items
+| WHERE items.qty > 1
+| KEEP id, items.sku
+| SORT id
+;
+
+id:keyword | items.sku:keyword
+1          | [a, b]
+3          | c
+;
+
+anyThenFlatten
+required_capability: nested_flatten
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.qty > 1)
+| NESTED_FLATTEN items
+| KEEP id, items.sku
+| SORT id
+;
+
+id:keyword | items.sku:keyword
+1          | [a, b]
+3          | c
+;

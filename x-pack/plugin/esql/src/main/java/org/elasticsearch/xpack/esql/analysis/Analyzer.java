@@ -201,6 +201,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedFlatten;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -984,7 +985,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class HideNestedScopeFields extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            if (plan.anyMatch(NestedExpand.class::isInstance) == false && plan.anyMatch(NestedPredicate::usedBy) == false) {
+            if (plan.anyMatch(NestedExpand.class::isInstance) == false
+                && plan.anyMatch(NestedFlatten.class::isInstance) == false
+                && plan.anyMatch(NestedPredicate::usedBy) == false) {
                 return plan;
             }
             return plan.transformUp(EsRelation.class, relation -> {
@@ -1877,6 +1880,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Enrich p -> resolveEnrich(p, childrenOutput);
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case NestedExpand p -> resolveNestedExpand(p, childrenOutput, context);
+                case NestedFlatten p -> resolveNestedFlatten(p, childrenOutput, context);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
@@ -1969,6 +1973,89 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 paths.add(relative);
             }
             return new NestedExpand(expand.source(), expand.child(), null, path, expanded, paths);
+        }
+
+        /**
+         * Binds {@code NESTED_FLATTEN} to a mapped nested collection, the same checks as {@link NestedExpand}. The columns
+         * it publishes hold every object's value on the parent row.
+         */
+        private LogicalPlan resolveNestedFlatten(NestedFlatten flatten, List<Attribute> childrenOutput, AnalyzerContext context) {
+            if (flatten.bound()) {
+                return flatten;
+            }
+            NamedExpression target = flatten.target();
+            if (context.minimumVersion().supports(NestedFlatten.VERSION) == false) {
+                throw nestedExpandError(target, "NESTED_FLATTEN requires all nodes to support nested flattening");
+            }
+            String name = target.name();
+            String rootName = NestedScopeField.PREFIX + name;
+            FieldAttribute root = null;
+            Set<String> collections = new HashSet<>();
+            for (Attribute attribute : childrenOutput) {
+                if (attribute instanceof FieldAttribute field
+                    && field.field() instanceof NestedScopeField scope
+                    && scope.kind() == NestedScopeField.Kind.COLLECTION) {
+                    collections.add(scope.path());
+                    if (field.name().equals(rootName)) {
+                        root = field;
+                    }
+                }
+            }
+            if (root == null) {
+                if (childrenOutput.stream().anyMatch(a -> inNestedPath(a.name(), name) || inNestedPath(a.name(), rootName))) {
+                    throw nestedExpandError(target, "NESTED_FLATTEN requires a mapped nested field, not [" + name + "]");
+                }
+                return resolveExpressions(flatten, childrenOutput);
+            }
+            NestedScopeField scope = (NestedScopeField) root.field();
+            if (scope.conflict() != null) {
+                throw nestedExpandError(target, "NESTED_FLATTEN cannot read [" + name + "]: " + scope.conflict());
+            }
+            String path = scope.path();
+            if (NestedRowChecks.fromLookupIndex(flatten.child(), root.id())) {
+                throw nestedExpandError(
+                    target,
+                    "NESTED_FLATTEN cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
+                );
+            }
+            if (childrenOutput.stream().anyMatch(a -> a.synthetic() == false && a.name().equals(path))) {
+                throw nestedExpandError(target, "NESTED_FLATTEN cannot use [" + path + "]: a column of that name replaces it here");
+            }
+            if (collections.stream().anyMatch(parent -> path.startsWith(parent + "."))) {
+                throw nestedExpandError(target, "NESTED_FLATTEN supports one nesting level");
+            }
+            LogicalPlan aggregate = NestedRowChecks.aggregateBelow(flatten.child());
+            if (aggregate != null) {
+                throw nestedExpandError(
+                    target,
+                    "NESTED_FLATTEN reads each row's nested documents, so it cannot follow [" + aggregate.sourceText() + "]"
+                );
+            }
+            List<FieldAttribute> children = new ArrayList<>();
+            for (Attribute attribute : childrenOutput) {
+                if (attribute instanceof FieldAttribute field
+                    && field.field() instanceof NestedScopeField child
+                    && inNestedPath(field.name(), rootName)) {
+                    if (child.conflict() != null) {
+                        String publicName = field.name().substring(NestedScopeField.PREFIX.length());
+                        throw nestedExpandError(target, "NESTED_FLATTEN cannot read [" + publicName + "]: " + child.conflict());
+                    }
+                    if (child.kind() == NestedScopeField.Kind.VALUE && child.path().equals(path)) {
+                        children.add(field);
+                    }
+                }
+            }
+            children.sort(Comparator.comparing(FieldAttribute::name));
+            List<Attribute> expanded = new ArrayList<>();
+            List<String> paths = new ArrayList<>();
+            for (FieldAttribute child : children) {
+                String relative = child.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1);
+                String childName = path + "." + relative;
+                String parentName = childName.substring(0, childName.lastIndexOf('.'));
+                expanded.add(fieldAttribute(flatten.source(), parentName, childName, ((NestedScopeField) child.field()).leaf(), false));
+                paths.add(relative);
+            }
+            return new NestedFlatten(flatten.source(), flatten.child(), null, path, expanded, paths);
         }
 
         private static boolean inNestedPath(String attributeName, String path) {
@@ -4565,6 +4652,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     state.expandedChildren.put(expand.expanded().get(i).id(), expand.paths().get(i));
                 }
             }
+            if (plan instanceof NestedFlatten flatten && flatten.bound()) {
+                for (int i = 0; i < flatten.expanded().size(); i++) {
+                    state.expandedChildren.put(flatten.expanded().get(i).id(), flatten.paths().get(i));
+                }
+            }
 
             if (state.isAfterAggregate) {
                 return plan;
@@ -4682,6 +4774,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return expanded.size() == expand.expanded().size()
                     ? expand
                     : new NestedExpand(expand.source(), expand.child(), null, expand.path(), expanded, paths);
+            }).transformDown(NestedFlatten.class, flatten -> {
+                if (flatten.bound() == false) {
+                    return flatten;
+                }
+                List<Attribute> expanded = new ArrayList<>(flatten.expanded());
+                List<String> paths = new ArrayList<>(flatten.paths());
+                for (FieldAttribute generated : unionFieldAttributes) {
+                    FieldAttribute child = state.convertedChildren.get(generated.id());
+                    int index = -1;
+                    for (int i = 0; child != null && i < flatten.expanded().size(); i++) {
+                        if (flatten.expanded().get(i).id().equals(child.id())) {
+                            index = i;
+                            break;
+                        }
+                    }
+                    if (index >= 0 && expanded.contains(generated) == false) {
+                        expanded.add(generated);
+                        paths.add(flatten.paths().get(index));
+                    }
+                }
+                return expanded.size() == flatten.expanded().size()
+                    ? flatten
+                    : new NestedFlatten(flatten.source(), flatten.child(), null, flatten.path(), expanded, paths);
             });
         }
 

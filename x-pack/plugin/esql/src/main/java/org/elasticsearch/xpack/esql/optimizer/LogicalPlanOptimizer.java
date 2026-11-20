@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggr
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTsInfoWithMetricsInfo;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteDateFunctionComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RewriteSumOfExpressionPlusConstant;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SelectSlicesFromFilter;
@@ -246,6 +247,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ConstantFolding(),
             new ReplaceDeferredRegex(),
             new PruneRedundantAggregateGroupings(),
+            new ReplaceTsInfoWithMetricsInfo(),
             /* Then deduplicate aggregations
                We need this after the constant folding
                because we could have expressions like

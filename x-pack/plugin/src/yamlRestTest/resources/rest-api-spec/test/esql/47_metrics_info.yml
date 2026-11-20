@@ -1,0 +1,151 @@
+---
+dimensions of each metric:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ metrics_info_command, metrics_info_field_presence ]
+      reason: "METRICS_INFO reads field presence from doc values"
+
+  - do:
+      indices.create:
+        index: metrics_info_dimensions
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              region:
+                type: keyword
+                time_series_dimension: true
+              mount:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: double
+                time_series_metric: gauge
+                meta:
+                  unit: percent
+              disk_io:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        refresh: true
+        index: metrics_info_dimensions
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "host": "a", "region": "us", "cpu": 0.5}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "host": "a", "region": "us", "cpu": 0.7}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "host": "b", "cpu": 0.2}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "host": "a", "mount": "/data", "disk_io": 10}'
+  - is_false: errors
+
+  # Each metric gets the union of the dimensions of its time series, and only those.
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS metrics_info_dimensions
+            | METRICS_INFO
+            | EVAL dimension_fields = MV_SORT(dimension_fields)
+            | SORT metric_name
+            | LIMIT 10
+  - match: { columns.0.name: metric_name }
+  - match: { columns.1.name: data_stream }
+  - match: { columns.2.name: unit }
+  - match: { columns.3.name: metric_type }
+  - match: { columns.4.name: field_type }
+  - match: { columns.5.name: dimension_fields }
+  - length: { values: 2 }
+  - match: { values.0: [ "cpu", "metrics_info_dimensions", "percent", "gauge", "double", [ "host", "region" ] ] }
+  - match: { values.1: [ "disk_io", "metrics_info_dimensions", null, "counter", "long", [ "host", "mount" ] ] }
+
+  # A filter on a dimension limits the dimensions to the matching time series.
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS metrics_info_dimensions
+            | WHERE host == "b"
+            | METRICS_INFO
+            | KEEP metric_name, dimension_fields
+            | LIMIT 10
+  - length: { values: 1 }
+  - match: { values.0: [ "cpu", "host" ] }
+
+---
+dimension keys of a flattened field:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ metrics_info_command, metrics_info_field_presence ]
+      reason: "METRICS_INFO reports the time_series_dimensions keys of flattened fields"
+
+  - do:
+      indices.create:
+        index: metrics_info_flattened
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              uid:
+                type: keyword
+                time_series_dimension: true
+              deployment:
+                type: flattened
+                time_series_dimensions: [ "build.tag" ]
+              voltage:
+                type: double
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: metrics_info_flattened
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-a", "voltage": 7.2, "deployment": {"build": {"tag": "v1.0"}, "region": "us-east-1"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "uid": "host-b", "voltage": 5.1, "deployment": {"region": "eu-west-1"}}'
+  - is_false: errors
+
+  # region is a key of the flattened field but not one of its dimensions, so it is not reported.
+  - do:
+      esql.query:
+        body:
+          query: |
+            TS metrics_info_flattened
+            | METRICS_INFO
+            | EVAL dimension_fields = MV_SORT(dimension_fields)
+            | KEEP metric_name, dimension_fields
+            | LIMIT 10
+  - length: { values: 1 }
+  - match: { values.0: [ "voltage", [ "deployment.build.tag", "uid" ] ] }

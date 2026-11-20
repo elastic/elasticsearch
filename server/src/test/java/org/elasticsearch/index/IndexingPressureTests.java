@@ -388,6 +388,30 @@ public class IndexingPressureTests extends ESTestCase {
         assertEquals(0, indexingPressure.stats().getCoordinatingRejections());
     }
 
+    public void testCoordinatingIncreaseBytesLeavesTheTotalsAtTheFirstReserve() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        IndexingPressure.Coordinating coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024, false);
+        long total = indexingPressure.stats().getTotalCoordinatingBytes();
+        long totalCombined = indexingPressure.stats().getTotalCombinedCoordinatingAndPrimaryBytes();
+
+        coordinating.increaseBytes(256);
+        assertEquals(1024 + 256, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(1024 + 256, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(total, indexingPressure.stats().getTotalCoordinatingBytes());
+        assertEquals(totalCombined, indexingPressure.stats().getTotalCombinedCoordinatingAndPrimaryBytes());
+
+        coordinating.increaseBytes(128, true);
+        assertEquals(1024 + 256 + 128, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(total, indexingPressure.stats().getTotalCoordinatingBytes());
+        assertEquals(totalCombined, indexingPressure.stats().getTotalCombinedCoordinatingAndPrimaryBytes());
+
+        coordinating.close();
+        assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(total, indexingPressure.stats().getTotalCoordinatingBytes());
+        assertEquals(totalCombined, indexingPressure.stats().getTotalCombinedCoordinatingAndPrimaryBytes());
+    }
+
     public void testCoordinatingReduceBytes() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         IndexingPressure.Coordinating coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024, false);

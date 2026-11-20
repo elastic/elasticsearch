@@ -507,6 +507,52 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(hit.releases.get(), equalTo(1));
     }
 
+    public void testDeleteByQueryReleasesTheHitBeforeARejectedBulkRetries() {
+        DeleteByQueryRequest request = new DeleteByQueryRequest(randomAlphaOfLength(6));
+        request.getSearchRequest().source().size(1);
+        request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
+        Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(4_000, 8_000)));
+        AtomicInteger attempts = new AtomicInteger();
+        harness.client.handler = (bulk, listener) -> {
+            long contextBytes = harness.queue.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+            assertThat(hit.releases.get(), equalTo(1));
+            assertThat(harness.chargedBytes(), equalTo(bulk.ramBytesUsed() + contextBytes));
+            assertThat(harness.chargedBytes(), lessThan(hit.getSource().length() / 4L));
+            if (attempts.getAndIncrement() == 0) {
+                listener.onFailure(new EsRejectedExecutionException("full"));
+                assertThat(hit.releases.get(), equalTo(1));
+            } else {
+                listener.onResponse(harness.success(bulk));
+            }
+        };
+        harness.onDone = harness::finishWithEmptyPage;
+        harness.start();
+        harness.feed(List.of(hit));
+        assertTrue(harness.queue.hasDeferredTasks());
+        harness.queue.advanceTime();
+        assertThat(harness.listener.actionGet(TimeValue.ZERO).getDeleted(), equalTo(1L));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+        assertThat(hit.releases.get(), equalTo(1));
+    }
+
+    public void testAReservationSlotAlreadyTakenFailsTheTask() {
+        int pageSize = between(1, 3);
+        ScriptedClock clock = new ScriptedClock();
+        long limit = rawEstimate(clock.getThreadPool(), pageSize);
+        IndexingPressure pressure = pressure(limit);
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        harness.action.plantReservationRetryForTests();
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
+            AssertionError asserted = expectThrows(AssertionError.class, harness::start);
+            assertThat(asserted.getMessage(), containsString("already has a reservation retry"));
+        }
+        IllegalStateException failed = expectThrows(IllegalStateException.class, harness.listener::actionGet);
+        assertThat(failed.getMessage(), containsString("already has a reservation retry"));
+        assertThat(harness.client.searches.size(), equalTo(0));
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
     public void testReindexOfOneDocumentReleasesItsCharge() {
         ReindexRequest request = reindexRequest(1);
         Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);

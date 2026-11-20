@@ -579,8 +579,6 @@ public class IndexingPressure implements IndexingPressureMonitor {
             logger.trace(() -> Strings.format("increasing coordinating reservation by [%d] bytes to [%d]", bytes, newSize));
             currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
             currentCoordinatingBytes.getAndAdd(bytes);
-            totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
-            totalCoordinatingBytes.getAndAdd(bytes);
         }
 
         /**

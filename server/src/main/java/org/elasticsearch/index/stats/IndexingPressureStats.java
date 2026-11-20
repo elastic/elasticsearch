@@ -61,7 +61,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     // Rejections of ingest expansion. These are also counted in coordinatingRejections.
     private final long ingestExpansionRejections;
 
-    // A reindex page reserve that did not fit. Also counted in coordinatingRejections.
+    // A reindex page reserve that did not fit. Not counted in coordinatingRejections, because no client sees a 429 for it.
     private final long reindexPageReserveRejections;
     // Bytes a built reindex page gave back, or took on, against the estimate it reserved.
     private final long reindexPageBytesBelowEstimate;

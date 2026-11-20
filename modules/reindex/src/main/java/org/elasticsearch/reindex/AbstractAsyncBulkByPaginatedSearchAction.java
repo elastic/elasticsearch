@@ -47,6 +47,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
@@ -771,6 +772,10 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                 finishHim(e);
                 return;
             }
+            if (mainRequest instanceof DeleteByQueryRequest) {
+                // The delete request keeps the id, not the source. Drop the source before a rejected bulk is retried.
+                releaseBatchHits.close();
+            }
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());
             if (asyncResponse.holdsCoordinatingCharge()) {
@@ -1178,6 +1183,15 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     /**
+     * Occupies the reservation-retry slot. The next schedule finds it taken and fails the task. Exists entirely for testing.
+     */
+    void plantReservationRetryForTests() {
+        if (reservationRetry.compareAndSet(null, new ReservationRetry()) == false) {
+            throw new AssertionError("a reservation retry is already planted");
+        }
+    }
+
+    /**
      * Set the last returned scrollId. Exists entirely for testing.
      */
     void setScroll(String scroll) {
@@ -1239,7 +1253,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             reserveRefusedSinceMillis = NOT_REFUSED;
             if (inFlightCharge.compareAndSet(null, charge) == false) {
                 charge.close();
-                finishIfStillRunning(new IllegalStateException("task [" + task.getId() + "] already holds a coordinating charge"));
+                final IllegalStateException alreadyHeld = new IllegalStateException(
+                    "task [" + task.getId() + "] already holds a coordinating charge"
+                );
+                finishIfStillRunning(alreadyHeld);
+                assert false : alreadyHeld;
                 return;
             }
             if (task.isCancelled() || requestFinishing.get()) {
@@ -1299,8 +1317,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             final IllegalStateException e = new IllegalStateException(
                 "task [" + task.getId() + "] already has a reservation retry scheduled"
             );
-            assert false : e;
             finishIfStillRunning(e);
+            assert false : e;
             return;
         }
         final Scheduler.ScheduledCancellable scheduled;

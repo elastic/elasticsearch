@@ -62,8 +62,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -610,8 +608,9 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         assertEquals("documents that match exists, indexed as a batch", List.of(0), batch.exists());
         assertEquals("documents that have doc values, indexed one by one", List.of(0), oneByOne.withDocValues());
         assertEquals("documents that have doc values, indexed as a batch", List.of(0), batch.withDocValues());
-        assertThat("documents that have a norm, indexed one by one", oneByOne.withNorm(), everyItem(equalTo(0)));
-        assertThat("documents that have a norm, indexed as a batch", batch.withNorm(), everyItem(equalTo(0)));
+        final List<Integer> expectedWithNorm = mapperService.fieldType(FIELD).getTextSearchInfo().hasNorms() ? List.of(0) : List.of();
+        assertEquals("documents that have a norm, indexed one by one", expectedWithNorm, oneByOne.withNorm());
+        assertEquals("documents that have a norm, indexed as a batch", expectedWithNorm, batch.withNorm());
     }
 
     private ExistsAndNorms existsAndNorms(MapperService mapperService, DirectoryReader reader) throws IOException {

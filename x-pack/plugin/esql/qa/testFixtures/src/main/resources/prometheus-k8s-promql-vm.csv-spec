@@ -1528,6 +1528,68 @@ PROMQL index=prometheus-k8s step=10m result=(network.eth0.tx + ignoring (pod) su
 result:double | step:datetime
 ;
 
+// Nested across-series next to another source-backed operand joins on step.
+// count(count by (cluster)) is one series whose value is 3; sum(rx) at 00:10 is 4290.
+binary_independent_nested_count_over_sum
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m result=(count(count by (cluster) (network.eth0.tx)) / sum(network.eth0.rx))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result;
+
+result:double
+0.0006993006993006993
+;
+
+// scalar() of a labelless aggregate x labeled vector: independent step-broadcast (sum(tx)=4248 at 00:10).
+binary_independent_scalar_times_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+required_capability: promql_scalar
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m result=(scalar(sum(network.eth0.tx)) * sum by (cluster) (network.eth0.rx))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, cluster
+| SORT cluster;
+
+result:double | cluster:keyword
+4112064.0     | prod
+8355816.0     | qa
+5756040.0     | staging
+;
+
+// Opaque topk x raw selector (default match): joins under typed _timeseries. Labels stay in _timeseries.
+binary_independent_opaque_topk_times_raw
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+required_capability: promql_topk
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_timeseries_metadata_functions
+PROMQL index=prometheus-k8s step=10m result=(topk(1, network.eth0.tx{cluster="prod", pod="one"}) * network.eth0.rx{cluster="prod", pod="one"})
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, _timeseries;
+
+result:double | _timeseries:keyword
+179960.0      | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+;
+
+// Composed default-match: (by/on by) + opaque raw. Label sets differ ({cluster} vs full), so empty - must plan/run, not reject.
+binary_composed_match_plus_opaque
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+required_capability: fix_ts_block_loader_passthrough_aliasing
+PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result;
+
+result:double
+;
+
 // Default matching pairs equal label sets only: a series with labels never matches the labelless one.
 labeled_times_labelless_default_match_is_empty
 required_capability: promql_command_v0
@@ -1575,4 +1637,20 @@ result:double | cluster:keyword | pod:keyword
 413908.0      | qa              | one
 264500.0      | qa              | three
 562960.0      | qa              | two
+;
+
+// on (...) over an opaque topk exposes the matched labels as columns.
+topk_plus_on_range_function_keeps_matched_labels
+required_capability: promql_command_v0
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_opaque_signature_match
+required_capability: promql_topk
+required_capability: promql_binary_independent_join
+PROMQL index=prometheus-k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk(1, last_over_time(network.eth0.tx{cluster="qa"}[5m])) + on (pod, cluster) ceil(sum_over_time(network.eth0.tx{cluster="qa"}[5m])))
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result, pod, cluster;
+
+result:double | pod:keyword | cluster:keyword
+6518.0        | two         | qa
 ;

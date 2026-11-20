@@ -157,6 +157,7 @@ public class EncryptionPlugin extends Plugin
                 pekEncryption.canWrapForGateway(),
                 pekSettings,
                 updated,
+                pekEncryption::canReadGatewayKeysWith,
                 pekEncryption.gatewayKeys().passwordId()
             );
         }

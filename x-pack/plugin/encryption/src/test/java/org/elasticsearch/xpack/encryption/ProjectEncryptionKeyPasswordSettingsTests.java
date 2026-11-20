@@ -11,6 +11,10 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -94,38 +98,49 @@ public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
 
     /** The on-disk copy is unwrapped with the password's value, so the same id with another value is as good as removing it. */
     public void testValidateReloadRejectsChangingThePasswordTheKeyOnDiskIsWrappedWith() {
-        MockSecureSettings secure = new MockSecureSettings();
-        secure.setString(ACTIVE_ID_KEY, "v2");
-        secure.setString(PREFIX + "v1", "another-password-for-v1");
-        secure.setString(PREFIX + "v2", "password-for-v2");
-        assertRejected(true, Settings.builder().setSecureSettings(secure).build(), "v1", PREFIX + "v1");
+        assertRejected(true, settings("v2", Map.of("v1", "another-password-for-v1", "v2", "password-for-v2")), "v1", PREFIX + "v1");
     }
 
-    /** Rotating while keeping the on-disk copy's password, a node that could not wrap before, or nothing on disk to read back. */
+    /**
+     * Rotating while keeping the on-disk copy's password, a node that could not wrap before, nothing on disk to read back, or a
+     * password that could not decrypt the copy anyway, such as a wrong value being corrected.
+     */
     public void testValidateReloadAllowsChangesThatKeepNeededPasswords() {
-        ProjectEncryptionKeyPasswordSettings.validateReload(true, settings("v1", "v1"), settings("v2", "v1", "v2"), "v1");
-        ProjectEncryptionKeyPasswordSettings.validateReload(true, settings("v2", "v1", "v2"), settings("v2", "v2"), "v2");
-        ProjectEncryptionKeyPasswordSettings.validateReload(false, settings("v1"), Settings.EMPTY, null);
-        ProjectEncryptionKeyPasswordSettings.validateReload(true, settings("v2", "v2"), settings("v2", "v2"), "v1");
+        validateReload(true, settings("v1", "v1"), settings("v2", "v1", "v2"), "v1");
+        validateReload(true, settings("v2", "v1", "v2"), settings("v2", "v2"), "v2");
+        validateReload(false, settings("v1"), Settings.EMPTY, null);
+        validateReload(true, settings("v2", "v2"), settings("v2", "v2"), "v1");
+        validateReload(true, settings("v1", Map.of("v1", "wrong-password-for-v1")), settings("v1", "v1"), "v1");
     }
 
     private static void assertRejected(boolean currentCanWrap, Settings updated, String keyOnDiskPasswordId, String missingSetting) {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ProjectEncryptionKeyPasswordSettings.validateReload(currentCanWrap, settings("v1", "v1"), updated, keyOnDiskPasswordId)
+            () -> validateReload(currentCanWrap, settings("v1", "v1"), updated, keyOnDiskPasswordId)
         );
         assertThat(e.getMessage(), containsString("[" + missingSetting + "]"));
         assertThat(e.getMessage(), containsString("keeping the previous settings"));
     }
 
-    private static Settings settings(String activePasswordId, String... passwordIds) {
+    /** Validates with an on-disk copy, if {@code keyOnDiskPasswordId} is set, that only the password {@link #settings} gives it reads. */
+    private static void validateReload(boolean currentCanWrap, Settings current, Settings updated, String keyOnDiskPasswordId) {
+        ProjectEncryptionKeyPasswordSettings.validateReload(currentCanWrap, current, updated, settings -> {
+            try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(settings, keyOnDiskPasswordId)) {
+                return password != null && password.toString().equals("password-for-" + keyOnDiskPasswordId);
+            }
+        }, keyOnDiskPasswordId);
+    }
+
+    private static Settings settings(String activePasswordId, Map<String, String> passwords) {
         MockSecureSettings secure = new MockSecureSettings();
         if (activePasswordId != null) {
             secure.setString(ACTIVE_ID_KEY, activePasswordId);
         }
-        for (String id : passwordIds) {
-            secure.setString(PREFIX + id, "password-for-" + id);
-        }
+        passwords.forEach((id, password) -> secure.setString(PREFIX + id, password));
         return Settings.builder().setSecureSettings(secure).build();
+    }
+
+    private static Settings settings(String activePasswordId, String... passwordIds) {
+        return settings(activePasswordId, Arrays.stream(passwordIds).collect(Collectors.toMap(id -> id, id -> "password-for-" + id)));
     }
 }

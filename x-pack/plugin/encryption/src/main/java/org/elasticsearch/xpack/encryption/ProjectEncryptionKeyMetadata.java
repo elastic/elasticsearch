@@ -40,6 +40,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
@@ -195,12 +196,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         }
 
         /**
-         * Returns whether {@code pekEncryption} can unwrap every key in this node's copy with the passwords in {@code settings}, or
-         * {@code null} if this node holds no copy. Unwraps at most once per copy and secure settings snapshot, outside the lock, since
-         * health reports call it.
+         * Returns whether {@code unwrap}, given a wrapped key and a password id, can unwrap every key in this node's copy with the
+         * passwords in {@code settings}, or {@code null} if this node holds no copy. Unwraps at most once per copy and secure settings
+         * snapshot, outside the lock, since health reports call it.
          */
         @Nullable
-        Boolean canRead(PekEncryption pekEncryption, Settings settings) {
+        Boolean canRead(Settings settings, BiFunction<byte[], String, byte[]> unwrap) {
             GatewayCopy current;
             synchronized (this) {
                 current = copy;
@@ -209,11 +210,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
                 return null;
             }
             ReadCheck check = readCheck;
-            if (check == null || check.copy() != current || check.settings() != settings) {
+            // every write creates a new copy, so compare by content
+            if (check == null || check.copy().equals(current) == false || check.settings() != settings) {
                 boolean readable;
                 try {
                     for (KeyEntry entry : current.wrappedKeys().values()) {
-                        Arrays.fill(pekEncryption.unwrap(entry.bytes(), current.passwordId()), (byte) 0);
+                        Arrays.fill(unwrap.apply(entry.bytes(), current.passwordId()), (byte) 0);
                     }
                     readable = true;
                 } catch (RuntimeException e) {

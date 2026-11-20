@@ -85,7 +85,17 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
     /** Returns whether this node can decrypt its {@link ProjectEncryptionKeyMetadata.GatewayKeys}, or {@code null} if it holds none. */
     @Nullable
     Boolean canReadGatewayKeys() {
-        return gatewayKeys.canRead(this, settingsSupplier.get());
+        return canReadGatewayKeys(settingsSupplier.get());
+    }
+
+    /** Returns whether the passwords in {@code settings} decrypt this node's {@link ProjectEncryptionKeyMetadata.GatewayKeys}. */
+    boolean canReadGatewayKeysWith(Settings settings) {
+        return Boolean.TRUE.equals(canReadGatewayKeys(settings));
+    }
+
+    @Nullable
+    private Boolean canReadGatewayKeys(Settings settings) {
+        return gatewayKeys.canRead(settings, (wrappedPek, passwordId) -> unwrap(settings, wrappedPek, passwordId));
     }
 
     @Override
@@ -123,7 +133,11 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
 
     @Override
     public byte[] unwrap(byte[] wrappedPek, String passwordId) {
-        try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(settingsSupplier.get(), passwordId)) {
+        return unwrap(settingsSupplier.get(), wrappedPek, passwordId);
+    }
+
+    private static byte[] unwrap(Settings settings, byte[] wrappedPek, String passwordId) {
+        try (SecureString password = ProjectEncryptionKeyPasswordSettings.getPassword(settings, passwordId)) {
             if (password == null) {
                 throw new ElasticsearchException(
                     "cannot unwrap PEK from disk: secure setting ["

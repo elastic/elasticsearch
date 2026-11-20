@@ -343,11 +343,17 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         Runnable scheduledRetry = installWaitingForOther();
 
         ClusterState state = clusterStateWith(null, true);
+        DiscoveryNode otherRestarted = DiscoveryNodeUtils.builder("other").name("other").ephemeralId("other-restarted").build();
         ClusterState restarted = ClusterState.builder(state)
-            .nodes(DiscoveryNodes.builder(state.nodes()).remove("other").add(DiscoveryNodeUtils.create("other", "other")))
+            .nodes(DiscoveryNodes.builder(state.nodes()).remove("other").add(otherRestarted))
             .build();
+        when(clusterService.state()).thenReturn(restarted);
         coordinator.onClusterStateChanged(new ClusterChangedEvent("test", restarted, state));
-        verify(taskQueue).submitTask(eq("install-project-encryption-key"), isA(KeyRotationCoordinator.InstallKeyTask.class), any());
+        assertEquals(
+            "readiness of the restarted node",
+            Set.of("local-ephemeral", "other-restarted"),
+            submitted("install-project-encryption-key", KeyRotationCoordinator.InstallKeyTask.class).readyNodeIds()
+        );
 
         scheduledRetry.run();
         verify(taskQueue, times(1)).submitTask(anyString(), any(), any());

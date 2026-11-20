@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -573,7 +574,32 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
             getToXContentParams()
         );
 
-        assertEquals(false, keys.canRead(node, Settings.EMPTY));
+        assertEquals(false, keys.canRead(Settings.EMPTY, node::unwrap));
+    }
+
+    /** Unwrapping derives a key per entry, so health reports must not repeat it just because the same copy was written again. */
+    public void testGatewayKeysReadCheckSurvivesRewritingTheSameCopy() {
+        GatewayKeys keys = new GatewayKeys();
+        PekEncryption node = TestPekEncryption.onNode(NO_OP_ENCRYPTION, keys);
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", new KeyEntry(randomPlaintextBytes(), 10L), "k2", new KeyEntry(randomPlaintextBytes(), 20L)),
+            "k2",
+            PASSWORD_ID,
+            Map.of(),
+            node
+        );
+        AtomicInteger unwraps = new AtomicInteger();
+        BiFunction<byte[], String, byte[]> countingUnwrap = (wrapped, passwordId) -> {
+            unwraps.incrementAndGet();
+            return node.unwrap(wrapped, passwordId);
+        };
+
+        metadata.toXContentChunked(getToXContentParams());
+        assertEquals(true, keys.canRead(Settings.EMPTY, countingUnwrap));
+        metadata.toXContentChunked(getToXContentParams());
+        assertEquals(true, keys.canRead(Settings.EMPTY, countingUnwrap));
+
+        assertEquals(2, unwraps.get());
     }
 
     /** Writing a copy for a different active key would roll the key set back if this node were later elected master. */

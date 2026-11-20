@@ -350,7 +350,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         private final boolean missing;
 
         public Event(SearchHit hit) {
-            this(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields(), false);
+            this(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), copyFetchFields(hit.getDocumentFields()), false);
         }
 
         /**
@@ -370,6 +370,11 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             }
             // Retain refcount on pooled / composite _source bytes (CCS, fetch) without copying the buffer payload.
             return ReleasableBytesReference.adopt(src);
+        }
+
+        // Detach from SearchHit's map, which is cleared on SearchHit#decRef.
+        private static Map<String, DocumentField> copyFetchFields(Map<String, DocumentField> fields) {
+            return fields.isEmpty() ? Map.of() : Map.copyOf(fields);
         }
 
         private Event(StreamInput in) throws IOException {

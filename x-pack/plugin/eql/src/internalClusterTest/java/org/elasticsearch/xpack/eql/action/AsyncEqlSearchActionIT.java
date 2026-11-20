@@ -29,6 +29,7 @@ import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -61,6 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.eql.action.EqlSearchResponseIntegTestHelpers.decRef;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -354,6 +356,52 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             Exception ex = expectThrows(Exception.class, () -> client().execute(EqlSearchAction.INSTANCE, request).get());
             assertThat(ex.getMessage(), containsString("by zero"));
         }
+    }
+
+    public void testKeepOnCompletionPreservesFetchFields() throws Exception {
+        internalCluster().startNode();
+        prepareIndex();
+
+        EqlSearchRequest request = new EqlSearchRequest().indices("test")
+            .query("my_event where i==1")
+            .eventCategoryField("event_type")
+            .fetchFields(List.of(new FieldAndFormat("i", null), new FieldAndFormat("event_type", null)))
+            .waitForCompletionTimeout(TimeValue.timeValueSeconds(10))
+            .keepOnCompletion(true);
+
+        EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        try {
+            assertThat(response.isRunning(), is(false));
+            assertThat(response.id(), notNullValue());
+            assertThat(response.hits().events().size(), equalTo(1));
+            assertFetchFields(response.hits().events().get(0));
+
+            EqlSearchResponse storedResponse = client().execute(
+                EqlAsyncGetResultAction.INSTANCE,
+                new GetAsyncResultRequest(response.id())
+            ).actionGet();
+            try {
+                assertThat(storedResponse, equalTo(response));
+                assertFetchFields(storedResponse.hits().events().get(0));
+            } finally {
+                decRef(storedResponse);
+            }
+
+            AcknowledgedResponse deleteResponse = client().execute(
+                TransportDeleteAsyncResultAction.TYPE,
+                new DeleteAsyncResultRequest(response.id())
+            ).actionGet();
+            assertThat(deleteResponse.isAcknowledged(), equalTo(true));
+        } finally {
+            decRef(response);
+        }
+    }
+
+    private static void assertFetchFields(EqlSearchResponse.Event event) {
+        assertThat(event.fetchFields(), notNullValue());
+        assertThat(event.fetchFields().keySet(), containsInAnyOrder("i", "event_type"));
+        assertThat(event.fetchFields().get("i").getValues(), equalTo(List.of(1)));
+        assertThat(event.fetchFields().get("event_type").getValues(), equalTo(List.of("my_event")));
     }
 
     public StoredAsyncResponse<EqlSearchResponse> getStoredRecord(String id) throws Exception {

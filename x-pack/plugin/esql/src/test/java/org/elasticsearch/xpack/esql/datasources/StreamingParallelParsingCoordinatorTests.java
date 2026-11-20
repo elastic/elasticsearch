@@ -212,7 +212,31 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * The configured width has to reach each chunk's own read context. Every other test here passes the default,
+     * which is what a dropped link falls back to, so none of them can tell a forwarded setting from a constant.
+     */
+    public void testTheConfiguredExtremumWidthReachesEveryChunkContext() throws Exception {
+        int narrow = 64;
+        LineFormatReader reader = new LineFormatReader(512);
+
+        List<FormatReadContext> contexts = readAllPinned(reader, narrow, 4);
+
+        assertThat(contexts.size(), Matchers.greaterThan(1));
+        for (FormatReadContext ctx : contexts) {
+            assertEquals("every chunk reads at the configured width", narrow, ctx.statsMaxExtremumBytes());
+        }
+
+        List<FormatReadContext> single = readAllPinned(new LineFormatReader(512), narrow, 1);
+        assertEquals("the single-pass fallback reads once", 1, single.size());
+        assertEquals(narrow, single.get(0).statsMaxExtremumBytes());
+    }
+
     private static List<FormatReadContext> readAllPinned(LineFormatReader reader) throws Exception {
+        return readAllPinned(reader, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES, 4);
+    }
+
+    private static List<FormatReadContext> readAllPinned(LineFormatReader reader, int maxExtremumBytes, int parallelism) throws Exception {
         InputStream stream = new ByteArrayInputStream(buildContent(500).getBytes(StandardCharsets.UTF_8));
         List<Attribute> pinned = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
@@ -225,7 +249,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 List.of("line"),
                 50,
-                4,
+                parallelism,
                 executor,
                 ErrorPolicy.STRICT,
                 pinned,
@@ -234,7 +258,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
-                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
+                maxExtremumBytes,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE,
                 StreamingSegmentatorAdmission.unbounded(),
                 new NoopCircuitBreaker("test"),

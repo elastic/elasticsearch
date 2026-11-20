@@ -263,7 +263,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
 
     /**
      * The whole-file publish is the CSV rail's own hop, distinct from the stripe harvest: the width reaches
-     * {@code TextFormatStats} through {@code maybePublishStats}. Every link that drops it yields the default,
+     * {@code TextFormatStats} through {@code publishToCaptureSink}. Every link that drops it yields the default,
      * so a read that only ever passes the default cannot tell this hop from a hardcoded constant.
      */
     public void testTheWidthSettingReachesTheWholeFilePublish() throws Exception {

@@ -122,7 +122,7 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         }
         for (int i = 0; i < stats.columnCount(); i++) {
             size += COUNT_KEYS_PER_COLUMN;
-            // A piece reaches staging already capped, so what is here is what flatten() writes.
+            // Neither this count nor flatten() applies a cap, so the two agree whatever the piece holds.
             if (stats.min(i) != null) {
                 size++;
             }

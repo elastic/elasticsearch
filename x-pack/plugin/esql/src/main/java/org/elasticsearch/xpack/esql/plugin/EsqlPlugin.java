@@ -508,6 +508,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         AtomicInteger maxDiscoveredFiles = new AtomicInteger();
         AtomicInteger maxGlobExpansion = new AtomicInteger();
         AtomicInteger maxListedObjects = new AtomicInteger();
+        AtomicInteger maxDirectoryListings = new AtomicInteger();
         var clusterSettings = services.clusterService().getClusterSettings();
         // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
         // are not in ClusterSettings then) and watches cluster state when they are. Resolution and split discovery
@@ -516,6 +517,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, maxDirectoryListings::set);
         if (federationRegistered) {
             clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
         }
@@ -528,7 +530,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             cacheService,
             maxDiscoveredFiles::get,
             maxGlobExpansion::get,
-            maxListedObjects::get
+            maxListedObjects::get,
+            maxDirectoryListings::get
         );
 
         // Create DataSourceModule with all discovered plugins.
@@ -678,7 +681,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.indicesService().getAnalysis(),
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
-                maxListedObjects::get
+                maxListedObjects::get,
+                maxDirectoryListings::get
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

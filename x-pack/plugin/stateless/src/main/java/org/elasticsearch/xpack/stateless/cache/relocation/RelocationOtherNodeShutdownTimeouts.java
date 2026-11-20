@@ -95,8 +95,8 @@ public class RelocationOtherNodeShutdownTimeouts {
         );
     }
 
-    /// What each grace deadline that has not passed leaves to the shards competing for the target, from the earliest deadline to the
-    /// latest.
+    /// What each grace deadline leaves to the shards competing for the target, from the earliest deadline to the latest. A deadline that has
+    /// passed leaves nothing: the warming cap does not free a slot, so its shards may still be queued for one.
     private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
         // All the recoveries on the target share its slots, also the ones of the shutting-down nodes with a later deadline, as the
         // recoveries are not scheduled by the deadline.
@@ -111,18 +111,15 @@ public class RelocationOtherNodeShutdownTimeouts {
         long shardsWithEarlierOrSameDeadline = 0;
         for (final var nodeShards : shardsOfShuttingDownNodes) {
             shardsWithEarlierOrSameDeadline += nodeShards.shards();
-            final long remainingMs = nodeShards.graceDeadlineMillis() - now;
-            // waiting less cannot help the shards of a deadline that has passed, but they still compete with the later deadlines
-            if (remainingMs > 0) {
-                final long shardsCompetingForTarget = shardsWithEarlierOrSameDeadline + 1;
-                deadlineShares.add(
-                    new DeadlineShare(
-                        remainingMs,
-                        shardsCompetingForTarget,
-                        slotShareOfCompetingShards(slots, shardsCompetingForTarget, recoveriesOnTarget)
-                    )
-                );
-            }
+            final long remainingMs = Math.max(0, nodeShards.graceDeadlineMillis() - now);
+            final long shardsCompetingForTarget = shardsWithEarlierOrSameDeadline + 1;
+            deadlineShares.add(
+                new DeadlineShare(
+                    remainingMs,
+                    shardsCompetingForTarget,
+                    slotShareOfCompetingShards(slots, shardsCompetingForTarget, recoveriesOnTarget)
+                )
+            );
         }
         return deadlineShares;
     }

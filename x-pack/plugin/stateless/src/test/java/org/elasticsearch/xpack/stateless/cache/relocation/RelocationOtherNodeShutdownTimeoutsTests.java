@@ -45,7 +45,7 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
     /// The shards with a later deadline use the slots as well, as the recoveries are not scheduled by the deadline. Node A has 1 relocating
     /// shard and 4s left, node B 5 relocating shards and 8s left, the limit is 2 concurrent relocations. The 2 shards due by A's deadline
     /// get `2 * 2 / 7` of the slots, so A gives `4s / 2 * 2 * 2 / 7 ≈ 1.1s`, and B gives `8s / 7 * 2 ≈ 2.3s`. The tightest of them
-    /// decides. A deadline that has passed is skipped.
+    /// decides.
     public void testChecksEachShutdownGraceDeadline() {
         try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
             final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());
@@ -65,10 +65,35 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
             // equal share for the early node deadline: 4s / (1 + 1), with 2 * (1 + 1) / (1 + 5 + 1) of the slots
             assertThat(plan.timeout().millis(), equalTo(Math.round(4000 / 2.0 * (2.0 * 2 / 7))));
 
-            // once the early deadline has passed it is skipped, but its shard still competes for the target with the late node's shards
+            // once the early deadline has passed its shard may still be queued for a slot, so the wait is over
             threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 6500);
             final var afterEarlyDeadline = timeouts.timeout(state, RELOCATION_TARGET_NODE, null);
-            assertThat(afterEarlyDeadline.timeout().millis(), equalTo(Math.round(3500 / 7.0 * 2)));
+            assertThat(afterEarlyDeadline.timeout().millis(), equalTo(0L));
+        }
+    }
+
+    /// The warming cap does not free a slot: once the deadline of a shutting-down node has passed, its relocations may still be queued
+    /// for the slots of the target, so the wait is over, instead of getting the renewable plain timeout. When all the recoveries fit in
+    /// the slots, nobody is queued, and the plain timeout stays.
+    public void testStopsWaitingOnceThePassedDeadlineRelocationsAreStillQueued() {
+        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
+            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, slotSharingSettings());
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final long now = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            // the grace cap is 10s: the deadline has passed 1s ago
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 11_000);
+
+            // 3 relocating shards and this one do not fit in the 2 slots
+            final var queued = timeouts.timeout(relocationWithOtherNodeShuttingDown(3, index, now), RELOCATION_TARGET_NODE, null);
+            assertThat(queued.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(queued.timeout().millis(), equalTo(0L));
+
+            // 1 relocating shard and this one fit in the 2 slots
+            final var fitting = timeouts.timeout(relocationWithOtherNodeShuttingDown(1, index, now), RELOCATION_TARGET_NODE, null);
+            assertThat(fitting.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE));
+            assertThat(fitting.timeout(), equalTo(PLAIN_TIMEOUT));
         }
     }
 

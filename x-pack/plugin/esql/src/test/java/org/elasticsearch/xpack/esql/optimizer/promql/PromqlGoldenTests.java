@@ -200,6 +200,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -217,6 +218,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 
@@ -232,6 +234,7 @@ public class PromqlGoldenTests extends GoldenTestCase {
             .expectationChangesAt(DIMENSION_VALUES)
             .expectationChangesAt(ESQL_SUM_LONG_OVERFLOW_FIX)
             .expectationChangesAt(PACK_DIMS_AGG)
+            .expectationChangesAt(ESQL_TIMESERIES_METADATA_FUNCTIONS)
             .run();
     }
 }

@@ -4361,6 +4361,12 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS_V2(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code label_join} whose result is empty, such as a join of no labels, removes the destination label as in
+         * Prometheus, rather than setting it to the empty string. Comes with translating PromQL over the label container.
+         */
+        FIX_PROMQL_LABEL_JOIN_EMPTY_REMOVES_LABEL(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * PromQL value transforms, range functions other than {@code first_over_time}/{@code last_over_time}, and arithmetic
          * drop a {@code __name__} stored as a label, as Prometheus does. Only with the label container functions: an
          * {@code or} matches its branches on the labels without the name, which only they derive.
@@ -4437,6 +4443,12 @@ public class EsqlCapabilities {
          * is.
          */
         PROMQL_NESTED_WITHOUT(PROMQL_TIMESERIES_METADATA_FUNCTIONS.isEnabled()),
+
+        /**
+         * PromQL {@code label_replace} and {@code label_join} anywhere, over any expression, and overwriting a label. Two series
+         * left with one label set fail the query, as in Prometheus.
+         */
+        PROMQL_LABEL_FUNCTIONS_ANYWHERE(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * PromQL {@code and} and {@code unless}, and {@code or} with {@code on(...)}/{@code ignoring(...)} or below the top

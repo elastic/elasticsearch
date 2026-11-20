@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 /** View over the response, that supports the xpack core transport API. */
 public class EsqlResponseImpl implements EsqlResponse {
@@ -54,13 +55,14 @@ public class EsqlResponseImpl implements EsqlResponse {
         if (info == null || info.hasMetadataToReport() == false) {
             return List.of();
         }
-        return info.clusterInfo.values()
-            .stream()
-            .map(
-                c -> new EsqlClusterInfo(c.getClusterAlias(), c.getIndexExpression(), EsqlClusterInfo.Status.valueOf(c.getStatus().name()))
-            )
-            .sorted(Comparator.comparing(EsqlClusterInfo::clusterAlias))
-            .toList();
+        Stream<EsqlExecutionInfo.Cluster> clusters = info.getClusters().values().stream();
+        if (info.includeExecutionMetadata() == EsqlExecutionInfo.IncludeExecutionMetadata.NEVER) {
+            // As in the REST response: with no metadata requested, only partial-failure clusters are reported.
+            clusters = clusters.filter(c -> c.getFailures().isEmpty() == false);
+        }
+        return clusters.map(
+            c -> new EsqlClusterInfo(c.getClusterAlias(), c.getIndexExpression(), EsqlClusterInfo.Status.valueOf(c.getStatus().name()))
+        ).sorted(Comparator.comparing(EsqlClusterInfo::clusterAlias)).toList();
     }
 
     @Override

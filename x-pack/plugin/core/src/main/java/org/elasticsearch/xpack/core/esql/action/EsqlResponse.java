@@ -48,14 +48,11 @@ public interface EsqlResponse extends Releasable {
     /**
      * The per-cluster metadata ES|QL reports as {@code _clusters} in the REST response, ordered by cluster alias
      * (the local cluster, alias {@link EsqlClusterInfo#LOCAL_CLUSTER_ALIAS}, first). Empty when the REST response
-     * would carry no {@code _clusters}. That is the case when neither {@code includeCcsMetadata} nor
-     * {@code includeExecutionMetadata} was requested and the result is complete: a partial result with per-cluster
-     * failures reports {@code _clusters} even when no metadata was requested.
+     * would carry no {@code _clusters}. When no metadata was requested and the result is partial, only the clusters
+     * that have failures are listed, as in the REST response.
      * <p>
      * The list is a snapshot of the query's cluster state taken when this method is called, so it is final for a
      * completed query.
      */
-    default List<EsqlClusterInfo> clusters() {
-        return List.of();
-    }
+    List<EsqlClusterInfo> clusters();
 }

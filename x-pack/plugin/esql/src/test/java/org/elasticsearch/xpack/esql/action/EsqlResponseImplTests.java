@@ -79,6 +79,11 @@ public class EsqlResponseImplTests extends ESTestCase {
 
     public void testPartialFailureReportsClustersWithoutMetadataRequested() {
         EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        // A successful cluster without failures is not reported, as in the REST response.
+        info.swapCluster(
+            EsqlClusterInfo.LOCAL_CLUSTER_ALIAS,
+            (k, v) -> EsqlExecutionInfoTests.createEsqlExecutionInfoCluster(k, "logs-*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
+        );
         // swapCluster marks the info partial because the new cluster is PARTIAL
         info.swapCluster(
             "remote1",

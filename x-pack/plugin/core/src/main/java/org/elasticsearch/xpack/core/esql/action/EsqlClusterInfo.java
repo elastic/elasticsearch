@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.esql.action;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Objects;
 
@@ -15,7 +16,7 @@ import java.util.Objects;
 public record EsqlClusterInfo(String clusterAlias, @Nullable String indexExpression, Status status) {
 
     /** The alias of the local cluster. */
-    public static final String LOCAL_CLUSTER_ALIAS = "";
+    public static final String LOCAL_CLUSTER_ALIAS = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
     /** The status of the query on a cluster. */
     public enum Status {

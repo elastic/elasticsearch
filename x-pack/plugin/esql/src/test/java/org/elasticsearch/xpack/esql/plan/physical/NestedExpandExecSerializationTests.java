@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
@@ -23,7 +24,9 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 import static org.elasticsearch.xpack.esql.plan.logical.NestedExpandSerializationTests.analyzedExpand;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSerializationTests<NestedExpandExec> {
     @Override
@@ -78,6 +81,26 @@ public class NestedExpandExecSerializationTests extends AbstractPhysicalPlanSeri
             IOException e = expectThrows(IOException.class, () -> createTestInstance().writeTo(out));
             assertThat(e.getMessage(), containsString("NESTED_EXPAND requires nested expansion transport support"));
         }
+    }
+
+    public void testPeerWithoutRowSizeSupportGetsNoRowSize() throws IOException {
+        PhysicalPlan child = randomChild(0);
+        NestedExpandExec instance = new NestedExpandExec(Source.EMPTY, child, "items", List.of(), List.of(), between(1, 1000));
+        TransportVersion beforeRowSize = TransportVersionUtils.getPreviousVersion(NestedExpandExec.ESTIMATED_ROW_SIZE);
+        assertThat(beforeRowSize.supports(NestedExpand.VERSION), is(true));
+
+        NestedExpandExec copy = copyInstance(instance, beforeRowSize);
+
+        assertThat(copy, equalTo(new NestedExpandExec(Source.EMPTY, child, "items", List.of(), List.of(), null)));
+    }
+
+    public void testRowSizeRoundTripsWithRowSizeSupport() throws IOException {
+        PhysicalPlan child = randomChild(0);
+        NestedExpandExec instance = new NestedExpandExec(Source.EMPTY, child, "items", List.of(), List.of(), between(1, 1000));
+
+        NestedExpandExec copy = copyInstance(instance, NestedExpandExec.ESTIMATED_ROW_SIZE);
+
+        assertThat(copy, equalTo(instance));
     }
 
     public void testRoundTripsAChildTheExpansionConverts() throws IOException {

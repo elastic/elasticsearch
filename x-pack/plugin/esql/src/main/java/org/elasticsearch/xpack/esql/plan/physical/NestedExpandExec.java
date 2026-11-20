@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +34,8 @@ public final class NestedExpandExec extends UnaryExec implements EstimatesRowSiz
         "NestedExpandExec",
         NestedExpandExec::new
     );
+
+    public static final TransportVersion ESTIMATED_ROW_SIZE = TransportVersion.fromName("esql_nested_expand_row_size");
 
     private final String path;
     private final List<Attribute> expanded;
@@ -62,7 +65,7 @@ public final class NestedExpandExec extends UnaryExec implements EstimatesRowSiz
             in.readString(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
-            in.readOptionalVInt()
+            in.getTransportVersion().supports(ESTIMATED_ROW_SIZE) ? in.readOptionalVInt() : null
         );
     }
 
@@ -74,7 +77,9 @@ public final class NestedExpandExec extends UnaryExec implements EstimatesRowSiz
         out.writeString(path);
         out.writeNamedWriteableCollection(expanded);
         out.writeStringCollection(paths);
-        out.writeOptionalVInt(estimatedRowSize);
+        if (out.getTransportVersion().supports(ESTIMATED_ROW_SIZE)) {
+            out.writeOptionalVInt(estimatedRowSize);
+        }
     }
 
     @Override

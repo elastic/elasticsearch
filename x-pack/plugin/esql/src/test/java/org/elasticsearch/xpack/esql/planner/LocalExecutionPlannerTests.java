@@ -1256,26 +1256,32 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      */
     public void testNestedExpandPageSizeCountsParentFieldsLoadedAfterIt() throws IOException {
         assumeTrue("NESTED_EXPAND is snapshot-only", EsqlCapabilities.Cap.NESTED_EXPAND.isEnabled());
-        int childOnly = nestedExpandPageSize("FROM ne | NESTED_EXPAND items | KEEP items.sku | LIMIT 10");
-        int parentAfter = nestedExpandPageSize("FROM ne | NESTED_EXPAND items | KEEP id, items.sku | LIMIT 10");
-        int parentBefore = nestedExpandPageSize(
+        NestedExpandExec childOnly = nestedExpandPlan("FROM ne | NESTED_EXPAND items | KEEP items.sku | LIMIT 10");
+        NestedExpandExec parentAfter = nestedExpandPlan("FROM ne | NESTED_EXPAND items | KEEP id, items.sku | LIMIT 10");
+        NestedExpandExec parentBefore = nestedExpandPlan(
             "FROM ne | EVAL x = CONCAT(id, \"-\") | NESTED_EXPAND items | KEEP id, x, items.sku | LIMIT 10"
         );
-        assertThat(parentAfter, lessThan(childOnly));
-        assertThat(parentBefore, lessThan(childOnly));
+        assertFalse(extractsBelow(parentAfter, "id"));
+        assertTrue(extractsBelow(parentBefore, "id"));
+        int childOnlyPageSize = nestedExpandPageSize(childOnly);
+        assertThat(nestedExpandPageSize(parentAfter), lessThan(childOnlyPageSize));
+        assertThat(nestedExpandPageSize(parentBefore), lessThan(childOnlyPageSize));
     }
 
-    private int nestedExpandPageSize(String query) throws IOException {
+    private NestedExpandExec nestedExpandPlan(String query) throws IOException {
         Configuration config = config();
         var analyzer = nestedAnalyzer(TransportVersion.current()).configuration(config).buildAnalyzer();
-        PhysicalPlan plan = new TestPlannerOptimizer(config, analyzer).plan(query);
-        NestedExpandExec expand = plan.collect(NestedExpandExec.class).getFirst();
-        if (query.contains("KEEP id")) {
-            boolean idLoadedBelow = expand.anyMatch(
-                p -> p instanceof FieldExtractExec extract && extract.attributesToExtract().stream().anyMatch(a -> a.name().equals("id"))
+        return new TestPlannerOptimizer(config, analyzer).plan(query).collect(NestedExpandExec.class).getFirst();
+    }
+
+    private static boolean extractsBelow(NestedExpandExec expand, String field) {
+        return expand.child()
+            .anyMatch(
+                p -> p instanceof FieldExtractExec extract && extract.attributesToExtract().stream().anyMatch(a -> a.name().equals(field))
             );
-            assertThat(idLoadedBelow, equalTo(query.contains("EVAL")));
-        }
+    }
+
+    private int nestedExpandPageSize(NestedExpandExec expand) throws IOException {
         LocalExecutionPlanner.LocalExecutionPlan local = planner().plan(
             "test",
             FoldContext.small(),

@@ -173,7 +173,8 @@ public final class NestedChildren implements Releasable {
         );
         return new Factory(
             shards,
-            // A page of children can still hold more bytes than a page may, so the reader splits it like any other
+            // The reader splits the children of a chunk that hold more bytes than a page may when they are in one segment and their
+            // docs do not decrease. Otherwise it loads the chunk in one page, which still has at most as many rows as the chunk.
             new ValuesSourceReaderOperator.Factory(
                 settings.valuesLoadingJumboSize(),
                 infos,
@@ -506,7 +507,8 @@ public final class NestedChildren implements Releasable {
 
         /**
          * The first {@link #children} of {@code values}, as a constant vector when they are all the same. The reader only
-         * splits the children it loads into pages of bounded bytes when their shards and segments are constant.
+         * splits the children it loads into pages of bounded bytes when their shards and segments are constant and their
+         * docs do not decrease.
          */
         private IntVector sameOrArray(int[] values) {
             for (int i = 1; i < children; i++) {

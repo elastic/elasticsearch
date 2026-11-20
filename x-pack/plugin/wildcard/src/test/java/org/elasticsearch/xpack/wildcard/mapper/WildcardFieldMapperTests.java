@@ -605,7 +605,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String longS = "\u017Ftra\u00DFe";
         String kelvinSign = "\u212Aelvin";
         List<String> values = List.of("ISPARTA", dotlessI, microSign, greekMu, lowerGreek, upperGreek, longS, "STRASSE", kelvinSign);
-        withIndex(values, (searcher, wc) -> {
+        withIndex(values, randomBoolean(), (searcher, wc) -> {
             for (String query : List.of(dotlessI, "ISPARTA", greekMu, microSign, upperGreek, lowerGreek, "stra\u00DFe", "kelvin")) {
                 for (Query[] queries : caseInsensitiveQueries(wc, query)) {
                     assertSameHits(searcher, queries[0], queries[1]);
@@ -629,11 +629,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         WildcardFieldMapper.WildcardFieldType ft = wildcardFieldType.fieldType();
         String pattern = "*\u0442\u043E\u0442*";
 
-        Query withinLimit = ft.buildWildcardQuery(
-            pattern,
-            ft.caseInsensitiveNgrams(WildcardFieldMapper.MAX_CASE_INSENSITIVE_NGRAM_FORMS),
-            MOCK_CONTEXT
-        );
+        Query withinLimit = ft.wildcardQuery(pattern, null, true, MOCK_CONTEXT);
         List<Query> termSets = new ArrayList<>();
         ((BinaryDvConfirmedQuery) withinLimit).getApproximationQuery().visit(new QueryVisitor() {
             @Override
@@ -649,7 +645,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertThat(termSets.size(), equalTo(1));
         assertThat(((TermInSetQuery) termSets.get(0)).getTermsCount(), equalTo(18L));
 
-        Query overLimit = ft.buildWildcardQuery(pattern, ft.caseInsensitiveNgrams(16), MOCK_CONTEXT);
+        Query overLimit = ft.buildWildcardQuery(pattern, ft.new CaseInsensitiveNgrams(16), MOCK_CONTEXT);
         assertThat(formatQuery(overLimit), overLimit, instanceOf(BinaryDvConfirmedQuery.class));
         assertThat(
             getSimplifiedApproximationQuery(((BinaryDvConfirmedQuery) overLimit).getApproximationQuery()),
@@ -716,9 +712,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         try (TokenStream tokens = analyzer.tokenStream(WILDCARD_FIELD_NAME, text)) {
             CharTermAttribute term = tokens.addAttribute(CharTermAttribute.class);
             tokens.reset();
-            assertTrue(tokens.incrementToken());
+            assertThat(text, tokens.incrementToken(), equalTo(true));
             String ngram = term.toString();
-            assertFalse(tokens.incrementToken());
+            assertThat(text, tokens.incrementToken(), equalTo(false));
             tokens.end();
             return ngram;
         }
@@ -789,7 +785,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         for (int i = 0; i < 100; i++) {
             values.add(randomString(alphabet, between(1, 8)));
         }
-        withIndex(values, (searcher, wc) -> {
+        withIndex(values, randomBoolean(), (searcher, wc) -> {
             for (int i = 0; i < 100; i++) {
                 String query = randomCaseVariant(randomFrom(values));
                 for (Query[] queries : caseInsensitiveQueries(wc, query)) {
@@ -852,13 +848,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Indexes the values into a wildcard field and a keyword field, using at random either the current index analysis or the one
-     * of indices created before 7.10, and passes the matching wildcard field type to the test.
+     * Indexes the values into a wildcard field and a keyword field, using either the current index analysis or the one of
+     * indices created before 7.10, and passes the matching wildcard field type to the test.
      */
-    private void withIndex(List<String> values, CheckedBiConsumer<IndexSearcher, MappedFieldType, IOException> test) throws IOException {
-        withIndex(values, randomBoolean(), test);
-    }
-
     private void withIndex(
         List<String> values,
         boolean preV710Analysis,

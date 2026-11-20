@@ -627,12 +627,12 @@ synthetic source drops the null elements of a keyword field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.keyword: "a" }
-  - is_false: hits.hits.1._source.keyword
-  - is_false: hits.hits.2._source.keyword
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.keyword: ["a", "b"] }
-  - is_false: hits.hits.4._source.keyword
-  - is_false: hits.hits.5._source.keyword
-  - is_false: hits.hits.6._source.keyword
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.keyword: "a" }
   - match: { hits.hits.8._source.keyword: "a" }
   - match: { hits.hits.9._source.keyword: "a" }
@@ -648,12 +648,12 @@ synthetic source drops the null elements of a keyword field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.keyword: "a" }
-  - is_false: hits.hits.1._source.keyword
-  - is_false: hits.hits.2._source.keyword
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.keyword: ["a", "b"] }
-  - is_false: hits.hits.4._source.keyword
-  - is_false: hits.hits.5._source.keyword
-  - is_false: hits.hits.6._source.keyword
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.keyword: "a" }
   - match: { hits.hits.8._source.keyword: "a" }
   - match: { hits.hits.9._source.keyword: "a" }
@@ -669,12 +669,12 @@ synthetic source drops the null elements of a keyword field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.keyword: "a" }
-  - is_false: hits.hits.1._source.keyword
-  - is_false: hits.hits.2._source.keyword
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.keyword: ["a", "b"] }
-  - is_false: hits.hits.4._source.keyword
-  - is_false: hits.hits.5._source.keyword
-  - is_false: hits.hits.6._source.keyword
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.keyword: "a" }
   - match: { hits.hits.8._source.keyword: "a" }
   - match: { hits.hits.9._source.keyword: "a" }
@@ -690,12 +690,12 @@ synthetic source drops the null elements of a keyword field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.keyword: "a" }
-  - is_false: hits.hits.1._source.keyword
-  - is_false: hits.hits.2._source.keyword
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.keyword: ["a", "b"] }
-  - is_false: hits.hits.4._source.keyword
-  - is_false: hits.hits.5._source.keyword
-  - is_false: hits.hits.6._source.keyword
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.keyword: "a" }
   - match: { hits.hits.8._source.keyword: "a" }
   - match: { hits.hits.9._source.keyword: "a" }
@@ -808,12 +808,12 @@ synthetic source drops the null elements of a text field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.text: "a" }
-  - is_false: hits.hits.1._source.text
-  - is_false: hits.hits.2._source.text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.text: ["a", "b"] }
-  - is_false: hits.hits.4._source.text
-  - is_false: hits.hits.5._source.text
-  - is_false: hits.hits.6._source.text
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.text: "a" }
   - match: { hits.hits.8._source.text: "a" }
   - match: { hits.hits.9._source.text: "a" }
@@ -829,12 +829,12 @@ synthetic source drops the null elements of a text field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.text: "a" }
-  - is_false: hits.hits.1._source.text
-  - is_false: hits.hits.2._source.text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.text: ["a", "b"] }
-  - is_false: hits.hits.4._source.text
-  - is_false: hits.hits.5._source.text
-  - is_false: hits.hits.6._source.text
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.text: "a" }
   - match: { hits.hits.8._source.text: "a" }
   - match: { hits.hits.9._source.text: "a" }
@@ -850,12 +850,12 @@ synthetic source drops the null elements of a text field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.text: "a" }
-  - is_false: hits.hits.1._source.text
-  - is_false: hits.hits.2._source.text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.text: ["a", "b"] }
-  - is_false: hits.hits.4._source.text
-  - is_false: hits.hits.5._source.text
-  - is_false: hits.hits.6._source.text
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.text: "a" }
   - match: { hits.hits.8._source.text: "a" }
   - match: { hits.hits.9._source.text: "a" }
@@ -871,12 +871,12 @@ synthetic source drops the null elements of a text field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.text: "a" }
-  - is_false: hits.hits.1._source.text
-  - is_false: hits.hits.2._source.text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.text: ["a", "b"] }
-  - is_false: hits.hits.4._source.text
-  - is_false: hits.hits.5._source.text
-  - is_false: hits.hits.6._source.text
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.text: "a" }
   - match: { hits.hits.8._source.text: "a" }
   - match: { hits.hits.9._source.text: "a" }
@@ -892,12 +892,12 @@ synthetic source drops the null elements of a text field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.text: "a" }
-  - is_false: hits.hits.1._source.text
-  - is_false: hits.hits.2._source.text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.text: ["a", "b"] }
-  - is_false: hits.hits.4._source.text
-  - is_false: hits.hits.5._source.text
-  - is_false: hits.hits.6._source.text
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.text: "a" }
   - match: { hits.hits.8._source.text: "a" }
   - match: { hits.hits.9._source.text: "a" }
@@ -1010,12 +1010,12 @@ synthetic source drops the null elements of a wildcard field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.wildcard: "a" }
-  - is_false: hits.hits.1._source.wildcard
-  - is_false: hits.hits.2._source.wildcard
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.wildcard: ["a", "b"] }
-  - is_false: hits.hits.4._source.wildcard
-  - is_false: hits.hits.5._source.wildcard
-  - is_false: hits.hits.6._source.wildcard
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.wildcard: "a" }
   - match: { hits.hits.8._source.wildcard: "a" }
   - match: { hits.hits.9._source.wildcard: "a" }
@@ -1031,12 +1031,12 @@ synthetic source drops the null elements of a wildcard field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.wildcard: "a" }
-  - is_false: hits.hits.1._source.wildcard
-  - is_false: hits.hits.2._source.wildcard
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.wildcard: ["a", "b"] }
-  - is_false: hits.hits.4._source.wildcard
-  - is_false: hits.hits.5._source.wildcard
-  - is_false: hits.hits.6._source.wildcard
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.wildcard: "a" }
   - match: { hits.hits.8._source.wildcard: "a" }
   - match: { hits.hits.9._source.wildcard: "a" }
@@ -1052,12 +1052,12 @@ synthetic source drops the null elements of a wildcard field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.wildcard: "a" }
-  - is_false: hits.hits.1._source.wildcard
-  - is_false: hits.hits.2._source.wildcard
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.wildcard: ["a", "b"] }
-  - is_false: hits.hits.4._source.wildcard
-  - is_false: hits.hits.5._source.wildcard
-  - is_false: hits.hits.6._source.wildcard
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.wildcard: "a" }
   - match: { hits.hits.8._source.wildcard: "a" }
   - match: { hits.hits.9._source.wildcard: "a" }
@@ -1073,12 +1073,12 @@ synthetic source drops the null elements of a wildcard field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.wildcard: "a" }
-  - is_false: hits.hits.1._source.wildcard
-  - is_false: hits.hits.2._source.wildcard
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.wildcard: ["a", "b"] }
-  - is_false: hits.hits.4._source.wildcard
-  - is_false: hits.hits.5._source.wildcard
-  - is_false: hits.hits.6._source.wildcard
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.wildcard: "a" }
   - match: { hits.hits.8._source.wildcard: "a" }
   - match: { hits.hits.9._source.wildcard: "a" }
@@ -1094,12 +1094,12 @@ synthetic source drops the null elements of a wildcard field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.wildcard: "a" }
-  - is_false: hits.hits.1._source.wildcard
-  - is_false: hits.hits.2._source.wildcard
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.wildcard: ["a", "b"] }
-  - is_false: hits.hits.4._source.wildcard
-  - is_false: hits.hits.5._source.wildcard
-  - is_false: hits.hits.6._source.wildcard
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.wildcard: "a" }
   - match: { hits.hits.8._source.wildcard: "a" }
   - match: { hits.hits.9._source.wildcard: "a" }
@@ -1115,12 +1115,12 @@ synthetic source drops the null elements of a wildcard field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.wildcard: "a" }
-  - is_false: hits.hits.1._source.wildcard
-  - is_false: hits.hits.2._source.wildcard
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.wildcard: ["a", "b"] }
-  - is_false: hits.hits.4._source.wildcard
-  - is_false: hits.hits.5._source.wildcard
-  - is_false: hits.hits.6._source.wildcard
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.wildcard: "a" }
   - match: { hits.hits.8._source.wildcard: "a" }
   - match: { hits.hits.9._source.wildcard: "a" }
@@ -1225,12 +1225,12 @@ synthetic source drops the null elements of a version field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.version: "1.0.0" }
-  - is_false: hits.hits.1._source.version
-  - is_false: hits.hits.2._source.version
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.version: ["1.0.0", "2.0.0"] }
-  - is_false: hits.hits.4._source.version
-  - is_false: hits.hits.5._source.version
-  - is_false: hits.hits.6._source.version
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.version: "1.0.0" }
   - match: { hits.hits.8._source.version: "1.0.0" }
   - match: { hits.hits.9._source.version: "1.0.0" }
@@ -1246,12 +1246,12 @@ synthetic source drops the null elements of a version field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.version: "1.0.0" }
-  - is_false: hits.hits.1._source.version
-  - is_false: hits.hits.2._source.version
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.version: ["1.0.0", "2.0.0"] }
-  - is_false: hits.hits.4._source.version
-  - is_false: hits.hits.5._source.version
-  - is_false: hits.hits.6._source.version
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.version: "1.0.0" }
   - match: { hits.hits.8._source.version: "1.0.0" }
   - match: { hits.hits.9._source.version: "1.0.0" }
@@ -1267,12 +1267,12 @@ synthetic source drops the null elements of a version field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.version: "1.0.0" }
-  - is_false: hits.hits.1._source.version
-  - is_false: hits.hits.2._source.version
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.version: ["1.0.0", "2.0.0"] }
-  - is_false: hits.hits.4._source.version
-  - is_false: hits.hits.5._source.version
-  - is_false: hits.hits.6._source.version
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.version: "1.0.0" }
   - match: { hits.hits.8._source.version: "1.0.0" }
   - match: { hits.hits.9._source.version: "1.0.0" }
@@ -1288,12 +1288,12 @@ synthetic source drops the null elements of a version field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.version: "1.0.0" }
-  - is_false: hits.hits.1._source.version
-  - is_false: hits.hits.2._source.version
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.version: ["1.0.0", "2.0.0"] }
-  - is_false: hits.hits.4._source.version
-  - is_false: hits.hits.5._source.version
-  - is_false: hits.hits.6._source.version
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.version: "1.0.0" }
   - match: { hits.hits.8._source.version: "1.0.0" }
   - match: { hits.hits.9._source.version: "1.0.0" }
@@ -1309,12 +1309,12 @@ synthetic source drops the null elements of a version field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.version: "1.0.0" }
-  - is_false: hits.hits.1._source.version
-  - is_false: hits.hits.2._source.version
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.version: ["1.0.0", "2.0.0"] }
-  - is_false: hits.hits.4._source.version
-  - is_false: hits.hits.5._source.version
-  - is_false: hits.hits.6._source.version
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.version: "1.0.0" }
   - match: { hits.hits.8._source.version: "1.0.0" }
   - match: { hits.hits.9._source.version: "1.0.0" }
@@ -1330,12 +1330,12 @@ synthetic source drops the null elements of a version field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.version: "1.0.0" }
-  - is_false: hits.hits.1._source.version
-  - is_false: hits.hits.2._source.version
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.version: ["1.0.0", "2.0.0"] }
-  - is_false: hits.hits.4._source.version
-  - is_false: hits.hits.5._source.version
-  - is_false: hits.hits.6._source.version
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.version: "1.0.0" }
   - match: { hits.hits.8._source.version: "1.0.0" }
   - match: { hits.hits.9._source.version: "1.0.0" }
@@ -1444,12 +1444,12 @@ synthetic source drops the null elements of an ip field in logsdb_columnar and v
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
-  - is_false: hits.hits.1._source.ip
-  - is_false: hits.hits.2._source.ip
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.0.0.2"] }
-  - is_false: hits.hits.4._source.ip
-  - is_false: hits.hits.5._source.ip
-  - is_false: hits.hits.6._source.ip
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip: "10.0.0.1" }
   - match: { hits.hits.8._source.ip: "10.0.0.1" }
   - match: { hits.hits.9._source.ip: "10.0.0.1" }
@@ -1465,12 +1465,12 @@ synthetic source drops the null elements of an ip field in logsdb_columnar and v
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
-  - is_false: hits.hits.1._source.ip
-  - is_false: hits.hits.2._source.ip
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.0.0.2"] }
-  - is_false: hits.hits.4._source.ip
-  - is_false: hits.hits.5._source.ip
-  - is_false: hits.hits.6._source.ip
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip: "10.0.0.1" }
   - match: { hits.hits.8._source.ip: "10.0.0.1" }
   - match: { hits.hits.9._source.ip: "10.0.0.1" }
@@ -1486,12 +1486,12 @@ synthetic source drops the null elements of an ip field in logsdb_columnar and v
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
-  - is_false: hits.hits.1._source.ip
-  - is_false: hits.hits.2._source.ip
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.0.0.2"] }
-  - is_false: hits.hits.4._source.ip
-  - is_false: hits.hits.5._source.ip
-  - is_false: hits.hits.6._source.ip
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip: "10.0.0.1" }
   - match: { hits.hits.8._source.ip: "10.0.0.1" }
   - match: { hits.hits.9._source.ip: "10.0.0.1" }
@@ -1507,12 +1507,12 @@ synthetic source drops the null elements of an ip field in logsdb_columnar and v
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
-  - is_false: hits.hits.1._source.ip
-  - is_false: hits.hits.2._source.ip
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.0.0.2"] }
-  - is_false: hits.hits.4._source.ip
-  - is_false: hits.hits.5._source.ip
-  - is_false: hits.hits.6._source.ip
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip: "10.0.0.1" }
   - match: { hits.hits.8._source.ip: "10.0.0.1" }
   - match: { hits.hits.9._source.ip: "10.0.0.1" }
@@ -1528,12 +1528,12 @@ synthetic source drops the null elements of an ip field in logsdb_columnar and v
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
-  - is_false: hits.hits.1._source.ip
-  - is_false: hits.hits.2._source.ip
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.0.0.2"] }
-  - is_false: hits.hits.4._source.ip
-  - is_false: hits.hits.5._source.ip
-  - is_false: hits.hits.6._source.ip
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip: "10.0.0.1" }
   - match: { hits.hits.8._source.ip: "10.0.0.1" }
   - match: { hits.hits.9._source.ip: "10.0.0.1" }
@@ -1638,12 +1638,12 @@ synthetic source drops the null elements of a binary field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.binary: "YQ==" }
-  - is_false: hits.hits.1._source.binary
-  - is_false: hits.hits.2._source.binary
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - is_false: hits.hits.4._source.binary
-  - is_false: hits.hits.5._source.binary
-  - is_false: hits.hits.6._source.binary
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.binary: "YQ==" }
   - match: { hits.hits.8._source.binary: "YQ==" }
   - match: { hits.hits.9._source.binary: "YQ==" }
@@ -1659,12 +1659,12 @@ synthetic source drops the null elements of a binary field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.binary: "YQ==" }
-  - is_false: hits.hits.1._source.binary
-  - is_false: hits.hits.2._source.binary
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - is_false: hits.hits.4._source.binary
-  - is_false: hits.hits.5._source.binary
-  - is_false: hits.hits.6._source.binary
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.binary: "YQ==" }
   - match: { hits.hits.8._source.binary: "YQ==" }
   - match: { hits.hits.9._source.binary: "YQ==" }
@@ -1680,12 +1680,12 @@ synthetic source drops the null elements of a binary field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.binary: "YQ==" }
-  - is_false: hits.hits.1._source.binary
-  - is_false: hits.hits.2._source.binary
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - is_false: hits.hits.4._source.binary
-  - is_false: hits.hits.5._source.binary
-  - is_false: hits.hits.6._source.binary
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.binary: "YQ==" }
   - match: { hits.hits.8._source.binary: "YQ==" }
   - match: { hits.hits.9._source.binary: "YQ==" }
@@ -1701,12 +1701,12 @@ synthetic source drops the null elements of a binary field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.binary: "YQ==" }
-  - is_false: hits.hits.1._source.binary
-  - is_false: hits.hits.2._source.binary
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - is_false: hits.hits.4._source.binary
-  - is_false: hits.hits.5._source.binary
-  - is_false: hits.hits.6._source.binary
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.binary: "YQ==" }
   - match: { hits.hits.8._source.binary: "YQ==" }
   - match: { hits.hits.9._source.binary: "YQ==" }
@@ -1722,12 +1722,12 @@ synthetic source drops the null elements of a binary field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.binary: "YQ==" }
-  - is_false: hits.hits.1._source.binary
-  - is_false: hits.hits.2._source.binary
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - is_false: hits.hits.4._source.binary
-  - is_false: hits.hits.5._source.binary
-  - is_false: hits.hits.6._source.binary
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.binary: "YQ==" }
   - match: { hits.hits.8._source.binary: "YQ==" }
   - match: { hits.hits.9._source.binary: "YQ==" }
@@ -1743,12 +1743,12 @@ synthetic source drops the null elements of a binary field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.binary: "YQ==" }
-  - is_false: hits.hits.1._source.binary
-  - is_false: hits.hits.2._source.binary
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - is_false: hits.hits.4._source.binary
-  - is_false: hits.hits.5._source.binary
-  - is_false: hits.hits.6._source.binary
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.binary: "YQ==" }
   - match: { hits.hits.8._source.binary: "YQ==" }
   - match: { hits.hits.9._source.binary: "YQ==" }
@@ -1857,12 +1857,12 @@ synthetic source drops the null elements of a boolean field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.boolean: false }
-  - is_false: hits.hits.1._source.boolean
-  - is_false: hits.hits.2._source.boolean
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.boolean: [false, true] }
-  - is_false: hits.hits.4._source.boolean
-  - is_false: hits.hits.5._source.boolean
-  - is_false: hits.hits.6._source.boolean
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.boolean: false }
   - match: { hits.hits.8._source.boolean: false }
   - match: { hits.hits.9._source.boolean: false }
@@ -1878,12 +1878,12 @@ synthetic source drops the null elements of a boolean field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.boolean: false }
-  - is_false: hits.hits.1._source.boolean
-  - is_false: hits.hits.2._source.boolean
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.boolean: [false, true] }
-  - is_false: hits.hits.4._source.boolean
-  - is_false: hits.hits.5._source.boolean
-  - is_false: hits.hits.6._source.boolean
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.boolean: false }
   - match: { hits.hits.8._source.boolean: false }
   - match: { hits.hits.9._source.boolean: false }
@@ -1899,12 +1899,12 @@ synthetic source drops the null elements of a boolean field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.boolean: false }
-  - is_false: hits.hits.1._source.boolean
-  - is_false: hits.hits.2._source.boolean
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.boolean: [false, true] }
-  - is_false: hits.hits.4._source.boolean
-  - is_false: hits.hits.5._source.boolean
-  - is_false: hits.hits.6._source.boolean
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.boolean: false }
   - match: { hits.hits.8._source.boolean: false }
   - match: { hits.hits.9._source.boolean: false }
@@ -1920,12 +1920,12 @@ synthetic source drops the null elements of a boolean field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.boolean: false }
-  - is_false: hits.hits.1._source.boolean
-  - is_false: hits.hits.2._source.boolean
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.boolean: [false, true] }
-  - is_false: hits.hits.4._source.boolean
-  - is_false: hits.hits.5._source.boolean
-  - is_false: hits.hits.6._source.boolean
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.boolean: false }
   - match: { hits.hits.8._source.boolean: false }
   - match: { hits.hits.9._source.boolean: false }
@@ -1941,12 +1941,12 @@ synthetic source drops the null elements of a boolean field in logsdb_columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.boolean: false }
-  - is_false: hits.hits.1._source.boolean
-  - is_false: hits.hits.2._source.boolean
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.boolean: [false, true] }
-  - is_false: hits.hits.4._source.boolean
-  - is_false: hits.hits.5._source.boolean
-  - is_false: hits.hits.6._source.boolean
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.boolean: false }
   - match: { hits.hits.8._source.boolean: false }
   - match: { hits.hits.9._source.boolean: false }
@@ -2055,12 +2055,12 @@ synthetic source drops the null elements of a byte field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.byte: 1 }
-  - is_false: hits.hits.1._source.byte
-  - is_false: hits.hits.2._source.byte
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.byte: [1, 2] }
-  - is_false: hits.hits.4._source.byte
-  - is_false: hits.hits.5._source.byte
-  - is_false: hits.hits.6._source.byte
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.byte: 1 }
   - match: { hits.hits.8._source.byte: 1 }
   - match: { hits.hits.9._source.byte: 1 }
@@ -2076,12 +2076,12 @@ synthetic source drops the null elements of a byte field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.byte: 1 }
-  - is_false: hits.hits.1._source.byte
-  - is_false: hits.hits.2._source.byte
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.byte: [1, 2] }
-  - is_false: hits.hits.4._source.byte
-  - is_false: hits.hits.5._source.byte
-  - is_false: hits.hits.6._source.byte
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.byte: 1 }
   - match: { hits.hits.8._source.byte: 1 }
   - match: { hits.hits.9._source.byte: 1 }
@@ -2097,12 +2097,12 @@ synthetic source drops the null elements of a byte field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.byte: 1 }
-  - is_false: hits.hits.1._source.byte
-  - is_false: hits.hits.2._source.byte
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.byte: [1, 2] }
-  - is_false: hits.hits.4._source.byte
-  - is_false: hits.hits.5._source.byte
-  - is_false: hits.hits.6._source.byte
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.byte: 1 }
   - match: { hits.hits.8._source.byte: 1 }
   - match: { hits.hits.9._source.byte: 1 }
@@ -2118,12 +2118,12 @@ synthetic source drops the null elements of a byte field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.byte: 1 }
-  - is_false: hits.hits.1._source.byte
-  - is_false: hits.hits.2._source.byte
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.byte: [1, 2] }
-  - is_false: hits.hits.4._source.byte
-  - is_false: hits.hits.5._source.byte
-  - is_false: hits.hits.6._source.byte
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.byte: 1 }
   - match: { hits.hits.8._source.byte: 1 }
   - match: { hits.hits.9._source.byte: 1 }
@@ -2139,12 +2139,12 @@ synthetic source drops the null elements of a byte field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.byte: 1 }
-  - is_false: hits.hits.1._source.byte
-  - is_false: hits.hits.2._source.byte
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.byte: [1, 2] }
-  - is_false: hits.hits.4._source.byte
-  - is_false: hits.hits.5._source.byte
-  - is_false: hits.hits.6._source.byte
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.byte: 1 }
   - match: { hits.hits.8._source.byte: 1 }
   - match: { hits.hits.9._source.byte: 1 }
@@ -2160,12 +2160,12 @@ synthetic source drops the null elements of a byte field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.byte: 1 }
-  - is_false: hits.hits.1._source.byte
-  - is_false: hits.hits.2._source.byte
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.byte: [1, 2] }
-  - is_false: hits.hits.4._source.byte
-  - is_false: hits.hits.5._source.byte
-  - is_false: hits.hits.6._source.byte
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.byte: 1 }
   - match: { hits.hits.8._source.byte: 1 }
   - match: { hits.hits.9._source.byte: 1 }
@@ -2274,12 +2274,12 @@ synthetic source drops the null elements of a short field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.short: 1 }
-  - is_false: hits.hits.1._source.short
-  - is_false: hits.hits.2._source.short
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.short: [1, 2] }
-  - is_false: hits.hits.4._source.short
-  - is_false: hits.hits.5._source.short
-  - is_false: hits.hits.6._source.short
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.short: 1 }
   - match: { hits.hits.8._source.short: 1 }
   - match: { hits.hits.9._source.short: 1 }
@@ -2295,12 +2295,12 @@ synthetic source drops the null elements of a short field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.short: 1 }
-  - is_false: hits.hits.1._source.short
-  - is_false: hits.hits.2._source.short
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.short: [1, 2] }
-  - is_false: hits.hits.4._source.short
-  - is_false: hits.hits.5._source.short
-  - is_false: hits.hits.6._source.short
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.short: 1 }
   - match: { hits.hits.8._source.short: 1 }
   - match: { hits.hits.9._source.short: 1 }
@@ -2316,12 +2316,12 @@ synthetic source drops the null elements of a short field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.short: 1 }
-  - is_false: hits.hits.1._source.short
-  - is_false: hits.hits.2._source.short
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.short: [1, 2] }
-  - is_false: hits.hits.4._source.short
-  - is_false: hits.hits.5._source.short
-  - is_false: hits.hits.6._source.short
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.short: 1 }
   - match: { hits.hits.8._source.short: 1 }
   - match: { hits.hits.9._source.short: 1 }
@@ -2337,12 +2337,12 @@ synthetic source drops the null elements of a short field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.short: 1 }
-  - is_false: hits.hits.1._source.short
-  - is_false: hits.hits.2._source.short
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.short: [1, 2] }
-  - is_false: hits.hits.4._source.short
-  - is_false: hits.hits.5._source.short
-  - is_false: hits.hits.6._source.short
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.short: 1 }
   - match: { hits.hits.8._source.short: 1 }
   - match: { hits.hits.9._source.short: 1 }
@@ -2358,12 +2358,12 @@ synthetic source drops the null elements of a short field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.short: 1 }
-  - is_false: hits.hits.1._source.short
-  - is_false: hits.hits.2._source.short
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.short: [1, 2] }
-  - is_false: hits.hits.4._source.short
-  - is_false: hits.hits.5._source.short
-  - is_false: hits.hits.6._source.short
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.short: 1 }
   - match: { hits.hits.8._source.short: 1 }
   - match: { hits.hits.9._source.short: 1 }
@@ -2379,12 +2379,12 @@ synthetic source drops the null elements of a short field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.short: 1 }
-  - is_false: hits.hits.1._source.short
-  - is_false: hits.hits.2._source.short
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.short: [1, 2] }
-  - is_false: hits.hits.4._source.short
-  - is_false: hits.hits.5._source.short
-  - is_false: hits.hits.6._source.short
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.short: 1 }
   - match: { hits.hits.8._source.short: 1 }
   - match: { hits.hits.9._source.short: 1 }
@@ -2493,12 +2493,12 @@ synthetic source drops the null elements of an integer field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer: 1 }
-  - is_false: hits.hits.1._source.integer
-  - is_false: hits.hits.2._source.integer
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.integer: [1, 2] }
-  - is_false: hits.hits.4._source.integer
-  - is_false: hits.hits.5._source.integer
-  - is_false: hits.hits.6._source.integer
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer: 1 }
   - match: { hits.hits.8._source.integer: 1 }
   - match: { hits.hits.9._source.integer: 1 }
@@ -2514,12 +2514,12 @@ synthetic source drops the null elements of an integer field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer: 1 }
-  - is_false: hits.hits.1._source.integer
-  - is_false: hits.hits.2._source.integer
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.integer: [1, 2] }
-  - is_false: hits.hits.4._source.integer
-  - is_false: hits.hits.5._source.integer
-  - is_false: hits.hits.6._source.integer
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer: 1 }
   - match: { hits.hits.8._source.integer: 1 }
   - match: { hits.hits.9._source.integer: 1 }
@@ -2535,12 +2535,12 @@ synthetic source drops the null elements of an integer field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer: 1 }
-  - is_false: hits.hits.1._source.integer
-  - is_false: hits.hits.2._source.integer
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.integer: [1, 2] }
-  - is_false: hits.hits.4._source.integer
-  - is_false: hits.hits.5._source.integer
-  - is_false: hits.hits.6._source.integer
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer: 1 }
   - match: { hits.hits.8._source.integer: 1 }
   - match: { hits.hits.9._source.integer: 1 }
@@ -2556,12 +2556,12 @@ synthetic source drops the null elements of an integer field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer: 1 }
-  - is_false: hits.hits.1._source.integer
-  - is_false: hits.hits.2._source.integer
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.integer: [1, 2] }
-  - is_false: hits.hits.4._source.integer
-  - is_false: hits.hits.5._source.integer
-  - is_false: hits.hits.6._source.integer
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer: 1 }
   - match: { hits.hits.8._source.integer: 1 }
   - match: { hits.hits.9._source.integer: 1 }
@@ -2577,12 +2577,12 @@ synthetic source drops the null elements of an integer field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer: 1 }
-  - is_false: hits.hits.1._source.integer
-  - is_false: hits.hits.2._source.integer
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.integer: [1, 2] }
-  - is_false: hits.hits.4._source.integer
-  - is_false: hits.hits.5._source.integer
-  - is_false: hits.hits.6._source.integer
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer: 1 }
   - match: { hits.hits.8._source.integer: 1 }
   - match: { hits.hits.9._source.integer: 1 }
@@ -2598,12 +2598,12 @@ synthetic source drops the null elements of an integer field in logsdb_columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer: 1 }
-  - is_false: hits.hits.1._source.integer
-  - is_false: hits.hits.2._source.integer
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.integer: [1, 2] }
-  - is_false: hits.hits.4._source.integer
-  - is_false: hits.hits.5._source.integer
-  - is_false: hits.hits.6._source.integer
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer: 1 }
   - match: { hits.hits.8._source.integer: 1 }
   - match: { hits.hits.9._source.integer: 1 }
@@ -2695,12 +2695,12 @@ synthetic source drops the null elements of a long field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.long: 1 }
-  - is_false: hits.hits.1._source.long
-  - is_false: hits.hits.2._source.long
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.long: [1, 2] }
-  - is_false: hits.hits.4._source.long
-  - is_false: hits.hits.5._source.long
-  - is_false: hits.hits.6._source.long
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.long: 1 }
   - match: { hits.hits.8._source.long: 1 }
   - match: { hits.hits.9._source.long: 1 }
@@ -2716,12 +2716,12 @@ synthetic source drops the null elements of a long field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.long: 1 }
-  - is_false: hits.hits.1._source.long
-  - is_false: hits.hits.2._source.long
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.long: [1, 2] }
-  - is_false: hits.hits.4._source.long
-  - is_false: hits.hits.5._source.long
-  - is_false: hits.hits.6._source.long
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.long: 1 }
   - match: { hits.hits.8._source.long: 1 }
   - match: { hits.hits.9._source.long: 1 }
@@ -2737,12 +2737,12 @@ synthetic source drops the null elements of a long field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.long: 1 }
-  - is_false: hits.hits.1._source.long
-  - is_false: hits.hits.2._source.long
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.long: [1, 2] }
-  - is_false: hits.hits.4._source.long
-  - is_false: hits.hits.5._source.long
-  - is_false: hits.hits.6._source.long
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.long: 1 }
   - match: { hits.hits.8._source.long: 1 }
   - match: { hits.hits.9._source.long: 1 }
@@ -2758,12 +2758,12 @@ synthetic source drops the null elements of a long field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.long: 1 }
-  - is_false: hits.hits.1._source.long
-  - is_false: hits.hits.2._source.long
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.long: [1, 2] }
-  - is_false: hits.hits.4._source.long
-  - is_false: hits.hits.5._source.long
-  - is_false: hits.hits.6._source.long
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.long: 1 }
   - match: { hits.hits.8._source.long: 1 }
   - match: { hits.hits.9._source.long: 1 }
@@ -2872,12 +2872,12 @@ synthetic source drops the null elements of a half_float field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.half_float: 1.5 }
-  - is_false: hits.hits.1._source.half_float
-  - is_false: hits.hits.2._source.half_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.half_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.half_float
-  - is_false: hits.hits.5._source.half_float
-  - is_false: hits.hits.6._source.half_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.half_float: 1.5 }
   - match: { hits.hits.8._source.half_float: 1.5 }
   - match: { hits.hits.9._source.half_float: 1.5 }
@@ -2893,12 +2893,12 @@ synthetic source drops the null elements of a half_float field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.half_float: 1.5 }
-  - is_false: hits.hits.1._source.half_float
-  - is_false: hits.hits.2._source.half_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.half_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.half_float
-  - is_false: hits.hits.5._source.half_float
-  - is_false: hits.hits.6._source.half_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.half_float: 1.5 }
   - match: { hits.hits.8._source.half_float: 1.5 }
   - match: { hits.hits.9._source.half_float: 1.5 }
@@ -2914,12 +2914,12 @@ synthetic source drops the null elements of a half_float field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.half_float: 1.5 }
-  - is_false: hits.hits.1._source.half_float
-  - is_false: hits.hits.2._source.half_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.half_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.half_float
-  - is_false: hits.hits.5._source.half_float
-  - is_false: hits.hits.6._source.half_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.half_float: 1.5 }
   - match: { hits.hits.8._source.half_float: 1.5 }
   - match: { hits.hits.9._source.half_float: 1.5 }
@@ -2935,12 +2935,12 @@ synthetic source drops the null elements of a half_float field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.half_float: 1.5 }
-  - is_false: hits.hits.1._source.half_float
-  - is_false: hits.hits.2._source.half_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.half_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.half_float
-  - is_false: hits.hits.5._source.half_float
-  - is_false: hits.hits.6._source.half_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.half_float: 1.5 }
   - match: { hits.hits.8._source.half_float: 1.5 }
   - match: { hits.hits.9._source.half_float: 1.5 }
@@ -2956,12 +2956,12 @@ synthetic source drops the null elements of a half_float field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.half_float: 1.5 }
-  - is_false: hits.hits.1._source.half_float
-  - is_false: hits.hits.2._source.half_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.half_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.half_float
-  - is_false: hits.hits.5._source.half_float
-  - is_false: hits.hits.6._source.half_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.half_float: 1.5 }
   - match: { hits.hits.8._source.half_float: 1.5 }
   - match: { hits.hits.9._source.half_float: 1.5 }
@@ -2977,12 +2977,12 @@ synthetic source drops the null elements of a half_float field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.half_float: 1.5 }
-  - is_false: hits.hits.1._source.half_float
-  - is_false: hits.hits.2._source.half_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.half_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.half_float
-  - is_false: hits.hits.5._source.half_float
-  - is_false: hits.hits.6._source.half_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.half_float: 1.5 }
   - match: { hits.hits.8._source.half_float: 1.5 }
   - match: { hits.hits.9._source.half_float: 1.5 }
@@ -3091,12 +3091,12 @@ synthetic source drops the null elements of a float field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float: 1.5 }
-  - is_false: hits.hits.1._source.float
-  - is_false: hits.hits.2._source.float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.float
-  - is_false: hits.hits.5._source.float
-  - is_false: hits.hits.6._source.float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float: 1.5 }
   - match: { hits.hits.8._source.float: 1.5 }
   - match: { hits.hits.9._source.float: 1.5 }
@@ -3112,12 +3112,12 @@ synthetic source drops the null elements of a float field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float: 1.5 }
-  - is_false: hits.hits.1._source.float
-  - is_false: hits.hits.2._source.float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.float
-  - is_false: hits.hits.5._source.float
-  - is_false: hits.hits.6._source.float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float: 1.5 }
   - match: { hits.hits.8._source.float: 1.5 }
   - match: { hits.hits.9._source.float: 1.5 }
@@ -3133,12 +3133,12 @@ synthetic source drops the null elements of a float field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float: 1.5 }
-  - is_false: hits.hits.1._source.float
-  - is_false: hits.hits.2._source.float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.float
-  - is_false: hits.hits.5._source.float
-  - is_false: hits.hits.6._source.float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float: 1.5 }
   - match: { hits.hits.8._source.float: 1.5 }
   - match: { hits.hits.9._source.float: 1.5 }
@@ -3154,12 +3154,12 @@ synthetic source drops the null elements of a float field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float: 1.5 }
-  - is_false: hits.hits.1._source.float
-  - is_false: hits.hits.2._source.float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.float
-  - is_false: hits.hits.5._source.float
-  - is_false: hits.hits.6._source.float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float: 1.5 }
   - match: { hits.hits.8._source.float: 1.5 }
   - match: { hits.hits.9._source.float: 1.5 }
@@ -3175,12 +3175,12 @@ synthetic source drops the null elements of a float field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float: 1.5 }
-  - is_false: hits.hits.1._source.float
-  - is_false: hits.hits.2._source.float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.float
-  - is_false: hits.hits.5._source.float
-  - is_false: hits.hits.6._source.float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float: 1.5 }
   - match: { hits.hits.8._source.float: 1.5 }
   - match: { hits.hits.9._source.float: 1.5 }
@@ -3196,12 +3196,12 @@ synthetic source drops the null elements of a float field in logsdb_columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float: 1.5 }
-  - is_false: hits.hits.1._source.float
-  - is_false: hits.hits.2._source.float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.float
-  - is_false: hits.hits.5._source.float
-  - is_false: hits.hits.6._source.float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float: 1.5 }
   - match: { hits.hits.8._source.float: 1.5 }
   - match: { hits.hits.9._source.float: 1.5 }
@@ -3310,12 +3310,12 @@ synthetic source drops the null elements of a double field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double: 1.5 }
-  - is_false: hits.hits.1._source.double
-  - is_false: hits.hits.2._source.double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.double: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.double
-  - is_false: hits.hits.5._source.double
-  - is_false: hits.hits.6._source.double
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double: 1.5 }
   - match: { hits.hits.8._source.double: 1.5 }
   - match: { hits.hits.9._source.double: 1.5 }
@@ -3331,12 +3331,12 @@ synthetic source drops the null elements of a double field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double: 1.5 }
-  - is_false: hits.hits.1._source.double
-  - is_false: hits.hits.2._source.double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.double: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.double
-  - is_false: hits.hits.5._source.double
-  - is_false: hits.hits.6._source.double
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double: 1.5 }
   - match: { hits.hits.8._source.double: 1.5 }
   - match: { hits.hits.9._source.double: 1.5 }
@@ -3352,12 +3352,12 @@ synthetic source drops the null elements of a double field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double: 1.5 }
-  - is_false: hits.hits.1._source.double
-  - is_false: hits.hits.2._source.double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.double: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.double
-  - is_false: hits.hits.5._source.double
-  - is_false: hits.hits.6._source.double
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double: 1.5 }
   - match: { hits.hits.8._source.double: 1.5 }
   - match: { hits.hits.9._source.double: 1.5 }
@@ -3373,12 +3373,12 @@ synthetic source drops the null elements of a double field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double: 1.5 }
-  - is_false: hits.hits.1._source.double
-  - is_false: hits.hits.2._source.double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.double: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.double
-  - is_false: hits.hits.5._source.double
-  - is_false: hits.hits.6._source.double
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double: 1.5 }
   - match: { hits.hits.8._source.double: 1.5 }
   - match: { hits.hits.9._source.double: 1.5 }
@@ -3394,12 +3394,12 @@ synthetic source drops the null elements of a double field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double: 1.5 }
-  - is_false: hits.hits.1._source.double
-  - is_false: hits.hits.2._source.double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.double: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.double
-  - is_false: hits.hits.5._source.double
-  - is_false: hits.hits.6._source.double
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double: 1.5 }
   - match: { hits.hits.8._source.double: 1.5 }
   - match: { hits.hits.9._source.double: 1.5 }
@@ -3415,12 +3415,12 @@ synthetic source drops the null elements of a double field in logsdb_columnar an
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double: 1.5 }
-  - is_false: hits.hits.1._source.double
-  - is_false: hits.hits.2._source.double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.double: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.double
-  - is_false: hits.hits.5._source.double
-  - is_false: hits.hits.6._source.double
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double: 1.5 }
   - match: { hits.hits.8._source.double: 1.5 }
   - match: { hits.hits.9._source.double: 1.5 }
@@ -3529,12 +3529,12 @@ synthetic source drops the null elements of a date field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
-  - is_false: hits.hits.1._source.date
-  - is_false: hits.hits.2._source.date
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
-  - is_false: hits.hits.4._source.date
-  - is_false: hits.hits.5._source.date
-  - is_false: hits.hits.6._source.date
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.8._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.9._source.date: "2026-01-01T00:00:00.000Z" }
@@ -3550,12 +3550,12 @@ synthetic source drops the null elements of a date field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
-  - is_false: hits.hits.1._source.date
-  - is_false: hits.hits.2._source.date
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
-  - is_false: hits.hits.4._source.date
-  - is_false: hits.hits.5._source.date
-  - is_false: hits.hits.6._source.date
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.8._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.9._source.date: "2026-01-01T00:00:00.000Z" }
@@ -3571,12 +3571,12 @@ synthetic source drops the null elements of a date field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
-  - is_false: hits.hits.1._source.date
-  - is_false: hits.hits.2._source.date
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
-  - is_false: hits.hits.4._source.date
-  - is_false: hits.hits.5._source.date
-  - is_false: hits.hits.6._source.date
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.8._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.9._source.date: "2026-01-01T00:00:00.000Z" }
@@ -3592,12 +3592,12 @@ synthetic source drops the null elements of a date field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
-  - is_false: hits.hits.1._source.date
-  - is_false: hits.hits.2._source.date
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
-  - is_false: hits.hits.4._source.date
-  - is_false: hits.hits.5._source.date
-  - is_false: hits.hits.6._source.date
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.8._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.9._source.date: "2026-01-01T00:00:00.000Z" }
@@ -3613,12 +3613,12 @@ synthetic source drops the null elements of a date field in logsdb_columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
-  - is_false: hits.hits.1._source.date
-  - is_false: hits.hits.2._source.date
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
-  - is_false: hits.hits.4._source.date
-  - is_false: hits.hits.5._source.date
-  - is_false: hits.hits.6._source.date
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.8._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.9._source.date: "2026-01-01T00:00:00.000Z" }
@@ -3727,12 +3727,12 @@ synthetic source drops the null elements of a date_nanos field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
-  - is_false: hits.hits.1._source.date_nanos
-  - is_false: hits.hits.2._source.date_nanos
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
-  - is_false: hits.hits.4._source.date_nanos
-  - is_false: hits.hits.5._source.date_nanos
-  - is_false: hits.hits.6._source.date_nanos
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.8._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
@@ -3748,12 +3748,12 @@ synthetic source drops the null elements of a date_nanos field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
-  - is_false: hits.hits.1._source.date_nanos
-  - is_false: hits.hits.2._source.date_nanos
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
-  - is_false: hits.hits.4._source.date_nanos
-  - is_false: hits.hits.5._source.date_nanos
-  - is_false: hits.hits.6._source.date_nanos
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.8._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
@@ -3769,12 +3769,12 @@ synthetic source drops the null elements of a date_nanos field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
-  - is_false: hits.hits.1._source.date_nanos
-  - is_false: hits.hits.2._source.date_nanos
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
-  - is_false: hits.hits.4._source.date_nanos
-  - is_false: hits.hits.5._source.date_nanos
-  - is_false: hits.hits.6._source.date_nanos
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.8._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
@@ -3790,12 +3790,12 @@ synthetic source drops the null elements of a date_nanos field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
-  - is_false: hits.hits.1._source.date_nanos
-  - is_false: hits.hits.2._source.date_nanos
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
-  - is_false: hits.hits.4._source.date_nanos
-  - is_false: hits.hits.5._source.date_nanos
-  - is_false: hits.hits.6._source.date_nanos
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.8._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
@@ -3811,12 +3811,12 @@ synthetic source drops the null elements of a date_nanos field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
-  - is_false: hits.hits.1._source.date_nanos
-  - is_false: hits.hits.2._source.date_nanos
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
-  - is_false: hits.hits.4._source.date_nanos
-  - is_false: hits.hits.5._source.date_nanos
-  - is_false: hits.hits.6._source.date_nanos
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.8._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
@@ -3832,12 +3832,12 @@ synthetic source drops the null elements of a date_nanos field in logsdb_columna
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
-  - is_false: hits.hits.1._source.date_nanos
-  - is_false: hits.hits.2._source.date_nanos
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
-  - is_false: hits.hits.4._source.date_nanos
-  - is_false: hits.hits.5._source.date_nanos
-  - is_false: hits.hits.6._source.date_nanos
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.8._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.9._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
@@ -3953,11 +3953,11 @@ synthetic source drops the null elements of a pattern_text field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.pattern_text: "a" }
-  - is_false: hits.hits.1._source.pattern_text
-  - is_false: hits.hits.2._source.pattern_text
-  - is_false: hits.hits.4._source.pattern_text
-  - is_false: hits.hits.5._source.pattern_text
-  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.pattern_text: "a" }
   - match: { hits.hits.8._source.pattern_text: "a" }
   - match: { hits.hits.9._source.pattern_text: "a" }
@@ -3973,11 +3973,11 @@ synthetic source drops the null elements of a pattern_text field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.pattern_text: "a" }
-  - is_false: hits.hits.1._source.pattern_text
-  - is_false: hits.hits.2._source.pattern_text
-  - is_false: hits.hits.4._source.pattern_text
-  - is_false: hits.hits.5._source.pattern_text
-  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.pattern_text: "a" }
   - match: { hits.hits.8._source.pattern_text: "a" }
   - match: { hits.hits.9._source.pattern_text: "a" }
@@ -3993,11 +3993,11 @@ synthetic source drops the null elements of a pattern_text field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.pattern_text: "a" }
-  - is_false: hits.hits.1._source.pattern_text
-  - is_false: hits.hits.2._source.pattern_text
-  - is_false: hits.hits.4._source.pattern_text
-  - is_false: hits.hits.5._source.pattern_text
-  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.pattern_text: "a" }
   - match: { hits.hits.8._source.pattern_text: "a" }
   - match: { hits.hits.9._source.pattern_text: "a" }
@@ -4013,11 +4013,11 @@ synthetic source drops the null elements of a pattern_text field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.pattern_text: "a" }
-  - is_false: hits.hits.1._source.pattern_text
-  - is_false: hits.hits.2._source.pattern_text
-  - is_false: hits.hits.4._source.pattern_text
-  - is_false: hits.hits.5._source.pattern_text
-  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.pattern_text: "a" }
   - match: { hits.hits.8._source.pattern_text: "a" }
   - match: { hits.hits.9._source.pattern_text: "a" }
@@ -4033,11 +4033,11 @@ synthetic source drops the null elements of a pattern_text field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.pattern_text: "a" }
-  - is_false: hits.hits.1._source.pattern_text
-  - is_false: hits.hits.2._source.pattern_text
-  - is_false: hits.hits.4._source.pattern_text
-  - is_false: hits.hits.5._source.pattern_text
-  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.pattern_text: "a" }
   - match: { hits.hits.8._source.pattern_text: "a" }
   - match: { hits.hits.9._source.pattern_text: "a" }
@@ -4053,11 +4053,11 @@ synthetic source drops the null elements of a pattern_text field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.pattern_text: "a" }
-  - is_false: hits.hits.1._source.pattern_text
-  - is_false: hits.hits.2._source.pattern_text
-  - is_false: hits.hits.4._source.pattern_text
-  - is_false: hits.hits.5._source.pattern_text
-  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.pattern_text: "a" }
   - match: { hits.hits.8._source.pattern_text: "a" }
   - match: { hits.hits.9._source.pattern_text: "a" }
@@ -4073,11 +4073,11 @@ synthetic source drops the null elements of a pattern_text field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.pattern_text: "a" }
-  - is_false: hits.hits.1._source.pattern_text
-  - is_false: hits.hits.2._source.pattern_text
-  - is_false: hits.hits.4._source.pattern_text
-  - is_false: hits.hits.5._source.pattern_text
-  - is_false: hits.hits.6._source.pattern_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.pattern_text: "a" }
   - match: { hits.hits.8._source.pattern_text: "a" }
   - match: { hits.hits.9._source.pattern_text: "a" }
@@ -4199,14 +4199,14 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
-  - is_false: hits.hits.1._source.geo_point
-  - is_false: hits.hits.2._source.geo_point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.geo_point: 2 }
   - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
-  - is_false: hits.hits.4._source.geo_point
-  - is_false: hits.hits.5._source.geo_point
-  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
@@ -4222,14 +4222,14 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
-  - is_false: hits.hits.1._source.geo_point
-  - is_false: hits.hits.2._source.geo_point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.geo_point: 2 }
   - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
-  - is_false: hits.hits.4._source.geo_point
-  - is_false: hits.hits.5._source.geo_point
-  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
@@ -4245,14 +4245,14 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
-  - is_false: hits.hits.1._source.geo_point
-  - is_false: hits.hits.2._source.geo_point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.geo_point: 2 }
   - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
-  - is_false: hits.hits.4._source.geo_point
-  - is_false: hits.hits.5._source.geo_point
-  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
@@ -4268,14 +4268,14 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
-  - is_false: hits.hits.1._source.geo_point
-  - is_false: hits.hits.2._source.geo_point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.geo_point: 2 }
   - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
-  - is_false: hits.hits.4._source.geo_point
-  - is_false: hits.hits.5._source.geo_point
-  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
@@ -4291,14 +4291,14 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
-  - is_false: hits.hits.1._source.geo_point
-  - is_false: hits.hits.2._source.geo_point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.geo_point: 2 }
   - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
-  - is_false: hits.hits.4._source.geo_point
-  - is_false: hits.hits.5._source.geo_point
-  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
@@ -4314,14 +4314,14 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
-  - is_false: hits.hits.1._source.geo_point
-  - is_false: hits.hits.2._source.geo_point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.geo_point: 2 }
   - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
-  - is_false: hits.hits.4._source.geo_point
-  - is_false: hits.hits.5._source.geo_point
-  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
@@ -4337,14 +4337,14 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
-  - is_false: hits.hits.1._source.geo_point
-  - is_false: hits.hits.2._source.geo_point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.geo_point: 2 }
   - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - contains: { hits.hits.3._source.geo_point: {"lat": 2.999999988824129, "lon": 3.9999999292194843} }
-  - is_false: hits.hits.4._source.geo_point
-  - is_false: hits.hits.5._source.geo_point
-  - is_false: hits.hits.6._source.geo_point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }

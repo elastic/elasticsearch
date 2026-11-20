@@ -365,12 +365,12 @@ synthetic source drops the null elements of a match_only_text field in logsdb_co
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.match_only_text: "a" }
-  - is_false: hits.hits.1._source.match_only_text
-  - is_false: hits.hits.2._source.match_only_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.match_only_text: ["a", "b"] }
-  - is_false: hits.hits.4._source.match_only_text
-  - is_false: hits.hits.5._source.match_only_text
-  - is_false: hits.hits.6._source.match_only_text
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.match_only_text: "a" }
   - match: { hits.hits.8._source.match_only_text: "a" }
   - match: { hits.hits.9._source.match_only_text: "a" }
@@ -386,12 +386,12 @@ synthetic source drops the null elements of a match_only_text field in logsdb_co
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.match_only_text: "a" }
-  - is_false: hits.hits.1._source.match_only_text
-  - is_false: hits.hits.2._source.match_only_text
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.match_only_text: ["a", "b"] }
-  - is_false: hits.hits.4._source.match_only_text
-  - is_false: hits.hits.5._source.match_only_text
-  - is_false: hits.hits.6._source.match_only_text
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.match_only_text: "a" }
   - match: { hits.hits.8._source.match_only_text: "a" }
   - match: { hits.hits.9._source.match_only_text: "a" }
@@ -449,12 +449,12 @@ synthetic source drops the null elements of a scaled_float field in logsdb_colum
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.scaled_float: 1.5 }
-  - is_false: hits.hits.1._source.scaled_float
-  - is_false: hits.hits.2._source.scaled_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.scaled_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.scaled_float
-  - is_false: hits.hits.5._source.scaled_float
-  - is_false: hits.hits.6._source.scaled_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.scaled_float: 1.5 }
   - match: { hits.hits.8._source.scaled_float: 1.5 }
   - match: { hits.hits.9._source.scaled_float: 1.5 }
@@ -470,12 +470,12 @@ synthetic source drops the null elements of a scaled_float field in logsdb_colum
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.scaled_float: 1.5 }
-  - is_false: hits.hits.1._source.scaled_float
-  - is_false: hits.hits.2._source.scaled_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.scaled_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.scaled_float
-  - is_false: hits.hits.5._source.scaled_float
-  - is_false: hits.hits.6._source.scaled_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.scaled_float: 1.5 }
   - match: { hits.hits.8._source.scaled_float: 1.5 }
   - match: { hits.hits.9._source.scaled_float: 1.5 }
@@ -491,12 +491,12 @@ synthetic source drops the null elements of a scaled_float field in logsdb_colum
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.scaled_float: 1.5 }
-  - is_false: hits.hits.1._source.scaled_float
-  - is_false: hits.hits.2._source.scaled_float
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.scaled_float: [1.5, 2.5] }
-  - is_false: hits.hits.4._source.scaled_float
-  - is_false: hits.hits.5._source.scaled_float
-  - is_false: hits.hits.6._source.scaled_float
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.scaled_float: 1.5 }
   - match: { hits.hits.8._source.scaled_float: 1.5 }
   - match: { hits.hits.9._source.scaled_float: 1.5 }
@@ -554,12 +554,12 @@ synthetic source drops the null elements of an unsigned_long field in logsdb_col
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.unsigned_long: 1 }
-  - is_false: hits.hits.1._source.unsigned_long
-  - is_false: hits.hits.2._source.unsigned_long
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.unsigned_long: [1, 2] }
-  - is_false: hits.hits.4._source.unsigned_long
-  - is_false: hits.hits.5._source.unsigned_long
-  - is_false: hits.hits.6._source.unsigned_long
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.unsigned_long: 1 }
   - match: { hits.hits.8._source.unsigned_long: 1 }
   - match: { hits.hits.9._source.unsigned_long: 1 }
@@ -575,12 +575,12 @@ synthetic source drops the null elements of an unsigned_long field in logsdb_col
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.unsigned_long: 1 }
-  - is_false: hits.hits.1._source.unsigned_long
-  - is_false: hits.hits.2._source.unsigned_long
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.unsigned_long: [1, 2] }
-  - is_false: hits.hits.4._source.unsigned_long
-  - is_false: hits.hits.5._source.unsigned_long
-  - is_false: hits.hits.6._source.unsigned_long
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.unsigned_long: 1 }
   - match: { hits.hits.8._source.unsigned_long: 1 }
   - match: { hits.hits.9._source.unsigned_long: 1 }
@@ -596,12 +596,12 @@ synthetic source drops the null elements of an unsigned_long field in logsdb_col
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.unsigned_long: 1 }
-  - is_false: hits.hits.1._source.unsigned_long
-  - is_false: hits.hits.2._source.unsigned_long
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.unsigned_long: [1, 2] }
-  - is_false: hits.hits.4._source.unsigned_long
-  - is_false: hits.hits.5._source.unsigned_long
-  - is_false: hits.hits.6._source.unsigned_long
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.unsigned_long: 1 }
   - match: { hits.hits.8._source.unsigned_long: 1 }
   - match: { hits.hits.9._source.unsigned_long: 1 }
@@ -672,12 +672,12 @@ synthetic source drops the null elements of a counted_keyword field in columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.counted_keyword: "a" }
-  - is_false: hits.hits.1._source.counted_keyword
-  - is_false: hits.hits.2._source.counted_keyword
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.counted_keyword: ["a", "b"] }
-  - is_false: hits.hits.4._source.counted_keyword
-  - is_false: hits.hits.5._source.counted_keyword
-  - is_false: hits.hits.6._source.counted_keyword
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.counted_keyword: "a" }
   - match: { hits.hits.8._source.counted_keyword: "a" }
   - match: { hits.hits.9._source.counted_keyword: "a" }
@@ -693,12 +693,12 @@ synthetic source drops the null elements of a counted_keyword field in columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.counted_keyword: "a" }
-  - is_false: hits.hits.1._source.counted_keyword
-  - is_false: hits.hits.2._source.counted_keyword
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.counted_keyword: ["a", "b"] }
-  - is_false: hits.hits.4._source.counted_keyword
-  - is_false: hits.hits.5._source.counted_keyword
-  - is_false: hits.hits.6._source.counted_keyword
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.counted_keyword: "a" }
   - match: { hits.hits.8._source.counted_keyword: "a" }
   - match: { hits.hits.9._source.counted_keyword: "a" }
@@ -714,12 +714,12 @@ synthetic source drops the null elements of a counted_keyword field in columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.counted_keyword: "a" }
-  - is_false: hits.hits.1._source.counted_keyword
-  - is_false: hits.hits.2._source.counted_keyword
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.counted_keyword: ["a", "b"] }
-  - is_false: hits.hits.4._source.counted_keyword
-  - is_false: hits.hits.5._source.counted_keyword
-  - is_false: hits.hits.6._source.counted_keyword
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.counted_keyword: "a" }
   - match: { hits.hits.8._source.counted_keyword: "a" }
   - match: { hits.hits.9._source.counted_keyword: "a" }
@@ -735,12 +735,12 @@ synthetic source drops the null elements of a counted_keyword field in columnar 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.counted_keyword: "a" }
-  - is_false: hits.hits.1._source.counted_keyword
-  - is_false: hits.hits.2._source.counted_keyword
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.counted_keyword: ["a", "b"] }
-  - is_false: hits.hits.4._source.counted_keyword
-  - is_false: hits.hits.5._source.counted_keyword
-  - is_false: hits.hits.6._source.counted_keyword
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.counted_keyword: "a" }
   - match: { hits.hits.8._source.counted_keyword: "a" }
   - match: { hits.hits.9._source.counted_keyword: "a" }
@@ -811,12 +811,12 @@ synthetic source drops the null elements of a geo_shape field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_shape: "POINT (1.0 2.0)" }
-  - is_false: hits.hits.1._source.geo_shape
-  - is_false: hits.hits.2._source.geo_shape
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.geo_shape: ["POINT (1.0 2.0)", "POINT (3.0 4.0)"] }
-  - is_false: hits.hits.4._source.geo_shape
-  - is_false: hits.hits.5._source.geo_shape
-  - is_false: hits.hits.6._source.geo_shape
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.8._source.geo_shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.9._source.geo_shape: "POINT (1.0 2.0)" }
@@ -832,12 +832,12 @@ synthetic source drops the null elements of a geo_shape field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_shape: "POINT (1.0 2.0)" }
-  - is_false: hits.hits.1._source.geo_shape
-  - is_false: hits.hits.2._source.geo_shape
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.geo_shape: ["POINT (1.0 2.0)", "POINT (3.0 4.0)"] }
-  - is_false: hits.hits.4._source.geo_shape
-  - is_false: hits.hits.5._source.geo_shape
-  - is_false: hits.hits.6._source.geo_shape
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.8._source.geo_shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.9._source.geo_shape: "POINT (1.0 2.0)" }
@@ -853,12 +853,12 @@ synthetic source drops the null elements of a geo_shape field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_shape: "POINT (1.0 2.0)" }
-  - is_false: hits.hits.1._source.geo_shape
-  - is_false: hits.hits.2._source.geo_shape
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.geo_shape: ["POINT (1.0 2.0)", "POINT (3.0 4.0)"] }
-  - is_false: hits.hits.4._source.geo_shape
-  - is_false: hits.hits.5._source.geo_shape
-  - is_false: hits.hits.6._source.geo_shape
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.8._source.geo_shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.9._source.geo_shape: "POINT (1.0 2.0)" }
@@ -874,12 +874,12 @@ synthetic source drops the null elements of a geo_shape field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.geo_shape: "POINT (1.0 2.0)" }
-  - is_false: hits.hits.1._source.geo_shape
-  - is_false: hits.hits.2._source.geo_shape
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.geo_shape: ["POINT (1.0 2.0)", "POINT (3.0 4.0)"] }
-  - is_false: hits.hits.4._source.geo_shape
-  - is_false: hits.hits.5._source.geo_shape
-  - is_false: hits.hits.6._source.geo_shape
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.geo_shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.8._source.geo_shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.9._source.geo_shape: "POINT (1.0 2.0)" }
@@ -950,14 +950,14 @@ synthetic source drops the null elements of a point field in columnar and logsdb
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.point: {"x": 1.0, "y": 2.0} }
-  - is_false: hits.hits.1._source.point
-  - is_false: hits.hits.2._source.point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.point: 2 }
   - contains: { hits.hits.3._source.point: {"x": 1.0, "y": 2.0} }
   - contains: { hits.hits.3._source.point: {"x": 3.0, "y": 4.0} }
-  - is_false: hits.hits.4._source.point
-  - is_false: hits.hits.5._source.point
-  - is_false: hits.hits.6._source.point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.point: {"x": 1.0, "y": 2.0} }
   - match: { hits.hits.8._source.point: {"x": 1.0, "y": 2.0} }
   - match: { hits.hits.9._source.point: {"x": 1.0, "y": 2.0} }
@@ -973,14 +973,14 @@ synthetic source drops the null elements of a point field in columnar and logsdb
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.point: {"x": 1.0, "y": 2.0} }
-  - is_false: hits.hits.1._source.point
-  - is_false: hits.hits.2._source.point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.point: 2 }
   - contains: { hits.hits.3._source.point: {"x": 1.0, "y": 2.0} }
   - contains: { hits.hits.3._source.point: {"x": 3.0, "y": 4.0} }
-  - is_false: hits.hits.4._source.point
-  - is_false: hits.hits.5._source.point
-  - is_false: hits.hits.6._source.point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.point: {"x": 1.0, "y": 2.0} }
   - match: { hits.hits.8._source.point: {"x": 1.0, "y": 2.0} }
   - match: { hits.hits.9._source.point: {"x": 1.0, "y": 2.0} }
@@ -996,14 +996,14 @@ synthetic source drops the null elements of a point field in columnar and logsdb
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.point: {"x": 1.0, "y": 2.0} }
-  - is_false: hits.hits.1._source.point
-  - is_false: hits.hits.2._source.point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.point: 2 }
   - contains: { hits.hits.3._source.point: {"x": 1.0, "y": 2.0} }
   - contains: { hits.hits.3._source.point: {"x": 3.0, "y": 4.0} }
-  - is_false: hits.hits.4._source.point
-  - is_false: hits.hits.5._source.point
-  - is_false: hits.hits.6._source.point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.point: {"x": 1.0, "y": 2.0} }
   - match: { hits.hits.8._source.point: {"x": 1.0, "y": 2.0} }
   - match: { hits.hits.9._source.point: {"x": 1.0, "y": 2.0} }
@@ -1019,14 +1019,14 @@ synthetic source drops the null elements of a point field in columnar and logsdb
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.point: {"x": 1.0, "y": 2.0} }
-  - is_false: hits.hits.1._source.point
-  - is_false: hits.hits.2._source.point
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.point: 2 }
   - contains: { hits.hits.3._source.point: {"x": 1.0, "y": 2.0} }
   - contains: { hits.hits.3._source.point: {"x": 3.0, "y": 4.0} }
-  - is_false: hits.hits.4._source.point
-  - is_false: hits.hits.5._source.point
-  - is_false: hits.hits.6._source.point
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.point: {"x": 1.0, "y": 2.0} }
   - match: { hits.hits.8._source.point: {"x": 1.0, "y": 2.0} }
   - match: { hits.hits.9._source.point: {"x": 1.0, "y": 2.0} }
@@ -1097,12 +1097,12 @@ synthetic source drops the null elements of a shape field in columnar and logsdb
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.shape: "POINT (1.0 2.0)" }
-  - is_false: hits.hits.1._source.shape
-  - is_false: hits.hits.2._source.shape
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.shape: ["POINT (1.0 2.0)", "POINT (3.0 4.0)"] }
-  - is_false: hits.hits.4._source.shape
-  - is_false: hits.hits.5._source.shape
-  - is_false: hits.hits.6._source.shape
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.8._source.shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.9._source.shape: "POINT (1.0 2.0)" }
@@ -1118,12 +1118,12 @@ synthetic source drops the null elements of a shape field in columnar and logsdb
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.shape: "POINT (1.0 2.0)" }
-  - is_false: hits.hits.1._source.shape
-  - is_false: hits.hits.2._source.shape
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.shape: ["POINT (1.0 2.0)", "POINT (3.0 4.0)"] }
-  - is_false: hits.hits.4._source.shape
-  - is_false: hits.hits.5._source.shape
-  - is_false: hits.hits.6._source.shape
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.8._source.shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.9._source.shape: "POINT (1.0 2.0)" }
@@ -1139,12 +1139,12 @@ synthetic source drops the null elements of a shape field in columnar and logsdb
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.shape: "POINT (1.0 2.0)" }
-  - is_false: hits.hits.1._source.shape
-  - is_false: hits.hits.2._source.shape
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.shape: ["POINT (1.0 2.0)", "POINT (3.0 4.0)"] }
-  - is_false: hits.hits.4._source.shape
-  - is_false: hits.hits.5._source.shape
-  - is_false: hits.hits.6._source.shape
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.8._source.shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.9._source.shape: "POINT (1.0 2.0)" }
@@ -1160,12 +1160,12 @@ synthetic source drops the null elements of a shape field in columnar and logsdb
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.shape: "POINT (1.0 2.0)" }
-  - is_false: hits.hits.1._source.shape
-  - is_false: hits.hits.2._source.shape
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - match: { hits.hits.3._source.shape: ["POINT (1.0 2.0)", "POINT (3.0 4.0)"] }
-  - is_false: hits.hits.4._source.shape
-  - is_false: hits.hits.5._source.shape
-  - is_false: hits.hits.6._source.shape
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.8._source.shape: "POINT (1.0 2.0)" }
   - match: { hits.hits.9._source.shape: "POINT (1.0 2.0)" }
@@ -1236,14 +1236,14 @@ synthetic source drops the null elements of an integer_range field in columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer_range: {"gte": 1, "lte": 2} }
-  - is_false: hits.hits.1._source.integer_range
-  - is_false: hits.hits.2._source.integer_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.integer_range: 2 }
   - contains: { hits.hits.3._source.integer_range: {"gte": 1, "lte": 2} }
   - contains: { hits.hits.3._source.integer_range: {"gte": 3, "lte": 4} }
-  - is_false: hits.hits.4._source.integer_range
-  - is_false: hits.hits.5._source.integer_range
-  - is_false: hits.hits.6._source.integer_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.8._source.integer_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.9._source.integer_range: {"gte": 1, "lte": 2} }
@@ -1259,14 +1259,14 @@ synthetic source drops the null elements of an integer_range field in columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer_range: {"gte": 1, "lte": 2} }
-  - is_false: hits.hits.1._source.integer_range
-  - is_false: hits.hits.2._source.integer_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.integer_range: 2 }
   - contains: { hits.hits.3._source.integer_range: {"gte": 1, "lte": 2} }
   - contains: { hits.hits.3._source.integer_range: {"gte": 3, "lte": 4} }
-  - is_false: hits.hits.4._source.integer_range
-  - is_false: hits.hits.5._source.integer_range
-  - is_false: hits.hits.6._source.integer_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.8._source.integer_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.9._source.integer_range: {"gte": 1, "lte": 2} }
@@ -1282,14 +1282,14 @@ synthetic source drops the null elements of an integer_range field in columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer_range: {"gte": 1, "lte": 2} }
-  - is_false: hits.hits.1._source.integer_range
-  - is_false: hits.hits.2._source.integer_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.integer_range: 2 }
   - contains: { hits.hits.3._source.integer_range: {"gte": 1, "lte": 2} }
   - contains: { hits.hits.3._source.integer_range: {"gte": 3, "lte": 4} }
-  - is_false: hits.hits.4._source.integer_range
-  - is_false: hits.hits.5._source.integer_range
-  - is_false: hits.hits.6._source.integer_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.8._source.integer_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.9._source.integer_range: {"gte": 1, "lte": 2} }
@@ -1305,14 +1305,14 @@ synthetic source drops the null elements of an integer_range field in columnar a
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.integer_range: {"gte": 1, "lte": 2} }
-  - is_false: hits.hits.1._source.integer_range
-  - is_false: hits.hits.2._source.integer_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.integer_range: 2 }
   - contains: { hits.hits.3._source.integer_range: {"gte": 1, "lte": 2} }
   - contains: { hits.hits.3._source.integer_range: {"gte": 3, "lte": 4} }
-  - is_false: hits.hits.4._source.integer_range
-  - is_false: hits.hits.5._source.integer_range
-  - is_false: hits.hits.6._source.integer_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.integer_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.8._source.integer_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.9._source.integer_range: {"gte": 1, "lte": 2} }
@@ -1383,14 +1383,14 @@ synthetic source drops the null elements of a long_range field in columnar and l
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.long_range: {"gte": 1, "lte": 2} }
-  - is_false: hits.hits.1._source.long_range
-  - is_false: hits.hits.2._source.long_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.long_range: 2 }
   - contains: { hits.hits.3._source.long_range: {"gte": 1, "lte": 2} }
   - contains: { hits.hits.3._source.long_range: {"gte": 3, "lte": 4} }
-  - is_false: hits.hits.4._source.long_range
-  - is_false: hits.hits.5._source.long_range
-  - is_false: hits.hits.6._source.long_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.long_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.8._source.long_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.9._source.long_range: {"gte": 1, "lte": 2} }
@@ -1406,14 +1406,14 @@ synthetic source drops the null elements of a long_range field in columnar and l
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.long_range: {"gte": 1, "lte": 2} }
-  - is_false: hits.hits.1._source.long_range
-  - is_false: hits.hits.2._source.long_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.long_range: 2 }
   - contains: { hits.hits.3._source.long_range: {"gte": 1, "lte": 2} }
   - contains: { hits.hits.3._source.long_range: {"gte": 3, "lte": 4} }
-  - is_false: hits.hits.4._source.long_range
-  - is_false: hits.hits.5._source.long_range
-  - is_false: hits.hits.6._source.long_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.long_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.8._source.long_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.9._source.long_range: {"gte": 1, "lte": 2} }
@@ -1429,14 +1429,14 @@ synthetic source drops the null elements of a long_range field in columnar and l
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.long_range: {"gte": 1, "lte": 2} }
-  - is_false: hits.hits.1._source.long_range
-  - is_false: hits.hits.2._source.long_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.long_range: 2 }
   - contains: { hits.hits.3._source.long_range: {"gte": 1, "lte": 2} }
   - contains: { hits.hits.3._source.long_range: {"gte": 3, "lte": 4} }
-  - is_false: hits.hits.4._source.long_range
-  - is_false: hits.hits.5._source.long_range
-  - is_false: hits.hits.6._source.long_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.long_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.8._source.long_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.9._source.long_range: {"gte": 1, "lte": 2} }
@@ -1452,14 +1452,14 @@ synthetic source drops the null elements of a long_range field in columnar and l
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.long_range: {"gte": 1, "lte": 2} }
-  - is_false: hits.hits.1._source.long_range
-  - is_false: hits.hits.2._source.long_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.long_range: 2 }
   - contains: { hits.hits.3._source.long_range: {"gte": 1, "lte": 2} }
   - contains: { hits.hits.3._source.long_range: {"gte": 3, "lte": 4} }
-  - is_false: hits.hits.4._source.long_range
-  - is_false: hits.hits.5._source.long_range
-  - is_false: hits.hits.6._source.long_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.long_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.8._source.long_range: {"gte": 1, "lte": 2} }
   - match: { hits.hits.9._source.long_range: {"gte": 1, "lte": 2} }
@@ -1530,14 +1530,14 @@ synthetic source drops the null elements of a float_range field in columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float_range: {"gte": 1.5, "lte": 2.5} }
-  - is_false: hits.hits.1._source.float_range
-  - is_false: hits.hits.2._source.float_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.float_range: 2 }
   - contains: { hits.hits.3._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - contains: { hits.hits.3._source.float_range: {"gte": 3.5, "lte": 4.5} }
-  - is_false: hits.hits.4._source.float_range
-  - is_false: hits.hits.5._source.float_range
-  - is_false: hits.hits.6._source.float_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.8._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.9._source.float_range: {"gte": 1.5, "lte": 2.5} }
@@ -1553,14 +1553,14 @@ synthetic source drops the null elements of a float_range field in columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float_range: {"gte": 1.5, "lte": 2.5} }
-  - is_false: hits.hits.1._source.float_range
-  - is_false: hits.hits.2._source.float_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.float_range: 2 }
   - contains: { hits.hits.3._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - contains: { hits.hits.3._source.float_range: {"gte": 3.5, "lte": 4.5} }
-  - is_false: hits.hits.4._source.float_range
-  - is_false: hits.hits.5._source.float_range
-  - is_false: hits.hits.6._source.float_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.8._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.9._source.float_range: {"gte": 1.5, "lte": 2.5} }
@@ -1576,14 +1576,14 @@ synthetic source drops the null elements of a float_range field in columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float_range: {"gte": 1.5, "lte": 2.5} }
-  - is_false: hits.hits.1._source.float_range
-  - is_false: hits.hits.2._source.float_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.float_range: 2 }
   - contains: { hits.hits.3._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - contains: { hits.hits.3._source.float_range: {"gte": 3.5, "lte": 4.5} }
-  - is_false: hits.hits.4._source.float_range
-  - is_false: hits.hits.5._source.float_range
-  - is_false: hits.hits.6._source.float_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.8._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.9._source.float_range: {"gte": 1.5, "lte": 2.5} }
@@ -1599,14 +1599,14 @@ synthetic source drops the null elements of a float_range field in columnar and 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.float_range: {"gte": 1.5, "lte": 2.5} }
-  - is_false: hits.hits.1._source.float_range
-  - is_false: hits.hits.2._source.float_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.float_range: 2 }
   - contains: { hits.hits.3._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - contains: { hits.hits.3._source.float_range: {"gte": 3.5, "lte": 4.5} }
-  - is_false: hits.hits.4._source.float_range
-  - is_false: hits.hits.5._source.float_range
-  - is_false: hits.hits.6._source.float_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.8._source.float_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.9._source.float_range: {"gte": 1.5, "lte": 2.5} }
@@ -1677,14 +1677,14 @@ synthetic source drops the null elements of a double_range field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double_range: {"gte": 1.5, "lte": 2.5} }
-  - is_false: hits.hits.1._source.double_range
-  - is_false: hits.hits.2._source.double_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.double_range: 2 }
   - contains: { hits.hits.3._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - contains: { hits.hits.3._source.double_range: {"gte": 3.5, "lte": 4.5} }
-  - is_false: hits.hits.4._source.double_range
-  - is_false: hits.hits.5._source.double_range
-  - is_false: hits.hits.6._source.double_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.8._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.9._source.double_range: {"gte": 1.5, "lte": 2.5} }
@@ -1700,14 +1700,14 @@ synthetic source drops the null elements of a double_range field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double_range: {"gte": 1.5, "lte": 2.5} }
-  - is_false: hits.hits.1._source.double_range
-  - is_false: hits.hits.2._source.double_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.double_range: 2 }
   - contains: { hits.hits.3._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - contains: { hits.hits.3._source.double_range: {"gte": 3.5, "lte": 4.5} }
-  - is_false: hits.hits.4._source.double_range
-  - is_false: hits.hits.5._source.double_range
-  - is_false: hits.hits.6._source.double_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.8._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.9._source.double_range: {"gte": 1.5, "lte": 2.5} }
@@ -1723,14 +1723,14 @@ synthetic source drops the null elements of a double_range field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double_range: {"gte": 1.5, "lte": 2.5} }
-  - is_false: hits.hits.1._source.double_range
-  - is_false: hits.hits.2._source.double_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.double_range: 2 }
   - contains: { hits.hits.3._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - contains: { hits.hits.3._source.double_range: {"gte": 3.5, "lte": 4.5} }
-  - is_false: hits.hits.4._source.double_range
-  - is_false: hits.hits.5._source.double_range
-  - is_false: hits.hits.6._source.double_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.8._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.9._source.double_range: {"gte": 1.5, "lte": 2.5} }
@@ -1746,14 +1746,14 @@ synthetic source drops the null elements of a double_range field in columnar and
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.double_range: {"gte": 1.5, "lte": 2.5} }
-  - is_false: hits.hits.1._source.double_range
-  - is_false: hits.hits.2._source.double_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.double_range: 2 }
   - contains: { hits.hits.3._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - contains: { hits.hits.3._source.double_range: {"gte": 3.5, "lte": 4.5} }
-  - is_false: hits.hits.4._source.double_range
-  - is_false: hits.hits.5._source.double_range
-  - is_false: hits.hits.6._source.double_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.8._source.double_range: {"gte": 1.5, "lte": 2.5} }
   - match: { hits.hits.9._source.double_range: {"gte": 1.5, "lte": 2.5} }
@@ -1824,14 +1824,14 @@ synthetic source drops the null elements of a date_range field in columnar and l
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
-  - is_false: hits.hits.1._source.date_range
-  - is_false: hits.hits.2._source.date_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.date_range: 2 }
   - contains: { hits.hits.3._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - contains: { hits.hits.3._source.date_range: {"gte": "2026-02-01T00:00:00.000Z", "lte": "2026-02-02T23:59:59.999Z"} }
-  - is_false: hits.hits.4._source.date_range
-  - is_false: hits.hits.5._source.date_range
-  - is_false: hits.hits.6._source.date_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - match: { hits.hits.8._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - match: { hits.hits.9._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
@@ -1847,14 +1847,14 @@ synthetic source drops the null elements of a date_range field in columnar and l
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
-  - is_false: hits.hits.1._source.date_range
-  - is_false: hits.hits.2._source.date_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.date_range: 2 }
   - contains: { hits.hits.3._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - contains: { hits.hits.3._source.date_range: {"gte": "2026-02-01T00:00:00.000Z", "lte": "2026-02-02T23:59:59.999Z"} }
-  - is_false: hits.hits.4._source.date_range
-  - is_false: hits.hits.5._source.date_range
-  - is_false: hits.hits.6._source.date_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - match: { hits.hits.8._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - match: { hits.hits.9._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
@@ -1870,14 +1870,14 @@ synthetic source drops the null elements of a date_range field in columnar and l
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
-  - is_false: hits.hits.1._source.date_range
-  - is_false: hits.hits.2._source.date_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.date_range: 2 }
   - contains: { hits.hits.3._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - contains: { hits.hits.3._source.date_range: {"gte": "2026-02-01T00:00:00.000Z", "lte": "2026-02-02T23:59:59.999Z"} }
-  - is_false: hits.hits.4._source.date_range
-  - is_false: hits.hits.5._source.date_range
-  - is_false: hits.hits.6._source.date_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - match: { hits.hits.8._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - match: { hits.hits.9._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
@@ -1893,14 +1893,14 @@ synthetic source drops the null elements of a date_range field in columnar and l
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
-  - is_false: hits.hits.1._source.date_range
-  - is_false: hits.hits.2._source.date_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.date_range: 2 }
   - contains: { hits.hits.3._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - contains: { hits.hits.3._source.date_range: {"gte": "2026-02-01T00:00:00.000Z", "lte": "2026-02-02T23:59:59.999Z"} }
-  - is_false: hits.hits.4._source.date_range
-  - is_false: hits.hits.5._source.date_range
-  - is_false: hits.hits.6._source.date_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - match: { hits.hits.8._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
   - match: { hits.hits.9._source.date_range: {"gte": "2026-01-01T00:00:00.000Z", "lte": "2026-01-02T23:59:59.999Z"} }
@@ -1971,14 +1971,14 @@ synthetic source drops the null elements of an ip_range field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
-  - is_false: hits.hits.1._source.ip_range
-  - is_false: hits.hits.2._source.ip_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.ip_range: 2 }
   - contains: { hits.hits.3._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - contains: { hits.hits.3._source.ip_range: {"gte": "10.0.1.0", "lte": "10.0.1.255"} }
-  - is_false: hits.hits.4._source.ip_range
-  - is_false: hits.hits.5._source.ip_range
-  - is_false: hits.hits.6._source.ip_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - match: { hits.hits.8._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - match: { hits.hits.9._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
@@ -1994,14 +1994,14 @@ synthetic source drops the null elements of an ip_range field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
-  - is_false: hits.hits.1._source.ip_range
-  - is_false: hits.hits.2._source.ip_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.ip_range: 2 }
   - contains: { hits.hits.3._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - contains: { hits.hits.3._source.ip_range: {"gte": "10.0.1.0", "lte": "10.0.1.255"} }
-  - is_false: hits.hits.4._source.ip_range
-  - is_false: hits.hits.5._source.ip_range
-  - is_false: hits.hits.6._source.ip_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - match: { hits.hits.8._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - match: { hits.hits.9._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
@@ -2017,14 +2017,14 @@ synthetic source drops the null elements of an ip_range field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
-  - is_false: hits.hits.1._source.ip_range
-  - is_false: hits.hits.2._source.ip_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.ip_range: 2 }
   - contains: { hits.hits.3._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - contains: { hits.hits.3._source.ip_range: {"gte": "10.0.1.0", "lte": "10.0.1.255"} }
-  - is_false: hits.hits.4._source.ip_range
-  - is_false: hits.hits.5._source.ip_range
-  - is_false: hits.hits.6._source.ip_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - match: { hits.hits.8._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - match: { hits.hits.9._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
@@ -2040,14 +2040,14 @@ synthetic source drops the null elements of an ip_range field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
-  - is_false: hits.hits.1._source.ip_range
-  - is_false: hits.hits.2._source.ip_range
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
   - length: { hits.hits.3._source.ip_range: 2 }
   - contains: { hits.hits.3._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - contains: { hits.hits.3._source.ip_range: {"gte": "10.0.1.0", "lte": "10.0.1.255"} }
-  - is_false: hits.hits.4._source.ip_range
-  - is_false: hits.hits.5._source.ip_range
-  - is_false: hits.hits.6._source.ip_range
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - match: { hits.hits.8._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
   - match: { hits.hits.9._source.ip_range: {"gte": "10.0.0.0", "lte": "10.0.0.255"} }
@@ -2115,11 +2115,11 @@ synthetic source drops the null elements of a histogram field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
-  - is_false: hits.hits.1._source.histogram
-  - is_false: hits.hits.2._source.histogram
-  - is_false: hits.hits.4._source.histogram
-  - is_false: hits.hits.5._source.histogram
-  - is_false: hits.hits.6._source.histogram
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
@@ -2135,11 +2135,11 @@ synthetic source drops the null elements of a histogram field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
-  - is_false: hits.hits.1._source.histogram
-  - is_false: hits.hits.2._source.histogram
-  - is_false: hits.hits.4._source.histogram
-  - is_false: hits.hits.5._source.histogram
-  - is_false: hits.hits.6._source.histogram
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
@@ -2155,11 +2155,11 @@ synthetic source drops the null elements of a histogram field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
-  - is_false: hits.hits.1._source.histogram
-  - is_false: hits.hits.2._source.histogram
-  - is_false: hits.hits.4._source.histogram
-  - is_false: hits.hits.5._source.histogram
-  - is_false: hits.hits.6._source.histogram
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
@@ -2175,11 +2175,11 @@ synthetic source drops the null elements of a histogram field in columnar and lo
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
-  - is_false: hits.hits.1._source.histogram
-  - is_false: hits.hits.2._source.histogram
-  - is_false: hits.hits.4._source.histogram
-  - is_false: hits.hits.5._source.histogram
-  - is_false: hits.hits.6._source.histogram
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.histogram: {"values": [1.0, 2.0], "counts": [1, 2]} }
@@ -2247,11 +2247,11 @@ synthetic source drops the null elements of an aggregate_metric_double field in 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
-  - is_false: hits.hits.1._source.aggregate_metric_double
-  - is_false: hits.hits.2._source.aggregate_metric_double
-  - is_false: hits.hits.4._source.aggregate_metric_double
-  - is_false: hits.hits.5._source.aggregate_metric_double
-  - is_false: hits.hits.6._source.aggregate_metric_double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
   - match: { hits.hits.8._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
   - match: { hits.hits.9._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
@@ -2267,11 +2267,11 @@ synthetic source drops the null elements of an aggregate_metric_double field in 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
-  - is_false: hits.hits.1._source.aggregate_metric_double
-  - is_false: hits.hits.2._source.aggregate_metric_double
-  - is_false: hits.hits.4._source.aggregate_metric_double
-  - is_false: hits.hits.5._source.aggregate_metric_double
-  - is_false: hits.hits.6._source.aggregate_metric_double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
   - match: { hits.hits.8._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
   - match: { hits.hits.9._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
@@ -2287,11 +2287,11 @@ synthetic source drops the null elements of an aggregate_metric_double field in 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
-  - is_false: hits.hits.1._source.aggregate_metric_double
-  - is_false: hits.hits.2._source.aggregate_metric_double
-  - is_false: hits.hits.4._source.aggregate_metric_double
-  - is_false: hits.hits.5._source.aggregate_metric_double
-  - is_false: hits.hits.6._source.aggregate_metric_double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
   - match: { hits.hits.8._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
   - match: { hits.hits.9._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
@@ -2307,11 +2307,11 @@ synthetic source drops the null elements of an aggregate_metric_double field in 
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
-  - is_false: hits.hits.1._source.aggregate_metric_double
-  - is_false: hits.hits.2._source.aggregate_metric_double
-  - is_false: hits.hits.4._source.aggregate_metric_double
-  - is_false: hits.hits.5._source.aggregate_metric_double
-  - is_false: hits.hits.6._source.aggregate_metric_double
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
   - match: { hits.hits.8._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
   - match: { hits.hits.9._source.aggregate_metric_double: {"min": 1.0, "max": 2.0} }
@@ -2379,11 +2379,11 @@ synthetic source drops the null elements of an exponential_histogram field in co
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
-  - is_false: hits.hits.1._source.exponential_histogram
-  - is_false: hits.hits.2._source.exponential_histogram
-  - is_false: hits.hits.4._source.exponential_histogram
-  - is_false: hits.hits.5._source.exponential_histogram
-  - is_false: hits.hits.6._source.exponential_histogram
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
   - match: { hits.hits.8._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
   - match: { hits.hits.9._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
@@ -2399,11 +2399,11 @@ synthetic source drops the null elements of an exponential_histogram field in co
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
-  - is_false: hits.hits.1._source.exponential_histogram
-  - is_false: hits.hits.2._source.exponential_histogram
-  - is_false: hits.hits.4._source.exponential_histogram
-  - is_false: hits.hits.5._source.exponential_histogram
-  - is_false: hits.hits.6._source.exponential_histogram
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
   - match: { hits.hits.8._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
   - match: { hits.hits.9._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
@@ -2419,11 +2419,11 @@ synthetic source drops the null elements of an exponential_histogram field in co
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
-  - is_false: hits.hits.1._source.exponential_histogram
-  - is_false: hits.hits.2._source.exponential_histogram
-  - is_false: hits.hits.4._source.exponential_histogram
-  - is_false: hits.hits.5._source.exponential_histogram
-  - is_false: hits.hits.6._source.exponential_histogram
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
   - match: { hits.hits.8._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
   - match: { hits.hits.9._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
@@ -2439,11 +2439,11 @@ synthetic source drops the null elements of an exponential_histogram field in co
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
-  - is_false: hits.hits.1._source.exponential_histogram
-  - is_false: hits.hits.2._source.exponential_histogram
-  - is_false: hits.hits.4._source.exponential_histogram
-  - is_false: hits.hits.5._source.exponential_histogram
-  - is_false: hits.hits.6._source.exponential_histogram
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
   - match: { hits.hits.8._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
   - match: { hits.hits.9._source.exponential_histogram: {"scale": 0, "sum": 0.0, "min": 0.0, "max": 0.0, "zero": {"count": 1}} }
@@ -2511,11 +2511,11 @@ synthetic source drops the null elements of a tdigest field in columnar and logs
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
-  - is_false: hits.hits.1._source.tdigest
-  - is_false: hits.hits.2._source.tdigest
-  - is_false: hits.hits.4._source.tdigest
-  - is_false: hits.hits.5._source.tdigest
-  - is_false: hits.hits.6._source.tdigest
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
@@ -2531,11 +2531,11 @@ synthetic source drops the null elements of a tdigest field in columnar and logs
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
-  - is_false: hits.hits.1._source.tdigest
-  - is_false: hits.hits.2._source.tdigest
-  - is_false: hits.hits.4._source.tdigest
-  - is_false: hits.hits.5._source.tdigest
-  - is_false: hits.hits.6._source.tdigest
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
@@ -2551,11 +2551,11 @@ synthetic source drops the null elements of a tdigest field in columnar and logs
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
-  - is_false: hits.hits.1._source.tdigest
-  - is_false: hits.hits.2._source.tdigest
-  - is_false: hits.hits.4._source.tdigest
-  - is_false: hits.hits.5._source.tdigest
-  - is_false: hits.hits.6._source.tdigest
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
@@ -2571,11 +2571,11 @@ synthetic source drops the null elements of a tdigest field in columnar and logs
 
   - length: { hits.hits: 10 }
   - match: { hits.hits.0._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
-  - is_false: hits.hits.1._source.tdigest
-  - is_false: hits.hits.2._source.tdigest
-  - is_false: hits.hits.4._source.tdigest
-  - is_false: hits.hits.5._source.tdigest
-  - is_false: hits.hits.6._source.tdigest
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.8._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }
   - match: { hits.hits.9._source.tdigest: {"min": 1.0, "max": 2.0, "sum": 5.0, "centroids": [1.0, 2.0], "counts": [1, 2]} }

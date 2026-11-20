@@ -291,16 +291,16 @@ synthetic source drops the null elements of a flattened field in every strict co
 
   - length: { hits.hits: 12 }
   - match: { hits.hits.0._source.f: {"k": "a"} }
-  - is_false: hits.hits.1._source.f
-  - is_false: hits.hits.2._source.f
-  - is_false: hits.hits.3._source.f
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source: {} }
   - match: { hits.hits.4._source.f: {"k": ["a", "b"]} }
   - match: { hits.hits.5._source.f: {"k": "a"} }
-  - is_false: hits.hits.6._source.f
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.f: {"k": {"x": "a"}} }
-  - is_false: hits.hits.8._source.f
-  - is_false: hits.hits.9._source.f
-  - is_false: hits.hits.10._source.f
+  - match: { hits.hits.8._source: {} }
+  - match: { hits.hits.9._source: {} }
+  - match: { hits.hits.10._source: {} }
 
   - do:
       search:
@@ -313,16 +313,16 @@ synthetic source drops the null elements of a flattened field in every strict co
 
   - length: { hits.hits: 12 }
   - match: { hits.hits.0._source.f: {"k": "a"} }
-  - is_false: hits.hits.1._source.f
-  - is_false: hits.hits.2._source.f
-  - is_false: hits.hits.3._source.f
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source: {} }
   - match: { hits.hits.4._source.f: {"k": ["a", "b"]} }
   - match: { hits.hits.5._source.f: {"k": "a"} }
-  - is_false: hits.hits.6._source.f
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.f: {"k": {"x": "a"}} }
-  - is_false: hits.hits.8._source.f
-  - is_false: hits.hits.9._source.f
-  - is_false: hits.hits.10._source.f
+  - match: { hits.hits.8._source: {} }
+  - match: { hits.hits.9._source: {} }
+  - match: { hits.hits.10._source: {} }
 
   - do:
       search:
@@ -335,16 +335,16 @@ synthetic source drops the null elements of a flattened field in every strict co
 
   - length: { hits.hits: 12 }
   - match: { hits.hits.0._source.f: {"k": "a"} }
-  - is_false: hits.hits.1._source.f
-  - is_false: hits.hits.2._source.f
-  - is_false: hits.hits.3._source.f
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source: {} }
   - match: { hits.hits.4._source.f: {"k": ["a", "b"]} }
   - match: { hits.hits.5._source.f: {"k": "a"} }
-  - is_false: hits.hits.6._source.f
+  - match: { hits.hits.6._source: {} }
   - match: { hits.hits.7._source.f: {"k": {"x": "a"}} }
-  - is_false: hits.hits.8._source.f
-  - is_false: hits.hits.9._source.f
-  - is_false: hits.hits.10._source.f
+  - match: { hits.hits.8._source: {} }
+  - match: { hits.hits.9._source: {} }
+  - match: { hits.hits.10._source: {} }
 
 ---
 dense_vector rejects a null coordinate in every strict columnar mode:

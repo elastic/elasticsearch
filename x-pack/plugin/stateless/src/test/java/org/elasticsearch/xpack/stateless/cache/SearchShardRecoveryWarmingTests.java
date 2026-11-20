@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryWaitOutcome;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -333,7 +332,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
                 SourceShardWarmingInfo.NOT_REQUESTED,
@@ -393,7 +392,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
                 SourceShardWarmingInfo.NOT_REQUESTED,
@@ -454,10 +453,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
-                Map.of(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
-                    new WarmTarget(1L, 1L, 1L)
-                ),
+                Map.of(new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)), new WarmTarget(1L, 1L, 1L)),
                 SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );

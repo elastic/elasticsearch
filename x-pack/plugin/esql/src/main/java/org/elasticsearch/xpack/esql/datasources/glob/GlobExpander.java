@@ -76,9 +76,9 @@ public final class GlobExpander {
     /**
      * Exact-string TEMPLATE splice and exact-prefix empty retry. Default false so this change can merge
      * without listing numeric {@code *} levels wider on snapshot. Tests set it true. Delete the field in
-     * the template-walk PR and keep the true path.
+     * <a href="https://github.com/elastic/esql-planning/issues/2739">#2739</a> and keep the true path.
      */
-    public static boolean TEMPLATE_EXACT_SPLICE = false;
+    public static volatile boolean TEMPLATE_EXACT_SPLICE = false;
 
     private GlobExpander() {}
 
@@ -794,7 +794,9 @@ public final class GlobExpander {
                 folderRange
             );
         } catch (IOException e) {
-            if (keepExactTemplatePrefix(partitionConfig) && isMissingPrefix(e)) {
+            // Only a rewritten prefix is a folder we invented. A bound on the original glob that throws
+            // is the storage's own missing directory and must not be mapped to empty.
+            if (rewritten && keepExactTemplatePrefix(partitionConfig) && isMissingPrefix(e)) {
                 narrowed = FileList.EMPTY;
             } else {
                 failure = e;
@@ -1668,7 +1670,7 @@ public final class GlobExpander {
             }, narrowFailure -> {
                 // Local-filesystem missing prefix is empty, same as the sync path and same as S3. Other listing
                 // IO still fails. Neither case lists the original glob.
-                if (keepExactPrefix && isMissingPrefix(narrowFailure)) {
+                if (finalRewritten && keepExactPrefix && isMissingPrefix(narrowFailure)) {
                     listener.onResponse(FileList.EMPTY);
                     return;
                 }
@@ -3635,8 +3637,10 @@ public final class GlobExpander {
                         continue;
                     }
                     if (TEMPLATE_EXACT_SPLICE) {
-                        // Only a string is the folder name itself. String.valueOf(6) would splice "6" and miss "06".
-                        if (values.get(0) instanceof String value && globExpressible(value)) {
+                        // Only a string that is the on-disk folder name. String.valueOf(6) would splice "6"
+                        // and miss "06". A decoded value ("a b") would splice a folder that is stored encoded
+                        // ("a%20b/") and the empty retry is now conclusive.
+                        if (values.get(0) instanceof String value && exactTemplateFolderName(value)) {
                             raw[rawIdx] = value;
                             changed = true;
                         }
@@ -4032,6 +4036,30 @@ public final class GlobExpander {
      */
     private static boolean globExpressible(String value) {
         return value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0;
+    }
+
+    /**
+     * A TEMPLATE splice must be the folder name on disk. {@link TemplatePartitionDetector} percent-decodes
+     * segments, so {@code region == "a b"} is the decoded value of {@code a%20b/} and {@code "a+b"} of
+     * {@code a%2Bb/}; splicing the decoded form lists a folder that does not exist and the empty retry is
+     * conclusive. Only RFC 3986 unreserved characters are a spelling a writer would leave unescaped;
+     * anything else stays {@code *} and the typed filter keeps the encoded match.
+     */
+    private static boolean exactTemplateFolderName(String value) {
+        if (globExpressible(value) == false) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (isUnreservedFolderChar(value.charAt(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** RFC 3986 unreserved: {@code ALPHA / DIGIT / "-" / "." / "_" / "~"}. */
+    private static boolean isUnreservedFolderChar(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~';
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {

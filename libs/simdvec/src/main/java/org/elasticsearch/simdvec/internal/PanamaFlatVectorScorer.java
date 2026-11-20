@@ -42,8 +42,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         return switch (vectorValues.getEncoding()) {
             case FLOAT32 -> new FloatScoringSupplier((FloatVectorValues) vectorValues, similarityFunction);
             case BYTE -> new ByteScoringSupplier((ByteVectorValues) vectorValues, similarityFunction);
-            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163176):
-            // Panama SIMD for IEEE FLOAT16
+            // panama doesn't support float16
             case FLOAT16 -> DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorerSupplier(similarityFunction, vectorValues);
         };
     }
@@ -82,8 +81,7 @@ public final class PanamaFlatVectorScorer implements FlatVectorsScorer {
         KnnVectorValues vectorValues,
         short[] target
     ) throws IOException {
-        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/163176):
-        // Panama SIMD for IEEE FLOAT16
+        // panama doesn't support float16
         return DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorer(similarityFunction, vectorValues, target);
     }
 

@@ -83,4 +83,22 @@ public class QueriesTests extends ESTestCase {
         assertThat(Queries.combine(clause, List.of(combination, randomFrom(queries))), sameInstance(combination));
         assertThat(Queries.combine(clause, List.of(nested, randomFrom(queries))), sameInstance(nested));
     }
+
+    /** A must clause also scores, so a bool that holds the query under another boost doesn't make it redundant. */
+    public void testCombineKeepsAMustQueryHeldUnderABoost() {
+        var scored = QueryBuilders.matchQuery("f", "v");
+        var unscored = QueryBuilders.boolQuery().must(scored).boost(0.0f);
+        var combination = Queries.combine(Queries.Clause.MUST, List.of(unscored, scored));
+
+        assertThat(combination, instanceOf(BoolQueryBuilder.class));
+        assertThat(((BoolQueryBuilder) combination).must(), equalTo(List.of(unscored, scored)));
+    }
+
+    /** A filter doesn't score, so the boost of the bool that holds it doesn't matter. */
+    public void testCombineSkipsAFilterQueryHeldUnderABoost() {
+        var filter = QueryBuilders.existsQuery("f");
+        var unscored = QueryBuilders.boolQuery().filter(filter).boost(0.0f);
+
+        assertThat(Queries.combine(Queries.Clause.FILTER, List.of(unscored, filter)), sameInstance(unscored));
+    }
 }

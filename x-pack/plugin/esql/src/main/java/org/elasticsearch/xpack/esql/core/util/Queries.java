@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -55,10 +56,14 @@ public class Queries {
         };
     }
 
-    /** Whether {@code query} is {@code required} or holds it as a clause of this kind, at any depth. */
+    /**
+     * Whether {@code query} is {@code required} or holds it as a clause of this kind, at any depth. A {@code must} clause also
+     * scores, so a bool whose boost changes that score doesn't count as requiring its {@code must} clauses.
+     */
     private static boolean requires(Clause clause, QueryBuilder query, QueryBuilder required) {
         return query.equals(required)
             || query instanceof BoolQueryBuilder bool
+                && (clause == Clause.FILTER || bool.boost() == AbstractQueryBuilder.DEFAULT_BOOST)
                 && clause.innerQueries.apply(bool).stream().anyMatch(q -> requires(clause, q, required));
     }
 }

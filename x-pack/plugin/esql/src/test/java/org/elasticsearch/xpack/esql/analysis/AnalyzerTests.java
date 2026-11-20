@@ -6568,6 +6568,38 @@ public class AnalyzerTests extends AnalyzerTestCase {
         }
     }
 
+    /**
+     * The result type of {@code TO_GAUGE} and {@code TO_COUNTER} depends on the type of their input, so an input they can't convert
+     * has no type to give a {@code null}. They stay strict.
+     */
+    public void testGaugeAndCounterOfImpossibleInputStillFail() {
+        for (String function : List.of("TO_GAUGE", "TO_COUNTER")) {
+            defaultMapping().minimumTransportVersion(TransportVersion.current())
+                .error("FROM test | EVAL x = " + function + "(first_name)", containsString("found value [first_name] type [keyword]"));
+        }
+    }
+
+    /**
+     * Same as {@link #testGaugeAndCounterOfImpossibleInputStillFail}, for a union-typed field where no type converts, or where one
+     * of the types isn't supported.
+     */
+    public void testGaugeAndCounterOfUnionWithImpossibleTypesStillFail() {
+        for (String otherType : List.of("keyword", "rank_feature")) {
+            FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", fieldResponseMap("value", "ip")),
+                    fieldCapabilitiesIndexResponse("bar", fieldResponseMap("value", otherType))
+                ),
+                List.of()
+            );
+            for (String function : List.of("TO_GAUGE", "TO_COUNTER")) {
+                analyzer().minimumTransportVersion(TransportVersion.current())
+                    .addIndex(mergedResolution("foo,bar", caps))
+                    .error("FROM foo, bar | EVAL x = " + function + "(value)", containsString("Cannot use field [value]"));
+            }
+        }
+    }
+
     public void testIntegerCastWithBaseFails() {
         defaultMapping().minimumTransportVersion(TransportVersion.current())
             .error(

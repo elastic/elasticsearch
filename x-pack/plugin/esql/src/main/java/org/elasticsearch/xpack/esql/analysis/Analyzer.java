@@ -137,6 +137,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertFu
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -4441,7 +4442,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(tcf)) {
                     return fa;
                 }
-                boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
+                boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST) && resultTypeDependsOnInput(convert) == false;
                 if (lenient) {
                     // The per-type conversions substitute surrogates, which drops invalid options instead of rejecting them.
                     Expression invalid = invalidOtherArguments(convert);
@@ -4495,7 +4496,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return createIfDoesNotAlreadyExist(fa, fa.field(), unionFieldAttributes);
                     }
 
-                    boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST);
+                    boolean lenient = context.minimumVersion().supports(ESQL_LENIENT_UNION_CAST)
+                        && resultTypeDependsOnInput(convert) == false;
                     if (lenient) {
                         // The conversions stored in the field substitute surrogates, which drops invalid options instead of rejecting them.
                         Expression invalid = invalidOtherArguments(convert);
@@ -5595,6 +5597,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
+     * Whether the type of the conversion's result depends on the type of its input, like {@code TO_GAUGE} and {@code TO_COUNTER}. An
+     * input they can't convert has no result type to give a {@code null}, so they stay strict instead of being lenient.
+     */
+    private static boolean resultTypeDependsOnInput(ConvertFunction convert) {
+        return convert instanceof ToGauge || convert instanceof ToCounter;
+    }
+
+    /**
      * A cast whose input has a single type the cast doesn't accept, like {@code ip_field::long}, {@code (a + b)::ip} or
      * {@code true::ip}, is {@code null}, with a warning, instead of failing the query. This matches the lenient casts of union-typed
      * fields in {@link ResolveUnionTypes}, and is gated with them, so every cast stays strict until every node supports it.
@@ -5602,7 +5612,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Runs last in its batch, so the rules that settle a cast first (union types, unmapped fields, implicit casts) see it.
      * A field of a type ES|QL doesn't support is {@code null} under a cast too, with a warning naming its original type.
      * Union-typed inputs keep their own handling. Functions that need a constant, {@code TO_LONG(x, base)} and
-     * {@code TO_INTEGER(x, base)}, and inputs of types a query can't return, like {@code date_period}, keep their errors.
+     * {@code TO_INTEGER(x, base)}, {@code TO_GAUGE} and {@code TO_COUNTER} (see {@link #resultTypeDependsOnInput}), and inputs of types
+     * a query can't return, like {@code date_period}, keep their errors.
      * </p>
      */
     private static class ResolveImpossibleCasts extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
@@ -5653,7 +5664,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static String impossibleInputType(ConvertFunction convert) {
             Expression cast = (Expression) convert;
-            if (cast.resolved() || parsesOnlyStrings(convert)) {
+            if (cast.resolved() || parsesOnlyStrings(convert) || resultTypeDependsOnInput(convert)) {
                 return null;
             }
             Expression input = convert.field();

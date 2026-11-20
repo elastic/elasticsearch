@@ -87,9 +87,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
      * and the matching password material is present in the current settings snapshot.
      */
     boolean canWrapForDisk() {
-        Settings s = settingsSupplier.get();
-        String id = ProjectEncryptionKeyPasswordSettings.getActivePasswordId(s);
-        return ProjectEncryptionKeyPasswordSettings.hasPassword(s, id);
+        return ProjectEncryptionKeyPasswordSettings.canWrapForDisk(settingsSupplier.get());
     }
 
     /**

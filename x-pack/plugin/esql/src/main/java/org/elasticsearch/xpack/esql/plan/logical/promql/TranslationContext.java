@@ -966,9 +966,12 @@ public record TranslationContext(
         return aggregates;
     }
 
-    /** Flattens a left-associative top-level {@code or} chain into branches; branch 0 has the highest precedence. */
+    /**
+     * Flattens a left-associative top-level {@code or} chain into branches; branch 0 has the highest precedence. An {@code or}
+     * with matching modifiers matches on its own labels, so it is a branch of its own.
+     */
     private static void flattenUnion(LogicalPlan node, List<LogicalPlan> branches) {
-        if (node instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+        if (node instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION && setOp.match() == VectorMatch.NONE) {
             flattenUnion(setOp.left(), branches);
             flattenUnion(setOp.right(), branches);
         } else {

@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 161751
+summary: Use more CPU threads for GPU HNSW graph builds
+type: enhancement

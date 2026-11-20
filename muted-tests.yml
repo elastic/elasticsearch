@@ -273,6 +273,14 @@ tests:
 - class: org.elasticsearch.search.internal.MultiTermBreakerWeightTests
   method: testClauseServedFromQueryCacheIsNotCharged
   issue: https://github.com/elastic/elasticsearch/issues/163523
+# Lucene 11 RandomIndexWriter update+merge can drop Lucene90 .dvm in
+# ByteBuffersDirectory (FileNotFoundException on commit). lucene_snapshot_11
+# only; same seed fails locally.
+- class: org.elasticsearch.compute.OperatorTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testQueryOperator
+  issue: https://github.com/elastic/elasticsearch/issues/166803
 # Maps match main (7/8/9) plus Lucene 11 .dvp. Mute until the blob-delete
 # await is confirmed without the extra wait+flush from 266fe044.
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT

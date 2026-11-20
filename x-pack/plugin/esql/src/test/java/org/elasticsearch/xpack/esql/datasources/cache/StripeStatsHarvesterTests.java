@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +61,12 @@ public class StripeStatsHarvesterTests extends ESTestCase {
         long firstRecordStart,
         int recordCount
     ) {
-        StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal);
+        StripeStatsHarvester harvester = new StripeStatsHarvester(
+            stripeSize,
+            fileFinal,
+            null,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+        );
         for (int i = 0; i < recordCount; i++) {
             long recordStart = firstRecordStart + (long) i * RECORD_BYTES;
             harvester.getOrCreate(harvester.ordinalOf(recordStart)).rows++;

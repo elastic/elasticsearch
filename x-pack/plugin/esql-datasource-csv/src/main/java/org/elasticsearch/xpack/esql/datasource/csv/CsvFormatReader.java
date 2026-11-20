@@ -1664,7 +1664,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String configFingerprint = computeConfigFingerprint();
         // Cold resolution publishes only the file size + identity (mtime, fingerprint); row/column
         // stats arrive later via the data-node capture → coordinator reconcile into SchemaCacheEntry.
-        SourceStatistics stats = TextFormatStats.build(Optional.empty(), sizeInBytes, schema);
+        // No cached stats, so this publishes no columns and the extremum width is never read.
+        SourceStatistics stats = TextFormatStats.build(Optional.empty(), sizeInBytes, schema, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
         Map<String, Object> baseSourceMetadata = Map.of(
             ExternalStats.MTIME_MILLIS_KEY,
             mtimeMillis,
@@ -2737,6 +2738,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
+            context.statsMaxExtremumBytes(),
             context.statsStripeSink(),
             context.informationalWarningSink()
         );
@@ -4445,6 +4447,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /** Canonical-stripe grid in bytes for per-stripe stats capture; {@code <= 0} disables it. */
         private final long statsStripeSize;
+        private final int statsMaxExtremumBytes;
         /**
          * How much per-stripe statistics this read harvests. {@link StripeColumnScope#NONE} harvests nothing;
          * {@link StripeColumnScope#COUNT} the per-stripe row count only; {@link StripeColumnScope#PROJECTED}
@@ -4529,6 +4532,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             long statsStripeSize,
             boolean statsFileFinal,
             StripeColumnScope statsColumnScope,
+            int statsMaxExtremumBytes,
             @Nullable StripeStatsSink statsStripeSink,
             @Nullable Consumer<String> warningSink
         ) {
@@ -4561,9 +4565,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.maxFieldChars = options.maxFieldSize() > 0 ? options.maxFieldSize() : Integer.MAX_VALUE;
             this.splitStartByte = splitStartByte;
             this.statsStripeSize = statsStripeSize;
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
-            this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink) : null;
+            this.stripeHarvester = statsStripeSize > 0
+                ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink, statsMaxExtremumBytes)
+                : null;
             // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
             // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
             this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
@@ -4888,7 +4895,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<Attribute> resolvedSchema,
             OptionalLong lengthSize
         ) {
-            SourceStatistics sourceStats = TextFormatStats.build(Optional.of(stats), lengthSize, resolvedSchema);
+            SourceStatistics sourceStats = TextFormatStats.build(Optional.of(stats), lengthSize, resolvedSchema, statsMaxExtremumBytes);
             Map<String, Object> base = new HashMap<>();
             base.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
             base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);

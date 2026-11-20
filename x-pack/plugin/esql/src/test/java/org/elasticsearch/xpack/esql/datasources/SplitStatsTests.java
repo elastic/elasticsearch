@@ -113,6 +113,15 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(0.0, SplitStats.mergedMax(-0.0, 0.0));
     }
 
+    public void testMergedMinMaxOrderSignedZeroAcrossFloatAndDouble() {
+        assertEquals(0.0, SplitStats.mergedMax(-0.0f, 0.0));
+        assertEquals(0.0, SplitStats.mergedMax(0.0, -0.0f));
+        assertEquals(-0.0, SplitStats.mergedMin(0.0f, -0.0));
+        assertEquals(-0.0, SplitStats.mergedMin(-0.0, 0.0f));
+        assertEquals(0.0, SplitStats.mergedMax(SplitStats.mergedMax(Double.NaN, -0.0f), 0.0));
+        assertEquals(-0.0, SplitStats.mergedMin(SplitStats.mergedMin(Double.NaN, 0.0f), -0.0));
+    }
+
     public void testValueCountWireGatedByTransportVersion() throws IOException {
         // valueCount is gated on a transport version. A peer at an older version (that still serializes
         // SplitStats, e.g. ESQL_SPLIT_STATS_COMPACT) must not see the field; it defaults to -1 so COUNT(col)

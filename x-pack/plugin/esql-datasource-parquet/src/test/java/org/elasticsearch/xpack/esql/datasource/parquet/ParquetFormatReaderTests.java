@@ -12650,7 +12650,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertEquals(Optional.of((double) values.length), d.maxValue());
     }
 
-    public void testFileBoundsOfTotalOrderColumnOfOnlyNaNAreNaN() throws Exception {
+    public void testFileBoundsOfTotalOrderColumnOfOnlyNaNAreNotServed() throws Exception {
         double[] values = new double[2400];
         Arrays.fill(values, Double.NaN);
         byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
@@ -12658,8 +12658,78 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
 
-        assertEquals(Optional.of(Double.NaN), d.minValue());
-        assertEquals(Optional.of(Double.NaN), d.maxValue());
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    public void testSplitBoundsOfTotalOrderColumnOfOnlyNaNAreNotPublished() throws Exception {
+        double[] values = new double[2400];
+        Arrays.fill(values, Double.NaN);
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = new ParquetFormatReader(blockFactory).discoverSplitRanges(
+            createStorageObject(parquetData)
+        );
+
+        assertThat(ranges.size(), greaterThan(0));
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            assertFalse(stats.containsKey("_stats.columns.d.min"));
+            assertFalse(stats.containsKey("_stats.columns.d.max"));
+            assertNotNull(stats.get("_stats.columns.d.null_count"));
+        }
+    }
+
+    public void testFileBoundsServeTheMaximumWhenOnlyTheMinimumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { 0.0, 5.0, 100.0 });
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.of(100.0), d.maxValue());
+    }
+
+    public void testFileBoundsServeTheMinimumWhenOnlyTheMaximumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { -100.0, -5.0, 0.0 });
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(-100.0), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    public void testSplitBoundsServeTheMaximumWhenOnlyTheMinimumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { 0.0, 5.0, 100.0 });
+
+        Map<String, Object> stats = new ParquetFormatReader(blockFactory).discoverSplitRanges(createStorageObject(parquetData))
+            .getFirst()
+            .statistics();
+
+        assertFalse(stats.containsKey("_stats.columns.d.min"));
+        assertEquals(100.0, stats.get("_stats.columns.d.max"));
+        assertEquals(0L, stats.get("_stats.columns.d.null_count"));
+    }
+
+    public void testSplitBoundsServeTheMinimumWhenOnlyTheMaximumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { -100.0, -5.0, 0.0 });
+
+        Map<String, Object> stats = new ParquetFormatReader(blockFactory).discoverSplitRanges(createStorageObject(parquetData))
+            .getFirst()
+            .statistics();
+
+        assertEquals(-100.0, stats.get("_stats.columns.d.min"));
+        assertFalse(stats.containsKey("_stats.columns.d.max"));
+        assertEquals(0L, stats.get("_stats.columns.d.null_count"));
+    }
+
+    public void testZeroBoundOfADecimalColumnIsServable() {
+        PrimitiveType decimal = Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.decimalType(2, 10))
+            .named("x");
+
+        assertFalse(ParquetFormatReader.isUnservableFloatingBound(0.0, decimal));
+        assertFalse(ParquetFormatReader.isUnservableMinBound(0.0, 5.0, decimal));
+        assertFalse(ParquetFormatReader.isUnservableMaxBound(-5.0, 0.0, decimal));
     }
 
     public void testRowGroupBoundsOfOnlyNaNAreServableOnlyUnderTotalOrderAndOneSign() {
@@ -12672,20 +12742,27 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .columnOrder(ColumnOrder.typeDefined())
             .named("x");
 
-        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(Double.NaN, Double.NaN, totalOrder));
-        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(negativeNaN, negativeNaN, totalOrder));
-        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(Float.NaN, Float.NaN, totalOrder));
-        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(negativeFloatNaN, negativeFloatNaN, totalOrder));
-        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(negativeNaN, Double.NaN, totalOrder));
-        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(negativeFloatNaN, Float.NaN, totalOrder));
-        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(1.0, Double.NaN, totalOrder));
-        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(Double.NaN, 1.0, totalOrder));
-        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(Double.NaN, Double.NaN, typeDefined));
-        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(1.0, Double.NaN, typeDefined));
-        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(1.0, 2.0, totalOrder));
-        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(1.0, 2.0, typeDefined));
-        assertTrue(ParquetFormatReader.isUnservableFloatingBounds(0.0, 2.0, typeDefined));
-        assertFalse(ParquetFormatReader.isUnservableFloatingBounds(0.0, 2.0, totalOrder));
+        assertUnservable(Double.NaN, Double.NaN, totalOrder, false, false);
+        assertUnservable(negativeNaN, negativeNaN, totalOrder, false, false);
+        assertUnservable(Float.NaN, Float.NaN, totalOrder, false, false);
+        assertUnservable(negativeFloatNaN, negativeFloatNaN, totalOrder, false, false);
+        assertUnservable(negativeNaN, Double.NaN, totalOrder, true, true);
+        assertUnservable(negativeFloatNaN, Float.NaN, totalOrder, true, true);
+        assertUnservable(1.0, Double.NaN, totalOrder, false, true);
+        assertUnservable(Double.NaN, 1.0, totalOrder, true, false);
+        assertUnservable(Double.NaN, Double.NaN, typeDefined, true, true);
+        assertUnservable(1.0, Double.NaN, typeDefined, false, true);
+        assertUnservable(1.0, 2.0, totalOrder, false, false);
+        assertUnservable(1.0, 2.0, typeDefined, false, false);
+        assertUnservable(0.0, 2.0, typeDefined, true, false);
+        assertUnservable(-2.0, 0.0, typeDefined, false, true);
+        assertUnservable(0.0, 2.0, totalOrder, false, false);
+    }
+
+    private static void assertUnservable(Object min, Object max, PrimitiveType type, boolean minUnservable, boolean maxUnservable) {
+        String label = "min=" + min + " max=" + max + " order=" + type.columnOrder();
+        assertEquals("min of " + label, minUnservable, ParquetFormatReader.isUnservableMinBound(min, max, type));
+        assertEquals("max of " + label, maxUnservable, ParquetFormatReader.isUnservableMaxBound(min, max, type));
     }
 
     public void testFileBoundsSkipNaNWhenEveryRowGroupHoldsAFiniteValue() throws Exception {

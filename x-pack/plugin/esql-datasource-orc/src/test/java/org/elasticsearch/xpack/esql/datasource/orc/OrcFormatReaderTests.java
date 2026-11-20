@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -86,6 +87,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -637,6 +639,23 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals("orc", metadata.sourceType());
+    }
+
+    public void testDoubleStatisticsNeverServeANaNBound() throws Exception {
+        for (double[] values : new double[][] { { Double.NaN, 1.0, 2.0 }, { 1.0, Double.NaN, 2.0 }, { Double.NaN, Double.NaN } }) {
+            TypeDescription schema = TypeDescription.createStruct().addField("d", TypeDescription.createDouble());
+            byte[] orcData = createOrcFile(schema, batch -> {
+                batch.size = values.length;
+                System.arraycopy(values, 0, ((DoubleColumnVector) batch.cols[0]).vector, 0, values.length);
+            });
+
+            SourceMetadata metadata = new OrcFormatReader(blockFactory).metadata(createStorageObject(orcData));
+            SourceStatistics.ColumnStatistics d = metadata.statistics().get().columnStatistics().get().get("d");
+
+            String label = Arrays.toString(values);
+            d.minValue().ifPresent(min -> assertFalse("min of " + label, Double.isNaN((Double) min)));
+            d.maxValue().ifPresent(max -> assertFalse("max of " + label, Double.isNaN((Double) max)));
+        }
     }
 
     public void testReadNullValuesInColumns() throws Exception {

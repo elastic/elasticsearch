@@ -522,7 +522,8 @@ public final class SplitStats implements org.elasticsearch.xpack.esql.datasource
         // Remaining pairs: Integer, Float, Double — all safely promotable to double
         if (a instanceof Number na && b instanceof Number nb) {
             double da = na.doubleValue(), db = nb.doubleValue();
-            return (selectMin ? da <= db : da >= db) ? da : db;
+            int cmp = Double.compare(da, db);
+            return (selectMin ? cmp <= 0 : cmp >= 0) ? da : db;
         }
         return null;
     }

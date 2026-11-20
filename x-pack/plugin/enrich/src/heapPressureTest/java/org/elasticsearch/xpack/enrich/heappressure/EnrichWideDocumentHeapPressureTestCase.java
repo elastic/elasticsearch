@@ -36,18 +36,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * Base class for the enrich heap pressure scenarios. A bulk of small documents goes through a pipeline whose {@code enrich} processor
- * matches a very wide document (10,000 numeric fields): every document of the bulk expands to a boxed map of about 1 MB plus a
- * re-serialized source of about 270 KB while the coordinating indexing pressure keeps charging the pre-ingest wire size. Nothing bounds
- * the expanded documents on the ingest node: each document that completes the pipeline retains its re-serialized source until the whole
- * bulk moves on to the primary, so the 2,048-document bulk (about 540 MB of re-serialized sources) must exhaust the ingest node's
- * 512 MB heap by arithmetic alone, independent of GC timing. All scenarios are expected to fail until expansion is bounded.
+ * Base class for the enrich heap pressure scenarios (incident-management#2018): a bulk of 2,048 small documents goes through an
+ * {@code enrich} processor that adds 10,000 fields to each, far more than the ingest node's 512 MB heap can hold. The bulk must come
+ * back with only 2xx or 429 items, and the ingest node must survive.
  *
- * <p>Two nodes: node 0 is ingest only and takes the REST traffic, so every lookup response crosses the transport; node 1 holds the
- * enrich index and the target index on a larger heap so that it does not die first while serving 128-hit responses.
- *
- * <p>Each scenario is its own class, because a node that died cannot be reused by a second test method and the source set gives every
- * class its own cluster.
+ * <p>Node 0 is ingest only and takes the REST traffic; node 1 holds the enrich and target indices on a larger heap. Each scenario is
+ * its own class because a dead node cannot be reused.
  */
 public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestCase {
 
@@ -57,12 +51,7 @@ public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestC
     protected static final String PIPELINE = "wide-pipeline";
     /** Fields per enrich source document; the width that makes each expanded document about a megabyte. */
     protected static final int FIELD_COUNT = 10_000;
-    /**
-     * Enrich source documents, and documents in the bulk under test: one source document per distinct key of the distinct-keys
-     * scenario. Each bulk document that completes the pipeline retains a re-serialized source of about 270 KB until the whole bulk is
-     * handed to the primary, so 2,048 documents demand about 540 MB on the ingest node's 512 MB heap: the live set exceeds the heap at
-     * around document 1,800, and the node dies no matter how the collector schedules.
-     */
+    /** Enrich source documents and bulk documents. Enriched, they need about 540 MB, more than the ingest node's heap. */
     protected static final int DOC_COUNT = 2048;
     /** Documents per upload bulk: about 10 MB per request, under the default 100 MB body limit. */
     private static final int UPLOAD_BULK_SIZE = 32;
@@ -83,6 +72,9 @@ public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestC
         // 2,048-document bulk with a 429 before it expands. Production reaches the same accumulation through many concurrent bulks,
         // which the single bulk of the test stands in for; the larger queue makes the accepted-document count deterministic.
         .setting("enrich.coordinator_proxy.queue_capacity", "4096")
+        // Only charged bytes count towards the parent breaker. Real memory accounting would also trip on uncharged memory, which hides
+        // the accounting gaps these tests look for. Production runs with the default (true); the test is deliberately stricter.
+        .setting("indices.breaker.total.use_real_memory", "false")
         // Ingest only, with the search pool of a 4-vCPU pod (7 threads), so up to 7 lookup responses are expanded at once.
         // The 512 MB heap is what the bulk sizes of the scenarios are calibrated against (the test-clusters default today,
         // pinned so a default change does not silently resize the scenario).
@@ -136,10 +128,7 @@ public abstract class EnrichWideDocumentHeapPressureTestCase extends ESRestTestC
     /** Whether one document goes through the pipeline, and is acknowledged, before the bulk, so that its key is a cache hit. */
     protected abstract boolean primeCache();
 
-    /**
-     * Runs the scenario: builds the enrich index and the pipeline, optionally primes the cache, then sends the bulk and asserts that
-     * every item was accepted or rejected with a 429 and that node 0 still answers.
-     */
+    /** Sends the bulk and asserts that every item is 2xx or 429 and that node 0 still answers. */
     protected void runScenario() throws Exception {
         setUpEnrichIndexAndPipeline();
         if (primeCache()) {

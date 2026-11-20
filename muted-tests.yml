@@ -717,11 +717,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testClosingNodeShouldWaitForOngoingMerge
   issue: https://github.com/elastic/elasticsearch/issues/166623
-- class: org.elasticsearch.xpack.search.AsyncSearchAggregationChargeIT
-  tasks:
-  - :x-pack:plugin:async-search:internalClusterTest
-  method: testChargeIsReleasedOnceTheTaskStoredItsResponse
-  issue: https://github.com/elastic/elasticsearch/issues/166638
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -752,3 +747,13 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testRerouteBasedOnEstimatedHeapUsage
   issue: https://github.com/elastic/elasticsearch/issues/166784
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=indices.sort/50_sort_expression/Sort expression configures the index sort}
+  issue: https://github.com/elastic/elasticsearch/issues/166730
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskASHVectorsFormatTests
+  tasks:
+  - :server:test
+  method: testDimsDerivedConfigFollowsFieldDimension
+  issue: https://github.com/elastic/elasticsearch/issues/166795

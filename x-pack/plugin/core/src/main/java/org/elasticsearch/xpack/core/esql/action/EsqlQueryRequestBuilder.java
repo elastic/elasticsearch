@@ -50,13 +50,15 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
 
     /**
      * Equivalent of the {@code include_ccs_metadata} request parameter: report {@link EsqlResponse#clusters()} for cross-cluster
-     * queries.
+     * queries. Call at most one of this and {@link #includeExecutionMetadata}: the server rejects a request that sets both, even
+     * when one of them is {@code false}.
      */
     public abstract EsqlQueryRequestBuilder<Request, Response> includeCcsMetadata(boolean include);
 
     /**
      * Equivalent of the {@code include_execution_metadata} request parameter: report {@link EsqlResponse#clusters()} for every query,
-     * including local-only ones. Cannot be combined with {@link #includeCcsMetadata}.
+     * including local-only ones. Call at most one of this and {@link #includeCcsMetadata}: the server rejects a request that sets
+     * both, even when one of them is {@code false}.
      */
     public abstract EsqlQueryRequestBuilder<Request, Response> includeExecutionMetadata(boolean include);
 

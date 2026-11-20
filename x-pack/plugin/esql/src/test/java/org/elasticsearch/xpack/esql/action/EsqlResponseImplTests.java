@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -76,7 +77,23 @@ public class EsqlResponseImplTests extends ESTestCase {
         assertThat(clusters(null), empty());
     }
 
+    public void testPartialFailureReportsClustersWithoutMetadataRequested() {
+        EsqlExecutionInfo info = new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.NEVER);
+        // swapCluster marks the info partial because the new cluster is PARTIAL
+        info.swapCluster(
+            "remote1",
+            (k, v) -> new EsqlExecutionInfo.Cluster.Builder(
+                EsqlExecutionInfoTests.createEsqlExecutionInfoCluster(k, "logs-*", EsqlExecutionInfo.Cluster.Status.PARTIAL)
+            ).addFailures(List.of(new ShardSearchFailure(new IllegalStateException("shard failure")))).build()
+        );
+        assertTrue(info.isPartial());
+
+        assertThat(clusters(info), contains(new EsqlClusterInfo("remote1", "logs-*", EsqlClusterInfo.Status.PARTIAL)));
+    }
+
     public void testEveryClusterStatusIsMapped() {
+        // valueOf throws for any EsqlExecutionInfo.Cluster.Status constant without a core EsqlClusterInfo.Status mirror,
+        // so this fails when a status is added to the server enum but not to the core one.
         for (EsqlExecutionInfo.Cluster.Status status : EsqlExecutionInfo.Cluster.Status.values()) {
             assertEquals(status.name(), EsqlClusterInfo.Status.valueOf(status.name()).name());
         }

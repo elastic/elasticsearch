@@ -833,32 +833,16 @@ public class JobConfigProvider {
             config.getCloudInternalCredential() != null
         );
         Client probeClient = credentialManagerSupplier.get().wrapClient(client, effectiveConfig.getCloudInternalCredential());
-        ActionListener<Boolean> sourceTimeFieldProbe = plan.sourceTimeField()
-            ? ActionListener.wrap(
-                ok -> esqlQueryValidator.validateSourceTimeField(
-                    probeClient,
-                    headers,
-                    effectiveConfig.getEsqlQuery(),
-                    effectiveConfig.getProjectRouting(),
-                    effectiveConfig.getSourceTimeField(),
-                    listener,
-                    effectiveConfig.getId()
-                ),
-                listener::onFailure
-            )
-            : listener;
-        if (plan.columns() == false) {
-            sourceTimeFieldProbe.onResponse(Boolean.TRUE);
-            return;
-        }
         esqlQueryValidator.validateQuery(
             probeClient,
             headers,
             effectiveConfig.getEsqlQuery(),
             effectiveConfig.getProjectRouting(),
             job.getDataDescription().getTimeField(),
+            effectiveConfig.getSourceTimeField(),
             EsqlDatafeedQueryValidator.requiredSummaryCountField(effectiveConfig, job),
-            sourceTimeFieldProbe,
+            DatafeedConfig.isCPSAllowed(crossProjectModeDecider),
+            listener,
             effectiveConfig.getId()
         );
     }

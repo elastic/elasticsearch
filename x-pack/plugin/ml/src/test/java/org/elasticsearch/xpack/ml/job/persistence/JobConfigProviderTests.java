@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDatafeedQueryValidator;
 import org.junit.Before;
-import org.mockito.InOrder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,19 +48,19 @@ import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUti
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/** Drives {@link JobConfigProvider#validateDatafeedJobAndEsqlQuery}: job lookup, required-columns probe, source-time-field probe. */
+/** Drives {@link JobConfigProvider#validateDatafeedJobAndEsqlQuery}: job lookup and the ES|QL DESCRIBE probe. */
 public class JobConfigProviderTests extends ESTestCase {
 
     private static final String ESQL_QUERY = "FROM logs-* | STATS c = COUNT(*) BY time = BUCKET(@timestamp, 1h)";
@@ -122,18 +121,11 @@ public class JobConfigProviderTests extends ESTestCase {
     }
 
     /** Completes the {@code validateQuery} probe with {@code failure}, or successfully when it is null. */
-    private void stubColumnsProbe(Exception failure) {
+    private void stubProbe(Exception failure) {
         doAnswer(invocation -> {
-            complete(invocation.getArgument(6), failure);
+            complete(invocation.getArgument(8), failure);
             return null;
-        }).when(queryValidator).validateQuery(any(), any(), anyString(), any(), anyString(), any(), any(), any());
-    }
-
-    private void stubSourceTimeFieldProbe(Exception failure) {
-        doAnswer(invocation -> {
-            complete(invocation.getArgument(5), failure);
-            return null;
-        }).when(queryValidator).validateSourceTimeField(any(), any(), anyString(), any(), anyString(), any(), any());
+        }).when(queryValidator).validateQuery(any(), any(), anyString(), any(), anyString(), any(), any(), anyBoolean(), any(), any());
     }
 
     private static void complete(ActionListener<Boolean> listener, Exception failure) {
@@ -180,40 +172,34 @@ public class JobConfigProviderTests extends ESTestCase {
         verifyNoInteractions(queryValidator, credentialManager);
     }
 
-    public void testValidateDatafeedJobWhenRequiredColumnsProbeFailsShouldNotRunSourceTimeFieldProbe() {
-        ElasticsearchStatusException columnsFailure = new ElasticsearchStatusException("missing time column", RestStatus.BAD_REQUEST);
-        stubColumnsProbe(columnsFailure);
+    public void testValidateDatafeedJobWhenProbeFailsShouldFailValidation() {
+        ElasticsearchStatusException probeFailure = new ElasticsearchStatusException("missing time column", RestStatus.BAD_REQUEST);
+        stubProbe(probeFailure);
         stubWrapClientWithoutCredential(client);
 
-        assertThat(validateExpectingFailure(newProvider(false), newEsqlDatafeed().build()), sameInstance(columnsFailure));
-
-        verify(queryValidator, never()).validateSourceTimeField(any(), any(), anyString(), any(), anyString(), any(), any());
+        assertThat(validateExpectingFailure(newProvider(false), newEsqlDatafeed().build()), sameInstance(probeFailure));
     }
 
-    public void testValidateDatafeedJobWhenSourceTimeFieldProbeFailsShouldFailValidation() {
-        ElasticsearchStatusException sourceTimeFailure = new ElasticsearchStatusException("not a date", RestStatus.BAD_REQUEST);
-        stubColumnsProbe(null);
-        stubSourceTimeFieldProbe(sourceTimeFailure);
-        stubWrapClientWithoutCredential(client);
-
-        assertThat(validateExpectingFailure(newProvider(false), newEsqlDatafeed().build()), sameInstance(sourceTimeFailure));
-    }
-
-    public void testValidateDatafeedJobWhenBothProbesSucceedShouldProbeColumnsFirstWithGivenHeaders() {
-        stubColumnsProbe(null);
-        stubSourceTimeFieldProbe(null);
+    public void testValidateDatafeedJobWhenProbeSucceedsShouldProbeOnceWithGivenHeaders() {
+        stubProbe(null);
         stubWrapClientWithoutCredential(client);
 
         validateExpectingSuccess(newProvider(false), newEsqlDatafeed().setProjectRouting("_alias:prod-*").build());
 
-        // cross-project search is off, so the project routing is not applied to the probes
-        InOrder inOrder = inOrder(queryValidator);
-        inOrder.verify(queryValidator)
-            .validateQuery(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("time"), eq("c"), any(), eq("df"));
-        verify(queryValidator, never()).validateQuery(any(), any(), anyString(), any(), anyString(), any(), any());
-        inOrder.verify(queryValidator)
-            .validateSourceTimeField(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("@timestamp"), any(), eq("df"));
-        inOrder.verifyNoMoreInteractions();
+        // cross-project search is off, so the project routing is not applied to the probe
+        verify(queryValidator).validateQuery(
+            same(client),
+            eq(HEADERS),
+            eq(ESQL_QUERY),
+            eq(null),
+            eq("time"),
+            eq("@timestamp"),
+            eq("c"),
+            eq(false),
+            any(),
+            eq("df")
+        );
+        verifyNoMoreInteractions(queryValidator);
     }
 
     private void validateUpdateExpectingSuccess(JobConfigProvider provider, DatafeedConfig current, DatafeedConfig updated) {
@@ -234,8 +220,8 @@ public class JobConfigProviderTests extends ESTestCase {
         verifyNoInteractions(queryValidator);
     }
 
-    public void testValidateDatafeedUpdateWhenOnlySummaryCountRequirementChangesShouldProbeColumnsOnly() {
-        stubColumnsProbe(null);
+    public void testValidateDatafeedUpdateWhenOnlySummaryCountRequirementChangesShouldProbe() {
+        stubProbe(null);
         stubWrapClientWithoutCredential(client);
         DatafeedConfig current = newEsqlDatafeed().setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig())
             .build();
@@ -245,33 +231,37 @@ public class JobConfigProviderTests extends ESTestCase {
 
         validateUpdateExpectingSuccess(newProvider(false), current, updated);
 
-        verify(queryValidator).validateQuery(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("time"), eq("c"), any(), eq("df"));
-        verify(queryValidator, never()).validateSourceTimeField(any(), any(), anyString(), any(), anyString(), any(), any());
+        verifyProbe(client, null);
     }
 
-    public void testValidateDatafeedUpdateWhenCredentialIsClearedShouldRunBothProbes() {
-        stubColumnsProbe(null);
-        stubSourceTimeFieldProbe(null);
+    public void testValidateDatafeedUpdateWhenCredentialIsClearedShouldProbe() {
+        stubProbe(null);
         stubWrapClientWithoutCredential(client);
         DatafeedConfig current = newEsqlDatafeed().setCloudInternalCredential(randomPersistedCloudCredential("old-key")).build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setCloudInternalCredential(null).build();
 
         validateUpdateExpectingSuccess(newProvider(false), current, updated);
 
-        verify(queryValidator).validateQuery(same(client), eq(HEADERS), eq(ESQL_QUERY), eq(null), eq("time"), eq("c"), any(), eq("df"));
-        verify(queryValidator).validateSourceTimeField(
-            same(client),
+        verifyProbe(client, null);
+    }
+
+    private void verifyProbe(Client probeClient, String projectRouting) {
+        verify(queryValidator).validateQuery(
+            same(probeClient),
             eq(HEADERS),
             eq(ESQL_QUERY),
-            eq(null),
+            eq(projectRouting),
+            eq("time"),
             eq("@timestamp"),
+            eq("c"),
+            anyBoolean(),
             any(),
             eq("df")
         );
     }
 
     /**
-     * The probes run after any credential mint, so they must search as the datafeed will at runtime: through a client wrapped
+     * The probe runs after any credential mint, so it must search as the datafeed will at runtime: through a client wrapped
      * with the datafeed's own credential and with the project routing that cross-project mode keeps.
      */
     public void testValidateDatafeedJobWhenCrossProjectEnabledShouldProbeWithDatafeedCredentialAndRouting() {
@@ -279,32 +269,13 @@ public class JobConfigProviderTests extends ESTestCase {
         PersistedCloudCredential credential = randomPersistedCloudCredential("minted-key-id");
         Client wrappedClient = mock(Client.class);
         when(credentialManager.wrapClient(same(client), same(credential))).thenReturn(wrappedClient);
-        stubColumnsProbe(null);
-        stubSourceTimeFieldProbe(null);
+        stubProbe(null);
 
         validateExpectingSuccess(
             newProvider(true),
             newEsqlDatafeed().setProjectRouting("_alias:prod-*").setCloudInternalCredential(credential).build()
         );
 
-        verify(queryValidator).validateQuery(
-            same(wrappedClient),
-            eq(HEADERS),
-            eq(ESQL_QUERY),
-            eq("_alias:prod-*"),
-            eq("time"),
-            eq("c"),
-            any(),
-            eq("df")
-        );
-        verify(queryValidator).validateSourceTimeField(
-            same(wrappedClient),
-            eq(HEADERS),
-            eq(ESQL_QUERY),
-            eq("_alias:prod-*"),
-            eq("@timestamp"),
-            any(),
-            eq("df")
-        );
+        verifyProbe(wrappedClient, "_alias:prod-*");
     }
 }

@@ -411,12 +411,14 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     }
 
     /**
-     * An iterator that stays ready, empty and not exhausted fails the drain instead of spinning until the suite times out.
+     * A ready iterator that returns nothing for as many reads as the cap allows fails the drain. Its page comes one read
+     * later, so a drain without the cap returns and this test fails instead of spinning.
      */
     public void testStuckIteratorFailsTheDrain() {
-        AssertionError e = expectThrows(AssertionError.class, () -> drain(emptyUntilAdvance(Integer.MAX_VALUE)));
+        int pageAfterCap = MAX_EMPTY_READS_IN_A_ROW + 1;
+        AssertionError e = expectThrows(AssertionError.class, () -> drain(emptyUntilAdvance(pageAfterCap)));
         assertThat(e.getMessage(), containsString("ready, empty and not exhausted"));
-        e = expectThrows(AssertionError.class, () -> consumeOnePage(emptyUntilAdvance(Integer.MAX_VALUE)));
+        e = expectThrows(AssertionError.class, () -> consumeOnePage(emptyUntilAdvance(pageAfterCap)));
         assertThat(e.getMessage(), containsString("ready, empty and not exhausted"));
     }
 
@@ -657,7 +659,11 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             }
             Page page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() && iter.isExhausted()) {
+                if (iter.waitForReady().isDone() == false) {
+                    emptyReads = 0;
+                    continue;
+                }
+                if (iter.isExhausted()) {
                     return new DrainResult(rows, idSum);
                 }
                 failIfStuck(++emptyReads);
@@ -691,7 +697,11 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             }
             Page page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() && iter.isExhausted()) {
+                if (iter.waitForReady().isDone() == false) {
+                    emptyReads = 0;
+                    continue;
+                }
+                if (iter.isExhausted()) {
                     throw new AssertionError("expected at least one page");
                 }
                 failIfStuck(++emptyReads);

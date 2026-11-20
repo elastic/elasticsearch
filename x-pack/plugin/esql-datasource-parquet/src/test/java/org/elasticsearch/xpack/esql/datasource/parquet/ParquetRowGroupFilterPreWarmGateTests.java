@@ -306,7 +306,11 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
             }
             Page page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() && iter.isExhausted()) {
+                if (iter.waitForReady().isDone() == false) {
+                    emptyReads = 0;
+                    continue;
+                }
+                if (iter.isExhausted()) {
                     return rows;
                 }
                 if (++emptyReads >= MAX_EMPTY_READS_IN_A_ROW) {

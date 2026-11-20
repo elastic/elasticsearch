@@ -3691,9 +3691,11 @@ public class EsqlSession {
             return;
         }
         String writeIndex = destination.getWriteIndex().getName();
-        if (into.child().anyMatch(p -> p instanceof EsRelation relation && relation.concreteQualifiedIndices().contains(writeIndex))) {
-            Failure failure = Failure.fail(into, "INTO destination [{}] is also read by the query", into.destination());
-            throw new VerificationException(List.of(failure));
+        for (EsRelation source : into.child().collect(EsRelation.class)) {
+            if (source.concreteQualifiedIndices().contains(writeIndex)) {
+                String message = "INTO destination [{}] is also read by the query, through [{}]";
+                throw new VerificationException(List.of(Failure.fail(into, message, into.destination(), source.indexPattern())));
+            }
         }
     }
 

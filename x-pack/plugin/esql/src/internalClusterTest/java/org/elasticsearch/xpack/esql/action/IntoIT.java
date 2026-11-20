@@ -271,7 +271,10 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 VerificationException.class,
                 () -> run("FROM " + source + " | INTO " + DESTINATION).close()
             );
-            assertThat(e.getMessage(), containsString("INTO destination [" + DESTINATION + "] is also read by the query"));
+            assertThat(
+                e.getMessage(),
+                containsString("INTO destination [" + DESTINATION + "] is also read by the query, through [" + source + "]")
+            );
         }
     }
 
@@ -314,7 +317,10 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             ElasticsearchStatusException.class,
             () -> run("FROM " + RETRY_SOURCE + " | KEEP k, extra | INTO " + DESTINATION).close()
         );
-        assertThat(e.getMessage(), containsString("extra"));
+        assertThat(
+            e.getMessage(),
+            equalTo("INTO [dest-into] failed: [0:0] mapping set to strict, dynamic introduction of [extra] within [_doc] is not allowed")
+        );
         assertReadBack("KEEP k", List.of(List.of("a")));
     }
 

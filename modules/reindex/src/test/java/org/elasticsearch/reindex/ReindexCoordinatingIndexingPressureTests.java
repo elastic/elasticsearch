@@ -787,6 +787,42 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
+     * A task that is waiting for budget to reserve its next page can be cancelled, and cancelling must end the task cleanly. The
+     * listener hears exactly once, the cancel reason is reported, and the task leaves nothing charged behind. This goes through the
+     * real budget and the real worker, with no attempt planted, so it holds whichever way the worker keeps its wait.
+     */
+    public void testCancellingATaskThatIsWaitingToReserveAPageFinishesItAndLeavesNothingCharged() {
+        int pageSize = between(1, 3);
+        ScriptedClock clock = new ScriptedClock();
+        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
+        IndexingPressure pressure = pressure(limit);
+        long baseline = pressure.stats().getCurrentCoordinatingBytes();
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
+            harness.start();
+            // Let it be refused a few times first, so the cancel lands on a task that has really been waiting.
+            for (int i = between(0, 3); i > 0 && clock.hasDeferredTasks(); i--) {
+                clock.advanceTime();
+            }
+            assertFalse(harness.listener.isDone());
+            assertThat(harness.client.searches.size(), equalTo(0));
+            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(baseline + limit));
+
+            harness.taskManager.cancel(harness.task, "stopped", () -> {});
+            runHeldAttemptsUntilDone(harness, clock);
+
+            assertTrue("the cancelled task must finish", harness.listener.isDone());
+            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
+            assertThat("the listener completes once", harness.listener.completions.get(), equalTo(1));
+            assertThat(harness.client.searches.size(), equalTo(0));
+            assertThat(harness.client.bulks, equalTo(List.of()));
+            assertThat("the task holds nothing of its own", harness.chargedBytes(), equalTo(baseline + limit));
+        }
+        assertThat("the budget is back where it started", pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline));
+        assertThat(pressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(baseline));
+    }
+
+    /**
      * max_docs stops the task. A page larger than the allowance is one truncated bulk. The hits that bulk does not
      * take are still held when it is sent, and those hits and the coordinating charge drop when the task finishes.
      */

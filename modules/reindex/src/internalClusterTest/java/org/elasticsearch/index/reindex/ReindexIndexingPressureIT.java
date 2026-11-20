@@ -35,6 +35,8 @@ import org.junit.After;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -66,6 +68,9 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
 
     private final AtomicLong memoryLimit = new AtomicLong(TWO_BATCH_LIMIT);
     private final AtomicLong reindexEstimatePerDocument = new AtomicLong(DEFAULT_REINDEX_ESTIMATE);
+    private final AtomicInteger writeThreads = new AtomicInteger(1);
+    /** Zero leaves the primary limit at its default, which is the coordinating limit. */
+    private final AtomicLong primaryLimit = new AtomicLong(0);
     private final AtomicReference<CountDownLatch> releaseWrite = new AtomicReference<>();
 
     @Override
@@ -78,13 +83,16 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
+        Settings.Builder settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), memoryLimit.get() + "b")
             .put(IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.getKey(), reindexEstimatePerDocument.get() + "b")
-            .put("thread_pool.write.size", 1)
-            .put("thread_pool.write.queue_size", 1)
-            .build();
+            .put("thread_pool.write.size", writeThreads.get())
+            .put("thread_pool.write.queue_size", 1);
+        if (primaryLimit.get() > 0) {
+            settings.put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), primaryLimit.get() + "b");
+        }
+        return settings.build();
     }
 
     @After
@@ -168,19 +176,28 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
     }
 
     /**
-     * Two slices of one reindex share the coordinating budget. The first page fills it, so the other slice waits with
-     * no page of its own, and every document is written with the budget back to where it started.
+     * Two slices of one reindex share the coordinating budget. One slice's page is held inside the destination write and
+     * is bigger than half the budget, so the other slice cannot reserve its next page. It waits with no page of its own,
+     * and every document is written with the budget back to where it started.
      */
     public void testSlicedReindexWaitsWhileOnePageHoldsTheBudget() throws Exception {
-        // One page is a single document. The guess for that page is well above the document, and the budget fits that
-        // guess once, so the other slice cannot reserve while the page is held. Indexing one document stays under the
-        // same budget, which also has to admit the source writes.
+        // The estimate for a page is capped at half the limit, so two slices can always reserve at the start. What
+        // keeps a slice waiting is the page that is held. One page is a single document, and once it is built its
+        // charge is the real bulk, which is more than half the limit and still under it. A second reserve of up to half
+        // the limit cannot sit beside that. The per document guess is high enough to hit the cap.
         int slices = 2;
         int totalDocs = 16;
-        int docChars = 8_000;
-        long perDocument = 64L * 1024L;
+        long limit = 100L * 1024L;
+        int docChars = 70_000;
+        long perDocument = limit;
         reindexEstimatePerDocument.set(perDocument);
-        memoryLimit.set(perDocument + 4L * 1024L);
+        memoryLimit.set(limit);
+        // Two write threads, and only the first destination write is blocked. The other slice can then write and release
+        // its page, and it is that slice which has to wait for budget while the first page is held. A primary write holds
+        // several times its operation size while it runs, so the primary limit is raised. Otherwise the other slice's
+        // write would be refused at the primary and it would keep its page instead of waiting to reserve the next one.
+        writeThreads.set(2);
+        primaryLimit.set(ROOMY_LIMIT);
         String node = internalCluster().startNode();
         ensureStableCluster(1);
         createIndex("source");
@@ -194,8 +211,9 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
         CountDownLatch inWrite = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         releaseWrite.set(release);
+        AtomicBoolean firstDestinationWrite = new AtomicBoolean(true);
         BlockingIndexPlugin.PRE_INDEX.set((shardId, index) -> {
-            if (shardId.getIndexName().equals("dest")) {
+            if (shardId.getIndexName().equals("dest") && firstDestinationWrite.compareAndSet(true, false)) {
                 inWrite.countDown();
                 safeAwait(release);
             }

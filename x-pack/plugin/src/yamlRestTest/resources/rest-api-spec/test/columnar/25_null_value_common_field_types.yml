@@ -78,6 +78,10 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "null_then_value" } }'
           - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
 
   - do:
       indices.create:
@@ -149,6 +153,10 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "null_then_value" } }'
           - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
 
   - do:
       indices.create:
@@ -220,6 +228,10 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "null_then_value" } }'
           - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
 
   - do:
       indices.create:
@@ -292,6 +304,10 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "null_then_value" } }'
           - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
 
   - do:
       indices.create:
@@ -364,6 +380,10 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "null_then_value" } }'
           - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
 
   - do:
       indices.create:
@@ -436,6 +456,10 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "null_then_value" } }'
           - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
 
   - do:
       indices.create:
@@ -507,6 +531,10 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "null_then_value" } }'
           - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
 
 ---
 exists matches a document whose null is replaced by null_value on a keyword field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -629,12 +657,14 @@ synthetic source returns the null_value for each null element of a keyword field
           size: 20
           _source: keyword
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.keyword: "a" }
   - match: { hits.hits.1._source.keyword: "NA" }
   - match: { hits.hits.2._source.keyword: "NA" }
   - match: { hits.hits.3._source.keyword: ["a", "NA"] }
   - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -645,12 +675,14 @@ synthetic source returns the null_value for each null element of a keyword field
           size: 20
           _source: keyword
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.keyword: "a" }
   - match: { hits.hits.1._source.keyword: "NA" }
   - match: { hits.hits.2._source.keyword: "NA" }
   - match: { hits.hits.3._source.keyword: ["a", "NA"] }
   - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -661,12 +693,14 @@ synthetic source returns the null_value for each null element of a keyword field
           size: 20
           _source: keyword
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.keyword: "a" }
   - match: { hits.hits.1._source.keyword: "NA" }
   - match: { hits.hits.2._source.keyword: "NA" }
   - match: { hits.hits.3._source.keyword: ["a", "NA"] }
   - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -677,12 +711,14 @@ synthetic source returns the null_value for each null element of a keyword field
           size: 20
           _source: keyword
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.keyword: "a" }
   - match: { hits.hits.1._source.keyword: "NA" }
   - match: { hits.hits.2._source.keyword: "NA" }
   - match: { hits.hits.3._source.keyword: ["a", "NA"] }
   - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -693,12 +729,14 @@ synthetic source returns the null_value for each null element of a keyword field
           size: 20
           _source: keyword
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.keyword: "a" }
   - match: { hits.hits.1._source.keyword: "NA" }
   - match: { hits.hits.2._source.keyword: "NA" }
   - match: { hits.hits.3._source.keyword: ["a", "NA"] }
   - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -709,12 +747,14 @@ synthetic source returns the null_value for each null element of a keyword field
           size: 20
           _source: keyword
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.keyword: "a" }
   - match: { hits.hits.1._source.keyword: "NA" }
   - match: { hits.hits.2._source.keyword: "NA" }
   - match: { hits.hits.3._source.keyword: ["a", "NA"] }
   - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -725,12 +765,14 @@ synthetic source returns the null_value for each null element of a keyword field
           size: 20
           _source: keyword
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.keyword: "a" }
   - match: { hits.hits.1._source.keyword: "NA" }
   - match: { hits.hits.2._source.keyword: "NA" }
   - match: { hits.hits.3._source.keyword: ["a", "NA"] }
   - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a wildcard field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -853,12 +895,14 @@ synthetic source returns the null_value for each null element of a wildcard fiel
           size: 20
           _source: wildcard
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.wildcard: "a" }
   - match: { hits.hits.1._source.wildcard: "NA" }
   - match: { hits.hits.2._source.wildcard: "NA" }
   - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
   - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -869,12 +913,14 @@ synthetic source returns the null_value for each null element of a wildcard fiel
           size: 20
           _source: wildcard
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.wildcard: "a" }
   - match: { hits.hits.1._source.wildcard: "NA" }
   - match: { hits.hits.2._source.wildcard: "NA" }
   - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
   - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -885,12 +931,14 @@ synthetic source returns the null_value for each null element of a wildcard fiel
           size: 20
           _source: wildcard
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.wildcard: "a" }
   - match: { hits.hits.1._source.wildcard: "NA" }
   - match: { hits.hits.2._source.wildcard: "NA" }
   - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
   - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -901,12 +949,14 @@ synthetic source returns the null_value for each null element of a wildcard fiel
           size: 20
           _source: wildcard
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.wildcard: "a" }
   - match: { hits.hits.1._source.wildcard: "NA" }
   - match: { hits.hits.2._source.wildcard: "NA" }
   - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
   - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -917,12 +967,14 @@ synthetic source returns the null_value for each null element of a wildcard fiel
           size: 20
           _source: wildcard
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.wildcard: "a" }
   - match: { hits.hits.1._source.wildcard: "NA" }
   - match: { hits.hits.2._source.wildcard: "NA" }
   - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
   - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -933,12 +985,14 @@ synthetic source returns the null_value for each null element of a wildcard fiel
           size: 20
           _source: wildcard
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.wildcard: "a" }
   - match: { hits.hits.1._source.wildcard: "NA" }
   - match: { hits.hits.2._source.wildcard: "NA" }
   - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
   - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -949,12 +1003,14 @@ synthetic source returns the null_value for each null element of a wildcard fiel
           size: 20
           _source: wildcard
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.wildcard: "a" }
   - match: { hits.hits.1._source.wildcard: "NA" }
   - match: { hits.hits.2._source.wildcard: "NA" }
   - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
   - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on an ip field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -1077,12 +1133,14 @@ synthetic source returns the null_value for each null element of an ip field in 
           size: 20
           _source: ip
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
   - match: { hits.hits.1._source.ip: "10.9.9.9" }
   - match: { hits.hits.2._source.ip: "10.9.9.9" }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
   - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1093,12 +1151,14 @@ synthetic source returns the null_value for each null element of an ip field in 
           size: 20
           _source: ip
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
   - match: { hits.hits.1._source.ip: "10.9.9.9" }
   - match: { hits.hits.2._source.ip: "10.9.9.9" }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
   - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1109,12 +1169,14 @@ synthetic source returns the null_value for each null element of an ip field in 
           size: 20
           _source: ip
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
   - match: { hits.hits.1._source.ip: "10.9.9.9" }
   - match: { hits.hits.2._source.ip: "10.9.9.9" }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
   - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1125,12 +1187,14 @@ synthetic source returns the null_value for each null element of an ip field in 
           size: 20
           _source: ip
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
   - match: { hits.hits.1._source.ip: "10.9.9.9" }
   - match: { hits.hits.2._source.ip: "10.9.9.9" }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
   - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1141,12 +1205,14 @@ synthetic source returns the null_value for each null element of an ip field in 
           size: 20
           _source: ip
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
   - match: { hits.hits.1._source.ip: "10.9.9.9" }
   - match: { hits.hits.2._source.ip: "10.9.9.9" }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
   - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1157,12 +1223,14 @@ synthetic source returns the null_value for each null element of an ip field in 
           size: 20
           _source: ip
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
   - match: { hits.hits.1._source.ip: "10.9.9.9" }
   - match: { hits.hits.2._source.ip: "10.9.9.9" }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
   - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1173,12 +1241,14 @@ synthetic source returns the null_value for each null element of an ip field in 
           size: 20
           _source: ip
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.ip: "10.0.0.1" }
   - match: { hits.hits.1._source.ip: "10.9.9.9" }
   - match: { hits.hits.2._source.ip: "10.9.9.9" }
   - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
   - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a boolean field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -1301,12 +1371,14 @@ synthetic source returns the null_value for each null element of a boolean field
           size: 20
           _source: boolean
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.boolean: false }
   - match: { hits.hits.1._source.boolean: true }
   - match: { hits.hits.2._source.boolean: true }
   - match: { hits.hits.3._source.boolean: [false, true] }
   - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1317,12 +1389,14 @@ synthetic source returns the null_value for each null element of a boolean field
           size: 20
           _source: boolean
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.boolean: false }
   - match: { hits.hits.1._source.boolean: true }
   - match: { hits.hits.2._source.boolean: true }
   - match: { hits.hits.3._source.boolean: [false, true] }
   - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1333,12 +1407,14 @@ synthetic source returns the null_value for each null element of a boolean field
           size: 20
           _source: boolean
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.boolean: false }
   - match: { hits.hits.1._source.boolean: true }
   - match: { hits.hits.2._source.boolean: true }
   - match: { hits.hits.3._source.boolean: [false, true] }
   - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1349,12 +1425,14 @@ synthetic source returns the null_value for each null element of a boolean field
           size: 20
           _source: boolean
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.boolean: false }
   - match: { hits.hits.1._source.boolean: true }
   - match: { hits.hits.2._source.boolean: true }
   - match: { hits.hits.3._source.boolean: [false, true] }
   - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1365,12 +1443,14 @@ synthetic source returns the null_value for each null element of a boolean field
           size: 20
           _source: boolean
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.boolean: false }
   - match: { hits.hits.1._source.boolean: true }
   - match: { hits.hits.2._source.boolean: true }
   - match: { hits.hits.3._source.boolean: [false, true] }
   - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1381,12 +1461,14 @@ synthetic source returns the null_value for each null element of a boolean field
           size: 20
           _source: boolean
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.boolean: false }
   - match: { hits.hits.1._source.boolean: true }
   - match: { hits.hits.2._source.boolean: true }
   - match: { hits.hits.3._source.boolean: [false, true] }
   - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1397,12 +1479,14 @@ synthetic source returns the null_value for each null element of a boolean field
           size: 20
           _source: boolean
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.boolean: false }
   - match: { hits.hits.1._source.boolean: true }
   - match: { hits.hits.2._source.boolean: true }
   - match: { hits.hits.3._source.boolean: [false, true] }
   - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a byte field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -1525,12 +1609,14 @@ synthetic source returns the null_value for each null element of a byte field in
           size: 20
           _source: byte
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.byte: 1 }
   - match: { hits.hits.1._source.byte: 9 }
   - match: { hits.hits.2._source.byte: 9 }
   - match: { hits.hits.3._source.byte: [1, 9] }
   - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1541,12 +1627,14 @@ synthetic source returns the null_value for each null element of a byte field in
           size: 20
           _source: byte
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.byte: 1 }
   - match: { hits.hits.1._source.byte: 9 }
   - match: { hits.hits.2._source.byte: 9 }
   - match: { hits.hits.3._source.byte: [1, 9] }
   - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1557,12 +1645,14 @@ synthetic source returns the null_value for each null element of a byte field in
           size: 20
           _source: byte
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.byte: 1 }
   - match: { hits.hits.1._source.byte: 9 }
   - match: { hits.hits.2._source.byte: 9 }
   - match: { hits.hits.3._source.byte: [1, 9] }
   - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1573,12 +1663,14 @@ synthetic source returns the null_value for each null element of a byte field in
           size: 20
           _source: byte
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.byte: 1 }
   - match: { hits.hits.1._source.byte: 9 }
   - match: { hits.hits.2._source.byte: 9 }
   - match: { hits.hits.3._source.byte: [1, 9] }
   - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1589,12 +1681,14 @@ synthetic source returns the null_value for each null element of a byte field in
           size: 20
           _source: byte
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.byte: 1 }
   - match: { hits.hits.1._source.byte: 9 }
   - match: { hits.hits.2._source.byte: 9 }
   - match: { hits.hits.3._source.byte: [1, 9] }
   - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1605,12 +1699,14 @@ synthetic source returns the null_value for each null element of a byte field in
           size: 20
           _source: byte
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.byte: 1 }
   - match: { hits.hits.1._source.byte: 9 }
   - match: { hits.hits.2._source.byte: 9 }
   - match: { hits.hits.3._source.byte: [1, 9] }
   - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1621,12 +1717,14 @@ synthetic source returns the null_value for each null element of a byte field in
           size: 20
           _source: byte
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.byte: 1 }
   - match: { hits.hits.1._source.byte: 9 }
   - match: { hits.hits.2._source.byte: 9 }
   - match: { hits.hits.3._source.byte: [1, 9] }
   - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a short field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -1749,12 +1847,14 @@ synthetic source returns the null_value for each null element of a short field i
           size: 20
           _source: short
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.short: 1 }
   - match: { hits.hits.1._source.short: 9 }
   - match: { hits.hits.2._source.short: 9 }
   - match: { hits.hits.3._source.short: [1, 9] }
   - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1765,12 +1865,14 @@ synthetic source returns the null_value for each null element of a short field i
           size: 20
           _source: short
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.short: 1 }
   - match: { hits.hits.1._source.short: 9 }
   - match: { hits.hits.2._source.short: 9 }
   - match: { hits.hits.3._source.short: [1, 9] }
   - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1781,12 +1883,14 @@ synthetic source returns the null_value for each null element of a short field i
           size: 20
           _source: short
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.short: 1 }
   - match: { hits.hits.1._source.short: 9 }
   - match: { hits.hits.2._source.short: 9 }
   - match: { hits.hits.3._source.short: [1, 9] }
   - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1797,12 +1901,14 @@ synthetic source returns the null_value for each null element of a short field i
           size: 20
           _source: short
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.short: 1 }
   - match: { hits.hits.1._source.short: 9 }
   - match: { hits.hits.2._source.short: 9 }
   - match: { hits.hits.3._source.short: [1, 9] }
   - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1813,12 +1919,14 @@ synthetic source returns the null_value for each null element of a short field i
           size: 20
           _source: short
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.short: 1 }
   - match: { hits.hits.1._source.short: 9 }
   - match: { hits.hits.2._source.short: 9 }
   - match: { hits.hits.3._source.short: [1, 9] }
   - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1829,12 +1937,14 @@ synthetic source returns the null_value for each null element of a short field i
           size: 20
           _source: short
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.short: 1 }
   - match: { hits.hits.1._source.short: 9 }
   - match: { hits.hits.2._source.short: 9 }
   - match: { hits.hits.3._source.short: [1, 9] }
   - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1845,12 +1955,14 @@ synthetic source returns the null_value for each null element of a short field i
           size: 20
           _source: short
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.short: 1 }
   - match: { hits.hits.1._source.short: 9 }
   - match: { hits.hits.2._source.short: 9 }
   - match: { hits.hits.3._source.short: [1, 9] }
   - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on an integer field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -1973,12 +2085,14 @@ synthetic source returns the null_value for each null element of an integer fiel
           size: 20
           _source: integer
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.integer: 1 }
   - match: { hits.hits.1._source.integer: 9 }
   - match: { hits.hits.2._source.integer: 9 }
   - match: { hits.hits.3._source.integer: [1, 9] }
   - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -1989,12 +2103,14 @@ synthetic source returns the null_value for each null element of an integer fiel
           size: 20
           _source: integer
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.integer: 1 }
   - match: { hits.hits.1._source.integer: 9 }
   - match: { hits.hits.2._source.integer: 9 }
   - match: { hits.hits.3._source.integer: [1, 9] }
   - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2005,12 +2121,14 @@ synthetic source returns the null_value for each null element of an integer fiel
           size: 20
           _source: integer
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.integer: 1 }
   - match: { hits.hits.1._source.integer: 9 }
   - match: { hits.hits.2._source.integer: 9 }
   - match: { hits.hits.3._source.integer: [1, 9] }
   - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2021,12 +2139,14 @@ synthetic source returns the null_value for each null element of an integer fiel
           size: 20
           _source: integer
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.integer: 1 }
   - match: { hits.hits.1._source.integer: 9 }
   - match: { hits.hits.2._source.integer: 9 }
   - match: { hits.hits.3._source.integer: [1, 9] }
   - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2037,12 +2157,14 @@ synthetic source returns the null_value for each null element of an integer fiel
           size: 20
           _source: integer
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.integer: 1 }
   - match: { hits.hits.1._source.integer: 9 }
   - match: { hits.hits.2._source.integer: 9 }
   - match: { hits.hits.3._source.integer: [1, 9] }
   - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2053,12 +2175,14 @@ synthetic source returns the null_value for each null element of an integer fiel
           size: 20
           _source: integer
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.integer: 1 }
   - match: { hits.hits.1._source.integer: 9 }
   - match: { hits.hits.2._source.integer: 9 }
   - match: { hits.hits.3._source.integer: [1, 9] }
   - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2069,12 +2193,14 @@ synthetic source returns the null_value for each null element of an integer fiel
           size: 20
           _source: integer
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.integer: 1 }
   - match: { hits.hits.1._source.integer: 9 }
   - match: { hits.hits.2._source.integer: 9 }
   - match: { hits.hits.3._source.integer: [1, 9] }
   - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a long field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -2197,12 +2323,14 @@ synthetic source returns the null_value for each null element of a long field in
           size: 20
           _source: long
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.long: 1 }
   - match: { hits.hits.1._source.long: 9 }
   - match: { hits.hits.2._source.long: 9 }
   - match: { hits.hits.3._source.long: [1, 9] }
   - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2213,12 +2341,14 @@ synthetic source returns the null_value for each null element of a long field in
           size: 20
           _source: long
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.long: 1 }
   - match: { hits.hits.1._source.long: 9 }
   - match: { hits.hits.2._source.long: 9 }
   - match: { hits.hits.3._source.long: [1, 9] }
   - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2229,12 +2359,14 @@ synthetic source returns the null_value for each null element of a long field in
           size: 20
           _source: long
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.long: 1 }
   - match: { hits.hits.1._source.long: 9 }
   - match: { hits.hits.2._source.long: 9 }
   - match: { hits.hits.3._source.long: [1, 9] }
   - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2245,12 +2377,14 @@ synthetic source returns the null_value for each null element of a long field in
           size: 20
           _source: long
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.long: 1 }
   - match: { hits.hits.1._source.long: 9 }
   - match: { hits.hits.2._source.long: 9 }
   - match: { hits.hits.3._source.long: [1, 9] }
   - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2261,12 +2395,14 @@ synthetic source returns the null_value for each null element of a long field in
           size: 20
           _source: long
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.long: 1 }
   - match: { hits.hits.1._source.long: 9 }
   - match: { hits.hits.2._source.long: 9 }
   - match: { hits.hits.3._source.long: [1, 9] }
   - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2277,12 +2413,14 @@ synthetic source returns the null_value for each null element of a long field in
           size: 20
           _source: long
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.long: 1 }
   - match: { hits.hits.1._source.long: 9 }
   - match: { hits.hits.2._source.long: 9 }
   - match: { hits.hits.3._source.long: [1, 9] }
   - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2293,12 +2431,14 @@ synthetic source returns the null_value for each null element of a long field in
           size: 20
           _source: long
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.long: 1 }
   - match: { hits.hits.1._source.long: 9 }
   - match: { hits.hits.2._source.long: 9 }
   - match: { hits.hits.3._source.long: [1, 9] }
   - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a half_float field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -2421,12 +2561,14 @@ synthetic source returns the null_value for each null element of a half_float fi
           size: 20
           _source: half_float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.half_float: 1.5 }
   - match: { hits.hits.1._source.half_float: 9.5 }
   - match: { hits.hits.2._source.half_float: 9.5 }
   - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
   - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2437,12 +2579,14 @@ synthetic source returns the null_value for each null element of a half_float fi
           size: 20
           _source: half_float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.half_float: 1.5 }
   - match: { hits.hits.1._source.half_float: 9.5 }
   - match: { hits.hits.2._source.half_float: 9.5 }
   - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
   - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2453,12 +2597,14 @@ synthetic source returns the null_value for each null element of a half_float fi
           size: 20
           _source: half_float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.half_float: 1.5 }
   - match: { hits.hits.1._source.half_float: 9.5 }
   - match: { hits.hits.2._source.half_float: 9.5 }
   - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
   - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2469,12 +2615,14 @@ synthetic source returns the null_value for each null element of a half_float fi
           size: 20
           _source: half_float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.half_float: 1.5 }
   - match: { hits.hits.1._source.half_float: 9.5 }
   - match: { hits.hits.2._source.half_float: 9.5 }
   - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
   - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2485,12 +2633,14 @@ synthetic source returns the null_value for each null element of a half_float fi
           size: 20
           _source: half_float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.half_float: 1.5 }
   - match: { hits.hits.1._source.half_float: 9.5 }
   - match: { hits.hits.2._source.half_float: 9.5 }
   - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
   - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2501,12 +2651,14 @@ synthetic source returns the null_value for each null element of a half_float fi
           size: 20
           _source: half_float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.half_float: 1.5 }
   - match: { hits.hits.1._source.half_float: 9.5 }
   - match: { hits.hits.2._source.half_float: 9.5 }
   - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
   - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2517,12 +2669,14 @@ synthetic source returns the null_value for each null element of a half_float fi
           size: 20
           _source: half_float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.half_float: 1.5 }
   - match: { hits.hits.1._source.half_float: 9.5 }
   - match: { hits.hits.2._source.half_float: 9.5 }
   - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
   - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a float field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -2645,12 +2799,14 @@ synthetic source returns the null_value for each null element of a float field i
           size: 20
           _source: float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.float: 1.5 }
   - match: { hits.hits.1._source.float: 9.5 }
   - match: { hits.hits.2._source.float: 9.5 }
   - match: { hits.hits.3._source.float: [1.5, 9.5] }
   - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2661,12 +2817,14 @@ synthetic source returns the null_value for each null element of a float field i
           size: 20
           _source: float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.float: 1.5 }
   - match: { hits.hits.1._source.float: 9.5 }
   - match: { hits.hits.2._source.float: 9.5 }
   - match: { hits.hits.3._source.float: [1.5, 9.5] }
   - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2677,12 +2835,14 @@ synthetic source returns the null_value for each null element of a float field i
           size: 20
           _source: float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.float: 1.5 }
   - match: { hits.hits.1._source.float: 9.5 }
   - match: { hits.hits.2._source.float: 9.5 }
   - match: { hits.hits.3._source.float: [1.5, 9.5] }
   - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2693,12 +2853,14 @@ synthetic source returns the null_value for each null element of a float field i
           size: 20
           _source: float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.float: 1.5 }
   - match: { hits.hits.1._source.float: 9.5 }
   - match: { hits.hits.2._source.float: 9.5 }
   - match: { hits.hits.3._source.float: [1.5, 9.5] }
   - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2709,12 +2871,14 @@ synthetic source returns the null_value for each null element of a float field i
           size: 20
           _source: float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.float: 1.5 }
   - match: { hits.hits.1._source.float: 9.5 }
   - match: { hits.hits.2._source.float: 9.5 }
   - match: { hits.hits.3._source.float: [1.5, 9.5] }
   - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2725,12 +2889,14 @@ synthetic source returns the null_value for each null element of a float field i
           size: 20
           _source: float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.float: 1.5 }
   - match: { hits.hits.1._source.float: 9.5 }
   - match: { hits.hits.2._source.float: 9.5 }
   - match: { hits.hits.3._source.float: [1.5, 9.5] }
   - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2741,12 +2907,14 @@ synthetic source returns the null_value for each null element of a float field i
           size: 20
           _source: float
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.float: 1.5 }
   - match: { hits.hits.1._source.float: 9.5 }
   - match: { hits.hits.2._source.float: 9.5 }
   - match: { hits.hits.3._source.float: [1.5, 9.5] }
   - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a double field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -2869,12 +3037,14 @@ synthetic source returns the null_value for each null element of a double field 
           size: 20
           _source: double
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.double: 1.5 }
   - match: { hits.hits.1._source.double: 9.5 }
   - match: { hits.hits.2._source.double: 9.5 }
   - match: { hits.hits.3._source.double: [1.5, 9.5] }
   - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2885,12 +3055,14 @@ synthetic source returns the null_value for each null element of a double field 
           size: 20
           _source: double
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.double: 1.5 }
   - match: { hits.hits.1._source.double: 9.5 }
   - match: { hits.hits.2._source.double: 9.5 }
   - match: { hits.hits.3._source.double: [1.5, 9.5] }
   - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2901,12 +3073,14 @@ synthetic source returns the null_value for each null element of a double field 
           size: 20
           _source: double
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.double: 1.5 }
   - match: { hits.hits.1._source.double: 9.5 }
   - match: { hits.hits.2._source.double: 9.5 }
   - match: { hits.hits.3._source.double: [1.5, 9.5] }
   - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2917,12 +3091,14 @@ synthetic source returns the null_value for each null element of a double field 
           size: 20
           _source: double
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.double: 1.5 }
   - match: { hits.hits.1._source.double: 9.5 }
   - match: { hits.hits.2._source.double: 9.5 }
   - match: { hits.hits.3._source.double: [1.5, 9.5] }
   - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2933,12 +3109,14 @@ synthetic source returns the null_value for each null element of a double field 
           size: 20
           _source: double
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.double: 1.5 }
   - match: { hits.hits.1._source.double: 9.5 }
   - match: { hits.hits.2._source.double: 9.5 }
   - match: { hits.hits.3._source.double: [1.5, 9.5] }
   - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2949,12 +3127,14 @@ synthetic source returns the null_value for each null element of a double field 
           size: 20
           _source: double
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.double: 1.5 }
   - match: { hits.hits.1._source.double: 9.5 }
   - match: { hits.hits.2._source.double: 9.5 }
   - match: { hits.hits.3._source.double: [1.5, 9.5] }
   - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -2965,12 +3145,14 @@ synthetic source returns the null_value for each null element of a double field 
           size: 20
           _source: double
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.double: 1.5 }
   - match: { hits.hits.1._source.double: 9.5 }
   - match: { hits.hits.2._source.double: 9.5 }
   - match: { hits.hits.3._source.double: [1.5, 9.5] }
   - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a date field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -3093,12 +3275,14 @@ synthetic source returns the null_value for each null element of a date field in
           size: 20
           _source: date
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
   - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3109,12 +3293,14 @@ synthetic source returns the null_value for each null element of a date field in
           size: 20
           _source: date
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
   - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3125,12 +3311,14 @@ synthetic source returns the null_value for each null element of a date field in
           size: 20
           _source: date
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
   - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3141,12 +3329,14 @@ synthetic source returns the null_value for each null element of a date field in
           size: 20
           _source: date
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
   - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3157,12 +3347,14 @@ synthetic source returns the null_value for each null element of a date field in
           size: 20
           _source: date
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
   - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3173,12 +3365,14 @@ synthetic source returns the null_value for each null element of a date field in
           size: 20
           _source: date
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
   - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3189,12 +3383,14 @@ synthetic source returns the null_value for each null element of a date field in
           size: 20
           _source: date
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
   - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
   - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a date_nanos field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -3317,12 +3513,14 @@ synthetic source returns the null_value for each null element of a date_nanos fi
           size: 20
           _source: date_nanos
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
   - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3333,12 +3531,14 @@ synthetic source returns the null_value for each null element of a date_nanos fi
           size: 20
           _source: date_nanos
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
   - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3349,12 +3549,14 @@ synthetic source returns the null_value for each null element of a date_nanos fi
           size: 20
           _source: date_nanos
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
   - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3365,12 +3567,14 @@ synthetic source returns the null_value for each null element of a date_nanos fi
           size: 20
           _source: date_nanos
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
   - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3381,12 +3585,14 @@ synthetic source returns the null_value for each null element of a date_nanos fi
           size: 20
           _source: date_nanos
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
   - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3397,12 +3603,14 @@ synthetic source returns the null_value for each null element of a date_nanos fi
           size: 20
           _source: date_nanos
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
   - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3413,12 +3621,14 @@ synthetic source returns the null_value for each null element of a date_nanos fi
           size: 20
           _source: date_nanos
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
   - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
   - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
   - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 exists matches a document whose null is replaced by null_value on a geo_point field in columnar and logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -3541,7 +3751,7 @@ synthetic source returns the null_value for each null element of a geo_point fie
           size: 20
           _source: geo_point
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
@@ -3551,6 +3761,8 @@ synthetic source returns the null_value for each null element of a geo_point fie
   - length: { hits.hits.4._source.geo_point: 2 }
   - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3561,7 +3773,7 @@ synthetic source returns the null_value for each null element of a geo_point fie
           size: 20
           _source: geo_point
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
@@ -3571,6 +3783,8 @@ synthetic source returns the null_value for each null element of a geo_point fie
   - length: { hits.hits.4._source.geo_point: 2 }
   - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3581,7 +3795,7 @@ synthetic source returns the null_value for each null element of a geo_point fie
           size: 20
           _source: geo_point
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
@@ -3591,6 +3805,8 @@ synthetic source returns the null_value for each null element of a geo_point fie
   - length: { hits.hits.4._source.geo_point: 2 }
   - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3601,7 +3817,7 @@ synthetic source returns the null_value for each null element of a geo_point fie
           size: 20
           _source: geo_point
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
@@ -3611,6 +3827,8 @@ synthetic source returns the null_value for each null element of a geo_point fie
   - length: { hits.hits.4._source.geo_point: 2 }
   - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3621,7 +3839,7 @@ synthetic source returns the null_value for each null element of a geo_point fie
           size: 20
           _source: geo_point
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
@@ -3631,6 +3849,8 @@ synthetic source returns the null_value for each null element of a geo_point fie
   - length: { hits.hits.4._source.geo_point: 2 }
   - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3641,7 +3861,7 @@ synthetic source returns the null_value for each null element of a geo_point fie
           size: 20
           _source: geo_point
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
@@ -3651,6 +3871,8 @@ synthetic source returns the null_value for each null element of a geo_point fie
   - length: { hits.hits.4._source.geo_point: 2 }
   - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
   - do:
       search:
@@ -3661,7 +3883,7 @@ synthetic source returns the null_value for each null element of a geo_point fie
           size: 20
           _source: geo_point
 
-  - length: { hits.hits: 5 }
+  - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
@@ -3671,68 +3893,49 @@ synthetic source returns the null_value for each null element of a geo_point fie
   - length: { hits.hits.4._source.geo_point: 2 }
   - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
   - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
 
 ---
 every document of the bulk requests is indexed:
   - do:
-      search:
+      count:
         index: test_columnar
-        body:
-          size: 0
-          track_total_hits: true
 
-  - match: { hits.total.value: 5 }
+  - match: { count: 7 }
 
   - do:
-      search:
+      count:
         index: test_logsdb_columnar
-        body:
-          size: 0
-          track_total_hits: true
 
-  - match: { hits.total.value: 5 }
+  - match: { count: 7 }
 
   - do:
-      search:
+      count:
         index: test_vectordb_columnar
-        body:
-          size: 0
-          track_total_hits: true
 
-  - match: { hits.total.value: 5 }
+  - match: { count: 7 }
 
   - do:
-      search:
+      count:
         index: test_columnar_row
-        body:
-          size: 0
-          track_total_hits: true
 
-  - match: { hits.total.value: 5 }
+  - match: { count: 7 }
 
   - do:
-      search:
+      count:
         index: test_logsdb_columnar_row
-        body:
-          size: 0
-          track_total_hits: true
 
-  - match: { hits.total.value: 5 }
+  - match: { count: 7 }
 
   - do:
-      search:
+      count:
         index: test_vectordb_columnar_row
-        body:
-          size: 0
-          track_total_hits: true
 
-  - match: { hits.total.value: 5 }
+  - match: { count: 7 }
 
   - do:
-      search:
+      count:
         index: test_columnar_stored
-        body:
-          size: 0
-          track_total_hits: true
 
-  - match: { hits.total.value: 5 }
+  - match: { count: 7 }

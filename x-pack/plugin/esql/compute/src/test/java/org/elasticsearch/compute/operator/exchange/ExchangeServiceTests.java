@@ -73,6 +73,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -527,6 +528,52 @@ public class ExchangeServiceTests extends ESTestCase {
         assertTrue(sink.isFinished());
     }
 
+    /**
+     * The sink handler reports each page it drops instead of sending it: the pages it still buffers when its source finishes
+     * early or it fails, and the pages its sinks add after that. It doesn't report the pages it sends.
+     */
+    public void testOnPageDiscardedSeesEveryDroppedPage() {
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(100, threadPool.relativeTimeInMillisSupplier());
+        List<Integer> discarded = Collections.synchronizedList(new ArrayList<>());
+        sinkHandler.setOnPageDiscarded(page -> discarded.add(page.<IntBlock>getBlock(0).getInt(0)));
+        ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+        BlockFactory blockFactory = blockFactory();
+        int sent = between(0, 5);
+        int buffered = between(1, 5);
+        int late = between(0, 5);
+        for (int n = 0; n < sent + buffered; n++) {
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
+        }
+        for (int n = 0; n < sent; n++) {
+            PlainActionFuture<Page> future = new PlainActionFuture<>();
+            sinkHandler.fetchPageAsync(false, future.map(ExchangeResponse::takePage));
+            Page page = safeGet(future);
+            assertThat(page.<IntBlock>getBlock(0).getInt(0), equalTo(n));
+            page.releaseBlocks();
+        }
+        assertThat(discarded, empty());
+
+        if (randomBoolean()) {
+            // the source has enough pages, like after a stop
+            PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            sinkHandler.fetchPageAsync(true, future.map(response -> {
+                assertNull(response.takePage());
+                return response.finished();
+            }));
+            assertTrue(safeGet(future));
+        } else {
+            // like a cancellation or a failure of the request
+            sinkHandler.onFailure(new IOException("simulated"));
+        }
+        for (int n = sent + buffered; n < sent + buffered + late; n++) {
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
+        }
+
+        assertThat(discarded, equalTo(IntStream.range(sent, sent + buffered + late).boxed().toList()));
+        sink.finish();
+        assertTrue(sinkHandler.isFinished());
+    }
+
     public void testFinishEarly() {
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(20, threadPool.generic());
         Semaphore permits = new Semaphore(between(1, 5));
@@ -573,6 +620,52 @@ public class ExchangeServiceTests extends ESTestCase {
         }
         while ((p = pages.poll()) != null) {
             p.releaseBlocks();
+        }
+        assertTrue(exchangeSource.isFinished());
+        exchangeSource.finish();
+    }
+
+    /**
+     * The page callback of a remote sink sees every page that arrives, before the buffer takes it. That includes the pages
+     * that the buffer discards because the source already finished, which no driver reads.
+     */
+    public void testOnPageFetchedSeesEveryArrivingPage() {
+        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(100, threadPool.generic());
+        ExchangeSource exchangeSource = sourceHandler.createExchangeSource();
+        BlockFactory blockFactory = blockFactory();
+        int pages = between(1, 20);
+        boolean sourceFinishes = randomBoolean();
+        AtomicInteger sent = new AtomicInteger();
+        List<Integer> seen = Collections.synchronizedList(new ArrayList<>());
+        PlainActionFuture<Void> sinkCompleted = new PlainActionFuture<>();
+        sourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
+            if (allSourcesFinished) {
+                // like a real sink, which drops its pages once its source finished
+                listener.onResponse(new ExchangeResponse(null, true));
+                return;
+            }
+            int n = sent.getAndIncrement();
+            if (sourceFinishes && n == 0) {
+                // the source needs no more pages, so the buffer discards the page on its way
+                exchangeSource.finish();
+            }
+            Page page = new Page(blockFactory.newConstantIntBlockWith(n, 1));
+            listener.onResponse(new ExchangeResponse(page, n == pages - 1));
+        }, randomBoolean(), page -> seen.add(page.<IntBlock>getBlock(0).getInt(0)), 1, sinkCompleted);
+        sinkCompleted.actionGet(TimeValue.timeValueSeconds(10));
+
+        assertThat(seen, equalTo(IntStream.range(0, sent.get()).boxed().toList()));
+        List<Integer> read = new ArrayList<>();
+        Page page;
+        while ((page = exchangeSource.pollPage()) != null) {
+            read.add(page.<IntBlock>getBlock(0).getInt(0));
+            page.releaseBlocks();
+        }
+        if (sourceFinishes) {
+            assertThat(read, empty());
+        } else {
+            assertThat(sent.get(), equalTo(pages));
+            assertThat(read, equalTo(seen));
         }
         assertTrue(exchangeSource.isFinished());
         exchangeSource.finish();

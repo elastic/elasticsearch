@@ -215,9 +215,41 @@ public class NdjsonRowWriterTests extends ESTestCase {
             assertThat(writeChunk(writer, 16, limit), equalTo(List.of("[0]", "[1]", "[2]", "[3]")));
             assertThat(writeChunk(writer, Integer.MAX_VALUE, limit), equalTo(List.of("[4]", "[5]", "[6]", "[7]", "[8]", "[9]", "[10]")));
             assertFalse("the last row of the page was not written", writer.allRowsWritten());
+            assertTrue(writer.stoppedAtLimit());
             // the size of a line includes its newline: "[0]\n" is 4 bytes and "[10]\n" is 5
             assertThat(limit.lineSizes, equalTo(List.of(4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5)));
             assertThat("a reached limit writes nothing", writeChunk(writer, Integer.MAX_VALUE, limit), equalTo(List.of()));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * The chunk is full and the limit is reached by the same row. The limit is reported by that call, so the caller is not asked for
+     * one more chunk, which would be empty.
+     */
+    public void testALimitReachedWhenTheChunkIsFullIsReportedAtOnce() throws IOException {
+        Page page = longs(10);
+        try {
+            NdjsonRowWriter writer = new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC);
+            RowsLimit limit = new RowsLimit(2);
+            // "[0]\n" is 4 bytes: a hint of 5 is reached by the second row, which is also the row that reaches the limit
+            assertThat(writeChunk(writer, 5, limit), equalTo(List.of("[0]", "[1]")));
+            assertTrue(writer.stoppedAtLimit());
+            assertFalse(writer.allRowsWritten());
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testALimitReachedByTheLastRowOfThePageDoesNotStopThePage() throws IOException {
+        Page page = longs(3);
+        try {
+            NdjsonRowWriter writer = new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC);
+            RowsLimit limit = new RowsLimit(3);
+            assertThat(writeChunk(writer, between(1, 100), limit).size() + writeChunk(writer, 100, limit).size(), equalTo(3));
+            assertTrue(writer.allRowsWritten());
+            assertFalse("no row of the page was left out", writer.stoppedAtLimit());
         } finally {
             page.releaseBlocks();
         }

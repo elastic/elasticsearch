@@ -197,6 +197,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             ? null
             : TimeValue.timeValueMillis(searchService.getDefaultKeepAliveInMillis());
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
+        final boolean writesInto = writesInto(dataNodePlan);
 
         new DataNodeRequestSender(
             clusterService,
@@ -225,7 +226,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
 
                 final AtomicLong pagesFetched = new AtomicLong();
-                var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
+                final AtomicBoolean requestSent = new AtomicBoolean();
+                // A node that was sent an INTO may have written rows before it failed, without a page for the coordinator to have
+                // fetched, and another copy of the shard would write the same rows again
+                var listener = ActionListener.wrap(
+                    nodeListener::onResponse,
+                    e -> nodeListener.onFailure(e, pagesFetched.get() > 0 || (writesInto && requestSent.get()))
+                );
                 final Transport.Connection connection;
                 try {
                     connection = transportService.getConnection(node);
@@ -292,6 +299,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
                             final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
+                            requestSent.set(true);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,

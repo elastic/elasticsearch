@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -27,8 +28,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -378,45 +377,42 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A failure that is retryable for a read, here the shard copy going away, must not send the request to the other copy once its
-     * node has written, since that copy would write the same rows again.
+     * The node fails after it has written a bulk, and before it has returned its stats page, so the coordinator has fetched nothing
+     * and the failure looks like one of a read, which could go to the other copy of the shard.
      */
-    public void testRetryableFailureAfterTheWriteIsNotRetried() {
+    public void testFailureDuringTheWriteIsNotRetried() {
         createRetrySource();
-        indexRandom(true, client().prepareIndex(RETRY_SOURCE).setSource("k", "a"), client().prepareIndex(RETRY_SOURCE).setSource("k", "c"));
+        String wide = "x".repeat(2048);
+        indexRandom(
+            true,
+            IntStream.range(0, 600).mapToObj(i -> client().prepareIndex(RETRY_SOURCE).setSource("k", wide + i)).collect(Collectors.toList())
+        );
         AtomicInteger dataNodeRequests = new AtomicInteger();
+        AtomicInteger bulks = new AtomicInteger();
         for (String node : internalCluster().getNodeNames()) {
-            MockTransportService.getInstance(node)
-                .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
-                    dataNodeRequests.incrementAndGet();
-                    handler.messageReceived(request, new TransportChannel() {
-                        @Override
-                        public String getProfileName() {
-                            return channel.getProfileName();
-                        }
-
-                        @Override
-                        public void sendResponse(TransportResponse response) {
-                            // The node has written its rows by now
-                            channel.sendResponse(new NoShardAvailableActionException(new ShardId(RETRY_SOURCE, "_na_", 0), "simulated"));
-                        }
-
-                        @Override
-                        public void sendResponse(Exception exception) {
-                            channel.sendResponse(exception);
-                        }
-                    }, task);
-                });
+            MockTransportService service = MockTransportService.getInstance(node);
+            service.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                dataNodeRequests.incrementAndGet();
+                handler.messageReceived(request, channel, task);
+            });
+            service.addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME, (handler, request, channel, task) -> {
+                if (bulks.incrementAndGet() == 2) {
+                    channel.sendResponse(new NoShardAvailableActionException(new ShardId(DESTINATION, "_na_", 0), "simulated"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
         }
         try {
             expectThrows(Exception.class, () -> run("FROM " + RETRY_SOURCE + " | KEEP k | INTO " + DESTINATION).close());
+            assertThat("the second bulk was reached", bulks.get(), greaterThan(1));
             assertThat(dataNodeRequests.get(), equalTo(1));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService.getInstance(node).clearAllRules();
             }
         }
-        assertReadBack("KEEP k | SORT k", List.of(List.of("a"), List.of("c")));
+        assertReadBack("STATS c = COUNT(*) BY k | STATS most = MAX(c)", List.of(List.of(1L)));
     }
 
     public void testAllowPartialResultsDoesNotBypassRowFailure() {

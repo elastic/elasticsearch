@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -79,6 +80,7 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -136,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -3671,6 +3674,9 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
+        if (plan instanceof Into into) {
+            rejectDestinationThatIsRead(into);
+        }
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
         // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
         // during pre-analysis.
@@ -3680,6 +3686,22 @@ public class EsqlSession {
         columnSemantics.putAll(semantics);
         columnUnits.putAll(ColumnUnits.collect(plan, semantics));
         return plan;
+    }
+
+    /**
+     * A later batch of shards opens its search contexts after an earlier batch may have written, so a query that reads its own
+     * destination can read, and write again, the rows it wrote, depending on refreshes and on the order of the shards.
+     */
+    private void rejectDestinationThatIsRead(Into into) {
+        IndexAbstraction destination = projectMetadata.getIndicesLookup().get(into.destination());
+        if (destination == null || destination.getWriteIndex() == null) {
+            return;
+        }
+        String writeIndex = destination.getWriteIndex().getName();
+        if (into.child().anyMatch(p -> p instanceof EsRelation relation && relation.concreteQualifiedIndices().contains(writeIndex))) {
+            Failure failure = Failure.fail(into, "INTO destination [{}] is also read by the query", into.destination());
+            throw new VerificationException(List.of(failure));
+        }
     }
 
     private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {

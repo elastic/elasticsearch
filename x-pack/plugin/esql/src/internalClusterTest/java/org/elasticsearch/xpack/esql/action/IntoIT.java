@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
@@ -164,7 +165,19 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             IntStream.range(0, 2000).mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", wide + i)).collect(Collectors.toList())
         );
         assertInto("FROM " + SOURCE + " | KEEP k", 2000);
-        assertReadBack("STATS c = COUNT(*), d = COUNT_DISTINCT(k)", List.of(List.of(2000L, 2000L)));
+        assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
+    }
+
+    public void testDestinationCannotAlsoBeRead() {
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(DESTINATION, "dest-alias"));
+
+        for (String source : List.of(DESTINATION, "dest-alias", "dest-into*")) {
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                () -> run("FROM " + source + " | INTO " + DESTINATION).close()
+            );
+            assertThat(e.getMessage(), containsString("INTO destination [" + DESTINATION + "] is also read by the query"));
+        }
     }
 
     public void testFromShardFailureFailsEvenWithPartialResults() {

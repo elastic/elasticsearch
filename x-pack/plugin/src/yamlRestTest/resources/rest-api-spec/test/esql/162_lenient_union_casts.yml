@@ -624,6 +624,32 @@ setup:
   - match: { values.0: [1, null] }
 
 ---
+"cast of an expression over an unsupported field still errors":
+  # Only a cast applied directly to the field is lenient. The field as an operand is still unsupported, as without a cast.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast]
+      reason: "Impossible casts return null"
+  - do:
+      catch: '/Cannot use field \[f\] with unsupported type \[rank_feature\]/'
+      esql.query:
+        body:
+          query: 'FROM lenient_rank | STATS c = COUNT((f + 1)::long)'
+  - do:
+      catch: '/Cannot use field \[f\] with unsupported type \[rank_feature\]/'
+      esql.query:
+        body:
+          query: 'FROM lenient_rank | STATS c = COUNT(*) BY g = (f + 1)::long'
+  - do:
+      catch: '/Cannot use field \[f\] with unsupported type \[rank_feature\]/'
+      esql.query:
+        body:
+          query: 'FROM lenient_rank | EVAL x = (f + 1)::long | KEEP x'
+
+---
 "impossible cast with options returns null":
   - requires:
       capabilities:

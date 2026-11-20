@@ -375,8 +375,10 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             final long initialTerm = internalCluster().getInstance(ClusterService.class, initialMaster).state().term();
 
             // The data node blocks as soon as it applies the cluster state that adds the snapshot, which can happen before the master has
-            // finished publishing that state and registered SnapshotsService's finalization listener. Here we wait until that publication
-            // and its completion callbacks are done, so the listener is always registered before startInitialJoin() is called below.
+            // finished publishing that state and registered SnapshotsService's finalization listener. The master failure triggered by
+            // startInitialJoin() occurs on the applier thread which can also precede the registration of the listener. If so, the listener
+            // is registered and then can be completed successfully by the re-elected master. Here we wait until that publication and its
+            // completion callbacks are done, so the listener is always registered before startInitialJoin() is called below.
             assertNoTimeout(client(initialMaster).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID));
 
             // Keep the snapshot out of finalization so SnapshotsService fails its listener immediately on losing mastership.

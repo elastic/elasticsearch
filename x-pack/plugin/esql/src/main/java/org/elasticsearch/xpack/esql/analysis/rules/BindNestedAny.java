@@ -24,13 +24,9 @@ import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -74,7 +70,10 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             LogicalPlan input = p.children().getFirst();
             return p.transformExpressionsOnlyUp(NestedAny.class, any -> {
                 // An aggregate drops the nested documents before the fields can be bound, so report that first.
-                checkReadsIndexRows(input, any);
+                LogicalPlan aggregate = NestedRowChecks.aggregateBelow(input);
+                if (aggregate != null) {
+                    throw error(any, "NESTED_ANY reads each row's nested documents, so it cannot follow [" + aggregate.sourceText() + "]");
+                }
                 return any.resolved() ? bind(any, input, context.configuration()) : any;
             });
         });
@@ -89,22 +88,64 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
     private static Expression bind(NestedAny nested, LogicalPlan input, Configuration configuration) {
         Expression body = nested.body();
         String collection = collection(nested, input);
-        List<Attribute> output = input.output();
-        Map<String, FieldAttribute> schema = new HashMap<>();
-        for (Attribute attribute : output) {
-            if (attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField) {
-                schema.put(field.name(), field);
-            }
+        Schema schema = Schema.of(input.output());
+        Reads reads = readChildren(nested, body, collection, schema);
+        if (schema.paths().stream().anyMatch(path -> reads.path().startsWith(path + "."))) {
+            throw error(nested, "NESTED_ANY supports one nesting level");
         }
-        Set<String> nestedPaths = new HashSet<>();
-        schema.values().forEach(field -> nestedPaths.add(((NestedScopeField) field.field()).path()));
-        Map<NameId, Attribute> fields = new LinkedHashMap<>();
-        body.forEachDown(Attribute.class, attribute -> fields.putIfAbsent(attribute.id(), attribute));
-        Map<NameId, Attribute> childFields = new LinkedHashMap<>();
+        Inputs inputs = inputs(nested, input, reads, schema);
+        Map<Expression, ReferenceAttribute> outers = new LinkedHashMap<>();
+        Expression bound = hoistOuter(body, reads.children().keySet(), outers).transformUp(
+            Attribute.class,
+            attribute -> inputs.replacement().getOrDefault(attribute.id(), attribute)
+        );
+        return new NestedPredicate(
+            nested.source(),
+            reads.path(),
+            bound,
+            inputs.channels(),
+            inputs.relativePaths(),
+            List.copyOf(outers.values()),
+            List.copyOf(outers.keySet()),
+            null,
+            configuration
+        );
+    }
+
+    /** The private nested schema in the plan's output, by name, and the paths of the nested objects it describes. */
+    private record Schema(Map<String, FieldAttribute> byName, Set<String> paths) {
+        static Schema of(List<Attribute> output) {
+            Map<String, FieldAttribute> byName = new HashMap<>();
+            Set<String> paths = new HashSet<>();
+            for (Attribute attribute : output) {
+                if (attribute instanceof FieldAttribute field && field.field() instanceof NestedScopeField scope) {
+                    byName.put(field.name(), field);
+                    paths.add(scope.path());
+                }
+            }
+            return new Schema(byName, paths);
+        }
+
+        boolean underNestedPath(String name) {
+            return paths.stream().anyMatch(path -> name.equals(path) || name.startsWith(path + "."));
+        }
+    }
+
+    /** The nested path the predicate reads and the attributes of its body that read a child of it. */
+    private record Reads(String path, Map<NameId, Attribute> children) {}
+
+    /**
+     * Finds the attributes of {@code body} that read children of one nested object. Any other attribute is a parent column,
+     * unless its name is under a nested path: an unmapped name there keeps its meaning as a parent field, so it is not a child.
+     */
+    private static Reads readChildren(NestedAny nested, Expression body, String collection, Schema schema) {
+        Map<NameId, Attribute> attributes = new LinkedHashMap<>();
+        body.forEachDown(Attribute.class, attribute -> attributes.putIfAbsent(attribute.id(), attribute));
+        Map<NameId, Attribute> children = new LinkedHashMap<>();
         String path = collection;
-        for (Attribute attribute : fields.values()) {
+        for (Attribute attribute : attributes.values()) {
             FieldAttribute field = attribute instanceof FieldAttribute f ? f : null;
-            FieldAttribute read = field == null ? null : schemaOf(field, schema);
+            FieldAttribute read = field == null ? null : schemaOf(field, schema.byName());
             if (read != null && read.field() instanceof NestedScopeField scope) {
                 if (field.hasTypeConflicts()) {
                     throw error(field, ((UnsupportedAttribute) field.flagTypeConflicts()).unresolvedMessage());
@@ -112,46 +153,36 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 if (scope.conflict() != null) {
                     throw error(nested, "NESTED_ANY cannot read [" + publicName(read) + "]: " + scope.conflict());
                 }
-                if (scope.kind() != NestedScopeField.Kind.VALUE || scope.path().equals(path == null ? scope.path() : path) == false) {
-                    if (path != null && path.equals(scope.path()) == false) {
-                        throw error(nested, "NESTED_ANY requires one nested path");
-                    }
-                }
-                if (collection != null && collection.equals(scope.path()) == false) {
-                    throw error(nested, "Field [" + publicName(read) + "] is outside the nested scope [" + collection + "]");
-                }
                 if (path != null && path.equals(scope.path()) == false) {
                     throw error(nested, "NESTED_ANY requires one nested path");
                 }
                 path = scope.path();
-                childFields.put(attribute.id(), attribute);
-            } else if (underNestedPath(attribute.name(), nestedPaths)) {
-                // An unmapped name under a nested path keeps its meaning as a parent field, so it is not one of the child fields
+                children.put(attribute.id(), attribute);
+            } else if (schema.underNestedPath(attribute.name())) {
                 throw error(nested, "Field [" + attribute.name() + "] is outside the nested scope");
             }
         }
         if (path == null) {
             throw error(nested, "NESTED_ANY requires a mapped nested field");
         }
-        String scopePath = path;
-        for (Attribute attribute : output) {
-            if (attribute instanceof FieldAttribute field
-                && field.field() instanceof NestedScopeField scope
-                && scopePath.startsWith(scope.path() + ".")) {
-                throw error(nested, "NESTED_ANY supports one nesting level");
-            }
-        }
+        return new Reads(path, children);
+    }
+
+    /** What the predicate loads from each child, and what its body reads in place of the attribute that named it. */
+    private record Inputs(List<Attribute> channels, List<String> relativePaths, Map<NameId, Attribute> replacement) {}
+
+    private static Inputs inputs(NestedAny nested, LogicalPlan input, Reads reads, Schema schema) {
         List<Attribute> channels = new ArrayList<>();
-        List<String> paths = new ArrayList<>();
+        List<String> relativePaths = new ArrayList<>();
         Map<NameId, Attribute> replacement = new HashMap<>();
-        for (Attribute attribute : childFields.values()) {
+        for (Attribute attribute : reads.children().values()) {
             FieldAttribute field = (FieldAttribute) attribute;
-            FieldAttribute read = schemaOf(field, schema);
+            FieldAttribute read = schemaOf(field, schema.byName());
             NestedScopeField scope = (NestedScopeField) read.field();
             if (scope.kind() != NestedScopeField.Kind.VALUE) {
                 throw error(nested, "NESTED_ANY requires a predicate over nested fields, not [" + publicName(read) + "]");
             }
-            if (lookupSourced(input, read.id())) {
+            if (NestedRowChecks.fromLookupIndex(input, read.id())) {
                 throw error(
                     nested,
                     "NESTED_ANY cannot read ["
@@ -159,7 +190,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                         + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
                 );
             }
-            paths.add(read.name().substring(NestedScopeField.PREFIX.length() + path.length() + 1));
+            relativePaths.add(read.name().substring(NestedScopeField.PREFIX.length() + reads.path().length() + 1));
             if (field.field() instanceof UnionTypeEsField) {
                 channels.add(field);
             } else {
@@ -168,22 +199,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 replacement.put(attribute.id(), ref);
             }
         }
-        Map<Expression, ReferenceAttribute> outers = new LinkedHashMap<>();
-        Expression bound = hoistOuter(body, childFields.keySet(), outers).transformUp(
-            Attribute.class,
-            attribute -> replacement.getOrDefault(attribute.id(), attribute)
-        );
-        return new NestedPredicate(
-            nested.source(),
-            path,
-            bound,
-            channels,
-            paths,
-            List.copyOf(outers.values()),
-            List.copyOf(outers.keySet()),
-            null,
-            configuration
-        );
+        return new Inputs(channels, relativePaths, replacement);
     }
 
     /**
@@ -211,10 +227,6 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             return expression;
         }
         return expression.replaceChildren(expression.children().stream().map(child -> hoistOuter(child, childIds, outers)).toList());
-    }
-
-    private static boolean underNestedPath(String name, Set<String> nestedPaths) {
-        return nestedPaths.stream().anyMatch(path -> name.equals(path) || name.startsWith(path + "."));
     }
 
     /** The named collection, or {@code null} when the predicate's fields name the path. */
@@ -297,51 +309,6 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
         return new FieldAttribute(attribute.source(), NestedScopeField.NAMESPACE, null, scopedName, scope, true);
     }
 
-    private static void checkReadsIndexRows(LogicalPlan input, Expression at) {
-        LogicalPlan plan = input;
-        while (plan instanceof EsRelation == false && plan.children().isEmpty() == false) {
-            if (plan instanceof Aggregate) {
-                throw error(at, "NESTED_ANY reads each row's nested documents, so it cannot follow [" + plan.sourceText() + "]");
-            }
-            plan = plan instanceof Join join ? join.left() : plan.children().getFirst();
-        }
-    }
-
-    /** The collection attribute comes from the right side of a LOOKUP JOIN, whose documents are not the input rows. */
-    private static boolean lookupSourced(LogicalPlan plan, NameId id) {
-        if (plan instanceof LookupJoin join) {
-            if (containsAttribute(join.right(), id)) {
-                return true;
-            }
-            return containsAttribute(join.left(), id) && lookupSourced(join.left(), id);
-        }
-        if (plan instanceof EsRelation) {
-            return false;
-        }
-        for (LogicalPlan child : plan.children()) {
-            if (containsAttribute(child, id)) {
-                return lookupSourced(child, id);
-            }
-        }
-        return false;
-    }
-
-    private static boolean containsAttribute(LogicalPlan plan, NameId id) {
-        if (plan instanceof EsRelation relation) {
-            for (Attribute attribute : relation.output()) {
-                if (attribute.id().equals(id)) {
-                    return true;
-                }
-            }
-        }
-        for (LogicalPlan child : plan.children()) {
-            if (containsAttribute(child, id)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
      * The private schema attribute a body attribute reads: itself, or for a child whose type conflicts across indices, or a cast of
      * one, the schema attribute named by its parent. {@code null} for a name outside the nested scope.
@@ -352,11 +319,6 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             return named;
         }
         return field.field() instanceof NestedScopeField ? field : null;
-    }
-
-    /** Whether the attribute reads a child of a nested collection through the private schema. */
-    public static boolean readsNestedChild(FieldAttribute field) {
-        return field.parentName() != null && field.parentName().startsWith(NestedScopeField.PREFIX);
     }
 
     private static String publicName(FieldAttribute field) {

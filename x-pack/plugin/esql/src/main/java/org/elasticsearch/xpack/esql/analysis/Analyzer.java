@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.AnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.BindNestedAny;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.analysis.rules.NestedRowChecks;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightFieldMappings;
@@ -1942,7 +1943,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 throw nestedExpandError(target, "NESTED_EXPAND cannot read [" + name + "]: " + scope.conflict());
             }
             String path = scope.path();
-            if (lookupSourced(expand.child(), root.id())) {
+            if (NestedRowChecks.fromLookupIndex(expand.child(), root.id())) {
                 throw nestedExpandError(
                     target,
                     "NESTED_EXPAND cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
@@ -1987,52 +1988,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return attributeName.equals(path) || attributeName.startsWith(path + ".");
         }
 
-        /** The collection attribute comes from the right side of a LOOKUP JOIN, whose documents are not the input rows. */
-        private static boolean lookupSourced(LogicalPlan plan, NameId id) {
-            if (plan instanceof LookupJoin join) {
-                if (containsAttribute(join.right(), id)) {
-                    return true;
-                }
-                return containsAttribute(join.left(), id) && lookupSourced(join.left(), id);
-            }
-            if (plan instanceof EsRelation) {
-                return false;
-            }
-            for (LogicalPlan child : plan.children()) {
-                if (containsAttribute(child, id)) {
-                    return lookupSourced(child, id);
-                }
-            }
-            return false;
-        }
-
-        private static boolean containsAttribute(LogicalPlan plan, NameId id) {
-            if (plan instanceof EsRelation relation) {
-                for (Attribute attribute : relation.output()) {
-                    if (attribute.id().equals(id)) {
-                        return true;
-                    }
-                }
-            }
-            for (LogicalPlan child : plan.children()) {
-                if (containsAttribute(child, id)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         /** Child documents belong to a parent row. A STATS replaces those rows with groups, which have none. */
         private static void checkNestedExpandReadsIndexRows(LogicalPlan input, Expression at) {
-            LogicalPlan plan = input;
-            while (plan instanceof EsRelation == false && plan.children().isEmpty() == false) {
-                if (plan instanceof Aggregate) {
-                    throw nestedExpandError(
-                        at,
-                        "NESTED_EXPAND reads each row's nested documents, so it cannot follow [" + plan.sourceText() + "]"
-                    );
-                }
-                plan = plan instanceof Join join ? join.left() : plan.children().getFirst();
+            LogicalPlan aggregate = NestedRowChecks.aggregateBelow(input);
+            if (aggregate != null) {
+                throw nestedExpandError(
+                    at,
+                    "NESTED_EXPAND reads each row's nested documents, so it cannot follow [" + aggregate.sourceText() + "]"
+                );
             }
         }
 
@@ -4632,7 +4595,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         for (int i = before; i < state.unionFieldAttributes.size(); i++) {
                             if (state.expandedChildren.containsKey(child.id())) {
                                 state.convertedChildren.put(state.unionFieldAttributes.get(i).inner().id(), child);
-                            } else if (BindNestedAny.readsNestedChild(child)) {
+                            } else if (NestedScopeField.readsChild(child)) {
                                 state.nestedPredicateConversions.add(state.unionFieldAttributes.get(i).inner().id());
                             }
                         }

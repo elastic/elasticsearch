@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.enrich.heappressure;
 
 /**
  * Every document has a distinct key and the cache is cold, so every lookup is a search. The scenario with the least headroom.
+ * Fixed by charging pipeline growth to indexing pressure (#163380), charging lookup responses to the request breaker while holding
+ * the permit (#163388), and releasing each coordinator slot early (#163387).
  */
 public class EnrichDistinctKeysHeapPressureIT extends EnrichWideDocumentHeapPressureTestCase {
 

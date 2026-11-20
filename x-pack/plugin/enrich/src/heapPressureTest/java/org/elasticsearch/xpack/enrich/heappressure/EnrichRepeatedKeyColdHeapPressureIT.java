@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.enrich.heappressure;
 
 /**
- * Every document has the same key and the cache is cold, as on a node that restarted under load.
+ * Every document has the same key and the cache is cold, as on a node that restarted under load. Fixed by charging pipeline growth
+ * to indexing pressure (#163380) and sending identical lookups of a batch as one search (#166459).
  */
 public class EnrichRepeatedKeyColdHeapPressureIT extends EnrichWideDocumentHeapPressureTestCase {
 

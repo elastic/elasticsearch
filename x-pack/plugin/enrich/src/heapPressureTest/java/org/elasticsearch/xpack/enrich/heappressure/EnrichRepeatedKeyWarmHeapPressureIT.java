@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.enrich.heappressure;
 
 /**
  * Every document has the same key and the cache is warm, so no lookup is a search; only the enriched documents fill the heap.
+ * Fixed by charging pipeline growth to indexing pressure (#163380).
  */
 public class EnrichRepeatedKeyWarmHeapPressureIT extends EnrichWideDocumentHeapPressureTestCase {
 

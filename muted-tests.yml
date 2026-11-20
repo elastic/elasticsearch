@@ -684,11 +684,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRecoveryMetricPublicationOnIndexingShardRelocation
   issue: https://github.com/elastic/elasticsearch/issues/166001
-- class: org.elasticsearch.index.query.IntervalQueryBuilderTests
-  tasks:
-  - :server:test
-  method: testToQueryChargesBreakerOnce
-  issue: https://github.com/elastic/elasticsearch/issues/166038
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -804,11 +799,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testClosingNodeShouldWaitForOngoingMerge
   issue: https://github.com/elastic/elasticsearch/issues/166623
-- class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchShardGenerationFilesRetention
-  issue: https://github.com/elastic/elasticsearch/issues/166692
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -849,3 +839,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithoutPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/166894
+- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166909

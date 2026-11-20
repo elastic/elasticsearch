@@ -18,13 +18,13 @@ For data held in {{es}} indices, refer to [size your shards](docs-content://depl
 
 ## General guidelines [general-guidelines]
 
-* **Prefer Parquet over the text formats** where you have the choice. It needs no schema inference, reads only the columns a query names, and stays splittable when compressed.
+* **Prefer Parquet to the text formats** where you have the choice. It needs no schema inference, reads only the columns a query names, and stays splittable when compressed.
+* **Prefer mid-sized files**, from tens of megabytes to a couple of hundred megabytes, and enough of them to keep every core busy.
 * **Specify a mapping** on text datasets, with `dynamic` set to `false`.
 * **Start at 2 GB of heap** for Parquet, **2 GB to 4 GB** for uncompressed text, and **4 GB** for compressed text. Add a further **2 GB to 4 GB** for a text dataset whose schema is inferred.
 * **Allocate 1 GB to 2 GB of heap per core.**
 * **Add about one core per three or four concurrent queries** on text, and about one per eight to ten on Parquet.
 * **Do not raise heap past 31 GB.** Scale horizontally across nodes instead.
-* **Write files of tens of megabytes up to about 1 GB**, enough of them to keep every core busy.
 
 These figures are starting points, not targets. How a dataset behaves depends on characteristics of your own data — how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects — so a configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
 
@@ -40,17 +40,17 @@ What differs is the work of reading data that lives outside the cluster. A few s
 
 The formats then diverge. Parquet carries its schema in the file footers, so no sampling is needed, and it is read chunk by chunk: a reader takes one row group at a time and, within it, fetches and decodes only the columns the query names. Both the bytes read and the work done follow your projection rather than the width of the file, which is why narrowing a query with [`KEEP`](/reference/query-languages/esql/commands/keep.md) is the strongest lever on a wide Parquet dataset.
 
-The text formats behave the other way round. A file is read as a continuous stream, and a row must be parsed in full before any of its columns can be used, because the parse has to walk the whole record to find its field boundaries. Narrowing a text query therefore does not read less: the same bytes are fetched, decompressed and parsed either way, and a projection saves only the building of the result columns.
+The text formats behave the other way round. A file is read as a continuous stream, and a row must be parsed in full before any of its columns can be used. Narrowing a text query therefore does not read less: the same bytes are fetched, decompressed and parsed either way, and a projection saves only the building of the result columns.
 
-Parallelization differs with them. For Parquet the unit is a row group, so one large file still parallelizes. For uncompressed text it is a split, so a larger file is read as several of them. For compressed text it is the whole file, which cannot be read from the middle and so cannot be divided at all: one file is one reader, decompressing on one thread.
+Parallelization works differently depending on the format, because each one divides a file into a different unit of work. For Parquet that unit is a row group, so one large file still parallelizes. For uncompressed text it is a split, so a larger file is read as several of them. For compressed text it is the whole file, which cannot be read from the middle and so cannot be divided at all: one file is one reader, decompressing on one thread.
 
-One consequence is worth carrying into the rest of this guide: the heap a cluster needs does not depend on the size of your dataset. Data is streamed through the cluster rather than loaded into it, so what matters is how much is in flight at any moment. A dataset of ten thousand objects needs much the same heap as one of a hundred. What the size of the dataset affects is the time a query takes, and therefore the cores you need to meet a latency target.
+It is important to note that the heap a cluster needs does not depend on the size of your dataset. Data is streamed through the cluster rather than loaded into it, so what matters is how much is in flight at any moment. A dataset of ten thousand objects needs much the same heap as one of a hundred. What the size of the dataset affects is the time a query takes, and therefore the cores you need to meet a latency target.
 
 ## Size your files for your workload [file-layout]
 
 File layout is a property of your data rather than of your cluster, so you can get it right without knowing what will query it.
 
-Aim for files of tens of megabytes up to about 1 GB, and for a few hundred of them per dataset. Too few leave cores idle, and for compressed text that is a limit rather than a preference, because one file is one reader. Too many cost more than they return, because every object is reached by its own high-latency request. The object count is also capped by [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files), past which a query fails rather than running slowly.
+Aim for mid-sized files, from tens of megabytes to a couple of hundred megabytes, and for enough of them to keep every core busy. Too few leave cores idle, and for compressed text that is a limit rather than a preference, because one file is one reader. Too many cost more than they return, because every object is reached by its own high-latency request. The object count is also capped by [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files), past which a query fails rather than running slowly.
 
 Compression reduces what every query fetches, which is both faster and cheaper, but for text it costs parallelism. Compressed Parquet stays splittable, and for Parquet the lever is the row group rather than the file, so leave row group sizes at their defaults unless your files are very wide.
 
@@ -116,7 +116,7 @@ The [TLC trip record data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-da
 | Heap at 4 cores | 4 GB to 8 GB |
 | Each further concurrent query | about 0.1 core, and little extra heap |
 
-Twelve queries at one core per eight to ten needs only two cores, so the node's minimum size governs rather than the concurrency. Sixty files is below the few hundred this guide suggests, and for Parquet that is fine, because a Parquet file divides on row groups.
+Twelve queries at one core per eight to ten needs only two cores, so the node's minimum size governs rather than the concurrency. Sixty files is fewer than this guide suggests, and for Parquet that is fine, because a Parquet file divides on row groups: the file count is a preference rather than a limit.
 
 ### GH Archive, gzipped NDJSON [example-gharchive]
 

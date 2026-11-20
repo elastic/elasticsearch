@@ -24,8 +24,6 @@ base {
 dependencies {
   compileOnly project(':server')
   compileOnly project(path: xpackModule('core'))
-  compileOnly project(path: xpackModule('esql'))
 
   testImplementation project(':test:framework')
-  testImplementation(testArtifact(project(xpackModule('core'))))
 }

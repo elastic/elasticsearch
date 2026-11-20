@@ -121,6 +121,35 @@ public class UsageReportingSettingsTests extends ESTestCase {
         );
     }
 
+    public void testPortsOutsideTheRangeAreRejected() {
+        for (String bad : List.of("https://usage.example.com:99999", "https://usage.example.com:65536", "https://usage.example.com:0")) {
+            Settings s = complete().put(UsageReportingSettings.URL.getKey(), bad).build();
+            List<String> problems = UsageReportingSettings.of(s).problems();
+            assertThat(problems, hasSize(1));
+            assertThat(problems.get(0), containsString("port"));
+        }
+        for (String ok : List.of("https://usage.example.com:1", "https://usage.example.com:65535")) {
+            Settings s = complete().put(UsageReportingSettings.URL.getKey(), ok).build();
+            assertThat(UsageReportingSettings.of(s).problems(), empty());
+        }
+    }
+
+    public void testUrlIsFilteredFromTheSettingsOutput() {
+        assertThat(UsageReportingSettings.URL.isFiltered(), equalTo(true));
+    }
+
+    /** The SSL loader treats an empty value as unset, so an empty keystore path or certificate is not a client certificate. */
+    public void testEmptyCertificateSettingsAreNotACertificate() {
+        Settings.Builder none = complete().putNull(UsageReportingSettings.SSL_PREFIX + ".certificate")
+            .putNull(UsageReportingSettings.SSL_PREFIX + ".key");
+        Settings emptyKeystore = Settings.builder().put(none.build()).put(UsageReportingSettings.SSL_PREFIX + ".keystore.path", "").build();
+        assertThat(UsageReportingSettings.of(emptyKeystore).problems(), hasSize(1));
+        Settings emptyPair = complete().put(UsageReportingSettings.SSL_PREFIX + ".certificate", "")
+            .put(UsageReportingSettings.SSL_PREFIX + ".key", "")
+            .build();
+        assertThat(UsageReportingSettings.of(emptyPair).problems(), hasSize(1));
+    }
+
     public void testUsableUrlsHaveNoProblem() {
         for (String ok : List.of("https://usage.example.com", "https://usage.example.com:8443/api/v1/usage", "HTTPS://usage.example.com")) {
             Settings s = complete().put(UsageReportingSettings.URL.getKey(), ok).build();

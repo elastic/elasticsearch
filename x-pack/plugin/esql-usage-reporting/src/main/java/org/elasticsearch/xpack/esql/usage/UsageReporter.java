@@ -13,7 +13,8 @@ import java.time.Instant;
 /**
  * Runs the periodic cycle on its own thread: aligned to wall-clock multiples of the period, {@link #tick} drains the
  * {@link UsageAccumulator}, builds records, adds them to the {@link PendingStore} and publishes batches until the store is empty
- * or a failure says to stop. Single flight: a cycle that is still running is not started again. {@link #close} makes a final
+ * or a failure says to stop. A publish result that accepts nothing and reports no failure also stops the cycle, so that the same
+ * batch is never requested in a loop. Single flight: a cycle that is still running is not started again. {@link #close} makes a final
  * flush attempt and may lose usage, which can only under-count.
  */
 public interface UsageReporter extends Closeable {

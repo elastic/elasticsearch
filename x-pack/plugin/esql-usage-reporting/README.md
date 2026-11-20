@@ -20,14 +20,14 @@ All node scoped and not dynamic. Names and defaults are tentative.
 | Setting (prefix `xpack.esql.usage_reporting.`) | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | master switch |
-| `url` | none | Usage API endpoint, required when enabled |
+| `url` | none | Usage API endpoint, required when enabled; filtered from the settings output |
 | `period` | `5m` | reporting interval, must divide one hour; also the `period_seconds` of each record |
 | `batch_size` | `100` | records per request, 1 to 1000 |
 | `request_timeout` | `30s` | timeout of one request |
 | `pending_max` | `1000` | bound of the records built but not yet accepted |
 | `report_exempt` | `false` | also send non-success outcomes, as exempt records that are not counted |
 | `deployment_id`, `cluster_id`, `provider`, `region` | none | identity injected by Cloud, required when enabled |
-| `ssl.*` | none | client certificate profile for the mutual TLS connection (an `SslProfileExtension`) |
+| `ssl.*` | none | client certificate profile for the mutual TLS connection (an `SslProfileExtension`); validated by x-pack-core at startup, so a partial PEM configuration fails the node there |
 
 ## Status
 

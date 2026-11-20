@@ -92,9 +92,13 @@ public class UsageTypesTests extends ESTestCase {
         Instant now = Instant.now();
         assertThat(NoopUsageAccumulator.INSTANCE.drain(now).isEmpty(), is(true));
         assertThat(NoopUsageRecordBuilder.INSTANCE.build(new UsageSnapshot(now, Map.of()), null, null, now), empty());
+        assertThat(NoopUsagePublisher.INSTANCE.publish(List.of()).failures(), empty());
+        // A non-empty batch is a retryable failure of the whole batch, so that a reporter does not ask for it again in a loop.
         PublishResult result = NoopUsagePublisher.INSTANCE.publish(List.of(record("1", now)));
         assertThat(result.acceptedIds(), empty());
-        assertThat(result.failures(), empty());
+        assertThat(result.failures().size(), equalTo(1));
+        assertThat(result.failures().get(0).failureClass(), equalTo(PublishResult.FailureClass.RETRYABLE));
+        assertThat(result.failures().get(0).recordIds(), empty());
     }
 
     private static UsageRecord record(String id, Instant usageTimestamp) {

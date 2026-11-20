@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.usage;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.Plugin;
@@ -37,6 +38,7 @@ public class EsqlUsageReportingPlugin extends Plugin {
     private volatile UsageAccumulator accumulator = NoopUsageAccumulator.INSTANCE;
     private volatile boolean reportExempt;
     private volatile UsageReporter reporter = NoopUsageReporter.INSTANCE;
+    private volatile UsagePublisher publisher = NoopUsagePublisher.INSTANCE;
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -78,22 +80,36 @@ public class EsqlUsageReportingPlugin extends Plugin {
             settings.region()
         );
         UsageAccumulator newAccumulator = UsageComponents.newAccumulator(settings);
-        UsageReporter newReporter = buildReporter(settings, newAccumulator, identity, services);
+        UsagePublisher newPublisher = buildPublisher(settings);
+        UsageReporter newReporter = null;
+        boolean started = false;
         try {
+            newReporter = buildReporter(settings, newAccumulator, newPublisher, identity, services);
             newReporter.start();
-        } catch (RuntimeException e) {
-            IOUtils.closeWhileHandlingException(newReporter);
-            throw e;
+            started = true;
+        } finally {
+            if (started == false) {
+                // The reporter first: its final flush uses the publisher.
+                IOUtils.closeWhileHandlingException(newReporter);
+                Releasables.closeWhileHandlingException(newPublisher);
+            }
         }
         this.reportExempt = settings.reportExempt();
         this.accumulator = newAccumulator;
+        this.publisher = newPublisher;
         this.reporter = newReporter;
+    }
+
+    /** Builds the publisher; a seam so that tests can observe when it is closed. */
+    UsagePublisher buildPublisher(UsageReportingSettings settings) {
+        return UsageComponents.newPublisher(settings, UsageSslProfile.current());
     }
 
     /** Builds the reporter with the other pieces; a seam so that tests can make the start of the reporter fail. */
     UsageReporter buildReporter(
         UsageReportingSettings settings,
         UsageAccumulator accumulator,
+        UsagePublisher publisher,
         SourceIdentity identity,
         PluginServices services
     ) {
@@ -102,7 +118,7 @@ public class EsqlUsageReportingPlugin extends Plugin {
             accumulator,
             UsageComponents.newRecordBuilder(settings),
             UsageComponents.newPendingStore(settings),
-            UsageComponents.newPublisher(settings, UsageSslProfile.current()),
+            publisher,
             identity,
             services.threadPool(),
             Clock.systemUTC()
@@ -121,6 +137,11 @@ public class EsqlUsageReportingPlugin extends Plugin {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(reporter);
+        // The reporter first: its final flush uses the publisher.
+        try {
+            IOUtils.close(reporter);
+        } finally {
+            Releasables.close(publisher);
+        }
     }
 }

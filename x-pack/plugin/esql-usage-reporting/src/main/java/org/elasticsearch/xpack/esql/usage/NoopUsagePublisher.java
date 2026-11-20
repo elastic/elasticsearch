@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.esql.usage;
 
 import java.util.List;
+import java.util.Set;
 
 /**
- * A {@link UsagePublisher} that sends nothing: it accepts nothing and fails nothing, so records stay pending.
+ * A {@link UsagePublisher} that sends nothing, so records stay pending. For a non-empty batch it reports a retryable failure of the
+ * whole batch, so that a reporter that is wired up before the real publisher exists stops its cycle instead of asking for the
+ * same batch again.
  */
 public final class NoopUsagePublisher implements UsagePublisher {
 
@@ -20,6 +23,15 @@ public final class NoopUsagePublisher implements UsagePublisher {
 
     @Override
     public PublishResult publish(List<UsageRecord> records) {
-        return PublishResult.empty();
+        if (records.isEmpty()) {
+            return PublishResult.empty();
+        }
+        return new PublishResult(
+            Set.of(),
+            List.of(new PublishResult.Failure(Set.of(), PublishResult.FailureClass.RETRYABLE, "no usage publisher is configured"))
+        );
     }
+
+    @Override
+    public void close() {}
 }

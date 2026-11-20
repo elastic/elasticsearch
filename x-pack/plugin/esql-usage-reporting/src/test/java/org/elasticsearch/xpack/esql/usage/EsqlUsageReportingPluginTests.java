@@ -21,8 +21,10 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.ArrayList;
+import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
@@ -117,38 +119,88 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         }
     }
 
-    /** A reporter whose start fails, to check that the plugin closes it and stays inactive. */
-    public void testFailureToStartTheReporterClosesItAndStaysInactive() throws Exception {
-        AtomicBoolean closed = new AtomicBoolean();
-        EsqlUsageReportingPlugin plugin = new EsqlUsageReportingPlugin() {
-            @Override
-            UsageReporter buildReporter(
-                UsageReportingSettings settings,
-                UsageAccumulator accumulator,
-                SourceIdentity identity,
-                PluginServices services
-            ) {
-                return new UsageReporter() {
-                    @Override
-                    public void start() {
+    /**
+     * A plugin whose reporter and publisher only record when they are closed, because the real ones do not exist yet and the order
+     * matters: the final flush of the reporter needs the publisher.
+     */
+    private static class RecordingPlugin extends EsqlUsageReportingPlugin {
+        final List<String> events = new ArrayList<>();
+        private final boolean failToBuildReporter;
+        private final boolean failToStartReporter;
+
+        RecordingPlugin(boolean failToBuildReporter, boolean failToStartReporter) {
+            this.failToBuildReporter = failToBuildReporter;
+            this.failToStartReporter = failToStartReporter;
+        }
+
+        @Override
+        UsagePublisher buildPublisher(UsageReportingSettings settings) {
+            return new UsagePublisher() {
+                @Override
+                public PublishResult publish(List<UsageRecord> records) {
+                    return PublishResult.empty();
+                }
+
+                @Override
+                public void close() {
+                    events.add("publisher closed");
+                }
+            };
+        }
+
+        @Override
+        UsageReporter buildReporter(
+            UsageReportingSettings settings,
+            UsageAccumulator accumulator,
+            UsagePublisher publisher,
+            SourceIdentity identity,
+            PluginServices services
+        ) {
+            if (failToBuildReporter) {
+                throw new IllegalStateException("cannot build");
+            }
+            return new UsageReporter() {
+                @Override
+                public void start() {
+                    if (failToStartReporter) {
                         throw new IllegalStateException("cannot start");
                     }
+                }
 
-                    @Override
-                    public void tick(Instant now) {}
+                @Override
+                public void tick(Instant now) {}
 
-                    @Override
-                    public void close() {
-                        closed.set(true);
-                    }
-                };
-            }
-        };
+                @Override
+                public void close() {
+                    events.add("reporter closed");
+                }
+            };
+        }
+    }
+
+    public void testFailureToStartTheReporterClosesItBeforeThePublisherAndStaysInactive() throws Exception {
+        RecordingPlugin plugin = new RecordingPlugin(false, true);
         createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build());
-        assertThat(closed.get(), is(true));
+        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
         assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
         assertThat(plugin.reportExempt(), is(false));
         plugin.close();
+        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
+    }
+
+    public void testFailureToBuildTheReporterClosesThePublisher() throws Exception {
+        RecordingPlugin plugin = new RecordingPlugin(true, false);
+        createComponents(plugin, complete().build());
+        assertThat(plugin.events, equalTo(List.of("publisher closed")));
+        assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
+    }
+
+    public void testCloseClosesTheReporterBeforeThePublisher() throws Exception {
+        RecordingPlugin plugin = new RecordingPlugin(false, false);
+        createComponents(plugin, complete().build());
+        assertThat(plugin.events, equalTo(List.of()));
+        plugin.close();
+        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
     }
 
     public void testEnabledButIncompleteLogsOneErrorAndStaysInactive() throws Exception {

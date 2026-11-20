@@ -57,9 +57,9 @@ public record UsageReportingSettings(
      * The Usage API endpoint; required when enabled. It must be {@code https} because the connection uses mutual TLS; snapshot
      * builds also accept {@code http}, so that tests can use a plain local server. It is not validated as a setting, because an
      * unusable value must leave the plugin inactive, not fail the node: see {@link #problems()}. Credentials in the url are
-     * rejected.
+     * rejected, and the value is filtered from the settings output (node info API) so that a rejected value cannot expose them.
      */
-    public static final Setting<String> URL = Setting.simpleString(PREFIX + "url", Property.NodeScope);
+    public static final Setting<String> URL = Setting.simpleString(PREFIX + "url", Property.NodeScope, Property.Filtered);
 
     /** The reporting interval. It is also the {@code period_seconds} of each record, so it must divide an hour exactly. */
     public static final Setting<TimeValue> PERIOD = Setting.timeSetting(
@@ -128,7 +128,9 @@ public record UsageReportingSettings(
     /**
      * What keeps the plugin from running when it is enabled: the required settings that are absent, by name, and an unusable
      * {@code url}; empty when the configuration is complete. A client certificate is required only for an {@code https} url (the
-     * {@code http} of tests has no TLS).
+     * {@code http} of tests has no TLS). The {@code ssl.*} settings themselves are validated by x-pack-core when it loads the
+     * profile, whether or not this plugin is enabled, so a partial PEM configuration (a key without a certificate) fails the
+     * startup there, before this method runs.
      */
     public List<String> problems() {
         List<String> problems = new ArrayList<>();
@@ -152,8 +154,13 @@ public record UsageReportingSettings(
 
     /** A client certificate comes either as a certificate and a key, or from a keystore. */
     private static boolean hasClientCertificate(Settings settings) {
-        boolean certificateAndKey = settings.hasValue(SSL_PREFIX + ".certificate") && settings.hasValue(SSL_PREFIX + ".key");
-        return certificateAndKey || settings.hasValue(SSL_PREFIX + ".keystore.path");
+        boolean certificateAndKey = isSet(settings, SSL_PREFIX + ".certificate") && isSet(settings, SSL_PREFIX + ".key");
+        return certificateAndKey || isSet(settings, SSL_PREFIX + ".keystore.path");
+    }
+
+    /** An empty value counts as unset, as the SSL loader treats it. */
+    private static boolean isSet(Settings settings, String key) {
+        return settings.get(key, "").isBlank() == false;
     }
 
     private static void addIfBlank(List<String> missing, Setting<String> setting, String value) {
@@ -173,6 +180,10 @@ public record UsageReportingSettings(
         } catch (URISyntaxException e) {
             // The value is left out of the messages: it can carry credentials (user:password@host) and the messages are logged.
             throw new IllegalArgumentException("[" + PREFIX + "url] is not a valid URI");
+        }
+        int port = uri.getPort();
+        if (port == 0 || port > 65535) {
+            throw new IllegalArgumentException("[" + PREFIX + "url] has a port outside 1 to 65535");
         }
         if (uri.getUserInfo() != null) {
             // Never legitimate with mutual TLS, and the value must not reach logs or other output, so it is not echoed.

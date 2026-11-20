@@ -2446,6 +2446,50 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMaxBinaryOperatorsPerExpressionSetting() {
+        String query = "row x = 1 + 1 + 1 | keep x";
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getKey(), 1));
+        try {
+            var e = expectThrows(ParsingException.class, () -> runParsedOnTheNode(query));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "exceeded the maximum number of binary operators allowed between commas or pipes (1), "
+                        + "set by the [esql.query.max_binary_operators_per_expression] cluster setting"
+                )
+            );
+            // raising the setting makes the same query work, without restarting anything
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getKey(), 2));
+            try (EsqlQueryResponse results = runParsedOnTheNode(query)) {
+                assertThat(getValuesList(results), equalTo(List.of(List.of(3))));
+            }
+        } finally {
+            clearPersistentSettings(EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION);
+        }
+    }
+
+    public void testMaxParenthesesCountSetting() {
+        String query = "row x = abs(abs(-1)) | keep x";
+        // the parser allows half of the parentheses, so two function calls need a count of four
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.getKey(), 2));
+        try {
+            var e = expectThrows(ParsingException.class, () -> runParsedOnTheNode(query));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "exceeded the maximum number of left parentheses allowed in an expression (1), "
+                        + "which is half of the [esql.query.max_parentheses_count] cluster setting"
+                )
+            );
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.getKey(), 4));
+            try (EsqlQueryResponse results = runParsedOnTheNode(query)) {
+                assertThat(getValuesList(results), equalTo(List.of(List.of(1))));
+            }
+        } finally {
+            clearPersistentSettings(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT);
+        }
+    }
+
     public void testMaxFillNullFieldsSettingWithView() {
         assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
         assumeTrue("Views require the capability to be enabled", VIEWS_IN_CLUSTER_STATE.isEnabled());
@@ -2759,6 +2803,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 assertThat("wrong color_name for color=" + color, colorName, equalTo(expectedColorNames.get(color)));
             }
         }
+    }
+
+    /**
+     * Runs the query on the node, like {@link #run(String)} but never as a pre-built statement. {@link #run(EsqlQueryRequest)} randomly
+     * parses the query in the test with the default flags, which would skip the limits the cluster settings configure on the node.
+     */
+    private EsqlQueryResponse runParsedOnTheNode(String query) {
+        return client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query).pragmas(randomPragmas()))
+            .actionGet(DEFAULT_REQUEST_TIMEOUT);
     }
 
     private void clearPersistentSettings(Setting<?>... settings) {

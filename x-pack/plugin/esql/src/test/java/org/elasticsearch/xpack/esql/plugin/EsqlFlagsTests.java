@@ -35,8 +35,9 @@ public class EsqlFlagsTests extends ESTestCase {
     }
 
     public void testParserLimitsDefaults() {
-        assertThat(EsqlFlags.DEFAULTS.maxBinaryOperators(), equalTo(EsqlParser.MAX_BINARY_OPERATORS));
-        assertThat(EsqlFlags.DEFAULTS.maxLeftParentheses(), equalTo(EsqlParser.MAX_LEFT_PARENTHESES));
+        assertThat(EsqlFlags.DEFAULTS.maxBinaryOperatorsPerExpression(), equalTo(EsqlParser.MAX_BINARY_OPERATORS));
+        // the parentheses setting counts the opening and the closing ones, the parser uses half of it
+        assertThat(EsqlFlags.DEFAULTS.maxParenthesesCount(), equalTo(2 * EsqlParser.MAX_LEFT_PARENTHESES));
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS));
         assertThat(new EsqlFlags(clusterSettings), equalTo(EsqlFlags.DEFAULTS));
     }
@@ -45,21 +46,32 @@ public class EsqlFlagsTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS));
         clusterSettings.applySettings(
             Settings.builder()
-                .put(EsqlFlags.ESQL_MAX_BINARY_OPERATORS.getKey(), 7)
-                .put(EsqlFlags.ESQL_MAX_LEFT_PARENTHESES.getKey(), 3)
+                .put(EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getKey(), 7)
+                .put(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.getKey(), 3)
                 .build()
         );
         EsqlFlags flags = new EsqlFlags(clusterSettings);
-        assertThat(flags.maxBinaryOperators(), equalTo(7));
-        assertThat(flags.maxLeftParentheses(), equalTo(3));
+        assertThat(flags.maxBinaryOperatorsPerExpression(), equalTo(7));
+        assertThat(flags.maxParenthesesCount(), equalTo(3));
         assertThat(flags, equalTo(EsqlFlags.withParserLimits(7, 3)));
     }
 
-    public void testParserLimitsMustBePositive() {
-        for (var setting : new Setting<?>[] { EsqlFlags.ESQL_MAX_BINARY_OPERATORS, EsqlFlags.ESQL_MAX_LEFT_PARENTHESES }) {
-            Settings invalid = Settings.builder().put(setting.getKey(), 0).build();
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(invalid));
-            assertThat(e.getMessage(), containsString(setting.getKey()));
+    public void testParserLimitsMinimums() {
+        assertThat(
+            EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.get(settingWithValue(EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION, 1)),
+            equalTo(1)
+        );
+        assertThat(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.get(settingWithValue(EsqlFlags.ESQL_MAX_PARENTHESES_COUNT, 2)), equalTo(2));
+        // at least one opening parenthesis must be allowed, the parser uses half of the parentheses setting
+        for (var entry : new Setting<?>[] { EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION, EsqlFlags.ESQL_MAX_PARENTHESES_COUNT }) {
+            int belowMinimum = entry == EsqlFlags.ESQL_MAX_PARENTHESES_COUNT ? 1 : 0;
+            Settings invalid = settingWithValue(entry, belowMinimum);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> entry.get(invalid));
+            assertThat(e.getMessage(), containsString(entry.getKey()));
         }
+    }
+
+    private static Settings settingWithValue(Setting<?> setting, int value) {
+        return Settings.builder().put(setting.getKey(), value).build();
     }
 }

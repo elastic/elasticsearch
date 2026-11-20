@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 
 import java.util.List;
 import java.util.Objects;
@@ -163,28 +162,32 @@ public class EsqlFlags {
     );
 
     /**
-     * Cluster-wide cap on the binary operators between two consecutive separators of a query, checked on the token stream before the
-     * query is parsed. It protects the parser against the huge parse trees of a long operator chain such as {@code 0+0+0+...}; see
-     * {@link EsqlParser#MAX_BINARY_OPERATORS}, the default. Raise it only if legitimate queries are rejected.
+     * Cluster-wide cap on the binary operators in one expression, i.e. between two consecutive commas or pipes of a query. It is checked
+     * on the token stream before the query is parsed and protects the parser against the huge parse trees of a long operator chain such
+     * as {@code 0+0+0+...}. Raise it only if legitimate queries are rejected.
      */
-    public static final Setting<Integer> ESQL_MAX_BINARY_OPERATORS = Setting.intSetting(
-        "esql.query.max_binary_operators",
-        EsqlParser.MAX_BINARY_OPERATORS,
+    public static final Setting<Integer> ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION = Setting.intSetting(
+        "esql.query.max_binary_operators_per_expression",
+        // keep in sync with EsqlParser#MAX_BINARY_OPERATORS, EsqlFlagsTests checks it
+        1000,
         1,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     /**
-     * Cluster-wide cap on the left parentheses, which are the function calls, subqueries and parenthesized expressions, of one top
-     * level item of a query, checked on the token stream before the query is parsed. It protects the parser against the huge
-     * prediction cost of deeply branching nested calls; see {@link EsqlParser#MAX_LEFT_PARENTHESES}, the default. Raise it only if
-     * legitimate queries are rejected.
+     * Cluster-wide cap on the parentheses of one top level item of a query, which are the ones of function calls, subqueries and
+     * parenthesized expressions. It is checked on the token stream before the query is parsed and protects the parser against the huge
+     * prediction cost of deeply branching nested calls. The setting counts the opening and the closing parentheses, and the parser
+     * compares the opening ones, which are half of them in a valid query, with half of the value (rounded down), so the default of 1000
+     * allows 500 function calls and the like. Raise it only if legitimate queries are rejected.
      */
-    public static final Setting<Integer> ESQL_MAX_LEFT_PARENTHESES = Setting.intSetting(
-        "esql.query.max_left_parentheses",
-        EsqlParser.MAX_LEFT_PARENTHESES,
-        1,
+    public static final Setting<Integer> ESQL_MAX_PARENTHESES_COUNT = Setting.intSetting(
+        "esql.query.max_parentheses_count",
+        // twice EsqlParser#MAX_LEFT_PARENTHESES, EsqlFlagsTests checks it
+        1000,
+        // at least one opening parenthesis, so that a function call is possible
+        2,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -200,8 +203,8 @@ public class EsqlFlags {
         ESQL_MAX_FILLNULL_FIELDS,
         ESQL_METRICS_INFO_MAX_TIME_RANGE,
         ESQL_TIME_SERIES_REDUCE_PER_INDEX,
-        ESQL_MAX_BINARY_OPERATORS,
-        ESQL_MAX_LEFT_PARENTHESES
+        ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
+        ESQL_MAX_PARENTHESES_COUNT
     );
 
     /**
@@ -219,8 +222,8 @@ public class EsqlFlags {
         ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
         ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
         FetchPhaseMode.DISABLED,
-        ESQL_MAX_BINARY_OPERATORS.getDefault(Settings.EMPTY),
-        ESQL_MAX_LEFT_PARENTHESES.getDefault(Settings.EMPTY)
+        ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getDefault(Settings.EMPTY),
+        ESQL_MAX_PARENTHESES_COUNT.getDefault(Settings.EMPTY)
     );
 
     private final boolean stringLikeOnIndex;
@@ -243,9 +246,9 @@ public class EsqlFlags {
 
     private final FetchPhaseMode fetchPhaseMode;
 
-    private final int maxBinaryOperators;
+    private final int maxBinaryOperatorsPerExpression;
 
-    private final int maxLeftParentheses;
+    private final int maxParenthesesCount;
 
     /**
      * Constructor for tests.
@@ -402,8 +405,8 @@ public class EsqlFlags {
             metricsInfoMaxTimeRange,
             timeSeriesReducePerIndex,
             fetchPhaseMode,
-            ESQL_MAX_BINARY_OPERATORS.getDefault(Settings.EMPTY),
-            ESQL_MAX_LEFT_PARENTHESES.getDefault(Settings.EMPTY)
+            ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getDefault(Settings.EMPTY),
+            ESQL_MAX_PARENTHESES_COUNT.getDefault(Settings.EMPTY)
         );
     }
 
@@ -418,8 +421,8 @@ public class EsqlFlags {
         TimeValue metricsInfoMaxTimeRange,
         boolean timeSeriesReducePerIndex,
         FetchPhaseMode fetchPhaseMode,
-        int maxBinaryOperators,
-        int maxLeftParentheses
+        int maxBinaryOperatorsPerExpression,
+        int maxParenthesesCount
     ) {
         this.stringLikeOnIndex = stringLikeOnIndex;
         this.roundToPushdownThreshold = roundToPushdownThreshold;
@@ -431,8 +434,8 @@ public class EsqlFlags {
         this.metricsInfoMaxTimeRange = metricsInfoMaxTimeRange;
         this.timeSeriesReducePerIndex = timeSeriesReducePerIndex;
         this.fetchPhaseMode = fetchPhaseMode;
-        this.maxBinaryOperators = maxBinaryOperators;
-        this.maxLeftParentheses = maxLeftParentheses;
+        this.maxBinaryOperatorsPerExpression = maxBinaryOperatorsPerExpression;
+        this.maxParenthesesCount = maxParenthesesCount;
     }
 
     public EsqlFlags(ClusterSettings settings) {
@@ -447,15 +450,15 @@ public class EsqlFlags {
             settings.get(ESQL_METRICS_INFO_MAX_TIME_RANGE),
             settings.get(ESQL_TIME_SERIES_REDUCE_PER_INDEX),
             FetchPhaseMode.DISABLED,
-            settings.get(ESQL_MAX_BINARY_OPERATORS),
-            settings.get(ESQL_MAX_LEFT_PARENTHESES)
+            settings.get(ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION),
+            settings.get(ESQL_MAX_PARENTHESES_COUNT)
         );
     }
 
     /**
      * Test helper that leaves the other flags at their defaults.
      */
-    public static EsqlFlags withParserLimits(int maxBinaryOperators, int maxLeftParentheses) {
+    public static EsqlFlags withParserLimits(int maxBinaryOperatorsPerExpression, int maxParenthesesCount) {
         return new EsqlFlags(
             ESQL_STRING_LIKE_ON_INDEX.getDefault(Settings.EMPTY),
             ESQL_ROUNDTO_PUSHDOWN_THRESHOLD.getDefault(Settings.EMPTY),
@@ -467,8 +470,8 @@ public class EsqlFlags {
             ESQL_METRICS_INFO_MAX_TIME_RANGE.getDefault(Settings.EMPTY),
             ESQL_TIME_SERIES_REDUCE_PER_INDEX.getDefault(Settings.EMPTY),
             FetchPhaseMode.DISABLED,
-            maxBinaryOperators,
-            maxLeftParentheses
+            maxBinaryOperatorsPerExpression,
+            maxParenthesesCount
         );
     }
 
@@ -556,12 +559,12 @@ public class EsqlFlags {
         return fetchPhaseMode;
     }
 
-    public int maxBinaryOperators() {
-        return maxBinaryOperators;
+    public int maxBinaryOperatorsPerExpression() {
+        return maxBinaryOperatorsPerExpression;
     }
 
-    public int maxLeftParentheses() {
-        return maxLeftParentheses;
+    public int maxParenthesesCount() {
+        return maxParenthesesCount;
     }
 
     @Override
@@ -579,8 +582,8 @@ public class EsqlFlags {
             && timeSeriesReducePerIndex == that.timeSeriesReducePerIndex
             && Objects.equals(metricsInfoMaxTimeRange, that.metricsInfoMaxTimeRange)
             && fetchPhaseMode == that.fetchPhaseMode
-            && maxBinaryOperators == that.maxBinaryOperators
-            && maxLeftParentheses == that.maxLeftParentheses;
+            && maxBinaryOperatorsPerExpression == that.maxBinaryOperatorsPerExpression
+            && maxParenthesesCount == that.maxParenthesesCount;
     }
 
     @Override
@@ -596,8 +599,8 @@ public class EsqlFlags {
             metricsInfoMaxTimeRange,
             timeSeriesReducePerIndex,
             fetchPhaseMode,
-            maxBinaryOperators,
-            maxLeftParentheses
+            maxBinaryOperatorsPerExpression,
+            maxParenthesesCount
         );
     }
 
@@ -623,10 +626,10 @@ public class EsqlFlags {
             + timeSeriesReducePerIndex
             + ", fetchPhaseMode="
             + fetchPhaseMode
-            + ", maxBinaryOperators="
-            + maxBinaryOperators
-            + ", maxLeftParentheses="
-            + maxLeftParentheses
+            + ", maxBinaryOperatorsPerExpression="
+            + maxBinaryOperatorsPerExpression
+            + ", maxParenthesesCount="
+            + maxParenthesesCount
             + ']';
     }
 }

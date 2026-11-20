@@ -67,7 +67,8 @@ public class EsqlParser {
      * large parse tree, so such queries are rejected from the token stream before parsing starts. The check is syntax-blind: unary
      * {@code +}/{@code -} are conservatively counted too, and so is the {@code *} in {@code COUNT(*)}. Commas separate independent
      * expressions (fields of an {@code EVAL}, arguments of a function), so wide but shallow queries such as an {@code EVAL} with
-     * thousands of fields are not affected. This is the default of the dynamic {@code esql.query.max_binary_operators} cluster setting.
+     * thousands of fields are not affected. This is the default of the dynamic
+     * {@code esql.query.max_binary_operators_per_expression} cluster setting.
      */
     public static final int MAX_BINARY_OPERATORS = 1000;
 
@@ -77,7 +78,7 @@ public class EsqlParser {
      * semicolon outside of any parentheses, e.g. between the fields of an {@code EVAL}. A balanced tree of nested function calls such as
      * {@code max(max(0,0),max(0,0))} contains no binary operators, so the {@link #MAX_BINARY_OPERATORS} limit does not see it, but its
      * prediction cost in ANTLR grows with the number of the nested calls, and a few thousand characters can take gigabytes of heap.
-     * This is the default of the dynamic {@code esql.query.max_left_parentheses} cluster setting.
+     * Half of the default of the dynamic {@code esql.query.max_parentheses_count} cluster setting, which counts all parentheses.
      */
     public static final int MAX_LEFT_PARENTHESES = 500;
 
@@ -288,7 +289,7 @@ public class EsqlParser {
             }
             // If the lexer failed, the buffer still holds the tokens before the invalid character. Those are the only tokens the
             // parser can work on before reporting the error, so they must respect the limits too.
-            checkTokenLimits(pipeline.tokenStream().getTokens(), flags.maxBinaryOperators(), flags.maxLeftParentheses());
+            checkTokenLimits(pipeline.tokenStream().getTokens(), flags.maxBinaryOperatorsPerExpression(), flags.maxParenthesesCount());
             if (lexed == false) {
                 // Lexer error during fill() — rebuild the entire pipeline from scratch so the
                 // parser runs lazily and reports the same error as without this pre-scan.
@@ -313,7 +314,9 @@ public class EsqlParser {
         }
     }
 
-    private static void checkTokenLimits(List<Token> tokens, int maxBinaryOperators, int maxLeftParentheses) {
+    private static void checkTokenLimits(List<Token> tokens, int maxBinaryOperators, int maxParenthesesCount) {
+        // the setting counts the opening and the closing parentheses, a valid query has as many of each
+        int maxLeftParentheses = maxParenthesesCount / 2;
         int depth = 0;
         int prefixChain = 0;
         int binaryOperators = 0;
@@ -346,14 +349,18 @@ public class EsqlParser {
             }
             if (isBinaryOperator(type) && ++binaryOperators > maxBinaryOperators) {
                 throw new ParsingException(
-                    "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ({})",
-                    maxBinaryOperators
+                    "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ({}), "
+                        + "set by the [{}] cluster setting",
+                    maxBinaryOperators,
+                    EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getKey()
                 );
             }
             if (leftParentheses > maxLeftParentheses) {
                 throw new ParsingException(
-                    "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ({})",
-                    maxLeftParentheses
+                    "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ({}), "
+                        + "which is half of the [{}] cluster setting",
+                    maxLeftParentheses,
+                    EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.getKey()
                 );
             }
         }

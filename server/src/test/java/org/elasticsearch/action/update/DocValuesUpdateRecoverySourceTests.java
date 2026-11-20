@@ -204,6 +204,31 @@ public class DocValuesUpdateRecoverySourceTests extends IndexShardTestCase {
     }
 
     /**
+     * A fully refresh-free variant: the base document is only in the version map when the update captures its pre-image, so the capture
+     * must refresh the internal reader and retry rather than miss the value. A refresh before the update would empty the version map and
+     * bypass that gate.
+     */
+    public void testInPlaceUpdateCapturesPreImageFromVersionMapWithoutRefresh() throws Exception {
+        assumeTrue("doc_values updatable feature flag must be enabled", FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled());
+
+        final IndexShard primary = newRecoveredColumnarPrimary();
+        try {
+            // No refresh before the update: the base generation lives only in the version map when the pre-image is captured.
+            final long baseSeqNo = indexDoc(primary, "_doc", "1", "{\"count\":1}").getSeqNo();
+            applyUpdate(primary, 1L, "1", 42);
+            primary.refresh("test");
+
+            // The live document carries the update.
+            assertThat(liveCount(primary), equalTo(42L));
+            // Replaying the base index operation reconstructs its own value (1), captured from the version map by the refresh-and-retry
+            // gate.
+            assertThat(reconstructCount(primary, baseSeqNo), equalTo(1L));
+        } finally {
+            closeShards(primary);
+        }
+    }
+
+    /**
      * Same as {@link #testInPlaceUpdateCapturesReindexedValueWhenReindexUnrefreshed}, but the reindex uses
      * {@code version_type=external_gte} with the same version as the generation it replaces. The two generations then share a version but
      * not a sequence number, so a staleness check on the version alone cannot tell that the reader still shows the replaced generation.

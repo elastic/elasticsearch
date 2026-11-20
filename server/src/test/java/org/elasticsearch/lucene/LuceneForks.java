@@ -109,6 +109,23 @@ public final class LuceneForks {
             1,
             "Remove FsDirectoryFactory.HybridDirectory#confineTempStoredFieldsIndex and its test."
         ),
+        workaround(
+            "org.elasticsearch.index.search.QueryTokenCacheAccountingFilter",
+            "apache/lucene#17020",
+            11,
+            0,
+            0,
+            "Stop counting the term bytes of CharTermAttributeImpl, whose clone no longer copies them, "
+                + "and drop the stale-bytes paragraph from the class Javadoc."
+        ),
+        workaround(
+            "org.elasticsearch.indices.RunEndCachingBitDocIdSet",
+            "apache/lucene#16849",
+            10,
+            6,
+            0,
+            "Delete RunEndCachingBitDocIdSet and its tests, and the cacheImpl override in IndicesQueryCache."
+        ),
         permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),

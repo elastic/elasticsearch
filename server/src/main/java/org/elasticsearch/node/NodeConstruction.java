@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.cluster.repositories.reservedstate.Reserve
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsTagsProvider;
 import org.elasticsearch.action.admin.cluster.stats.SearchTierStatsProvider;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
@@ -224,6 +225,7 @@ import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.plugins.internal.SettingsExtension;
+import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesModule;
@@ -761,6 +763,7 @@ class NodeConstruction {
         DocumentParsingProvider documentParsingProvider,
         ProjectResolver projectResolver
     ) throws IOException {
+        analysisRegistry.watchSharingSetting(settingsModule.getClusterSettings());
 
         Settings settings = settingsModule.getSettings();
 
@@ -829,6 +832,10 @@ class NodeConstruction {
         BigArrays bigArrays = serviceProvider.newBigArrays(pluginsService, pageCacheRecycler, circuitBreakerService);
 
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
+        final ShardGenerationSizeListener shardGenerationSizeListener = pluginsService.loadSingletonServiceProvider(
+            ShardGenerationSizeListener.class,
+            () -> ShardGenerationSizeListener.NOOP
+        );
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
             pluginsService.filterPlugins(RepositoryPlugin.class).toList(),
@@ -838,7 +845,8 @@ class NodeConstruction {
             bigArrays,
             xContentRegistry,
             recoverySettings,
-            telemetryProvider
+            telemetryProvider,
+            shardGenerationSizeListener
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         SnapshotMetrics snapshotMetrics = repositoriesModule.getSnapshotMetrics();
@@ -1056,6 +1064,7 @@ class NodeConstruction {
         );
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
+        final EscfBulkService escfBulkService = new EscfBulkService(indexingLimits, threadPool.generic(), bigArrays.bytesRefRecycler());
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
             LinkedProjectConfigService.Provider.class,
@@ -1512,6 +1521,7 @@ class NodeConstruction {
             b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IpLocationService.class).toInstance(ipLocationService);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
+            b.bind(EscfBulkService.class).toInstance(escfBulkService);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
             b.bind(MetaStateService.class).toInstance(metaStateService);

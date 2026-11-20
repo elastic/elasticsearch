@@ -89,6 +89,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
     private final ColumnarFieldTypeSelector typeSelector;
     private final int blockSize;
     private final StringColumnOptionsSelector stringSelector;
+    private final FormatVersion writeVersion;
 
     private boolean closed = false;
 
@@ -99,23 +100,35 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         NumericPipelineSelector pipelineSelector,
         ColumnarFieldTypeSelector typeSelector,
         int blockSize,
-        StringColumnOptionsSelector stringSelector
+        StringColumnOptionsSelector stringSelector,
+        FormatVersion writeVersion
     ) throws IOException {
         this.pipelineSelector = pipelineSelector;
         this.typeSelector = typeSelector;
         this.blockSize = blockSize;
         this.stringSelector = stringSelector;
+        this.writeVersion = writeVersion;
         this.maxDoc = state.segmentInfo.maxDoc();
         this.directory = state.directory;
         this.context = state.context;
         boolean success = false;
         try {
-            data = createOutput(state, ColumNARDocValuesFormat.DATA_EXTENSION, ColumNARDocValuesFormat.DATA_CODEC);
-            addressing = createOutput(state, ColumNARDocValuesFormat.ADDRESSING_EXTENSION, ColumNARDocValuesFormat.ADDRESSING_CODEC);
-            lengths = createOutput(state, ColumNARDocValuesFormat.LENGTHS_EXTENSION, ColumNARDocValuesFormat.LENGTHS_CODEC);
-            navigation = createOutput(state, ColumNARDocValuesFormat.NAVIGATION_EXTENSION, ColumNARDocValuesFormat.NAVIGATION_CODEC);
-            skipIndex = createOutput(state, ColumNARDocValuesFormat.SKIP_EXTENSION, ColumNARDocValuesFormat.SKIP_CODEC);
-            meta = createOutput(state, ColumNARDocValuesFormat.META_EXTENSION, ColumNARDocValuesFormat.META_CODEC);
+            data = createOutput(state, ColumNARDocValuesFormat.DATA_EXTENSION, ColumNARDocValuesFormat.DATA_CODEC, writeVersion);
+            addressing = createOutput(
+                state,
+                ColumNARDocValuesFormat.ADDRESSING_EXTENSION,
+                ColumNARDocValuesFormat.ADDRESSING_CODEC,
+                writeVersion
+            );
+            lengths = createOutput(state, ColumNARDocValuesFormat.LENGTHS_EXTENSION, ColumNARDocValuesFormat.LENGTHS_CODEC, writeVersion);
+            navigation = createOutput(
+                state,
+                ColumNARDocValuesFormat.NAVIGATION_EXTENSION,
+                ColumNARDocValuesFormat.NAVIGATION_CODEC,
+                writeVersion
+            );
+            skipIndex = createOutput(state, ColumNARDocValuesFormat.SKIP_EXTENSION, ColumNARDocValuesFormat.SKIP_CODEC, writeVersion);
+            meta = createOutput(state, ColumNARDocValuesFormat.META_EXTENSION, ColumNARDocValuesFormat.META_CODEC, writeVersion);
             outputs = new ColumnOutputs(data, addressing, lengths, navigation);
             success = true;
         } finally {
@@ -125,12 +138,20 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
         }
     }
 
-    private static IndexOutput createOutput(SegmentWriteState state, String extension, String codec) throws IOException {
+    private StringColumnOptions stringOptions(FieldInfo field, ColumnarFieldType type) {
+        final StringColumnOptions options = stringSelector.select(field.name, type);
+        return options.enablePlainSkipIndex() && writeVersion.onOrAfter(FormatVersion.VERSION_SKIP_INDEX_PLAIN) == false
+            ? options.withPlainSkipIndex(false)
+            : options;
+    }
+
+    private static IndexOutput createOutput(SegmentWriteState state, String extension, String codec, FormatVersion writeVersion)
+        throws IOException {
         final String name = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, extension);
         final IndexOutput out = state.directory.createOutput(name, state.context);
         boolean success = false;
         try {
-            ColumnarCodecUtil.writeHeader(out, codec, FormatVersion.CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
+            ColumnarCodecUtil.writeHeader(out, codec, writeVersion, state.segmentInfo.getId(), state.segmentSuffix);
             success = true;
             return out;
         } finally {
@@ -180,7 +201,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
      * always follows the selector, which decides the framing of segments merged from both.
      */
     private StringColumnOptions resolveStringOptions(FieldInfo field, ColumnarFieldType type, boolean useRecorded) {
-        StringColumnOptions options = stringSelector.select(field.name, type);
+        StringColumnOptions options = stringOptions(field, type);
         String recorded = field.getAttribute(SINGLE_VALUED_ATTRIBUTE);
         if (useRecorded && recorded != null) {
             return options.withSingleValued(Boolean.parseBoolean(recorded));
@@ -859,7 +880,7 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 if (entry.type() == ColumnarFieldType.STRING) {
                     meta.writeByte(entry.singleValued() ? ColumNARDocValuesFormat.PLAIN : ColumNARDocValuesFormat.COLUMNAR_PAYLOAD);
                 }
-                entry.metadata().writeTo(meta);
+                entry.metadata().writeTo(meta, writeVersion);
             }
             meta.writeInt(-1);
             CodecUtil.writeFooter(meta);

@@ -326,3 +326,266 @@ language_code:integer | language_name:keyword
 2                     | French
 ;
 
+letForkAfterLetWithFork
+required_capability: fork_v9
+required_capability: named_subquery_let
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+LET q = (FROM sample_data | FORK (WHERE event_duration > 2000000) (WHERE event_duration <= 2000000))\;
+FROM q
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| KEEP event_duration, _fork
+| SORT _fork, event_duration
+;
+
+event_duration:long | _fork:keyword
+3450233             | fork1
+5033755             | fork1
+8268153             | fork1
+725448              | fork2
+1232382             | fork2
+1756467             | fork2
+2764889             | fork2
+;
+
+letForkAfterLetWithForkStats
+required_capability: fork_v9
+required_capability: named_subquery_let
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+LET q = (FROM sample_data | FORK (WHERE event_duration > 2000000) (WHERE event_duration <= 2000000))\;
+FROM q
+| FORK (WHERE event_duration > 3000000) (WHERE event_duration <= 3000000)
+| STATS c = COUNT(*) BY _fork
+| SORT _fork
+;
+
+c:long | _fork:keyword
+3      | fork1
+4      | fork2
+;
+
+letWithInSubqueryContainingForkThenForkAfter
+required_capability: named_subquery_let
+required_capability: fork_v9
+required_capability: where_in_subquery_without_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+LET q = (
+  FROM employees
+  | WHERE emp_no IN (FROM employees | FORK (WHERE emp_no <= 10002) (WHERE emp_no == 10003) | KEEP emp_no)
+)\;
+FROM q
+| FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+10003          | fork2
+;
+
+forkAfterInSubqueryOverLetWithFork
+required_capability: named_subquery_let
+required_capability: fork_v9
+required_capability: where_in_subquery_without_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+LET q = (FROM employees | FORK (WHERE emp_no <= 10002) (WHERE emp_no == 10003))\;
+FROM employees
+| WHERE emp_no <= 10005
+| WHERE emp_no IN (FROM q | KEEP emp_no)
+| FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+| SORT _fork, emp_no
+| KEEP emp_no, _fork
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+10003          | fork2
+;
+
+forkOverLetWithForkInsideInSubquery
+required_capability: named_subquery_let
+required_capability: fork_v9
+required_capability: where_in_subquery_without_view
+required_capability: allow_fork_across_subquery_view_let_boundary
+
+LET q = (FROM employees | FORK (WHERE emp_no <= 10002) (WHERE emp_no == 10003))\;
+FROM employees
+| WHERE emp_no IN (
+    FROM q
+    | FORK (WHERE emp_no <= 10001) (WHERE emp_no >= 10002)
+    | KEEP emp_no
+  )
+| SORT emp_no
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;
+
+// -------------------------------------------------------------------
+// METADATA _class, _name on LET bindings
+// -------------------------------------------------------------------
+
+letBindingsClassAndName
+required_capability: named_subquery_let
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_salary_employees = (FROM employees | WHERE salary > 70000 | KEEP emp_no)\;
+LET low_salary_employees = (FROM employees | WHERE salary <= 30000 | KEEP emp_no)\;
+FROM top_salary_employees, low_salary_employees METADATA _class, _name
+| STATS count = COUNT(*) BY _class, _name
+| SORT _name
+;
+
+count:long | _class:keyword | _name:keyword
+9          | subquery       | low_salary_employees
+8          | subquery       | top_salary_employees
+;
+
+letSingleBindingClassAndName
+required_capability: named_subquery_let
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM top_langs METADATA _class, _name
+| KEEP language_code, _class, _name
+| SORT language_code
+;
+
+language_code:integer | _class:keyword | _name:keyword
+1                     | subquery       | top_langs
+2                     | subquery       | top_langs
+;
+
+letBindingBesideIndexClassAndName
+required_capability: named_subquery_let
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM languages, top_langs METADATA _class, _name
+| STATS count = COUNT(*) BY _class, _name
+| SORT _class
+;
+
+count:long | _class:keyword | _name:keyword
+4          | index          | languages
+2          | subquery       | top_langs
+;
+
+letBindingBesideSubqueryClassAndName
+required_capability: named_subquery_let
+required_capability: subquery_in_from_command
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM top_langs, (FROM languages | WHERE language_code > 2) METADATA _class, _name
+| KEEP language_code, _class, _name
+| SORT language_code
+;
+
+language_code:integer | _class:keyword | _name:keyword
+1                     | subquery       | top_langs
+2                     | subquery       | top_langs
+3                     | subquery       | null
+4                     | subquery       | null
+;
+
+letBindingBesideSubqueryAndIndexClassAndName
+required_capability: named_subquery_let
+required_capability: subquery_in_from_command
+required_capability: metadata_class_and_name
+required_capability: named_subquery_let_metadata_class_and_name
+
+LET top_langs = (FROM languages | SORT language_code | LIMIT 2)\;
+FROM languages, top_langs, (FROM languages | WHERE language_code > 2) METADATA _class, _name
+| STATS count = COUNT(*) BY _class, _name
+| SORT _class, _name NULLS LAST
+;
+
+count:long | _class:keyword | _name:keyword
+4          | index          | languages
+2          | subquery       | top_langs
+2          | subquery       | null
+;
+
+// The cast after the IN must still see the union-typed client_ip of the main query when the binding runs STATS
+letBindingInSubqueryWithStatsThenUnionTypeCast
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+required_capability: union_types
+required_capability: casting_operator
+required_capability: where_in_subquery_union_types_scope_fix
+
+LET repeated = (FROM sample_data | STATS c = COUNT(*) BY message | WHERE c > 1 | KEEP message)\;
+FROM sample_data, sample_data_str
+| WHERE message IN (FROM repeated)
+| EVAL ip = client_ip::ip
+| STATS c = COUNT(*) BY ip
+;
+
+c:long | ip:ip
+6      | 172.21.3.15
+;
+
+// The same union-typed binding is the source of both the main query and the IN subquery
+letBindingOnBothSidesOfInThenUnionTypeCast
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+required_capability: union_types
+required_capability: casting_operator
+required_capability: where_in_subquery_union_types_scope_fix
+
+LET u = (FROM sample_data, sample_data_str | KEEP client_ip, message)\;
+FROM u
+| WHERE message IN (FROM u | STATS c = COUNT(*) BY message | WHERE c > 2 | KEEP message)
+| EVAL ip = client_ip::ip
+| STATS c = COUNT(*) BY ip
+;
+
+c:long | ip:ip
+6      | 172.21.3.15
+;
+
+// The IN subquery redefines the binding's EVAL alias x; the main query keeps its own x, so nothing matches
+letBindingEvalAliasShadowedInSubquery
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+
+LET a = (FROM languages | EVAL x = language_code * 10 | KEEP language_code, x)\;
+FROM a
+| WHERE x IN (FROM a | EVAL x = x + 1 | KEEP x)
+| KEEP language_code
+;
+
+language_code:integer
+;
+
+// A filter on the binding's EVAL alias inside the IN subquery applies to the subquery side only
+letBindingEvalAliasFilteredInSubquery
+required_capability: named_subquery_let
+required_capability: where_in_subquery_without_view
+
+LET a = (FROM languages | EVAL x = language_code * 10 | KEEP language_code, x)\;
+FROM a
+| WHERE x IN (FROM a | WHERE x > 20 | KEEP x)
+| KEEP language_code, x
+| SORT language_code
+;
+
+language_code:integer | x:integer
+3                     | 30
+4                     | 40
+;

@@ -23,6 +23,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 
@@ -32,8 +33,21 @@ import java.util.Map;
 /// [#searchRecoveryTimeout].
 public class SearchRecoveryTimeoutCalculationService {
 
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_TOTAL_METRIC =
+        "es.blob_cache_warming.search_recovery.drain_timeout_heuristic.total";
+    public static final String SEARCH_RECOVERY_DRAIN_TIMEOUT_HEURISTIC_ATTRIBUTE_KEY = "es_drain_timeout_heuristic";
+    public static final String SEARCH_RECOVERY_SOURCE_WARMING_INFO_STATUS_ATTRIBUTE_KEY = "es_source_warming_info_status";
+
     public static final String OFFLINE_WARMING_TIMEOUT_REEVALUATION_PREFIX =
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_timeout_reevaluation";
+
+    /// When true, drain-path search recovery warming timeouts may use the shard warming info fetched from the shutting-down source node.
+    public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING = Setting.boolSetting(
+        SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_source_warming_info.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /// Enabling causes offline warming timeouts to be reevaluated to see whether we can afford to continue warming before relocating and
     /// opening a shard. Enabling this setting should reduce blob store cache misses after shard relocations.
@@ -76,7 +90,7 @@ public class SearchRecoveryTimeoutCalculationService {
     );
 
     private final RelocationSourceShutdownTimeouts relocationSourceShutdownTimeouts;
-    private volatile TimeValue searchRecoveryWarmingRelocationWithShutdownTimeout;
+    private final RelocationOtherNodeShutdownTimeouts relocationOtherNodeShutdownTimeouts;
     private volatile TimeValue searchRecoveryWarmingRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingNonRelocationTimeout;
     private volatile TimeValue searchRecoveryWarmingReshardTargetTimeout;
@@ -90,19 +104,18 @@ public class SearchRecoveryTimeoutCalculationService {
         ThreadPool threadPool,
         ClusterSettings clusterSettings,
         Settings nodeSettings,
-        ByteSizeValue maxHeap
+        ByteSizeValue maxHeap,
+        TelemetryProvider telemetryProvider
     ) {
         this.relocationSourceShutdownTimeouts = new RelocationSourceShutdownTimeouts(
             cacheService,
             threadPool,
             clusterSettings,
             nodeSettings,
-            maxHeap
+            maxHeap,
+            telemetryProvider
         );
-        clusterSettings.initializeAndWatch(
-            SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
-            value -> this.searchRecoveryWarmingRelocationWithShutdownTimeout = value
-        );
+        this.relocationOtherNodeShutdownTimeouts = new RelocationOtherNodeShutdownTimeouts(clusterSettings);
         clusterSettings.initializeAndWatch(
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             value -> this.searchRecoveryWarmingRelocationTimeout = value
@@ -173,31 +186,41 @@ public class SearchRecoveryTimeoutCalculationService {
     /// When to await search recovery warming (internal replicated-files path only). Relocation targets use relocation-specific timeouts or
     /// a computed share when the source is shutting down. Non-relocation: wait only if another active search shard copy exists and no
     /// search node is shutting down, using [SharedBlobCacheWarmingService#SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING].
-    public SearchRecoveryTimeout searchRecoveryTimeout(
+    public final SearchRecoveryTimeout searchRecoveryTimeout(
         ClusterState state,
         IndexShard indexShard,
         long totalBytesToWarm,
         @Nullable SearchRecoveryTimeout previousPlan
+    ) {
+        return searchRecoveryTimeout(state, indexShard, totalBytesToWarm, previousPlan, SourceShardWarmingInfo.NOT_REQUESTED);
+    }
+
+    public SearchRecoveryTimeout searchRecoveryTimeout(
+        ClusterState state,
+        IndexShard indexShard,
+        long totalBytesToWarm,
+        @Nullable SearchRecoveryTimeout previousPlan,
+        SourceShardWarmingInfo sourceShardWarmingInfo
     ) {
         final ShardRouting shardRouting = indexShard.routingEntry();
         assert shardRouting.isPromotableToPrimary() == false;
         if (isRelocationTarget(shardRouting)) {
             final String sourceNodeId = shardRouting.relocatingNodeId();
             assert sourceNodeId != null;
+            final String targetNodeId = shardRouting.currentNodeId();
             if (state.metadata().nodeShutdowns().isNodeMarkedForRemoval(sourceNodeId)) {
-                return relocationSourceShutdownTimeouts.relocationSourceShutdownTimeout(
+                return relocationSourceShutdownTimeouts.timeout(
                     state,
                     sourceNodeId,
-                    shardRouting.currentNodeId(),
+                    targetNodeId,
+                    indexShard.shardId(),
                     totalBytesToWarm,
-                    previousPlan
+                    previousPlan,
+                    sourceShardWarmingInfo
                 );
             }
             if (hasShuttingDownSearchNodeWithShards(state)) {
-                return new SearchRecoveryTimeout(
-                    searchRecoveryWarmingRelocationWithShutdownTimeout,
-                    TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT
-                );
+                return relocationOtherNodeShutdownTimeouts.timeout();
             }
             return new SearchRecoveryTimeout(
                 searchRecoveryWarmingRelocationTimeout,

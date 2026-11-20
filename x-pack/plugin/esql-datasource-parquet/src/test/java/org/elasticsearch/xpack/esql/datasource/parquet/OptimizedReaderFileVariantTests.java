@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -24,6 +28,7 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -34,6 +39,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -67,6 +73,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
     private final int pageSize;
     private final int rowCount;
     private final boolean nullable;
+    private final boolean unframedLz4;
     private final String description;
 
     public OptimizedReaderFileVariantTests(
@@ -76,7 +83,8 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         int rowGroupSize,
         int pageSize,
         int rowCount,
-        boolean nullable
+        boolean nullable,
+        boolean unframedLz4
     ) {
         this.description = description;
         this.codec = codec;
@@ -85,6 +93,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         this.pageSize = pageSize;
         this.rowCount = rowCount;
         this.nullable = nullable;
+        this.unframedLz4 = unframedLz4;
     }
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -106,11 +115,15 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         // V1 retains the original RG/page-size matrix so all prior coverage stays intact.
         for (CompressionCodecName codec : codecs) {
             String prefix = codec.name() + "/V1";
-            params.add(new Object[] { prefix + "/1RG/non-null", codec, WriterVersion.PARQUET_1_0, 1024 * 1024, 1024 * 1024, 100, false });
-            params.add(new Object[] { prefix + "/1RG/nullable", codec, WriterVersion.PARQUET_1_0, 1024 * 1024, 1024 * 1024, 100, true });
-            params.add(new Object[] { prefix + "/multiRG/non-null", codec, WriterVersion.PARQUET_1_0, 1024, 256, 500, false });
-            params.add(new Object[] { prefix + "/multiRG/nullable", codec, WriterVersion.PARQUET_1_0, 1024, 256, 500, true });
-            params.add(new Object[] { prefix + "/smallPage/non-null", codec, WriterVersion.PARQUET_1_0, 8 * 1024, 128, 200, false });
+            params.add(
+                new Object[] { prefix + "/1RG/non-null", codec, WriterVersion.PARQUET_1_0, 1024 * 1024, 1024 * 1024, 100, false, false }
+            );
+            params.add(
+                new Object[] { prefix + "/1RG/nullable", codec, WriterVersion.PARQUET_1_0, 1024 * 1024, 1024 * 1024, 100, true, false }
+            );
+            params.add(new Object[] { prefix + "/multiRG/non-null", codec, WriterVersion.PARQUET_1_0, 1024, 256, 500, false, false });
+            params.add(new Object[] { prefix + "/multiRG/nullable", codec, WriterVersion.PARQUET_1_0, 1024, 256, 500, true, false });
+            params.add(new Object[] { prefix + "/smallPage/non-null", codec, WriterVersion.PARQUET_1_0, 8 * 1024, 128, 200, false, false });
         }
 
         // V2 page format uses uncompressed rep/def levels and only compresses the data portion -
@@ -119,10 +132,23 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         // paths under V2.
         for (CompressionCodecName codec : codecs) {
             String prefix = codec.name() + "/V2";
-            params.add(new Object[] { prefix + "/1RG/non-null", codec, WriterVersion.PARQUET_2_0, 1024 * 1024, 1024 * 1024, 100, false });
-            params.add(new Object[] { prefix + "/1RG/nullable", codec, WriterVersion.PARQUET_2_0, 1024 * 1024, 1024 * 1024, 100, true });
-            params.add(new Object[] { prefix + "/multiRG/non-null", codec, WriterVersion.PARQUET_2_0, 1024, 256, 500, false });
-            params.add(new Object[] { prefix + "/multiRG/nullable", codec, WriterVersion.PARQUET_2_0, 1024, 256, 500, true });
+            params.add(
+                new Object[] { prefix + "/1RG/non-null", codec, WriterVersion.PARQUET_2_0, 1024 * 1024, 1024 * 1024, 100, false, false }
+            );
+            params.add(
+                new Object[] { prefix + "/1RG/nullable", codec, WriterVersion.PARQUET_2_0, 1024 * 1024, 1024 * 1024, 100, true, false }
+            );
+            params.add(new Object[] { prefix + "/multiRG/non-null", codec, WriterVersion.PARQUET_2_0, 1024, 256, 500, false, false });
+            params.add(new Object[] { prefix + "/multiRG/nullable", codec, WriterVersion.PARQUET_2_0, 1024, 256, 500, true, false });
+        }
+
+        // Legacy LZ4 pages written as a bare raw block with no Hadoop frame; read via the raw fallback.
+        for (WriterVersion version : new WriterVersion[] { WriterVersion.PARQUET_1_0, WriterVersion.PARQUET_2_0 }) {
+            String prefix = "LZ4_UNFRAMED/" + (version == WriterVersion.PARQUET_1_0 ? "V1" : "V2");
+            params.add(
+                new Object[] { prefix + "/1RG/non-null", CompressionCodecName.LZ4, version, 1024 * 1024, 1024 * 1024, 100, false, true }
+            );
+            params.add(new Object[] { prefix + "/multiRG/nullable", CompressionCodecName.LZ4, version, 1024, 256, 500, true, true });
         }
 
         return params;
@@ -166,6 +192,9 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         }
 
         byte[] parquetData = createParquetFile(schema);
+        if (unframedLz4) {
+            assertDictionaryPageWritten(parquetData);
+        }
 
         StorageObject storageObject = createStorageObject(parquetData);
         ParquetFormatReader baseline = new ParquetFormatReader(blockFactory, false);
@@ -183,22 +212,50 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         assertPagesEqual(baselinePages, optimizedPages, description);
     }
 
+    private void assertDictionaryPageWritten(byte[] parquetData) throws IOException {
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(
+                    createStorageObject(parquetData),
+                    FooterByteCache.fromSettings(Settings.EMPTY),
+                    NoopCircuitBreaker.INSTANCE
+                ),
+                options
+            )
+        ) {
+            boolean hasDictionaryPage = false;
+            for (BlockMetaData rowGroup : reader.getRowGroups()) {
+                for (ColumnChunkMetaData column : rowGroup.getColumns()) {
+                    hasDictionaryPage |= column.hasDictionaryPage();
+                }
+            }
+            assertTrue("variant " + description + " must write at least one dictionary page", hasDictionaryPage);
+        }
+    }
+
     private byte[] createParquetFile(MessageType schema) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         OutputFile outputFile = createOutputFile(outputStream);
         SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
 
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
-                .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(LegacyLz4HadoopFramedCodecFactory.forCodec(codec))
-                .withType(schema)
-                .withCompressionCodec(codec)
-                .withWriterVersion(writerVersion)
-                .withRowGroupSize(rowGroupSize)
-                .withPageSize(pageSize)
-                .build()
-        ) {
+        ExampleParquetWriter.Builder builder = ExampleParquetWriter.builder(outputFile)
+            .withConf(new PlainParquetConfiguration())
+            .withCodecFactory(
+                unframedLz4
+                    ? LegacyLz4HadoopFramedCodecFactory.forCodecUnframedLz4(codec)
+                    : LegacyLz4HadoopFramedCodecFactory.forCodec(codec)
+            )
+            .withType(schema)
+            .withCompressionCodec(codec)
+            .withWriterVersion(writerVersion)
+            .withRowGroupSize(rowGroupSize)
+            .withPageSize(pageSize);
+        if (unframedLz4) {
+            builder.withDictionaryEncoding(true);
+        }
+
+        try (ParquetWriter<Group> writer = builder.build()) {
             for (int i = 0; i < rowCount; i++) {
                 Group g = groupFactory.newGroup();
                 g.add("id", (long) i);
@@ -210,7 +267,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
                 if (nullable && i % 5 == 0) {
                     // leave value null
                 } else {
-                    g.add("value", i * 10);
+                    g.add("value", unframedLz4 ? (i % 8) * 10 : i * 10);
                 }
                 if (nullable && i % 7 == 0) {
                     // leave score null

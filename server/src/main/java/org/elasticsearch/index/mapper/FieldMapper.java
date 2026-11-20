@@ -316,6 +316,28 @@ public abstract class FieldMapper extends Mapper {
     }
 
     protected static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldMapper.class);
+
+    /**
+     * Whether {@code doc_values} is a no-op for an index: it is strict-columnar and was created on or after {@code since}.
+     * A {@code null} {@code indexSettings} (parsing without an index) is treated as non-columnar.
+     */
+    static boolean ignoresDocValuesAttribute(IndexSettings indexSettings, IndexVersion since) {
+        return indexSettings != null
+            && indexSettings.getMode().isStrictColumnar()
+            && indexSettings.getIndexVersionCreated().onOrAfter(since);
+    }
+
+    static void warnDocValuesIgnoredInColumnar(String field) {
+        // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
+        deprecationLogger.warn(
+            DeprecationCategory.MAPPINGS,
+            "doc_values_ignored_in_columnar",
+            "The [doc_values] parameter of field [{}] is ignored in columnar index modes, because doc values are "
+                + "always enabled. Remove the parameter.",
+            field
+        );
+    }
+
     @SuppressWarnings("rawtypes")
     static final Parameter<?>[] EMPTY_PARAMETERS = new Parameter[0];
 
@@ -484,6 +506,14 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether {@link #mapColumnBatch} takes a source column of this {@link EscfColumnKind}. A batch with a column the mapper does
+     * not take falls back to the row path before any column is mapped.
+     */
+    public boolean supportsColumnKind(byte kind) {
+        return true;
+    }
+
+    /**
      * How this field's values are written when the ColumNAR codec stores them as a string column, or
      * {@code null} when this field's doc values are not stored as one.
      *
@@ -534,7 +564,7 @@ public abstract class FieldMapper extends Mapper {
      * @param source the Escf column holding the field's source values for the batch
      */
     public final void mapColumnBatch(BatchMappingContext ctx, EscfColumn source) {
-        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc()) {
+        if (shouldEnforceSingleValueBatch() && source.hasMultiValueDoc(nullCountsAsValueBatch())) {
             throw new UnsupportedOperationException(
                 "mapColumnBatch: multi_value=false field [" + fullPath() + "] has more than one value per document"
             );
@@ -816,6 +846,11 @@ public abstract class FieldMapper extends Mapper {
      */
     protected boolean shouldEnforceSingleValueBatch() {
         return false;
+    }
+
+    /** Whether a {@code null} array element counts as a value in the {@code multi_value=false} check; true unless the mapper drops it. */
+    protected boolean nullCountsAsValueBatch() {
+        return true;
     }
 
     /**
@@ -1942,8 +1977,22 @@ public abstract class FieldMapper extends Mapper {
             }, XContentBuilder::field, Objects::toString);
         }
 
+        /**
+         * Plain {@code doc_values}. For default-{@code true} mappers in strict-columnar indices since
+         * {@link IndexVersions#DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS} the value is ignored, warning on {@code false}.
+         */
         public static Parameter<Boolean> docValuesParam(boolean defaultValue) {
-            return Parameter.boolParam("doc_values", false, defaultValue);
+            return new Parameter<>("doc_values", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
+                boolean enabled = XContentMapValues.nodeBooleanValue(o, "doc_values");
+                if (defaultValue
+                    && ignoresDocValuesAttribute(c.getIndexSettings(), IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR_ALL_MAPPERS)) {
+                    if (enabled == false) {
+                        warnDocValuesIgnoredInColumnar(n);
+                    }
+                    return true;
+                }
+                return enabled;
+            }, XContentBuilder::field, Objects::toString);
         }
 
         public static Parameter<Boolean> normsParam(boolean defaultValue) {
@@ -2127,8 +2176,7 @@ public abstract class FieldMapper extends Mapper {
             this.supportsExtendedDocValues = indexSettings != null && indexSettings.getMode().isStrictColumnar();
             this.supportsTopLevelAttributes = supportsExtendedDocValues
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES);
-            this.ignoresDocValuesAttribute = supportsExtendedDocValues
-                && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR);
+            this.ignoresDocValuesAttribute = ignoresDocValuesAttribute(indexSettings, IndexVersions.DOC_VALUES_NO_OP_IN_COLUMNAR);
 
             multiValueParameter = new Parameter<>(
                 "multi_value",
@@ -2355,14 +2403,7 @@ public abstract class FieldMapper extends Mapper {
                 boolean enabled = XContentMapValues.nodeBooleanValue(value, name);
                 if (ignoresDocValuesAttribute) {
                     if (enabled == false) {
-                        // Fixed key so the logger deduplicates: dynamic templates re-parse their mapping for every new field.
-                        deprecationLogger.warn(
-                            DeprecationCategory.MAPPINGS,
-                            "doc_values_ignored_in_columnar",
-                            "The [doc_values] parameter of field [{}] is ignored in columnar index modes, because doc values are "
-                                + "always enabled. Remove the parameter.",
-                            field
-                        );
+                        warnDocValuesIgnoredInColumnar(field);
                     }
                     // Leaving the value unset keeps it out of the persisted mapping.
                     return;

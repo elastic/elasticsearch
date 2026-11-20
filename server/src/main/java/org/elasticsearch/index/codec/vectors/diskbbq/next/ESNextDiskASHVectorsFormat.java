@@ -18,6 +18,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.TaskExecutor;
 import org.elasticsearch.index.codec.vectors.VectorReadHints;
 import org.elasticsearch.index.codec.vectors.VectorWriteHints;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfMergeConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
@@ -85,7 +86,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = DEFAULT_VECTORS_PER_CLUSTER; // 384
     public static final int MAX_DIMENSIONS = 4096;
 
-    private final IvfSegmentConfig.AshConfig ashConfig;
+    private final AshConfigResolver ashConfigResolver;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
     private final FlatVectorsFormat rawVectorFormat;
@@ -97,14 +98,29 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
-    /** No-arg constructor for SPI. */
+    /**
+     * No-arg constructor for SPI. Segments describe their own configuration, so this only matters for writing, where it
+     * derives the configuration from the vector dimension as the mapping does by default.
+     */
     public ESNextDiskASHVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, null);
+        this(
+            AshConfigResolver.dimsDerived(null, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
+            DEFAULT_VECTORS_PER_CLUSTER,
+            DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            null,
+            1,
+            null,
+            defaultFlatThreshold(DEFAULT_VECTORS_PER_CLUSTER),
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault()
+        );
     }
 
     public ESNextDiskASHVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(
-            IvfSegmentConfig.AshConfig.defaults(),
+            AshConfigResolver.fixed(IvfSegmentConfig.AshConfig.defaults()),
             vectorPerCluster,
             centroidsPerParentCluster,
             DenseVectorFieldMapper.ElementType.FLOAT,
@@ -118,8 +134,9 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
         );
     }
 
+    /** @param ashConfigResolver supplies the ASH configuration for each field from its vector dimension */
     public ESNextDiskASHVectorsFormat(
-        IvfSegmentConfig.AshConfig ashConfig,
+        AshConfigResolver ashConfigResolver,
         int vectorPerCluster,
         int centroidsPerParentCluster,
         DenseVectorFieldMapper.ElementType elementType,
@@ -157,7 +174,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
                 "flatVectorThreshold must be -1 (dynamic), 0 (disabled), or > 0, got: " + flatVectorThreshold
             );
         }
-        this.ashConfig = ashConfig;
+        this.ashConfigResolver = ashConfigResolver;
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.rawVectorFormat = switch (elementType) {
@@ -190,7 +207,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             sliceField,
             ivfFlushConfigSource,
             ivfMergeConfigResolver,
-            ashConfig
+            ashConfigResolver
         );
     }
 
@@ -201,7 +218,7 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
             var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(VectorReadHints.readToRescore(state));
-        }, ashConfig.queryBitsPerDim());
+        }, ashConfigResolver.queryBitsPerDim());
     }
 
     @Override

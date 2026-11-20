@@ -113,6 +113,7 @@ import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
+import org.elasticsearch.index.mapper.BatchMappingContext;
 import org.elasticsearch.index.mapper.BatchMappingShardContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -1273,8 +1274,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Applies a batch of index operations on the primary. Returns null if any operation requires a mapping update,
-     * signaling the caller to fall back to the item-by-item path.
+     * Hands a mapped batch chunk to the engine's document size reporter before the chunk's columns are frozen, see
+     * {@link Engine#onBatchParsingCompleted}.
+     */
+    @Override
+    public void onBatchParsingCompleted(BatchMappingContext context) {
+        getEngine().onBatchParsingCompleted(context);
+    }
+
+    /**
+     * Applies a batch of index operations on the primary. Returns one result per operation: document failures and
+     * operations the engine did not attempt after a mid-batch failure, are failed results.
      */
     public List<Engine.IndexResult> applyIndexOperationBatchOnPrimary(EngineBatch batch) throws IOException {
         ensureWriteAllowed(Engine.Operation.Origin.PRIMARY);

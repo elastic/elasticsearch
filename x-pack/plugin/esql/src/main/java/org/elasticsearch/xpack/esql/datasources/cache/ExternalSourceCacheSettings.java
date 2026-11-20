@@ -191,13 +191,15 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * Unlike {@link #STRIPE_SIZE} this does NOT participate in stripe identity, so changing it does not
      * invalidate anything: a cached wide extremum is a TRUE extremum, and the cap is about footprint rather
-     * than correctness. Restart-only and cluster-uniform, like {@link #STRIPE_SIZE}: a data node's
-     * contribution rides back to the coordinator of that query, which merges it into its own store, so under
-     * a heterogeneous setting what a coordinator can serve turns on which node read the file for it. Nothing
-     * enforces that — {@code NodeScope} is per node — and the cost is a miss rather than a wrong answer.
+     * than correctness. Wants to be cluster-uniform: a data node's contribution rides back to the
+     * coordinator of that query, which merges it into its own store, so under a heterogeneous setting what a
+     * coordinator can serve turns on which node read the file for it. Nothing enforces that —
+     * {@code NodeScope} is per node — and the cost is a miss rather than a wrong answer.
+     * <p>
      * A poisoned end stays poisoned for the life of its entry: a fold over more than one piece writes an
-     * unservable marker, and a later measurement cannot refill it. Only a file read whole as a single piece
-     * re-measures cleanly.
+     * unservable marker, and nothing later removes it — a clean whole-file measurement carries no key to
+     * overwrite it with. Reading the file whole never writes one in the first place.
+     * <p>
      * Restart-only for the reason {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup
      * {@code Settings}, so declaring it Dynamic would accept a runtime update and silently never observe it.
      */

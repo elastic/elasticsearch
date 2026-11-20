@@ -486,6 +486,8 @@ The advice on this page, particularly adding a [`WHERE`](/reference/query-langua
 
 Datasets also have their own performance characteristics, including partition pruning, Parquet row-group skipping, late materialization, and metadata caching. For details, refer to [query external datasets](/reference/query-languages/esql/esql-data-federation-querying.md#how-external-data-is-read).
 
+To size nodes for federated queries, refer to [size nodes for {{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation-sizing.md).
+
 ## Related pages
 
 - Inspect query logs:

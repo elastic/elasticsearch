@@ -56,6 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -175,6 +176,31 @@ public class ParquetFlushIT extends ESIntegTestCase {
             );
         }
         return bulk.get();
+    }
+
+    private static IndexRequest docRequest(int i) {
+        return new IndexRequest(INDEX).source(
+            "@timestamp",
+            BASE_TIMESTAMP + i * 1000L,
+            "host.name",
+            "host-" + (i % 7),
+            "count",
+            i,
+            "bytes",
+            i % 1000
+        );
+    }
+
+    /** The documents of {@code ids} that failed in the response, which must all have failed with a 429. */
+    private static List<Integer> rejectedIds(List<Integer> ids, BulkResponse response) {
+        final List<Integer> failed = new java.util.ArrayList<>();
+        for (int j = 0; j < response.getItems().length; j++) {
+            if (response.getItems()[j].isFailed()) {
+                assertThat(response.getItems()[j].getFailureMessage(), response.getItems()[j].status().getStatus(), equalTo(429));
+                failed.add(ids.get(j));
+            }
+        }
+        return failed;
     }
 
     private IndexShard shard(int shard) {
@@ -347,6 +373,101 @@ public class ParquetFlushIT extends ESIntegTestCase {
 
         assertUploaded(1, rows);
         assertThat("local files", localFiles(0), equalTo(0L));
+    }
+
+    /**
+     * What the benchmark does: several clients send bulks to one shard while the periodic flush and the compaction run all the time and
+     * the local files reach {@code index.parquet.max_local_size}, so bulks are rejected with a 429. A client sends again the items that
+     * were rejected. At the end every row is counted once by the stats and is in the table once, in files with contiguous ranges.
+     */
+    public void testConcurrentBulksThatAreRejectedAndSentAgainLoseNoRowAndCountNoRowTwice() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.flush_threshold_size", "1mb").put("index.parquet.max_local_size", "4mb"));
+        final int writers = 6;
+        final int bulksEach = 12;
+        final int docsPerBulk = 10_000;
+        final java.util.concurrent.atomic.AtomicLong rejected = new java.util.concurrent.atomic.AtomicLong();
+
+        startInParallel(writers, task -> {
+            for (int b = 0; b < bulksEach; b++) {
+                final int from = (task * bulksEach + b) * docsPerBulk;
+                List<Integer> pending = new java.util.ArrayList<>();
+                for (int i = from; i < from + docsPerBulk; i++) {
+                    pending.add(i);
+                }
+                while (pending.isEmpty() == false) {
+                    final BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+                    for (int i : pending) {
+                        bulk.add(docRequest(i));
+                    }
+                    final List<Integer> failed = rejectedIds(pending, bulk.get());
+                    if (failed.isEmpty() == false) {
+                        rejected.addAndGet(failed.size());
+                        safeSleep(20);
+                    }
+                    pending = failed;
+                }
+            }
+        });
+        logger.info("rejected items that were sent again: [{}]", rejected.get());
+
+        final long total = (long) writers * bulksEach * docsPerBulk;
+        assertThat(indicesAdmin().prepareFlush(INDEX).setWaitIfOngoing(true).get().getFailedShards(), equalTo(0));
+        assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), equalTo(total));
+        assertUploaded(1, (int) total);
+        assertThat("local files", localFiles(0), equalTo(0L));
+    }
+
+    /**
+     * The server hands the engine the documents of a bulk in chunks of at most 5,000. A chunk that the engine rejects fails its own
+     * documents with a 429, and never the documents of the chunks before it, which are written. If the rejection failed the whole bulk, a
+     * client that sends the bulk again would index those documents twice. The limit here is one byte, so the first chunk of a bulk is
+     * taken, and every later chunk is rejected until a flush has uploaded the local files. A client that sends again only what failed
+     * ends with every document once.
+     */
+    public void testARejectedChunkFailsOnlyItsOwnDocumentsAndSendingThemAgainIndexesEveryDocumentOnce() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.max_local_size", "1b"));
+        final int total = 12_000; // the chunks of one bulk: 5,000, 5,000 and 2,000
+        List<Integer> pending = new java.util.ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            pending.add(i);
+        }
+
+        final BulkRequestBuilder first = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        for (int i : pending) {
+            first.add(docRequest(i));
+        }
+        final BulkResponse response = first.get();
+        for (int j = 0; j < total; j++) {
+            assertThat(
+                "the first chunk is written, the others are rejected: item " + j,
+                response.getItems()[j].isFailed(),
+                equalTo(j >= 5_000)
+            );
+        }
+        pending = rejectedIds(pending, response);
+        assertThat(pending.size(), equalTo(total - 5_000));
+        assertThat(
+            "only the first chunk is counted",
+            indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(),
+            equalTo(5_000L)
+        );
+
+        while (pending.isEmpty() == false) {
+            assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+            final BulkRequestBuilder again = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+            for (int i : pending) {
+                again.add(docRequest(i));
+            }
+            final List<Integer> failed = rejectedIds(pending, again.get());
+            assertThat("a flush makes room for a chunk", failed.size(), lessThan(pending.size()));
+            pending = failed;
+        }
+
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+        assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), equalTo((long) total));
+        assertUploaded(1, total);
     }
 
     public void testFlushUploadsTheRowsOfEveryShardAsFilesOfOneTable() throws Exception {

@@ -219,11 +219,19 @@ public class ParquetWriteEngine extends Engine {
         }
         // With staged durability the repository must work before anything is written: a missing repository, or a table that another index
         // owns, fails the bulk and leaves no local file and no gap in the sequence numbers.
-        final ShardTable stagingTable = acceptedCount > 0 && isStaged() ? openTableForStaging() : null;
+        final ShardTable stagingTable;
+        try {
+            stagingTable = acceptedCount > 0 && isStaged() ? openTableForStaging() : null;
+        } catch (ElasticsearchStatusException e) {
+            return failedBatch(operations, accepted, e);
+        }
         LocalParquetFiles.LocalFile written = null;
         long firstSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         if (acceptedCount > 0) {
-            rejectWhenLocalFilesAreFull();
+            final EsRejectedExecutionException rejection = rejectionWhenLocalFilesAreFull();
+            if (rejection != null) {
+                return failedBatch(operations, accepted, rejection);
+            }
             // The sequence numbers are taken before the write, so that bulks write their files in parallel. A bulk that fails to write
             // leaves a gap, which the engine tolerates (the ranges are in the names of the files and the rows come from the footers).
             firstSeqNo = tracker.generateSeqNos(acceptedCount);
@@ -231,7 +239,11 @@ public class ParquetWriteEngine extends Engine {
         }
         if (stagingTable != null && written != null) {
             // The uploads of concurrent bulks of the shard overlap; the bulk is acknowledged after this returns
-            stage(stagingTable, written, acceptedCount);
+            try {
+                stage(stagingTable, written, acceptedCount);
+            } catch (ElasticsearchStatusException e) {
+                return failedBatch(operations, accepted, e);
+            }
         }
         final List<IndexResult> results = new ArrayList<>(docCount);
         long seqNo = firstSeqNo;
@@ -240,25 +252,46 @@ public class ParquetWriteEngine extends Engine {
                 results.add(new ParquetIndexResult(operations.primaryTerm(), seqNo, operations.id(i), new Translog.Location(0, seqNo, 0)));
                 seqNo++;
             } else {
-                results.add(
-                    new IndexResult(new IllegalArgumentException(NOT_SUPPORTED + ": the document has an explicit id"), 1L, operations.id(i))
-                );
+                results.add(new IndexResult(explicitIdFailure(), 1L, operations.id(i)));
             }
         }
         return results;
     }
 
     /**
-     * A 429 when the local files have reached {@code index.parquet.max_local_size}. The check is not exact: bulks that are writing at that
-     * moment add their files, so the size can pass the limit by what they write. It happens before the sequence numbers are taken, so
-     * a rejected bulk leaves no gap, and the client can send it again.
+     * The results of a batch that the engine did not take: every document that it could have taken fails with {@code failure}, and a
+     * document with an explicit id fails as always.
+     *
+     * <p>A refusal must be a result for each document and never an exception. The server applies the batches of one shard request one
+     * after the other (at most 5,000 documents each), and an exception from a later batch fails the whole request, so the client is told
+     * that the documents of the earlier batches failed too, although they are written. A client that sends them again then indexes them
+     * twice (the benchmark counted 40,000 to 65,000 documents too many that way). As a result for each document, the earlier batches
+     * succeed, and the client sends again only the documents that failed.
      */
-    private void rejectWhenLocalFilesAreFull() {
+    private static List<IndexResult> failedBatch(IndexOperationBatch operations, boolean[] accepted, Exception failure) {
+        final List<IndexResult> results = new ArrayList<>(accepted.length);
+        for (int i = 0; i < accepted.length; i++) {
+            results.add(new IndexResult(accepted[i] ? failure : explicitIdFailure(), 1L, operations.id(i)));
+        }
+        return results;
+    }
+
+    private static IllegalArgumentException explicitIdFailure() {
+        return new IllegalArgumentException(NOT_SUPPORTED + ": the document has an explicit id");
+    }
+
+    /**
+     * A 429 when the local files have reached {@code index.parquet.max_local_size}, and null otherwise. The check is not exact: bulks that
+     * are writing at that moment add their files, so the size can pass the limit by what they write. It happens before the sequence
+     * numbers are taken, so a rejected batch leaves no gap, and nothing of it is written, so the client can send it again. The caller
+     * returns it as the result of each document (see {@link #failedBatch}).
+     */
+    private EsRejectedExecutionException rejectionWhenLocalFilesAreFull() {
         final long maxLocalBytes = ParquetFormatSettings.MAX_LOCAL_SIZE.get(engineConfig.getIndexSettings().getSettings()).getBytes();
         final long bytes = localBytes.get();
         if (bytes >= maxLocalBytes) {
             // The upload does not keep up, or the repository is down. A 429 tells the client to retry, and the rows are not lost.
-            throw new EsRejectedExecutionException(
+            return new EsRejectedExecutionException(
                 "the local Parquet files of shard ["
                     + shardId
                     + "] hold ["
@@ -267,6 +300,7 @@ public class ParquetWriteEngine extends Engine {
                 false
             );
         }
+        return null;
     }
 
     /**

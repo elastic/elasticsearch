@@ -103,7 +103,7 @@ fields of the types above before the bulk (not tested here).
 | `index.parquet.local_compression` | `zstd` | Compression of the local files that every bulk writes (same values). On ClickBench data, `zstd` made them 2.3 times smaller than uncompressed ones, about the size of the uploaded file, at no throughput cost that a measurement could see. Dynamic. |
 | `index.parquet.flush_threshold_size` | `1gb` | Local bytes at which the periodic flush uploads. |
 | `index.parquet.flush_threshold_age` | `30m` | Age of the oldest local file at which the periodic flush uploads. |
-| `index.parquet.max_local_size` | `4gb` | Local bytes at which bulks get a 429 until a flush frees space. |
+| `index.parquet.max_local_size` | `4gb` | Local bytes at which batches of at most 5,000 documents get a 429, for each document, until a flush frees space. A bulk can be accepted in part. |
 | `index.parquet.max_file_size` | `1gb` | The most **local bytes** that one uploaded file is merged from. With `zstd` local files (the default) an uploaded file is about as large as its local files; with `uncompressed` local files it is about 0.4 times as large. A compaction merges at most this many bytes of uploaded files. |
 | `index.parquet.row_group_size` | `128mb` | Buffered data at which a row group is written. |
 | `index.parquet.compaction.enabled` | `true` | Merge small uploaded files in the background. |
@@ -299,9 +299,17 @@ What a bulk does with `staged`: it opens the table before it writes anything, so
 index owns fails the bulk (HTTP 503) with no local file and no gap in the sequence numbers. It then takes its sequence numbers, writes
 the local file, and uploads the staged copy. None of these steps holds a shard-wide lock, so the local files and the uploads of
 concurrent bulks of a shard overlap (a profile of a run with one shard and 8 clients showed the bulks waiting for each other on a lock
-that was held during the write of the local file). If the write or the upload fails, the local file is deleted, the bulk fails (a 503 for
-the upload), and its sequence numbers stay used (a gap, which the engine tolerates because the ranges are in the names and the rows come
-from the footers). A bulk that is rejected with a 429 takes no sequence numbers.
+that was held during the write of the local file). If the write or the upload fails, the local file is deleted, the documents fail (a 503
+for the upload), and the sequence numbers stay used (a gap, which the engine tolerates because the ranges are in the names and the rows
+come from the footers). A batch that is rejected with a 429 takes no sequence numbers.
+
+**A refusal is a result for each document, not an exception.** The server hands the engine the documents of a bulk in batches of at most
+5,000, one after the other. The engine refuses a batch (a 429 when the local files have reached `max_local_size`, a 503 when the repository
+cannot take the staged copy) by returning a failed result for each document of it. An exception would fail the whole shard request, and
+the client would be told that the documents of the earlier batches failed too, although they are written. A client that sends them again
+indexes them twice: a benchmark with a retry of the whole bulk counted 40,000 to 65,000 documents too many that way. So a bulk of 10,000
+documents can be accepted in part, and a client has to send again only the documents that failed (`ParquetFlushIT` does it, with many
+clients, constant flushes and a limit that rejects).
 
 Because bulks finish in any order, a flush uploads only the local files whose range is at or below the processed checkpoint of the
 shard, which means that every bulk with a lower range has finished (a failed bulk marks its range as processed too). A flush records the

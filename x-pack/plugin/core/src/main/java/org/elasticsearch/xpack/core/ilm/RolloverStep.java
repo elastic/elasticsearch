@@ -138,7 +138,8 @@ public class RolloverStep extends AsyncActionStep {
                     l.onResponse(null);
                 } else if (indexName.equals(response.getOldIndex()) == false) {
                     logger.info(
-                        "index [{}] was already rolled over for [{}], current write index is [{}], not attempting to roll over again",
+                        "index [{}] is no longer the write index of [{}] (current write index is [{}]), assuming it was already rolled "
+                            + "over and not rolling over again",
                         indexName,
                         rolloverRequest.getRolloverTarget(),
                         response.getOldIndex()

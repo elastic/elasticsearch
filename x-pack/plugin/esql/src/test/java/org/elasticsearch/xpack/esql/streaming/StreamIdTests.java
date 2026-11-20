@@ -47,13 +47,25 @@ public class StreamIdTests extends ESTestCase {
 
     /** A task id parsed from a string like {@code :1} is set but names no node. It is rejected, also when a client sends it. */
     public void testNodeIdOfTheTaskMustNotBeEmpty() throws IOException {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new StreamId(new TaskId(":1"), "key"));
-        assertThat(e.getMessage(), equalTo("the node id of the task must not be empty"));
+        expectThrows(
+            IllegalArgumentException.class,
+            equalTo("the node id of the task must not be empty"),
+            () -> new StreamId(new TaskId(":1"), "key")
+        );
 
         assertInvalid(encode(out -> {
             out.writeString(":1");
             out.writeString("key");
         }));
+    }
+
+    /** The task id is written as {@code node:number}, so a node id with a colon could not be read back. */
+    public void testNodeIdOfTheTaskMustNotContainColon() {
+        expectThrows(
+            IllegalArgumentException.class,
+            equalTo("the node id of the task must not contain [:]"),
+            () -> new StreamId(new TaskId("a:b", 1), "key")
+        );
     }
 
     // Equality
@@ -141,8 +153,7 @@ public class StreamIdTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("invalid id: [" + invalid + "]"));
             assertThat(e.getCause(), instanceOf(Exception.class));
         }
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StreamId.decode(null));
-        assertThat(e.getMessage(), equalTo("invalid id: [null]"));
+        expectThrows(IllegalArgumentException.class, equalTo("invalid id: [null]"), () -> StreamId.decode(null));
     }
 
     /** Well-formed Base64 with the reserved byte, but the parts after it are not a task id and a stream key. */
@@ -214,8 +225,7 @@ public class StreamIdTests extends ESTestCase {
 
     /** Asserts that the string is rejected with the message a client sees. */
     private static void assertInvalid(String encoded) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StreamId.decode(encoded));
-        assertThat(e.getMessage(), equalTo("invalid id: [" + encoded + "]"));
+        expectThrows(IllegalArgumentException.class, equalTo("invalid id: [" + encoded + "]"), () -> StreamId.decode(encoded));
     }
 
     /** Writes the parts of an id that follow the reserved byte. */

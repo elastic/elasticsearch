@@ -54,6 +54,10 @@ public final class StreamId {
         if (taskId.getNodeId().isEmpty()) {
             throw new IllegalArgumentException("the node id of the task must not be empty");
         }
+        // The task id is written as [node:number] and read back by splitting at the colon.
+        if (taskId.getNodeId().indexOf(':') >= 0) {
+            throw new IllegalArgumentException("the node id of the task must not contain [:]");
+        }
         this.taskId = taskId;
         this.streamKey = streamKey;
         this.encoded = encode(taskId, streamKey);

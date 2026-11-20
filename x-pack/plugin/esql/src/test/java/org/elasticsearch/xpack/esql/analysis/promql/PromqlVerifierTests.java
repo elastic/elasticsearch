@@ -175,7 +175,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testLogicalSetBinaryOperators() {
         List.of("and", "unless").forEach(op -> {
             // metric op metric: and/unless (INTERSECT/SUBTRACT) are not supported yet.
-            tsdb.error(
+            mixedTsdb.error(
                 "PROMQL index=test step=5m foo " + op + " bar",
                 containsString("set operator [" + op + "] is not supported at this time")
             );
@@ -228,7 +228,7 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testNestedUnionIsRejected() {
         // `or` is only supported at the top level; nested inside an aggregation it is rejected.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m sum(network.bytes_in or network.connections)",
             containsString("set operator [or] is only supported at the top-level at this time")
         );

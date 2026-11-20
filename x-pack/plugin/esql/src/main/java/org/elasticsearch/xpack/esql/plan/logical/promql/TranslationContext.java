@@ -278,18 +278,27 @@ public record TranslationContext(
         List<Attribute> unionOutput = VectorBinarySet.unionOutputByName(branchPlans);
         var union = new UnionAll(source, branchPlans, unionOutput);
 
-        // Left-preferring dedup: group by every column except the value and the branch tag, keep the lowest branch.
+        // Left-preferring dedup: group by every column except the value and the branch tag, keep the lowest branch. With the
+        // label container functions a series' labels group without the metric name, which Prometheus' or leaves out.
         var groupings = new ArrayList<Expression>();
         Attribute branchAttr = null;
+        LogicalPlan plan = union;
         for (Attribute attr : unionOutput) {
             if (attr.name().equals(cmd.branchColumnName())) {
                 branchAttr = attr;
+            } else if (attr.name().startsWith(MetadataAttribute.TIMESERIES + "$")) {
+                // a packing a branch derives from its _timeseries, which already keys the series
+                continue;
+            } else if (attr.name().equals(MetadataAttribute.TIMESERIES) && containerFunctions()) {
+                Alias signature = new Alias(source, "$prom_sig", unset(attr, Stream.of(LabelMatcher.NAME)));
+                plan = new Eval(source, plan, List.of(signature));
+                groupings.add(signature.toAttribute());
             } else if (attr.name().equals(cmd.valueColumnName()) == false) {
                 groupings.add(attr);
             }
         }
         var order = new Order(source, branchAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        return new TopNBy(source, union, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
+        return new TopNBy(source, plan, List.of(order), new Literal(source, 1, DataType.INTEGER), groupings);
     }
 
     /**
@@ -738,9 +747,12 @@ public record TranslationContext(
         return aggregates;
     }
 
-    /** Flattens a left-associative top-level {@code or} chain into branches; branch 0 has the highest precedence. */
+    /**
+     * Flattens a left-associative top-level {@code or} chain into branches; branch 0 has the highest precedence. An {@code or}
+     * with matching modifiers matches on its own labels, so it is a branch of its own.
+     */
     private static void flattenUnion(LogicalPlan node, List<LogicalPlan> branches) {
-        if (node instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION) {
+        if (node instanceof VectorBinarySet setOp && setOp.op() == VectorBinarySet.SetOp.UNION && setOp.match() == VectorMatch.NONE) {
             flattenUnion(setOp.left(), branches);
             flattenUnion(setOp.right(), branches);
         } else {

@@ -162,9 +162,11 @@ using the index, and analyzes `text` values with the `standard` analyzer rather 
 stack: ga 9.7
 serverless: ga
 ```
+This only applies when every node that takes part in the query supports it, including the nodes of remote clusters. During a rolling upgrade, or when the query targets an older remote cluster, the conversion function must accept all the types in the *union*, as described above.
+
 The conversion function doesn't have to accept every mapped type. Types it can convert are returned as the target type. Types it can't convert are returned as `null`, and the response includes a warning naming those types and, usually, the indices they come from.
 
-If no mapped type can be converted, the result is `null` in every index, with the same warning.
+If no mapped type can be converted, the result is `null` in every index that maps the field, with the same warning.
 
 With [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) set to `"load"`, the values loaded from `_source` for indices that don't map the field are converted when they can be.
 

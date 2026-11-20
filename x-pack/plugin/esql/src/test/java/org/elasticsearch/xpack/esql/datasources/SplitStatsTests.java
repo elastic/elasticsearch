@@ -144,7 +144,7 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(Double.NaN, folded.columnMax("d"));
     }
 
-    public void testFoldOfASplitWithoutPublishedBoundsNeverYieldsNaN() {
+    public void testFoldOfASplitWithoutPublishedBoundsMakesTheBoundsUnservable() {
         SplitStats.Builder noBounds = new SplitStats.Builder().rowCount(5);
         int d = noBounds.addColumn("d");
         noBounds.nullCount(d, 0L);
@@ -152,10 +152,8 @@ public class SplitStatsTests extends ESTestCase {
 
         SplitStats folded = SplitStats.fold(List.of(splitWithBounds(5, 1.0, 5.0), noBounds.build(), splitWithBounds(5, 10.0, 20.0)), false);
 
-        Object min = folded.columnMin("d");
-        Object max = folded.columnMax("d");
-        assertFalse("a fold never publishes a NaN minimum", min instanceof Double m && m.isNaN());
-        assertFalse("a fold never publishes a NaN maximum", max instanceof Double m && m.isNaN());
+        assertNull("a split with unknown values makes the minimum unservable", folded.columnMin("d"));
+        assertNull("a split with unknown values makes the maximum unservable", folded.columnMax("d"));
     }
 
     private static SplitStats splitWithBounds(long rows, double min, double max) {

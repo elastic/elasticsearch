@@ -12770,25 +12770,24 @@ public class ParquetFormatReaderTests extends ESTestCase {
             createStorageObject(parquetData)
         );
 
-        int nanSplits = 0;
-        int finiteSplits = 0;
-        for (RangeAwareFormatReader.SplitRange range : ranges) {
-            Map<String, Object> stats = range.statistics();
+        List<RangeAwareFormatReader.SplitRange> byOffset = ranges.stream()
+            .sorted(Comparator.comparingLong(RangeAwareFormatReader.SplitRange::offset))
+            .toList();
+        assertThat("one split per row group", byOffset.size(), equalTo(rowGroupRowCounts(parquetData).size()));
+        for (int i = 0; i < byOffset.size(); i++) {
+            Map<String, Object> stats = byOffset.get(i).statistics();
             Object min = stats.get("_stats.columns.d.min");
             Object max = stats.get("_stats.columns.d.max");
             assertNotNull(stats.get("_stats.columns.d.null_count"));
-            if (min == null && max == null) {
-                nanSplits++;
-                continue;
+            boolean allNaN = i * rowsPerGroup >= phase && (i + 1) * rowsPerGroup <= 2 * phase;
+            if (allNaN) {
+                assertNull("an all-NaN row group publishes no minimum", min);
+                assertNull("an all-NaN row group publishes no maximum", max);
+            } else {
+                assertEquals("minimum of row group " + i, i * (double) rowsPerGroup + 1.0, min);
+                assertEquals("maximum of row group " + i, (i + 1) * (double) rowsPerGroup, max);
             }
-            finiteSplits++;
-            assertThat(min, instanceOf(Double.class));
-            assertThat(max, instanceOf(Double.class));
-            assertFalse("a published minimum is never NaN", ((Double) min).isNaN());
-            assertFalse("a published maximum is never NaN", ((Double) max).isNaN());
         }
-        assertThat("an all-NaN row group publishes no bounds", nanSplits, greaterThan(0));
-        assertThat("finite row groups keep their bounds", finiteSplits, greaterThan(0));
     }
 
     public void testFileBoundsServeTheMaximumWhenOnlyTheMinimumIsAZero() throws Exception {

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -89,6 +90,24 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
     @Override
     public EsqlQueryRequestBuilder projectRouting(String projectRouting) {
         request.set(QuerySettings.PROJECT_ROUTING, projectRouting);
+        return this;
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder includeCcsMetadata(boolean include) {
+        request.includeCCSMetadata(include);
+        return this;
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder includeExecutionMetadata(boolean include) {
+        request.includeExecutionMetadata(include);
+        return this;
+    }
+
+    @Override
+    public EsqlQueryRequestBuilder timeZone(ZoneId timeZone) {
+        request.set(QuerySettings.TIME_ZONE, timeZone);
         return this;
     }
 

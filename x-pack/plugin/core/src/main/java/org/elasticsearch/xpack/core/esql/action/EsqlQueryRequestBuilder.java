@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 
+import java.time.ZoneId;
 import java.util.List;
 
 public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, Response extends EsqlQueryResponse> extends
@@ -46,6 +47,21 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
     public abstract EsqlQueryRequestBuilder<Request, Response> profile(boolean profile);
 
     public abstract EsqlQueryRequestBuilder<Request, Response> projectRouting(String projectRouting);
+
+    /**
+     * Equivalent of the {@code include_ccs_metadata} request parameter: report {@link EsqlResponse#clusters()} for cross-cluster
+     * queries.
+     */
+    public abstract EsqlQueryRequestBuilder<Request, Response> includeCcsMetadata(boolean include);
+
+    /**
+     * Equivalent of the {@code include_execution_metadata} request parameter: report {@link EsqlResponse#clusters()} for every query,
+     * including local-only ones. Cannot be combined with {@link #includeCcsMetadata}.
+     */
+    public abstract EsqlQueryRequestBuilder<Request, Response> includeExecutionMetadata(boolean include);
+
+    /** Equivalent of the {@code time_zone} request setting. */
+    public abstract EsqlQueryRequestBuilder<Request, Response> timeZone(ZoneId timeZone);
 
     public abstract EsqlQueryRequestBuilder<Request, Response> params(List<EsqlQueryParam> params);
 

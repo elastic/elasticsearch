@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -44,6 +46,21 @@ public class EsqlResponseImpl implements EsqlResponse {
             ensureOpen();
             return new DelegatingIterator<>(queryResponse.column(columnIndex));
         };
+    }
+
+    @Override
+    public List<EsqlClusterInfo> clusters() {
+        EsqlExecutionInfo info = queryResponse.getExecutionInfo();
+        if (info == null || info.hasMetadataToReport() == false) {
+            return List.of();
+        }
+        return info.clusterInfo.values()
+            .stream()
+            .map(
+                c -> new EsqlClusterInfo(c.getClusterAlias(), c.getIndexExpression(), EsqlClusterInfo.Status.valueOf(c.getStatus().name()))
+            )
+            .sorted(Comparator.comparing(EsqlClusterInfo::clusterAlias))
+            .toList();
     }
 
     @Override

@@ -338,10 +338,20 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * The {@code error.type} every probe is expected to return. Clients read this alongside the status, so a rename
      * is as visible as a status change and is pinned the same way -- this PR's own CSV faults moved from
      * {@code parsing_exception} to {@code external_client_exception}, which nothing would otherwise have caught.
+     * <p>
+     * The two empty-object cells moved the same way, and their move is worth recording because the prose they
+     * answer with did not change -- only the type. They read {@code illegal_argument_exception} because
+     * the refusal behind them was a bare {@code IOException}, which {@code FileSourceFactory} re-raises
+     * untyped; the resolver forwards an untyped message only past its storage-path guard, so an object a user is
+     * entitled to call {@code logs.amazonaws.com.csv} lost the whole diagnosis to a substring match on a basename
+     * the replacement message prints anyway. Typing them lines them up with the CSV reader's other refusals, not
+     * with this surface, which has no single convention: the parquet cells in this same map still answer an
+     * argument error for an object whose bytes contradict its declared format. The status did not move -- {@code MALFORMED_DATA}
+     * answers 400, as the untyped argument error did -- so a client switching on status sees nothing change.
      */
     private static final Map<String, String> EXPECTED_TYPE = Map.ofEntries(
         entry("tsv object does not exist", "external_client_exception"),
-        entry("tsv object is empty", "illegal_argument_exception"),
+        entry("tsv object is empty", "external_client_exception"),
         entry("tsv declared as parquet", "illegal_argument_exception"),
         entry("tsv under a data source with the wrong credentials", "external_client_exception"),
         entry("object key does not exist", "external_client_exception"),
@@ -361,7 +371,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("unknown explicit format name", "validation_exception"),
         entry("parquet extension over non-parquet bytes", "illegal_argument_exception"),
         entry("parquet with correct magic but truncated body", "illegal_argument_exception"),
-        entry("zero-byte object", "illegal_argument_exception"),
+        entry("zero-byte object", "external_client_exception"),
         entry("unknown setting key on the dataset", "validation_exception"),
         entry("multi-character delimiter", "validation_exception"),
         entry("invalid encoding name", "validation_exception"),

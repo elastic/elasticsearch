@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Hint-narrowed enumeration of a {@code **} glob over a Hive-partitioned tree: the tree is walked level by level via
@@ -175,7 +176,8 @@ final class PartitionPruningWalk {
         String excludedExample,
         String excludedExampleEntry,
         Map<String, DataType> columnFullTypes,
-        List<StoragePath> prunedDirs
+        List<StoragePath> prunedDirs,
+        @Nullable StorageEntry fileKeepStash
     ) {}
 
     /**
@@ -192,7 +194,7 @@ final class PartitionPruningWalk {
         int maxDiscoveredFiles,
         String glob
     ) {
-        return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, null);
+        return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, null, null);
     }
 
     static WalkResult tryWalk(
@@ -205,8 +207,22 @@ final class PartitionPruningWalk {
         String glob,
         @Nullable FolderRangePredicate folderRange
     ) {
+        return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, folderRange, null);
+    }
+
+    static WalkResult tryWalk(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep
+    ) {
         try {
-            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, keyedGlobKeys(glob), folderRange);
+            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, keyedGlobKeys(glob), folderRange, fileKeep);
         } catch (IOException | ExternalUnavailableException e) {
             logger.debug(() -> "Partition-pruning walk of [" + prefix + "] failed; falling back to a flat listing", e);
             return null;
@@ -240,9 +256,10 @@ final class PartitionPruningWalk {
         List<PartitionFilterHint> hints,
         int maxDiscoveredFiles,
         Set<String> keyedGlobKeys,
-        @Nullable FolderRangePredicate folderRange
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep
     ) throws IOException {
-        Collector collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles);
+        Collector collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles, fileKeep);
         Set<String> pending = new HashSet<>();
         for (PartitionFilterHint hint : hints) {
             pending.add(hint.columnName());
@@ -602,24 +619,35 @@ final class PartitionPruningWalk {
 
     /**
      * Accumulates the files the walk keeps, applying exactly the flat listing's per-object rules: relative path,
-     * placeholder skipping, glob matcher, exclusion filter (with the warning's count-and-example tally), and the
-     * discovery cap.
+     * placeholder skipping, glob matcher, exclusion filter (with the warning's count-and-example tally),
+     * {@code _file.*} keep (including {@code LIKE}), then the discovery cap.
      */
     private static final class Collector {
         private final String prefixStr;
         private final GlobMatcher matcher;
         private final ExclusionConfig.NameFilter nameFilter;
         private final int maxDiscoveredFiles;
+        @Nullable
+        private final Predicate<StorageEntry> fileKeep;
         private final List<StorageEntry> matched = new ArrayList<>();
+        @Nullable
+        private StorageEntry fileKeepStash;
         private int excludedCount = 0;
         private String excludedExample = null;
         private String excludedExampleEntry = null;
 
-        Collector(String prefixStr, GlobMatcher matcher, ExclusionConfig.NameFilter nameFilter, int maxDiscoveredFiles) {
+        Collector(
+            String prefixStr,
+            GlobMatcher matcher,
+            ExclusionConfig.NameFilter nameFilter,
+            int maxDiscoveredFiles,
+            @Nullable Predicate<StorageEntry> fileKeep
+        ) {
             this.prefixStr = prefixStr;
             this.matcher = matcher;
             this.nameFilter = nameFilter;
             this.maxDiscoveredFiles = maxDiscoveredFiles;
+            this.fileKeep = fileKeep;
         }
 
         void add(StorageEntry entry) {
@@ -637,6 +665,12 @@ final class PartitionPruningWalk {
                 if (excludedExample == null) {
                     excludedExample = relativePath;
                     excludedExampleEntry = excludedBy;
+                }
+                return;
+            }
+            if (fileKeep != null && fileKeep.test(entry) == false) {
+                if (fileKeepStash == null) {
+                    fileKeepStash = entry;
                 }
                 return;
             }
@@ -660,7 +694,8 @@ final class PartitionPruningWalk {
                 excludedExample,
                 excludedExampleEntry,
                 columnFullTypes,
-                List.copyOf(prunedDirs)
+                List.copyOf(prunedDirs),
+                fileKeepStash
             );
         }
     }

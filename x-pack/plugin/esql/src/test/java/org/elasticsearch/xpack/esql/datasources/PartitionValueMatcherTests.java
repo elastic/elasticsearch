@@ -221,27 +221,40 @@ public class PartitionValueMatcherTests extends ESTestCase {
 
     public void testLikeMatchesWildcardPatternSemantics() {
         PartitionFilterHint like = hint("k", Operator.LIKE, "*_20261118T14*");
+        assertNull("folder walk must not compile LIKE per value", PartitionValueMatcher.matches("file_1.parquet", like));
         assertEquals(
             Boolean.TRUE,
-            PartitionValueMatcher.matches("108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1405Z_3f2a.log.gz", like)
+            PartitionValueMatcher.matchesLike(
+                "108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1405Z_3f2a.log.gz",
+                like.values().get(0),
+                null
+            )
         );
         assertEquals(
             Boolean.FALSE,
-            PartitionValueMatcher.matches("108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1505Z_3f2a.log.gz", like)
+            PartitionValueMatcher.matchesLike(
+                "108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261118T1505Z_3f2a.log.gz",
+                like.values().get(0),
+                null
+            )
         );
         assertEquals(
             Boolean.FALSE,
-            PartitionValueMatcher.matches("108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261119T1405Z_3f2a.log.gz", like)
+            PartitionValueMatcher.matchesLike(
+                "108782077895_vpcflowlogs_eu-west-1_fl-0abc_20261119T1405Z_3f2a.log.gz",
+                like.values().get(0),
+                null
+            )
         );
-        assertEquals(Boolean.TRUE, PartitionValueMatcher.matches("file_1.parquet", hint("k", Operator.LIKE, "file_*.parquet")));
-        assertEquals(Boolean.FALSE, PartitionValueMatcher.matches("fileX1.parquet", hint("k", Operator.LIKE, "file_*.parquet")));
-        assertEquals(Boolean.TRUE, PartitionValueMatcher.matches("fileA.parquet", hint("k", Operator.LIKE, "file?.parquet")));
-        assertEquals(Boolean.FALSE, PartitionValueMatcher.matches("fileAB.parquet", hint("k", Operator.LIKE, "file?.parquet")));
-        assertEquals(Boolean.TRUE, PartitionValueMatcher.matches("file*.parquet", hint("k", Operator.LIKE, "file\\*.parquet")));
-        assertEquals(Boolean.FALSE, PartitionValueMatcher.matches("fileX.parquet", hint("k", Operator.LIKE, "file\\*.parquet")));
-        assertEquals(Boolean.TRUE, PartitionValueMatcher.matches("file?.parquet", hint("k", Operator.LIKE, "file\\?.parquet")));
-        assertEquals(Boolean.FALSE, PartitionValueMatcher.matches("fileA.parquet", hint("k", Operator.LIKE, "file\\?.parquet")));
-        assertNull(PartitionValueMatcher.matches(6, like));
+        assertEquals(Boolean.TRUE, PartitionValueMatcher.matchesLike("file_1.parquet", "file_*.parquet", null));
+        assertEquals(Boolean.FALSE, PartitionValueMatcher.matchesLike("fileX1.parquet", "file_*.parquet", null));
+        assertEquals(Boolean.TRUE, PartitionValueMatcher.matchesLike("fileA.parquet", "file?.parquet", null));
+        assertEquals(Boolean.FALSE, PartitionValueMatcher.matchesLike("fileAB.parquet", "file?.parquet", null));
+        assertEquals(Boolean.TRUE, PartitionValueMatcher.matchesLike("file*.parquet", "file\\*.parquet", null));
+        assertEquals(Boolean.FALSE, PartitionValueMatcher.matchesLike("fileX.parquet", "file\\*.parquet", null));
+        assertEquals(Boolean.TRUE, PartitionValueMatcher.matchesLike("file?.parquet", "file\\?.parquet", null));
+        assertEquals(Boolean.FALSE, PartitionValueMatcher.matchesLike("fileA.parquet", "file\\?.parquet", null));
+        assertNull(PartitionValueMatcher.matchesLike(6, like.values().get(0), null));
     }
 
     public void testWalkPruneImpliesReadLayerExclusion() {

@@ -96,8 +96,9 @@ public final class PartitionValueMatcher {
      * literal whose kind differs from the value's) means the caller must not prune. The kind guard is what keeps a
      * raw string hint from disagreeing with the read layer's implicitly-cast literal: {@code WHERE flag IN ("True",
      * "false")} reaches the walk as text against a boolean-typed folder value, and text-vs-boolean must be "cannot
-     * decide", not {@code "true".equals("True")}. The listing walk calls this for {@code _file.*} too, after reading
-     * the entry's own field. Mirrors {@link FileSplitProvider#evaluateFilter} for the kinds it can decide.
+     * decide", not {@code "true".equals("True")}. {@code LIKE} is undecidable here so the folder walk does not
+     * recompile an automaton per value; listing uses {@link #matchesLike} with a once-compiled run. Mirrors
+     * {@link FileSplitProvider#evaluateFilter} for the kinds it can decide.
      */
     @Nullable
     public static Boolean matches(@Nullable Object partitionValue, PartitionFilterHint hint) {
@@ -135,7 +136,8 @@ public final class PartitionValueMatcher {
             case GREATER_THAN_OR_EQUAL -> compareValues(partitionValue, literal) >= 0;
             case LESS_THAN -> compareValues(partitionValue, literal) < 0;
             case LESS_THAN_OR_EQUAL -> compareValues(partitionValue, literal) <= 0;
-            case LIKE -> matchesLike(partitionValue, literal, null);
+            // File listing compiles LIKE once in FileMetadataFilter. Folder walk must not recompile per value.
+            case LIKE -> null;
             case IN -> null; // handled above
         };
     }

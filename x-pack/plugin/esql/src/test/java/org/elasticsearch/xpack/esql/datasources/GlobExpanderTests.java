@@ -1707,6 +1707,40 @@ public class GlobExpanderTests extends ESTestCase {
         }
     }
 
+    public void testGlobstarFileNameLikeBeatsDiscoveredFilesCap() throws IOException {
+        List<StorageEntry> tree = new ArrayList<>();
+        for (int i = 0; i < 15; i++) {
+            String hour = i >= 12 ? "14" : "15";
+            tree.add(entry("s3://bucket/data/year=2025/acct_fl_20261118T" + hour + "05Z_" + i + ".log.gz", 100));
+        }
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025),
+            hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*")
+        );
+        FileList result = GlobExpander.expand("s3://bucket/data/**", new TreeStubProvider(tree), hints, HIVE_ON, 10, MAX);
+        assertTrue(result.isResolved());
+        assertEquals(3, result.fileCount());
+        for (int i = 0; i < result.fileCount(); i++) {
+            assertThat(result.path(i).objectName(), containsString("_20261118T14"));
+        }
+    }
+
+    public void testGlobstarFileNameLikeAllMissKeepsSurvivingFolderStash() throws IOException {
+        List<StorageEntry> tree = new ArrayList<>();
+        tree.add(entry("s3://bucket/data/year=2024/old.parquet", 100));
+        for (int i = 0; i < 15; i++) {
+            tree.add(entry("s3://bucket/data/year=2025/acct_fl_20261118T1505Z_" + i + ".log.gz", 100));
+        }
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025),
+            hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*")
+        );
+        FileList result = GlobExpander.expand("s3://bucket/data/**", new TreeStubProvider(tree), hints, HIVE_ON, 10, MAX);
+        assertEquals(1, result.fileCount());
+        assertFalse(result.isInferenceAnchor());
+        assertTrue(result.path(0).toString().contains("year=2025"));
+    }
+
     public void testExpandGlobFileModifiedHintPrunesAtListingWalk() throws IOException {
         Instant old = Instant.parse("2020-01-01T00:00:00Z");
         Instant mid = Instant.parse("2023-06-15T00:00:00Z");

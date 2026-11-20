@@ -1147,15 +1147,27 @@ public final class GlobExpander {
                 partitionHints,
                 maxDiscoveredFiles,
                 glob,
-                folderRange
+                folderRange,
+                fileHints.isEmpty() ? null : fileHints::matches
             );
             // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
             // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
             // through to the flat listing with the value filter still on — Stage 2 keeps one excluded file.
             if (walk != null && walk.matched().isEmpty()) {
-                // A non-default file_order (newest-first, name) needs the excluded set so Stage 2 can
-                // honour it. Provider LIST order (DEFAULT) matches the first-match probe.
-                if (fileOrder.equals(FileOrderConfig.DEFAULT) && walk.prunedColumns().isEmpty() == false && maxDiscoveredFiles > 0) {
+                // _file.* rejected every glob match in surviving folders. Keep that stash — not a file
+                // from a pruned directory, which would be the partition-all-pruned inference path.
+                if (walk.fileKeepStash() != null && maxDiscoveredFiles > 0) {
+                    List<StorageEntry> walked = new ArrayList<>(1);
+                    walked.add(walk.fileKeepStash());
+                    fileOrder.apply(walked);
+                    List<String> walkNotices = new ArrayList<>();
+                    PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
+                    if (walkPruningProven(walk.prunedColumns(), walkedMetadata) && walkTypesConsistent(walk, walkedMetadata)) {
+                        throwIfCancelled(cancelled);
+                        reserveRetained(memory, walked.size(), 0, true);
+                        return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
+                    }
+                } else if (fileOrder.equals(FileOrderConfig.DEFAULT) && walk.prunedColumns().isEmpty() == false && maxDiscoveredFiles > 0) {
                     StorageEntry anchor = findAnchor(
                         provider,
                         walk.prunedDirs(),
@@ -1202,7 +1214,7 @@ public final class GlobExpander {
                 PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                 if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
                     if (walkTypesConsistent(walk, walkedMetadata)) {
-                        // Counted pre-_file.*-filter, as the flat path counts.
+                        // Walk collector already applied _file.* before the cap, matching the flat path.
                         if (walk.excludedCount() > 0) {
                             String exclusionNotice = exclusionNotice(
                                 walk.excludedCount(),
@@ -4007,34 +4019,41 @@ public final class GlobExpander {
     }
 
     private static boolean matchesFileHint(StorageEntry entry, PartitionFilterHint hint, @Nullable ByteRunAutomaton likeRun) {
+        Object value = fileColumnValue(entry, hint.columnName());
         if (hint.operator() == Operator.LIKE) {
             // FileMetadataFilter already compiled; null means the pattern was undecidable. Do not compile again.
             if (likeRun == null) {
                 return true;
             }
             Object pattern = hint.values().isEmpty() ? null : hint.values().get(0);
-            return switch (hint.columnName()) {
-                case FileMetadataColumns.PATH -> kept(PartitionValueMatcher.matchesLike(entry.path().toString(), pattern, likeRun));
-                case FileMetadataColumns.NAME -> kept(PartitionValueMatcher.matchesLike(entry.path().objectName(), pattern, likeRun));
-                case FileMetadataColumns.DIRECTORY -> {
-                    StoragePath parent = entry.path().parentDirectory();
-                    yield parent == null || kept(PartitionValueMatcher.matchesLike(parent.toString(), pattern, likeRun));
-                }
-                case FileMetadataColumns.MODIFIED, FileMetadataColumns.SIZE, FileMetadataColumns.RECORD_REF -> true;
-                default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
-            };
+            return kept(PartitionValueMatcher.matchesLike(value, pattern, likeRun));
         }
         return switch (hint.columnName()) {
             case FileMetadataColumns.MODIFIED -> matchesModified(entry.lastModified(), hint);
-            case FileMetadataColumns.SIZE -> kept(PartitionValueMatcher.matches(entry.length(), hint));
-            case FileMetadataColumns.PATH -> kept(PartitionValueMatcher.matches(entry.path().toString(), hint));
-            case FileMetadataColumns.NAME -> kept(PartitionValueMatcher.matches(entry.path().objectName(), hint));
+            case FileMetadataColumns.RECORD_REF -> true;
+            case FileMetadataColumns.PATH, FileMetadataColumns.NAME, FileMetadataColumns.DIRECTORY, FileMetadataColumns.SIZE -> kept(
+                PartitionValueMatcher.matches(value, hint)
+            );
+            default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
+        };
+    }
+
+    /**
+     * Storage-stat value for a {@code _file.*} column. A missing parent directory and
+     * {@code _file.record_ref} yield {@code null}, which {@link #kept} treats as keep.
+     */
+    private static Object fileColumnValue(StorageEntry entry, String column) {
+        return switch (column) {
+            case FileMetadataColumns.PATH -> entry.path().toString();
+            case FileMetadataColumns.NAME -> entry.path().objectName();
             case FileMetadataColumns.DIRECTORY -> {
                 StoragePath parent = entry.path().parentDirectory();
-                yield parent == null || kept(PartitionValueMatcher.matches(parent.toString(), hint));
+                yield parent == null ? null : parent.toString();
             }
-            case FileMetadataColumns.RECORD_REF -> true;
-            default -> throw new AssertionError("unexpected file metadata hint [" + hint.columnName() + "]");
+            case FileMetadataColumns.SIZE -> entry.length();
+            case FileMetadataColumns.MODIFIED -> entry.lastModified();
+            case FileMetadataColumns.RECORD_REF -> null;
+            default -> throw new AssertionError("unexpected file metadata hint [" + column + "]");
         };
     }
 

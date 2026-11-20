@@ -944,6 +944,51 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
+    public void testResolvedStartsWithAndLikeDropsSubsumedPrefix() {
+        Expression filter = new And(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a-")),
+            new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"))
+        );
+        assertEquals(
+            List.of(new PartitionFilterHint(FileMetadataColumns.NAME, Operator.LIKE, List.of("a-*z"))),
+            PartitionFilterHintExtractor.fromConjuncts(List.of(filter), Set.of(FileMetadataColumns.NAME), Set.of())
+        );
+    }
+
+    public void testResolvedStartsWithMetacharLiteralNotDroppedByUnrelatedLike() {
+        Expression filter = new And(
+            SRC,
+            new StartsWith(SRC, fileMeta(FileMetadataColumns.NAME), keywordLiteral("a*")),
+            new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a*z"))
+        );
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.fromConjuncts(
+            List.of(filter),
+            Set.of(FileMetadataColumns.NAME),
+            Set.of()
+        );
+        assertEquals(2, hints.size());
+        assertEquals(Operator.LIKE, hints.get(0).operator());
+        assertEquals(Operator.LIKE, hints.get(1).operator());
+        assertEquals("a\\**", hints.get(0).values().get(0));
+        assertEquals("a*z", hints.get(1).values().get(0));
+    }
+
+    public void testExtractFileNameLikeRequiresMetadataClause() {
+        Expression like = new WildcardLike(SRC, unresolved(FileMetadataColumns.NAME), new WildcardPattern("*_20261118T14*"));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(like, PATH)).isEmpty());
+
+        NamedExpression requested = MetadataAttribute.create(SRC, FileMetadataColumns.NAME);
+        UnresolvedExternalRelation rel = new UnresolvedExternalRelation(SRC, Literal.keyword(SRC, PATH), Map.of(), List.of(requested));
+        LogicalPlan plan = new Filter(SRC, rel, like);
+        List<PartitionFilterHint> hints = PartitionFilterHintExtractor.extract(plan).get(PATH);
+        assertNotNull(hints);
+        assertEquals(1, hints.size());
+        assertEquals(FileMetadataColumns.NAME, hints.get(0).columnName());
+        assertEquals(Operator.LIKE, hints.get(0).operator());
+        assertEquals("*_20261118T14*", hints.get(0).values().get(0));
+    }
+
     public void testResolvedWildcardLikeNonPrefixOnFileNameEmitsLike() {
         Expression filter = new WildcardLike(SRC, fileMeta(FileMetadataColumns.NAME), new WildcardPattern("a-*z"));
         assertEquals(

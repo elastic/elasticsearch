@@ -57,8 +57,9 @@ import java.util.function.Predicate;
  * expansion and split discovery.
  *
  * <p>{@link #extract} is the pre-analysis path: {@link UnresolvedAttribute} versus {@link Literal}
- * on {@code =}, {@code !=}, {@code >}, {@code >=}, {@code <}, {@code <=}, {@code IN}, intersected
- * across every occurrence of a path.
+ * on {@code =}, {@code !=}, {@code >}, {@code >=}, {@code <}, {@code <=}, {@code IN}, plus
+ * case-sensitive {@code LIKE} on a requested {@code _file.*} column, intersected across every
+ * occurrence of a path.
  *
  * <p>{@link #fromConjuncts} is the resolved scan-relist path. See that method for operators,
  * column gating, and {@link LiteralNormalizer}.
@@ -202,6 +203,7 @@ public final class PartitionFilterHintExtractor {
         for (Expression conjunct : conjuncts) {
             extractResolvedFromExpression(conjunct, hints, requestedMetadata, partitionKeys, normalizer);
         }
+        dropSubsumedPrefixFileLikes(hints);
         return hints;
     }
 
@@ -312,6 +314,8 @@ public final class PartitionFilterHintExtractor {
                 extractFromComparison(comparison, hints, requestedMetadata);
             } else if (conjunct instanceof In in) {
                 extractFromIn(in, hints, requestedMetadata);
+            } else if (conjunct instanceof WildcardLike like && like.caseInsensitive() == false) {
+                extractFromFileLike(like, hints, requestedMetadata);
             }
         }
     }
@@ -373,6 +377,22 @@ public final class PartitionFilterHintExtractor {
         if (literalValues.isEmpty() == false) {
             hints.add(new PartitionFilterHint(columnName, Operator.IN, literalValues));
         }
+    }
+
+    /**
+     * Pre-analysis {@code LIKE} on a requested {@code _file.*} column. Schema listing runs before
+     * analysis, so this is the only chance to apply the filename filter to that listing.
+     * Partition-key {@code LIKE} stays a comparison/{@code IN} concern of {@link #fromConjuncts}.
+     */
+    private static void extractFromFileLike(WildcardLike like, List<PartitionFilterHint> hints, Set<String> requestedMetadata) {
+        if (like.field() instanceof UnresolvedAttribute == false) {
+            return;
+        }
+        String columnName = ((UnresolvedAttribute) like.field()).name();
+        if (FileMetadataColumns.isFileMetadataColumn(columnName) == false || requestedMetadata.contains(columnName) == false) {
+            return;
+        }
+        hints.add(new PartitionFilterHint(columnName, Operator.LIKE, List.of(like.pattern().pattern())));
     }
 
     /**
@@ -625,6 +645,52 @@ public final class PartitionFilterHintExtractor {
         }
         hints.add(new PartitionFilterHint(columnName, Operator.LIKE, List.of(like.pattern().pattern())));
         return true;
+    }
+
+    /**
+     * {@code ReplaceRegexMatch} rewrites {@code LIKE "a-*z"} to {@code STARTS_WITH("a-") AND LIKE "a-*z"}.
+     * The prefix LIKE is a superset of the remaining pattern; drop it so listing compiles one automaton
+     * and the cache key names one pattern.
+     */
+    private static void dropSubsumedPrefixFileLikes(List<PartitionFilterHint> hints) {
+        if (hints.size() < 2) {
+            return;
+        }
+        hints.removeIf(hint -> isSubsumedPrefixFileLike(hint, hints));
+    }
+
+    private static boolean isSubsumedPrefixFileLike(PartitionFilterHint candidate, List<PartitionFilterHint> hints) {
+        if (candidate.operator() != Operator.LIKE || candidate.values().isEmpty()) {
+            return false;
+        }
+        String pattern = String.valueOf(candidate.values().get(0));
+        String prefix = prefixLikeLiteral(pattern);
+        if (prefix == null) {
+            return false;
+        }
+        for (PartitionFilterHint other : hints) {
+            if (other == candidate
+                || other.operator() != Operator.LIKE
+                || candidate.columnName().equals(other.columnName()) == false
+                || other.values().isEmpty()) {
+                continue;
+            }
+            String otherPattern = String.valueOf(other.values().get(0));
+            if (otherPattern.equals(pattern) == false && otherPattern.startsWith(StringUtils.escapeWildcardLiteral(prefix))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Literal of a trailing-star {@code LIKE} with no other wildcards, or {@code null}. */
+    private static String prefixLikeLiteral(String pattern) {
+        return switch (new WildcardPattern(pattern).shape()) {
+            case WildcardPattern.Shape.Prefix(String literal) -> literal;
+            case WildcardPattern.Shape.Suffix ignored -> null;
+            case WildcardPattern.Shape.Contains ignored -> null;
+            case WildcardPattern.Shape.General ignored -> null;
+        };
     }
 
     /**

@@ -689,6 +689,18 @@ public class VerifierTests extends AnalyzerTestCase {
         );
     }
 
+    public void testDescribeVerifiesItsInput() {
+        assumeTrue("requires DESCRIBE", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
+        defaultAnalyzer().error(
+            "from test | where 1 | describe",
+            equalTo("1:19: Condition expression needs to be boolean, found [INTEGER]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats c = count(*) by emp_no | where c + 1 | describe | keep name",
+            equalTo("1:50: Condition expression needs to be boolean, found [LONG]")
+        );
+    }
+
     public void testAggWithNonBooleanFilter() {
         for (String filter : List.of("\"true\"", "1", "1 + 0", "concat(\"a\", \"b\")")) {
             String type = (filter.equals("1") || filter.equals("1 + 0")) ? "INTEGER" : "KEYWORD";
@@ -2155,15 +2167,22 @@ public class VerifierTests extends AnalyzerTestCase {
                    (where true)
             | where match(t, "cat")
             """);
-        // an explicit null column is the same shape, and equally empty
+        // a null of the merged type is equally empty
         fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null))
+            | where match(t, "cat")
+            """);
+        // an explicit null column is null-typed, and nothing widens it to the merged type, so it conflicts on data type
+        fullText().error("""
             from test
             | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
                    (eval t = null)
             | where match(t, "cat")
-            """);
-        // ... but only in this order. A null-typed branch coming first represents the column in the merged output
-        // and nothing widens it, so the populated branch conflicts on data type before the analyzers are compared.
+            """, containsString("Column [t] has conflicting data types in FORK branches: [NULL] and [TEXT]"));
+        // ... in either order. A null-typed branch coming first represents the column in the merged output, so it is
+        // the populated branch that is reported.
         fullText().error("""
             from test
             | fork (eval t = null)
@@ -4185,7 +4204,7 @@ public class VerifierTests extends AnalyzerTestCase {
         defaultAnalyzer().error(
             "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
                 + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})",
-            equalTo("1:118: offset option has invalid type, expected [time_duration], found [keyword]")
+            equalTo("1:118: offset option has invalid type, expected [time_duration or date_period], found [keyword]")
         );
 
         defaultAnalyzer().error(
@@ -4208,6 +4227,29 @@ public class VerifierTests extends AnalyzerTestCase {
             "row value = 10, origin = 10, scale = 1\n"
                 + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})",
             equalTo("2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]")
+        );
+
+        defaultAnalyzer().error(
+            "row value = 10, origin = 10, scale = 1\n" + "| eval decay_result = decay(value, origin, scale, {\"type\": \"gaussian\"})",
+            equalTo("2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"gaussian\"]")
+        );
+
+        // Origin must have the same spatial type as the value
+        defaultAnalyzer().error(
+            "row value = TO_GEOPOINT(\"POINT(1 1)\")\n"
+                + "| eval decay_result = decay(value, TO_CARTESIANPOINT(\"POINT(1 1)\"), \"100km\")",
+            equalTo(
+                "2:23: second argument of [decay(value, TO_CARTESIANPOINT(\"POINT(1 1)\"), \"100km\")] must be [geo_point], "
+                    + "found value [TO_CARTESIANPOINT(\"POINT(1 1)\")] type [cartesian_point]"
+            )
+        );
+
+        defaultAnalyzer().error(
+            "row value = TO_CARTESIANPOINT(\"POINT(1 1)\")\n" + "| eval decay_result = decay(value, TO_GEOPOINT(\"POINT(1 1)\"), 100.0)",
+            equalTo(
+                "2:23: second argument of [decay(value, TO_GEOPOINT(\"POINT(1 1)\"), 100.0)] must be [cartesian_point], "
+                    + "found value [TO_GEOPOINT(\"POINT(1 1)\")] type [geo_point]"
+            )
         );
     }
 

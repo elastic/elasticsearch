@@ -252,6 +252,10 @@ public class Methods {
         if (enablePooling && (t.equals(INT_BLOCK_BUILDER) || t.equals(LONG_BLOCK_BUILDER) || t.equals(DOUBLE_BLOCK_BUILDER))) {
             return method + "(positionCount, true)";
         }
+        if (enablePooling
+            && (t.equals(INT_VECTOR_FIXED_BUILDER) || t.equals(LONG_VECTOR_FIXED_BUILDER) || t.equals(DOUBLE_VECTOR_FIXED_BUILDER))) {
+            return method + "(positionCount, true)";
+        }
         return method + "(positionCount)";
     }
 

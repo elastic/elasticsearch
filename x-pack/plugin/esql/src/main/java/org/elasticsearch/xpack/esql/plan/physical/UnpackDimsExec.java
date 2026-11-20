@@ -25,7 +25,7 @@ public class UnpackDimsExec extends UnaryExec {
 
     private final Attribute packed;
     private final List<Attribute> dims;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public UnpackDimsExec(Source source, PhysicalPlan child, Attribute packed, List<Attribute> dims) {
         super(source, child);

@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.ExternalReadCounters;
 
@@ -40,7 +42,9 @@ import java.util.concurrent.Executor;
  * skipping) are set via {@link #withPushedFilter(Object)} from the plan and reminted per
  * file. Per-read execution
  * parameters (projection, batch size, limit, error policy, split config) are bundled in
- * {@link FormatReadContext}.
+ * {@link FormatReadContext}. Page and per-read sample allocations bind through
+ * {@link #withBlockFactory(BlockFactory)} immediately before each read; node-level caches
+ * stay on the factory the reader was constructed with.
  * <p>
  * Lifecycle: the registry holds one prototype per format for the node lifetime and closes it
  * when the data-source module closes. {@code with*} methods that return a new object mint a
@@ -381,6 +385,27 @@ public interface FormatReader extends Closeable {
      * Default no-op: a format that harvests no statistics has nothing to stamp.
      */
     default FormatReader withReadConfig(String readConfig) {
+        return this;
+    }
+
+    /**
+     * Returns a reader that allocates pages and per-read scratch against {@code blockFactory}.
+     * Node-level caches (Parquet/ORC footers) stay on the receiver: a copy forwards those
+     * instances and must not close them. The operator applies this immediately before each
+     * {@link #read}, {@link #readAsync}, or {@code readRange} so a query factory charges that
+     * query. CSV, NDJSON, Parquet, and ORC override this; other formats keep this no-op default.
+     * <p>
+     * A copy must not share closeable state with the receiver ({@link DynamicThreshold}, a
+     * footer handle). The operator closes the pre-bind mint when this returns a distinct object;
+     * identity ({@code this}) is not a mint. Sharing a releasable with the receiver would close
+     * it under the copy.
+     * <p>
+     * {@code blockFactory} must be safe for concurrent allocations: parallel-parsing workers and
+     * {@code esql_external_io} threads may allocate from it at the same time. The default returns
+     * {@code this} for every factory. An override must treat {@code null} and the already-bound
+     * factory as identity.
+     */
+    default FormatReader withBlockFactory(@Nullable BlockFactory blockFactory) {
         return this;
     }
 

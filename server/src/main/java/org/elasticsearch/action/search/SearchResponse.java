@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -107,6 +110,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // Coordinator fetch-breaker charge for the hits below, released when this response is.
     @Nullable
     private transient Releasable coordinatorFetchCharge;
+
+    // Charge for the aggregations the coordinating node reduced, released when this response is.
+    @Nullable
+    private transient Releasable aggregationCharge;
 
     // Size of the aggregations as read off the wire, or -1 if unknown, so that they can be estimated without serializing them again.
     private transient long serializedAggregationsBytes = -1;
@@ -320,7 +327,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 hit.decRef();
             }
             hits.decRef();
-            Releasables.closeExpectNoException(coordinatorFetchCharge);
+            Releasables.closeExpectNoException(coordinatorFetchCharge, aggregationCharge);
             return true;
         }
         return false;
@@ -426,16 +433,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     /**
      * The failures that occurred during the search.
      */
-    // TODO: rename this method to replace getShardFailures
-    public List<ShardSearchFailure> shardFailuresList() {
-        return this.shardFailures;
-    }
-
-    /**
-     * The failures that occurred during the search.
-     */
-    public ShardSearchFailure[] getShardFailures() {
-        return this.shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+    public List<ShardSearchFailure> getShardFailures() {
+        return shardFailures;
     }
 
     /**
@@ -505,6 +504,18 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     /**
+     * Takes the charge for the reduced aggregations, so it is held until this response is released and not until the search completes.
+     */
+    void adoptAggregationCharge(Releasable charge) {
+        assert aggregationCharge == null : "an aggregation charge was already adopted";
+        aggregationCharge = charge;
+    }
+
+    boolean hasAggregationCharge() {
+        return aggregationCharge != null;
+    }
+
+    /**
      * The serialized size of the aggregations when this response read them from a stream that knows its remaining size, such as a transport
      * message, or -1 if it has no aggregations, read them from another stream, or was built in memory.
      */
@@ -519,6 +530,28 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     void adoptCoordinatorFetchCharge(@Nullable Releasable charge) {
         assert coordinatorFetchCharge == null : "a coordinator fetch charge was already adopted";
         coordinatorFetchCharge = charge;
+    }
+
+    /**
+     * Charges this response, read from another node, to {@code circuitBreaker} until it is released. The charge is the
+     * {@code serializedBytes} it arrived with, plus the heap of each hit apart from its source and the sources of its inner hits, see
+     * {@link SearchHitRamUsageEstimator#estimateWithoutSources}. A source is a slice of the buffer the response was read from, which the
+     * serialized bytes already cover. Aggregations are charged by their serialized size only, as in
+     * {@link TransportMultiSearchAction#estimateActualBytes}.
+     * <p>
+     * The charge is made after the response was read, so it bounds what the node holds, not the peak of reading it.
+     *
+     * @throws CircuitBreakingException if this node cannot hold the response, in which case nothing is charged
+     */
+    public void chargeReadResponse(CircuitBreaker circuitBreaker, long serializedBytes, String label) {
+        assert serializedBytes >= 0 : "bytes must be non-negative";
+        long hitsBytes = 0;
+        for (SearchHit hit : hits.getHits()) {
+            hitsBytes += SearchHitRamUsageEstimator.estimateWithoutSources(hit);
+        }
+        long bytes = serializedBytes + hitsBytes;
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        adoptCoordinatorFetchCharge(Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, label)));
     }
 
     /**
@@ -583,7 +616,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             getSuccessfulShards(),
             getSkippedShards(),
             getFailedShards(),
-            shardFailuresList()
+            getShardFailures()
         );
         return builder;
     }

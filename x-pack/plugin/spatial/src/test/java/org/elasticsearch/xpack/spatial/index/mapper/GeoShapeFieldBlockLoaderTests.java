@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -94,12 +95,12 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
         }
         try {
             GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
-            BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("test", CoordinateEncoder.GEO);
+            BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("test", CoordinateEncoder.GEO, GeometryDocValueFormat.V2);
             for (Geometry geometry : geometries) {
                 Geometry normalized = indexer.normalize(geometry);
                 field.add(indexer.getIndexableFields(normalized), geometry);
             }
-            GeometryDocValueReader reader = new GeometryDocValueReader();
+            GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
             reader.reset(field.binaryValue());
             Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
             if (reconstructed == null) {

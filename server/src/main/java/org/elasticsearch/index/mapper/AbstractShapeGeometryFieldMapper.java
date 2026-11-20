@@ -396,7 +396,8 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
          * Used when the optimizer determines that reading from doc-values is sufficient (e.g. when the
          * field is consumed by a function like ST_SIMPLIFY rather than returned directly). When created with a
          * {@link BlockLoaderFunctionConfig.GeometryTransform}, the reconstructed geometry is instead handed to the
-         * transformer of that config, fusing the function into the load.
+         * transformer of that config, fusing the function into the load. Only the {@link GeometryDocValueFormat#V2} format
+         * can be reconstructed, so this must only be used for fields that {@link #supportsGeometryDocValueReconstruction}.
          */
         protected static class GeometryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
             private static final BlockLoaderFunctionConfig.GeometryTransformer TO_WKB = geometry -> new BytesRef(
@@ -453,7 +454,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         }
 
         private static class GeometryReader implements BlockLoader.ColumnAtATimeReader {
-            private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
             private final CircuitBreaker breaker;
             private final BinaryDocValues binaryDocValues;
             private final CoordinateEncoder encoder;

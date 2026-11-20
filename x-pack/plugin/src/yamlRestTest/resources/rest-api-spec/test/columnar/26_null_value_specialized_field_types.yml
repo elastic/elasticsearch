@@ -7,6 +7,8 @@ setup:
           capabilities: [ columnar_index_modes ]
       cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
       reason: "columnar index modes and bare null handling required"
+---
+null_value replaces a null and leaves a missing field and an empty array alone in columnar:
 
   - do:
       indices.create:
@@ -47,6 +49,79 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
           - '{ "index": { "_id": "empty_array" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z", "scaled_float": [], "unsigned_long": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: scaled_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: unsigned_long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ scaled_float, unsigned_long ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.scaled_float: 1.5 }
+  - match: { hits.hits.0._source.unsigned_long: 1 }
+  - match: { hits.hits.1._source.scaled_float: 9.5 }
+  - match: { hits.hits.1._source.unsigned_long: 9 }
+  - match: { hits.hits.2._source.scaled_float: 9.5 }
+  - match: { hits.hits.2._source.unsigned_long: 9 }
+  - match: { hits.hits.3._source.scaled_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.unsigned_long: [1, 9] }
+  - match: { hits.hits.4._source.scaled_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.unsigned_long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in logsdb_columnar:
 
   - do:
       indices.create:
@@ -88,6 +163,79 @@ setup:
           - '{ "index": { "_id": "empty_array" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z", "scaled_float": [], "unsigned_long": []}'
 
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: scaled_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: unsigned_long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ scaled_float, unsigned_long ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.scaled_float: 1.5 }
+  - match: { hits.hits.0._source.unsigned_long: 1 }
+  - match: { hits.hits.1._source.scaled_float: 9.5 }
+  - match: { hits.hits.1._source.unsigned_long: 9 }
+  - match: { hits.hits.2._source.scaled_float: 9.5 }
+  - match: { hits.hits.2._source.unsigned_long: 9 }
+  - match: { hits.hits.3._source.scaled_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.unsigned_long: [1, 9] }
+  - match: { hits.hits.4._source.scaled_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.unsigned_long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in vectordb_columnar:
+
   - do:
       indices.create:
         index: test_vectordb_columnar
@@ -127,6 +275,79 @@ setup:
           - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
           - '{ "index": { "_id": "empty_array" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z", "scaled_float": [], "unsigned_long": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: scaled_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: unsigned_long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ scaled_float, unsigned_long ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.scaled_float: 1.5 }
+  - match: { hits.hits.0._source.unsigned_long: 1 }
+  - match: { hits.hits.1._source.scaled_float: 9.5 }
+  - match: { hits.hits.1._source.unsigned_long: 9 }
+  - match: { hits.hits.2._source.scaled_float: 9.5 }
+  - match: { hits.hits.2._source.unsigned_long: 9 }
+  - match: { hits.hits.3._source.scaled_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.unsigned_long: [1, 9] }
+  - match: { hits.hits.4._source.scaled_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.unsigned_long: [9, 1] }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in columnar with columnar_stored:
 
   - do:
       indices.create:
@@ -168,117 +389,16 @@ setup:
           - '{ "index": { "_id": "empty_array" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z", "scaled_float": [], "unsigned_long": []}'
 
----
-exists matches a document whose null is replaced by null_value on a scaled_float field in every strict columnar mode:
+  - match: { errors: false }
+
   - do:
       search:
-        index: test_columnar
+        index: test_columnar_stored
         body:
-          query: { exists: { field: scaled_float } }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
+          size: 0
           track_total_hits: true
-          _source: false
 
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: bare_null }
-  - match: { hits.hits.2._id: null_in_array }
-  - match: { hits.hits.3._id: value_then_null }
-  - match: { hits.hits.4._id: null_then_value }
-
-  - do:
-      search:
-        index: test_logsdb_columnar
-        body:
-          query: { exists: { field: scaled_float } }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: bare_null }
-  - match: { hits.hits.2._id: null_in_array }
-  - match: { hits.hits.3._id: value_then_null }
-  - match: { hits.hits.4._id: null_then_value }
-
-  - do:
-      search:
-        index: test_vectordb_columnar
-        body:
-          query: { exists: { field: scaled_float } }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: bare_null }
-  - match: { hits.hits.2._id: null_in_array }
-  - match: { hits.hits.3._id: value_then_null }
-  - match: { hits.hits.4._id: null_then_value }
-
----
-synthetic source returns the null_value for each null element of a scaled_float field in every variant:
-  - do:
-      search:
-        index: test_columnar
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: scaled_float
-
-  - length: { hits.hits: 7 }
-  - match: { hits.hits.0._source.scaled_float: 1.5 }
-  - match: { hits.hits.1._source.scaled_float: 9.5 }
-  - match: { hits.hits.2._source.scaled_float: 9.5 }
-  - match: { hits.hits.3._source.scaled_float: [1.5, 9.5] }
-  - match: { hits.hits.4._source.scaled_float: [9.5, 1.5] }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-
-  - do:
-      search:
-        index: test_logsdb_columnar
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: scaled_float
-
-  - length: { hits.hits: 7 }
-  - match: { hits.hits.0._source.scaled_float: 1.5 }
-  - match: { hits.hits.1._source.scaled_float: 9.5 }
-  - match: { hits.hits.2._source.scaled_float: 9.5 }
-  - match: { hits.hits.3._source.scaled_float: [1.5, 9.5] }
-  - match: { hits.hits.4._source.scaled_float: [9.5, 1.5] }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-
-  - do:
-      search:
-        index: test_vectordb_columnar
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: scaled_float
-
-  - length: { hits.hits: 7 }
-  - match: { hits.hits.0._source.scaled_float: 1.5 }
-  - match: { hits.hits.1._source.scaled_float: 9.5 }
-  - match: { hits.hits.2._source.scaled_float: 9.5 }
-  - match: { hits.hits.3._source.scaled_float: [1.5, 9.5] }
-  - match: { hits.hits.4._source.scaled_float: [9.5, 1.5] }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
+  - match: { hits.total.value: 7 }
 
   - do:
       search:
@@ -287,169 +407,18 @@ synthetic source returns the null_value for each null element of a scaled_float 
           query: { match_all: {} }
           sort: [ { "@timestamp": asc } ]
           size: 20
-          _source: scaled_float
+          _source: [ scaled_float, unsigned_long ]
 
   - length: { hits.hits: 7 }
   - match: { hits.hits.0._source.scaled_float: 1.5 }
+  - match: { hits.hits.0._source.unsigned_long: 1 }
   - match: { hits.hits.1._source.scaled_float: 9.5 }
+  - match: { hits.hits.1._source.unsigned_long: 9 }
   - match: { hits.hits.2._source.scaled_float: 9.5 }
+  - match: { hits.hits.2._source.unsigned_long: 9 }
   - match: { hits.hits.3._source.scaled_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.unsigned_long: [1, 9] }
   - match: { hits.hits.4._source.scaled_float: [9.5, 1.5] }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-
----
-exists matches a document whose null is replaced by null_value on an unsigned_long field in every strict columnar mode:
-  - do:
-      search:
-        index: test_columnar
-        body:
-          query: { exists: { field: unsigned_long } }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: bare_null }
-  - match: { hits.hits.2._id: null_in_array }
-  - match: { hits.hits.3._id: value_then_null }
-  - match: { hits.hits.4._id: null_then_value }
-
-  - do:
-      search:
-        index: test_logsdb_columnar
-        body:
-          query: { exists: { field: unsigned_long } }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: bare_null }
-  - match: { hits.hits.2._id: null_in_array }
-  - match: { hits.hits.3._id: value_then_null }
-  - match: { hits.hits.4._id: null_then_value }
-
-  - do:
-      search:
-        index: test_vectordb_columnar
-        body:
-          query: { exists: { field: unsigned_long } }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: bare_null }
-  - match: { hits.hits.2._id: null_in_array }
-  - match: { hits.hits.3._id: value_then_null }
-  - match: { hits.hits.4._id: null_then_value }
-
----
-synthetic source returns the null_value for each null element of an unsigned_long field in every variant:
-  - do:
-      search:
-        index: test_columnar
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: unsigned_long
-
-  - length: { hits.hits: 7 }
-  - match: { hits.hits.0._source.unsigned_long: 1 }
-  - match: { hits.hits.1._source.unsigned_long: 9 }
-  - match: { hits.hits.2._source.unsigned_long: 9 }
-  - match: { hits.hits.3._source.unsigned_long: [1, 9] }
   - match: { hits.hits.4._source.unsigned_long: [9, 1] }
   - match: { hits.hits.5._source: {} }
   - match: { hits.hits.6._source: {} }
-
-  - do:
-      search:
-        index: test_logsdb_columnar
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: unsigned_long
-
-  - length: { hits.hits: 7 }
-  - match: { hits.hits.0._source.unsigned_long: 1 }
-  - match: { hits.hits.1._source.unsigned_long: 9 }
-  - match: { hits.hits.2._source.unsigned_long: 9 }
-  - match: { hits.hits.3._source.unsigned_long: [1, 9] }
-  - match: { hits.hits.4._source.unsigned_long: [9, 1] }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-
-  - do:
-      search:
-        index: test_vectordb_columnar
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: unsigned_long
-
-  - length: { hits.hits: 7 }
-  - match: { hits.hits.0._source.unsigned_long: 1 }
-  - match: { hits.hits.1._source.unsigned_long: 9 }
-  - match: { hits.hits.2._source.unsigned_long: 9 }
-  - match: { hits.hits.3._source.unsigned_long: [1, 9] }
-  - match: { hits.hits.4._source.unsigned_long: [9, 1] }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-
-  - do:
-      search:
-        index: test_columnar_stored
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: unsigned_long
-
-  - length: { hits.hits: 7 }
-  - match: { hits.hits.0._source.unsigned_long: 1 }
-  - match: { hits.hits.1._source.unsigned_long: 9 }
-  - match: { hits.hits.2._source.unsigned_long: 9 }
-  - match: { hits.hits.3._source.unsigned_long: [1, 9] }
-  - match: { hits.hits.4._source.unsigned_long: [9, 1] }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-
----
-every document of the bulk requests is indexed:
-  - do:
-      count:
-        index: test_columnar
-
-  - match: { count: 7 }
-
-  - do:
-      count:
-        index: test_logsdb_columnar
-
-  - match: { count: 7 }
-
-  - do:
-      count:
-        index: test_vectordb_columnar
-
-  - match: { count: 7 }
-
-  - do:
-      count:
-        index: test_columnar_stored
-
-  - match: { count: 7 }

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -66,7 +67,8 @@ abstract class NestedPredicateOperatorTestCase extends NestedIndexOperatorTestCa
             predicate(),
             layout,
             new IndexedByShardIdFromSingleton<>(shard),
-            null
+            null,
+            PlannerSettings.DEFAULTS
         );
         return new EvalOperator.EvalOperatorFactory(evaluator);
     }

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 public final class EvalMapper {
@@ -76,8 +77,23 @@ public final class EvalMapper {
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
+        return toEvaluator(foldCtx, exp, layout, shardContexts, analysisRegistry, null);
+    }
+
+    /**
+     * As above, with the planner settings that an expression reading from the index sizes its reads by. Without them an
+     * expression that asks for the settings fails.
+     */
+    public static ExpressionEvaluator.Factory toEvaluator(
+        FoldContext foldCtx,
+        Expression exp,
+        Layout layout,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        @Nullable AnalysisRegistry analysisRegistry,
+        @Nullable PlannerSettings plannerSettings
+    ) {
         if (exp instanceof EvaluatorMapper m) {
-            return m.toEvaluator(toEvaluatorContext(foldCtx, layout, shardContexts, analysisRegistry));
+            return m.toEvaluator(toEvaluatorContext(foldCtx, layout, shardContexts, analysisRegistry, plannerSettings));
         }
         if (exp instanceof Attribute attr) {
             return new LoadFromPageEvaluator.Factory(layout.get(attr.id()).channel());
@@ -96,10 +112,29 @@ public final class EvalMapper {
         IndexedByShardId<? extends ShardContext> shardContexts,
         @Nullable AnalysisRegistry analysisRegistry
     ) {
+        return toEvaluatorContext(foldCtx, layout, shardContexts, analysisRegistry, null);
+    }
+
+    /** As above, with the planner settings the context hands to expressions that ask for them. */
+    public static EvaluatorMapper.ToEvaluator toEvaluatorContext(
+        FoldContext foldCtx,
+        Layout layout,
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        @Nullable AnalysisRegistry analysisRegistry,
+        @Nullable PlannerSettings plannerSettings
+    ) {
         return new EvaluatorMapper.ToEvaluator() {
             @Override
             public ExpressionEvaluator.Factory apply(Expression expression) {
-                return toEvaluator(foldCtx, expression, layout, shardContexts, analysisRegistry);
+                return toEvaluator(foldCtx, expression, layout, shardContexts, analysisRegistry, plannerSettings);
+            }
+
+            @Override
+            public PlannerSettings plannerSettings() {
+                if (plannerSettings == null) {
+                    return EvaluatorMapper.ToEvaluator.super.plannerSettings();
+                }
+                return plannerSettings;
             }
 
             @Override

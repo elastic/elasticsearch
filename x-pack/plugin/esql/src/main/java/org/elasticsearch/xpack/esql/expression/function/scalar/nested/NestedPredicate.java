@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
@@ -243,15 +242,13 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         FoldContext foldCtx = toEvaluator.foldCtx();
         ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluator(foldCtx, body, layout, toEvaluator.shardContexts(), null);
         List<DataType> types = inputs.stream().map(Attribute::dataType).toList();
-        // The expand command threads the query's planner settings. A predicate uses the defaults: the budgets change how
-        // large a child page may be, not the values a small nested object reads.
         NestedChildren.Factory children = NestedChildren.factory(
             toEvaluator.shardContexts(),
             path,
             relativePaths,
             types,
             inputs.stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
-            PlannerSettings.DEFAULTS,
+            toEvaluator.plannerSettings(),
             configuration()
         );
         int[] fieldChannels = new int[inputs.size()];

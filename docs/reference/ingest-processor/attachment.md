@@ -351,7 +351,9 @@ Returns this:
 stack: ga 9.7
 ```
 
-By default, the `language` property is detected from all of the extracted text. To process large attachments faster and with less load on the node, set the static node setting `ingest.attachment.language_detection.max_chars` to detect the language from only the first that many characters. The default, `-1`, uses all of the text. All of the text is still extracted and indexed. For attachments in a single language, the result is usually the same; for attachments that mix languages, the detected language reflects the beginning of the attachment.
+By default, the `language` property is detected from all the extracted text. To process large attachments faster and with less load on the node, set the static node setting `ingest.attachment.language_detection.max_chars` to detect the language from only the first that many characters. The default, `-1`, uses all the extracted text.
+
+This setting changes only language detection. `indexed_chars` and `indexed_chars_field` still limit how much text is extracted, and `properties` still controls whether the text is added to the document. For attachments in a single language, the detected language is usually the same. For attachments that mix languages, it reflects the beginning of the attachment.
 
 
 ## Using the attachment processor with arrays [attachment-with-arrays]

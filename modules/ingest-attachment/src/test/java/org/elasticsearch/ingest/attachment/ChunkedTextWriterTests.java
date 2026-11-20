@@ -87,14 +87,21 @@ public class ChunkedTextWriterTests extends ESTestCase {
     }
 
     private static int randomChunkSize() {
-        return randomFrom(1, 2, 3, between(1, 64), ChunkedTextWriter.DEFAULT_CHUNK_SIZE);
+        return randomFrom(
+            1,
+            2,
+            3,
+            between(1, 64),
+            between(ChunkedTextWriter.INITIAL_BUFFER_SIZE, 1000),
+            ChunkedTextWriter.DEFAULT_CHUNK_SIZE
+        );
     }
 
     /** Random whitespace at both ends (possibly spanning chunks) around a middle mixing Latin-1 and non-Latin-1 chars. */
     private static String randomText() {
         StringBuilder sb = new StringBuilder();
         sb.append(randomWhitespace(between(0, 20)));
-        int middle = between(0, 200);
+        int middle = between(0, 2000);
         for (int i = 0; i < middle; i++) {
             switch (between(0, 4)) {
                 case 0 -> sb.append(randomAlphaOfLength(1));

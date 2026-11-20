@@ -300,16 +300,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         } catch (Exception e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
         }
-        // No longer needed; drop so they can be reclaimed before the text is joined (the interpreter doesn't treat them as dead).
+        // No longer needed; drop so the decoded bytes can be reclaimed before the text is joined (the interpreter keeps them alive).
         input = null;
         fieldValue = null;
-
-        // Set target and remove source (same order as before) before joining the text, so the source isn't retained alongside it.
-        // The target holds the additionalFields map itself, so fields added below still end up in the document.
-        ingestDocument.setFieldValue(targetField, additionalFields);
-        if (removeBinary) {
-            ingestDocument.removeField(field);
-        }
 
         // Untrimmed length: the content_length fallback, and whether there is any content at all.
         final long untrimmedLength = text.length();
@@ -367,6 +360,11 @@ public final class AttachmentProcessor extends AbstractProcessor {
         addAdditionalField(additionalFields, Property.RATING, metadata.get(TikaCoreProperties.RATING));
         addAdditionalField(additionalFields, Property.COMMENTS, metadata.get(TikaCoreProperties.COMMENTS));
 
+        ingestDocument.setFieldValue(targetField, additionalFields);
+
+        if (removeBinary) {
+            ingestDocument.removeField(field);
+        }
         if (attachmentMetrics.get() != null) {
             attachmentMetrics.get().recordRawBytesProcessed(rawBytes);
         }

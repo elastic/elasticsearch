@@ -12,6 +12,7 @@ package org.elasticsearch.ingest.attachment;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -24,8 +25,11 @@ import java.util.List;
 final class ChunkedTextWriter extends Writer {
 
     static final int DEFAULT_CHUNK_SIZE = 8192;
+    // small attachments shouldn't pay for a full chunk
+    static final int INITIAL_BUFFER_SIZE = 256;
 
-    private final char[] buffer;
+    private final int chunkSize;
+    private char[] buffer;
     private int bufferLength;
     private List<String> chunks = new ArrayList<>();
     private long length;
@@ -38,14 +42,15 @@ final class ChunkedTextWriter extends Writer {
         if (chunkSize <= 0) {
             throw new IllegalArgumentException("chunk size must be positive but was [" + chunkSize + "]");
         }
-        this.buffer = new char[chunkSize];
+        this.chunkSize = chunkSize;
+        this.buffer = new char[Math.min(INITIAL_BUFFER_SIZE, chunkSize)];
     }
 
     @Override
     public void write(char[] cbuf, int off, int len) {
         ensureOpen();
         while (len > 0) {
-            int n = Math.min(len, buffer.length - bufferLength);
+            int n = Math.min(len, room());
             System.arraycopy(cbuf, off, buffer, bufferLength, n);
             append(n);
             off += n;
@@ -57,7 +62,7 @@ final class ChunkedTextWriter extends Writer {
     public void write(String str, int off, int len) {
         ensureOpen();
         while (len > 0) {
-            int n = Math.min(len, buffer.length - bufferLength);
+            int n = Math.min(len, room());
             str.getChars(off, off + n, buffer, bufferLength);
             append(n);
             off += n;
@@ -68,14 +73,24 @@ final class ChunkedTextWriter extends Writer {
     @Override
     public void write(int c) {
         ensureOpen();
+        room();
         buffer[bufferLength] = (char) c;
         append(1);
+    }
+
+    /** Free space in the buffer, growing it (up to the chunk size) if it is full. */
+    private int room() {
+        if (bufferLength == buffer.length) {
+            assert buffer.length < chunkSize : "a full chunk is sealed right away";
+            buffer = Arrays.copyOf(buffer, Math.min(chunkSize, buffer.length * 2));
+        }
+        return buffer.length - bufferLength;
     }
 
     private void append(int n) {
         bufferLength += n;
         length += n;
-        if (bufferLength == buffer.length) {
+        if (bufferLength == chunkSize) {
             sealBuffer();
         }
     }
@@ -102,10 +117,13 @@ final class ChunkedTextWriter extends Writer {
         // the sealed buffer is empty, reuse it to pass on each chunk
         for (int i = 0; i < chunks.size() && remaining > 0; i++) {
             String chunk = chunks.get(i);
-            int n = (int) Math.min(chunk.length(), remaining);
-            chunk.getChars(0, n, buffer, 0);
-            out.write(buffer, 0, n);
-            remaining -= n;
+            int chunkEnd = (int) Math.min(chunk.length(), remaining);
+            for (int off = 0; off < chunkEnd; off += buffer.length) {
+                int n = Math.min(buffer.length, chunkEnd - off);
+                chunk.getChars(off, off + n, buffer, 0);
+                out.write(buffer, 0, n);
+            }
+            remaining -= chunkEnd;
         }
     }
 

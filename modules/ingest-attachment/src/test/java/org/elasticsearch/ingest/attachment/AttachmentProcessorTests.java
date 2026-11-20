@@ -1219,6 +1219,37 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(attachmentData.get("language"), is("en"));
     }
 
+    /** The target replaces the source's parent, so removing the binary removes the extracted content again. */
+    public void testRemoveBinaryWithSourceInsideTarget() throws Exception {
+        Processor processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "attachment.content",
+            "attachment",
+            EnumSet.allOf(AttachmentProcessor.Property.class),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            -1,
+            new SetOnce<>()
+        );
+        Map<String, Object> document = new HashMap<>();
+        document.put("attachment", new HashMap<>(Map.of("content", getAsBinaryOrBase64("text-in-english.txt"))));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> attachmentData = (Map<String, Object>) ingestDocument.getSource().get("attachment");
+        assertThat(attachmentData.containsKey("content"), is(false));
+        assertThat(attachmentData.get("language"), is("en"));
+        assertThat(attachmentData.get("content_type"), notNullValue());
+    }
+
     /** With the default {@code indexed_chars}, the language is detected from exactly the 100000 extracted chars, untrimmed. */
     public void testLanguageOfLargeDocumentIsDetectedFromExtractedChars() throws Exception {
         Processor processor = newProcessor("target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 100000, false, -1);

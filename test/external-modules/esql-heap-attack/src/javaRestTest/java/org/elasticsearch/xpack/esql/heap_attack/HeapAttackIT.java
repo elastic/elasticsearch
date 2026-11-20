@@ -59,7 +59,8 @@ import static org.hamcrest.Matchers.matchesRegex;
  * Tests that run ESQL queries that use a ton of memory. We want to make
  * sure they don't consume the entire heap and crash Elasticsearch.
  */
-@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+// The slowest periodic CI jobs take close to 40 minutes for this suite.
+@TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
 public class HeapAttackIT extends HeapAttackTestCase {
 
     /**
@@ -609,9 +610,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500, "keyword", false, 1000);
-        // 500 docs is plenty to circuit break on most nodes
-        assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
+        // 500 docs is plenty to circuit break on a 512mb heap
+        int docs = scaleToHeap(500);
+        initManyBigFieldsIndex(docs, "keyword", false, 1000);
+        assertCircuitBreaks(attempt -> fetchManyBigFields(docs));
     }
 
     /**

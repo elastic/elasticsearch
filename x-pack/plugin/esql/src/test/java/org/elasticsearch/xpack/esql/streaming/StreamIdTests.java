@@ -17,19 +17,19 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import java.io.IOException;
 import java.util.Base64;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests of {@link StreamId}, the counterpart of {@code AsyncExecutionIdTests}.
+ * Tests of {@link StreamId}.
  */
 public class StreamIdTests extends ESTestCase {
 
-    /** A valid id, also used by the tests of other classes. */
+    /** A random valid id. */
     public static StreamId randomStreamId() {
         return new StreamId(new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()), UUIDs.randomBase64UUID(random()));
     }
@@ -43,6 +43,17 @@ public class StreamIdTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new StreamId(taskId, null));
         expectThrows(IllegalArgumentException.class, () -> new StreamId(TaskId.EMPTY_TASK_ID, "key"));
         expectThrows(NullPointerException.class, () -> new StreamId(null, "key"));
+    }
+
+    /** A task id parsed from a string like {@code :1} is set but names no node. It is rejected, also when a client sends it. */
+    public void testNodeIdOfTheTaskMustNotBeEmpty() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new StreamId(new TaskId(":1"), "key"));
+        assertThat(e.getMessage(), equalTo("the node id of the task must not be empty"));
+
+        assertInvalid(encode(out -> {
+            out.writeString(":1");
+            out.writeString("key");
+        }));
     }
 
     // Equality
@@ -84,6 +95,11 @@ public class StreamIdTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             assertThat(randomStreamId().encoded(), matchesRegex("[A-Za-z0-9_-]+=*"));
         }
+        // random ids look the same in both Base64 alphabets, this one does not: standard Base64 writes it with [/]
+        StreamId id = new StreamId(new TaskId("?node", 1), "key");
+        assertThat(Base64.getEncoder().encodeToString(Base64.getUrlDecoder().decode(id.encoded())), containsString("/"));
+        assertThat(id.encoded(), matchesRegex("[A-Za-z0-9_-]+=*"));
+        assertRoundTrip(id);
     }
 
     /** The layout is the reserved byte, the task id, then the stream key. The right parts are accepted, whatever wrote them. */
@@ -165,14 +181,14 @@ public class StreamIdTests extends ESTestCase {
     /** A stream has one id: the same parts written with other padding are not accepted, because the storage knows one string. */
     public void testDecodeRejectsOtherEncodingsOfTheSameId() {
         StreamId random = randomStreamId();
-        // Base64 pads when the number of bytes is not a multiple of three, so one more byte in the key adds the padding
+        // one more byte in the key adds the padding: Base64 pads when the number of bytes is not a multiple of three
         StreamId id = random.encoded().endsWith("=") ? random : new StreamId(random.taskId(), random.streamKey() + "x");
         assertThat(id.encoded(), endsWith("="));
         String withoutPadding = id.encoded().replace("=", "");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> StreamId.decode(withoutPadding));
         assertThat(e.getMessage(), equalTo("invalid id: [" + withoutPadding + "]"));
         // the string decodes, but it is not the one form of the id
-        assertThat(e.getCause(), nullValue());
+        assertThat(e.getCause().getMessage(), equalTo("not the one encoded form of the id"));
     }
 
     // Helpers
@@ -187,6 +203,13 @@ public class StreamIdTests extends ESTestCase {
             );
             default -> throw new AssertionError();
         };
+    }
+
+    /** Asserts that decoding the encoded form gives back the same id. */
+    private static void assertRoundTrip(StreamId id) {
+        StreamId same = StreamId.decode(id.encoded());
+        assertThat(same, equalTo(id));
+        assertThat(same.encoded(), equalTo(id.encoded()));
     }
 
     /** Asserts that the string is rejected with the message a client sees. */

@@ -12,6 +12,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
@@ -47,6 +48,14 @@ public final class ParsedContentReservation implements Releasable {
     /** The thread context transient that carries the reservation of the REST request being handled, see {@link #hold(ThreadContext)}. */
     public static final String TRANSIENT_NAME = "_parsed_content_reservation";
 
+    /**
+     * What a request that must not be rejected for its memory can charge before it is checked like any other. Far more than such
+     * requests need, such as logging in, while a request that parses into more is still bounded. A fully received body larger than
+     * this is checked by the in-flight requests breaker, which also bounds values the parsers charge at a fixed size, such as binary
+     * values.
+     */
+    public static final long NON_TRIPPING_ALLOWANCE_BYTES = ByteSizeUnit.MB.toBytes(10);
+
     /** Marks a released reservation. Charges only add to the count, so it never reaches this. */
     private static final long RELEASED = Long.MIN_VALUE;
 
@@ -61,7 +70,8 @@ public final class ParsedContentReservation implements Releasable {
 
     /**
      * @param breaker the breaker to charge
-     * @param canTrip whether a charge may trip the breaker, false for requests that must not be rejected for the memory they use
+     * @param canTrip whether a charge may trip the breaker, false for requests that must not be rejected for the memory they use, which
+     *                are still checked once they charge more than {@link #NON_TRIPPING_ALLOWANCE_BYTES}
      */
     public ParsedContentReservation(CircuitBreaker breaker, boolean canTrip) {
         this.breaker = breaker;
@@ -95,17 +105,18 @@ public final class ParsedContentReservation implements Releasable {
     }
 
     /**
-     * Charges {@code bytes}, checking the limit unless the request must not trip it. The check also covers earlier charges made without
-     * one. Once the charge is released, nothing is charged or checked.
+     * Charges {@code bytes}, checking the limit unless the request must not trip it and stays within its allowance. The check also covers
+     * earlier charges made without one. Once the charge is released, nothing is charged or checked.
      */
     void reserve(long bytes) {
-        if (reserved.get() == RELEASED) {
+        final long alreadyReserved = reserved.get();
+        if (alreadyReserved == RELEASED) {
             return;
         }
         // Taken before the check, so that two checks at the same time cannot both take it.
         final long priorUnchecked = unchecked.getAndSet(0);
         try {
-            if (canTrip) {
+            if (canTrip || alreadyReserved + bytes > NON_TRIPPING_ALLOWANCE_BYTES) {
                 breaker.addEstimateBytesAndMaybeBreak(bytes, LABEL);
             } else {
                 breaker.addWithoutBreaking(bytes, LABEL);

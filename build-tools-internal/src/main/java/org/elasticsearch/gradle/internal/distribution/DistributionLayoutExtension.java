@@ -9,9 +9,9 @@
 
 package org.elasticsearch.gradle.internal.distribution;
 
-import org.apache.tools.ant.filters.FixCrLfFilter;
-import org.apache.tools.ant.filters.ReplaceTokens;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
+import org.elasticsearch.gradle.internal.conventions.filters.FixCrLfFilter;
+import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens;
 import org.elasticsearch.gradle.transform.FilteringJarTransform;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
@@ -167,6 +167,11 @@ public class DistributionLayoutExtension {
                     if (include != null) {
                         nested.include(include);
                     }
+                    // The native libraries come straight from the build output of the projects that build them,
+                    // whose file modes depend on whether a library was compiled or downloaded.
+                    nested.setIncludeEmptyDirs(false);
+                    nested.filePermissions(permissions -> permissions.unix(0644));
+                    nested.dirPermissions(permissions -> permissions.unix(0755));
                     reproduceServerLauncherPermissionLeak(nested, inheritExecutable);
                 });
                 default -> throw new IllegalArgumentException("Unexpected distribution library layout [" + library.layout() + "]");
@@ -243,7 +248,7 @@ public class DistributionLayoutExtension {
             spec.with(fileSystemOperations.copySpec(windowsBat -> {
                 windowsBat.from(sourceDirectory.dir("bin"));
                 windowsBat.include("*.bat");
-                windowsBat.filter(Map.of("eol", FixCrLfFilter.CrLf.newInstance("crlf")), FixCrLfFilter.class);
+                windowsBat.filter(Map.of("eol", "crlf"), FixCrLfFilter.class);
                 windowsBat.filter(Map.of("tokens", expansions), ReplaceTokens.class);
             }));
             spec.with(fileSystemOperations.copySpec(windowsExe -> {

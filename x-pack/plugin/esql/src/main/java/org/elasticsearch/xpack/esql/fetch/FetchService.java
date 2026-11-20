@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
@@ -52,8 +55,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
@@ -85,6 +90,8 @@ import java.util.stream.IntStream;
  * drops its references once the response is sent, because dropping the last reference to a reader can block. Before that
  * it frees the contexts the request reads for the last time, like the fetch phase of {@code _search} frees the context it
  * read.
+ * <p>
+ * On the coordinator of a query, it builds the fetch operators that send these requests, see {@link #operatorProvider}.
  */
 public final class FetchService {
     private static final Logger logger = LogManager.getLogger(FetchService.class);
@@ -147,6 +154,23 @@ public final class FetchService {
      * serialization, through the same handler and the same authorization.
      */
     public void sendFetch(DiscoveryNode target, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener) {
+        sendFetch(transportService, blockFactory, target, request, parentTask, listener);
+    }
+
+    /**
+     * {@link #sendFetch(DiscoveryNode, FetchRequest, Task, ActionListener)} without the rest of the service, so the tests of
+     * the fetch operator send their requests the same way.
+     *
+     * @param blockFactory reads the blocks of the response
+     */
+    static void sendFetch(
+        TransportService transportService,
+        BlockFactory blockFactory,
+        DiscoveryNode target,
+        FetchRequest request,
+        Task parentTask,
+        ActionListener<FetchResponse> listener
+    ) {
         transportService.sendChildRequest(
             target,
             FETCH_ACTION_NAME,
@@ -155,17 +179,50 @@ public final class FetchService {
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 listener,
-                this::readResponse,
+                in -> readResponse(in, blockFactory, transportService.getThreadPool().getThreadContext()),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             )
         );
     }
 
-    private FetchResponse readResponse(StreamInput in) throws IOException {
+    private static FetchResponse readResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
         // the stream keeps a reference to the last block of nulls it read, which closing it releases
         try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
-            return new FetchResponse(blocks, transportService.getThreadPool().getThreadContext());
+            return new FetchResponse(blocks, threadContext);
         }
+    }
+
+    /**
+     * The fetch operators of the query that {@code scope} describes, on its coordinator. Each sends its requests through
+     * this service to the nodes of the local cluster, with the index expressions of its {@link FetchExec} and the indices
+     * options of the query's data node requests.
+     */
+    public FetchOperatorProvider operatorProvider(QueryFetchScope scope) {
+        return new FetchOperatorProvider() {
+            @Override
+            public Operator.OperatorFactory fetchOperator(FetchExec exec, int docChannel) {
+                OriginalIndices indices = new OriginalIndices(
+                    exec.originalIndices().toArray(String[]::new),
+                    SearchRequest.DEFAULT_INDICES_OPTIONS
+                );
+                return FetchOperator.Factory.forExec(
+                    exec,
+                    docChannel,
+                    new QueryFetchClient(
+                        FetchService.this::sendFetch,
+                        clusterService.threadPool().getThreadContext(),
+                        () -> clusterService.state().nodes(),
+                        scope,
+                        indices
+                    )
+                );
+            }
+
+            @Override
+            public boolean receivesDetachedDocuments() {
+                return true;
+            }
+        };
     }
 
     /**
@@ -393,7 +450,7 @@ public final class FetchService {
                 fail(e);
                 return;
             }
-            // the coordinator checks that every document has a row
+            // the coordinator places the rows of the response by their position, so every document needs one row
             assert response.rows() == request.totalDocs()
                 : "fetched [" + response.rows() + "] rows for [" + request.totalDocs() + "] documents";
             logger.debug(

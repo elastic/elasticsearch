@@ -63,6 +63,7 @@ import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -1298,6 +1299,50 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 assertThat("close abort must be prompt", elapsedMs, Matchers.lessThan(5_000L));
                 assertThat(obj.abortCalls(), Matchers.greaterThanOrEqualTo(1));
                 assertEquals("no segment stream may remain open", 0, obj.currentOpen());
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue(exec.awaitTermination(15, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * Hung {@code newStream} (no stream returned yet) is cancelled only by {@link StorageObject#close()}.
+     * Closing a registered stream cannot unblock this path.
+     */
+    public void testCloseCancelsHungSegmentNewStream() throws Exception {
+        byte[] content = repeatedLines(400);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+        assertThat(
+            "test needs a genuinely multi-segment file or it hits the single-stream fallback",
+            ParallelParsingCoordinator.computeSegments(reader, new InMemoryStorageObject(content), content.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+        HangingSegmentStorageObject obj = new HangingSegmentStorageObject(content, false, true);
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4,
+                    null
+                )
+            ) {
+                assertTrue("segment newStream must park", obj.awaitParked(5, TimeUnit.SECONDS));
+                long startNanos = System.nanoTime();
+                iter.close();
+                long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000L;
+                assertThat("close must cancel hung newStream promptly", elapsedMs, Matchers.lessThan(5_000L));
+                assertEquals("hung open must not leave a stream registered", 0, obj.currentOpen());
             }
         } finally {
             exec.shutdown();
@@ -3361,8 +3406,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Segment GETs on parser threads park until {@link #abortStream}. Probe opens on the
+     * Segment GETs on parser threads park until {@link #close}. Probe opens on the
      * constructing (test) thread read normally so {@code computeSegments} can finish.
+     * {@code parkOpen} parks inside {@code newStream} before a stream exists.
      */
     private static final class HangingSegmentStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
@@ -3375,10 +3421,17 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         private final AtomicBoolean aborted = new AtomicBoolean();
         private final AtomicInteger abortCalls = new AtomicInteger();
         private final AtomicInteger open = new AtomicInteger();
+        private final boolean parkOpen;
+        private final CountDownLatch openRelease = new CountDownLatch(1);
 
         HangingSegmentStorageObject(byte[] data, boolean failLeader) {
+            this(data, failLeader, false);
+        }
+
+        HangingSegmentStorageObject(byte[] data, boolean failLeader, boolean parkOpen) {
             this.data = data;
             this.failLeader = failLeader;
+            this.parkOpen = parkOpen;
         }
 
         boolean awaitParked(long timeout, TimeUnit unit) throws InterruptedException {
@@ -3404,6 +3457,18 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public InputStream newStream(long position, long length) {
+            if (parkOpen && Thread.currentThread() != testThread) {
+                parked.countDown();
+                try {
+                    if (openRelease.await(15, TimeUnit.SECONDS) == false) {
+                        throw new UncheckedIOException(new IOException("open was not unblocked by close"));
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new UncheckedIOException(new IOException(e));
+                }
+                throw new UncheckedIOException(new IOException("aborted"));
+            }
             open.incrementAndGet();
             int from = Math.toIntExact(position);
             int len = Math.toIntExact(Math.min(length, data.length - from));
@@ -3465,6 +3530,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 public void close() throws IOException {
                     if (closed.compareAndSet(false, true)) {
                         open.decrementAndGet();
+                        if (probeStreams.contains(this) == false) {
+                            aborted.set(true);
+                            abortCalls.incrementAndGet();
+                            failLeaderNow.countDown();
+                        }
+                        CountDownLatch mine = parks.remove(this);
+                        if (mine != null) {
+                            mine.countDown();
+                        }
                     }
                     super.close();
                 }
@@ -3477,18 +3551,18 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void abortStream(InputStream stream) throws IOException {
-            if (probeStreams.contains(stream)) {
-                stream.close();
-                return;
-            }
+            stream.close();
+        }
+
+        @Override
+        public void close() {
             aborted.set(true);
-            abortCalls.incrementAndGet();
             failLeaderNow.countDown();
-            CountDownLatch mine = parks.remove(stream);
-            if (mine != null) {
+            openRelease.countDown();
+            for (CountDownLatch mine : parks.values()) {
                 mine.countDown();
             }
-            stream.close();
+            parks.clear();
         }
 
         @Override

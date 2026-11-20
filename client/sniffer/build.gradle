@@ -77,6 +77,8 @@ tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("testTestingConventions").configure {
   baseClass 'org.elasticsearch.client.RestClientTestCase'
+  // The client does not depend on the Elasticsearch test framework, so its tests cannot use ESRandomizedRunner
+  allowPlainRandomizedRunner = true
 }
 
 tasks.named("thirdPartyAudit").configure {

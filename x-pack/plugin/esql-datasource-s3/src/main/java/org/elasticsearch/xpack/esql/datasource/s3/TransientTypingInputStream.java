@@ -35,8 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * falling back to a draining {@code close()}. {@link #close()} itself aborts when the unread remainder is
  * larger than {@link #MAX_TRAILING_DRAIN_BYTES} (or the body length is unknown) so uncompressed
  * {@code LIMIT} teardown does not drain a 64 MiB GET. A small leftover is closed, not aborted.
- * Async {@code toBlockingInputStream} close cancels leftover rather than draining it, so unread
- * bytes are not counted as received.
+ * Apache {@code abort()} drops the socket; unread leftover is not counted as received.
  */
 final class TransientTypingInputStream extends FilterInputStream implements Abortable {
 
@@ -155,8 +154,8 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         if (terminal.getAndSet(true)) {
             return;
         }
-        // Do not credit expected leftover: async toBlockingInputStream close cancels unread
-        // bytes instead of draining them. APM stays at bytes delivered to the caller.
+        // Do not credit expected leftover: abort/close of unread bytes is not a second APM event.
+        // APM stays at bytes delivered to the caller.
         super.close();
     }
 

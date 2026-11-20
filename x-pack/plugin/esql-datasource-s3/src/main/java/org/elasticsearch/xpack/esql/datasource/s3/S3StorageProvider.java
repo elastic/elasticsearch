@@ -29,6 +29,7 @@ import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
@@ -111,9 +112,8 @@ public class S3StorageProvider implements StorageProvider {
 
     private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
     /**
-     * Idle read timeout on the async GET path. A truncated body (mid-read reset) must fail the
-     * blocking stream so {@code RetryableStorageObject} can resume; without this the Netty
-     * connection stays acquired until the ES|QL REST client times out at 60s.
+     * Idle read timeout on the async {@code readBytesAsync} path (Parquet ranges). Streaming
+     * {@code newStream} uses the Apache client, whose abort drops the socket.
      */
     private static final Duration ASYNC_READ_TIMEOUT = Duration.ofSeconds(30);
 
@@ -323,7 +323,9 @@ public class S3StorageProvider implements StorageProvider {
      * Package-private for subclass override in tests.
      */
     S3Client buildRetryClient(String region) {
-        return configureCommon(S3Client.builder(), config, credentials, standardRetryStrategy(), region).build();
+        S3ClientBuilder builder = S3Client.builder();
+        configureCommon(builder, config, credentials, standardRetryStrategy(), region);
+        return builder.httpClientBuilder(new AbortRegisteringHttpClient.Builder()).build();
     }
 
     /**
@@ -447,7 +449,9 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
-        return configureCommon(S3Client.builder(), config, credentials, standardRetryStrategy(), null).build();
+        S3ClientBuilder builder = S3Client.builder();
+        configureCommon(builder, config, credentials, standardRetryStrategy(), null);
+        return builder.httpClientBuilder(new AbortRegisteringHttpClient.Builder()).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(

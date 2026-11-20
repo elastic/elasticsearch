@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import io.netty.channel.ChannelException;
 import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.Abortable;
@@ -41,6 +40,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.StorageRetryCancellation;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
@@ -72,6 +72,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 
 import javax.net.ssl.SSLException;
 
@@ -87,7 +88,12 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     /** Scope key for the async-read retry token bucket; one bucket per {@link RetryStrategy} instance. */
     private static final String ASYNC_READ_RETRY_SCOPE = "s3-async-read";
-    /** Separate token-bucket scope for blocking {@code newStream} GETs on the doNotRetry async client. */
+    /**
+     * Token-bucket scope for blocking {@code newStream} GETs. The sync {@link S3Client} still
+     * has Standard retries (list/head share that client). This loop retries after the SDK
+     * gives up and polls {@link #closed} between attempts. {@link AbortRegisteringHttpClient}
+     * refuses new executes once closed so a nested SDK retry cannot hang after abort.
+     */
     private static final String STREAMING_GET_RETRY_SCOPE = "s3-streaming-get";
 
     private final S3Client s3Client;
@@ -109,17 +115,34 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile boolean ifMatchUnsupported;
     /** Set by {@link #close()}; in-flight {@link #newStream} must not start or continue a GET. */
     private final AtomicBoolean closed = new AtomicBoolean();
-    /** Cancellable async GETs started by {@link #getObject} before a response stream exists. */
-    private final Set<CompletableFuture<ResponseInputStream<GetObjectResponse>>> inFlightOpens = ConcurrentHashMap.newKeySet();
+    /**
+     * Apache executes and live GET streams. {@link #close()} aborts every handle so a hung
+     * {@code getObject} or a truncated body drops the socket instead of draining.
+     */
+    private final Set<Abortable> inFlightAborts = ConcurrentHashMap.newKeySet();
+    /**
+     * Threads blocked in {@code S3Client.getObject} register Apache executes here via
+     * {@link AbortRegisteringHttpClient}. {@code null} outside a tracked GET.
+     */
+    static final ThreadLocal<Set<Abortable>> HTTP_ABORT_SINK = new ThreadLocal<>();
+    static final ThreadLocal<AtomicBoolean> HTTP_ABORT_CLOSED = new ThreadLocal<>();
 
-    // Retries: the sync S3Client path relies on the SDK RetryStrategy (pinned to Standard in
-    // S3StorageProvider#configureCommon). The async client is pinned to doNotRetry and readBytesAsync drives
-    // asyncRetryStrategy (AWS Standard semantics) itself, so that every attempt gets a fresh
-    // CrossRegionAwareResponseTransformer (which creates a fresh KnownLengthAsyncResponseTransformer
-    // internally). See KnownLengthAsyncResponseTransformer's javadoc for why a transformer must not span
-    // attempts, and CrossRegionAwareResponseTransformer's javadoc for how cross-region redirects are handled.
-    // The provider-agnostic RetryPolicy + ResumingInputStream layer that wraps this object adds
-    // cross-provider retry/resume on top.
+    static Set<Abortable> httpAbortSink() {
+        return HTTP_ABORT_SINK.get();
+    }
+
+    static boolean httpAbortClosed() {
+        AtomicBoolean flag = HTTP_ABORT_CLOSED.get();
+        return flag != null && flag.get();
+    }
+
+    // Retries: blocking newStream uses the sync Apache S3Client (Standard retries, shared with
+    // list/head — SDK 2.31 has no per-GetObject retry off switch). awaitGetObject is a second
+    // Standard loop that polls closed. Abort-if-closed fails SDK retries after close() without a
+    // new socket. The async client is doNotRetry; readBytesAsync drives asyncRetryStrategy itself
+    // so every attempt gets a fresh CrossRegionAwareResponseTransformer. See
+    // KnownLengthAsyncResponseTransformer's javadoc. RetryableStorageObject adds cross-provider
+    // resume on top.
 
     S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, null, bucket, key, path);
@@ -559,39 +582,35 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     /**
-     * Issues GET. With an async client the future is stored so {@link #close()} can cancel before
-     * headers arrive (Netty completes the future; this thread only parks). Sync-only tests keep
-     * {@code s3Client.getObject}.
+     * Issues GET on the sync Apache client. {@link #close()} aborts the in-flight Apache request
+     * (headers) or the live stream (body).
      */
     private ResponseInputStream<GetObjectResponse> awaitGetObject(GetObjectRequest request) {
-        if (closed.get()) {
+        if (isOpenCancelled()) {
             throw new CancellationException("read cancelled");
         }
-        if (s3AsyncClient == null) {
-            return s3Client.getObject(request);
+        if (asyncRetryStrategy == null) {
+            return trackedSyncGet(request);
         }
-        // The async client is doNotRetry so readBytesAsync can own transformers. Blocking GETs
-        // issue a fresh toBlockingInputStream per attempt, so Standard (incl. InvalidAccessKeyId)
-        // is applied here without sharing a transformer across retries.
         RetryToken token;
         try {
             token = asyncRetryStrategy.acquireInitialToken(AcquireInitialTokenRequest.create(STREAMING_GET_RETRY_SCOPE)).token();
         } catch (Exception e) {
-            return joinTrackedGet(request);
+            return trackedSyncGet(request);
         }
         for (;;) {
-            if (closed.get()) {
+            if (isOpenCancelled()) {
                 throw new CancellationException("read cancelled");
             }
             ResponseInputStream<GetObjectResponse> stream;
             try {
-                stream = joinTrackedGet(request);
+                stream = trackedSyncGet(request);
             } catch (RuntimeException e) {
                 Throwable unwrapped = unwrapCompletionWrappers(e);
                 if (unwrapped instanceof CancellationException cancelled) {
                     throw cancelled;
                 }
-                if (closed.get()) {
+                if (isOpenCancelled()) {
                     throw new CancellationException("read cancelled");
                 }
                 RefreshRetryTokenResponse refresh;
@@ -619,8 +638,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             try {
                 asyncRetryStrategy.recordSuccess(RecordSuccessRequest.create(token));
             } catch (RuntimeException e) {
-                // recordSuccess() failing is not expected in practice, but abort the GET now so
-                // the truncated Netty body cannot pin a connection until acquisition timeout.
                 stream.abort();
                 throw e;
             }
@@ -628,10 +645,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         }
     }
 
-    /** Parks for {@code delay} but returns as soon as {@link #close()} so backoff cannot outlive cancel. */
+    /** Parks for {@code delay} but returns as soon as {@link #close()} or query cancel. */
     private void sleepUntilClosedOrDelay(Duration delay) {
         long deadlineNanos = System.nanoTime() + delay.toNanos();
-        while (closed.get() == false && System.nanoTime() < deadlineNanos) {
+        while (isOpenCancelled() == false && System.nanoTime() < deadlineNanos) {
             long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime());
             if (remainingMs <= 0) {
                 return;
@@ -643,87 +660,78 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 throw new CancellationException("read cancelled");
             }
         }
-        if (closed.get()) {
+        if (isOpenCancelled()) {
             throw new CancellationException("read cancelled");
         }
     }
 
+    private boolean isOpenCancelled() {
+        return closed.get() || StorageRetryCancellation.isCancelled();
+    }
+
     /**
-     * One async GET attempt. The CF stays in {@code inFlightOpens} until abort/close so a truncated
-     * body can drop the Netty connection instead of occupying the pool until
-     * {@code CONNECTION_ACQUISITION_TIMEOUT}.
+     * One Apache GET. Registers an unpark handle (unit tests) and the HTTP execute
+     * ({@link AbortRegisteringHttpClient}) so {@link #close()} unblocks a hung open, then wraps
+     * the returned stream so abort/close drops the socket.
      */
-    private ResponseInputStream<GetObjectResponse> joinTrackedGet(GetObjectRequest request) {
-        CompletableFuture<ResponseInputStream<GetObjectResponse>> future = s3AsyncClient.getObject(
-            request,
-            AsyncResponseTransformer.toBlockingInputStream()
-        );
-        inFlightOpens.add(future);
-        if (closed.get()) {
-            inFlightOpens.remove(future);
-            discardGet(future);
-            throw new CancellationException("read cancelled");
-        }
+    private ResponseInputStream<GetObjectResponse> trackedSyncGet(GetObjectRequest request) {
+        Thread waiter = Thread.currentThread();
+        Abortable unpark = () -> LockSupport.unpark(waiter);
+        inFlightAborts.add(unpark);
+        HTTP_ABORT_SINK.set(inFlightAborts);
+        HTTP_ABORT_CLOSED.set(closed);
         try {
-            ResponseInputStream<GetObjectResponse> in = future.join();
-            AtomicBoolean dropped = new AtomicBoolean();
-            Abortable drop = () -> {
+            if (isOpenCancelled()) {
+                throw new CancellationException("read cancelled");
+            }
+            ResponseInputStream<GetObjectResponse> in = s3Client.getObject(request);
+            if (isOpenCancelled()) {
+                abortQuietly(in);
+                throw new CancellationException("read cancelled");
+            }
+            return wrapLiveGet(in);
+        } finally {
+            inFlightAborts.remove(unpark);
+            HTTP_ABORT_SINK.remove();
+            HTTP_ABORT_CLOSED.remove();
+        }
+    }
+
+    private ResponseInputStream<GetObjectResponse> wrapLiveGet(ResponseInputStream<GetObjectResponse> in) {
+        AtomicBoolean dropped = new AtomicBoolean();
+        Abortable drop = new Abortable() {
+            @Override
+            public void abort() {
                 if (dropped.compareAndSet(false, true) == false) {
                     return;
                 }
-                inFlightOpens.remove(future);
-                try {
-                    // Abort, do not close: Netty close of a truncated toBlockingInputStream can
-                    // wait for the rest of the body and pin the connection for 60s.
-                    in.abort();
-                } catch (RuntimeException ignored) {
-                    // Best-effort drop of a GET the reader already abandoned.
-                }
-                FutureUtils.cancel(future);
-            };
-            FilterInputStream tracking = new FilterInputStream(in) {
-                @Override
-                public void close() {
-                    drop.abort();
-                }
-            };
-            return new ResponseInputStream<>(in.response(), AbortableInputStream.create(tracking, drop));
-        } catch (CompletionException e) {
-            inFlightOpens.remove(future);
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            if (cause instanceof CancellationException cancelled) {
-                throw cancelled;
+                inFlightAborts.remove(this);
+                abortQuietly(in);
             }
-            if (cause instanceof RuntimeException runtime) {
-                throw runtime;
-            }
-            throw e;
+        };
+        inFlightAborts.add(drop);
+        if (closed.get()) {
+            drop.abort();
+            throw new CancellationException("read cancelled");
         }
-    }
-
-    /**
-     * Cancels {@code future}. If the GET already completed, abort/close the response so the body is
-     * not leaked when {@link #close()} races the headers.
-     */
-    private static void discardGet(CompletableFuture<ResponseInputStream<GetObjectResponse>> future) {
-        FutureUtils.cancel(future);
-        ResponseInputStream<GetObjectResponse> in;
-        try {
-            in = future.getNow(null);
-        } catch (Exception e) {
-            return;
-        }
-        if (in == null) {
-            return;
-        }
-        try {
-            if (in instanceof Abortable abortable) {
-                abortable.abort();
-            } else {
+        FilterInputStream tracking = new FilterInputStream(in) {
+            @Override
+            public void close() throws IOException {
+                if (dropped.compareAndSet(false, true) == false) {
+                    return;
+                }
+                inFlightAborts.remove(drop);
                 in.close();
             }
-        } catch (Exception e) {
-            // Best-effort discard of a GET that lost the close race.
+        };
+        return new ResponseInputStream<>(in.response(), AbortableInputStream.create(tracking, drop));
+    }
+
+    private static void abortQuietly(ResponseInputStream<GetObjectResponse> in) {
+        try {
+            in.abort();
+        } catch (RuntimeException ignored) {
+            // Best-effort drop of a GET the reader already abandoned.
         }
     }
 
@@ -882,10 +890,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     @Override
     public void close() {
         closed.set(true);
-        for (CompletableFuture<ResponseInputStream<GetObjectResponse>> future : inFlightOpens) {
-            discardGet(future);
+        for (Abortable abortable : inFlightAborts) {
+            try {
+                abortable.abort();
+            } catch (RuntimeException ignored) {
+                // Best-effort: a failed abort must not hide the rest.
+            }
         }
-        inFlightOpens.clear();
+        inFlightAborts.clear();
     }
 
     @Override

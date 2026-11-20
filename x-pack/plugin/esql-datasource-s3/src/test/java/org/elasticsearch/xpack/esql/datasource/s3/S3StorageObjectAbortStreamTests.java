@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.retries.api.AcquireInitialTokenRequest;
 import software.amazon.awssdk.retries.api.AcquireInitialTokenResponse;
@@ -38,11 +38,11 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -204,22 +204,17 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
     }
 
     /**
-     * Two in-flight async GETs must both be cancelled when the object is closed. A single
-     * {@code CompletableFuture} field would leak the second GET.
+     * Two in-flight Apache GETs must both unblock when the object is closed. {@code close()}
+     * unparks the waiting {@code getObject} threads (and aborts the Apache execute in production).
      */
-    @SuppressWarnings("unchecked")
-    public void testCloseCancelsInFlightAsyncGets() throws Exception {
-        S3AsyncClient async = mock(S3AsyncClient.class);
-        RetryStrategy retries = mock(RetryStrategy.class);
+    public void testCloseCancelsInFlightSyncGets() throws Exception {
         CountDownLatch started = new CountDownLatch(2);
-        CompletableFuture<ResponseInputStream<GetObjectResponse>> first = new CompletableFuture<>();
-        CompletableFuture<ResponseInputStream<GetObjectResponse>> second = new CompletableFuture<>();
-        AtomicInteger calls = new AtomicInteger();
-        when(async.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(inv -> {
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenAnswer(inv -> {
             started.countDown();
-            return calls.getAndIncrement() == 0 ? first : second;
+            LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(30));
+            throw SdkClientException.create("getObject still parked after close");
         });
-        S3StorageObject obj = new S3StorageObject(mockS3, async, retries, BUCKET, KEY, PATH);
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
         Thread t1 = new Thread(() -> {
             try {
                 obj.newStream();
@@ -238,8 +233,23 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         t2.join(TimeUnit.SECONDS.toMillis(5));
         assertFalse(t1.isAlive());
         assertFalse(t2.isAlive());
-        assertTrue(first.isCancelled());
-        assertTrue(second.isCancelled());
+    }
+
+    public void testObjectCloseAbortsLiveGetStream() throws IOException {
+        AtomicBoolean abortCalled = new AtomicBoolean();
+        GetObjectResponse resp = GetObjectResponse.builder().contentLength(100_000L).build();
+        AbortableInputStream inner = new AbortableInputStream(
+            new ByteArrayInputStream("partial".getBytes(StandardCharsets.UTF_8)),
+            abortCalled,
+            new AtomicBoolean()
+        );
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, software.amazon.awssdk.http.AbortableInputStream.create(inner, inner))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        obj.newStream();
+        obj.close();
+        assertTrue("StorageObject.close() must abort a live Apache GET", abortCalled.get());
     }
 
     /**
@@ -256,11 +266,11 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
             software.amazon.awssdk.http.AbortableInputStream.create(new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8)))
         );
         AtomicInteger attempts = new AtomicInteger();
-        when(async.getObject(any(GetObjectRequest.class), any(AsyncResponseTransformer.class))).thenAnswer(inv -> {
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenAnswer(inv -> {
             if (attempts.getAndIncrement() == 0) {
-                return CompletableFuture.failedFuture(new IOException("transient"));
+                throw SdkClientException.create("transient", new IOException("transient"));
             }
-            return CompletableFuture.completedFuture(body);
+            return body;
         });
         AtomicInteger successes = new AtomicInteger();
         RetryStrategy delegate = AwsRetryStrategy.standardRetryStrategy()

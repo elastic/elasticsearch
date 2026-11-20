@@ -26,18 +26,19 @@ setup:
                   price: { type: long }
                   qty: { type: long }
                   sku: { type: keyword }
+                  dbl: { type: double }
   - do:
       bulk:
         refresh: true
         body:
           - { "index": { "_index": "na_push", "_id": "a" } }
-          - { "id": "a", "items": [ { "price": 20, "qty": 2, "sku": "book" }, { "price": 5, "qty": 1, "sku": "pen" } ] }
+          - { "id": "a", "items": [ { "price": 20, "qty": 2, "sku": "book", "dbl": 2.5 }, { "price": 5, "qty": 1, "sku": "pen", "dbl": 1.0 } ] }
           - { "index": { "_index": "na_push", "_id": "b" } }
-          - { "id": "b", "items": [ { "price": 1, "qty": 1, "sku": "book" } ] }
+          - { "id": "b", "items": [ { "price": 1, "qty": 1, "sku": "book", "dbl": 1.0 } ] }
           - { "index": { "_index": "na_push", "_id": "c" } }
           - { "id": "c" }
           - { "index": { "_index": "na_push", "_id": "d" } }
-          - { "id": "d", "items": [ { "price": 20, "qty": 1, "sku": "cup" } ] }
+          - { "id": "d", "items": [ { "price": 20, "qty": 1, "sku": "cup", "dbl": 3.0 } ] }
 
 ---
 "a nested predicate is pushed to Lucene":
@@ -112,6 +113,29 @@ setup:
       values:
       - ["a"]
   - match: { documents_found: 2 }
+
+---
+"a pushed predicate that needs a recheck is pushed once and still filtered":
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_push | WHERE NESTED_ANY(MV_GREATER(items.dbl, 1.5)) | KEEP id | SORT id | LIMIT 10'
+  - match:
+      values:
+      - ["a"]
+      - ["d"]
+  - match: { documents_found: 2 }
+
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_push | WHERE NESTED_ANY(MV_GREATER(items.dbl, 1.5)) AND NESTED_ANY(items.sku == "pen") | KEEP id | SORT id | LIMIT 10'
+  - match:
+      values:
+      - ["a"]
+  - match: { documents_found: 1 }
 
 ---
 "an untranslatable nested predicate filters in memory":

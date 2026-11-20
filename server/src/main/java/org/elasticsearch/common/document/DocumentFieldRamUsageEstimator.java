@@ -87,7 +87,7 @@ public final class DocumentFieldRamUsageEstimator {
     }
 
     private static long estimateMap(Map<?, ?> map, int depth) {
-        long size = RamUsageEstimator.shallowSizeOf(map);
+        long size = RamUsageEstimates.shallowSizeOf(map);
         int entries = map.size();
         if (entries == 0) {
             return size;
@@ -124,7 +124,7 @@ public final class DocumentFieldRamUsageEstimator {
     }
 
     private static long estimateCollection(Collection<?> collection, int depth) {
-        long size = RamUsageEstimator.shallowSizeOf(collection);
+        long size = RamUsageEstimates.shallowSizeOf(collection);
         int n = collection.size();
 
         if (collection instanceof LinkedList<?>) {

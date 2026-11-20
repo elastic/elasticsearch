@@ -129,7 +129,7 @@ Because the figures on this page are starting points rather than targets, the co
 
 * **Circuit breaker rejections**, which mean the node is holding more than it can collect.
 * **Queries slowing as concurrency rises** without any rejection, which means readers are contended rather than exhausted.
-* **Query times that scale worse than the data they read**, which usually points at too few files, or at compressed text files too large to divide.
+* **Query times that do not improve when you add capacity**, which points at the file layout rather than the cluster: too few files, or compressed text files too large to divide, leave the extra cores with nothing to pick up.
 * **Planning time growing with your file count**, which points at schema inference or, on Parquet, at footer reads on the coordinating node.
 
 ### `circuit_breaking_exception` with `Data too large` [breaker]

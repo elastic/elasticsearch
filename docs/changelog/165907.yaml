@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 165907
-summary: Log float vectors as base64 encoded
+summary: Add option to log float vectors as base64 or elide them completely 
 type: enhancement

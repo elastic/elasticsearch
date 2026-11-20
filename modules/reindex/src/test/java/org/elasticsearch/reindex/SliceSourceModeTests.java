@@ -15,19 +15,29 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static org.hamcrest.Matchers.nullValue;
 
 public class SliceSourceModeTests extends ESTestCase {
 
-    private final IndexNameExpressionResolver indexResolver = TestIndexNameExpressionResolver.newInstance();
-    private final ProjectMetadata projectMetadata = ProjectMetadata.builder(randomUniqueProjectId())
-        .put(index("sliced-a", true), true)
-        .put(index("sliced-b", true), true)
-        .put(index("plain", false), true)
-        .build();
+    private IndexNameExpressionResolver indexResolver;
+    private ProjectMetadata projectMetadata;
+
+    @Before
+    public void createFixtures() {
+        // reading index.slice.enabled fails without the feature flag, so the fixtures are only built when it is on
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        indexResolver = TestIndexNameExpressionResolver.newInstance();
+        projectMetadata = ProjectMetadata.builder(randomUniqueProjectId())
+            .put(index("sliced-a", true), true)
+            .put(index("sliced-b", true), true)
+            .put(index("plain", false), true)
+            .build();
+    }
 
     public void testSliceEnabledSourceWithoutSliceIsMarked() {
         SearchRequest source = new SearchRequest("sliced-a");

@@ -21,6 +21,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 
@@ -146,8 +147,28 @@ public class AnyParamVerifierTests extends ESTestCase {
     public void testEveryMarkerIsReported() {
         analyzer().error(
             "FROM test | WHERE emp_no > ?x OR languages > ?y",
-            containsString(anyMessage("?y", "here")),
+            allOf(containsString(anyMessage("?x", "here")), containsString(anyMessage("?y", "here"))),
             new QueryParams(List.of(paramAsConstant("x", ANY), paramAsConstant("y", ANY)))
+        );
+    }
+
+    /** Lowering the {@code WITHOUT} must not turn the marker into the name of an excluded field: it has to stay to be reported. */
+    public void testMarkerInTimeSeriesWithoutIsReported() {
+        TestAnalyzer analyzer = EsqlTestUtils.analyzer().addK8s().stripErrorPrefix(true);
+        analyzer.error(
+            "TS k8s | STATS m = MAX(network.cost) BY WITHOUT(?x)",
+            containsString(anyMessage("?x", "here")),
+            new QueryParams(List.of(paramAsConstant("x", ANY)))
+        );
+        analyzer.error(
+            "TS k8s | STATS m = MAX(network.cost) BY WITHOUT(??x)",
+            containsString(anyMessage("??x", "here")),
+            new QueryParams(List.of(paramAsConstant("x", ANY)))
+        );
+        analyzer.error(
+            "TS k8s | STATS m = MAX(network.cost) BY d = WITHOUT(pod, ?x)",
+            containsString(anyMessage("?x", "here")),
+            new QueryParams(List.of(paramAsConstant("x", ANY)))
         );
     }
 }

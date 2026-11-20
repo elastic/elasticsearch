@@ -83,8 +83,11 @@ import java.time.Duration;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -1408,7 +1411,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx != null) {
             var fields = ctx.field();
             list = new ArrayList<>(fields.size());
-            List<NamedExpression> droppable = new ArrayList<>();
+            // by identity, as equal keys are different entries, and so a wide BY is read in one pass
+            Set<NamedExpression> droppable = Collections.newSetFromMap(new IdentityHashMap<>());
             for (EsqlBaseParser.FieldContext field : fields) {
                 NamedExpression ne = null;
                 UnresolvedAttribute id = visitQualifiedName(field.qualifiedName());
@@ -1445,21 +1449,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
             }
             if (aggregateCount > 0 || droppable.size() < list.size()) {
-                list.removeIf(key -> droppable.stream().anyMatch(dropped -> dropped == key));
+                list.removeIf(droppable::contains);
             } else {
-                for (NamedExpression kept : droppable) {
-                    Alias key = (Alias) kept;
+                list.replaceAll(k -> {
+                    if (droppable.contains(k) == false) {
+                        return k;
+                    }
+                    Alias key = (Alias) k;
                     AnyParam any = (AnyParam) key.child();
-                    list.replaceAll(
-                        k -> k == kept
-                            ? new Alias(
-                                key.source(),
-                                key.name(),
-                                any.withReason("in a STATS that would have no aggregate and no other key without it")
-                            )
-                            : k
+                    return new Alias(
+                        key.source(),
+                        key.name(),
+                        any.withReason("in a STATS that would have no aggregate and no other key without it")
                     );
-                }
+                });
             }
         } else {
             list = new ArrayList<>();

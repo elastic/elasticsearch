@@ -91,13 +91,13 @@ More nodes give more parallelism, and no node should be scaled past 31 GB of hea
 
 [`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) controls how many storage requests a node keeps in flight. Its default is derived from the node's cores.
 
-Raising it increases read parallelism. Raise the heap with it: more requests in flight means more data staged and decompressed at the same time, so a node given more read concurrency without more heap will hit a circuit breaker. The setting is node-scoped, so a change takes effect after a restart.
+Raising it increases read parallelism. Raise the heap with it: more requests in flight means more data staged and decompressed at the same time, so a node given more read concurrency without more heap will hit a [circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). It is a [static setting](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), so a change takes effect after a node restart.
 
 ## Sizing for performance [performance]
 
-Data federation queries scale with the number of cores, and their scan time is proportional to the size of the dataset being read. This is where dataset size enters: it sets the work, not the heap.
+Data federation queries scale with the number of cores, and their scan time is proportional to the size of the dataset being read.
 
-If you want your queries to run faster, add cores, and scale the heap with them at 1 GB to 2 GB per core. Cores added without the heap to match will not help. For compressed text, add those cores as more nodes rather than as a wider one.
+If you want your queries to run faster, add cores, and scale the heap with them at 1 GB to 2 GB per core, plus the budget for your [concurrent queries](#concurrency). Cores added without the heap to match will not help. For compressed text, add those cores as more nodes rather than as a wider one.
 
 ## Example configurations [examples]
 

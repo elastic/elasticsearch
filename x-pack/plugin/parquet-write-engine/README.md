@@ -283,10 +283,18 @@ The engine has no translog and no replica, so the file of a bulk is the only cop
   `data/`, so readers and Iceberg never see it.
 
 What a bulk does with `staged`: it opens the table before it writes anything, so a repository that is missing or a table that another
-index owns fails the bulk (HTTP 503) with no local file and no gap in the sequence numbers. It then writes the local file, takes its
-sequence numbers, and uploads the staged copy outside the write lock, so the uploads of concurrent bulks of a shard overlap. If the upload
-fails, the local file is deleted, the bulk fails with a 503, and its sequence numbers stay used (a gap, which the engine tolerates because
-the ranges are in the names and the rows come from the footers). The client may retry. A flush that picked the local file up before
+index owns fails the bulk (HTTP 503) with no local file and no gap in the sequence numbers. It then takes its sequence numbers, writes
+the local file, and uploads the staged copy. None of these steps holds a shard-wide lock, so the local files and the uploads of
+concurrent bulks of a shard overlap (a profile of a run with one shard and 8 clients showed the bulks waiting for each other on a lock
+that was held during the write of the local file). If the write or the upload fails, the local file is deleted, the bulk fails (a 503 for
+the upload), and its sequence numbers stay used (a gap, which the engine tolerates because the ranges are in the names and the rows come
+from the footers). A bulk that is rejected with a 429 takes no sequence numbers.
+
+Because bulks finish in any order, a flush uploads only the local files whose range is at or below the processed checkpoint of the
+shard, which means that every bulk with a lower range has finished (a failed bulk marks its range as processed too). A flush records the
+highest range that it uploaded and deletes every local file below it as a leftover, so a file of a higher range must never be uploaded
+while a lower range is still being written. The limit `index.parquet.max_local_size` is checked before a bulk writes, so bulks that are
+writing at that moment can take the local size a little past it. The client may retry. A flush that picked the local file up before
 the failure has put the rows in the table anyway, which is the at-least-once behaviour that a lost response also gives.
 
 A flush deletes the staged copies of the rows that it has put in the table: after the local files, and at its start for any copy at or

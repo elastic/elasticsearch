@@ -116,6 +116,7 @@ public class ParquetCompactorTests extends ESTestCase {
                 commits,
                 table(),
                 () -> new ParquetFlusher.Settings(1L << 30, 1 << 16, CompressionCodecName.SNAPPY, false),
+                () -> Long.MAX_VALUE,
                 ParquetFlusher.Hooks.NONE
             ).flush();
         }

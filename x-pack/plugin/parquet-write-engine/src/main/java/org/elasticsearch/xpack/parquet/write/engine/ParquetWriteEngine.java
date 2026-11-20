@@ -82,6 +82,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -103,7 +104,14 @@ public class ParquetWriteEngine extends Engine {
 
     private static final String NOT_SUPPORTED = "the Parquet write engine accepts only batches of documents with auto-generated ids";
 
-    private final Object writeLock = new Object();
+    /**
+     * Keeps the counters of the local files equal to the directory. A bulk holds the read side from the moment its file can become
+     * visible until its counters are updated, so bulks of a shard write in parallel. The recount after a flush ({@link #refreshLocalFiles})
+     * takes the write side, so it never sees a file that is not counted yet, and never counts a file twice.
+     */
+    private final ReentrantReadWriteLock localFilesLock = new ReentrantReadWriteLock();
+    /** Guards the few fields that every finished bulk updates, and that must only move forward. */
+    private final Object writeStatsLock = new Object();
     private final LocalCheckpointTracker tracker;
     private final String historyUUID;
     private final AtomicLong localRows = new AtomicLong();
@@ -213,68 +221,16 @@ public class ParquetWriteEngine extends Engine {
         // owns, fails the bulk and leaves no local file and no gap in the sequence numbers.
         final ShardTable stagingTable = acceptedCount > 0 && isStaged() ? openTableForStaging() : null;
         LocalParquetFiles.LocalFile written = null;
-        final long firstSeqNo;
-        synchronized (writeLock) {
-            ensureOpen();
-            final long maxLocalBytes = ParquetFormatSettings.MAX_LOCAL_SIZE.get(engineConfig.getIndexSettings().getSettings()).getBytes();
-            if (acceptedCount > 0 && localBytes.get() >= maxLocalBytes) {
-                // The upload does not keep up, or the repository is down. A 429 tells the client to retry, and the rows are not lost.
-                throw new EsRejectedExecutionException(
-                    "the local Parquet files of shard ["
-                        + shardId
-                        + "] hold ["
-                        + localBytes.get()
-                        + "] bytes, which reaches [index.parquet.max_local_size]; they are uploaded by the next flush",
-                    false
-                );
-            }
-            firstSeqNo = tracker.getMaxSeqNo() + 1;
-            if (acceptedCount > 0) {
-                final MappingLookup lookup = engineConfig.getMapperService().mappingLookup();
-                final ColumnBatch columns = engineBatch.columns().toColumnBatch();
-                final LocalParquetFiles.LocalFile file;
-                try {
-                    file = BatchParquetWriter.write(
-                        store.directory(),
-                        columns,
-                        lookup,
-                        accepted,
-                        firstSeqNo,
-                        CompressionCodecName.valueOf(
-                            ParquetFormatSettings.LOCAL_COMPRESSION.get(engineConfig.getIndexSettings().getSettings()).name()
-                        ),
-                        multiValuedFields()
-                    );
-                } catch (IOException e) {
-                    failEngine("failed to write a Parquet file", e);
-                    throw e;
-                } catch (LinkageError e) {
-                    // A deployment problem (a class that is missing or fails to initialize, a native library that does not load) and not a
-                    // broken shard, so the engine stays open. The error must become an exception here: nothing above this call completes
-                    // the bulk when an Error is thrown on the write thread.
-                    throw LinkageFailures.asException("write a Parquet file", e);
-                }
-                // Only now, with the file durable, are the sequence numbers taken: a failed write leaves no gap.
-                final long reserved = tracker.generateSeqNos(acceptedCount);
-                assert reserved == firstSeqNo : reserved + " != " + firstSeqNo;
-                for (long seqNo = firstSeqNo; seqNo < firstSeqNo + acceptedCount; seqNo++) {
-                    tracker.markSeqNoAsProcessed(seqNo);
-                    if (stagingTable == null) {
-                        tracker.markSeqNoAsPersisted(seqNo);
-                    }
-                }
-                written = file;
-                localRows.addAndGet(file.rows());
-                localBytes.addAndGet(file.length());
-                if (oldestLocalNanos == 0) {
-                    oldestLocalNanos = System.nanoTime();
-                }
-                lastWriteNanos = System.nanoTime();
-                lastWriteLocation = new Translog.Location(0, firstSeqNo + acceptedCount - 1, 0);
-            }
+        long firstSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        if (acceptedCount > 0) {
+            rejectWhenLocalFilesAreFull();
+            // The sequence numbers are taken before the write, so that bulks write their files in parallel. A bulk that fails to write
+            // leaves a gap, which the engine tolerates (the ranges are in the names of the files and the rows come from the footers).
+            firstSeqNo = tracker.generateSeqNos(acceptedCount);
+            written = writeLocalFile(engineBatch, accepted, firstSeqNo, acceptedCount, stagingTable != null);
         }
         if (stagingTable != null && written != null) {
-            // outside the lock, so that the uploads of concurrent bulks of the shard overlap; the bulk is acknowledged after this returns
+            // The uploads of concurrent bulks of the shard overlap; the bulk is acknowledged after this returns
             stage(stagingTable, written, acceptedCount);
         }
         final List<IndexResult> results = new ArrayList<>(docCount);
@@ -290,6 +246,98 @@ public class ParquetWriteEngine extends Engine {
             }
         }
         return results;
+    }
+
+    /**
+     * A 429 when the local files have reached {@code index.parquet.max_local_size}. The check is not exact: bulks that are writing at that
+     * moment add their files, so the size can pass the limit by what they write. It happens before the sequence numbers are taken, so
+     * a rejected bulk leaves no gap, and the client can send it again.
+     */
+    private void rejectWhenLocalFilesAreFull() {
+        final long maxLocalBytes = ParquetFormatSettings.MAX_LOCAL_SIZE.get(engineConfig.getIndexSettings().getSettings()).getBytes();
+        final long bytes = localBytes.get();
+        if (bytes >= maxLocalBytes) {
+            // The upload does not keep up, or the repository is down. A 429 tells the client to retry, and the rows are not lost.
+            throw new EsRejectedExecutionException(
+                "the local Parquet files of shard ["
+                    + shardId
+                    + "] hold ["
+                    + bytes
+                    + "] bytes, which reaches [index.parquet.max_local_size]; they are uploaded by the next flush",
+                false
+            );
+        }
+    }
+
+    /**
+     * Writes the local file of a bulk for the sequence numbers {@code [firstSeqNo, firstSeqNo + count - 1]} that the caller reserved, and
+     * marks them processed, so that the flush may take the file. Bulks run this in parallel.
+     *
+     * <p>The range of a file becomes eligible for a flush only when every lower sequence number is processed too (see
+     * {@link ParquetFlusher}), because the flush records the highest range it uploaded and deletes every file below it as a leftover. So
+     * a bulk that does not write a file must still mark its range processed, or the flush would never get past it.
+     */
+    private LocalParquetFiles.LocalFile writeLocalFile(
+        EngineBatch engineBatch,
+        boolean[] accepted,
+        long firstSeqNo,
+        int count,
+        boolean staged
+    ) throws IOException {
+        LocalParquetFiles.LocalFile file = null;
+        localFilesLock.readLock().lock();
+        try {
+            ensureOpen();
+            final MappingLookup lookup = engineConfig.getMapperService().mappingLookup();
+            final ColumnBatch columns = engineBatch.columns().toColumnBatch();
+            try {
+                file = BatchParquetWriter.write(
+                    store.directory(),
+                    columns,
+                    lookup,
+                    accepted,
+                    firstSeqNo,
+                    CompressionCodecName.valueOf(
+                        ParquetFormatSettings.LOCAL_COMPRESSION.get(engineConfig.getIndexSettings().getSettings()).name()
+                    ),
+                    multiValuedFields()
+                );
+            } catch (IOException e) {
+                failEngine("failed to write a Parquet file", e);
+                throw e;
+            } catch (LinkageError e) {
+                // A deployment problem (a class that is missing or fails to initialize, a native library that does not load) and not a
+                // broken shard, so the engine stays open. The error must become an exception here: nothing above this call completes
+                // the bulk when an Error is thrown on the write thread.
+                throw LinkageFailures.asException("write a Parquet file", e);
+            }
+            // The file is durable and visible. The counters change before the lock is released, so that a recount sees both or neither.
+            localRows.addAndGet(file.rows());
+            localBytes.addAndGet(file.length());
+            synchronized (writeStatsLock) {
+                if (oldestLocalNanos == 0) {
+                    oldestLocalNanos = System.nanoTime();
+                }
+                lastWriteNanos = System.nanoTime();
+                final Translog.Location location = new Translog.Location(0, firstSeqNo + count - 1, 0);
+                if (lastWriteLocation.compareTo(location) < 0) {
+                    lastWriteLocation = location; // only forward: bulks finish in any order
+                }
+            }
+            return file;
+        } finally {
+            try {
+                for (long seqNo = firstSeqNo; seqNo < firstSeqNo + count; seqNo++) {
+                    tracker.markSeqNoAsProcessed(seqNo);
+                    if (staged == false || file == null) {
+                        // with staged durability the rows are persisted when the staged copy is uploaded, unless there is no file
+                        tracker.markSeqNoAsPersisted(seqNo);
+                    }
+                }
+            } finally {
+                localFilesLock.readLock().unlock();
+            }
+        }
     }
 
     /**
@@ -350,10 +398,8 @@ public class ParquetWriteEngine extends Engine {
     }
 
     private void markPersisted(long firstSeqNo, int rows) {
-        synchronized (writeLock) {
-            for (long seqNo = firstSeqNo; seqNo < firstSeqNo + rows; seqNo++) {
-                tracker.markSeqNoAsPersisted(seqNo);
-            }
+        for (long seqNo = firstSeqNo; seqNo < firstSeqNo + rows; seqNo++) {
+            tracker.markSeqNoAsPersisted(seqNo);
         }
     }
 
@@ -412,11 +458,9 @@ public class ParquetWriteEngine extends Engine {
 
     @Override
     public NoOpResult noOp(NoOp noOp) {
-        synchronized (writeLock) {
-            tracker.advanceMaxSeqNo(noOp.seqNo());
-            tracker.markSeqNoAsProcessed(noOp.seqNo());
-            tracker.markSeqNoAsPersisted(noOp.seqNo());
-        }
+        tracker.advanceMaxSeqNo(noOp.seqNo());
+        tracker.markSeqNoAsProcessed(noOp.seqNo());
+        tracker.markSeqNoAsPersisted(noOp.seqNo());
         return new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
     }
 
@@ -553,6 +597,7 @@ public class ParquetWriteEngine extends Engine {
                     new StoreCommitData(store),
                     openTable(),
                     this::flushSettings,
+                    tracker::getProcessedCheckpoint,
                     ParquetFlusher.Hooks.NONE
                 );
                 flusher = current;
@@ -802,7 +847,9 @@ public class ParquetWriteEngine extends Engine {
     private void refreshLocalFiles() throws IOException {
         final Map<String, String> userData = new StoreCommitData(store).userData();
         final long uploadedThrough = ShardCommitData.uploadedThroughSeqNo(userData);
-        synchronized (writeLock) {
+        // The write side waits for the bulks that are writing, and keeps new ones out while it lists the directory.
+        localFilesLock.writeLock().lock();
+        try {
             long rows = 0;
             long bytes = 0;
             for (LocalParquetFiles.LocalFile file : LocalParquetFiles.list(store.directory())) {
@@ -814,7 +861,11 @@ public class ParquetWriteEngine extends Engine {
             localRows.set(rows);
             localBytes.set(bytes);
             uploadedRows.set(ShardCommitData.uploadedRows(userData));
-            oldestLocalNanos = rows == 0 ? 0 : System.nanoTime();
+            synchronized (writeStatsLock) {
+                oldestLocalNanos = rows == 0 ? 0 : System.nanoTime();
+            }
+        } finally {
+            localFilesLock.writeLock().unlock();
         }
     }
 

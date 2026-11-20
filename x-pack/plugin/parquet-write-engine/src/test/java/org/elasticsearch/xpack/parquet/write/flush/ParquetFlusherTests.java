@@ -64,6 +64,8 @@ public class ParquetFlusherTests extends ESTestCase {
     private Directory directory;
     private InMemoryCommitData commits;
     private ParquetFlusher.Settings settings;
+    /** What the engine reports as complete: every bulk with a range up to this has finished writing its local file. */
+    private long completeThrough;
 
     /** The one commit of the shard: the keys of the server stay as they are. */
     private static final class InMemoryCommitData implements ShardCommitData {
@@ -86,6 +88,7 @@ public class ParquetFlusherTests extends ESTestCase {
         directory = new ByteBuffersDirectory();
         commits = new InMemoryCommitData();
         settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, CompressionCodecName.SNAPPY, false);
+        completeThrough = Long.MAX_VALUE;
     }
 
     @After
@@ -97,7 +100,7 @@ public class ParquetFlusherTests extends ESTestCase {
     /** What a restart does: the temporary files of unfinished writes go, and the table is opened again. */
     private ParquetFlusher newFlusher(ParquetFlusher.Hooks hooks) throws IOException {
         LocalParquetFiles.deleteTemporaryFiles(directory);
-        return new ParquetFlusher(directory, commits, TestTables.open(store, LOCATION, 0), () -> settings, hooks);
+        return new ParquetFlusher(directory, commits, TestTables.open(store, LOCATION, 0), () -> settings, () -> completeThrough, hooks);
     }
 
     private static ParquetFlusher.Hooks crashAt(String crashStep) {
@@ -171,6 +174,43 @@ public class ParquetFlusherTests extends ESTestCase {
 
         assertThat(result.files(), equalTo(0));
         assertThat(commits.userData().get(ShardCommitData.UPLOADED_THROUGH_SEQ_NO), nullValue());
+        assertThat(TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(0));
+    }
+
+    /**
+     * Bulks write their files in parallel, so the file of a higher range can exist while a lower one is still being written. A flush
+     * that took the higher file would record its range as uploaded, and then delete the lower file as a leftover when it appears.
+     */
+    public void testAFileAboveTheCompleteBoundStaysForTheNextFlushSoALateLowerFileIsNeverLost() throws Exception {
+        TestLocalFiles.write(directory, 0, 99, false);
+        TestLocalFiles.write(directory, 200, 299, false); // the bulk of the range 100 to 199 is still writing
+        completeThrough = 99;
+
+        final ParquetFlusher.Result first = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(first.files(), equalTo(1));
+        assertThat(first.rows(), equalTo(100L));
+        assertThat(ShardCommitData.uploadedThroughSeqNo(commits.userData()), equalTo(99L));
+        assertThat("the file above the bound is untouched", localFileNames(), hasSize(1));
+
+        TestLocalFiles.write(directory, 100, 199, false); // the late bulk finishes
+        completeThrough = 299;
+
+        final ParquetFlusher.Result second = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(second.rows(), equalTo(200L));
+        assertFlushed(300);
+    }
+
+    public void testAFlushWithOnlyFilesAboveTheCompleteBoundDoesNothing() throws Exception {
+        TestLocalFiles.write(directory, 100, 199, false);
+        completeThrough = 50;
+
+        final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(result.files(), equalTo(0));
+        assertThat(commits.userData().get(ShardCommitData.UPLOADED_THROUGH_SEQ_NO), nullValue());
+        assertThat(localFileNames(), hasSize(1));
         assertThat(TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(0));
     }
 
@@ -343,7 +383,7 @@ public class ParquetFlusherTests extends ESTestCase {
 
         ParquetFlusher flusher(ParquetFlusher.Hooks hooks) throws IOException {
             LocalParquetFiles.deleteTemporaryFiles(directory);
-            return new ParquetFlusher(directory, commits, table(), () -> settings, hooks);
+            return new ParquetFlusher(directory, commits, table(), () -> settings, () -> Long.MAX_VALUE, hooks);
         }
 
         ShardTable table() {

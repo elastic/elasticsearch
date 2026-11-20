@@ -42,6 +42,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -238,6 +239,49 @@ public class ParquetFlushIT extends ESIntegTestCase {
         assertThat(counts.size(), equalTo(rows));
         assertThat(counts.first(), equalTo(0L));
         assertThat(counts.last(), equalTo(rows - 1L));
+    }
+
+    /**
+     * Bulks of one shard write their local files in parallel, and flushes (the periodic one and explicit ones) run while they do. A flush
+     * must not upload the file of a higher range while a bulk of a lower range is still writing, because it would then delete the lower
+     * file as a leftover. After all of it, every row is in the table once, in files with contiguous ranges.
+     */
+    public void testConcurrentBulksAndFlushesLoseNoRow() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.flush_threshold_size", "1kb"));
+        final int writers = 4;
+        final int bulksEach = 10;
+        final int docsPerBulk = 1_500;
+        final AtomicInteger writersDone = new AtomicInteger();
+        final AtomicInteger flushes = new AtomicInteger();
+
+        startInParallel(writers + 1, task -> {
+            if (task == writers) {
+                // flushes until every writer is done
+                while (writersDone.get() < writers) {
+                    assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+                    flushes.incrementAndGet();
+                }
+                return;
+            }
+            try {
+                for (int b = 0; b < bulksEach; b++) {
+                    final int from = (task * bulksEach + b) * docsPerBulk;
+                    assertFalse(bulk(from, from + docsPerBulk).hasFailures());
+                }
+            } finally {
+                writersDone.incrementAndGet();
+            }
+        });
+
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+        assertThat("explicit flushes ran during the writes", flushes.get(), greaterThan(0));
+        assertThat(
+            indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(),
+            equalTo((long) writers * bulksEach * docsPerBulk)
+        );
+        assertUploaded(1, writers * bulksEach * docsPerBulk);
+        assertThat("local files", localFiles(0), equalTo(0L));
     }
 
     public void testFlushUploadsTheRowsOfEveryShardAsFilesOfOneTable() throws Exception {

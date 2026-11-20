@@ -839,3 +839,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/166909
+- class: org.elasticsearch.xpack.esql.plan.physical.TsInfoExecSerializationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLimitNotOnTheWire
+  issue: https://github.com/elastic/elasticsearch/issues/166936

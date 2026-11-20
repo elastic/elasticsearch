@@ -14,6 +14,13 @@ import {
   splitTaskSeconds,
   testSeconds,
   topLevelClassName,
+  versionedExecutions,
+  versionedItemRows,
+  versionedItemSums,
+  versionedSplitTaskSeconds,
+  versionedTaskRows,
+  versionKey,
+  versionOf,
   yamlSuitePath,
   type ExecutionRow,
   type TaskRow,
@@ -204,5 +211,58 @@ describe("durations.json", () => {
       items: { ":x:javaRestTest": { by: "class", seconds: { "org.example.AIT": 340, "org.example.BIT": 240 } } },
     });
     expect(formatDurations(durations)).toMatch(/^\{\n "source": "test",\n "tests": \{\n  ":x:javaRestTest": 640,/);
+  });
+});
+
+describe("BWC versions", () => {
+  test("keys replace the version of BWC test task paths only", () => {
+    expect(versionKey(":qa:rolling-upgrade:v9.1.0#bwcTest")).toBe(":qa:rolling-upgrade:v{V}#bwcTest");
+    expect(versionKey(":x:esql:qa:server:multi-clusters:v8.19.10#csvSpecTests#oldToNew")).toBe(
+      ":x:esql:qa:server:multi-clusters:v{V}#csvSpecTests#oldToNew"
+    );
+    expect(versionKey(":server:test")).toBe(":server:test");
+    expect(versionOf(":qa:rolling-upgrade:v9.1.0#bwcTest")).toBe("9.1.0");
+    expect(versionOf(":server:test")).toBe("");
+  });
+
+  test("BWC test tasks start clusters", () => {
+    expect(isClusterTest(":qa:rolling-upgrade:v9.1.0#bwcTest")).toBe(true);
+    expect(isClusterTest(":qa:rolling-upgrade:v{V}#yamlBwcTest")).toBe(true);
+    expect(isClusterTest(":qa:verify:verifyTest")).toBe(false);
+  });
+
+  test("task rows fold to the slowest version per key and type", () => {
+    const rows: TaskRow[] = [
+      { path: ":qa:ru:v9.1.0#bwcTest", type: REST, p50Ms: 600_000 },
+      { path: ":qa:ru:v8.19.3#bwcTest", type: REST, p50Ms: 900_000 },
+      { path: ":qa:ru:v9.0.0#bwcTest", type: REST, p50Ms: 700_000 },
+      { path: ":qa:ru:compileJava", type: COMPILE, p50Ms: 5_000 },
+    ];
+    expect(versionedTaskRows(rows)).toEqual([
+      { path: ":qa:ru:v{V}#bwcTest", type: REST, p50Ms: 900_000 },
+      { path: ":qa:ru:compileJava", type: COMPILE, p50Ms: 5_000 },
+    ]);
+  });
+
+  test("item rows fold per key and name, so versions' classes are not added up", () => {
+    const folded = versionedItemRows([
+      { task: ":qa:ru:v9.1.0#bwcTest", name: "org.FooIT", p50Ms: 60_000 },
+      { task: ":qa:ru:v8.19.3#bwcTest", name: "org.FooIT", p50Ms: 90_000 },
+      { task: ":qa:ru:v8.19.3#bwcTest", name: "org.BarIT", p50Ms: 30_000 },
+    ]);
+    expect(itemsByTask(folded).get(":qa:ru:v{V}#bwcTest")).toEqual({ by: "class", seconds: { "org.BarIT": 30, "org.FooIT": 90 } });
+  });
+
+  test("each version's executions of a split task are a build of their own", () => {
+    const rows = versionedExecutions([
+      execution(":qa:ru:v9.1.0#bwcTest", "b1", "9.1.0_part_1_bwc-snapshots", 300_000),
+      execution(":qa:ru:v9.1.0#bwcTest", "b1", "9.1.0_part_2_bwc-snapshots", 300_000),
+      execution(":qa:ru:v8.19.3#bwcTest", "b1", "8.19.3_part_1_bwc-snapshots", 500_000),
+      execution(":qa:ru:v8.19.3#bwcTest", "b1", "8.19.3_part_2_bwc-snapshots", 500_000),
+    ]);
+    expect(new Set(rows.map((r) => r.path))).toEqual(new Set([":qa:ru:v{V}#bwcTest"]));
+    // 2 shards with 60 s of fixed cost each: 300 + 300 - 60 for 9.1.0, 500 + 500 - 60 for 8.19.3; the slowest version's
+    expect(versionedSplitTaskSeconds(rows, new Set([":qa:ru:v{V}#bwcTest"]), () => 60).get(":qa:ru:v{V}#bwcTest")).toBe(940);
+    expect(versionedItemSums([{ task: ":qa:ru:v9.1.0#bwcTest", jobId: "j", ms: 1 }])).toEqual([{ task: ":qa:ru:v{V}#bwcTest", jobId: "j", ms: 1 }]);
   });
 });

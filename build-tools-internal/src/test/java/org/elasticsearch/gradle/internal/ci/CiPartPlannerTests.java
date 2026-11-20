@@ -294,6 +294,35 @@ public class CiPartPlannerTests {
     }
 
     @Test
+    public void testNeverSplitsIntoShardsWithoutItems() {
+        // :qa:mixed-cluster's BWC yamlRestTest: one long YAML suite class and three short ones. Where the long class is
+        // alone, more shards look no worse, but a shard without any class would start its clusters to run nothing.
+        Map<String, Double> seconds = Map.of(
+            "org.elasticsearch.backwards.HotThreadsIT",
+            83.5,
+            "org.elasticsearch.backwards.IndexingIT",
+            21.7,
+            "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT",
+            986.9,
+            "org.elasticsearch.backwards.RareTermsIT",
+            8.0
+        );
+        CiPartPlanner.Items items = new CiPartPlanner.Items(CiPartAssignment.SplitBy.CLASS, seconds);
+        String task = ":qa:mixed-cluster:v{V}#yamlRestTest";
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(task, 1111.0),
+            Map.of(),
+            Map.of(task, 17.0),
+            Map.of(task, items)
+        );
+        CiPartAssignment.Split split = CiPartPlanner.splits(config(600, 8, List.of()), durations).get(task);
+        int count = split == null ? 1 : split.count();
+        Set<Integer> used = new HashSet<>();
+        seconds.keySet().forEach(name -> used.add(CiShards.bucket(name, count)));
+        assertThat("shards of " + count, used.size(), equalTo(count));
+    }
+
+    @Test
     public void testYamlFileItemsSplitByYamlFile() {
         CiPartPlanner.Config config = config(400, 8, List.of());
         Map<String, Double> files = new HashMap<>();

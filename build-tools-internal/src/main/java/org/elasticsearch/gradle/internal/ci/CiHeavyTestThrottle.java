@@ -12,20 +12,28 @@ package org.elasticsearch.gradle.internal.ci;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 
+import java.util.regex.Pattern;
+
 /**
- * Limits how many test tasks that start Elasticsearch clusters (REST, cluster and spec tests) a CI part job runs at
+ * Limits how many test tasks that start Elasticsearch clusters (REST, cluster, spec and BWC tests) a CI part job runs at
  * once, through the service's {@code maxParallelUsages}. Unlimited, a part started up to 16 of them on a 16-core
  * agent, each with a test JVM and one or more nodes; cluster start-up then took minutes instead of seconds and the
  * tests ran far longer than their usual durations. Plain unit test tasks are not limited.
  */
 public abstract class CiHeavyTestThrottle implements BuildService<BuildServiceParameters.None> {
 
+    private static final Pattern BWC_TASK_NAME = Pattern.compile("^v(\\d+\\.\\d+\\.\\d+|\\{V\\})#");
+
     /** Overrides how many heavy test tasks run at once; 0 turns the limit off. */
     public static final String MAX_PARALLEL_PROPERTY = "tests.ci.maxParallelHeavyTests";
 
-    /** Whether test task {@code taskName} starts a cluster (or, for internal cluster tests, several nodes in-process). */
+    /**
+     * Whether test task {@code taskName} starts a cluster (or, for internal cluster tests, several nodes in-process). BWC
+     * test tasks ({@code v<version>#...}, or {@code v{V}#...} in the BWC suite's assignment keys) all start clusters.
+     */
     public static boolean isHeavy(String taskName) {
-        return taskName.contains("RestTest")
+        return BWC_TASK_NAME.matcher(taskName).find()
+            || taskName.contains("RestTest")
             || taskName.contains("RestCompatTest")
             || taskName.contains("ClusterTest")
             || taskName.startsWith("csvSpecTests")

@@ -28,10 +28,13 @@ public class CiHeavyTestThrottleTests {
             "csvSpecTestsCurrentToCurrent",
             "workloadIdentityYamlRestTest",
             "integTest",
-            "bcUpgradeTest" }) {
+            "bcUpgradeTest",
+            "v9.1.0#bwcTest",
+            "v8.19.10#newToOld",
+            "v{V}#yamlBwcTest" }) {
             assertThat(name, CiHeavyTestThrottle.isHeavy(name), equalTo(true));
         }
-        for (String name : new String[] { "test", "test27", "benchmarkTest", "testAutomatonPatterns", "gcsThirdPartyUnitTest" }) {
+        for (String name : new String[] { "test", "test27", "benchmarkTest", "testAutomatonPatterns", "gcsThirdPartyUnitTest", "v9.1#bwcTest", "verifyTest" }) {
             assertThat(name, CiHeavyTestThrottle.isHeavy(name), equalTo(false));
         }
     }

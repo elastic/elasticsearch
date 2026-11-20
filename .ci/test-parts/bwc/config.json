@@ -1,0 +1,10 @@
+{
+  "parts": 6,
+  "workers": 4,
+  "heavyTestLimit": 4,
+  "shardOverheadSeconds": 90,
+  "runFirstSeconds": 240,
+  "shardTargetSeconds": 600,
+  "maxShards": 8,
+  "antiAffinity": []
+}

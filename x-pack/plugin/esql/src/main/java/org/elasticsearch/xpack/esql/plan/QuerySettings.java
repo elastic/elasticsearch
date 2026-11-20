@@ -120,7 +120,7 @@ public final class QuerySettings {
           absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
           even if the query doesn't reference them.
         {applies_to}`stack: preview =9.4, ga 9.5+`
-        - `LOAD_ALL` : Does everything `LOAD` does, and also returns every unmapped field that the query does not name, in a
+        - `LOAD_ALL` : Does everything `LOAD` does, and also returns all unmapped fields in a
           single `_unmapped_fields` column. That column holds, for each row, a JSON object of the row's unmapped `_source` fields.
           Refer to [Load all unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all).
           {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
@@ -196,14 +196,14 @@ public final class QuerySettings {
     @Param(
         name = "wildcards_match_datasets",
         type = { "boolean" },
-        // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, and
-        // every page documenting that feature is stack: preview / serverless: unavailable. Deriving it from
-        // preview() would instead claim the setting is available in preview on serverless, where the feature is not
-        // enabled at all. applies_to carries the version, so declaring since too is rejected by the renderer.
-        applies_to = "serverless: unavailable\nstack: preview 9.6+",
+        // Stated rather than derived, and therefore without `since`: this setting belongs to Data Federation, so its
+        // applies_to follows the Data Federation pages rather than the setting's own lifecycle.
+        // applies_to carries the version, so declaring since too is rejected by the renderer.
+        applies_to = "serverless: preview\nstack: preview 9.6+",
         description = "When enabled, a wildcard in `FROM` also matches registered datasets."
             + " Defaults to `false`, so a wildcard does not match a dataset and a dataset is reached by its"
             + " exact name. Other abstractions a wildcard matches are unaffected.\n\n"
+            + "{applies_to}`{\"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.wildcards_match_datasets` cluster setting supplies it. If that cluster setting is not "
             + "configured either, the value is `false`."

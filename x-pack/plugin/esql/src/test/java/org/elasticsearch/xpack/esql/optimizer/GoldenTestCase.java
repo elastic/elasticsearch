@@ -271,6 +271,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
         private boolean singleConcreteIndex;
+        private boolean withoutVerification;
         private EsqlFlags flags = EsqlFlags.withFetchPhase(EsqlFlags.FetchPhaseMode.DISABLED);
 
         private TestBuilder(
@@ -439,6 +440,15 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public TestBuilder singleConcreteIndex() {
             this.singleConcreteIndex = true;
+            return this;
+        }
+
+        /**
+         * Run the analysis rules and keep planning when verification would reject the query, so the golden files
+         * record that plan shape.
+         */
+        public TestBuilder withoutVerification() {
+            this.withoutVerification = true;
             return this;
         }
 
@@ -647,7 +657,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 requestFilter,
                 views,
                 singleConcreteIndex,
-                flags
+                flags,
+                withoutVerification
             );
         }
 
@@ -797,7 +808,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         QueryBuilder requestFilter,
         Map<String, String> views,
         boolean singleConcreteIndex,
-        EsqlFlags flags
+        EsqlFlags flags,
+        boolean withoutVerification
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -873,7 +885,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
             var configuration = EsqlTestUtils.configuration(QueryPragmas.EMPTY, esqlQuery, statement);
-            var analyzed = analyzer.analyze(parsedPlan);
+            var analyzed = withoutVerification ? analyzer.analyzeWithoutVerification(parsedPlan) : analyzer.analyze(parsedPlan);
             if (requestFilter != null) {
                 // Mirror EsqlSession: the request filter is installed on the analyzed plan, before optimization.
                 analyzed = RequestFilterRewriter.rewrite(analyzed, requestFilter, configuration, transportVersion, true);

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165753
+pr: 166786
+summary: Resolve a grouping that an unmapped field shadows to the last one of its name
+type: bug

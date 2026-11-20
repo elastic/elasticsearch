@@ -334,8 +334,15 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         );
         // Naming the object is why this refusal is typed, and typing it moved what a client reads: it answered an
         // untyped argument error before, so error.type was illegal_argument_exception and the reason carried this
-        // diagnosis alone. Pinned here because the error-surface IT has no failing NDJSON probe, so nothing else
-        // would show the move. CsvFormatReaderTests pins the same boundary for the CSV refusals.
+        // diagnosis alone.
+        //
+        // What this pins is the reader's own exception -- its condition prefix and its diagnosis -- and not the REST
+        // contract above it: it would still pass if a layer in between replaced the diagnosis with a generic 400.
+        // ExternalSourceResolverTests pins the hop that would do the replacing, for a typed refusal of any format.
+        // The end-to-end rendering is pinned for the CSV refusals by ExternalErrorSurfaceIT and is NOT pinned for
+        // this one, which has no probe there: the budget is a reader-level 32 MB default with no dataset setting to
+        // lower it, so a failing NDJSON probe for this condition needs a fixture with a first line over 32 MB. That
+        // is the reason the surface has no failing NDJSON object, and why this move had to be caught by reading.
         assertTrue(
             "a typed refusal must open with the condition's prefix, got: " + e.getMessage(),
             e.getMessage().startsWith("Malformed external data: ")

@@ -5,6 +5,8 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.internal.antlr.PostProcessAntlrSourcesTask
+
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -87,31 +89,17 @@ tasks.register("regenParser", JavaExec) {
     "${file(grammarPath)}/KqlBase.g4"
 }
 
-tasks.register("regen") {
+tasks.register("regen", PostProcessAntlrSourcesTask) {
   dependsOn "regenParser"
-  doLast {
-    // moves token files to grammar directory for use with IDE's
-    ant.move(file: "${outputPath}/KqlBase.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/KqlBaseLexer.tokens", toDir: grammarPath)
-    // make the generated classes package private
-    ant.replaceregexp(match: 'public ((interface|class) \\QKqlBase\\E\\w+)',
-      replace: '\\1',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'KqlBase*.java')
-    }
-    // nuke timestamps/filenames in generated files
-    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
-      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'KqlBase*.java')
-    }
-    // remove tabs in antlr generated files
-    ant.replaceregexp(match: '\t', flags: 'g', replace: '    ', encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'KqlBase*.java')
-    }
-    // fix line endings
-    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-      patternset(includes: 'KqlBase*.java')
-    }
-  }
+  generatedSourcesDir = file(outputPath)
+  // moves token files to grammar directory for use with IDE's
+  tokensDir = file(grammarPath)
+  tokenFiles = ["KqlBase.tokens", "KqlBaseLexer.tokens"]
+  // make the generated classes package private
+  replaceFirst('KqlBase*.java', 'public ((interface|class) \\QKqlBase\\E\\w+)', '$1')
+  // nuke timestamps/filenames in generated files
+  replaceFirst('KqlBase*.java', '\\Q// Generated from \\E.*', '// ANTLR GENERATED CODE: DO NOT EDIT')
+  // remove tabs in antlr generated files
+  replaceAll('KqlBase*.java', '\t', '    ')
+  fixLineEndings('KqlBase*.java')
 }

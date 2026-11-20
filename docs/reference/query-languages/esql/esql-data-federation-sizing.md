@@ -26,6 +26,8 @@ For data held in {{es}} indices, refer to [size your shards](docs-content://depl
 * **Do not raise heap past 31 GB.** Scale horizontally across nodes instead.
 * **Write files of tens of megabytes up to about 1 GB**, enough of them to keep every core busy.
 
+These figures are starting points, not targets. How a dataset behaves depends on characteristics of your own data — how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects — so a configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
+
 ## Background [background]
 
 Data federation and index workloads share the same query engine, but their read paths differ. Aggregation, filtering, sorting and the rest of the {{esql}} pipeline are the same code, so a dataset supports the same commands and functions an index does, with [known exceptions](esql-data-federation-querying.md#limitations).
@@ -99,22 +101,6 @@ Data federation queries scale with the number of cores, and their scan time is p
 
 If you want your queries to run faster, add cores and the heap that goes with them. For compressed text, add those cores as more nodes rather than as a wider one.
 
-## Troubleshoot [troubleshoot]
-
-### `circuit_breaking_exception` with `[parent] Data too large` [parent-breaker]
-
-The node is holding more than it can collect. Lower [`esql.external.max_concurrent_requests`](#lower-concurrency) first. Adding heap may not help on its own.
-
-Not all of the memory this workload holds is attributed to the query that allocated it, so the error may name an unrelated operation rather than the read that filled the heap. Refer to [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
-
-### `circuit_breaking_exception` with `[request] Data too large` [request-breaker]
-
-On a text format, this is usually schema inference at planning time. [Specify a mapping](#declare-schema) with `dynamic` set to `false`. If you already have, this is the case that does need more heap.
-
-### Queries slow under load but still succeeding [contended]
-
-The file readers are contended rather than exhausted. Lower [`esql.external.max_concurrent_requests`](#lower-concurrency), or add nodes.
-
 ## Example configurations [examples]
 
 Each of these is sized for **twelve concurrent queries**.
@@ -165,3 +151,26 @@ Inference is what separates the two columns, and on a schema this wide it is the
 These figures come from a number of experiments and from the architecture of the read paths themselves.
 
 They are given for cold reads: every query is assumed to fetch its data from object storage rather than from a cache.
+
+## Troubleshoot [troubleshoot]
+
+Because the figures on this page are starting points rather than targets, the configuration you end up with should be the one your own data asks for. Watch for the following as you load it up:
+
+* **Circuit breaker rejections**, which mean the node is holding more than it can collect. These are the loud failure and are covered below.
+* **Queries slowing as concurrency rises** without any rejection, which means readers are contended rather than exhausted.
+* **Query times that scale worse than the data they read**, which usually points at too few files, or at compressed text files too large to divide.
+* **Planning time growing with your file count**, which points at schema inference or, on Parquet, at footer reads on the coordinating node.
+
+### `circuit_breaking_exception` with `[parent] Data too large` [parent-breaker]
+
+The node is holding more than it can collect. Lower [`esql.external.max_concurrent_requests`](#lower-concurrency) first. Adding heap may not help on its own.
+
+Not all of the memory this workload holds is attributed to the query that allocated it, so the error may name an unrelated operation rather than the read that filled the heap. Refer to [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
+
+### `circuit_breaking_exception` with `[request] Data too large` [request-breaker]
+
+On a text format, this is usually schema inference at planning time. [Specify a mapping](#declare-schema) with `dynamic` set to `false`. If you already have, this is the case that does need more heap.
+
+### Queries slow under load but still succeeding [contended]
+
+The file readers are contended rather than exhausted. Lower [`esql.external.max_concurrent_requests`](#lower-concurrency), or add nodes.

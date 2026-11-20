@@ -904,7 +904,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         long totalShardBytesToWarm = 0L;
         for (var evaluation : evaluations) {
             final var warmingInfo = evaluation.sourceShardWarmingInfo();
-            assertNotNull("the source answered before the plan was computed", warmingInfo);
+            assertNotNull("no source shard warming info for " + evaluation.shardId(), warmingInfo);
             assertThat(warmingInfo.shardBytesToWarm(), greaterThan(0L));
             assertThat(warmingInfo.sourceBytesToWarm(), equalTo(sourceBytesToWarm));
             assertThat(warmingInfo.sourceBytesToWarm(), greaterThan(warmingInfo.shardBytesToWarm()));

@@ -107,9 +107,9 @@ Both of these size a cluster for 10 concurrent queries.
 
 The [TLC trip record data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) is published as 1 Parquet file per month, of 50 MB to 110 MB. 5 years is about 60 files.
 
-Parquet, so the initial heap is 2 GB. At 1 core per 8 to 10 concurrent queries, 10 concurrent queries need 2 cores. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB.
+Parquet, so the initial heap is 2 GB. At 1 core per 8 to 10 concurrent queries, 10 concurrent queries need 1 to 2 cores, so the 2-core minimum governs. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB.
 
-Start with 1 node, with 2 cores and 4 GB of heap on it.
+Start with 1 node, with at least 2 cores and at least 4 GB of heap.
 
 ### Backblaze drive stats, gzipped CSV [example-backblaze]
 
@@ -117,22 +117,22 @@ Start with 1 node, with 2 cores and 4 GB of heap on it.
 
 Compressed text, so the initial heap is 4 GB. At 1 core per 3 to 4 concurrent queries, 10 concurrent queries need 3 to 4 cores. Compressed text serves fewer concurrent queries as a node widens, so those cores belong on separate nodes: 2 nodes of 2 cores each. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB, so the initial 4 GB governs.
 
-Start with 2 nodes, each with 2 cores and 4 GB of heap.
+Start with 2 nodes, each with at least 2 cores and at least 4 GB of heap.
 
-With the schema inferred, add 2 GB to 4 GB of heap on the coordinating node.
+With the schema inferred, add 2 GB to 4 GB of heap.
 
 ## Troubleshoot [troubleshoot]
 
 Because the figures on this page are starting points, the configuration you end up with should be the one your own data asks for. Watch for the following as you load it up:
 
-* **Circuit breaker rejections**, which mean the node is holding more than it can collect.
+* **Circuit breaker rejections**, which mean there is insufficient memory for the workload.
 * **Queries slowing as concurrency rises** without any rejection, which means readers are contended rather than exhausted.
 * **Query times that do not improve when you add capacity**, which points at the file layout rather than the cluster: too few files, or compressed text files too large to divide, leave the extra cores with nothing to pick up.
 * **Planning time growing with your file count**, which points at schema inference or, on Parquet, at footer reads on the coordinating node.
 
 ### `circuit_breaking_exception` with `Data too large` [breaker]
 
-A circuit breaker has rejected the query because the node is holding more than it can collect. Give the instance more memory, and raise the heap with it. If you add cores at the same time, scale the heap with those too, at 1 GB to 2 GB per core.
+A circuit breaker has rejected the query because there is insufficient memory for the workload. Give the instance more memory, and raise the heap with it. If you add cores at the same time, scale the heap with those too, at 1 GB to 2 GB per core.
 
 On a text dataset, the usual cause is schema inference at planning time. [Specify a mapping](#declare-schema) with `dynamic` set to `false` first, which removes that cost instead of paying for it.
 

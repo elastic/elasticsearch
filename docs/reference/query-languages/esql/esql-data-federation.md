@@ -3,7 +3,7 @@ navigation_title: "Data Federation"
 description: "Query data stored in external cloud storage using ES|QL without ingesting it into Elasticsearch."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -12,17 +12,14 @@ products:
 
 You can query data stored in compatible external data sources, using the same syntax you use for native indices and other index abstractions, without any ingestion into {{es}}. You query the files in place: nothing is copied into {{es}}, and there is no mapping to define up front: the schema is discovered from the files.
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 ## Requirements
 
 Before using {{esql}} Data Federation, review the following requirements and limitations:
 
-- {applies_to}`stack: experimental =9.5` This feature is not enabled by default. Refer to [](#enable-the-feature).
+- Ensure the [feature is turned on](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 - To use the {{esql}} Data Federation UI in {{kib}}, you need the cluster `manage` privilege.
-- Currently, this feature is not supported on Windows.
+- {applies_to}`self:` This feature is not available on Windows.
 
 ## Turn the feature on or off [enable-the-feature]
 
@@ -31,6 +28,15 @@ Before using {{esql}} Data Federation, review the following requirements and lim
 **{{es}}**
 
 :::::{applies-switch}
+
+::::{applies-item} serverless: preview
+{{esql}} Data Federation is on and can't be turned off.
+
+:::{tip}
+:applies_to: elasticsearch: preview
+To pre-scale the Search tier for more query load, refer to [](esql-data-federation-querying.md#next-steps).
+:::
+::::
 
 ::::{applies-item} stack: preview 9.6+
 {{esql}} Data Federation is on by default. To turn it off, set the following in the {{es}} configuration on every node in your cluster:
@@ -62,7 +68,7 @@ The {{kib}} UI lets you connect data sources and add datasets without using the 
 
 :::::{applies-switch}
 
-::::{applies-item} stack: preview 9.6+
+::::{applies-item} { "stack": "preview 9.6+", "serverless": "preview" }
 The UI is on by default. To turn it off:
 
 1. Find **Advanced settings** in the navigation menu or use the global search field, then select the **Global Settings** tab.
@@ -72,7 +78,7 @@ The UI is on by default. To turn it off:
 3. Click **Save changes**, then reload the page.
 
 :::{note}
-The setting applies to all spaces. Turning it off hides the UI only. Unless Data Federation is turned off in {{es}}, you can still manage data sources and datasets with the API and query datasets with {{esql}}. To learn more, refer to [global advanced settings](kibana://reference/advanced-settings.md#kibana-global-settings-reference).
+The setting applies to all spaces. Turning it off hides the UI only. You can still manage data sources and datasets with the API and query datasets with {{esql}}. To learn more, refer to [global advanced settings](kibana://reference/advanced-settings.md#kibana-global-settings-reference).
 :::
 
 ::::
@@ -99,6 +105,10 @@ Many organizations store large volumes of data in cloud object storage for cost 
 - **One language for all your data.** Use the same {{esql}} syntax for both indexed data and external data. No context-switching, no second query engine.
 - **No extra infrastructure.** Query external data natively in {{es}} without deploying or managing additional compute services, catalogs, or connectors.
 - **Progressive acceleration.** Start by querying raw data directly in object storage. When specific datasets need faster performance, promote them into {{es}} for indexed search. Both tiers stay queryable with the same {{esql}} syntax.
+
+:::{note}
+Your storage provider bills for the requests and data transfer that each federated query generates. For details, refer to [](esql-data-federation-costs.md).
+:::
 
 ## How it works
 
@@ -154,14 +164,18 @@ Federated data sources support Parquet, NDJSON, CSV, and TSV files. Each dataset
 
 Datasets behave like indices. In most places where {{esql}} accepts an index name, it accepts a dataset name too: `FROM`, `WHERE`, `STATS`, `SORT`, `EVAL`, `KEEP`, and the rest of the processing commands work the same way, on the same execution engine used for native indices. You can query a dataset on its own, or alongside indices, aliases, and views, in the same `FROM`.
 
-The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata: `KNN`, `LOOKUP JOIN` with a dataset as the lookup target, and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
+The exceptions are operations that need structures only an {{es}} index has, such as the inverted index, doc values, or time series metadata: `LOOKUP JOIN` with a dataset as the lookup target and `TS` each fail with a clear error rather than returning wrong results. For the full list, refer to [query limitations](esql-data-federation-querying.md#limitations).
+
+- {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` `KNN` works on `dense_vector` columns in a dataset and performs an exact search over every row.
+- {applies_to}`stack: experimental =9.5` `KNN` fails on datasets.
 
 Relevance scoring works differently for datasets:
 
-- {applies_to}`stack: preview 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
+- {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
+- {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` `KNN` contributes to `_score` using the same vector similarity scoring as for an indexed `dense_vector` field, but computed by an exact search over every row rather than an approximate one.
 - {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
 
-{{esql}} Data Federation is not currently supported on Windows.
+{applies_to}`self:` {{esql}} Data Federation is not available on Windows.
 
 ## Get started
 
@@ -187,6 +201,9 @@ Use the following pages to configure, query, and administer federated data:
 
 [Query datasets](esql-data-federation-querying.md)
 :   Learn how the engine reduces storage reads, query external and indexed data together, review current limitations, and troubleshoot common issues.
+
+[Costs](esql-data-federation-costs.md)
+:   Understand the storage provider and Elastic costs of querying external data.
 
 [Manage access](esql-data-federation-security.md)
 :   Control access to data sources and datasets, encrypt credentials, and configure privileges.

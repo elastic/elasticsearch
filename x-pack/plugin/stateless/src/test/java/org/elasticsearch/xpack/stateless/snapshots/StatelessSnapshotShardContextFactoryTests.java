@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -56,7 +57,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.junit.After;
@@ -152,7 +153,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
                 Map.of(
                     randomIdentifier(),
                     new BlobLocation(
-                        new BlobFile("stateless_commit_" + generation, new PrimaryTermAndGeneration(1L, generation)),
+                        new BccBlob("stateless_commit_" + generation, new PrimaryTermAndGeneration(1L, generation)),
                         randomLongBetween(0, 50),
                         randomLongBetween(1, 900)
                     )
@@ -299,7 +300,7 @@ public class StatelessSnapshotShardContextFactoryTests extends ESTestCase {
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"),
                     ShardRouting.Role.INDEX_ONLY,
-                    ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+                    RecoveryPriority.UNASSIGNED_NEW_PRIMARY
                 ),
                 nodeId
             )

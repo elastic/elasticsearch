@@ -449,12 +449,9 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                 return true;
             }
             if (current instanceof SearchPhaseExecutionException spe) {
-                ShardSearchFailure[] shardFailures = spe.shardFailures();
-                if (shardFailures != null) {
-                    for (ShardSearchFailure shardFailure : shardFailures) {
-                        if (ExceptionsHelper.unwrapCause(shardFailure.getCause()) instanceof NoShardAvailableActionException) {
-                            return true;
-                        }
+                for (ShardSearchFailure shardFailure : spe.shardFailures()) {
+                    if (ExceptionsHelper.unwrapCause(shardFailure.getCause()) instanceof NoShardAvailableActionException) {
+                        return true;
                     }
                 }
             }

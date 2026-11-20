@@ -241,9 +241,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
             + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/pull/141196
 
-        // _doc field unexpectedly appearing in output after FORK
-        "Output has changed from \\[.*\\] to \\[.*_doc.*\\]", // https://github.com/elastic/elasticsearch/issues/146856
-
         // TopNOperator type mismatch in ValueExtractor
         "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor", // https://github.com/elastic/elasticsearch/issues/146850
 
@@ -639,8 +636,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isFullTextNullQueryBuilderUnmappedLoadBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
@@ -1431,50 +1426,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return UNRESOLVED_OBJECT_PATTERN.matcher(errorMessage).matches() && KEEP_WILDCARD_COMMAND_PATTERN.matcher(query).find();
-    }
-
-    private static final Pattern FORK_WITH_SORT_BRANCH_PATTERN = Pattern.compile(
-        "(?is)\\bFORK\\b.*\\bSORT\\b.*\\|\\s*WHERE\\s+_fork\\s*=="
-    );
-
-    /**
-     * FORK with an in-branch SORT on a field that becomes unused after the FORK currently
-     * triggers two distinct bugs depending on the surrounding pipeline:
-     * <ul>
-     *   <li>{@code Plan [OrderBy[...]] optimized incorrectly due to missing references [...]}
-     *       — see <a href="https://github.com/elastic/elasticsearch/issues/148382">#148382</a></li>
-     *   <li>{@code ClassCastException} between compute {@code Block} subclasses (e.g.
-     *       {@code BytesRefArrayBlock} cast to {@code IntBlock}) downstream of the FORK
-     *       — see <a href="https://github.com/elastic/elasticsearch/issues/148386">#148386</a></li>
-     * </ul>
-     */
-    static boolean isForkWithSortBranchBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false
-            && COMPUTE_BLOCK_CLASS_CAST_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        return FORK_WITH_SORT_BRANCH_PATTERN.matcher(query).find();
-    }
-
-    private static final Pattern ARRAY_INDEX_OUT_OF_BOUNDS_PATTERN = Pattern.compile(
-        ".*array_index_out_of_bounds_exception.*Index \\d+ out of bounds for length \\d+.*",
-        Pattern.DOTALL
-    );
-
-    /**
-     * See https://github.com/elastic/elasticsearch/issues/148475
-     */
-    static boolean isForkTopNIndexOutOfBoundsBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        if (ARRAY_INDEX_OUT_OF_BOUNDS_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        return FORK_COMMAND_PATTERN.matcher(query).find();
     }
 
     private static final Pattern OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(

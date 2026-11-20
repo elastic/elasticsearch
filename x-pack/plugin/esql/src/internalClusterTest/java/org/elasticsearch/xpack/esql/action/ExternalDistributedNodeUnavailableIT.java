@@ -21,6 +21,7 @@ import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,8 +46,9 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * An external scan must reassign splits when a worker is already unreachable
  * at dispatch, whether its connection fails or it has left the cluster state
- * since planning, and must not return a complete answer that omitted that
- * worker's files.
+ * since planning, and when a worker leaves after its request has been sent
+ * but before it streamed a page. It must not return a complete answer that
+ * omitted that worker's files.
  */
 public class ExternalDistributedNodeUnavailableIT extends AbstractExternalDataSourceIT {
 
@@ -79,6 +82,16 @@ public class ExternalDistributedNodeUnavailableIT extends AbstractExternalDataSo
 
     public void testUnreachableNodeAtDispatchIsReassignedWhenPartialResultsDisallowed() throws Exception {
         runUnreachableNodeAtDispatch(false);
+    }
+
+    @TestLogging(value = DISPATCH_LOGGER + ":DEBUG", reason = "asserts the disconnected worker's splits were rerouted")
+    public void testNodeLostAfterDispatchIsReassigned() throws Exception {
+        runNodeLostAfterDispatch(true);
+    }
+
+    @TestLogging(value = DISPATCH_LOGGER + ":DEBUG", reason = "asserts the disconnected worker's splits were rerouted")
+    public void testNodeLostAfterDispatchIsReassignedWhenPartialResultsDisallowed() throws Exception {
+        runNodeLostAfterDispatch(false);
     }
 
     @TestLogging(
@@ -187,6 +200,73 @@ public class ExternalDistributedNodeUnavailableIT extends AbstractExternalDataSo
             }
             // A missing reassignment log fails the test on its own, including when the query
             // errors or a response assertion fails. The earlier failure is suppressed on that one.
+            try (var response = future.actionGet(TIMEOUT)) {
+                assertThat(response.isPartial(), equalTo(false));
+                assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
+            } finally {
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
+    /**
+     * A worker that has already been sent its {@code DATA_ACTION} request and then leaves must not fail
+     * the query: those splits are interchangeable, the same as at dispatch, as long as the coordinator
+     * has not yet taken a page from that worker.
+     * <p>
+     * The victim's handler acknowledges the request and does not run it, so no thread is parked inside
+     * the worker (InternalTestCluster requires a stopped node to close within ten seconds) and the
+     * coordinator has fetched no pages. Stopping the node then fails both the data-action and the
+     * exchange channels; the walk hops the splits onto the surviving worker.
+     */
+    private void runNodeLostAfterDispatch(boolean allowPartial) throws Exception {
+        List<String> started = internalCluster().startDataOnlyNodes(3);
+        String coordinator = started.get(0);
+        List<String> workers = started.subList(1, started.size());
+        DistributedScan scan = scanOn("node_lost_after_dispatch_" + allowPartial, coordinator, workers.get(0));
+        String victim;
+        try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, request(scan.query, true)).actionGet(TIMEOUT)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
+            Set<String> scanNodes = externalScanNodeNames(response);
+            victim = null;
+            for (String worker : workers) {
+                if (scanNodes.contains(worker)) {
+                    victim = worker;
+                    break;
+                }
+            }
+            assertThat("the node stopped below must be assigned splits", victim, notNullValue());
+        }
+
+        CountDownLatch received = new CountDownLatch(1);
+        var victimTransport = MockTransportService.getInstance(victim);
+        victimTransport.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+            received.countDown();
+            // Leave unanswered: the node is about to leave, and answering would let it stream pages.
+        });
+        var faulted = request(scan.query, false);
+        faulted.allowPartialResults(allowPartial);
+        try (var mockLog = MockLog.capture(DISPATCH_LOGGER)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "splits rerouted off the stopped worker",
+                    DISPATCH_LOGGER,
+                    Level.DEBUG,
+                    "external worker [*] failed before streaming; rerouting [*]*"
+                )
+            );
+            ActionFuture<EsqlQueryResponse> future = client(coordinator).execute(EsqlQueryAction.INSTANCE, faulted);
+            boolean stopped = false;
+            try {
+                safeAwait(received, TIMEOUT);
+                assertTrue(internalCluster().stopNode(victim));
+                stopped = true;
+            } finally {
+                victimTransport.clearAllRules();
+                if (stopped == false) {
+                    drainQuery(future);
+                }
+            }
             try (var response = future.actionGet(TIMEOUT)) {
                 assertThat(response.isPartial(), equalTo(false));
                 assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -54,9 +55,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
-import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
+import org.elasticsearch.plugins.internal.RestoreProjectCustomUpdater;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -65,11 +67,13 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestProjectCustomMetadata;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -81,6 +85,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -284,6 +289,63 @@ public class RestoreServiceTests extends ESTestCase {
         assertEquals(renamedDataStreamName, renamedDataStream.getName());
         assertEquals(List.of(renamedBackingIndex), renamedDataStream.getIndices());
         assertEquals(List.of(renamedFailureIndex), renamedDataStream.getFailureIndices());
+    }
+
+    public void testRestoreDataStreamMatchingSystemIndexPatternFails() {
+        List<DataStream> dataStreams = Stream.of(".my-system-idx-a", ".my-system-idx-b", "data-stream-1")
+            .map(name -> DataStreamTestHelper.newInstance(name, List.of(new Index(DataStream.getDefaultBackingIndexName(name, 1), "uuid"))))
+            .toList();
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), "repository", new SnapshotId("name", "uuid"));
+
+        SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.ensureNoDataStreamMatchesSystemIndexPattern(
+                dataStreams,
+                new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT),
+                systemIndicesWithPattern(".my-system-idx*"),
+                snapshot
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "cannot restore data streams matching system index patterns: [.my-system-idx-a] matches [.my-system-idx*], "
+                    + "[.my-system-idx-b] matches [.my-system-idx*]; rename or exclude them"
+            )
+        );
+    }
+
+    public void testRenameDataStreamIntoSystemIndexPatternFails() {
+        DataStream dataStream = DataStreamTestHelper.newInstance(
+            "data-stream-1",
+            List.of(new Index(DataStream.getDefaultBackingIndexName("data-stream-1", 1), randomUUID()))
+        );
+        Snapshot snapshot = new Snapshot(randomProjectIdOrDefault(), "repository", new SnapshotId("name", "uuid"));
+        RestoreSnapshotRequest request = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT).renamePattern("data-stream-1")
+            .renameReplacement(".my-system-idx-ds");
+
+        SnapshotRestoreException e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.ensureNoDataStreamMatchesSystemIndexPattern(
+                List.of(dataStream),
+                request,
+                systemIndicesWithPattern(".my-system-idx*"),
+                snapshot
+            )
+        );
+        assertThat(e.getMessage(), containsString("[data-stream-1] as [.my-system-idx-ds] matches [.my-system-idx*]"));
+    }
+
+    private static SystemIndices systemIndicesWithPattern(String indexPattern) {
+        return new SystemIndices(
+            List.of(
+                new SystemIndices.Feature(
+                    "test-feature",
+                    "a test feature",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(indexPattern, "test"))
+                )
+            )
+        );
     }
 
     public void testPrefixNotChanged() {
@@ -1169,10 +1231,10 @@ public class RestoreServiceTests extends ESTestCase {
 
     /** Builds a minimal mocked {@link RestoreService} so instance methods can be exercised without a full cluster. */
     private RestoreService createMinimalRestoreService() {
-        return createMinimalRestoreService(RestoreLifecycleListener.NOOP);
+        return createMinimalRestoreService(RestoreProjectCustomUpdater.NOOP);
     }
 
-    private RestoreService createMinimalRestoreService(RestoreLifecycleListener restoreLifecycleListener) {
+    private RestoreService createMinimalRestoreService(RestoreProjectCustomUpdater customUpdater) {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         when(clusterService.getClusterSettings()).thenReturn(
@@ -1194,7 +1256,7 @@ public class RestoreServiceTests extends ESTestCase {
             false,
             IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
             mock(FeatureService.class),
-            restoreLifecycleListener
+            customUpdater
         );
     }
 
@@ -1213,7 +1275,16 @@ public class RestoreServiceTests extends ESTestCase {
                 Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(nodeId, RestoreInProgress.State.SUCCESS))
             )
         ).build();
-        return ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip).build();
+        return withProject(snapshot.getProjectId(), ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip))
+            .build();
+    }
+
+    /** Adds the project, if it is not there already, which is where an updater maintains its custom. */
+    private static ClusterState.Builder withProject(ProjectId projectId, ClusterState.Builder builder) {
+        final ClusterState base = builder.build();
+        return base.metadata().projects().containsKey(projectId)
+            ? ClusterState.builder(base)
+            : ClusterState.builder(base).putProjectMetadata(ProjectMetadata.builder(projectId));
     }
 
     /** Builds a {@link ClusterState} that contains one still-active {@link RestoreInProgress} entry. */
@@ -1234,19 +1305,55 @@ public class RestoreServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip).build();
     }
 
-    /** Builds a listener that applies {@code onCompleted} on completion and defaults on initialization. */
-    private static RestoreLifecycleListener completionListener(
-        BiFunction<RestoreInProgress.Entry, ClusterState, ClusterState> onCompleted
-    ) {
-        return new RestoreLifecycleListener() {
+    private static final String CUSTOM_TYPE = "test_restore_custom";
+
+    /** The custom that the updaters in these tests maintain: it records the order in which restores were seen. */
+    private static class SeenRestores extends TestProjectCustomMetadata {
+        SeenRestores(String data) {
+            super(data);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return CUSTOM_TYPE;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
+
+        @Override
+        public EnumSet<Metadata.XContentContext> context() {
+            return Metadata.ALL_CONTEXTS;
+        }
+    }
+
+    @FunctionalInterface
+    private interface CompletionFunction {
+        Metadata.ProjectCustom apply(RestoreInProgress.Entry entry, ProjectMetadata project, Metadata.ProjectCustom current);
+    }
+
+    /** Builds an updater that applies {@code onCompleted} on completion and leaves the custom as it is on initialization. */
+    private static RestoreProjectCustomUpdater completionUpdater(CompletionFunction onCompleted) {
+        return new RestoreProjectCustomUpdater() {
             @Override
-            public ClusterState onRestoreCompleted(RestoreInProgress.Entry entry, ClusterState state) {
-                return onCompleted.apply(entry, state);
+            public String projectCustomType() {
+                return CUSTOM_TYPE;
+            }
+
+            @Override
+            public Metadata.ProjectCustom onRestoreCompleted(
+                RestoreInProgress.Entry entry,
+                ProjectMetadata project,
+                Metadata.ProjectCustom current
+            ) {
+                return onCompleted.apply(entry, project, current);
             }
         };
     }
 
-    public void testSetLifecycleListenerCannotBeNull() {
+    public void testSetCustomUpdaterCannotBeNull() {
         expectThrows(NullPointerException.class, () -> createMinimalRestoreService(null));
     }
 
@@ -1271,9 +1378,9 @@ public class RestoreServiceTests extends ESTestCase {
 
     public void testOnRestoreCompletedCalledForCompletedEntry() {
         AtomicInteger callCount = new AtomicInteger(0);
-        RestoreService service = createMinimalRestoreService(completionListener((entry, state) -> {
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, project, current) -> {
             callCount.incrementAndGet();
-            return state;
+            return current;
         }));
 
         ClusterState result = service.executeRestoreCleanup(stateWithCompletedRestore());
@@ -1284,9 +1391,9 @@ public class RestoreServiceTests extends ESTestCase {
 
     public void testOnRestoreCompletedNotCalledForActiveEntry() {
         AtomicInteger callCount = new AtomicInteger(0);
-        RestoreService service = createMinimalRestoreService(completionListener((entry, state) -> {
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, project, current) -> {
             callCount.incrementAndGet();
-            return state;
+            return current;
         }));
 
         ClusterState input = stateWithActiveRestore();
@@ -1296,7 +1403,7 @@ public class RestoreServiceTests extends ESTestCase {
         assertSame(input, result);
     }
 
-    public void testDefaultNoopListenerPreservesClusterState() {
+    public void testDefaultNoopUpdaterPreservesClusterState() {
         RestoreService service = createMinimalRestoreService();
 
         ClusterState withActive = stateWithActiveRestore();
@@ -1305,6 +1412,8 @@ public class RestoreServiceTests extends ESTestCase {
         ClusterState withCompleted = stateWithCompletedRestore();
         ClusterState cleaned = service.executeRestoreCleanup(withCompleted);
         assertTrue(RestoreInProgress.get(cleaned).isEmpty());
+        // Nothing was maintained, so no project was rebuilt.
+        assertSame(withCompleted.metadata(), cleaned.metadata());
     }
 
     /**
@@ -1333,52 +1442,167 @@ public class RestoreServiceTests extends ESTestCase {
         assertTrue(cleaned.get(runningUuid).reportShardRestoring());
     }
 
-    public void testOnRestoreCompletedReceivesEntryAndCanModifyState() {
-
+    public void testOnRestoreCompletedReceivesEntryAndProjectAndItsResultIsPublished() {
         List<RestoreInProgress.Entry> capturedEntries = new ArrayList<>();
-        RestoreService service = createMinimalRestoreService(completionListener((entry, state) -> {
+        List<ProjectId> capturedProjects = new ArrayList<>();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, project, current) -> {
             capturedEntries.add(entry);
-            return ClusterState.builder(state).version(state.version() + 1).build();
+            capturedProjects.add(project.id());
+            assertNull(current);
+            return new SeenRestores(entry.uuid());
         }));
 
         ClusterState input = stateWithCompletedRestore();
         RestoreInProgress.Entry expectedEntry = RestoreInProgress.get(input).iterator().next();
-        long initialVersion = input.version();
 
         ClusterState result = service.executeRestoreCleanup(input);
 
         assertEquals(List.of(expectedEntry), capturedEntries);
-        assertEquals(initialVersion + 1, result.version());
+        assertEquals(List.of(expectedEntry.snapshot().getProjectId()), capturedProjects);
+        assertEquals(
+            new SeenRestores(expectedEntry.uuid()),
+            result.metadata().getProject(expectedEntry.snapshot().getProjectId()).custom(CUSTOM_TYPE)
+        );
+        assertTrue(RestoreInProgress.get(result).isEmpty());
+    }
+
+    /** Several entries of one project are completed in one update, and each is given what the ones before it made. */
+    public void testCompletionsOfOneProjectInOnePassSeeEachOthersCustom() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final var builder = new RestoreInProgress.Builder();
+        final List<String> uuids = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            final ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+            final String uuid = UUIDs.randomBase64UUID();
+            uuids.add(uuid);
+            builder.add(
+                new RestoreInProgress.Entry(
+                    uuid,
+                    new Snapshot(projectId, randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID())),
+                    RestoreInProgress.State.SUCCESS,
+                    false,
+                    List.of(shardId.getIndexName()),
+                    Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(randomUUID(), RestoreInProgress.State.SUCCESS))
+                )
+            );
+        }
+        final var input = withProject(
+            projectId,
+            ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, builder.build())
+        ).build();
+        final RestoreService service = createMinimalRestoreService(
+            completionUpdater(
+                (entry, project, current) -> new SeenRestores(
+                    (current == null ? "" : ((SeenRestores) current).getData() + ",") + entry.uuid()
+                )
+            )
+        );
+
+        final ClusterState result = service.executeRestoreCleanup(input);
+
+        final var seen = (SeenRestores) result.metadata().getProject(projectId).custom(CUSTOM_TYPE);
+        assertEquals(Set.copyOf(uuids), Set.of(seen.getData().split(",")));
+        assertEquals(3, seen.getData().split(",").length);
+        assertTrue(RestoreInProgress.get(result).isEmpty());
+    }
+
+    /** Only the project whose custom changed is replaced: the others are the same instances afterwards. */
+    public void testOnlyTheProjectWhoseCustomChangedIsReplaced() {
+        final ProjectId updatedProject = randomUniqueProjectId();
+        final ProjectId otherProject = randomUniqueProjectId();
+        final ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        final var rip = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                UUIDs.randomBase64UUID(),
+                new Snapshot(updatedProject, randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID())),
+                RestoreInProgress.State.SUCCESS,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(randomUUID(), RestoreInProgress.State.SUCCESS))
+            )
+        ).build();
+        final ClusterState input = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .putProjectMetadata(ProjectMetadata.builder(updatedProject))
+            .putProjectMetadata(ProjectMetadata.builder(otherProject))
+            .putCustom(RestoreInProgress.TYPE, rip)
+            .build();
+        RestoreService service = createMinimalRestoreService(
+            completionUpdater((entry, project, current) -> new SeenRestores(entry.uuid()))
+        );
+
+        final ClusterState result = service.executeRestoreCleanup(input);
+
+        assertNotNull(result.metadata().getProject(updatedProject).custom(CUSTOM_TYPE));
+        assertSame(input.metadata().getProject(otherProject), result.metadata().getProject(otherProject));
+    }
+
+    /** Returning {@code null} leaves the project's custom as it is, including when it has none. */
+    public void testAnUpdaterThatReturnsNullLeavesTheCustomAlone() {
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, project, current) -> null));
+
+        ClusterState input = stateWithCompletedRestore();
+        ClusterState result = service.executeRestoreCleanup(input);
+
+        final ProjectId projectId = RestoreInProgress.get(input).iterator().next().snapshot().getProjectId();
+        assertNull(result.metadata().getProject(projectId).custom(CUSTOM_TYPE));
+        assertTrue(RestoreInProgress.get(result).isEmpty());
+    }
+
+    /** What the updater sees of the project is what the cluster state has, so it is given no custom for a project that has none. */
+    public void testAnUpdaterIsNotCalledForARestoreOfAProjectThatIsGone() {
+        AtomicInteger callCount = new AtomicInteger(0);
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, project, current) -> {
+            callCount.incrementAndGet();
+            return current;
+        }));
+        final ProjectId missing = randomUniqueProjectId();
+        final ShardId shardId = new ShardId(randomIdentifier(), randomUUID(), 0);
+        final var rip = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                UUIDs.randomBase64UUID(),
+                new Snapshot(missing, randomIdentifier(), new SnapshotId(randomIdentifier(), randomUUID())),
+                RestoreInProgress.State.SUCCESS,
+                false,
+                List.of(shardId.getIndexName()),
+                Map.of(shardId, new RestoreInProgress.ShardRestoreStatus(randomUUID(), RestoreInProgress.State.SUCCESS))
+            )
+        ).build();
+
+        ClusterState result = service.executeRestoreCleanup(
+            ClusterState.builder(ClusterState.EMPTY_STATE).putCustom(RestoreInProgress.TYPE, rip).build()
+        );
+
+        assertEquals(0, callCount.get());
         assertTrue(RestoreInProgress.get(result).isEmpty());
     }
 
     /**
-     * Verifies the retry contract documented on {@link RestoreLifecycleListener#onRestoreCompleted}: when
-     * the listener throws, the entry is retained in cluster state and the listener is called again on the
+     * Verifies the retry contract documented on {@link RestoreProjectCustomUpdater#onRestoreCompleted}: when
+     * the updater throws, the entry is retained in cluster state and the updater is called again on the
      * next cleanup pass.
      */
     public void testOnRestoreCompletedRetriedAfterException() {
 
         AtomicInteger callCount = new AtomicInteger(0);
         RuntimeException boom = new RuntimeException("transient failure");
-        RestoreService service = createMinimalRestoreService(completionListener((entry, state) -> {
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, project, current) -> {
             if (callCount.incrementAndGet() == 1) {
                 throw boom;
             }
-            return state;
+            return current;
         }));
 
         ClusterState input = stateWithCompletedRestore();
 
-        // First pass: listener throws — entry must be retained.
+        // First pass: updater throws — entry must be retained.
         ClusterState afterFirst = service.executeRestoreCleanup(input);
         assertEquals(1, callCount.get());
-        assertFalse("entry must be retained after listener exception", RestoreInProgress.get(afterFirst).isEmpty());
+        assertFalse("entry must be retained after updater exception", RestoreInProgress.get(afterFirst).isEmpty());
 
-        // Second pass: listener succeeds — entry must be removed.
+        // Second pass: updater succeeds — entry must be removed.
         ClusterState afterSecond = service.executeRestoreCleanup(afterFirst);
         assertEquals(2, callCount.get());
-        assertTrue("entry must be removed after successful listener call", RestoreInProgress.get(afterSecond).isEmpty());
+        assertTrue("entry must be removed after successful updater call", RestoreInProgress.get(afterSecond).isEmpty());
     }
 
     // ---- applyRestoreInitializedListener tests --------------------------------
@@ -1398,38 +1622,152 @@ public class RestoreServiceTests extends ESTestCase {
         );
     }
 
-    public void testApplyRestoreInitializedListenerCallsListenerWhenEntryNonNull() {
-        AtomicInteger callCount = new AtomicInteger(0);
-        RestoreService service = createMinimalRestoreService(new RestoreLifecycleListener() {
+    private static RestoreProjectCustomUpdater initializationUpdater(
+        BiFunction<RestoreInProgress.Entry, Metadata.ProjectCustom, Metadata.ProjectCustom> onInitialized
+    ) {
+        return new RestoreProjectCustomUpdater() {
             @Override
-            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
-                callCount.incrementAndGet();
-                return ClusterState.builder(state).version(state.version() + 1).build();
+            public String projectCustomType() {
+                return CUSTOM_TYPE;
             }
-        });
 
-        RestoreInProgress.Entry entry = buildRestoreEntry();
-        long initialVersion = ClusterState.EMPTY_STATE.version();
-        ClusterState result = service.applyRestoreInitializedListener(entry, ClusterState.EMPTY_STATE);
-
-        assertEquals(1, callCount.get());
-        assertEquals(initialVersion + 1, result.version());
+            @Override
+            public Metadata.ProjectCustom onRestoreInitialized(RestoreInProgress.Entry entry, Metadata.ProjectCustom current) {
+                return onInitialized.apply(entry, current);
+            }
+        };
     }
 
-    public void testApplyRestoreInitializedListenerSkipsListenerWhenEntryNull() {
+    public void testApplyRestoreInitializedUpdaterPutsTheCustomIntoTheProject() {
         AtomicInteger callCount = new AtomicInteger(0);
-        RestoreService service = createMinimalRestoreService(new RestoreLifecycleListener() {
-            @Override
-            public ClusterState onRestoreInitialized(RestoreInProgress.Entry entry, ClusterState state) {
-                callCount.incrementAndGet();
-                return state;
-            }
-        });
+        RestoreService service = createMinimalRestoreService(initializationUpdater((entry, current) -> {
+            callCount.incrementAndGet();
+            assertEquals(new SeenRestores("before"), current);
+            return new SeenRestores("after");
+        }));
 
-        ClusterState result = service.applyRestoreInitializedListener(null, ClusterState.EMPTY_STATE);
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).putCustom(CUSTOM_TYPE, new SeenRestores("before"));
+        service.applyRestoreInitializedUpdater(buildRestoreEntry(), project);
+
+        assertEquals(1, callCount.get());
+        assertEquals(new SeenRestores("after"), project.getCustom(CUSTOM_TYPE));
+    }
+
+    public void testApplyRestoreInitializedUpdaterIsGivenNoCustomWhenTheProjectHasNone() {
+        RestoreService service = createMinimalRestoreService(initializationUpdater((entry, current) -> {
+            assertNull(current);
+            return new SeenRestores("first");
+        }));
+
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault());
+        service.applyRestoreInitializedUpdater(buildRestoreEntry(), project);
+
+        assertEquals(new SeenRestores("first"), project.getCustom(CUSTOM_TYPE));
+    }
+
+    public void testApplyRestoreInitializedUpdaterSkipsUpdaterWhenEntryNull() {
+        AtomicInteger callCount = new AtomicInteger(0);
+        RestoreService service = createMinimalRestoreService(initializationUpdater((entry, current) -> {
+            callCount.incrementAndGet();
+            return current;
+        }));
+
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault());
+        service.applyRestoreInitializedUpdater(null, project);
 
         assertEquals(0, callCount.get());
-        assertSame(ClusterState.EMPTY_STATE, result);
+        assertNull(project.getCustom(CUSTOM_TYPE));
+    }
+
+    public void testApplyRestoreInitializedUpdaterDoesNothingWhenNothingIsMaintained() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault());
+        createMinimalRestoreService().applyRestoreInitializedUpdater(buildRestoreEntry(), project);
+        assertNull(project.getCustom(CUSTOM_TYPE));
+    }
+
+    /** An updater that throws rejects the restore, because the update that installs it fails. */
+    public void testApplyRestoreInitializedUpdaterPropagatesAnException() {
+        RestoreService service = createMinimalRestoreService(initializationUpdater((entry, current) -> {
+            throw new IllegalStateException("not now");
+        }));
+        expectThrows(
+            IllegalStateException.class,
+            () -> service.applyRestoreInitializedUpdater(buildRestoreEntry(), ProjectMetadata.builder(randomProjectIdOrDefault()))
+        );
+    }
+
+    public void testApplyRestoreCompletedUpdaterRecordsTheResultForTheProject() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).putCustom(CUSTOM_TYPE, new SeenRestores("before")).build();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> {
+            assertSame(project, p);
+            assertEquals(new SeenRestores("before"), current);
+            return new SeenRestores("after");
+        }));
+
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>();
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, updated);
+
+        assertEquals(Map.of(project.id(), new SeenRestores("after")), updated);
+    }
+
+    public void testApplyRestoreCompletedUpdaterPrefersACustomAnEarlierEntryChanged() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).putCustom(CUSTOM_TYPE, new SeenRestores("stored")).build();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> {
+            assertEquals(new SeenRestores("earlier"), current);
+            return new SeenRestores("later");
+        }));
+
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>(Map.of(project.id(), new SeenRestores("earlier")));
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, updated);
+
+        assertEquals(Map.of(project.id(), new SeenRestores("later")), updated);
+    }
+
+    /** Returning null means no change, so what an earlier entry of the same cleanup staged for the project must survive. */
+    public void testApplyRestoreCompletedUpdaterLeavesTheMapAloneWhenTheUpdaterReturnsNull() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> null));
+
+        final Map<ProjectId, Metadata.ProjectCustom> empty = new HashMap<>();
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, empty);
+        assertThat(empty, anEmptyMap());
+
+        final Map<ProjectId, Metadata.ProjectCustom> staged = new HashMap<>(Map.of(project.id(), new SeenRestores("earlier")));
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, staged);
+        assertEquals(Map.of(project.id(), new SeenRestores("earlier")), staged);
+    }
+
+    public void testApplyRestoreCompletedUpdaterSkipsAProjectThatIsGone() {
+        AtomicInteger callCount = new AtomicInteger(0);
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> {
+            callCount.incrementAndGet();
+            return new SeenRestores("x");
+        }));
+
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>();
+        service.applyRestoreCompletedUpdater(buildRestoreEntry(), null, updated);
+
+        assertEquals(0, callCount.get());
+        assertThat(updated, anEmptyMap());
+    }
+
+    public void testApplyRestoreCompletedUpdaterDoesNothingWhenNothingIsMaintained() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        final Map<ProjectId, Metadata.ProjectCustom> updated = new HashMap<>();
+        createMinimalRestoreService().applyRestoreCompletedUpdater(buildRestoreEntry(), project, updated);
+        assertThat(updated, anEmptyMap());
+    }
+
+    /** The cleanup relies on this to retain the entry and retry. */
+    public void testApplyRestoreCompletedUpdaterPropagatesAnException() {
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        RestoreService service = createMinimalRestoreService(completionUpdater((entry, p, current) -> {
+            throw new IllegalStateException("not now");
+        }));
+        expectThrows(
+            IllegalStateException.class,
+            () -> service.applyRestoreCompletedUpdater(buildRestoreEntry(), project, new HashMap<>())
+        );
     }
 
     public void testRestoreWithDifferentShardCountsRequiresNodeSupport() {
@@ -1478,6 +1816,24 @@ public class RestoreServiceTests extends ESTestCase {
             shrunk.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID),
             expanded.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID)
         );
+    }
+
+    /**
+     * A snapshot never captures an index's resharding metadata (shard snapshots fail while resharding is in progress, and
+     * {@code BlobStoreRepository#adjustIndexMetadataIfNeeded} strips it at finalize time otherwise), so restoring over an
+     * index that is being resharded must discard the current resharding metadata rather than carry it forward.
+     */
+    public void testRestoreOverExistingIndexDiscardsReshardingMetadata() {
+        final IndexMetadata current = IndexMetadata.builder("target")
+            .settings(indexSettings(IndexVersion.current(), 4, 0).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
+            .build();
+        final IndexMetadata snapshotIndexMetadata = IndexMetadata.builder("source")
+            .settings(indexSettings(IndexVersion.current(), 2, 0))
+            .build();
+        final IndexMetadata restored = RestoreService.restoreOverExistingIndex(snapshotIndexMetadata, current).build();
+        assertEquals(2, restored.getNumberOfShards());
+        assertNull(restored.getReshardingMetadata());
     }
 
     // ---- restore-over-open-index guard tests ---------------------------------------------
@@ -1895,7 +2251,7 @@ public class RestoreServiceTests extends ESTestCase {
                 false,
                 IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
                 featureService,
-                RestoreLifecycleListener.NOOP
+                RestoreProjectCustomUpdater.NOOP
             );
 
             final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
@@ -1911,11 +2267,12 @@ public class RestoreServiceTests extends ESTestCase {
     }
 
     /**
-     * This tests that a restore over an open index that is being resharded is rejected. Restoring while resharding is happening would fail.
-     * Plus, you can't close an index that is resharding, so we are not losing any functionality a user had previously by explicitly closing
-     * an index and then restoring.
+     * This tests that a restore over an open index that is being resharded is accepted. Restoring discards the index's resharding
+     * metadata along with everything else in {@link RestoreService#restoreOverExistingIndex}, and
+     * {@code IndicesClusterStateService#isRestoreHistoryUuidTransition} already tears down and recreates every shard of the index as
+     * part of any open-index restore, which safely unwinds the in-progress split too.
      */
-    public void testRestoreOverOpenIndexRejectsReshardingIndex() {
+    public void testRestoreOverOpenIndexAllowsReshardingIndex() {
         final IndexMetadata currentIndexMetadata = IndexMetadata.builder("test-idx")
             .settings(indexSettings(IndexVersion.current(), 2, 0))
             .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(2, 2))
@@ -1926,10 +2283,7 @@ public class RestoreServiceTests extends ESTestCase {
             .build();
         final Snapshot snapshot = new Snapshot(ProjectId.DEFAULT, "test-repo", new SnapshotId("test-snap", randomUUID()));
 
-        final SnapshotRestoreException e = expectThrows(
-            SnapshotRestoreException.class,
-            () -> RestoreService.validateExistingOpenIndexForRestore(snapshot, state, ProjectId.DEFAULT, currentIndexMetadata, index, false)
-        );
-        assertThat(e.getMessage(), containsString("being resharded"));
+        // Does not throw, even though the index is actively being resharded.
+        RestoreService.validateExistingOpenIndexForRestore(snapshot, state, ProjectId.DEFAULT, currentIndexMetadata, index, false);
     }
 }

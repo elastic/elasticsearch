@@ -117,6 +117,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
                 MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
                 MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING,
+                IndexSortConfig.INDEX_SORT_SETTING,
                 IndexSortConfig.INDEX_SORT_FIELD_SETTING,
                 IndexSortConfig.INDEX_SORT_ORDER_SETTING,
                 IndexSortConfig.INDEX_SORT_MISSING_SETTING,
@@ -217,7 +218,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,
                 IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
                 IndexSettings.SLICE_ENABLED,
-                IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED,
                 IndexSettings.PREFER_ILM_SETTING,
                 DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
                 FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
@@ -282,6 +282,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        if (IndexSettings.BINARY_NUMERIC_DOC_VALUES_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.BINARY_NUMERIC_DOC_VALUES_ENABLED_SETTING);
+        }
         settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);

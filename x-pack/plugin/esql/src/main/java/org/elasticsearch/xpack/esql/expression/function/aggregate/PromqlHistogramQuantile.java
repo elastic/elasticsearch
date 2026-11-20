@@ -82,6 +82,10 @@ public class PromqlHistogramQuantile extends AggregateFunction implements ToAggr
         )
         .example("histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))")
         .stack(PromqlFunctionDefinition.STACK_GA_9_5)
+        .stdDivergence(
+            "A quantile that isn't a number literal, such as `histogram_quantile(scalar(a), b)`, isn't supported yet. "
+                + PromqlFunctionDefinition.HISTOGRAM_OVER_SELECTION_NOT_SUPPORTED_YET
+        )
         .name("histogram_quantile");
 
     @FunctionInfo(

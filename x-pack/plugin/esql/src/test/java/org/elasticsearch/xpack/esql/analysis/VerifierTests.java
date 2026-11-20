@@ -496,7 +496,7 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testForkWithSourceInOneBranch() {
         // A FORK/UnionAll branch that lacks a _source column present in a sibling branch gets that column null-filled by
         // Analyzer.resolveMergePlan with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
-        // SOURCE is excluded from DataType.isRepresentable, so Eval.postAnalysisVerification must carve out a null SOURCE
+        // SOURCE is excluded from DataType.isRepresentableInExpression, so Eval.postAnalysisVerification must carve out a null SOURCE
         // literal or it wrongly fails the query with "EVAL does not support type [_source]".
         defaultAnalyzer().query("FROM test METADATA _source | FORK (WHERE emp_no > 0) (WHERE emp_no > 0 | DROP _source)");
     }
@@ -686,6 +686,18 @@ public class VerifierTests extends AnalyzerTestCase {
         defaultAnalyzer().error(
             "from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no",
             equalTo("1:60: Unknown column [m]")
+        );
+    }
+
+    public void testDescribeVerifiesItsInput() {
+        assumeTrue("requires DESCRIBE", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
+        defaultAnalyzer().error(
+            "from test | where 1 | describe",
+            equalTo("1:19: Condition expression needs to be boolean, found [INTEGER]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats c = count(*) by emp_no | where c + 1 | describe | keep name",
+            equalTo("1:50: Condition expression needs to be boolean, found [LONG]")
         );
     }
 
@@ -1047,7 +1059,7 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testUnsignedLongTypeMixInComparisons() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentableInExpression(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -1085,7 +1097,7 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testUnsignedLongTypeMixInArithmetics() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentableInExpression(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -1739,14 +1751,16 @@ public class VerifierTests extends AnalyzerTestCase {
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
+    }
 
-        tsdb().error(
-            "FROM test | STATS count(network.bytes_out)",
-            equalTo(
-                "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types or histogram],"
-                    + " found value [network.bytes_out] type [counter_long]"
-            )
+    /**
+     * Counting and presence functions only look at whether a value exists, so they accept counters like any other field.
+     */
+    public void testCountPresentAbsentOnCounter() {
+        tsdb().query("FROM test | STATS count(network.bytes_out), present(network.bytes_out), absent(network.bytes_out)");
+        tsdb().query(
+            "TS test | STATS sum(count_over_time(network.bytes_out)), max(present_over_time(network.bytes_out)),"
+                + " max(absent_over_time(network.bytes_out))"
         );
     }
 
@@ -2153,15 +2167,22 @@ public class VerifierTests extends AnalyzerTestCase {
                    (where true)
             | where match(t, "cat")
             """);
-        // an explicit null column is the same shape, and equally empty
+        // a null of the merged type is equally empty
         fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null))
+            | where match(t, "cat")
+            """);
+        // an explicit null column is null-typed, and nothing widens it to the merged type, so it conflicts on data type
+        fullText().error("""
             from test
             | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
                    (eval t = null)
             | where match(t, "cat")
-            """);
-        // ... but only in this order. A null-typed branch coming first represents the column in the merged output
-        // and nothing widens it, so the populated branch conflicts on data type before the analyzers are compared.
+            """, containsString("Column [t] has conflicting data types in FORK branches: [NULL] and [TEXT]"));
+        // ... in either order. A null-typed branch coming first represents the column in the merged output, so it is
+        // the populated branch that is reported.
         fullText().error("""
             from test
             | fork (eval t = null)
@@ -4183,7 +4204,7 @@ public class VerifierTests extends AnalyzerTestCase {
         defaultAnalyzer().error(
             "row value =  TO_DATETIME(\"2023-01-01T00:00:00Z\"), origin =  TO_DATETIME(\"2023-01-01T00:00:00Z\")"
                 + "| eval decay_result = decay(value, origin, 24 hours, {\"offset\": \"aaa\", \"decay\": 0.5, \"type\": \"linear\"})",
-            equalTo("1:118: offset option has invalid type, expected [time_duration], found [keyword]")
+            equalTo("1:118: offset option has invalid type, expected [time_duration or date_period], found [keyword]")
         );
 
         defaultAnalyzer().error(
@@ -4206,6 +4227,29 @@ public class VerifierTests extends AnalyzerTestCase {
             "row value = 10, origin = 10, scale = 1\n"
                 + "| eval decay_result = decay(value, origin, scale, {\"offset\": 1, \"decay\": 0.5, \"type\": \"foobar\"})",
             equalTo("2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"foobar\"]")
+        );
+
+        defaultAnalyzer().error(
+            "row value = 10, origin = 10, scale = 1\n" + "| eval decay_result = decay(value, origin, scale, {\"type\": \"gaussian\"})",
+            equalTo("2:23: type option has invalid value, expected one of [gauss, linear, exp], found [\"gaussian\"]")
+        );
+
+        // Origin must have the same spatial type as the value
+        defaultAnalyzer().error(
+            "row value = TO_GEOPOINT(\"POINT(1 1)\")\n"
+                + "| eval decay_result = decay(value, TO_CARTESIANPOINT(\"POINT(1 1)\"), \"100km\")",
+            equalTo(
+                "2:23: second argument of [decay(value, TO_CARTESIANPOINT(\"POINT(1 1)\"), \"100km\")] must be [geo_point], "
+                    + "found value [TO_CARTESIANPOINT(\"POINT(1 1)\")] type [cartesian_point]"
+            )
+        );
+
+        defaultAnalyzer().error(
+            "row value = TO_CARTESIANPOINT(\"POINT(1 1)\")\n" + "| eval decay_result = decay(value, TO_GEOPOINT(\"POINT(1 1)\"), 100.0)",
+            equalTo(
+                "2:23: second argument of [decay(value, TO_GEOPOINT(\"POINT(1 1)\"), 100.0)] must be [cartesian_point], "
+                    + "found value [TO_GEOPOINT(\"POINT(1 1)\")] type [geo_point]"
+            )
         );
     }
 
@@ -4581,15 +4625,21 @@ public class VerifierTests extends AnalyzerTestCase {
             .query("TS exp_histo_sample | STATS occurrences = COUNT(responseTime, b) BY b = BUCKET(responseTime, 20)");
     }
 
-    public void testNoDimensionsInAggsOnlyInByClause() {
-        tsdb().error(
-            "TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)",
+    public void testImplicitTimeSeriesAggregationOfUnsupportedType() {
+        k8s().error(
+            "TS k8s | STATS count(network.eth0.firmware_version) BY bucket(@timestamp, 1 minute)",
             equalTo(
-                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for bool_field] must be "
-                    + "[numeric except unsigned_long], found value [bool_field] type [boolean]; "
-                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
+                "1:22: argument of [implicit time-series aggregation function (LastOverTime) for network.eth0.firmware_version] "
+                    + "must be [_tsid, boolean, date, date_nanos, exponential_histogram, flattened, ip, string, tdigest "
+                    + "or numeric except unsigned_long], found value [network.eth0.firmware_version] type [version]; "
+                    + "to aggregate fields of other types, use the FROM command instead of the TS command"
             )
         );
+    }
+
+    public void testImplicitTimeSeriesAggregationOfBoolean() {
+        tsdb().query("TS test | STATS count(bool_field) BY bucket(@timestamp, 1 minute)");
+        tsdb().query("TS test | STATS last(bool_field, @timestamp) BY bucket(@timestamp, 1 minute)");
     }
 
     public void testSortInTimeSeries() {
@@ -4924,6 +4974,72 @@ public class VerifierTests extends AnalyzerTestCase {
                 )
             )
         );
+    }
+
+    /**
+     * A {@code FORK} between the time-series source and the first aggregation is not supported. It used to fail later in the planner
+     * with "optimized incorrectly due to missing references [_tsid]".
+     * See <a href="https://github.com/elastic/elasticsearch/issues/160269">#160269</a>.
+     */
+    public void testForkBeforeTSStatsNotAllowed() {
+        assumeTrue("requires FORK before TS STATS check", EsqlCapabilities.Cap.TS_FORK_BEFORE_STATS_NOT_SUPPORTED.isEnabled());
+        tsdb().addK8s()
+            .error(
+                "TS k8s | FORK (WHERE cluster == \"prod\") (WHERE cluster != \"prod\") | STATS m = MAX(network.total_bytes_in) BY cluster",
+                equalTo(
+                    "1:10: fork [FORK (WHERE cluster == \"prod\") (WHERE cluster != \"prod\")] in the time-series before the first "
+                        + "aggregation [STATS m = MAX(network.total_bytes_in) BY cluster] is not supported"
+                )
+            );
+
+        for (String stats : List.of(
+            "STATS r = SUM(RATE(network.total_bytes_in)) BY cluster",
+            "STATS m = MAX(network.cost) BY WITHOUT(pod)",
+            "STATS m = MAX(network.cost) BY _tsid"
+        )) {
+            tsdb().addK8s()
+                .error(
+                    "TS k8s METADATA _tsid | FORK (WHERE cluster == \"prod\") (WHERE cluster != \"prod\") | KEEP * | " + stats,
+                    containsString("in the time-series before the first aggregation [" + stats + "] is not supported")
+                );
+        }
+
+        // a FORK deeper below the aggregation, under other commands
+        tsdb().addK8s().error("""
+            TS k8s
+            | WHERE network.cost > 0
+            | EVAL c = TO_STRING(cluster)
+            | FORK (WHERE c == "prod") (WHERE c != "prod")
+            | EVAL d = 1
+            | KEEP *
+            | STATS m = MAX(network.cost) BY c""", containsString("4:3: fork [FORK (WHERE c == \"prod\") (WHERE c != \"prod\")]"));
+
+        // a FORK on the main side of an IN subquery
+        tsdb().addK8s().error("""
+            TS k8s
+            | FORK (WHERE cluster == "prod") (WHERE cluster != "prod")
+            | WHERE cluster IN (TS k8s | STATS m = MAX(network.cost) BY cluster | KEEP cluster)
+            | STATS m = MAX(network.cost) BY cluster""", containsString("2:3: fork [FORK (WHERE cluster == \"prod\")"));
+
+        // a FORK before the first aggregation of the TS query inside an IN subquery
+        tsdb().addK8s().error("""
+            TS k8s
+            | WHERE cluster IN (TS k8s | FORK (WHERE pod == "one") (WHERE pod != "one") | STATS m = MAX(network.cost) BY cluster
+                                | KEEP cluster)
+            | STATS m = MAX(network.cost) BY cluster""", containsString("2:30: fork [FORK (WHERE pod == \"one\") (WHERE pod != \"one\")]"));
+
+        // a FORK after the first aggregation, or with the aggregations inside its branches, is fine
+        tsdb().addK8s().query("TS k8s | STATS m = MAX(network.total_bytes_in) BY cluster | FORK (WHERE m > 0) (WHERE m <= 0)");
+        tsdb().addK8s().query("""
+            TS k8s
+            | FORK (STATS m = MAX(network.total_bytes_in) BY cluster) (STATS m = MIN(network.total_bytes_in) BY cluster)
+            | STATS x = MAX(m) BY cluster""");
+
+        // a FORK inside an IN subquery that is not time-series does not affect the main TS aggregation
+        tsdb().addK8s().query("""
+            TS k8s
+            | WHERE cluster IN (FROM k8s | FORK (WHERE pod == "one") (WHERE pod != "one") | KEEP cluster)
+            | STATS m = MAX(network.cost) BY cluster""");
     }
 
     public void testMvExpandBeforeTSStatsNotAllowed() {

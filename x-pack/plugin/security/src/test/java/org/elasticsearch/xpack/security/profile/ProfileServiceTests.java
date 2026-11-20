@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -24,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -38,6 +41,8 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -47,6 +52,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -55,9 +61,11 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -1263,6 +1271,82 @@ public class ProfileServiceTests extends ESTestCase {
         }
     }
 
+    public void testProfileSearchErrorsWithTooManyRequestsStatusKeepItForApiKeyOwners() throws Exception {
+        // a search on the profile index failing because the parent circuit breaker trips on the data node, as in production
+        final Exception circuitBreakerFailure = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            List.of(
+                new ShardSearchFailure(
+                    new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT),
+                    new SearchShardTarget("nodeId", new ShardId(".security-profile-8", "uuid", 0), null)
+                )
+            )
+        );
+        assertThat(ExceptionsHelper.status(circuitBreakerFailure), is(RestStatus.TOO_MANY_REQUESTS));
+
+        assertThat(statusOfFailedProfileSearchesForApiKeyOwners(circuitBreakerFailure), is(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(
+            statusOfFailedProfileSearchesForApiKeyOwners(circuitBreakerFailure, circuitBreakerFailure),
+            is(RestStatus.TOO_MANY_REQUESTS)
+        );
+    }
+
+    public void testProfileSearchErrorsWithOtherStatusesResultInInternalServerErrorForApiKeyOwners() throws Exception {
+        final Exception tooManyRequests = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
+        // only 429 is passed through; for example a 404 must not look like a missing API key
+        for (RestStatus status : List.of(RestStatus.NOT_FOUND, RestStatus.SERVICE_UNAVAILABLE, RestStatus.GATEWAY_TIMEOUT)) {
+            assertThat(
+                statusOfFailedProfileSearchesForApiKeyOwners(new ElasticsearchStatusException("failure", status)),
+                is(RestStatus.INTERNAL_SERVER_ERROR)
+            );
+        }
+        assertThat(
+            statusOfFailedProfileSearchesForApiKeyOwners(new IndexNotFoundException(".security-profile-8")),
+            is(RestStatus.INTERNAL_SERVER_ERROR)
+        );
+        // a mix of 429 and any other failure results in an internal server error
+        assertThat(
+            statusOfFailedProfileSearchesForApiKeyOwners(tooManyRequests, new Exception("test search failure")),
+            is(RestStatus.INTERNAL_SERVER_ERROR)
+        );
+    }
+
+    /** Fails the profile search of one API key owner per given failure and returns the status of the resulting error. */
+    private RestStatus statusOfFailedProfileSearchesForApiKeyOwners(Exception... searchFailures) {
+        final List<ApiKey> apiKeys = new ArrayList<>();
+        for (int i = 0; i < searchFailures.length; i++) {
+            apiKeys.add(createApiKeyForOwner("keyId_" + i, "username_" + i, "realmName_" + i, "realmType_" + i));
+        }
+        realmRefLookup = realmIdentifier -> new Authentication.RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), "nodeName");
+        final MultiSearchResponse.Item[] responseItems = new MultiSearchResponse.Item[searchFailures.length];
+        for (int i = 0; i < searchFailures.length; i++) {
+            responseItems[i] = new MultiSearchResponse.Item(null, searchFailures[i]);
+        }
+        final MultiSearchResponse multiSearchResponseWithErrors = new MultiSearchResponse(responseItems, randomNonNegativeLong());
+        try {
+            doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                var listener = (ActionListener<MultiSearchResponse>) invocation.getArgument(2);
+                listener.onResponse(multiSearchResponseWithErrors);
+                return null;
+            }).when(client).execute(eq(TransportMultiSearchAction.TYPE), any(MultiSearchRequest.class), anyActionListener());
+            when(client.prepareMultiSearch()).thenReturn(new MultiSearchRequestBuilder(client));
+
+            final PlainActionFuture<Collection<String>> listener = new PlainActionFuture<>();
+            profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
+            final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+            assertThat(e.getCause(), instanceOf(ElasticsearchStatusException.class));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)")
+            );
+            return ((ElasticsearchStatusException) e.getCause()).status();
+        } finally {
+            multiSearchResponseWithErrors.decRef();
+        }
+    }
+
     public void testUnclearApiKeyOwnersAreIgnoredWhenRetrievingProfiles() throws Exception {
         String realmName = "realmName_" + randomAlphaOfLength(8);
         String realmType = "realmType_" + randomAlphaOfLength(8);
@@ -1561,25 +1645,7 @@ public class ProfileServiceTests extends ESTestCase {
     private static class TestEmptySearchResponse extends SearchResponse {
 
         TestEmptySearchResponse() {
-            super(
-                SearchHits.EMPTY_WITH_TOTAL_HITS,
-                null,
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                0,
-                0,
-                0,
-                0L,
-                ShardSearchFailure.EMPTY_ARRAY,
-                Clusters.EMPTY,
-                null,
-                null,
-                null
-            );
+            super(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1, null, 0, 0, 0, 0L, List.of(), Clusters.EMPTY);
         }
     }
 }

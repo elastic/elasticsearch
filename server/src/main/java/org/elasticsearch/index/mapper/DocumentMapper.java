@@ -38,28 +38,21 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(MapperService mapperService) {
-        RootObjectMapper root = new RootObjectMapper.Builder(
-            MapperService.SINGLE_MAPPING_NAME,
-            mapperService.getIndexMode().isStrictColumnar() ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
-        ).build(
-            MapperBuilderContext.root(
-                false,
-                false,
-                MapperService.MergeReason.MAPPING_UPDATE,
-                mapperService.getIndexMode().isStrictColumnar(),
-                false
-            )
+        boolean strictColumnar = mapperService.getIndexMode().isStrictColumnar();
+        MappingBuilder mappingBuilder = new MappingBuilder(
+            new RootObjectMapper.Builder(
+                MapperService.SINGLE_MAPPING_NAME,
+                strictColumnar ? ObjectMapper.Defaults.SUBOBJECTS_COLUMNAR : ObjectMapper.Defaults.SUBOBJECTS
+            ),
+            mapperService.getMetadataBuilders(),
+            null,
+            strictColumnar
         );
-        MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
-            .values()
-            .stream()
-            .map(MetadataFieldMapper.Builder::build)
-            .toArray(MetadataFieldMapper[]::new);
-        Mapping mapping = new Mapping(root, metadata, null);
+        Mapping mapping = mappingBuilder.build(MapperService.MergeReason.MAPPING_UPDATE);
         return new DocumentMapper(
             mapperService.documentParser(),
             mapping,
-            mapping.toCompressedXContent(),
+            mappingBuilder.toCompressedXContent(),
             IndexVersion.current(),
             mapperService.getMapperMetrics(),
             mapperService.index().getName(),
@@ -78,7 +71,7 @@ public class DocumentMapper {
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode, source);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;
@@ -175,7 +168,7 @@ public class DocumentMapper {
             if (indexVersion.before(IndexVersions.INDEX_SORTING_ON_NESTED)) {
                 throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
             }
-            for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
+            for (String field : IndexSortConfig.sortFields(settings.getSettings())) {
                 NestedObjectMapper nestedMapper = mappers().nestedLookup().getNestedMappers().get(field);
                 String nestedParent = nestedMapper != null ? nestedMapper.fullPath() : mappers().nestedLookup().getNestedParent(field);
                 if (nestedParent != null) {
@@ -186,7 +179,7 @@ public class DocumentMapper {
             }
         }
         if (settings.getIndexSortConfig().hasIndexSort()) {
-            Set<String> sortFields = Set.copyOf(settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING));
+            Set<String> sortFields = Set.copyOf(IndexSortConfig.sortFields(settings.getSettings()));
             Collection<RuntimeField> runtimeFields = mapping().getRoot().runtimeFields();
             for (RuntimeField rf : runtimeFields) {
                 for (MappedFieldType ft : rf.asMappedFieldTypes().toList()) {

@@ -78,10 +78,6 @@ public class TDigestFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "tdigest";
 
-    private static TDigestFieldMapper toType(FieldMapper in) {
-        return (TDigestFieldMapper) in;
-    }
-
     public static class Builder extends FieldMapper.Builder {
         private static final double DEFAULT_COMPRESSION = 100d;
         private static final double MAXIMUM_COMPRESSION = 10000d;
@@ -100,25 +96,13 @@ public class TDigestFieldMapper extends FieldMapper {
         public Builder(String name, boolean ignoreMalformedByDefault, IndexSettings indexSettings) {
             super(name);
             this.indexSettings = indexSettings;
-            this.ignoreMalformed = Parameter.explicitBoolParam(
-                "ignore_malformed",
-                true,
-                m -> toType(m).ignoreMalformed,
-                ignoreMalformedByDefault
-            );
-            this.digestType = Parameter.enumParam(
-                "digest_type",
-                false,
-                m -> toType(m).digestType,
-                TDigestExecutionHint.DEFAULT,
-                TDigestExecutionHint.class
-            );
+            this.ignoreMalformed = Parameter.explicitBoolParam("ignore_malformed", true, ignoreMalformedByDefault);
+            this.digestType = Parameter.enumParam("digest_type", false, TDigestExecutionHint.DEFAULT, TDigestExecutionHint.class);
             this.compression = new Parameter<>(
                 "compression",
                 false,
                 () -> DEFAULT_COMPRESSION,
                 (n, c1, o) -> XContentMapValues.nodeDoubleValue(o),
-                m -> toType(m).compression,
                 XContentBuilder::field,
                 Objects::toString
             ).addValidator(c -> {
@@ -128,7 +112,7 @@ public class TDigestFieldMapper extends FieldMapper {
                     );
                 }
             });
-            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+            this.metric = TimeSeriesParams.metricParam(TimeSeriesParams.MetricType.HISTOGRAM);
         }
 
         public Builder metric(TimeSeriesParams.MetricType metric) {
@@ -169,19 +153,15 @@ public class TDigestFieldMapper extends FieldMapper {
     );
 
     private final Explicit<Boolean> ignoreMalformed;
-    private final boolean ignoreMalformedByDefault;
     private final TDigestExecutionHint digestType;
     private final double compression;
-    private final TimeSeriesParams.MetricType metricType;
     private final IndexSettings indexSettings;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
-        this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.digestType = builder.digestType.getValue();
         this.compression = builder.compression.getValue();
-        this.metricType = builder.metric.get();
         this.indexSettings = builder.indexSettings;
     }
 
@@ -201,11 +181,6 @@ public class TDigestFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault, indexSettings).metric(metricType).init(this);
     }
 
     @Override

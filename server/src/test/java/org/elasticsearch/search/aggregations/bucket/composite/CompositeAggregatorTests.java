@@ -29,6 +29,7 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
@@ -2964,6 +2965,68 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     private BytesRef createTsid(Map<String, Object> dimensions) {
         return DocValueFormat.TIME_SERIES_ID.parseBytesRef(new TreeMap<>(dimensions));
+    }
+
+    /**
+     * Index sorts sort documents without a value first or last with a missing value of {@code Long.MIN_VALUE} or
+     * {@code Long.MAX_VALUE}, as {@code IndexSortConfig} sets it. Jumping past the after key on a rounded source must
+     * compare those documents the same way the index sorted them, or the binary search for the first document after the
+     * key can land among them and skip the documents that hold the next buckets.
+     */
+    public void testDateHistogramAfterKeyWithIndexSortMissingValue() throws IOException {
+        assertDateHistogramAfterKeyWithIndexSortMissingValue(true);
+        assertDateHistogramAfterKeyWithIndexSortMissingValue(false);
+    }
+
+    private void assertDateHistogramAfterKeyWithIndexSortMissingValue(boolean missingLast) throws IOException {
+        final SortedNumericSortField sortField = new SortedNumericSortField(
+            "date",
+            SortField.Type.LONG,
+            false,
+            SortedNumericSelector.Type.MIN,
+            missingLast ? Long.MAX_VALUE : Long.MIN_VALUE
+        );
+        indexSort = new Sort(sortField);
+        try (Directory directory = newDirectory()) {
+            final IndexWriterConfig config = newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            config.setIndexSort(indexSort);
+            config.setCodec(TestUtil.getDefaultCodec());
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
+                final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+                dataset.add(createDocument("date", asLong("2017-10-19T06:09:24")));
+                dataset.add(createDocument("date", asLong("2017-10-19T08:00:00")));
+                dataset.add(createDocument("date", asLong("2017-10-20T03:08:45")));
+                dataset.add(createDocument("date", asLong("2017-10-21T06:09:24")));
+                dataset.add(createDocument("date", asLong("2017-10-21T11:34:00")));
+                // Enough documents without a date that the binary search for the after key first lands among them.
+                for (int i = between(20, 50); i > 0; i--) {
+                    dataset.add(createDocument("long", (long) i));
+                }
+                Collections.shuffle(dataset, random());
+                final Document document = new Document();
+                for (Map<String, List<Object>> fields : dataset) {
+                    document.clear();
+                    addToDocument(document, fields);
+                    indexWriter.addDocument(document);
+                }
+                indexWriter.forceMerge(1);
+            }
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                final DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder("date").field("date")
+                    .calendarInterval(DateHistogramInterval.days(1));
+                final InternalComposite result = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(
+                        new CompositeAggregationBuilder("name", List.of(histo)).size(1)
+                            .aggregateAfter(createAfterKey("date", asLong("2017-10-19T00:00:00"))),
+                        FIELD_TYPES
+                    )
+                );
+                assertEquals(1, result.getBuckets().size());
+                assertEquals("{date=" + asLong("2017-10-20T00:00:00") + "}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+            }
+        }
     }
 
     public void testEarlyTermination() throws Exception {

@@ -24,6 +24,7 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
 import java.util.Random;
+import java.util.UUID;
 import java.util.function.IntUnaryOperator;
 
 /**
@@ -61,6 +62,7 @@ public final class AsymmetricHashingQuantizer {
     }
 
     private final float projectedDimsFraction;
+    private final int maxProjectedDims;
     private final Method method;
     private final int bitsPerDim;
     private final int nTrainingIterations;
@@ -102,18 +104,20 @@ public final class AsymmetricHashingQuantizer {
      * Creates an ASH quantizer with the given configuration.
      *
      * @param projectedDimsFraction fraction of original dimensions to project to (e.g. 0.5 for half)
+     * @param maxProjectedDims
+     *        maximum number of projected dims
+     *        (calculated as {@code min(maxProjectedDims, originalDim * projectedDimsFraction)}
      * @param bitsPerDim bits per projected dimension in the body
      * @param method training method for W
      * @param nTrainingIterations number of Procrustes iterations refining the rotation of the PCA subspace (for LEARNED);
      *        zero keeps the rotation random
      * @param trainingFactor multiplier on dimension for training sample size
      * @param seed random seed
-     * @throws IllegalArgumentException if {@code nTrainingIterations} is negative, {@code bitsPerDim} is not a
-     *         {@linkplain IvfSegmentConfig.AshConfig#isValidBitsPerDim(int) valid ASH bit width} or
-     *         {@code projectedDimsFraction} is not in (0, 1]
+     * @throws IllegalArgumentException if any argument is outside its valid range
      */
     public AsymmetricHashingQuantizer(
         float projectedDimsFraction,
+        int maxProjectedDims,
         int bitsPerDim,
         Method method,
         int nTrainingIterations,
@@ -124,11 +128,15 @@ public final class AsymmetricHashingQuantizer {
         if (projectedDimsFraction <= 0 || projectedDimsFraction > 1.0f) {
             throw new IllegalArgumentException("projectedDimsFraction must be in (0, 1]");
         }
+        if (maxProjectedDims <= 0) {
+            throw new IllegalArgumentException("maxProjectedDims must be > 0");
+        }
         IvfSegmentConfig.AshConfig.validateBitsPerDim(bitsPerDim);
         if (nTrainingIterations < 0) {
             throw new IllegalArgumentException("nTrainingIterations must not be negative");
         }
         this.projectedDimsFraction = projectedDimsFraction;
+        this.maxProjectedDims = maxProjectedDims;
         this.method = method;
         this.bitsPerDim = bitsPerDim;
         this.nTrainingIterations = nTrainingIterations;
@@ -145,22 +153,50 @@ public final class AsymmetricHashingQuantizer {
      * @return the number of projected dimensions
      */
     public int nDims(int originalDim) {
-        return (int) (originalDim * projectedDimsFraction);
+        return Math.min(maxProjectedDims, (int) (originalDim * projectedDimsFraction));
     }
 
     /**
-     * Result of training a projection matrix: the matrix W and its transposition W^T together with whether it was
-     * learned (PCA + rotation) from enough vectors to be inherited. The quantizer is the sole owner of this
-     * distinction, so callers must not re-derive it. A matrix that is not learned, because it is a random orthonormal
-     * fallback or was learned from fewer than twice as many vectors as projected dimensions, must not be
-     * inherited/warm-started at merge time.
+     * Result of training a projection matrix: the matrix as stored with the segment, which carries W^T, whether W was
+     * learned, its id, and the number of vectors its subspace was estimated from, together with W itself, which encoding
+     * needs. The quantizer is the sole owner of these, so callers must not re-derive them:
+     * <ul>
+     *     <li>{@code learned} means W may be inherited or warm-started at merge. A random orthonormal fallback, or a
+     *     projection learned from fewer than twice as many vectors as projected dimensions, is not.</li>
+     *     <li>A new W gets a new id; the inherited matrix returned unchanged by {@link #trainWarmStart} keeps its own.</li>
+     *     <li>The training sample size is the number of vectors W's subspace was estimated from, 0 if none (a random
+     *     fallback, or a rotation without dimensionality reduction); for the inherited matrix returned unchanged, its
+     *     own.</li>
+     * </ul>
      *
-     * @param w       the projection matrix W in row-major order, shape (originalDim, nDims)
-     * @param wT      the transposed projection matrix W^T in row-major order, shape (nDims, originalDim)
-     * @param learned {@code true} if W was learned from at least twice as many vectors as projected dimensions;
-     *                {@code false} if it is a random orthonormal fallback or was learned from fewer vectors
+     * @param w      the projection matrix W in row-major order, shape (originalDim, nDims)
+     * @param matrix the projection matrix as stored with the segment, with W^T, shape (nDims, originalDim)
      */
-    record TrainedProjection(float[] w, float[] wT, boolean learned) {}
+    record TrainedProjection(float[] w, AshProjectionMatrix matrix) {
+
+        /** The transposed projection matrix W^T in row-major order, shape (nDims, originalDim). */
+        float[] wT() {
+            return matrix.wT();
+        }
+
+        /** Whether W may be inherited or warm-started at merge. */
+        boolean learned() {
+            return matrix.isLearned();
+        }
+    }
+
+    /** A newly trained projection, with a new id. */
+    private static TrainedProjection newProjection(float[] wT, int originalDim, int nDims, boolean learned, int trainingSampleSize) {
+        return new TrainedProjection(
+            ESVectorUtil.transposeMatrix(wT, nDims, originalDim),
+            new AshProjectionMatrix(wT, originalDim, nDims, learned, UUID.randomUUID(), trainingSampleSize)
+        );
+    }
+
+    /** The inherited projection, unchanged, keeping its id and training sample size. */
+    private static TrainedProjection inheritedProjection(AshProjectionMatrix inherited) {
+        return new TrainedProjection(ESVectorUtil.transposeMatrix(inherited.wT(), inherited.nDims(), inherited.originalDim()), inherited);
+    }
 
     /**
      * Trains the projection matrix W on the given vectors and their cluster assignments.
@@ -201,10 +237,10 @@ public final class AsymmetricHashingQuantizer {
         boolean learned = count >= nDims * 2;
 
         // No dimensionality reduction: W is a pure rotation, and any orthonormal basis spans the whole space. Procrustes
-        // iterations, when configured, still refine that rotation, so they take the general path below.
+        // iterations, when configured, still refine that rotation, so they take the general path below. Nothing is
+        // learned from a sample, so none is recorded.
         if (nDims == originalDim && nTrainingIterations == 0) {
-            float[] wT = randomOrthogonal(originalDim, nDims);
-            return new TrainedProjection(ESVectorUtil.transposeMatrix(wT, nDims, originalDim), wT, learned);
+            return newProjection(randomOrthogonal(originalDim, nDims), originalDim, nDims, learned, 0);
         }
 
         int trainingSize = Math.min(originalDim * trainingFactor, count);
@@ -225,7 +261,7 @@ public final class AsymmetricHashingQuantizer {
             pT = AshUtils.completeBasis(pT, originalDim, rank, nDims, new Random(seed + 2), executor);
         }
         float[] wT = rotated(pT, vectors, count, centroids, originalDim, nDims, trainingSize);
-        return new TrainedProjection(ESVectorUtil.transposeMatrix(wT, nDims, originalDim), wT, learned);
+        return newProjection(wT, originalDim, nDims, learned, trainingSize);
     }
 
     /**
@@ -270,13 +306,12 @@ public final class AsymmetricHashingQuantizer {
 
     /** A random orthonormal projection, reported as not learned so that it is never inherited at merge. */
     private TrainedProjection randomProjection(int originalDim, int nDims) {
-        float[] wT = randomOrthogonal(originalDim, nDims);
-        return new TrainedProjection(ESVectorUtil.transposeMatrix(wT, nDims, originalDim), wT, false);
+        return newProjection(randomOrthogonal(originalDim, nDims), originalDim, nDims, false, 0);
     }
 
     /**
      * Warm-started training: refines an inherited projection matrix instead of learning W from
-     * scratch. The supplied {@code inheritedWT} (transposed, shape {@code (nDims, originalDim)}) is
+     * scratch. The {@code inherited} matrix's W^T (shape {@code (nDims, originalDim)}) is
      * used as the starting subspace, and a small number of subspace iteration steps are run against the
      * second-moment matrix of the current (merged) training data to re-fit it. The iteration keeps the span of the
      * basis but not the basis itself: it pulls the rows toward the leading eigenvectors, which undoes the inherited
@@ -284,27 +319,32 @@ public final class AsymmetricHashingQuantizer {
      * afterwards, in the same way as when training from scratch (random, or refined by Procrustes iterations).
      * <p>
      * Used at merge time to recover the recall of a freshly-trained W while needing far fewer
-     * iterations than training W from scratch.
+     * iterations than training W from scratch. A refined W is a new matrix, with a new id, refit to the merged training
+     * sample, whose size it records. When there is nothing to refine, the inherited matrix is returned unchanged with its
+     * own id and training sample size.
      *
      * @param vectors       random-access provider of the segment's vectors by ordinal
      * @param count         number of vectors in the segment
      * @param originalDim   vector dimensionality
      * @param centroids     cluster centroids, fetched by vector ordinal
-     * @param inheritedWT   the inherited transposed projection matrix, shape (nDims, originalDim)
+     * @param inherited     the inherited projection matrix, projecting {@code originalDim} to {@code nDims} dimensions
      * @param refineIterations most multiplications by the second-moment matrix to run
-     * @return the refined projection (W^T plus {@code learned=true}), or the inherited matrix unchanged
-     *         if there are too few vectors to refine. The inherited matrix is always a learned matrix
-     *         (the caller only warm-starts from learned inputs), so the result is always learned.
+     * @return the refined projection (W^T plus {@code learned=true}), a new random rotation without dimensionality
+     *         reduction, or the inherited matrix unchanged if there is nothing to refine it with: too few vectors, or no
+     *         variance in the merged vectors. The inherited matrix is always a learned matrix (the caller only
+     *         warm-starts from learned inputs), so the result is always learned.
+     * @throws IllegalArgumentException if {@code inherited} does not project {@code originalDim} to this quantizer's
+     *         projected dimensions
      */
     TrainedProjection trainWarmStart(
         CheckedIntFunction<float[], IOException> vectors,
         int count,
         int originalDim,
         CheckedIntFunction<float[], IOException> centroids,
-        float[] inheritedWT,
+        AshProjectionMatrix inherited,
         int refineIterations
     ) throws IOException {
-        assert inheritedWT != null : "trainWarmStart requires a non-null inherited matrix to fall back to";
+        assert inherited != null : "trainWarmStart requires a non-null inherited matrix to fall back to";
         int nDims = nDims(originalDim);
 
         // Warm-start: refine the inherited basis rather than recomputing it from scratch. We trust the
@@ -313,26 +353,42 @@ public final class AsymmetricHashingQuantizer {
         // (mean ||x||^2); if the inherited basis fits the merged set poorly, cold re-train instead of
         // warm-starting. This is a principled re-seed trigger to escape a poor local minimum.
 
-        if (method != Method.LEARNED
-            || inheritedWT == null
-            || inheritedWT.length != originalDim * nDims
-            || count < nDims * 2
-            || refineIterations <= 0) {
-            // Not refinable — return the inherited matrix as-is (caller already validated compatibility).
-            return new TrainedProjection(ESVectorUtil.transposeMatrix(inheritedWT, nDims, originalDim), inheritedWT, true);
+        if (inherited.originalDim() != originalDim || inherited.nDims() != nDims) {
+            // the caller only passes a matrix of the expected shape, so this is a bug rather than input to recover from
+            throw new IllegalArgumentException(
+                "inherited projection matrix projects ["
+                    + inherited.originalDim()
+                    + "] to ["
+                    + inherited.nDims()
+                    + "] dims but expected ["
+                    + originalDim
+                    + "] to ["
+                    + nDims
+                    + "]"
+            );
+        }
+        if (method != Method.LEARNED || count < nDims * 2 || refineIterations <= 0) {
+            // Not refinable — return the inherited matrix as-is
+            return inheritedProjection(inherited);
+        }
+
+        // No dimensionality reduction: the subspace is the whole space, so there is nothing to refine, and without
+        // Procrustes iterations the rotation applied afterwards is random. Skip the second-moment matrix, as train does.
+        if (nDims == originalDim && nTrainingIterations == 0) {
+            return newProjection(randomOrthogonal(originalDim, nDims), originalDim, nDims, true, 0);
         }
 
         int trainingSize = Math.min(originalDim * trainingFactor, count);
         float[] secondMoment = buildSecondMoment(vectors, count, centroids, originalDim, trainingSize);
         if (trace(secondMoment, originalDim) <= 0) {
             // no variance in the merged vectors to refine the inherited matrix with
-            return new TrainedProjection(ESVectorUtil.transposeMatrix(inheritedWT, nDims, originalDim), inheritedWT, true);
+            return inheritedProjection(inherited);
         }
 
-        // refineSubspace overwrites its starting basis, and the caller still owns the inherited matrix
-        float[] refinedT = AshUtils.refineSubspace(secondMoment, originalDim, nDims, inheritedWT.clone(), refineIterations, executor);
+        // refineSubspace overwrites its starting basis, and the inherited matrix stays in use by its segment
+        float[] refinedT = AshUtils.refineSubspace(secondMoment, originalDim, nDims, inherited.wT().clone(), refineIterations, executor);
         float[] wT = rotated(refinedT, vectors, count, centroids, originalDim, nDims, trainingSize);
-        return new TrainedProjection(ESVectorUtil.transposeMatrix(wT, nDims, originalDim), wT, true);
+        return newProjection(wT, originalDim, nDims, true, trainingSize);
     }
 
     /**
@@ -366,11 +422,6 @@ public final class AsymmetricHashingQuantizer {
 
         for (int start = 0; start < trainingSize; start += blockRows) {
             int rows = Math.min(blockRows, trainingSize - start);
-            if (rows != blockRows) {
-                // the final, partial block: the multiply needs exactly-sized arrays
-                block = new float[rows * originalDim];
-                blockT = new float[rows * originalDim];
-            }
             for (int i = 0; i < rows; i++) {
                 int srcIdx = sampleIndices[start + i];
                 float[] centroid = centroids.apply(srcIdx);
@@ -578,10 +629,10 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            // The multiply doesn't have offsets, so the full matrix is calculated
-            // Although this means that partial blocks multiply whatever is left in 'centered' after the tail,
-            // only 'size' rows are read back
-            ESVectorUtil.matrixMultiply(centered, w, maxBlockSize, originalDim, nDims, latent, executor);
+            // round the rows up to next multiple of 8 so the matrix multiply doesn't have to deal with row tails
+            // maxBlockSize can vary in tests
+            int roundedSize = Math.min(maxBlockSize, (size + 7) & ~7);
+            ESVectorUtil.matrixMultiply(centered, w, roundedSize, originalDim, nDims, latent, executor);
         }
     }
 
@@ -669,8 +720,9 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            // As in FloatBlockEncoder, rows past 'size' hold stale data and are never read back
-            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, maxBlockSize, originalDim, nDims, product, executor);
+            // round the rows up to nearest 8, same as floats
+            int roundedSize = Math.min(maxBlockSize, (size + 7) & ~7);
+            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, roundedSize, originalDim, nDims, product, executor);
 
             // scale the multiply results back to floats
             // copy to an array, then iterate through the array for speed

@@ -864,6 +864,9 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
     }
 
     public void testIndexMode() throws Exception {
+        // Pinned to 1 shard and 0 replicas: this test creates up to 30 indices, and with random shard counts it can go over
+        // the 2048 open files limit of the test file system, which causes a master failover and a flaky failure.
+        final Settings baseSettings = indexSettings(1, 0).build();
         Map<String, IndexMode> indexModes = new HashMap<>();
         // metrics
         {
@@ -877,12 +880,16 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                      }
                  }
                 """;
-            Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("hostname")).build();
+            Settings settings = Settings.builder()
+                .put(baseSettings)
+                .put("mode", "time_series")
+                .putList("routing_path", List.of("hostname"))
+                .build();
             int numIndices = between(1, 5);
             for (int i = 0; i < numIndices; i++) {
                 assertAcked(
                     indicesAdmin().prepareCreate("test_metrics_" + i).setSettings(settings).setMapping(metricsMapping),
-                    indicesAdmin().prepareCreate("test_old_metrics_" + i).setMapping(metricsMapping)
+                    indicesAdmin().prepareCreate("test_old_metrics_" + i).setSettings(baseSettings).setMapping(metricsMapping)
                 );
                 indexModes.put("test_metrics_" + i, IndexMode.TIME_SERIES);
                 indexModes.put("test_old_metrics_" + i, IndexMode.STANDARD);
@@ -900,12 +907,12 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                      }
                  }
                 """;
-            Settings settings = Settings.builder().put("mode", "logsdb").build();
+            Settings settings = Settings.builder().put(baseSettings).put("mode", "logsdb").build();
             int numIndices = between(1, 5);
             for (int i = 0; i < numIndices; i++) {
                 assertAcked(
                     indicesAdmin().prepareCreate("test_logs_" + i).setSettings(settings).setMapping(logsMapping),
-                    indicesAdmin().prepareCreate("test_old_logs_" + i).setMapping(logsMapping)
+                    indicesAdmin().prepareCreate("test_old_logs_" + i).setSettings(baseSettings).setMapping(logsMapping)
                 );
                 indexModes.put("test_logs_" + i, IndexMode.LOGSDB);
                 indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);
@@ -925,6 +932,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
         // — incompatible with the disable_sequence_numbers default that columnar mode enables.
         Settings columnarSettings = Settings.builder()
+            .put(baseSettings)
             .put("mode", "columnar")
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
             .build();
@@ -947,6 +955,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         // Explicitly set DOC_VALUES_ONLY to override the random index template, which may set POINTS_AND_DOC_VALUES
         // — incompatible with the disable_sequence_numbers default that logsdb_columnar mode enables.
         Settings logsdbColumnarSettings = Settings.builder()
+            .put(baseSettings)
             .put("mode", "logsdb_columnar")
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
             .build();

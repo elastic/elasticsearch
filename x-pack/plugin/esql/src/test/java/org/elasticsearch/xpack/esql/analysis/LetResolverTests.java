@@ -12,14 +12,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.RelationClass;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
@@ -32,6 +35,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -68,6 +72,15 @@ public class LetResolverTests extends ESTestCase {
         return relation;
     }
 
+    /** Asserts that {@code plan} is the {@link NamedSubquery} wrapper of the binding {@code name}, and returns the binding body. */
+    private static LogicalPlan binding(LogicalPlan plan, String name) {
+        assertThat(plan, instanceOf(NamedSubquery.class));
+        NamedSubquery named = (NamedSubquery) plan;
+        assertThat(named.name(), is(name));
+        assertThat(named.relationClass(), is(RelationClass.SUBQUERY));
+        return named.child();
+    }
+
     /** Asserts that {@code plan} is a Limit directly over a relation with the given pattern, i.e. {@code FROM x | LIMIT n}. */
     private static void assertLimitOver(LogicalPlan plan, String indexPattern) {
         assertThat(plan, instanceOf(Limit.class));
@@ -85,12 +98,12 @@ public class LetResolverTests extends ESTestCase {
     }
 
     // -----------------------------------------------------------------------
-    // Binding body substituted directly — no wrapping
+    // Binding body substituted, wrapped in a NamedSubquery carrying the binding name
     // -----------------------------------------------------------------------
 
-    public void testBindingBodySubstitutedDirectly() {
+    public void testBindingBodySubstitutedInNamedSubquery() {
         LogicalPlan result = parseAndResolveLet("LET top3 = (FROM base_index | LIMIT 3); FROM top3");
-        assertLimitOver(result, "base_index");
+        assertLimitOver(binding(result, "top3"), "base_index");
     }
 
     // -----------------------------------------------------------------------
@@ -101,7 +114,7 @@ public class LetResolverTests extends ESTestCase {
         // The LET binding named "languages" takes precedence over the ES index "languages".
         // FROM languages in the main query resolves to the binding body, not the index.
         LogicalPlan result = parseAndResolveLet("LET languages = (FROM employees | LIMIT 5); FROM languages");
-        assertLimitOver(result, "employees");
+        assertLimitOver(binding(result, "languages"), "employees");
     }
 
     // -----------------------------------------------------------------------
@@ -121,9 +134,10 @@ public class LetResolverTests extends ESTestCase {
     public void testChainedBindingsResolveLeftToRight() {
         // "a" in b's body resolves to a's body
         LogicalPlan result = parseAndResolveLet("LET a = (FROM base | LIMIT 5); LET b = (FROM a | LIMIT 3); FROM b");
-        // "b" resolves to bBody with "a" substituted: Limit(Limit(base))
-        assertThat(result, instanceOf(Limit.class));
-        assertLimitOver(((Limit) result).child(), "base");
+        // "b" resolves to bBody with "a" substituted: Limit(Limit(base)), each body in its own named wrapper
+        LogicalPlan bBody = binding(result, "b");
+        assertThat(bBody, instanceOf(Limit.class));
+        assertLimitOver(binding(((Limit) bBody).child(), "a"), "base");
     }
 
     // -----------------------------------------------------------------------
@@ -195,7 +209,7 @@ public class LetResolverTests extends ESTestCase {
         assertThat(result, instanceOf(UnionAll.class));
         List<LogicalPlan> children = ((UnionAll) result).children();
         assertThat(children, hasSize(2));
-        assertLimitOver(children.get(0), "logs");
+        assertLimitOver(binding(children.get(0), "top3"), "logs");
         assertUnresolvedRelation(children.get(1), "real_index");
     }
 
@@ -208,7 +222,7 @@ public class LetResolverTests extends ESTestCase {
         assertThat(result, instanceOf(UnionAll.class));
         List<LogicalPlan> children = ((UnionAll) result).children();
         assertThat(children, hasSize(2));
-        assertLimitOver(children.get(0), "logs");
+        assertLimitOver(binding(children.get(0), "top3"), "logs");
         assertUnresolvedRelation(children.get(1), "real1,real2");
     }
 
@@ -218,9 +232,28 @@ public class LetResolverTests extends ESTestCase {
         assertThat(result, instanceOf(UnionAll.class));
         List<LogicalPlan> children = ((UnionAll) result).children();
         assertThat(children, hasSize(3));
-        assertLimitOver(children.get(0), "logs");
-        assertLimitOver(children.get(1), "metrics");
+        assertLimitOver(binding(children.get(0), "x"), "logs");
+        assertLimitOver(binding(children.get(1), "y"), "metrics");
         assertUnresolvedRelation(children.get(2), "a,b");
+    }
+
+    /**
+     * A binding beside a literal subquery is a sibling of it: the union substitution builds for {@code real_index, top3} is
+     * inlined into the parser's union for the {@code FROM}, rather than nested inside it as one opaque branch.
+     */
+    public void testMixedFromBindingBesideLiteralSubqueryIsFlat() {
+        assumeTrue("requires SUBQUERY_IN_FROM_COMMAND capability", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan result = parseAndResolveLet("LET top3 = (FROM logs | LIMIT 3); FROM real_index, top3, (FROM other)");
+
+        assertThat(result, instanceOf(UnionAll.class));
+        List<LogicalPlan> children = ((UnionAll) result).children();
+        assertThat(children, hasSize(3));
+        assertLimitOver(binding(children.get(0), "top3"), "logs");
+        assertUnresolvedRelation(children.get(1), "real_index");
+        // the literal subquery beside the binding stays unnamed
+        assertThat(children.get(2), instanceOf(Subquery.class));
+        assertThat(children.get(2), not(instanceOf(NamedSubquery.class)));
+        assertUnresolvedRelation(((Subquery) children.get(2)).child(), "other");
     }
 
     public void testMixedInSubqueryBindingAndRealIndex() {
@@ -234,7 +267,7 @@ public class LetResolverTests extends ESTestCase {
         assertThat(inSub.subquery(), instanceOf(UnionAll.class));
         UnionAll union = (UnionAll) inSub.subquery();
         assertThat(union.children(), hasSize(2));
-        assertLimitOver(union.children().get(0), "logs");
+        assertLimitOver(binding(union.children().get(0), "top3"), "logs");
         assertUnresolvedRelation(union.children().get(1), "real_index_2");
     }
 
@@ -247,7 +280,7 @@ public class LetResolverTests extends ESTestCase {
 
     public void testPlanSizeWithinLimit() {
         LogicalPlan result = parseAndResolveLet("LET b = (" + limitChain("src", 300) + "); FROM b");
-        assertThat(result, instanceOf(Limit.class));
+        assertThat(binding(result, "b"), instanceOf(Limit.class));
     }
 
     public void testBindingExceedingPlanSizeIsRejected() {
@@ -303,6 +336,40 @@ public class LetResolverTests extends ESTestCase {
         expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(query.toString()));
     }
 
+    public void testForkInLetReferenceAccepted() {
+        parseAndResolveLet("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q | FORK (WHERE y > 0) (WHERE y < 0)");
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); LET r = (FROM q | FORK (WHERE y > 0) (WHERE y < 0)); FROM r"
+        );
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q | FORK (WHERE y > 0) (WHERE y < 0))"
+        );
+        parseAndResolveLet("LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM q, b | FORK (WHERE y > 0) (WHERE y < 0)");
+        parseAndResolveLet(
+            "LET q = (FROM a | FORK (WHERE x > 0) (WHERE x < 0)); FROM b | WHERE x IN (FROM q) | FORK (WHERE y > 0) (WHERE y < 0)"
+        );
+    }
+
+    /**
+     * Each binding adds a FORK over the previous one; the chain goes over the plan size limit. FORKs nested through subqueries in
+     * the main query are rejected by the parser already, by the branch count.
+     */
+    public void testBigForkExpansionRejected() {
+        StringBuilder insideLet = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
+        for (int i = 1; i < 40; i++) {
+            insideLet.append(" LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
+        }
+        insideLet.append(" FROM f39");
+        expectThrows(VerificationException.class, containsString(MAX_PLAN_NODES_ERROR), () -> parseAndResolveLet(insideLet.toString()));
+
+        StringBuilder outsideLet = new StringBuilder("FROM q | FORK (WHERE x > 0) (WHERE x < 0)");
+        for (int i = 0; i < 8; i++) {
+            outsideLet = new StringBuilder("FROM (" + outsideLet + "), b | FORK (WHERE x > 0) (WHERE x < 0)");
+        }
+        String statement = "LET q = (FROM a); " + outsideLet;
+        expectThrows(VerificationException.class, containsString("exceeding the limit of 128"), () -> parseAndResolveLet(statement));
+    }
+
     // -----------------------------------------------------------------------
     // Substitution into multiple positions
     // -----------------------------------------------------------------------
@@ -319,12 +386,12 @@ public class LetResolverTests extends ESTestCase {
         assertThat(filter.child(), instanceOf(UnionAll.class));
         List<LogicalPlan> branches = ((UnionAll) filter.child()).children();
         assertThat(branches, hasSize(2));
-        assertLimitOver(branches.get(0), "src");
+        assertLimitOver(binding(branches.get(0), "snap"), "src");
         List<UnresolvedRelation> nested = branches.get(1).collect(UnresolvedRelation.class);
         assertThat(nested, hasSize(1));
         assertThat(nested.get(0).indexPattern().indexPattern(), is("src"));
         assertThat(filter.condition(), instanceOf(InSubquery.class));
-        assertLimitOver(((InSubquery) filter.condition()).subquery(), "src");
+        assertLimitOver(binding(((InSubquery) filter.condition()).subquery(), "snap"), "src");
     }
 
     // -----------------------------------------------------------------------
@@ -359,14 +426,14 @@ public class LetResolverTests extends ESTestCase {
     public void testBindingWithRowSource() {
         LogicalPlan result = parseAndResolveLet("LET r = (ROW a = 1, b = 2 | WHERE a > 0 | LIMIT 1); FROM r | KEEP a");
         assertThat(result, instanceOf(Project.class));
-        LogicalPlan limit = ((Project) result).child();
+        LogicalPlan limit = binding(((Project) result).child(), "r");
         assertThat(limit, instanceOf(Limit.class));
         assertThat(limit.collect(Row.class), hasSize(1));
     }
 
     public void testBindingWithTsSource() {
         LogicalPlan result = parseAndResolveLet("LET t = (TS idx | LIMIT 1); FROM t");
-        assertThat(result, instanceOf(Limit.class));
+        assertThat(binding(result, "t"), instanceOf(Limit.class));
         var relations = result.collect(UnresolvedRelation.class);
         assertThat(relations, hasSize(1));
         assertThat(relations.get(0).indexMode(), is(IndexMode.TIME_SERIES));

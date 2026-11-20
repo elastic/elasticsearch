@@ -17,7 +17,12 @@ For more examples of these functions in action, refer to [the {{esql}} for searc
 k-nearest neighbor search.
 Dense vector functions work with [
 `dense_vector` fields](/reference/elasticsearch/mapping-reference/dense-vector.md)
-and require appropriate field mappings.
+and `dense_vector` expressions.
+
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+`KNN` on a `dense_vector` expression is a
+[runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-knn): an exact search
+over every row that reaches it, instead of an approximate search in the vector index.
 
 {{esql}} supports these vector functions:
 

@@ -119,6 +119,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
             connection,
             buildShardSearchRequest(shardIt, listener.requestIndex),
             getTask(),
+            newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL),
             listener,
             this::trackPhaseResultBytesRead,
             this::trackPhaseRequestBytesWritten
@@ -128,6 +129,11 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     @Override
     protected SearchPhase getNextPhase() {
         return new DfsQueryPhase(queryPhaseResultConsumer, client, this);
+    }
+
+    @Override
+    SearchPhaseResults<?> queryPhaseResults() {
+        return queryPhaseResultConsumer;
     }
 
     @Override

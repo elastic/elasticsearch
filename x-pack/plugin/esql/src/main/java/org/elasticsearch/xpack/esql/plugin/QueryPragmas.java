@@ -19,6 +19,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -75,6 +76,10 @@ public final class QueryPragmas implements Writeable {
         Setting.intSetting("unavailable_shard_resolution_attempts", 10, -1);
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
+
+    public static final Setting<Boolean> TIME_SERIES_SINGLE_PASS = Setting.boolSetting("time_series_single_pass", true);
+
+    public static final Setting<Boolean> TIME_SERIES_REDUCE_PER_INDEX = Setting.boolSetting("time_series_reduce_per_index", false);
 
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
@@ -157,6 +162,13 @@ public final class QueryPragmas implements Writeable {
      * checks use this as the hard ceiling.
      */
     public static final int MAX_BRANCH_COUNT_PER_MERGE_MAX = 20;
+
+    /**
+     * Fixed ceiling on the leaf branches of a parsed plan, so that nested FORKs cannot blow up the plan before analysis. It is well above
+     * the default {@link #MAX_BRANCH_COUNT}, which is enforced after the logical optimizer prunes empty branches. A configured
+     * {@code max_branch_count} above this value has no effect on queries that exceed it at parse time.
+     */
+    public static final int MAX_PARSED_BRANCH_COUNT = 128;
 
     /**
      * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or}
@@ -249,6 +261,12 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
+    /**
+     * Turns the fetch phase on or off for one query. A build without the fetch phase ignores it. Without the pragma the
+     * fetch phase stays off.
+     */
+    public static final Setting<Boolean> FETCH_PHASE = Setting.boolSetting("fetch_phase", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -279,8 +297,10 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        SINGLE_NODE_OPTIMIZATIONS
-
+        SINGLE_NODE_OPTIMIZATIONS,
+        TIME_SERIES_SINGLE_PASS,
+        TIME_SERIES_REDUCE_PER_INDEX,
+        FETCH_PHASE
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -385,6 +405,20 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Returns true if time-series single pass aggregation can be enabled when possible
+     */
+    public boolean timeSeriesSinglePass() {
+        return TIME_SERIES_SINGLE_PASS.get(settings);
+    }
+
+    /**
+     * Returns the query-level value when explicitly configured, or the cluster-level value otherwise.
+     */
+    public boolean timeSeriesReducePerIndex(boolean clusterDefault) {
+        return settings.hasValue(TIME_SERIES_REDUCE_PER_INDEX.getKey()) ? TIME_SERIES_REDUCE_PER_INDEX.get(settings) : clusterDefault;
+    }
+
+    /**
      * Disable or enable the single node optimizations in case the query executes against a single node
      */
     public boolean singleNodeOptimizations() {
@@ -452,6 +486,15 @@ public final class QueryPragmas implements Writeable {
      */
     public int maxCommandCount(int clusterDefault) {
         return settings.hasValue(MAX_COMMAND_COUNT.getKey()) ? MAX_COMMAND_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxCommandCount(int)}, used in verification messages.
+     */
+    public String maxCommandCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey())
+            ? "[" + MAX_COMMAND_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
     }
 
     /**
@@ -564,6 +607,14 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
+    }
+
+    /**
+     * The {@code fetch_phase} pragma, or {@code null} when the query does not set it.
+     */
+    @Nullable
+    public Boolean fetchPhase() {
+        return settings.hasValue(FETCH_PHASE.getKey()) ? FETCH_PHASE.get(settings) : null;
     }
 
     public boolean isEmpty() {

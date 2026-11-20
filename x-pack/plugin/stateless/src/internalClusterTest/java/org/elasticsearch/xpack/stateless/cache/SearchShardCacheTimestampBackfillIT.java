@@ -27,8 +27,9 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.TestUtils;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -480,10 +481,10 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         var indexObjectStore = getObjectStoreService(indexNode);
         for (var blob : commitsContainer.listBlobs(operationPurpose).entrySet()) {
             var blobName = blob.getKey();
-            if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false) {
+            if (BccBlob.startsWithBlobPrefix(blobName) == false) {
                 continue;
             }
-            var generation = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
+            var generation = BccBlob.parseGenerationFromBlobName(blobName);
             var iterator = indexObjectStore.readBatchedCompoundCommitFromStoreIncrementally(
                 shardId,
                 new PrimaryTermAndGeneration(primaryTerm, generation),
@@ -609,7 +610,7 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
                 blobCacheMetrics,
                 capturingPolicy,
                 System::nanoTime,
-                threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL),
+                threadPool.executor(StatelessThreadPools.SHARD_READ_THREAD_POOL),
                 metricHolder
             );
             this.capturingPolicy = capturingPolicy;

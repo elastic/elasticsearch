@@ -25,16 +25,25 @@ import java.io.IOException;
  * "unknown".
  * </p>
  */
-public record IndexProperties(IndexMode indexMode, int numberOfShards) implements Writeable {
+public record IndexProperties(IndexMode indexMode, int numberOfShards, int createdVersion) implements Writeable {
 
     /**
      * Transport version that introduced per-index shard-count propagation via {@code _field_caps}.
      * Gating point for both {@link #IndexProperties(StreamInput)} and {@link #writeTo(StreamOutput)}.
      */
     public static final TransportVersion SHARD_COUNTS = TransportVersion.fromName("field_caps_number_of_shards");
+    public static final TransportVersion CREATED_VERSION = TransportVersion.fromName("field_caps_index_created_version");
 
     public IndexProperties(StreamInput in) throws IOException {
-        this(IndexMode.readFrom(in), in.getTransportVersion().supports(SHARD_COUNTS) ? in.readVInt() : 0);
+        this(
+            IndexMode.readFrom(in),
+            in.getTransportVersion().supports(SHARD_COUNTS) ? in.readVInt() : 0,
+            in.getTransportVersion().supports(CREATED_VERSION) ? in.readVInt() : 0
+        );
+    }
+
+    public IndexProperties(IndexMode indexMode, int numberOfShards) {
+        this(indexMode, numberOfShards, 0);
     }
 
     @Override
@@ -42,6 +51,9 @@ public record IndexProperties(IndexMode indexMode, int numberOfShards) implement
         IndexMode.writeTo(indexMode, out);
         if (out.getTransportVersion().supports(SHARD_COUNTS)) {
             out.writeVInt(numberOfShards);
+        }
+        if (out.getTransportVersion().supports(CREATED_VERSION)) {
+            out.writeVInt(createdVersion);
         }
     }
 }

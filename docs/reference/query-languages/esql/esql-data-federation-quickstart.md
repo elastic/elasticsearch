@@ -1,9 +1,9 @@
 ---
-navigation_title: "Quickstart"
+navigation_title: "Get started tutorial"
 description: "Step-by-step tutorial for setting up ES|QL Data Federation with a public S3 bucket, creating a dataset, and running your first federated query."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -13,9 +13,6 @@ products:
 This guide walks you through connecting {{es}} to external data and querying it with {{esql}}. By the end, you have a working data source, a dataset, and a query returning results from external storage.
 
 The example uses the [Ookla Open Speedtest dataset](https://registry.opendata.aws/speedtest-global-performance/) ([GitHub](https://github.com/teamookla/ookla-open-data)), a publicly accessible collection of internet performance metrics aggregated by geographic tile (a small area on the map). It mirrors a common observability pattern: analyzing network performance data stored in cloud storage alongside operational data indexed in {{es}}. Because the bucket allows anonymous access, you can follow along without AWS credentials.
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 ## Before you begin
 
@@ -173,7 +170,7 @@ A successful request returns `{"acknowledged": true}`.
 
 ::::{tab-item} UI
 :sync: ui
-{applies_to}`stack: preview 9.6+` **Add dataset** opens a four-step wizard:
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` **Add dataset** opens a four-step wizard:
 
 1. Select the **Datasets** tab, then click **Add dataset**.
 2. Select `ookla_speedtest` as the **Data source**.
@@ -350,7 +347,7 @@ FROM speedtest_fixed
 If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
 
 :::{tip}
-:applies_to: stack: preview 9.6+
+:applies_to: { "stack": "preview 9.6+", "serverless": "preview" }
 In {{kib}}, you can also query a dataset from the **Datasets** tab. In the dataset's row, click the **Open in Discover** icon ({icon}`product_discover`) to open **Discover** with a `FROM speedtest_fixed` query.
 :::
 ::::::
@@ -610,7 +607,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_bulk" \
 
 Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. To see where each row came from, request a metadata column:
 
-- {applies_to}`stack: preview 9.6+` Use `METADATA _name`, which returns the dataset name for dataset rows and the index name for index rows.
+- {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` Use `METADATA _name`, which returns the dataset name for dataset rows and the index name for index rows.
 - {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows.
 
 ::::{tab-set}

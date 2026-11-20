@@ -11,7 +11,9 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
@@ -58,6 +60,17 @@ public class ExistsQuery extends Query {
     private static class MappedOnlyExistsQueryBuilder extends ExistsQueryBuilder {
         MappedOnlyExistsQueryBuilder(String fieldName) {
             super(fieldName);
+        }
+
+        @Override
+        protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
+            if (context instanceof SearchExecutionContext shard) {
+                // The shard may resolve a field its mapping does not match by name
+                return mappedFieldType(shard, fieldName()) == null
+                    ? new MatchNoneQueryBuilder("missing field [" + fieldName() + "]")
+                    : this;
+            }
+            return super.doIndexMetadataRewrite(context);
         }
 
         @Override

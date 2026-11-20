@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
@@ -45,16 +46,18 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         AggregateMetricDoubleNativeSupport,
         SurrogateExpression,
         TimestampAware,
-        ToAggregator {
+        ToAggregator,
+        UnitAware.Unitless {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountOverTime.class)
         .ternary(CountOverTime::new)
         .name("count_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
         .withinSeries((source, field, window, timestamp) -> new CountOverTime(source, promqlSample(field), window, timestamp))
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
         .description("Returns the count of all values in the specified time range.")
         .example("count_over_time(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
-        .differenceFromPrometheus(PromqlFunctionDefinition.COUNT_NOTE)
+        .stdDivergence(PromqlFunctionDefinition.COUNT_NOTE)
         .name("count_over_time");
 
     private final Expression timestamp;
@@ -78,6 +81,9 @@ public class CountOverTime extends TimeSeriesAggregateFunction
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "counter_double",
+                "counter_integer",
+                "counter_long",
                 "date",
                 "date_nanos",
                 "dense_vector",

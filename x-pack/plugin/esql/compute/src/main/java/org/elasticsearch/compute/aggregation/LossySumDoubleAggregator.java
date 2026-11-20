@@ -7,14 +7,11 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
@@ -30,7 +27,7 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "unusedDeltas", type = "DOUBLE"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
-@GroupingAggregator
+@GroupingAggregator(supportsPartitioning = true)
 class LossySumDoubleAggregator {
 
     public static SumState initSingle() {
@@ -68,23 +65,28 @@ class LossySumDoubleAggregator {
         return driverContext.blockFactory().newConstantDoubleBlockWith(state.value, 1);
     }
 
-    public static GroupingSumState initGrouping(BigArrays bigArrays) {
-        return new GroupingSumState(bigArrays);
+    public static double initGrouping() {
+        return 0.0;
     }
 
-    public static void combine(GroupingSumState current, int groupId, double v) {
-        current.add(v, groupId);
+    public static double combine(double current, double v) {
+        return current + v;
     }
 
-    public static void combineIntermediate(GroupingSumState current, int groupId, double value, double zeroDelta, boolean seen) {
-        assert zeroDelta == 0.0 : zeroDelta;
-        if (seen) {
-            current.add(value, groupId);
-        }
+    public static void combine(DoubleArrayState current, int groupId, double v) {
+        current.increment(groupId, v);
+    }
+
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        DoubleArrayState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return (blocks, offset, selectedInPage) -> evaluateIntermediate(state, blocks, offset, selectedInPage, ctx.driverContext());
     }
 
     public static void evaluateIntermediate(
-        GroupingSumState state,
+        DoubleArrayState state,
         Block[] blocks,
         int offset,
         IntVector selected,
@@ -97,11 +99,7 @@ class LossySumDoubleAggregator {
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < state.values.size()) {
-                    valuesBuilder.appendDouble(state.values.get(group));
-                } else {
-                    valuesBuilder.appendDouble(0);
-                }
+                valuesBuilder.appendDouble(state.getOrDefault(group));
                 seenBuilder.appendBoolean(state.hasValue(group));
             }
             blocks[offset + 0] = valuesBuilder.build().asBlock();
@@ -110,23 +108,9 @@ class LossySumDoubleAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingSumState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
-        try (DoubleBlock.Builder builder = ctx.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                int si = selected.getInt(i);
-                if (state.hasValue(si) && si < state.values.size()) {
-                    builder.appendDouble(state.values.get(si));
-                } else {
-                    builder.appendNull();
-                }
-            }
-            return builder.build();
-        }
-    }
-
     public static GroupingAggregatorFunction.AddInput wrapAddInput(
         GroupingAggregatorFunction.AddInput delegate,
-        GroupingSumState state,
+        DoubleArrayState state,
         DoubleVector values
     ) {
         return new GroupingAggregatorFunction.AddInput() {
@@ -148,7 +132,7 @@ class LossySumDoubleAggregator {
                     for (int i = positionOffset; i < to; i++) {
                         sum += values.getDouble(i);
                     }
-                    state.add(sum, groupIds.getInt(0));
+                    state.increment(groupIds.getInt(0), sum);
                 } else {
                     delegate.add(positionOffset, groupIds);
                 }
@@ -179,38 +163,6 @@ class LossySumDoubleAggregator {
 
         public void seen(boolean seen) {
             this.seen = seen;
-        }
-    }
-
-    static final class GroupingSumState extends AbstractArrayState implements GroupingAggregatorState {
-        private DoubleArray values;
-
-        GroupingSumState(BigArrays bigArrays) {
-            super(bigArrays);
-            boolean success = false;
-            try {
-                this.values = bigArrays.newDoubleArray(128);
-                success = true;
-            } finally {
-                if (success == false) {
-                    close();
-                }
-            }
-        }
-
-        void add(double valueToAdd, int groupId) {
-            values = bigArrays.grow(values, groupId + 1);
-            values.increment(groupId, valueToAdd);
-            trackGroupId(groupId);
-        }
-
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            LossySumDoubleAggregator.evaluateIntermediate(this, blocks, offset, selected, driverContext);
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(values, super::close);
         }
     }
 }

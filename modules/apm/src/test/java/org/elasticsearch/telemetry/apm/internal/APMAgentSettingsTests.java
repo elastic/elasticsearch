@@ -71,7 +71,9 @@ public class APMAgentSettingsTests extends ESTestCase {
     }
 
     public void testUpdateMaxSpansPropagatesToTracer() {
-        int maxSpans = randomIntBetween(0, 1000);
+        // avoid the default (500): an update equal to the current value triggers no consumer
+        int defaultMaxSpans = OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.get(Settings.EMPTY);
+        int maxSpans = randomValueOtherThan(defaultMaxSpans, () -> randomIntBetween(0, 1000));
         Settings update = Settings.builder().put(OtelSdkSettings.TELEMETRY_TRACING_MAX_SPANS.getKey(), maxSpans).build();
         triggerUpdateConsumer(Settings.EMPTY, update);
         verify(apmTelemetryProvider.getTracer()).setMaxSpans(maxSpans);

@@ -532,7 +532,9 @@ public class ValidateBuildGradleScriptsTaskTests {
                 "def b = '''",
                 "  project.ant { echo(message: 'x') }",
                 "'''",
-                "def c = $/ant.move(file: 'a') and a $$ and $/ escape/$"
+                "def c = $/ant.move(file: 'a') and a $$ and $/ escape/$",
+                "def d = /ant.copy and \\/ escaped/",
+                "def e = \"${'project.ant' /* project.ant */}\""
             )
         );
         ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
@@ -552,7 +554,14 @@ public class ValidateBuildGradleScriptsTaskTests {
                 "def glob = $/src/*.txt/$",
                 "ant.echo(message: 'x')",
                 "def url = 'http://example.com/*'",
-                "def message = \"${project.ant.properties['x']}\""
+                "def message = \"${project.ant.properties['x']}\"",
+                "def numeric = 'x' ==~ /^[0-9]+$/",
+                "ant.copy(file: 'a', todir: 'b')",
+                "def nested = \"${['}'].size() + project.ant.properties.size()}\"",
+                "def unbraced = \"$project.ant.properties.foo\"",
+                "def builder = project.\"createAntBuilder\"()",
+                "def half = files('a').size() / 2",
+                "ant.mkdir(dir: 'x')"
             )
         );
         ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
@@ -562,9 +571,10 @@ public class ValidateBuildGradleScriptsTaskTests {
             fail("GradleException was expected");
         } catch (GradleException e) {
             String message = e.getMessage();
-            assertTrue(message.contains("[ant-usage] subproject/build.gradle:2"));
-            assertTrue(message.contains("[ant-usage] subproject/build.gradle:4"));
-            assertEquals(2, message.lines().filter(l -> l.startsWith("- [ant-usage]")).count());
+            for (int line : List.of(2, 4, 6, 7, 8, 9, 11)) {
+                assertTrue("line " + line + " in " + message, message.contains("[ant-usage] subproject/build.gradle:" + line + System.lineSeparator()));
+            }
+            assertEquals(7, message.lines().filter(l -> l.startsWith("- [ant-usage]")).count());
         }
     }
 

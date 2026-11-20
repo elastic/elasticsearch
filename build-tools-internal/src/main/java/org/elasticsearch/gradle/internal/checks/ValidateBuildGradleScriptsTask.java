@@ -265,100 +265,165 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     /**
      * Replaces line and block comments and the literal text of strings with spaces, keeping line breaks so that offsets and
      * line numbers are unchanged. This lets a rule match Groovy code only: an explanatory comment or a task description that
-     * mentions an API is not reported. Recognised strings are single, double and triple quoted strings and dollar-slashy
-     * strings ({@code $/.../$}); a {@code /*} or {@code //} inside them does not start a comment. The {@code ${...}}
-     * interpolations of GStrings are code and are kept. Slashy strings ({@code /.../}) are not recognised, because they cannot
-     * be told apart from division without parsing the script.
+     * mentions an API is not reported. Recognised strings are single, double and triple quoted strings, slashy strings
+     * ({@code /.../}) and dollar-slashy strings ({@code $/.../$}); a {@code /*} or {@code //} inside them does not start a
+     * comment. The parts of a string that are code are kept: the {@code ${...}} and {@code $a.b.c} interpolations of GStrings
+     * and a quoted method or property name after a dot ({@code project."createAntBuilder"()}).
+     * <p>
+     * This is a lexer, not a parser, so it uses heuristics. A {@code /} starts a slashy string only where a value is
+     * expected, that is when the code before it does not end with an identifier, a number, a closing bracket or a string.
+     * A string without its closing delimiter is treated as code, so a misdetected string never hides the rest of the script.
      */
     static String blankCommentsAndStrings(String content) {
-        StringBuilder result = new StringBuilder(content.length());
-        int length = content.length();
-        int i = 0;
-        while (i < length) {
-            char c = content.charAt(i);
-            if (content.startsWith("//", i)) {
-                int end = content.indexOf('\n', i);
-                i = blank(content, i, end < 0 ? length : end, result);
-            } else if (content.startsWith("/*", i)) {
-                int end = content.indexOf("*/", i + 2);
-                i = blank(content, i, end < 0 ? length : end + 2, result);
-            } else if (content.startsWith("$/", i) && (i == 0 || Character.isJavaIdentifierPart(content.charAt(i - 1)) == false)) {
-                i = blankStringLiteral(content, i, "$/", "/$", true, result);
-            } else if (c == '\'' || c == '"') {
-                String triple = String.valueOf(c).repeat(3);
-                String quote = content.startsWith(triple, i) ? triple : String.valueOf(c);
-                i = blankStringLiteral(content, i, quote, quote, c == '"', result);
-            } else {
-                result.append(c);
-                i++;
-            }
-        }
-        return result.toString();
+        GroovyCodeMasker masker = new GroovyCodeMasker(content);
+        masker.code(false);
+        return masker.result.toString();
     }
 
     /**
-     * Blanks the string literal starting at {@code start} up to and including its closing delimiter, keeping the delimiters,
-     * line breaks and, for GStrings, {@code ${...}} interpolations. Returns the offset after the literal. An unterminated
-     * single-line string ends at the line break, so the rest of the script is still checked.
+     * The lexer behind {@link #blankCommentsAndStrings(String)}.
      */
-    private static int blankStringLiteral(String content, int start, String open, String close, boolean gString, StringBuilder result) {
-        int length = content.length();
-        boolean dollarSlashy = open.equals("$/");
-        boolean multiLine = dollarSlashy || open.length() == 3;
-        result.append(open);
-        int i = start + open.length();
-        while (i < length) {
-            char c = content.charAt(i);
-            if (content.startsWith(close, i)) {
-                result.append(close);
-                return i + close.length();
-            } else if (c == '\n') {
-                if (multiLine == false) {
-                    return i;
+    private static final class GroovyCodeMasker {
+        private enum Escapes {
+            /** A backslash escapes the next character, as in quoted strings. */
+            BACKSLASH,
+            /** Only {@code \/} is an escape, as in slashy strings. */
+            SLASH,
+            /** {@code $$} and {@code $/} are escapes, as in dollar-slashy strings. */
+            DOLLAR
+        }
+
+        private final String content;
+        private final int length;
+        private final StringBuilder result;
+        private int pos;
+
+        GroovyCodeMasker(String content) {
+            this.content = content;
+            this.length = content.length();
+            this.result = new StringBuilder(length);
+        }
+
+        /**
+         * Copies code, blanking comments and string literal text, up to the end of the content or, for the body of a
+         * {@code ${...}} interpolation, up to and including the brace that closes it.
+         */
+        void code(boolean interpolation) {
+            int depth = 0;
+            while (pos < length) {
+                char c = content.charAt(pos);
+                if (content.startsWith("//", pos)) {
+                    int end = content.indexOf('\n', pos);
+                    blankUntil(end < 0 ? length : end);
+                } else if (content.startsWith("/*", pos)) {
+                    int end = content.indexOf("*/", pos + 2);
+                    blankUntil(end < 0 ? length : end + 2);
+                } else if (content.startsWith("$/", pos) && (pos == 0 || isIdentifierPart(content.charAt(pos - 1)) == false)) {
+                    string("$/", "/$", true, true, Escapes.DOLLAR, false);
+                } else if (c == '/' && valueExpected()) {
+                    string("/", "/", true, true, Escapes.SLASH, false);
+                } else if (c == '\'' || c == '"') {
+                    String triple = String.valueOf(c).repeat(3);
+                    String quote = content.startsWith(triple, pos) ? triple : String.valueOf(c);
+                    // a quoted name after a dot is a method or property name, so it is code
+                    boolean selector = lastCodeChar() == '.';
+                    string(quote, quote, c == '"', quote.length() == 3, Escapes.BACKSLASH, selector);
+                } else {
+                    result.append(c);
+                    pos++;
+                    if (interpolation && c == '{') {
+                        depth++;
+                    } else if (interpolation && c == '}' && depth-- == 0) {
+                        return;
+                    }
                 }
-                result.append('\n');
-                i++;
-            } else if (dollarSlashy && (content.startsWith("$$", i) || content.startsWith("$/", i))) {
-                // escaped '$' or '/' in a dollar-slashy string
-                result.append("  ");
-                i += 2;
-            } else if (dollarSlashy == false && c == '\\' && i + 1 < length) {
-                result.append(' ').append(content.charAt(i + 1) == '\n' ? '\n' : ' ');
-                i += 2;
-            } else if (gString && content.startsWith("${", i)) {
-                int end = endOfInterpolation(content, i + 2);
-                result.append(content, i, end);
-                i = end;
-            } else {
-                result.append(' ');
-                i++;
             }
         }
-        return i;
-    }
 
-    /**
-     * Returns the offset after the closing brace of a {@code ${...}} interpolation whose body starts at {@code bodyStart}.
-     */
-    private static int endOfInterpolation(String content, int bodyStart) {
-        int depth = 1;
-        int i = bodyStart;
-        while (i < content.length() && depth > 0) {
-            char c = content.charAt(i++);
-            if (c == '{') {
-                depth++;
-            } else if (c == '}') {
-                depth--;
+        /**
+         * Masks the string literal at the current position. If the string has no closing delimiter, the opening character is
+         * copied as code instead, so that a misdetected string does not hide the code after it.
+         */
+        private void string(String open, String close, boolean gString, boolean multiLine, Escapes escapes, boolean keepText) {
+            int start = pos;
+            int resultStart = result.length();
+            result.append(open);
+            pos += open.length();
+            while (pos < length) {
+                char c = content.charAt(pos);
+                if (content.startsWith(close, pos)) {
+                    result.append(close);
+                    pos += close.length();
+                    return;
+                } else if (c == '\n' && multiLine == false) {
+                    break;
+                } else if (escapes == Escapes.BACKSLASH && c == '\\' && pos + 1 < length) {
+                    text(2, keepText);
+                } else if (escapes == Escapes.SLASH && content.startsWith("\\/", pos)) {
+                    text(2, keepText);
+                } else if (escapes == Escapes.DOLLAR && (content.startsWith("$$", pos) || content.startsWith("$/", pos))) {
+                    text(2, keepText);
+                } else if (gString && content.startsWith("${", pos)) {
+                    result.append("${");
+                    pos += 2;
+                    code(true);
+                } else if (gString && c == '$' && pos + 1 < length && Character.isJavaIdentifierStart(content.charAt(pos + 1))) {
+                    // an unbraced interpolation of a dotted path such as $project.version
+                    int end = pos + 1;
+                    do {
+                        end++;
+                        while (end < length && Character.isJavaIdentifierPart(content.charAt(end)) && content.charAt(end) != '$') {
+                            end++;
+                        }
+                    } while (end + 1 < length && content.charAt(end) == '.' && Character.isJavaIdentifierStart(content.charAt(end + 1)));
+                    result.append(content, pos, end);
+                    pos = end;
+                } else {
+                    text(1, keepText);
+                }
+            }
+            // unterminated: treat the opening character as code and continue after it
+            result.setLength(resultStart);
+            pos = start;
+            result.append(content.charAt(pos++));
+        }
+
+        /**
+         * Whether a {@code /} at the current position starts a slashy string rather than being a division.
+         */
+        private boolean valueExpected() {
+            char last = lastCodeChar();
+            return last == 0 || (isIdentifierPart(last) == false && ")]}'\"/".indexOf(last) < 0);
+        }
+
+        /**
+         * Returns the last non-whitespace character copied to the result, or {@code 0} if there is none. Comments are already
+         * blanked in the result, so they are skipped.
+         */
+        private char lastCodeChar() {
+            for (int i = result.length() - 1; i >= 0; i--) {
+                char c = result.charAt(i);
+                if (Character.isWhitespace(c) == false) {
+                    return c;
+                }
+            }
+            return 0;
+        }
+
+        private void text(int count, boolean keep) {
+            for (int end = Math.min(length, pos + count); pos < end; pos++) {
+                char c = content.charAt(pos);
+                result.append(keep || c == '\n' ? c : ' ');
             }
         }
-        return i;
-    }
 
-    private static int blank(String content, int start, int end, StringBuilder result) {
-        for (int i = start; i < end; i++) {
-            result.append(content.charAt(i) == '\n' ? '\n' : ' ');
+        private void blankUntil(int end) {
+            text(end - pos, false);
         }
-        return end;
+
+        private static boolean isIdentifierPart(char c) {
+            return Character.isJavaIdentifierPart(c);
+        }
     }
 
     /**

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.CountingMtimeStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -51,8 +52,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -1506,6 +1509,109 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
                 ((Number) enriched.get(SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
             );
         }
+    }
+
+    /**
+     * A read that harvests nothing must not probe the object's mtime. The probe exists only to key statistics,
+     * and on a store that carries no last-modified hint it costs a round trip per file — so it is bought for a
+     * result that will never be recorded. Counting the probe is the only assertion that discriminates this:
+     * the capture sink is empty under NONE either way, because publishing is separately scope-gated.
+     */
+    public void testNoneDoesNotProbeTheObjectMtime() throws Exception {
+        byte[] full = asciiCsv(1, 10);
+
+        AtomicInteger noneProbes = new AtomicInteger();
+        readChunkAligned(countingObject(full, noneProbes), StripeColumnScope.NONE, 64);
+        assertEquals("a read that harvests nothing must not probe lastModified()", 0, noneProbes.get());
+
+        // Control: the same read that DOES harvest must probe.
+        AtomicInteger projectedProbes = new AtomicInteger();
+        readChunkAligned(countingObject(full, projectedProbes), StripeColumnScope.PROJECTED, 64);
+        assertThat("a harvesting read pins the mtime, so it must probe", projectedProbes.get(), greaterThan(0));
+    }
+
+    /**
+     * COUNT is documented as the row count alone, and on the direct-block path — the CSV default — nothing but
+     * the scope kept per-column statistics out of its publish: the accumulator was built from the projected
+     * attributes whenever the file was cacheable, and a whole-file publish is the one consumer that reads it.
+     * <p>
+     * The header is TYPED so the read actually takes that path: an untyped header leaves the schema unresolved,
+     * inference samples more rows than this fixture holds, and the direct batch is then reached only at EOF with
+     * nothing in it.
+     * <p>
+     * Each arm pairs the per-column assertion with the row count, because "no column stats" is also what a read
+     * that published nothing at all looks like.
+     */
+    public void testCountScopePublishesNoColumnStatsOnTheDirectPath() throws Exception {
+        int rows = 10;
+        byte[] full = concat("n:integer\n".getBytes(StandardCharsets.UTF_8), asciiCsv(0, rows));
+
+        List<Map<String, Object>> countFrags = readWholeFile(memoryObject(full), StripeColumnScope.COUNT, List.of("n"));
+        assertEquals("COUNT must still publish the row count", rows, foldedRowCount(countFrags));
+        assertFalse("COUNT must publish no per-column stats, on the direct path as anywhere else", hasAnyColumnStat(countFrags, "n"));
+
+        // Control: PROJECTED over the same read publishes them, so the assertion above is about the scope and
+        // not about a read that published nothing at all.
+        List<Map<String, Object>> projFrags = readWholeFile(memoryObject(full), StripeColumnScope.PROJECTED, List.of("n"));
+        assertEquals("PROJECTED must publish the row count too", rows, foldedRowCount(projFrags));
+        assertTrue("PROJECTED must publish per-column stats for n", hasAnyColumnStat(projFrags, "n"));
+    }
+
+    /** A whole-file (non-chunk) read: firstSplit and lastSplit with no record alignment, so the iterator publishes a full summary. */
+    private List<Map<String, Object>> readWholeFile(StorageObject o, StripeColumnScope scope, List<String> projectedColumns)
+        throws Exception {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(1000)
+            .recordAligned(false)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0L)
+            .stats(0L, -1L, true)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withConfig(
+                Map.of(CsvFormatReader.CONFIG_HEADER_ROW, projectedColumns != null)
+            ).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /** A record-aligned chunk read with a positive grid, so the scope is the only thing that can stop the harvest. */
+    private List<Map<String, Object>> readChunkAligned(StorageObject o, StripeColumnScope scope, long stripeSize) throws Exception {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .splitStartByte(0L)
+            .stats(0L, stripeSize, true)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory, "csv", List.of(".csv")).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+        List<Map<String, Object>> raw = sink.get(o.path().toString());
+        return raw == null ? List.of() : raw;
+    }
+
+    /** Delegates to the in-memory object, counting every mtime probe. */
+    private StorageObject countingObject(byte[] bytes, AtomicInteger probes) {
+        return new CountingMtimeStorageObject(memoryObject(bytes), probes);
     }
 
     private static byte[] slice(byte[] src, int from, int to) {

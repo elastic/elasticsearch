@@ -552,7 +552,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.telemetryProvider().getMeterRegistry(),
             localFileAccess,
             services.threadPool().executor(externalBlobStorePool()),
-            listingService
+            listingService,
+            // The live flag, not the yml value: setEnabled doubles as the cache's clear operation.
+            cacheService::isEnabled
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();

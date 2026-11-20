@@ -2694,7 +2694,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // the finalize marker is present.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {
@@ -2733,7 +2734,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
-            chunkMode ? context.statsStripeSize() : -1L,
+            cacheable && chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
             context.statsStripeSink(),
@@ -5494,7 +5495,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // loop (see appendStagedRow) instead of re-walking every built block. Build the
                 // accumulator eagerly here so the staging loop can feed it; captureBlockStats then skips
                 // direct-produced pages (lastBatchAccumulatedStats) to avoid double counting.
-                if (cacheableObject != null) {
+                // Only a gridless PROJECTED read publishes this accumulator. Under any other scope, or under a
+                // stripe grid, the fold is a min/max/null per cell on the parse loop that nothing goes on to read.
+                if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED && statsStripeSize <= 0) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }

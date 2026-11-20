@@ -2741,7 +2741,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     // keys stay physical — the declared-overlay stats boundary rekeys physical->logical, not the factory.
                     PhysicalNames.translateSchema(perFileReadSchema, renames),
                     fileSplit.offset(),
-                    state.buffer.capturedSourceMetadataSink(),
+                    statisticsCaptureSink(state.buffer),
                     state.buffer::recordWarning,
                     bufferedInformationalWarningSink(state.buffer),
                     state.buffer.readCounters(),
@@ -2789,7 +2789,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 } else {
                     pages = applyRowPositionStrategy(fileReader, pages, readerCols);
                 }
-                pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
+                pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(state.buffer));
             }
             // The adapter uses the same per-file schema and projected column order pinned above so it
             // can disambiguate LongBlock sources when stringifying under UBN; sharing the one source of
@@ -3008,7 +3008,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Physical (translated) names so harvest keys stay physical; see the split path above.
                 PhysicalNames.translateSchema(perFileReadSchema, renames),
                 0L,
-                state.buffer.capturedSourceMetadataSink(),
+                statisticsCaptureSink(state.buffer),
                 state.buffer::recordWarning,
                 bufferedInformationalWarningSink(state.buffer),
                 state.buffer.readCounters(),
@@ -3034,7 +3034,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = state.buffer.readCounters().meteredCpu(() -> thisFileReader.read(obj, ctx));
             }
             pages = applyRowPositionStrategy(fileReader, pages, perFileCols);
-            pages = StatsCapturingIterator.wrap(pages, state.buffer.capturedSourceMetadataSink());
+            pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(state.buffer));
             CloseableIterator<Page> adapted = adaptSchema(
                 pages,
                 mapping,
@@ -3208,7 +3208,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         true,
                         null,
                         0L,
-                        buffer.capturedSourceMetadataSink(),
+                        statisticsCaptureSink(buffer),
                         buffer::recordWarning,
                         bufferedInformationalWarningSink(buffer),
                         buffer.readCounters(),
@@ -3237,7 +3237,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 final CloseableIterator<Page> finalPages;
                 try {
                     pages = applyRowPositionStrategy(reader, pages, projectedColumns);
-                    pages = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
+                    pages = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(buffer));
                     CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
                     finalPages = releasingReader(
                         wrapWithVirtualColumns(
@@ -3292,6 +3292,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }));
     }
 
+    /**
+     * The sink per-file statistics are captured into, or {@code null} under {@link StripeColumnScope#NONE},
+     * which is the off switch {@link StatsCapturingIterator#wrap} and both parsing coordinators already guard on.
+     * <p>
+     * Not {@code FormatReadContext.statsStripeSink}, whose {@code null} means the chunk publishes its own stripe
+     * pieces instead of staging them.
+     */
+    @Nullable
+    private ConcurrentMap<String, List<Map<String, Object>>> statisticsCaptureSink(AsyncExternalSourceBuffer buffer) {
+        return statsColumnScope == StripeColumnScope.NONE ? null : buffer.capturedSourceMetadataSink();
+    }
+
     private void consumePagesInBackground(
         CloseableIterator<Page> pages,
         AsyncExternalSourceBuffer buffer,
@@ -3300,7 +3312,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> projectedColumns,
         @Nullable FormatReadCounters formatCounters
     ) {
-        final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
+        final CloseableIterator<Page> capturing = StatsCapturingIterator.wrap(pages, statisticsCaptureSink(buffer));
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
             closeQuietly(capturing);
             if (isRegistryClosedAfterBufferFinished(e, buffer) == false) {

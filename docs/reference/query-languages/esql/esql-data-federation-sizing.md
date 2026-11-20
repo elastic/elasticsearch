@@ -101,37 +101,15 @@ Raising it does not on its own give you more read parallelism. The value you set
 
 ### Sizing for {{ech}} [sizing-ech]
 
-On {{ech}} you choose a size per zone in RAM, and a hardware profile. Heap is half that RAM, and the core count is the RAM times a ratio set by the profile.
+On {{ech}} you choose a size per zone in RAM and a hardware profile for the deployment. Heap is half that RAM, and the core count is the RAM times a ratio set by the profile, so a CPU optimized profile gives about 1 GB of heap per core, general purpose about 2 GB, and storage optimized about 3.5 GB.
 
-The profile decides how much heap each core gets, and that ratio does not change as you move up the sizes. A CPU optimized profile gives about 1 GB of heap per core, general purpose about 2 GB, and storage optimized about 3.5 GB.
-
-**Use a general purpose profile.** It gives the 1 GB to 2 GB per core this page asks for, so a size chosen to meet your core figure carries the right heap with it. Storage optimized works too, but you pay for memory this workload will not use. Avoid CPU optimized: its heap per core sits at the bottom of the range, leaving nothing spare for compressed text or an inferred schema.
-
-Select a size per zone of twice the heap you need, then check its core count against your core figure. Both examples above come to an 8 GB size per zone: the Parquet one in 1 zone, the compressed CSV one across 2.
+Use a general purpose profile, which gives the 1 GB to 2 GB per core this page asks for, and select a size per zone of twice the heap you need. Both examples above come to an 8 GB size per zone, the Parquet one in 1 zone and the compressed CSV one across 2. Avoid CPU optimized, where the heap each core gets leaves nothing spare for compressed text or an inferred schema.
 
 ### Sizing for {{es-serverless}} [sizing-serverless]
 
-On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores, so you cannot apply the figures above directly. Capacity is managed for you and billed in [virtual compute units](docs-content://deploy-manage/cloud-organization/billing/elasticsearch-billing-dimensions.md#elasticsearch-billing-information-about-the-vcu-types-search-ingest-and-ml). A project scales on its own search load, and data federation is not sized separately from it.
+On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores, and a project scales on its own search load rather than on its data federation load. To follow this guide, use an {{es-serverless}} project, which is the only type that lets you set a capacity floor, through [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus). Raise it ahead of an expected increase in query load and lower it afterwards, because you are billed for at least that many [Search VCUs](docs-content://deploy-manage/cloud-organization/billing/elasticsearch-billing-dimensions.md#elasticsearch-billing-information-about-the-vcu-types-search-ingest-and-ml) while it is set.
 
-**To follow this guide on serverless, use an {{es-serverless}} project.** It is the only project type that lets you set a capacity floor, through [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus), which stops the Search tier scaling below a value you choose, even while the project is idle.
-
-The Search tier is provisioned at 2 Search VCUs per core, and a Search VCU is 1 GiB of memory, so work the figures above out twice and take the larger of the two:
-
-* 2 Search VCUs for every GB of heap
-* 2 Search VCUs for every core
-
-The Parquet example above needs 2 cores and 4 GB of heap, which is 8 from the heap figure and 4 from the cores, so set the minimum to 8. The compressed CSV example needs 4 cores and 8 GB of heap across its 2 nodes, which is 16 and 8, so set it to 16.
-
-The heap figure is usually the larger, because the Search tier gives 1 GB of heap for each core and this page asks for 1 GB to 2 GB. The core figure is there to confirm you have not bought too few.
-
-Raise the minimum 30 to 60 minutes ahead of an expected increase in federated query load, and lower it afterwards, because you are billed for at least that many Search VCUs while it is set.
-
-You can run federated queries from the other project types as well. Their capacity is decided by their own configuration, and data federation load is not currently one of the factors in it:
-
-* In {{es}} {{vectordb}} projects, [Search Power](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#elasticsearch-manage-project-search-power-settings) reserves capacity rather than following query load, so a federated workload does not cause the project to scale.
-* In {{obs-serverless}} and {{sec-serverless}} projects, search capacity is sized from the volume of search-ready data rather than from query load, and there is no minimum to set.
-
-The guidance on [file layout](#file-layout) and on [specifying a mapping](#declare-schema) still applies, because both are properties of your data. The cluster settings named on this page are not available on serverless.
+The Search tier is provisioned at 2 Search VCUs per core, and a Search VCU is 1 GiB of memory, so allow 2 Search VCUs for every GB of heap and 2 for every core, and set the minimum to whichever of the two is larger. The Parquet example above comes to 8 and the compressed CSV example to 16. You can run federated queries from the other project types as well, but their capacity follows their own configuration, and data federation is not currently one of the factors in it.
 
 ## Sizing for performance [performance]
 

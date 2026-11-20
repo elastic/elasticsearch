@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -247,7 +248,13 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
 
         // these keep the rows tied to their documents
-        for (String commands : List.of("MV_EXPAND id", "EVAL x = id + 1", "KEEP content, id", "WHERE id > 0", "SORT id")) {
+        List<String> allowed = new ArrayList<>(List.of("MV_EXPAND id", "EVAL x = id + 1", "KEEP content, id", "WHERE id > 0", "SORT id"));
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
+            // the optimized plan is the one to accept these, with the aggregation of INLINE STATS on the right of a join
+            allowed.add("INLINE STATS m = max(id)");
+            allowed.add("INLINE STATS m = max(id) BY id");
+        }
+        for (String commands : allowed) {
             try (var resp = run("FROM test | " + commands + stats)) {
                 assertColumnNames(resp.columns(), List.of("c", "d"));
                 assertValues(resp.values(), List.of(List.of(2L, 6L)));

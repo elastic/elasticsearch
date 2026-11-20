@@ -432,6 +432,19 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
+     * INLINE STATS keeps the rows tied to their documents. In the optimized plan its aggregation is on the right of a join,
+     * and must not be taken for the one of a STATS, nor the join for a command that runs on the coordinator.
+     */
+    public void testFullTextInStatsFilterAfterInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        for (String ftf : List.of("match(title, \"Meditation\")", "qstr(\"title: Meditation\")")) {
+            String stats = " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)";
+            optimize(fullTextAnalyzer().query("FROM test | INLINE STATS m = MAX(id)" + stats));
+            optimize(fullTextAnalyzer().query("FROM test | INLINE STATS m = MAX(id) + 1 BY category" + stats));
+        }
+    }
+
+    /**
      * A column that is an alias of an indexed field looks like one to search row by row in the analyzed plan, but the
      * optimizer replaces it with the field, making it a Lucene query that the aggregation can't evaluate after LIMIT.
      */

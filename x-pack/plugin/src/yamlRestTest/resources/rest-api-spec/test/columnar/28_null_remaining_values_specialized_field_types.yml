@@ -1,0 +1,259 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index modes and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              match_only_text:
+                type: match_only_text
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 100
+              unsigned_long:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": ["b", null, "a", "b"], "scaled_float": [2.5, null, 1.5, 2.5], "unsigned_long": [2, null, 1, 2]}'
+
+  - do:
+      indices.create:
+        index: test_logsdb_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              match_only_text:
+                type: match_only_text
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 100
+              unsigned_long:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test_logsdb_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": ["b", null, "a", "b"], "scaled_float": [2.5, null, 1.5, 2.5], "unsigned_long": [2, null, 1, 2]}'
+
+  - do:
+      indices.create:
+        index: test_vectordb_columnar
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              match_only_text:
+                type: match_only_text
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 100
+              unsigned_long:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test_vectordb_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": ["b", null, "a", "b"], "scaled_float": [2.5, null, 1.5, 2.5], "unsigned_long": [2, null, 1, 2]}'
+
+  - do:
+      indices.create:
+        index: test_columnar_stored
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              match_only_text:
+                type: match_only_text
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 100
+              unsigned_long:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test_columnar_stored
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": ["b", null, "a", "b"], "scaled_float": [2.5, null, 1.5, 2.5], "unsigned_long": [2, null, 1, 2]}'
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a match_only_text field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: match_only_text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.match_only_text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: match_only_text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.match_only_text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: match_only_text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.match_only_text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: match_only_text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.match_only_text: ["b", "a", "b"] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a scaled_float field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: scaled_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.scaled_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: scaled_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.scaled_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: scaled_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.scaled_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: scaled_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.scaled_float: [2.5, 1.5, 2.5] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on an unsigned_long field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: unsigned_long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.unsigned_long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: unsigned_long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.unsigned_long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: unsigned_long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.unsigned_long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: unsigned_long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.unsigned_long: [2, 1, 2] }

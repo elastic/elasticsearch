@@ -91,6 +91,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
@@ -641,21 +642,29 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertEquals("orc", metadata.sourceType());
     }
 
-    public void testDoubleStatisticsNeverServeANaNBound() throws Exception {
-        for (double[] values : new double[][] { { Double.NaN, 1.0, 2.0 }, { 1.0, Double.NaN, 2.0 }, { Double.NaN, Double.NaN } }) {
-            TypeDescription schema = TypeDescription.createStruct().addField("d", TypeDescription.createDouble());
-            byte[] orcData = createOrcFile(schema, batch -> {
-                batch.size = values.length;
-                System.arraycopy(values, 0, ((DoubleColumnVector) batch.cols[0]).vector, 0, values.length);
-            });
+    public void testDoubleStatisticsServeFiniteBoundsAndNeverANaNBound() throws Exception {
+        assertDoubleBounds(new double[] { 1.0, Double.NaN, 2.0 }, 1.0, 2.0);
+        assertDoubleBounds(new double[] { Double.NaN, 1.0, 2.0 }, null, null);
+        assertDoubleBounds(new double[] { Double.NaN, Double.NaN }, null, null);
+    }
 
-            SourceMetadata metadata = new OrcFormatReader(blockFactory).metadata(createStorageObject(orcData));
-            SourceStatistics.ColumnStatistics d = metadata.statistics().get().columnStatistics().get().get("d");
+    private void assertDoubleBounds(double[] values, Double expectedMin, Double expectedMax) throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("d", TypeDescription.createDouble());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = values.length;
+            System.arraycopy(values, 0, ((DoubleColumnVector) batch.cols[0]).vector, 0, values.length);
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        String label = Arrays.toString(values);
 
-            String label = Arrays.toString(values);
-            d.minValue().ifPresent(min -> assertFalse("min of " + label, Double.isNaN((Double) min)));
-            d.maxValue().ifPresent(max -> assertFalse("max of " + label, Double.isNaN((Double) max)));
-        }
+        SourceMetadata metadata = reader.metadata(createStorageObject(orcData));
+        SourceStatistics.ColumnStatistics d = metadata.statistics().get().columnStatistics().get().get("d");
+        assertEquals("file min of " + label, Optional.ofNullable(expectedMin), d.minValue());
+        assertEquals("file max of " + label, Optional.ofNullable(expectedMax), d.maxValue());
+
+        Map<String, Object> stripeStats = reader.discoverSplitRanges(createStorageObject(orcData)).getFirst().statistics();
+        assertEquals("stripe min of " + label, expectedMin, stripeStats.get("_stats.columns.d.min"));
+        assertEquals("stripe max of " + label, expectedMax, stripeStats.get("_stats.columns.d.max"));
     }
 
     public void testReadNullValuesInColumns() throws Exception {

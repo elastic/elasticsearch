@@ -11635,6 +11635,54 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testZeroMinimumOfFloat16IsNotServedAndZeroMinimumOfBinaryDecimalIs() throws Exception {
+        assertFloat16AndDecimalZeroMinimum(ColumnOrder.typeDefined(), null);
+    }
+
+    public void testZeroMinimumOfFloat16IsServedUnderTotalOrder() throws Exception {
+        assertFloat16AndDecimalZeroMinimum(ColumnOrder.ieee754TotalOrder(), 0.0);
+    }
+
+    private void assertFloat16AndDecimalZeroMinimum(ColumnOrder float16Order, Double expectedFloat16Min) throws Exception {
+        MessageType schema = Types.buildMessage()
+            .addField(
+                Types.required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                    .length(2)
+                    .as(LogicalTypeAnnotation.float16Type())
+                    .columnOrder(float16Order)
+                    .named("f16")
+            )
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(2, 10))
+            .named("dec")
+            .named("test_schema");
+        float[] halves = { 0.0f, 1.5f, 2.0f };
+        long[] decimals = { 0, 250, 700 };
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int i = 0; i < halves.length; i++) {
+                Group g = factory.newGroup();
+                g.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(halves[i])));
+                g.add("dec", Binary.fromConstantByteArray(BigInteger.valueOf(decimals[i]).toByteArray()));
+                rows.add(g);
+            }
+            return rows;
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        var colStats = reader.metadata(createStorageObject(parquetData)).statistics().get().columnStatistics().get();
+        assertEquals(Optional.ofNullable(expectedFloat16Min), colStats.get("f16").minValue());
+        assertEquals(Optional.of(2.0), colStats.get("f16").maxValue());
+        assertEquals(Optional.of(0.0), colStats.get("dec").minValue());
+        assertEquals(Optional.of(7.0), colStats.get("dec").maxValue());
+
+        Map<String, Object> stats = reader.discoverSplitRanges(createStorageObject(parquetData)).getFirst().statistics();
+        assertEquals(expectedFloat16Min, stats.get("_stats.columns.f16.min"));
+        assertEquals(2.0, stats.get("_stats.columns.f16.max"));
+        assertEquals(0.0, stats.get("_stats.columns.dec.min"));
+        assertEquals(7.0, stats.get("_stats.columns.dec.max"));
+    }
+
     /**
      * Verifies that Parquet footer statistics for INT32/INT64-backed DECIMAL columns are scale-decoded
      * to {@code double}, matching the scan-path decode.

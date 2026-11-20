@@ -828,6 +828,29 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertEquals(0L, out.get(SourceStatisticsSerializer.columnNullCountKey("x")));
     }
 
+    public void testAlignHarvestWithFoldKeepsTheExtremumTheFoldStillServes() {
+        Map<String, Object> harvest = new HashMap<>();
+        harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        harvest.put(SourceStatisticsSerializer.columnMinKey("x"), 1.0);
+        harvest.put(SourceStatisticsSerializer.columnMaxKey("x"), 100.0);
+        harvest.put(SourceStatisticsSerializer.columnValueCountKey("x"), 2L);
+        harvest.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> folded = new HashMap<>();
+        folded.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 4L);
+        folded.put(SourceStatisticsSerializer.columnMaxKey("x"), 100.0);
+        folded.put(SourceStatisticsSerializer.columnMinUnservableKey("x"), Boolean.TRUE);
+        folded.put(SourceStatisticsSerializer.columnValueCountKey("x"), 4L);
+        folded.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> out = SourceStatisticsSerializer.alignHarvestWithFold(harvest, folded);
+
+        assertNull(out.get(SourceStatisticsSerializer.columnMinKey("x")));
+        assertEquals(Boolean.TRUE, out.get(SourceStatisticsSerializer.columnMinUnservableKey("x")));
+        assertEquals(100.0, out.get(SourceStatisticsSerializer.columnMaxKey("x")));
+        assertNull(out.get(SourceStatisticsSerializer.columnMaxUnservableKey("x")));
+    }
+
     public void testAlignHarvestWithFoldIsIdentityWhenFoldServedTheColumn() {
         Map<String, Object> harvest = new HashMap<>();
         harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);

@@ -95,8 +95,8 @@ public final class EscfBulkWriter implements Releasable {
                 1,
                 MAX_TARGET_BULK_BYTES
             );
-            long maxBulksInFlight = Math.clamp(maxNodeBytes / targetBulkBytes, 1, MAX_DEFAULT_BULKS_IN_FLIGHT);
-            return new Policy((int) maxBulksInFlight, targetBulkBytes, maxNodeBytes);
+            int maxBulksInFlight = Math.clamp(maxNodeBytes / targetBulkBytes, 1, MAX_DEFAULT_BULKS_IN_FLIGHT);
+            return new Policy(maxBulksInFlight, targetBulkBytes, maxNodeBytes);
         }
     }
 

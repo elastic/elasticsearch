@@ -723,10 +723,16 @@ public class IndexingPressure implements IndexingPressureMonitor {
         return currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get();
     }
 
+    /**
+     * In bytes, the node's usage from which a streaming bulk splits once it holds {@link #splitBulkLowWatermarkSize()}.
+     */
     public long splitBulkLowWatermark() {
         return lowWatermark;
     }
 
+    /**
+     * In bytes, the size a streaming bulk reaches before it splits while the node's usage is above {@link #splitBulkLowWatermark()}.
+     */
     public long splitBulkLowWatermarkSize() {
         return lowWatermarkSize;
     }

@@ -294,15 +294,14 @@ public class IntoPageWriterTests extends ComputeTestCase {
     }
 
     public void testCloseWithoutFinishDropsRowsThatWereNotSent() {
-        int inFlight = IN_FLIGHT;
-        for (int i = 0; i < inFlight + 1; i++) {
+        for (int i = 0; i < IN_FLIGHT + 1; i++) {
             writer.consume(widePage());
         }
-        assertThat(client.bulks, hasSize(inFlight));
+        assertThat(client.bulks, hasSize(IN_FLIGHT));
 
         // A cancelled or failed driver closes without finish(): the page held back for lack of capacity must not be written afterwards.
         writer.close();
-        for (int i = 0; i < inFlight; i++) {
+        for (int i = 0; i < IN_FLIGHT; i++) {
             client.answer(CREATED);
         }
         assertThat(client.bulks, empty());

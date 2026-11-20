@@ -2186,6 +2186,37 @@ public class VerifierTests extends AnalyzerTestCase {
             """, containsString("conflicting values analyzers in FORK branches"));
     }
 
+    /**
+     * A FORK branch that fills a null column with {@code FILLNULL} outputs a non-null value, so the column is no longer exempt
+     * from the branch agreement checks: it carries the standard analyzer and must disagree with a sibling's whitespace, in either
+     * branch order. Before #166532 the fill was missed - the column kept the id of the null assignment it came from, which the
+     * null-only walk had marked - so the conflict was reported in one branch order and silently accepted in the other.
+     */
+    public void testToTextAnalyzerThroughForkOutputWithFillNull() throws Exception {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // the filled column holds "CAT" under the standard analyzer, which conflicts with the sibling's whitespace
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null) | fillnull "CAT" on t)
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        // ... and the same the other way round, so the outcome no longer depends on which branch supplied the column first
+        fullText().error("""
+            from test
+            | fork (eval t = to_text(null) | fillnull "CAT" on t)
+                   (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | where match(t, "cat")
+            """, containsString("conflicting values analyzers in FORK branches"));
+        // a FILLNULL that targets a different column leaves t null-only, so the exemption still holds and there is no conflict
+        fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null) | fillnull "CAT" on title)
+            | where match(t, "cat")
+            """);
+    }
+
     public void testToTextAnalyzerOptionOnFieldAcrossSubqueries() throws Exception {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         Map<String, EsField> mapping = Map.of(

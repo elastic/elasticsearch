@@ -10,7 +10,7 @@ products:
 
 # Size your {{es}} cluster for {{esql}} Data Federation workloads
 
-With [data federation](esql-data-federation.md), you can query tabular data held in object storage, in CSV, TSV, NDJSON and Parquet files, without ingesting it into {{es}} first.
+With [data federation](esql-data-federation.md), you can query tabular data held in object storage, in CSV, TSV, NDJSON and Parquet files, without ingesting it into {{es}} first. The guidance on this page is for those formats held on [Amazon S3](esql-data-federation-s3.md).
 
 This guide covers how much heap and how many cores your cluster needs to run your queries at the concurrency you expect, and how to lay out your files so those cores stay busy.
 

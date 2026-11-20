@@ -15,6 +15,7 @@ import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
@@ -31,7 +33,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
@@ -495,6 +499,65 @@ public class SSLServiceTests extends ESTestCase {
             )
         );
         assertThat(e.getCause(), throwableWithMessage("none of the ciphers [foo, bar] are supported by this JVM"));
+    }
+
+    /**
+     * Simulates a FIPS JSSE provider, which supports the default cipher suites except ChaCha20-Poly1305. When {@code cipher_suites} is
+     * not configured, dropping those suites is normal operation, so it must not be logged above DEBUG.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.core.ssl.SSLService:DEBUG", reason = "asserts a DEBUG message")
+    public void testUnsupportedDefaultCiphersAreLoggedAtDebug() {
+        final String[] supported = SslConfigurationLoader.DEFAULT_CIPHERS.stream()
+            .filter(c -> c.contains("CHACHA20") == false)
+            .toArray(String[]::new);
+
+        try (var mockLog = MockLog.capture(SSLService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "unsupported default ciphers",
+                    SSLService.class.getName(),
+                    Level.DEBUG,
+                    "default cipher suites [*TLS_CHACHA20_POLY1305_SHA256*] are not supported by the JSSE provider*"
+                )
+            );
+            mockLog.addExpectation(new MockLog.UnseenEventExpectation("no warning", SSLService.class.getName(), Level.WARN, "*"));
+            mockLog.addExpectation(new MockLog.UnseenEventExpectation("no error", SSLService.class.getName(), Level.ERROR, "*"));
+
+            SSLService.supportedCiphers(supported, SslConfigurationLoader.DEFAULT_CIPHERS, true);
+
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * An explicitly configured suite that cannot be used is logged at WARN, even if it is one of the defaults (e.g. ChaCha20-Poly1305 with
+     * a FIPS provider), because the operator asked for it.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.core.ssl.SSLService:DEBUG", reason = "asserts the absence of a DEBUG message")
+    public void testUnsupportedConfiguredCiphersAreLoggedAtWarn() {
+        final String supportedCipher = "TLS_AES_128_GCM_SHA256";
+        final String unsupportedCipher = randomFrom("TLS_FAKE_SUITE", "TLS_CHACHA20_POLY1305_SHA256");
+        final String[] supported = new String[] { supportedCipher };
+        final List<String> requested = List.of(unsupportedCipher, supportedCipher);
+
+        try (var mockLog = MockLog.capture(SSLService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "unsupported configured ciphers",
+                    SSLService.class.getName(),
+                    Level.WARN,
+                    "configured cipher suites ["
+                        + unsupportedCipher
+                        + "] are not supported by the JSSE provider and will not be used; using [TLS_AES_128_GCM_SHA256]"
+                )
+            );
+            mockLog.addExpectation(new MockLog.UnseenEventExpectation("no debug", SSLService.class.getName(), Level.DEBUG, "*"));
+            mockLog.addExpectation(new MockLog.UnseenEventExpectation("no error", SSLService.class.getName(), Level.ERROR, "*"));
+
+            SSLService.supportedCiphers(supported, requested, true);
+
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testThatSSLEngineHasCipherSuitesOrderSet() throws Exception {

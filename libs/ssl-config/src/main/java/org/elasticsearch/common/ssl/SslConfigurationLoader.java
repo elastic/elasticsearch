@@ -150,7 +150,11 @@ public abstract class SslConfigurationLoader {
         "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
     );
 
-    static final List<String> DEFAULT_CIPHERS = Runtime.version().feature() < 24 ? PRE_JDK24_CIPHERS : JDK24_CIPHERS;
+    /**
+     * The cipher suites that are requested when {@code cipher_suites} is not configured. Not every JSSE provider supports all of them
+     * (for example, FIPS providers do not support ChaCha20-Poly1305), so callers should expect some of these to be unavailable.
+     */
+    public static final List<String> DEFAULT_CIPHERS = Runtime.version().feature() < 24 ? PRE_JDK24_CIPHERS : JDK24_CIPHERS;
     private static final char[] EMPTY_PASSWORD = new char[0];
     public static final List<X509Field> GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS = List.of(X509Field.SAN_OTHERNAME_COMMONNAME);
 

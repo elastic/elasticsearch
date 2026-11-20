@@ -1818,6 +1818,33 @@ public final class EsqlTestUtils {
     private static final Pattern SET_SPLIT_PATTERN = Pattern.compile("^(\\s*SET\\b[^;]+;)+\\s*\\b", Pattern.CASE_INSENSITIVE);
 
     /**
+     * The first command of the query, with the {@code SET} statements before it, and without its subqueries.
+     */
+    private static String firstCommandWithSetStatements(String query) {
+        return query.split("\\|")[0].split(",\\s+\\(")[0].trim();
+    }
+
+    /**
+     * The length of the {@code SET} statements at the start of {@code first}, or 0 if there are none.
+     */
+    private static int setStatementsLength(String first) {
+        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
+        return setMatcher.find() ? setMatcher.end() : 0;
+    }
+
+    /**
+     * The source command ({@code FROM}, {@code TS} or {@code PROMQL}) the query starts with, after its {@code SET} statements
+     * and without its subqueries, or {@code null} if the query starts with another command.
+     */
+    public static String sourceCommand(String query) {
+        String first = firstCommandWithSetStatements(query);
+        String afterSetStatements = first.substring(setStatementsLength(first));
+        String command = afterSetStatements.trim().split("\\s+", 2)[0].trim();
+        assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
+        return SourceCommand.isSourceCommand(command) ? afterSetStatements : null;
+    }
+
+    /**
      * Checks if a query contains any of the specified indices in its source command.
      * This is useful for determining if a query uses indices that are loaded into both clusters
      * (like enrich source indices or lookup indices), which may require special handling.
@@ -1827,21 +1854,10 @@ public final class EsqlTestUtils {
      * @return true if the query contains any of the specified indices, false otherwise
      */
     public static boolean queryContainsIndices(String query, Set<String> indicesToCheck) {
-        String[] commands = query.split("\\|");
-        // remove subqueries
-        String first = commands[0].split(",\\s+\\(")[0].trim();
-        // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
-        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
-        int lastSetDelimiterPosition = -1;
-        if (setMatcher.find()) {
-            lastSetDelimiterPosition = setMatcher.end();
-        }
-        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
+        String sourceCommand = sourceCommand(query);
         // Split "FROM a, b, c" into "FROM" and "a, b, c"
-        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
-        String command = commandParts[0].trim();
-        if (SourceCommand.isSourceCommand(command) && commandParts.length > 1) {
-            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
+        if (sourceCommand != null && sourceCommand.trim().split("\\s+", 2).length > 1) {
+            List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(sourceCommand).collect(UnresolvedRelation.class);
             if (relations.isEmpty()) {
                 return false;
             }
@@ -1857,25 +1873,14 @@ public final class EsqlTestUtils {
     }
 
     public static String addRemoteIndices(String query, Set<String> lookupIndices, boolean onlyRemotes) {
-        String[] commands = query.split("\\|");
-        // remove subqueries
-        String first = commands[0].split(",\\s+\\(")[0].trim();
-
+        String first = firstCommandWithSetStatements(query);
         // Split "SET a=b; FROM x" into "SET a=b; " and "FROM x"
-        var setMatcher = SET_SPLIT_PATTERN.matcher(first);
-        int lastSetDelimiterPosition = -1;
-        if (setMatcher.find()) {
-            lastSetDelimiterPosition = setMatcher.end();
-        }
-        String setStatements = lastSetDelimiterPosition == -1 ? "" : first.substring(0, lastSetDelimiterPosition);
-        String afterSetStatements = lastSetDelimiterPosition == -1 ? first : first.substring(lastSetDelimiterPosition);
-
-        // Split "FROM a, b, c" into "FROM" and "a, b, c"
-        String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
-
-        String command = commandParts[0].trim();
-        assert command.equalsIgnoreCase("set") == false : "didn't correctly extract the SET statement from the query";
-        if (SourceCommand.isSourceCommand(command)) {
+        String setStatements = first.substring(0, setStatementsLength(first));
+        String afterSetStatements = sourceCommand(query);
+        if (afterSetStatements != null) {
+            // Split "FROM a, b, c" into "FROM" and "a, b, c"
+            String[] commandParts = afterSetStatements.trim().split("\\s+", 2);
+            String command = commandParts[0].trim();
             String commandArgs = commandParts[1].trim();
             List<UnresolvedRelation> relations = TEST_PARSER.parseQuery(afterSetStatements).collect(UnresolvedRelation.class);
             if (relations.isEmpty()) {

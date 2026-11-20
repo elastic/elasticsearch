@@ -67,10 +67,7 @@ public class BlobTests extends ESTestCase {
 
     private static BccBlob randomBccBlob() {
         final long generation = randomNonZeroPositiveLong();
-        return new BccBlob(
-            BatchedCompoundCommit.blobNameFromGeneration(generation),
-            new PrimaryTermAndGeneration(randomNonNegativeLong(), generation)
-        );
+        return new BccBlob(BccBlob.blobNameFromGeneration(generation), new PrimaryTermAndGeneration(randomNonNegativeLong(), generation));
     }
 
     private static MergeBlob randomMergeBlob() {

@@ -71,7 +71,10 @@ public final class IpLocationInfoMapCollector extends HashMap<String, Object> im
 
     @Override
     public void location(double lat, double lon) {
-        put(DatabaseProperty.LOCATION.fieldName(), Map.of("lat", lat, "lon", lon));
+        Map<String, Object> locationObject = HashMap.newHashMap(2); // note: we need to return a mutable object here
+        locationObject.put("lat", lat);
+        locationObject.put("lon", lon);
+        put(DatabaseProperty.LOCATION.fieldName(), locationObject);
     }
 
     @Override

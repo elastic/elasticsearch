@@ -100,7 +100,6 @@ public class PlainSkipRepeatsTests extends ColumnarStringTestCase {
         }
     }
 
-    /** Runs of equal values in term order, so a region is written, or shuffled so it is not, with nulls and gaps unless of one length. */
     private static BytesRef[][] randomColumn(Order order, boolean constantLength) {
         final int distinct = between(5, 400);
         final int[] rank = new int[distinct];
@@ -140,10 +139,7 @@ public class PlainSkipRepeatsTests extends ColumnarStringTestCase {
         int reported;
     }
 
-    /**
-     * A cursor that, like the one a merge of plain columns reads from, says which values repeat the one before and may
-     * miss some, and counts the values it is asked for.
-     */
+    // NOTE: like the cursor of a merge of plain columns, it reports a repeat only for a value and may miss some.
     private static final class ReportsRepeats extends StringColumnValues {
         private final StringColumnValues in;
         private final boolean mayBeSorted;

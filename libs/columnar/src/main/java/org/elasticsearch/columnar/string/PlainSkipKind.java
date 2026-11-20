@@ -59,7 +59,7 @@ interface PlainSkipKind {
 
         /**
          * Takes a slot whose value equals the one before it, which the writer holds. It is {@link #add} with that value
-         * and {@code repeat} true, without the caller reading the value.
+         * and {@code repeat} true, without the caller reading the value. The slot before it must hold a value, not a null.
          */
         void addRepeat(long address, int doc, int chunk) throws IOException;
 

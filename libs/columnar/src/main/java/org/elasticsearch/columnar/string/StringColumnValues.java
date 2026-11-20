@@ -108,7 +108,8 @@ public abstract class StringColumnValues extends DocIdSetIterator {
 
     /**
      * Whether a plain column can be written from this cursor without holding a value, through {@link #transferValue} and
-     * {@link #repeatsPrevious}.
+     * {@link #repeatsPrevious}. A column that captures bounds reads only the values {@link #repeatsPrevious} does not
+     * report.
      */
     public boolean streamsValues() {
         return false;
@@ -116,7 +117,8 @@ public abstract class StringColumnValues extends DocIdSetIterator {
 
     /**
      * Whether the value the cursor is on is known to equal the value it was on before. False when unknown, which stores
-     * the repeat again.
+     * the repeat again. A writer that captures bounds does not call {@link #value} for a slot reported as a repeat when
+     * {@link #streamsValues} is true, so a cursor never reports a repeat for a null slot.
      */
     public boolean repeatsPrevious() throws IOException {
         return false;

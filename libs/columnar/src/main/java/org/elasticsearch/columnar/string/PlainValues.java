@@ -207,7 +207,10 @@ final class PlainValues {
             return repeat;
         }
 
-        /** Adds a value that equals the one before it, which the writer holds, so the caller does not read it. */
+        /**
+         * Adds a value that equals the one before it, which the writer holds, so the caller does not read it. The column
+         * must have taken its values through {@link #add}, and the one before must be a value, not a null.
+         */
         void addRepeat() throws IOException {
             assert transferred != Boolean.TRUE : "a column's values are either added or transferred";
             assert count > 0 && previousNull == false : "only a value can be repeated";

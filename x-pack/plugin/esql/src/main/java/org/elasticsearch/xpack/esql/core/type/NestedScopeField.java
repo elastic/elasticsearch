@@ -160,6 +160,14 @@ public final class NestedScopeField extends EsField {
         }
     }
 
+    /** Decides whether a name is the key of a field an index maps in nested scope, as the ordinary resolution decides it outside it. */
+    @FunctionalInterface
+    public interface KeyResolver {
+        /** The field the name is as a key of a field in {@code fields} that is in nested scope, or {@code null} if it is none. */
+        @Nullable
+        IndexFieldCapabilities key(String name, Map<String, IndexFieldCapabilities> fields);
+    }
+
     /**
      * How the field of one name under a nested object is made from what the indices report for it. Ordinary resolution implements
      * it, so a nested leaf gets the same type, conflict handling and specialization as a field outside the nested scope.
@@ -187,7 +195,21 @@ public final class NestedScopeField extends EsField {
      */
     @Nullable
     public static EsField namespace(List<FieldCapabilitiesIndexResponse> responses, LeafMerger merger) {
-        MappingFacts facts = MappingFacts.collect(distinctMappings(responses));
+        return namespace(responses, merger, Set.of(), (name, fields) -> null);
+    }
+
+    /**
+     * As {@link #namespace(List, LeafMerger)}, with each of {@code keyNames} that {@code keys} reports as a key of a field in nested
+     * scope, in an index, a child of the collection that field is in.
+     */
+    @Nullable
+    public static EsField namespace(
+        List<FieldCapabilitiesIndexResponse> responses,
+        LeafMerger merger,
+        Set<String> keyNames,
+        KeyResolver keys
+    ) {
+        MappingFacts facts = MappingFacts.collect(distinctMappings(responses), keyNames, keys);
         if (facts.scoped.isEmpty()) {
             return null;
         }
@@ -233,7 +255,7 @@ public final class NestedScopeField extends EsField {
         /** For each nested path, the first index that maps it as something other than {@code nested}. */
         final Map<String, OtherMapping> otherMappings = new HashMap<>();
 
-        static MappingFacts collect(List<FieldCapabilitiesIndexResponse> responses) {
+        static MappingFacts collect(List<FieldCapabilitiesIndexResponse> responses, Set<String> keyNames, KeyResolver keys) {
             MappingFacts facts = new MappingFacts();
             for (var response : responses) {
                 Map<String, IndexFieldCapabilities> fields = response.get();
@@ -253,6 +275,35 @@ public final class NestedScopeField extends EsField {
                         );
                     }
                     mapping.caps.add(fc);
+                }
+            }
+            // A name that an index maps as a field is that field in the indices where it is a key: they read the key as its type
+            Set<String> mappedNames = new HashSet<>();
+            for (var entry : facts.scoped.entrySet()) {
+                if (entry.getValue().caps.stream()
+                    .anyMatch(fc -> fc.type().equals("object") == false && fc.type().equals("nested") == false)) {
+                    mappedNames.add(entry.getKey());
+                }
+            }
+            for (var response : responses) {
+                Map<String, IndexFieldCapabilities> fields = response.get();
+                for (String name : keyNames) {
+                    IndexFieldCapabilities key = mappedNames.contains(name) ? null : keys.key(name, fields);
+                    if (key == null) {
+                        continue;
+                    }
+                    String path = pathFor(name, fields);
+                    ScopedMapping mapping = facts.scoped.computeIfAbsent(name, k -> new ScopedMapping(path, response.getIndexName()));
+                    if (mapping.firstPath.equals(path) == false && mapping.pathDisagreement == null) {
+                        mapping.pathDisagreement = Strings.format(
+                            "its nested path is [%s] in [%s] but [%s] in [%s]",
+                            mapping.firstPath,
+                            mapping.firstIndex,
+                            path,
+                            response.getIndexName()
+                        );
+                    }
+                    mapping.caps.add(key);
                 }
             }
             Set<String> paths = new HashSet<>();

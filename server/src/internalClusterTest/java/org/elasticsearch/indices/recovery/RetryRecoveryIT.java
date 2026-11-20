@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.action.shard.ShardStateAction.SHARD_FAILED_ACTION_NAME;
 import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.AFTER_INDEX_SHARD_RECOVERY;
 import static org.elasticsearch.indices.recovery.RetryRecoveryIT.FailureTarget.BEFORE_INDEX_SHARD_RECOVERY;
+import static org.elasticsearch.test.ClusterServiceUtils.awaitNoPendingTasks;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -247,6 +248,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
             safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
@@ -369,6 +371,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             // Recover from local shard
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
             safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
@@ -438,6 +441,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             // Recover from snapshot
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(true).execute();
             safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
 
             PlainActionFuture<Void> closed = new PlainActionFuture<>();
             internalCluster().getInstance(IndicesService.class, node)
@@ -577,6 +581,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
             prepareCreate(indexName, indexSettings(1, 0)).execute();
             safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
             final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
             // Release will make recovery failure race with index deletion
@@ -646,6 +651,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             // Recover from local shard async
             ResizeIndexTestUtils.executeResize(ResizeType.CLONE, sourceIndexName, targetIndexName, indexSettings(1, 0));
             safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
             final var deleted = indicesAdmin().prepareDelete(targetIndexName).execute();
 
             // Release will make recovery failure race with index deletion
@@ -687,6 +693,7 @@ public class RetryRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             // Recover from snapshot async
             clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap").setWaitForCompletion(false).execute();
             safeAwait(barrier);
+            awaitNoPendingTasks(internalCluster().clusterService(node));
             final var deleted = indicesAdmin().prepareDelete(indexName).execute();
 
             // Release will make recovery failure race with index deletion

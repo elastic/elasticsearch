@@ -6268,11 +6268,11 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * The three rails the width ITs never take. {@code FormatReadContext.Builder} defaults the width to
+     * One case per rail the factory dispatches to. {@code FormatReadContext.Builder} defaults the width to
      * {@link FormatReadContext#DEFAULT_MAX_EXTREMUM_BYTES}, so dropping a {@code .statsMaxExtremumBytes(…)} call
      * reverts silently to a kilobyte rather than failing to compile, and every other test in this file passes
-     * that same default. Both integration tests register a glob, which routes through the multi-file rail; these
-     * cover the slice-queue leaf and the two split-less whole-file reads.
+     * that same default. The integration tests pin only the slice-queue leaf — {@code LocalExecutionPlanner}
+     * sends any read carrying splits there — and they stay green with the multi-file forward deleted.
      */
     public void testTheConfiguredExtremumWidthReachesTheSliceQueueLeaf() throws Exception {
         WidthCapturingReader reader = new WidthCapturingReader(false);
@@ -6301,6 +6301,17 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         WidthCapturingReader reader = new WidthCapturingReader(false);
 
         drainWidthFactory(widthFactory(reader, StoragePath.of("s3://bucket/whole.test")).build());
+
+        assertEquals(1, reader.contexts.size());
+        assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    public void testTheConfiguredExtremumWidthReachesTheMultiFileRead() throws Exception {
+        WidthCapturingReader reader = new WidthCapturingReader(false);
+        StoragePath path = StoragePath.of("s3://bucket/data/f1.test");
+        FileList fileList = GlobExpander.fileListOf(List.of(new StorageEntry(path, 100, Instant.EPOCH)), "s3://bucket/data/*.test");
+
+        drainWidthFactory(widthFactory(reader, path).fileList(fileList).build());
 
         assertEquals(1, reader.contexts.size());
         assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());

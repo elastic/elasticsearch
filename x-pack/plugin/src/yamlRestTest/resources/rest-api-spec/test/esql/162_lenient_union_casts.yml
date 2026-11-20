@@ -594,6 +594,36 @@ setup:
   - match: { values.0: [null] }
 
 ---
+"cast of an unsupported field inside STATS returns null":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast]
+      reason: "Impossible casts return null"
+  - do:
+      warnings:
+        - "[f] of type [rank_feature] cannot be converted to [KEYWORD] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_rank | STATS c = COUNT(f::keyword)'
+  - length: { values: 1 }
+  - match: { values.0: [0] }
+  - do:
+      warnings:
+        - "[f] of type [rank_feature] cannot be converted to [KEYWORD] and will be null."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_rank | STATS c = COUNT(*) BY g = f::keyword'
+  - match: { columns.1.type: "keyword" }
+  - match: { values.0: [1, null] }
+
+---
 "impossible cast with options returns null":
   - requires:
       capabilities:

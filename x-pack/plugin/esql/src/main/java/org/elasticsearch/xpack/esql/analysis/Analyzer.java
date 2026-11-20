@@ -5651,7 +5651,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             )
                         );
                     // STATS verifies its expressions by what they reference, like aggregates and grouping keys, so keep the input.
-                    return inAggregate && input.foldable() == false
+                    // An unsupported field is never resolved, so keeping it would fail the query instead of returning null.
+                    return inAggregate && input.foldable() == false && input instanceof UnsupportedAttribute == false
                         ? new NullCast(e.source(), input, e.dataType())
                         : new Literal(e.source(), null, e.dataType());
                 }

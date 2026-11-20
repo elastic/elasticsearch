@@ -30,8 +30,6 @@ setup:
                 type: version
               ip:
                 type: ip
-              binary:
-                type: binary
               boolean:
                 type: boolean
               byte:
@@ -63,25 +61,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
 
   - do:
       indices.create:
@@ -105,8 +103,6 @@ setup:
                 type: version
               ip:
                 type: ip
-              binary:
-                type: binary
               boolean:
                 type: boolean
               byte:
@@ -138,25 +134,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
 
   - do:
       indices.create:
@@ -180,8 +176,6 @@ setup:
                 type: version
               ip:
                 type: ip
-              binary:
-                type: binary
               boolean:
                 type: boolean
               byte:
@@ -213,25 +207,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
 
   - do:
       indices.create:
@@ -256,8 +250,6 @@ setup:
                 type: version
               ip:
                 type: ip
-              binary:
-                type: binary
               boolean:
                 type: boolean
               byte:
@@ -289,25 +281,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
 
   - do:
       indices.create:
@@ -332,8 +324,6 @@ setup:
                 type: version
               ip:
                 type: ip
-              binary:
-                type: binary
               boolean:
                 type: boolean
               byte:
@@ -365,25 +355,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
 
   - do:
       indices.create:
@@ -408,8 +398,6 @@ setup:
                 type: version
               ip:
                 type: ip
-              binary:
-                type: binary
               boolean:
                 type: boolean
               byte:
@@ -441,25 +429,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
 
   - do:
       indices.create:
@@ -483,8 +471,6 @@ setup:
                 type: version
               ip:
                 type: ip
-              binary:
-                type: binary
               boolean:
                 type: boolean
               byte:
@@ -516,25 +502,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "binary": "YQ==", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "text": "a", "wildcard": "a", "version": "1.0.0", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "pattern_text": "a", "geo_point": "1.0,2.0"}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "binary": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": [null], "text": [null], "wildcard": [null], "version": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "pattern_text": [null], "geo_point": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "binary": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null, null], "text": [null, null], "wildcard": [null, null], "version": [null, null], "ip": [null, null], "boolean": [null, null], "byte": [null, null], "short": [null, null], "integer": [null, null], "long": [null, null], "half_float": [null, null], "float": [null, null], "double": [null, null], "date": [null, null], "date_nanos": [null, null], "pattern_text": [null, null], "geo_point": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "binary": ["YQ==", null, "Yg=="], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null, "b"], "text": ["a", null, "b"], "wildcard": ["a", null, "b"], "version": ["1.0.0", null, "2.0.0"], "ip": ["10.0.0.1", null, "10.0.0.2"], "boolean": [false, null, true], "byte": [1, null, 2], "short": [1, null, 2], "integer": [1, null, 2], "long": [1, null, 2], "half_float": [1.5, null, 2.5], "float": [1.5, null, 2.5], "double": [1.5, null, 2.5], "date": ["2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null, "2026-01-02T00:00:00.000000001Z"], "geo_point": ["1.0,2.0", null, "3.0,4.0"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "binary": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": null, "text": null, "wildcard": null, "version": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "pattern_text": null, "geo_point": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "binary": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "keyword": [], "text": [], "wildcard": [], "version": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "pattern_text": [], "geo_point": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "binary": [null, "YQ=="], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "keyword": [null, "a"], "text": [null, "a"], "wildcard": [null, "a"], "version": [null, "1.0.0"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "pattern_text": [null, "a"], "geo_point": [null, "1.0,2.0"]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "binary": ["YQ==", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "keyword": ["a", null], "text": ["a", null], "wildcard": ["a", null], "version": ["1.0.0", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "pattern_text": ["a", null], "geo_point": ["1.0,2.0", null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "binary": [null, "YQ==", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "keyword": [null, "a", null], "text": [null, "a", null], "wildcard": [null, "a", null], "version": [null, "1.0.0", null], "ip": [null, "10.0.0.1", null], "boolean": [null, false, null], "byte": [null, 1, null], "short": [null, 1, null], "integer": [null, 1, null], "long": [null, 1, null], "half_float": [null, 1.5, null], "float": [null, 1.5, null], "double": [null, 1.5, null], "date": [null, "2026-01-01T00:00:00.000Z", null], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z", null], "pattern_text": [null, "a", null], "geo_point": [null, "1.0,2.0", null]}'
 
 ---
 exists matches only documents with a non-null value on a keyword field in logsdb_columnar and vectordb_columnar and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
@@ -1537,221 +1523,6 @@ synthetic source drops the null elements of an ip field in logsdb_columnar and v
   - match: { hits.hits.7._source.ip: "10.0.0.1" }
   - match: { hits.hits.8._source.ip: "10.0.0.1" }
   - match: { hits.hits.9._source.ip: "10.0.0.1" }
-
----
-exists matches only documents with a non-null value on a binary field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
-  - do:
-      search:
-        index: test_logsdb_columnar
-        body:
-          query: { exists: { field: binary } }
-          sort: [ { "@timestamp": asc } ]
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: mixed }
-  - match: { hits.hits.2._id: leading_null }
-  - match: { hits.hits.3._id: trailing_null }
-  - match: { hits.hits.4._id: both_ends_null }
-
-  - do:
-      search:
-        index: test_vectordb_columnar
-        body:
-          query: { exists: { field: binary } }
-          sort: [ { "@timestamp": asc } ]
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: mixed }
-  - match: { hits.hits.2._id: leading_null }
-  - match: { hits.hits.3._id: trailing_null }
-  - match: { hits.hits.4._id: both_ends_null }
-
-  - do:
-      search:
-        index: test_columnar_row
-        body:
-          query: { exists: { field: binary } }
-          sort: [ { "@timestamp": asc } ]
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: mixed }
-  - match: { hits.hits.2._id: leading_null }
-  - match: { hits.hits.3._id: trailing_null }
-  - match: { hits.hits.4._id: both_ends_null }
-
-  - do:
-      search:
-        index: test_logsdb_columnar_row
-        body:
-          query: { exists: { field: binary } }
-          sort: [ { "@timestamp": asc } ]
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: mixed }
-  - match: { hits.hits.2._id: leading_null }
-  - match: { hits.hits.3._id: trailing_null }
-  - match: { hits.hits.4._id: both_ends_null }
-
-  - do:
-      search:
-        index: test_vectordb_columnar_row
-        body:
-          query: { exists: { field: binary } }
-          sort: [ { "@timestamp": asc } ]
-          track_total_hits: true
-          _source: false
-
-  - match: { hits.total.value: 5 }
-  - length: { hits.hits: 5 }
-  - match: { hits.hits.0._id: value }
-  - match: { hits.hits.1._id: mixed }
-  - match: { hits.hits.2._id: leading_null }
-  - match: { hits.hits.3._id: trailing_null }
-  - match: { hits.hits.4._id: both_ends_null }
-
----
-synthetic source drops the null elements of a binary field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
-  - do:
-      search:
-        index: test_logsdb_columnar
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: binary
-
-  - length: { hits.hits: 10 }
-  - match: { hits.hits.0._source.binary: "YQ==" }
-  - match: { hits.hits.1._source: {} }
-  - match: { hits.hits.2._source: {} }
-  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - match: { hits.hits.4._source: {} }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.binary: "YQ==" }
-  - match: { hits.hits.8._source.binary: "YQ==" }
-  - match: { hits.hits.9._source.binary: "YQ==" }
-
-  - do:
-      search:
-        index: test_vectordb_columnar
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: binary
-
-  - length: { hits.hits: 10 }
-  - match: { hits.hits.0._source.binary: "YQ==" }
-  - match: { hits.hits.1._source: {} }
-  - match: { hits.hits.2._source: {} }
-  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - match: { hits.hits.4._source: {} }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.binary: "YQ==" }
-  - match: { hits.hits.8._source.binary: "YQ==" }
-  - match: { hits.hits.9._source.binary: "YQ==" }
-
-  - do:
-      search:
-        index: test_columnar_row
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: binary
-
-  - length: { hits.hits: 10 }
-  - match: { hits.hits.0._source.binary: "YQ==" }
-  - match: { hits.hits.1._source: {} }
-  - match: { hits.hits.2._source: {} }
-  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - match: { hits.hits.4._source: {} }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.binary: "YQ==" }
-  - match: { hits.hits.8._source.binary: "YQ==" }
-  - match: { hits.hits.9._source.binary: "YQ==" }
-
-  - do:
-      search:
-        index: test_logsdb_columnar_row
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: binary
-
-  - length: { hits.hits: 10 }
-  - match: { hits.hits.0._source.binary: "YQ==" }
-  - match: { hits.hits.1._source: {} }
-  - match: { hits.hits.2._source: {} }
-  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - match: { hits.hits.4._source: {} }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.binary: "YQ==" }
-  - match: { hits.hits.8._source.binary: "YQ==" }
-  - match: { hits.hits.9._source.binary: "YQ==" }
-
-  - do:
-      search:
-        index: test_vectordb_columnar_row
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: binary
-
-  - length: { hits.hits: 10 }
-  - match: { hits.hits.0._source.binary: "YQ==" }
-  - match: { hits.hits.1._source: {} }
-  - match: { hits.hits.2._source: {} }
-  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - match: { hits.hits.4._source: {} }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.binary: "YQ==" }
-  - match: { hits.hits.8._source.binary: "YQ==" }
-  - match: { hits.hits.9._source.binary: "YQ==" }
-
-  - do:
-      search:
-        index: test_columnar_stored
-        body:
-          query: { match_all: {} }
-          sort: [ { "@timestamp": asc } ]
-          size: 20
-          _source: binary
-
-  - length: { hits.hits: 10 }
-  - match: { hits.hits.0._source.binary: "YQ==" }
-  - match: { hits.hits.1._source: {} }
-  - match: { hits.hits.2._source: {} }
-  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
-  - match: { hits.hits.4._source: {} }
-  - match: { hits.hits.5._source: {} }
-  - match: { hits.hits.6._source: {} }
-  - match: { hits.hits.7._source.binary: "YQ==" }
-  - match: { hits.hits.8._source.binary: "YQ==" }
-  - match: { hits.hits.9._source.binary: "YQ==" }
 
 ---
 exists matches only documents with a non-null value on a boolean field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:

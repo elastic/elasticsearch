@@ -22,6 +22,8 @@ setup:
                 type: date
               match_only_text:
                 type: match_only_text
+              binary:
+                type: binary
               scaled_float:
                 type: scaled_float
                 scaling_factor: 100
@@ -63,25 +65,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": "a", "scaled_float": 1.5, "unsigned_long": 1, "counted_keyword": "a", "geo_shape": "POINT (1 2)", "point": "1.0,2.0", "shape": "POINT (1 2)", "integer_range": {"gte": 1, "lte": 2}, "long_range": {"gte": 1, "lte": 2}, "float_range": {"gte": 1.5, "lte": 2.5}, "double_range": {"gte": 1.5, "lte": 2.5}, "date_range": {"gte": "2026-01-01", "lte": "2026-01-02"}, "ip_range": "10.0.0.0/24", "histogram": {"values": [1.0, 2.0], "counts": [1, 2]}, "aggregate_metric_double": {"min": 1.0, "max": 2.0}, "exponential_histogram": {"scale": 0, "zero": {"count": 1}}, "tdigest": {"centroids": [1.0, 2.0], "counts": [1, 2]}}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": "a", "binary": "YQ==", "scaled_float": 1.5, "unsigned_long": 1, "counted_keyword": "a", "geo_shape": "POINT (1 2)", "point": "1.0,2.0", "shape": "POINT (1 2)", "integer_range": {"gte": 1, "lte": 2}, "long_range": {"gte": 1, "lte": 2}, "float_range": {"gte": 1.5, "lte": 2.5}, "double_range": {"gte": 1.5, "lte": 2.5}, "date_range": {"gte": "2026-01-01", "lte": "2026-01-02"}, "ip_range": "10.0.0.0/24", "histogram": {"values": [1.0, 2.0], "counts": [1, 2]}, "aggregate_metric_double": {"min": 1.0, "max": 2.0}, "exponential_histogram": {"scale": 0, "zero": {"count": 1}}, "tdigest": {"centroids": [1.0, 2.0], "counts": [1, 2]}}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "match_only_text": [null], "scaled_float": [null], "unsigned_long": [null], "counted_keyword": [null], "geo_shape": [null], "point": [null], "shape": [null], "integer_range": [null], "long_range": [null], "float_range": [null], "double_range": [null], "date_range": [null], "ip_range": [null], "histogram": [null], "aggregate_metric_double": [null], "exponential_histogram": [null], "tdigest": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "match_only_text": [null], "binary": [null], "scaled_float": [null], "unsigned_long": [null], "counted_keyword": [null], "geo_shape": [null], "point": [null], "shape": [null], "integer_range": [null], "long_range": [null], "float_range": [null], "double_range": [null], "date_range": [null], "ip_range": [null], "histogram": [null], "aggregate_metric_double": [null], "exponential_histogram": [null], "tdigest": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "match_only_text": [null, null], "scaled_float": [null, null], "unsigned_long": [null, null], "counted_keyword": [null, null], "geo_shape": [null, null], "point": [null, null], "shape": [null, null], "integer_range": [null, null], "long_range": [null, null], "float_range": [null, null], "double_range": [null, null], "date_range": [null, null], "ip_range": [null, null], "histogram": [null, null], "aggregate_metric_double": [null, null], "exponential_histogram": [null, null], "tdigest": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "match_only_text": [null, null], "binary": [null, null], "scaled_float": [null, null], "unsigned_long": [null, null], "counted_keyword": [null, null], "geo_shape": [null, null], "point": [null, null], "shape": [null, null], "integer_range": [null, null], "long_range": [null, null], "float_range": [null, null], "double_range": [null, null], "date_range": [null, null], "ip_range": [null, null], "histogram": [null, null], "aggregate_metric_double": [null, null], "exponential_histogram": [null, null], "tdigest": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "match_only_text": ["a", null, "b"], "scaled_float": [1.5, null, 2.5], "unsigned_long": [1, null, 2], "counted_keyword": ["a", null, "b"], "geo_shape": ["POINT (1 2)", null, "POINT (3 4)"], "point": ["1.0,2.0", null, "3.0,4.0"], "shape": ["POINT (1 2)", null, "POINT (3 4)"], "integer_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "long_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "float_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "double_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null, {"gte": "2026-02-01", "lte": "2026-02-02"}], "ip_range": ["10.0.0.0/24", null, "10.0.1.0/24"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "match_only_text": ["a", null, "b"], "binary": ["YQ==", null, "Yg=="], "scaled_float": [1.5, null, 2.5], "unsigned_long": [1, null, 2], "counted_keyword": ["a", null, "b"], "geo_shape": ["POINT (1 2)", null, "POINT (3 4)"], "point": ["1.0,2.0", null, "3.0,4.0"], "shape": ["POINT (1 2)", null, "POINT (3 4)"], "integer_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "long_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "float_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "double_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null, {"gte": "2026-02-01", "lte": "2026-02-02"}], "ip_range": ["10.0.0.0/24", null, "10.0.1.0/24"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "match_only_text": null, "scaled_float": null, "unsigned_long": null, "counted_keyword": null, "geo_shape": null, "point": null, "shape": null, "integer_range": null, "long_range": null, "float_range": null, "double_range": null, "date_range": null, "ip_range": null, "histogram": null, "aggregate_metric_double": null, "exponential_histogram": null, "tdigest": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "match_only_text": null, "binary": null, "scaled_float": null, "unsigned_long": null, "counted_keyword": null, "geo_shape": null, "point": null, "shape": null, "integer_range": null, "long_range": null, "float_range": null, "double_range": null, "date_range": null, "ip_range": null, "histogram": null, "aggregate_metric_double": null, "exponential_histogram": null, "tdigest": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "match_only_text": [], "scaled_float": [], "unsigned_long": [], "counted_keyword": [], "geo_shape": [], "point": [], "shape": [], "integer_range": [], "long_range": [], "float_range": [], "double_range": [], "date_range": [], "ip_range": [], "histogram": [], "aggregate_metric_double": [], "exponential_histogram": [], "tdigest": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "match_only_text": [], "binary": [], "scaled_float": [], "unsigned_long": [], "counted_keyword": [], "geo_shape": [], "point": [], "shape": [], "integer_range": [], "long_range": [], "float_range": [], "double_range": [], "date_range": [], "ip_range": [], "histogram": [], "aggregate_metric_double": [], "exponential_histogram": [], "tdigest": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "match_only_text": [null, "a"], "scaled_float": [null, 1.5], "unsigned_long": [null, 1], "counted_keyword": [null, "a"], "geo_shape": [null, "POINT (1 2)"], "point": [null, "1.0,2.0"], "shape": [null, "POINT (1 2)"], "integer_range": [null, {"gte": 1, "lte": 2}], "long_range": [null, {"gte": 1, "lte": 2}], "float_range": [null, {"gte": 1.5, "lte": 2.5}], "double_range": [null, {"gte": 1.5, "lte": 2.5}], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}], "ip_range": [null, "10.0.0.0/24"], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "match_only_text": [null, "a"], "binary": [null, "YQ=="], "scaled_float": [null, 1.5], "unsigned_long": [null, 1], "counted_keyword": [null, "a"], "geo_shape": [null, "POINT (1 2)"], "point": [null, "1.0,2.0"], "shape": [null, "POINT (1 2)"], "integer_range": [null, {"gte": 1, "lte": 2}], "long_range": [null, {"gte": 1, "lte": 2}], "float_range": [null, {"gte": 1.5, "lte": 2.5}], "double_range": [null, {"gte": 1.5, "lte": 2.5}], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}], "ip_range": [null, "10.0.0.0/24"], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "match_only_text": ["a", null], "scaled_float": [1.5, null], "unsigned_long": [1, null], "counted_keyword": ["a", null], "geo_shape": ["POINT (1 2)", null], "point": ["1.0,2.0", null], "shape": ["POINT (1 2)", null], "integer_range": [{"gte": 1, "lte": 2}, null], "long_range": [{"gte": 1, "lte": 2}, null], "float_range": [{"gte": 1.5, "lte": 2.5}, null], "double_range": [{"gte": 1.5, "lte": 2.5}, null], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": ["10.0.0.0/24", null], "histogram": [{"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [{"min": 1.0, "max": 2.0}, null], "exponential_histogram": [{"scale": 0, "zero": {"count": 1}}, null], "tdigest": [{"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "match_only_text": ["a", null], "binary": ["YQ==", null], "scaled_float": [1.5, null], "unsigned_long": [1, null], "counted_keyword": ["a", null], "geo_shape": ["POINT (1 2)", null], "point": ["1.0,2.0", null], "shape": ["POINT (1 2)", null], "integer_range": [{"gte": 1, "lte": 2}, null], "long_range": [{"gte": 1, "lte": 2}, null], "float_range": [{"gte": 1.5, "lte": 2.5}, null], "double_range": [{"gte": 1.5, "lte": 2.5}, null], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": ["10.0.0.0/24", null], "histogram": [{"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [{"min": 1.0, "max": 2.0}, null], "exponential_histogram": [{"scale": 0, "zero": {"count": 1}}, null], "tdigest": [{"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "match_only_text": [null, "a", null], "scaled_float": [null, 1.5, null], "unsigned_long": [null, 1, null], "counted_keyword": [null, "a", null], "geo_shape": [null, "POINT (1 2)", null], "point": [null, "1.0,2.0", null], "shape": [null, "POINT (1 2)", null], "integer_range": [null, {"gte": 1, "lte": 2}, null], "long_range": [null, {"gte": 1, "lte": 2}, null], "float_range": [null, {"gte": 1.5, "lte": 2.5}, null], "double_range": [null, {"gte": 1.5, "lte": 2.5}, null], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": [null, "10.0.0.0/24", null], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}, null], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}, null], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "match_only_text": [null, "a", null], "binary": [null, "YQ==", null], "scaled_float": [null, 1.5, null], "unsigned_long": [null, 1, null], "counted_keyword": [null, "a", null], "geo_shape": [null, "POINT (1 2)", null], "point": [null, "1.0,2.0", null], "shape": [null, "POINT (1 2)", null], "integer_range": [null, {"gte": 1, "lte": 2}, null], "long_range": [null, {"gte": 1, "lte": 2}, null], "float_range": [null, {"gte": 1.5, "lte": 2.5}, null], "double_range": [null, {"gte": 1.5, "lte": 2.5}, null], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": [null, "10.0.0.0/24", null], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}, null], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}, null], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
 
   - do:
       indices.create:
@@ -97,6 +99,8 @@ setup:
                 type: date
               match_only_text:
                 type: match_only_text
+              binary:
+                type: binary
               scaled_float:
                 type: scaled_float
                 scaling_factor: 100
@@ -138,25 +142,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": "a", "scaled_float": 1.5, "unsigned_long": 1, "counted_keyword": "a", "geo_shape": "POINT (1 2)", "point": "1.0,2.0", "shape": "POINT (1 2)", "integer_range": {"gte": 1, "lte": 2}, "long_range": {"gte": 1, "lte": 2}, "float_range": {"gte": 1.5, "lte": 2.5}, "double_range": {"gte": 1.5, "lte": 2.5}, "date_range": {"gte": "2026-01-01", "lte": "2026-01-02"}, "ip_range": "10.0.0.0/24", "histogram": {"values": [1.0, 2.0], "counts": [1, 2]}, "aggregate_metric_double": {"min": 1.0, "max": 2.0}, "exponential_histogram": {"scale": 0, "zero": {"count": 1}}, "tdigest": {"centroids": [1.0, 2.0], "counts": [1, 2]}}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": "a", "binary": "YQ==", "scaled_float": 1.5, "unsigned_long": 1, "counted_keyword": "a", "geo_shape": "POINT (1 2)", "point": "1.0,2.0", "shape": "POINT (1 2)", "integer_range": {"gte": 1, "lte": 2}, "long_range": {"gte": 1, "lte": 2}, "float_range": {"gte": 1.5, "lte": 2.5}, "double_range": {"gte": 1.5, "lte": 2.5}, "date_range": {"gte": "2026-01-01", "lte": "2026-01-02"}, "ip_range": "10.0.0.0/24", "histogram": {"values": [1.0, 2.0], "counts": [1, 2]}, "aggregate_metric_double": {"min": 1.0, "max": 2.0}, "exponential_histogram": {"scale": 0, "zero": {"count": 1}}, "tdigest": {"centroids": [1.0, 2.0], "counts": [1, 2]}}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "match_only_text": [null], "scaled_float": [null], "unsigned_long": [null], "counted_keyword": [null], "geo_shape": [null], "point": [null], "shape": [null], "integer_range": [null], "long_range": [null], "float_range": [null], "double_range": [null], "date_range": [null], "ip_range": [null], "histogram": [null], "aggregate_metric_double": [null], "exponential_histogram": [null], "tdigest": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "match_only_text": [null], "binary": [null], "scaled_float": [null], "unsigned_long": [null], "counted_keyword": [null], "geo_shape": [null], "point": [null], "shape": [null], "integer_range": [null], "long_range": [null], "float_range": [null], "double_range": [null], "date_range": [null], "ip_range": [null], "histogram": [null], "aggregate_metric_double": [null], "exponential_histogram": [null], "tdigest": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "match_only_text": [null, null], "scaled_float": [null, null], "unsigned_long": [null, null], "counted_keyword": [null, null], "geo_shape": [null, null], "point": [null, null], "shape": [null, null], "integer_range": [null, null], "long_range": [null, null], "float_range": [null, null], "double_range": [null, null], "date_range": [null, null], "ip_range": [null, null], "histogram": [null, null], "aggregate_metric_double": [null, null], "exponential_histogram": [null, null], "tdigest": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "match_only_text": [null, null], "binary": [null, null], "scaled_float": [null, null], "unsigned_long": [null, null], "counted_keyword": [null, null], "geo_shape": [null, null], "point": [null, null], "shape": [null, null], "integer_range": [null, null], "long_range": [null, null], "float_range": [null, null], "double_range": [null, null], "date_range": [null, null], "ip_range": [null, null], "histogram": [null, null], "aggregate_metric_double": [null, null], "exponential_histogram": [null, null], "tdigest": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "match_only_text": ["a", null, "b"], "scaled_float": [1.5, null, 2.5], "unsigned_long": [1, null, 2], "counted_keyword": ["a", null, "b"], "geo_shape": ["POINT (1 2)", null, "POINT (3 4)"], "point": ["1.0,2.0", null, "3.0,4.0"], "shape": ["POINT (1 2)", null, "POINT (3 4)"], "integer_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "long_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "float_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "double_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null, {"gte": "2026-02-01", "lte": "2026-02-02"}], "ip_range": ["10.0.0.0/24", null, "10.0.1.0/24"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "match_only_text": ["a", null, "b"], "binary": ["YQ==", null, "Yg=="], "scaled_float": [1.5, null, 2.5], "unsigned_long": [1, null, 2], "counted_keyword": ["a", null, "b"], "geo_shape": ["POINT (1 2)", null, "POINT (3 4)"], "point": ["1.0,2.0", null, "3.0,4.0"], "shape": ["POINT (1 2)", null, "POINT (3 4)"], "integer_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "long_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "float_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "double_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null, {"gte": "2026-02-01", "lte": "2026-02-02"}], "ip_range": ["10.0.0.0/24", null, "10.0.1.0/24"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "match_only_text": null, "scaled_float": null, "unsigned_long": null, "counted_keyword": null, "geo_shape": null, "point": null, "shape": null, "integer_range": null, "long_range": null, "float_range": null, "double_range": null, "date_range": null, "ip_range": null, "histogram": null, "aggregate_metric_double": null, "exponential_histogram": null, "tdigest": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "match_only_text": null, "binary": null, "scaled_float": null, "unsigned_long": null, "counted_keyword": null, "geo_shape": null, "point": null, "shape": null, "integer_range": null, "long_range": null, "float_range": null, "double_range": null, "date_range": null, "ip_range": null, "histogram": null, "aggregate_metric_double": null, "exponential_histogram": null, "tdigest": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "match_only_text": [], "scaled_float": [], "unsigned_long": [], "counted_keyword": [], "geo_shape": [], "point": [], "shape": [], "integer_range": [], "long_range": [], "float_range": [], "double_range": [], "date_range": [], "ip_range": [], "histogram": [], "aggregate_metric_double": [], "exponential_histogram": [], "tdigest": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "match_only_text": [], "binary": [], "scaled_float": [], "unsigned_long": [], "counted_keyword": [], "geo_shape": [], "point": [], "shape": [], "integer_range": [], "long_range": [], "float_range": [], "double_range": [], "date_range": [], "ip_range": [], "histogram": [], "aggregate_metric_double": [], "exponential_histogram": [], "tdigest": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "match_only_text": [null, "a"], "scaled_float": [null, 1.5], "unsigned_long": [null, 1], "counted_keyword": [null, "a"], "geo_shape": [null, "POINT (1 2)"], "point": [null, "1.0,2.0"], "shape": [null, "POINT (1 2)"], "integer_range": [null, {"gte": 1, "lte": 2}], "long_range": [null, {"gte": 1, "lte": 2}], "float_range": [null, {"gte": 1.5, "lte": 2.5}], "double_range": [null, {"gte": 1.5, "lte": 2.5}], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}], "ip_range": [null, "10.0.0.0/24"], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "match_only_text": [null, "a"], "binary": [null, "YQ=="], "scaled_float": [null, 1.5], "unsigned_long": [null, 1], "counted_keyword": [null, "a"], "geo_shape": [null, "POINT (1 2)"], "point": [null, "1.0,2.0"], "shape": [null, "POINT (1 2)"], "integer_range": [null, {"gte": 1, "lte": 2}], "long_range": [null, {"gte": 1, "lte": 2}], "float_range": [null, {"gte": 1.5, "lte": 2.5}], "double_range": [null, {"gte": 1.5, "lte": 2.5}], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}], "ip_range": [null, "10.0.0.0/24"], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "match_only_text": ["a", null], "scaled_float": [1.5, null], "unsigned_long": [1, null], "counted_keyword": ["a", null], "geo_shape": ["POINT (1 2)", null], "point": ["1.0,2.0", null], "shape": ["POINT (1 2)", null], "integer_range": [{"gte": 1, "lte": 2}, null], "long_range": [{"gte": 1, "lte": 2}, null], "float_range": [{"gte": 1.5, "lte": 2.5}, null], "double_range": [{"gte": 1.5, "lte": 2.5}, null], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": ["10.0.0.0/24", null], "histogram": [{"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [{"min": 1.0, "max": 2.0}, null], "exponential_histogram": [{"scale": 0, "zero": {"count": 1}}, null], "tdigest": [{"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "match_only_text": ["a", null], "binary": ["YQ==", null], "scaled_float": [1.5, null], "unsigned_long": [1, null], "counted_keyword": ["a", null], "geo_shape": ["POINT (1 2)", null], "point": ["1.0,2.0", null], "shape": ["POINT (1 2)", null], "integer_range": [{"gte": 1, "lte": 2}, null], "long_range": [{"gte": 1, "lte": 2}, null], "float_range": [{"gte": 1.5, "lte": 2.5}, null], "double_range": [{"gte": 1.5, "lte": 2.5}, null], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": ["10.0.0.0/24", null], "histogram": [{"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [{"min": 1.0, "max": 2.0}, null], "exponential_histogram": [{"scale": 0, "zero": {"count": 1}}, null], "tdigest": [{"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "match_only_text": [null, "a", null], "scaled_float": [null, 1.5, null], "unsigned_long": [null, 1, null], "counted_keyword": [null, "a", null], "geo_shape": [null, "POINT (1 2)", null], "point": [null, "1.0,2.0", null], "shape": [null, "POINT (1 2)", null], "integer_range": [null, {"gte": 1, "lte": 2}, null], "long_range": [null, {"gte": 1, "lte": 2}, null], "float_range": [null, {"gte": 1.5, "lte": 2.5}, null], "double_range": [null, {"gte": 1.5, "lte": 2.5}, null], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": [null, "10.0.0.0/24", null], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}, null], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}, null], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "match_only_text": [null, "a", null], "binary": [null, "YQ==", null], "scaled_float": [null, 1.5, null], "unsigned_long": [null, 1, null], "counted_keyword": [null, "a", null], "geo_shape": [null, "POINT (1 2)", null], "point": [null, "1.0,2.0", null], "shape": [null, "POINT (1 2)", null], "integer_range": [null, {"gte": 1, "lte": 2}, null], "long_range": [null, {"gte": 1, "lte": 2}, null], "float_range": [null, {"gte": 1.5, "lte": 2.5}, null], "double_range": [null, {"gte": 1.5, "lte": 2.5}, null], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": [null, "10.0.0.0/24", null], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}, null], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}, null], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
 
   - do:
       indices.create:
@@ -172,6 +176,8 @@ setup:
                 type: date
               match_only_text:
                 type: match_only_text
+              binary:
+                type: binary
               scaled_float:
                 type: scaled_float
                 scaling_factor: 100
@@ -213,25 +219,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": "a", "scaled_float": 1.5, "unsigned_long": 1, "counted_keyword": "a", "geo_shape": "POINT (1 2)", "point": "1.0,2.0", "shape": "POINT (1 2)", "integer_range": {"gte": 1, "lte": 2}, "long_range": {"gte": 1, "lte": 2}, "float_range": {"gte": 1.5, "lte": 2.5}, "double_range": {"gte": 1.5, "lte": 2.5}, "date_range": {"gte": "2026-01-01", "lte": "2026-01-02"}, "ip_range": "10.0.0.0/24", "histogram": {"values": [1.0, 2.0], "counts": [1, 2]}, "aggregate_metric_double": {"min": 1.0, "max": 2.0}, "exponential_histogram": {"scale": 0, "zero": {"count": 1}}, "tdigest": {"centroids": [1.0, 2.0], "counts": [1, 2]}}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": "a", "binary": "YQ==", "scaled_float": 1.5, "unsigned_long": 1, "counted_keyword": "a", "geo_shape": "POINT (1 2)", "point": "1.0,2.0", "shape": "POINT (1 2)", "integer_range": {"gte": 1, "lte": 2}, "long_range": {"gte": 1, "lte": 2}, "float_range": {"gte": 1.5, "lte": 2.5}, "double_range": {"gte": 1.5, "lte": 2.5}, "date_range": {"gte": "2026-01-01", "lte": "2026-01-02"}, "ip_range": "10.0.0.0/24", "histogram": {"values": [1.0, 2.0], "counts": [1, 2]}, "aggregate_metric_double": {"min": 1.0, "max": 2.0}, "exponential_histogram": {"scale": 0, "zero": {"count": 1}}, "tdigest": {"centroids": [1.0, 2.0], "counts": [1, 2]}}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "match_only_text": [null], "scaled_float": [null], "unsigned_long": [null], "counted_keyword": [null], "geo_shape": [null], "point": [null], "shape": [null], "integer_range": [null], "long_range": [null], "float_range": [null], "double_range": [null], "date_range": [null], "ip_range": [null], "histogram": [null], "aggregate_metric_double": [null], "exponential_histogram": [null], "tdigest": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "match_only_text": [null], "binary": [null], "scaled_float": [null], "unsigned_long": [null], "counted_keyword": [null], "geo_shape": [null], "point": [null], "shape": [null], "integer_range": [null], "long_range": [null], "float_range": [null], "double_range": [null], "date_range": [null], "ip_range": [null], "histogram": [null], "aggregate_metric_double": [null], "exponential_histogram": [null], "tdigest": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "match_only_text": [null, null], "scaled_float": [null, null], "unsigned_long": [null, null], "counted_keyword": [null, null], "geo_shape": [null, null], "point": [null, null], "shape": [null, null], "integer_range": [null, null], "long_range": [null, null], "float_range": [null, null], "double_range": [null, null], "date_range": [null, null], "ip_range": [null, null], "histogram": [null, null], "aggregate_metric_double": [null, null], "exponential_histogram": [null, null], "tdigest": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "match_only_text": [null, null], "binary": [null, null], "scaled_float": [null, null], "unsigned_long": [null, null], "counted_keyword": [null, null], "geo_shape": [null, null], "point": [null, null], "shape": [null, null], "integer_range": [null, null], "long_range": [null, null], "float_range": [null, null], "double_range": [null, null], "date_range": [null, null], "ip_range": [null, null], "histogram": [null, null], "aggregate_metric_double": [null, null], "exponential_histogram": [null, null], "tdigest": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "match_only_text": ["a", null, "b"], "scaled_float": [1.5, null, 2.5], "unsigned_long": [1, null, 2], "counted_keyword": ["a", null, "b"], "geo_shape": ["POINT (1 2)", null, "POINT (3 4)"], "point": ["1.0,2.0", null, "3.0,4.0"], "shape": ["POINT (1 2)", null, "POINT (3 4)"], "integer_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "long_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "float_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "double_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null, {"gte": "2026-02-01", "lte": "2026-02-02"}], "ip_range": ["10.0.0.0/24", null, "10.0.1.0/24"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "match_only_text": ["a", null, "b"], "binary": ["YQ==", null, "Yg=="], "scaled_float": [1.5, null, 2.5], "unsigned_long": [1, null, 2], "counted_keyword": ["a", null, "b"], "geo_shape": ["POINT (1 2)", null, "POINT (3 4)"], "point": ["1.0,2.0", null, "3.0,4.0"], "shape": ["POINT (1 2)", null, "POINT (3 4)"], "integer_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "long_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "float_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "double_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null, {"gte": "2026-02-01", "lte": "2026-02-02"}], "ip_range": ["10.0.0.0/24", null, "10.0.1.0/24"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "match_only_text": null, "scaled_float": null, "unsigned_long": null, "counted_keyword": null, "geo_shape": null, "point": null, "shape": null, "integer_range": null, "long_range": null, "float_range": null, "double_range": null, "date_range": null, "ip_range": null, "histogram": null, "aggregate_metric_double": null, "exponential_histogram": null, "tdigest": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "match_only_text": null, "binary": null, "scaled_float": null, "unsigned_long": null, "counted_keyword": null, "geo_shape": null, "point": null, "shape": null, "integer_range": null, "long_range": null, "float_range": null, "double_range": null, "date_range": null, "ip_range": null, "histogram": null, "aggregate_metric_double": null, "exponential_histogram": null, "tdigest": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "match_only_text": [], "scaled_float": [], "unsigned_long": [], "counted_keyword": [], "geo_shape": [], "point": [], "shape": [], "integer_range": [], "long_range": [], "float_range": [], "double_range": [], "date_range": [], "ip_range": [], "histogram": [], "aggregate_metric_double": [], "exponential_histogram": [], "tdigest": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "match_only_text": [], "binary": [], "scaled_float": [], "unsigned_long": [], "counted_keyword": [], "geo_shape": [], "point": [], "shape": [], "integer_range": [], "long_range": [], "float_range": [], "double_range": [], "date_range": [], "ip_range": [], "histogram": [], "aggregate_metric_double": [], "exponential_histogram": [], "tdigest": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "match_only_text": [null, "a"], "scaled_float": [null, 1.5], "unsigned_long": [null, 1], "counted_keyword": [null, "a"], "geo_shape": [null, "POINT (1 2)"], "point": [null, "1.0,2.0"], "shape": [null, "POINT (1 2)"], "integer_range": [null, {"gte": 1, "lte": 2}], "long_range": [null, {"gte": 1, "lte": 2}], "float_range": [null, {"gte": 1.5, "lte": 2.5}], "double_range": [null, {"gte": 1.5, "lte": 2.5}], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}], "ip_range": [null, "10.0.0.0/24"], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "match_only_text": [null, "a"], "binary": [null, "YQ=="], "scaled_float": [null, 1.5], "unsigned_long": [null, 1], "counted_keyword": [null, "a"], "geo_shape": [null, "POINT (1 2)"], "point": [null, "1.0,2.0"], "shape": [null, "POINT (1 2)"], "integer_range": [null, {"gte": 1, "lte": 2}], "long_range": [null, {"gte": 1, "lte": 2}], "float_range": [null, {"gte": 1.5, "lte": 2.5}], "double_range": [null, {"gte": 1.5, "lte": 2.5}], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}], "ip_range": [null, "10.0.0.0/24"], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "match_only_text": ["a", null], "scaled_float": [1.5, null], "unsigned_long": [1, null], "counted_keyword": ["a", null], "geo_shape": ["POINT (1 2)", null], "point": ["1.0,2.0", null], "shape": ["POINT (1 2)", null], "integer_range": [{"gte": 1, "lte": 2}, null], "long_range": [{"gte": 1, "lte": 2}, null], "float_range": [{"gte": 1.5, "lte": 2.5}, null], "double_range": [{"gte": 1.5, "lte": 2.5}, null], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": ["10.0.0.0/24", null], "histogram": [{"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [{"min": 1.0, "max": 2.0}, null], "exponential_histogram": [{"scale": 0, "zero": {"count": 1}}, null], "tdigest": [{"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "match_only_text": ["a", null], "binary": ["YQ==", null], "scaled_float": [1.5, null], "unsigned_long": [1, null], "counted_keyword": ["a", null], "geo_shape": ["POINT (1 2)", null], "point": ["1.0,2.0", null], "shape": ["POINT (1 2)", null], "integer_range": [{"gte": 1, "lte": 2}, null], "long_range": [{"gte": 1, "lte": 2}, null], "float_range": [{"gte": 1.5, "lte": 2.5}, null], "double_range": [{"gte": 1.5, "lte": 2.5}, null], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": ["10.0.0.0/24", null], "histogram": [{"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [{"min": 1.0, "max": 2.0}, null], "exponential_histogram": [{"scale": 0, "zero": {"count": 1}}, null], "tdigest": [{"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "match_only_text": [null, "a", null], "scaled_float": [null, 1.5, null], "unsigned_long": [null, 1, null], "counted_keyword": [null, "a", null], "geo_shape": [null, "POINT (1 2)", null], "point": [null, "1.0,2.0", null], "shape": [null, "POINT (1 2)", null], "integer_range": [null, {"gte": 1, "lte": 2}, null], "long_range": [null, {"gte": 1, "lte": 2}, null], "float_range": [null, {"gte": 1.5, "lte": 2.5}, null], "double_range": [null, {"gte": 1.5, "lte": 2.5}, null], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": [null, "10.0.0.0/24", null], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}, null], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}, null], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "match_only_text": [null, "a", null], "binary": [null, "YQ==", null], "scaled_float": [null, 1.5, null], "unsigned_long": [null, 1, null], "counted_keyword": [null, "a", null], "geo_shape": [null, "POINT (1 2)", null], "point": [null, "1.0,2.0", null], "shape": [null, "POINT (1 2)", null], "integer_range": [null, {"gte": 1, "lte": 2}, null], "long_range": [null, {"gte": 1, "lte": 2}, null], "float_range": [null, {"gte": 1.5, "lte": 2.5}, null], "double_range": [null, {"gte": 1.5, "lte": 2.5}, null], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": [null, "10.0.0.0/24", null], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}, null], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}, null], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
 
   - do:
       indices.create:
@@ -247,6 +253,8 @@ setup:
                 type: date
               match_only_text:
                 type: match_only_text
+              binary:
+                type: binary
               scaled_float:
                 type: scaled_float
                 scaling_factor: 100
@@ -288,25 +296,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": "a", "scaled_float": 1.5, "unsigned_long": 1, "counted_keyword": "a", "geo_shape": "POINT (1 2)", "point": "1.0,2.0", "shape": "POINT (1 2)", "integer_range": {"gte": 1, "lte": 2}, "long_range": {"gte": 1, "lte": 2}, "float_range": {"gte": 1.5, "lte": 2.5}, "double_range": {"gte": 1.5, "lte": 2.5}, "date_range": {"gte": "2026-01-01", "lte": "2026-01-02"}, "ip_range": "10.0.0.0/24", "histogram": {"values": [1.0, 2.0], "counts": [1, 2]}, "aggregate_metric_double": {"min": 1.0, "max": 2.0}, "exponential_histogram": {"scale": 0, "zero": {"count": 1}}, "tdigest": {"centroids": [1.0, 2.0], "counts": [1, 2]}}'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "match_only_text": "a", "binary": "YQ==", "scaled_float": 1.5, "unsigned_long": 1, "counted_keyword": "a", "geo_shape": "POINT (1 2)", "point": "1.0,2.0", "shape": "POINT (1 2)", "integer_range": {"gte": 1, "lte": 2}, "long_range": {"gte": 1, "lte": 2}, "float_range": {"gte": 1.5, "lte": 2.5}, "double_range": {"gte": 1.5, "lte": 2.5}, "date_range": {"gte": "2026-01-01", "lte": "2026-01-02"}, "ip_range": "10.0.0.0/24", "histogram": {"values": [1.0, 2.0], "counts": [1, 2]}, "aggregate_metric_double": {"min": 1.0, "max": 2.0}, "exponential_histogram": {"scale": 0, "zero": {"count": 1}}, "tdigest": {"centroids": [1.0, 2.0], "counts": [1, 2]}}'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "match_only_text": [null], "scaled_float": [null], "unsigned_long": [null], "counted_keyword": [null], "geo_shape": [null], "point": [null], "shape": [null], "integer_range": [null], "long_range": [null], "float_range": [null], "double_range": [null], "date_range": [null], "ip_range": [null], "histogram": [null], "aggregate_metric_double": [null], "exponential_histogram": [null], "tdigest": [null]}'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "match_only_text": [null], "binary": [null], "scaled_float": [null], "unsigned_long": [null], "counted_keyword": [null], "geo_shape": [null], "point": [null], "shape": [null], "integer_range": [null], "long_range": [null], "float_range": [null], "double_range": [null], "date_range": [null], "ip_range": [null], "histogram": [null], "aggregate_metric_double": [null], "exponential_histogram": [null], "tdigest": [null]}'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "match_only_text": [null, null], "scaled_float": [null, null], "unsigned_long": [null, null], "counted_keyword": [null, null], "geo_shape": [null, null], "point": [null, null], "shape": [null, null], "integer_range": [null, null], "long_range": [null, null], "float_range": [null, null], "double_range": [null, null], "date_range": [null, null], "ip_range": [null, null], "histogram": [null, null], "aggregate_metric_double": [null, null], "exponential_histogram": [null, null], "tdigest": [null, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "match_only_text": [null, null], "binary": [null, null], "scaled_float": [null, null], "unsigned_long": [null, null], "counted_keyword": [null, null], "geo_shape": [null, null], "point": [null, null], "shape": [null, null], "integer_range": [null, null], "long_range": [null, null], "float_range": [null, null], "double_range": [null, null], "date_range": [null, null], "ip_range": [null, null], "histogram": [null, null], "aggregate_metric_double": [null, null], "exponential_histogram": [null, null], "tdigest": [null, null]}'
           - '{ "index": { "_id": "mixed" } }'
-          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "match_only_text": ["a", null, "b"], "scaled_float": [1.5, null, 2.5], "unsigned_long": [1, null, 2], "counted_keyword": ["a", null, "b"], "geo_shape": ["POINT (1 2)", null, "POINT (3 4)"], "point": ["1.0,2.0", null, "3.0,4.0"], "shape": ["POINT (1 2)", null, "POINT (3 4)"], "integer_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "long_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "float_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "double_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null, {"gte": "2026-02-01", "lte": "2026-02-02"}], "ip_range": ["10.0.0.0/24", null, "10.0.1.0/24"]}'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "match_only_text": ["a", null, "b"], "binary": ["YQ==", null, "Yg=="], "scaled_float": [1.5, null, 2.5], "unsigned_long": [1, null, 2], "counted_keyword": ["a", null, "b"], "geo_shape": ["POINT (1 2)", null, "POINT (3 4)"], "point": ["1.0,2.0", null, "3.0,4.0"], "shape": ["POINT (1 2)", null, "POINT (3 4)"], "integer_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "long_range": [{"gte": 1, "lte": 2}, null, {"gte": 3, "lte": 4}], "float_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "double_range": [{"gte": 1.5, "lte": 2.5}, null, {"gte": 3.5, "lte": 4.5}], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null, {"gte": "2026-02-01", "lte": "2026-02-02"}], "ip_range": ["10.0.0.0/24", null, "10.0.1.0/24"]}'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "match_only_text": null, "scaled_float": null, "unsigned_long": null, "counted_keyword": null, "geo_shape": null, "point": null, "shape": null, "integer_range": null, "long_range": null, "float_range": null, "double_range": null, "date_range": null, "ip_range": null, "histogram": null, "aggregate_metric_double": null, "exponential_histogram": null, "tdigest": null}'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "match_only_text": null, "binary": null, "scaled_float": null, "unsigned_long": null, "counted_keyword": null, "geo_shape": null, "point": null, "shape": null, "integer_range": null, "long_range": null, "float_range": null, "double_range": null, "date_range": null, "ip_range": null, "histogram": null, "aggregate_metric_double": null, "exponential_histogram": null, "tdigest": null}'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "match_only_text": [], "scaled_float": [], "unsigned_long": [], "counted_keyword": [], "geo_shape": [], "point": [], "shape": [], "integer_range": [], "long_range": [], "float_range": [], "double_range": [], "date_range": [], "ip_range": [], "histogram": [], "aggregate_metric_double": [], "exponential_histogram": [], "tdigest": []}'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "match_only_text": [], "binary": [], "scaled_float": [], "unsigned_long": [], "counted_keyword": [], "geo_shape": [], "point": [], "shape": [], "integer_range": [], "long_range": [], "float_range": [], "double_range": [], "date_range": [], "ip_range": [], "histogram": [], "aggregate_metric_double": [], "exponential_histogram": [], "tdigest": []}'
           - '{ "index": { "_id": "missing" } }'
           - '{"@timestamp": "2026-01-01T00:00:07.000Z"}'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "match_only_text": [null, "a"], "scaled_float": [null, 1.5], "unsigned_long": [null, 1], "counted_keyword": [null, "a"], "geo_shape": [null, "POINT (1 2)"], "point": [null, "1.0,2.0"], "shape": [null, "POINT (1 2)"], "integer_range": [null, {"gte": 1, "lte": 2}], "long_range": [null, {"gte": 1, "lte": 2}], "float_range": [null, {"gte": 1.5, "lte": 2.5}], "double_range": [null, {"gte": 1.5, "lte": 2.5}], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}], "ip_range": [null, "10.0.0.0/24"], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}]}'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "match_only_text": [null, "a"], "binary": [null, "YQ=="], "scaled_float": [null, 1.5], "unsigned_long": [null, 1], "counted_keyword": [null, "a"], "geo_shape": [null, "POINT (1 2)"], "point": [null, "1.0,2.0"], "shape": [null, "POINT (1 2)"], "integer_range": [null, {"gte": 1, "lte": 2}], "long_range": [null, {"gte": 1, "lte": 2}], "float_range": [null, {"gte": 1.5, "lte": 2.5}], "double_range": [null, {"gte": 1.5, "lte": 2.5}], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}], "ip_range": [null, "10.0.0.0/24"], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}]}'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "match_only_text": ["a", null], "scaled_float": [1.5, null], "unsigned_long": [1, null], "counted_keyword": ["a", null], "geo_shape": ["POINT (1 2)", null], "point": ["1.0,2.0", null], "shape": ["POINT (1 2)", null], "integer_range": [{"gte": 1, "lte": 2}, null], "long_range": [{"gte": 1, "lte": 2}, null], "float_range": [{"gte": 1.5, "lte": 2.5}, null], "double_range": [{"gte": 1.5, "lte": 2.5}, null], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": ["10.0.0.0/24", null], "histogram": [{"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [{"min": 1.0, "max": 2.0}, null], "exponential_histogram": [{"scale": 0, "zero": {"count": 1}}, null], "tdigest": [{"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "match_only_text": ["a", null], "binary": ["YQ==", null], "scaled_float": [1.5, null], "unsigned_long": [1, null], "counted_keyword": ["a", null], "geo_shape": ["POINT (1 2)", null], "point": ["1.0,2.0", null], "shape": ["POINT (1 2)", null], "integer_range": [{"gte": 1, "lte": 2}, null], "long_range": [{"gte": 1, "lte": 2}, null], "float_range": [{"gte": 1.5, "lte": 2.5}, null], "double_range": [{"gte": 1.5, "lte": 2.5}, null], "date_range": [{"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": ["10.0.0.0/24", null], "histogram": [{"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [{"min": 1.0, "max": 2.0}, null], "exponential_histogram": [{"scale": 0, "zero": {"count": 1}}, null], "tdigest": [{"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "match_only_text": [null, "a", null], "scaled_float": [null, 1.5, null], "unsigned_long": [null, 1, null], "counted_keyword": [null, "a", null], "geo_shape": [null, "POINT (1 2)", null], "point": [null, "1.0,2.0", null], "shape": [null, "POINT (1 2)", null], "integer_range": [null, {"gte": 1, "lte": 2}, null], "long_range": [null, {"gte": 1, "lte": 2}, null], "float_range": [null, {"gte": 1.5, "lte": 2.5}, null], "double_range": [null, {"gte": 1.5, "lte": 2.5}, null], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": [null, "10.0.0.0/24", null], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}, null], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}, null], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "match_only_text": [null, "a", null], "binary": [null, "YQ==", null], "scaled_float": [null, 1.5, null], "unsigned_long": [null, 1, null], "counted_keyword": [null, "a", null], "geo_shape": [null, "POINT (1 2)", null], "point": [null, "1.0,2.0", null], "shape": [null, "POINT (1 2)", null], "integer_range": [null, {"gte": 1, "lte": 2}, null], "long_range": [null, {"gte": 1, "lte": 2}, null], "float_range": [null, {"gte": 1.5, "lte": 2.5}, null], "double_range": [null, {"gte": 1.5, "lte": 2.5}, null], "date_range": [null, {"gte": "2026-01-01", "lte": "2026-01-02"}, null], "ip_range": [null, "10.0.0.0/24", null], "histogram": [null, {"values": [1.0, 2.0], "counts": [1, 2]}, null], "aggregate_metric_double": [null, {"min": 1.0, "max": 2.0}, null], "exponential_histogram": [null, {"scale": 0, "zero": {"count": 1}}, null], "tdigest": [null, {"centroids": [1.0, 2.0], "counts": [1, 2]}, null]}'
 
 ---
 exists matches only documents with a non-null value on a match_only_text field in logsdb_columnar and vectordb_columnar:
@@ -395,6 +403,107 @@ synthetic source drops the null elements of a match_only_text field in logsdb_co
   - match: { hits.hits.7._source.match_only_text: "a" }
   - match: { hits.hits.8._source.match_only_text: "a" }
   - match: { hits.hits.9._source.match_only_text: "a" }
+
+---
+exists matches only documents with a non-null value on a binary field in logsdb_columnar and vectordb_columnar:
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: binary } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: binary } }
+          sort: [ { "@timestamp": asc } ]
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: mixed }
+  - match: { hits.hits.2._id: leading_null }
+  - match: { hits.hits.3._id: trailing_null }
+  - match: { hits.hits.4._id: both_ends_null }
+
+---
+synthetic source drops the null elements of a binary field in logsdb_columnar and vectordb_columnar and columnar with columnar_stored:
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: binary
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.binary: "YQ==" }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.binary: "YQ==" }
+  - match: { hits.hits.8._source.binary: "YQ==" }
+  - match: { hits.hits.9._source.binary: "YQ==" }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: binary
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.binary: "YQ==" }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.binary: "YQ==" }
+  - match: { hits.hits.8._source.binary: "YQ==" }
+  - match: { hits.hits.9._source.binary: "YQ==" }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: binary
+
+  - length: { hits.hits: 10 }
+  - match: { hits.hits.0._source.binary: "YQ==" }
+  - match: { hits.hits.1._source: {} }
+  - match: { hits.hits.2._source: {} }
+  - match: { hits.hits.3._source.binary: ["YQ==", "Yg=="] }
+  - match: { hits.hits.4._source: {} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+  - match: { hits.hits.7._source.binary: "YQ==" }
+  - match: { hits.hits.8._source.binary: "YQ==" }
+  - match: { hits.hits.9._source.binary: "YQ==" }
 
 ---
 exists matches only documents with a non-null value on a scaled_float field in logsdb_columnar and vectordb_columnar:

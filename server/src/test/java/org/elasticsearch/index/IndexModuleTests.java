@@ -61,6 +61,7 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
@@ -275,6 +276,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
         module.setReaderWrapper(s -> new Wrapper());
@@ -307,6 +309,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -337,6 +340,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -720,6 +724,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -750,6 +755,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
 
@@ -894,6 +900,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
     }

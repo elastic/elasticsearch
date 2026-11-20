@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.nativelibs.NativeLibraryPathExtension;
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
@@ -128,12 +129,19 @@ public class BenchmarkPlugin implements Plugin<Project> {
             spec -> spec.getLanguageVersion()
                 .set(buildParams.flatMap(p -> p.getRuntimeJavaVersion()).map(v -> JavaLanguageVersion.of(v.getMajorVersion())))
         );
+        NativeLibraryPathExtension nativeLibraryPath = NativeLibraryPathExtension.of(project);
         project.getTasks().register(BENCHMARK_TASK, JavaExec.class, task -> {
             task.setGroup("benchmark");
             task.setDescription("Runs JMH benchmarks in the `benchmark` source set");
             task.getMainClass().set("org.openjdk.jmh.Main");
             task.setClasspath(benchmark.getRuntimeClasspath());
             task.getJavaLauncher().set(launcher);
+            // The benchmarks run in JVMs forked by JMH, which inherit the JVM options of the task's JVM, so the native
+            // library path must be a JVM option, not a program argument. (It would be passed to the forks as a
+            // program argument, -jvmArgsAppend, only for benchmarks that replace the JVM options of their fork with
+            // @Fork(jvmArgs = ...). Doing it for every benchmark would change how JMH treats a -jvmArgsAppend of the
+            // user, and would break on checkout paths containing spaces. See NativeLibraryPathExtension#configureForJmh.)
+            nativeLibraryPath.configure(task, project.getConfigurations().getByName(benchmark.getRuntimeClasspathConfigurationName()));
         });
     }
 

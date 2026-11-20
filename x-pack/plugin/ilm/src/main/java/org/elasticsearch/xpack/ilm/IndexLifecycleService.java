@@ -323,7 +323,8 @@ public class IndexLifecycleService
         // track them here to avoid conditions where master listener events run after other
         // listeners that depend on what happened in the master listener
         final boolean prevIsMaster = this.isMaster;
-        if (prevIsMaster != event.localNodeMaster()) {
+        // NB also treat a re-election in a new term as becoming master, even if there was no intervening no-master state
+        if (event.isNewMaster() || prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
                 // we weren't the master, and now we are
@@ -446,6 +447,7 @@ public class IndexLifecycleService
             final IndexLifecycleMetadata previousIlmMetadata = previousProject == null
                 ? null
                 : previousProject.custom(IndexLifecycleMetadata.TYPE);
+            // NB if re-elected in a new term without a not-master state the registry is retained, so the metadata comparison suffices
             if (event.previousState().nodes().isLocalNodeElectedMaster() == false || ilmMetadata != previousIlmMetadata) {
                 policyRegistry.update(ilmMetadata);
             }

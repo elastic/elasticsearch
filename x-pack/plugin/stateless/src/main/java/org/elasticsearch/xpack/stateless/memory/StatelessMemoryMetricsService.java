@@ -532,8 +532,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         }
         this.totalIndices = event.state().metadata().getTotalNumberOfIndices();
 
-        // new master use case: no indices exist in internal map
-        if (event.nodesDelta().masterNodeChanged() || initialized == false) {
+        // new master use case: no indices exist in internal map. NB deliberately not isNewMaster(): if we are re-elected in a new term
+        // without applying a not-master state then the map is still valid, and rebuilding it would overwrite its exact values.
+        if (event.previousState().nodes().isLocalNodeElectedMaster() == false || initialized == false) {
             for (Map.Entry<ProjectId, ProjectMetadata> projectEntry : event.state().metadata().projects().entrySet()) {
                 final ProjectId projectId = projectEntry.getKey();
                 for (IndexMetadata indexMetadata : projectEntry.getValue()) {

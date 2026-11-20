@@ -784,11 +784,6 @@ tests:
   - :server:test
   method: testRequiredFieldWithoutValueAppearsInIgnoredOnIgnoreFailure
   issue: https://github.com/elastic/elasticsearch/issues/166451
-- class: org.elasticsearch.snapshots.SnapshotResiliencyTests
-  tasks:
-  - :server:test
-  method: testSnapshotDeleteWithMasterFailover
-  issue: https://github.com/elastic/elasticsearch/issues/166596
 - class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

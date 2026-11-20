@@ -127,10 +127,18 @@ public class ClusterChangedEvent {
         return state.metadata() != previousState.metadata();
     }
 
-    /// Returns `true` if the master node changed in this cluster state update.
+    /// Returns `true` if the master node changed in this cluster state update. This includes the case of the same node being re-elected in
+    /// a new term: nodes need not have applied a state with no master in between.
     public boolean masterChanged() {
         return Objects.equals(state.nodes().getMasterNodeId(), previousState.nodes().getMasterNodeId()) == false
             || state.term() != previousState.term();
+    }
+
+    /// Returns `true` if this cluster state update is the first one after the local node was elected master. This includes the case of the
+    /// same node being re-elected in a new term: it need not have applied a state with no master before applying the new election-winning
+    /// state.
+    public boolean isNewMaster() {
+        return state.nodes().isLocalNodeElectedMaster() && masterChanged();
     }
 
     /// Returns `true` if the cluster just finished recovering (the [GatewayService.STATE_NOT_RECOVERED_BLOCK]

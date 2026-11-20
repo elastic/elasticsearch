@@ -92,7 +92,7 @@ public class IngestIpLocationPlugin extends Plugin implements IngestPlugin, Clus
         // IpLocationDownloadConsumers custom (introduced in 9.5) even if the previous master (older
         // version) didn't write it. Idempotent for 9.5 -> 9.5 handovers since both requestDownloads
         // and cancelDownloadRequest short-circuit when the consumer is already in the desired state.
-        boolean masterChanged = event.previousState().nodes().isLocalNodeElectedMaster() == false;
+        boolean masterChanged = event.isNewMaster();
 
         if (event.metadataChanged() == false && masterChanged == false) {
             return;

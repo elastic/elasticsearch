@@ -361,7 +361,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 logger.trace("Clearing the error store as we are not the elected master anymore");
                 errorStore.clearStore();
             }
-        }
+        } // else master is unchanged (may have been re-elected without standing down but that's ok here)
     }
 
     @Override

@@ -42,7 +42,9 @@ public interface ClusterStateTaskListener {
     /// master-service thread before attempting to execute the next batch of tasks. When a [ClusterState] publication fails, the publishing
     /// node stops being the elected master and triggers a new master election. The newly elected master may or may not be the same node as
     /// the previous one. The [ClusterState] update may or may not take effect after this election, depending on whether the newly-elected
-    /// master node accepted the published state that failed to be committed.
+    /// master node accepted the published state that failed to be committed. Nodes may or may not apply a [ClusterState] with no master
+    /// before they start applying states from the newly-elected master. See [ClusterChangedEvent#isNewMaster()] for a robust way to detect
+    /// if the local node has just won an election.
     ///
     /// Use [org.elasticsearch.cluster.service.MasterService#isPublishFailureException] to detect the "expected" master failure cases if
     /// needed.

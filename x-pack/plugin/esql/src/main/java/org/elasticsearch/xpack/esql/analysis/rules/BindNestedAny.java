@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -120,8 +121,8 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
     private record Reads(String path, Map<NameId, Attribute> children) {}
 
     /**
-     * Finds the attributes of {@code body} that read children of one nested object. The body holds only those: any other
-     * attribute is a parent column, or an unmapped name under a nested path, which keeps its meaning as a parent field.
+     * Finds the attributes of {@code body} that read children of one nested object. Any other attribute, a parent column or an
+     * unmapped name under a nested path, is outside the nested scope and an error.
      */
     private static Reads readChildren(NestedAny nested, Expression body, String collection, Schema schema) {
         Map<NameId, Attribute> attributes = new LinkedHashMap<>();
@@ -199,12 +200,17 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             if (scope.conflict() != null) {
                 throw error(nested, "NESTED_ANY cannot read [" + publicName(field) + "]: " + scope.conflict());
             }
-            if (input.output().stream().anyMatch(attribute -> attribute.synthetic() == false && attribute.name().equals(scope.path()))) {
+            if (replacedByColumn(input.output(), scope.path())) {
                 throw error(nested, "NESTED_ANY cannot use [" + scope.path() + "]: a column of that name replaces it here");
             }
             return scope.path();
         }
         throw error(nested, "NESTED_ANY requires a nested collection first, not [" + named.sourceText() + "]");
+    }
+
+    /** Whether a column of the query, not a private schema entry, has this name. */
+    private static boolean replacedByColumn(List<Attribute> output, String name) {
+        return output.stream().anyMatch(column -> column.synthetic() == false && column.name().equals(name));
     }
 
     private static Attribute nestedField(UnresolvedAttribute attribute, List<Attribute> output) {
@@ -213,30 +219,19 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             if (candidate instanceof FieldAttribute field
                 && field.name().equals(scopedName)
                 && field.field() instanceof NestedScopeField scope) {
-                if (output.stream().anyMatch(column -> column.synthetic() == false && column.name().equals(attribute.name()))) {
+                if (replacedByColumn(output, attribute.name())) {
                     throw error(attribute, "NESTED_ANY cannot use [" + attribute.name() + "]: a column of that name replaces it here");
                 }
                 if (scope.leaf() instanceof UnsupportedEsField unsupported) {
                     return new UnsupportedAttribute(attribute.source(), attribute.name(), unsupported);
                 }
-                if (scope.leaf() instanceof TypeConflictedField) {
-                    return new FieldAttribute(
-                        attribute.source(),
-                        field.name(),
-                        null,
-                        attribute.name(),
-                        scope.leaf(),
-                        field.nullable(),
-                        field.id(),
-                        true
-                    );
-                }
+                EsField read = scope.leaf() instanceof TypeConflictedField ? scope.leaf() : field.field();
                 return new FieldAttribute(
                     attribute.source(),
                     field.name(),
                     null,
                     attribute.name(),
-                    field.field(),
+                    read,
                     field.nullable(),
                     field.id(),
                     true

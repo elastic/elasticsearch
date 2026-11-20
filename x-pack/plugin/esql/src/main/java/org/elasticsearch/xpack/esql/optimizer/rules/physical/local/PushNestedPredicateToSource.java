@@ -81,14 +81,14 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         return remaining.isEmpty() ? child : new FilterExec(filter.source(), child, Predicates.combineAnd(remaining));
     }
 
-    private record Pushed(QueryBuilder query, boolean exact) {}
+    record Pushed(QueryBuilder query, boolean exact) {}
 
-    private static Pushed push(NestedPredicate predicate, boolean negated, LucenePushdownPredicates children, SearchStats stats) {
+    static Pushed push(NestedPredicate predicate, boolean negated, LucenePushdownPredicates children, SearchStats stats) {
         Translation translation = translate(predicate, children, stats);
         if (translation == null) {
             return null;
         }
-        if (negated ? translation.exact() == false : translation.translatable().finish() == FinishedTranslatable.NO) {
+        if (negated && translation.exact() == false) {
             return null;
         }
         return new Pushed(
@@ -106,13 +106,12 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         if (childPredicate == null) {
             return null;
         }
-        Translatable translatable = Literal.TRUE.equals(childPredicate) ? Translatable.YES : translatable(childPredicate, children);
+        boolean matchAll = Literal.TRUE.equals(childPredicate);
+        Translatable translatable = matchAll ? Translatable.YES : translatable(childPredicate, children);
         if (translatable.finish() == FinishedTranslatable.NO) {
             return null;
         }
-        Query child = Literal.TRUE.equals(childPredicate)
-            ? new MatchAll(predicate.source())
-            : TRANSLATOR_HANDLER.asQuery(children, childPredicate);
+        Query child = matchAll ? new MatchAll(predicate.source()) : TRANSLATOR_HANDLER.asQuery(children, childPredicate);
         QueryBuilder nested = new NestedQuery(predicate.source(), predicate.path(), child, ScoreMode.None).toQueryBuilder();
         return new Translation(nested, translatable);
     }

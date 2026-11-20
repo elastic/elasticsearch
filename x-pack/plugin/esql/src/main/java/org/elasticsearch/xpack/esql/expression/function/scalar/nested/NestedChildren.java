@@ -268,9 +268,8 @@ public final class NestedChildren implements Releasable {
                     continue;
                 }
                 int first = shard.parents().getBitSet(leaf).prevSetBit(parent - 1) + 1;
-                for (int child = children.nextSetBit(first); child < parent && keepReading.test(p); child = children.nextSetBit(
-                    child + 1
-                )) {
+                int child = children.nextSetBit(first);
+                while (child < parent && keepReading.test(p)) {
                     shardIds[count] = shardId;
                     segments[count] = segment;
                     docs[count] = child;
@@ -279,6 +278,7 @@ public final class NestedChildren implements Releasable {
                         emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
                         count = 0;
                     }
+                    child = children.nextSetBit(child + 1);
                 }
             }
             if (count > 0) {

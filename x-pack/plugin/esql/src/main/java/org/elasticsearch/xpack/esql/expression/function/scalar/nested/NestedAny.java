@@ -31,6 +31,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoo
 /**
  * True when a predicate holds for at least one of a parent's nested objects. Analysis lowers it to
  * {@link NestedPredicate} before the plan is serialized.
+ * <p>
+ * The result is two-valued: it is never {@code null}. A parent with no nested objects, or whose nested objects all evaluate the
+ * predicate to {@code null}, is {@code false}.
+ * </p>
  */
 public final class NestedAny extends Function implements OptionalArgument {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(NestedAny.class)

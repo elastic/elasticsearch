@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
@@ -1774,7 +1775,12 @@ public class EsqlSession {
     }
 
     private int maxIndexedInSubqueryValues(EsRelation relation) {
-        return maxIndexedValues(relation, projectMetadata, clusterService.getClusterSettings().get(SearchService.ALLOW_EXPENSIVE_QUERIES));
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        // Unit tests with minimal ClusterSettings may omit built-in search settings.
+        boolean allowExpensiveQueries = clusterSettings.get(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey()) != null
+            ? clusterSettings.get(SearchService.ALLOW_EXPENSIVE_QUERIES)
+            : SearchService.ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
+        return maxIndexedValues(relation, projectMetadata, allowExpensiveQueries);
     }
 
     /**

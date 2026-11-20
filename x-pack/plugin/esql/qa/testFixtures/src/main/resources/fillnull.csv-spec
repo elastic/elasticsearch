@@ -1642,3 +1642,25 @@ warning:Line 5:3: [FILLNULL] the fill value could not be applied to the followin
 emp_no:integer | gender:keyword | _score:keyword
 10010          | x              | x
 ;
+
+fillNullAllColumnsLeavesMetadataIndexAloneAfterFork
+skip_flattened_rewrite: fillnull_cannot_fill_flattened_keyword
+required_capability: fillnull
+required_capability: fillnull_all_columns_skips_metadata_after_union
+required_capability: fork_v9
+
+// FORK passes the metadata column on as a plain one, like a union: a branch that drops _index leaves it null, and a * does not fill it.
+FROM employees METADATA _index
+| WHERE emp_no <= 10002
+| KEEP emp_no, first_name, _index
+| FORK (WHERE emp_no == 10001) (WHERE emp_no == 10002 | DROP _index)
+| FILLNULL "missing" ON *
+| DROP _fork
+| SORT emp_no
+;
+warning:Line 5:3: [FILLNULL] the fill value could not be applied to the following fields, which were left unchanged: [emp_no]
+
+emp_no:integer | first_name:keyword | _index:keyword
+10001          | Georgi             | employees
+10002          | Bezalel            | null
+;

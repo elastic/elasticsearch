@@ -6505,7 +6505,6 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
-
     /** Path + mtime only — bytes come from the decompressed stream, not this object. */
     private static final class TestFileStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;

@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.common.util.CollectionUtils.DeepCopyOption.UNMODIFIABLE;
@@ -313,11 +314,18 @@ public class EnrichCacheTests extends ESTestCase {
         ProjectId projectId = randomProjectIdOrDefault();
         List<Map<String, ?>> hits = List.of(Map.of("key1", "value1", "nested", Map.of("key2", "value2")));
         int numLookups = randomIntBetween(2, 16);
-        List<List<Map<?, ?>>> results = lookupWithSharedResponse(enrichCache, projectId, numLookups, hits);
+        // once the first lookup has converted the shared response, change its source: a lookup converting it again would return that
+        List<List<Map<?, ?>>> results = lookupWithSharedResponse(enrichCache, projectId, numLookups, hits, response -> {
+            try {
+                response.getHits().getAt(0).sourceRef(convertMapToJson(Map.of("key1", "converted again")));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
 
         Set<Object> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
         for (List<Map<?, ?>> result : results) {
-            assertThat(result, equalTo(hits));
+            assertThat("every lookup reuses the first conversion", result, equalTo(hits));
             assertTrue("every lookup receives its own copy", distinct.add(result) && distinct.add(result.get(0)));
         }
         EnrichStatsAction.Response.CacheStats stats = enrichCache.getStats("_id");
@@ -339,7 +347,7 @@ public class EnrichCacheTests extends ESTestCase {
         ProjectId projectId = randomProjectIdOrDefault();
         List<Map<String, ?>> hits = List.of(Map.of("key1", "value1"));
         int numLookups = randomIntBetween(2, 16);
-        List<List<Map<?, ?>>> results = lookupWithSharedResponse(enrichCache, projectId, numLookups, hits);
+        List<List<Map<?, ?>>> results = lookupWithSharedResponse(enrichCache, projectId, numLookups, hits, response -> {});
 
         for (List<Map<?, ?>> result : results) {
             assertThat(result, equalTo(hits));
@@ -466,7 +474,8 @@ public class EnrichCacheTests extends ESTestCase {
         EnrichCache enrichCache,
         ProjectId projectId,
         int numLookups,
-        List<Map<String, ?>> hits
+        List<Map<String, ?>> hits,
+        Consumer<SearchResponse> afterFirstResponse
     ) {
         List<ActionListener<SearchResponse>> searches = new ArrayList<>();
         List<List<Map<?, ?>>> results = new ArrayList<>();
@@ -476,7 +485,9 @@ public class EnrichCacheTests extends ESTestCase {
         assertThat(searches.size(), equalTo(numLookups));
         SearchResponse response = convertToSearchResponse(hits);
         try {
-            for (ActionListener<SearchResponse> search : searches) {
+            searches.getFirst().onResponse(response);
+            afterFirstResponse.accept(response);
+            for (ActionListener<SearchResponse> search : searches.subList(1, searches.size())) {
                 search.onResponse(response);
             }
         } finally {

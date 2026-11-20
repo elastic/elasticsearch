@@ -30,6 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.SearchHit;
@@ -46,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -401,6 +403,39 @@ public class CoordinatorTests extends ESTestCase {
 
         assertThat(failures.get(), equalTo(4));
         assertThat(coordinator.executedSearchesTotal.sum(), equalTo(1L));
+        assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
+    }
+
+    public void testLookupThatCannotBeHashedIsNotDeduplicated() {
+        MockLookupFunction lookupFunction = new MockLookupFunction();
+        Coordinator coordinator = new Coordinator(lookupFunction, 4, 1, 100);
+        SearchRequest unhashable = new SearchRequest("my-index");
+        unhashable.source().query(new TermsQueryBuilder("field", Arrays.asList("a", null)));
+        expectThrows(NullPointerException.class, unhashable::hashCode);
+
+        List<SearchRequest> requests = List.of(
+            lookupRequest("my-index", "same"),
+            unhashable,
+            lookupRequest("my-index", "same"),
+            unhashable
+        );
+        AtomicInteger notified = new AtomicInteger();
+        for (SearchRequest request : requests) {
+            coordinator.queue.add(new Coordinator.Slot(request, ActionListener.running(notified::incrementAndGet)));
+        }
+        coordinator.coordinateLookups();
+
+        assertThat(lookupFunction.capturedRequests, hasSize(1));
+        List<SearchRequest> sent = lookupFunction.capturedRequests.getFirst().requests();
+        assertThat(sent, hasSize(3));
+        assertThat(sent.get(0), sameInstance(requests.get(0)));
+        assertThat(sent.get(1), sameInstance(unhashable));
+        assertThat(sent.get(2), sameInstance(unhashable));
+
+        respond(lookupFunction, 0, multiSearchResponse(100, 100, 100));
+
+        assertThat(notified.get(), equalTo(requests.size()));
+        assertThat(coordinator.executedSearchesTotal.sum(), equalTo(3L));
         assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0));
     }
 

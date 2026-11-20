@@ -220,7 +220,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 }
                 try {
                     for (int i = 0; i < slots.size(); i++) {
-                        MultiSearchResponse.Item responseItem = response.getResponses()[batch.itemOfSlot(i)];
+                        MultiSearchResponse.Item responseItem = batch.responseOfSlot(response, i);
                         Slot slot = slots.get(i);
 
                         try {
@@ -287,36 +287,43 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
         }
 
         /**
-         * The slots of one remote request. Slots with equal search requests share one multi-search item, slot {@code i} is answered
-         * by item {@link #itemOfSlot(int) itemOfSlot(i)}.
+         * The slots of one remote request. Slots with equal search requests share one search of the multi-search request, so slot
+         * {@code i} is answered by {@link #responseOfSlot(MultiSearchResponse, int) responseOfSlot(response, i)}.
          */
         static final class Batch {
             private final List<Slot> slots;
-            private final int[] itemOfSlot;
+            private final int[] searchOfSlot;
             private final MultiSearchRequest request;
 
-            private Batch(List<Slot> slots, int[] itemOfSlot, MultiSearchRequest request) {
+            private Batch(List<Slot> slots, int[] searchOfSlot, MultiSearchRequest request) {
                 this.slots = slots;
-                this.itemOfSlot = itemOfSlot;
+                this.searchOfSlot = searchOfSlot;
                 this.request = request;
             }
 
             static Batch of(List<Slot> slots) {
                 final MultiSearchRequest request = new MultiSearchRequest();
-                final int[] itemOfSlot = new int[slots.size()];
-                final Map<SearchRequest, Integer> items = new HashMap<>();
+                final int[] searchOfSlot = new int[slots.size()];
+                final Map<SearchRequest, Integer> searchPositions = new HashMap<>();
                 for (int i = 0; i < slots.size(); i++) {
                     final SearchRequest searchRequest = slots.get(i).request();
-                    final Integer existing = items.putIfAbsent(searchRequest, items.size());
+                    final int position = request.requests().size();
+                    Integer existing;
+                    try {
+                        existing = searchPositions.putIfAbsent(searchRequest, position);
+                    } catch (RuntimeException e) {
+                        // if hash or equals fails the request can't be deduplicated, send on its own to report the failure
+                        existing = null;
+                    }
                     if (existing == null) {
-                        itemOfSlot[i] = request.requests().size();
+                        searchOfSlot[i] = position;
                         request.add(searchRequest);
                     } else {
-                        itemOfSlot[i] = existing;
+                        searchOfSlot[i] = existing;
                     }
                 }
-                assert request.requests().size() == items.size();
-                return new Batch(slots, itemOfSlot, request);
+                assert request.requests().size() >= searchPositions.size();
+                return new Batch(slots, searchOfSlot, request);
             }
 
             List<Slot> slots() {
@@ -327,8 +334,8 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 return request;
             }
 
-            int itemOfSlot(int slot) {
-                return itemOfSlot[slot];
+            MultiSearchResponse.Item responseOfSlot(MultiSearchResponse response, int slot) {
+                return response.getResponses()[searchOfSlot[slot]];
             }
 
             int searches() {

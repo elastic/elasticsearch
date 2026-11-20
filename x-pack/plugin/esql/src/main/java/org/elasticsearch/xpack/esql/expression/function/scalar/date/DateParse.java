@@ -20,6 +20,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -235,6 +236,32 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         Expression field = field();
         Expression format = format();
         return field.foldable() && (format == null || format.foldable());
+    }
+
+    /**
+     * Fold {@code DATE_PARSE(date)} and {@code DATE_PARSE(pattern, date)} of string literals before the analysis, see
+     * {@link DateFunctionComparisonRewriter#foldConstants}. A call with options, which change the locale and the time
+     * zone of the pattern, is left alone. Returns {@code null} when the call does not fold.
+     */
+    static Literal tryFoldLiterals(Source source, List<Expression> args, Configuration configuration) {
+        if (args.isEmpty() || args.size() > 2) {
+            return null;
+        }
+        Literal[] literals = DateFunctionLiterals.literalArgs(args, args.size());
+        if (literals == null) {
+            return null;
+        }
+        for (Literal literal : literals) {
+            if (literal.dataType() != DataType.KEYWORD || literal.value() instanceof BytesRef == false) {
+                return null;
+            }
+        }
+        BytesRef date = (BytesRef) literals[literals.length - 1].value();
+        DateFormatter formatter = literals.length == 2
+            ? DateFormatter.forPattern(((BytesRef) literals[0].value()).utf8ToString())
+            : DEFAULT_DATE_TIME_FORMATTER;
+        long millis = process(date, formatter.withLocale(Locale.ROOT), DateFunctionLiterals.zoneId(configuration), Locale.ROOT);
+        return new Literal(source, millis, DataType.DATETIME);
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })

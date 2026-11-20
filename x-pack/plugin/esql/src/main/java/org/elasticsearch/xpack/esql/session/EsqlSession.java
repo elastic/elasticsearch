@@ -141,7 +141,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -566,7 +565,7 @@ public class EsqlSession {
             SettingsValidationContext.from(crossProjectModeDecider),
             verifier.licenseState()
         );
-        // Resolve LET bindings before view resolution. This is a synchronous, local rewrite that
+        // Resolve LET named subqueries before view resolution. This is a synchronous, local rewrite that
         // requires no cluster state — it simply substitutes named subquery bodies for their names.
         // Performing it before replaceViews ensures that LET names never reach field-caps and that
         // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
@@ -602,7 +601,7 @@ public class EsqlSession {
             QuerySettings.PROJECT_ROUTING.get(resolved),
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
-            // Resolve the view's own LET bindings before the resolver reads the plan. The statement is what the
+            // Resolve the view's own LET named subqueries before the resolver reads the plan. The statement is what the
             // resolver reads the definition's SET settings from, so the resolved plan has to stay on that statement.
             (query, viewName) -> planningCpu.meteredCpu(() -> {
                 var viewStmt = parser.parseView(
@@ -796,12 +795,6 @@ public class EsqlSession {
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
-                    try {
-                        NestedExpand.rejectUntilSupported(plan);
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                        return;
-                    }
                     // Flag external-source usage on the execution info so the coordinator emits external-source-scoped
                     // operational metrics and query metering for any query whose analyzed plan references one, even if
                     // nothing ends up being scanned.
@@ -2039,7 +2032,13 @@ public class EsqlSession {
         assert planningCpu.isMeteringCurrentThread() : "analyzedPlanAfterDatasetResolution reached on an unmetered thread";
         // The time range that the query itself restricts each index pattern to prunes index resolution like the request filter
         // does, and next to it: both must match, and the query is often narrower than the time picker.
-        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(rewritten, unmappedResolution, viewSettings, configuration);
+        Map<IndexPattern, QueryBuilder> queryTimeFilters = queryTimeFilters(
+            rewritten,
+            unmappedResolution,
+            viewSettings,
+            configuration,
+            functionRegistry
+        );
         LogicalPlan parsed = scopeEqlIndexPatterns(rewritten, requestFilter, queryTimeFilters.keySet());
         TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
@@ -2112,7 +2111,8 @@ public class EsqlSession {
         LogicalPlan parsed,
         UnmappedResolution unmappedResolution,
         Map<String, ViewQuerySettings> viewSettings,
-        Configuration configuration
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry
     ) {
         if (unmappedResolution.loadsUnmappedFields()) {
             return Map.of();
@@ -2122,7 +2122,7 @@ public class EsqlSession {
                 return Map.of();
             }
         }
-        return QueryTimeRangeExtractor.extract(parsed, configuration);
+        return QueryTimeRangeExtractor.extract(parsed, configuration, functionRegistry);
     }
 
     /**

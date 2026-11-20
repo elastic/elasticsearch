@@ -13,10 +13,13 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.snapshots.ShardRestoringException;
 
@@ -60,6 +63,20 @@ public class TransportActions {
             || status >= 500
             || status == RestStatus.REQUEST_TIMEOUT.getStatus()
             || status == RestStatus.TOO_MANY_REQUESTS.getStatus();
+    }
+
+    /**
+     * Like {@link #isRetriableShardLevelException(Throwable)}, but for a shard search that may use a retryable reader context (for
+     * example a relocated point-in-time). Such a context can exist on another copy of the shard, so a missing context on one copy does not
+     * mean that the others lack it, and {@link SearchContextMissingException} is retriable.
+     *
+     * @param contextId the reader context the shard request used, or {@code null} if it did not use one
+     */
+    public static boolean isRetriableShardLevelException(Throwable e, @Nullable ShardSearchContextId contextId) {
+        if (contextId != null && contextId.isRetryable() && ExceptionsHelper.unwrapCause(e) instanceof SearchContextMissingException) {
+            return true;
+        }
+        return isRetriableShardLevelException(e);
     }
 
     /**

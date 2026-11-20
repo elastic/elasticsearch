@@ -202,6 +202,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        assumeFalse("query parameters in the source command aren't supported in CCS tests", hasParamsInSourceCommand(testCase));
         boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
         if (remoteMetadata) {
             // remove the capability from the test to enable it
@@ -465,11 +466,28 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     /**
+     * Whether the query parameters are used in the source command, like {@code PROMQL index=?idx ...}. The conversion to remote
+     * indices parses the source command without the parameters, and can't rewrite an index name passed as a parameter.
+     */
+    private static boolean hasParamsInSourceCommand(CsvSpecReader.CsvTestCase testCase) {
+        if (testCase.params.isEmpty()) {
+            return false;
+        }
+        String sourceCommand = EsqlTestUtils.sourceCommand(testCase.query);
+        // Also true for a "?" inside a string literal: a rare case, where it only skips a test that could run.
+        return sourceCommand != null && sourceCommand.contains("?");
+    }
+
+    /**
      * Convert FROM employees ... => FROM *:employees,employees
      */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         if (dataLocation == null) {
             dataLocation = randomFrom(DataLocation.values());
+        }
+        if (hasParamsInSourceCommand(testCase)) {
+            // skipped in shouldSkipTest
+            return testCase;
         }
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
             || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())

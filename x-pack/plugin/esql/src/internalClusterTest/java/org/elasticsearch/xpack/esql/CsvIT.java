@@ -16,6 +16,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -77,6 +79,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsRequest;
+import org.elasticsearch.xpack.esql.action.QueryParamsTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -412,6 +415,39 @@ public class CsvIT extends ESTestCase {
         Analyzer.ResolveRefs.resetNameIndexThreshold();
     }
 
+    @After
+    public void resetBatchIndexing() {
+        if (batchIndexingForced) {
+            batchIndexingForced = false;
+            setBatchIndexing(null);
+        }
+    }
+
+    private boolean batchIndexingForced;
+
+    /**
+     * The test cluster randomly turns the {@code indices.batch_indexing} kill switch off to cover the non-batch path, but INTO only
+     * writes through batch indexing. Turn it on for the INTO tests alone so the other tests keep that coverage.
+     */
+    private void forceBatchIndexingForInto() {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()
+            && testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.INTO_COMMAND.capabilityName())) {
+            batchIndexingForced = true;
+            setBatchIndexing(true);
+        }
+    }
+
+    private static void setBatchIndexing(Boolean enabled) {
+        Settings.Builder settings = Settings.builder();
+        settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), enabled == null ? null : enabled.toString());
+        cluster.client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS)
+            .setPersistentSettings(settings)
+            .get();
+    }
+
     public final void test() throws Throwable {
         assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         assumeFalseLogging(
@@ -441,6 +477,7 @@ public class CsvIT extends ESTestCase {
         CsvTestUtils.checkMissingTestCapabilities(ENABLED_CAPS, testCase.missingCapabilitiesLocalCluster);
         CsvTestUtils.checkPragma(testCase.pragmas);
 
+        forceBatchIndexingForInto();
         Analyzer.ResolveRefs.setNameIndexThresholdForTests(randomBoolean() ? 0 : Integer.MAX_VALUE);
 
         currentGroupName = groupName;
@@ -455,6 +492,9 @@ public class CsvIT extends ESTestCase {
             testCase
         );
         EsqlQueryRequest request = syncEsqlQueryRequest(transformed.query());
+        if (testCase.paramsJson() != null) {
+            request.params(QueryParamsTestUtils.parseParams(testCase.paramsJson()));
+        }
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }

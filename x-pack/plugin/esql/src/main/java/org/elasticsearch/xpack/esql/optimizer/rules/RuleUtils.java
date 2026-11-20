@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -134,6 +137,15 @@ public final class RuleUtils {
         }
         for (LogicalPlan child : plan.children()) {
             collectFoldableRefs(child, collectRefsBuilder, ctx, stopCondition);
+        }
+        // A constant below does not hold above where a column takes other values there: a LEFT hash join fills its build
+        // side's columns with null for a probe row without a match, and a union's columns, which may share their ids
+        // with its first branch's, carry every branch's values.
+        if (plan instanceof HashJoin join && join.config().type() == JoinTypes.LEFT) {
+            join.right().output().forEach(collectRefsBuilder::remove);
+        }
+        if (plan instanceof UnionAll union) {
+            union.output().forEach(collectRefsBuilder::remove);
         }
         // At Aggregate boundaries, remove multi-valued grouping keys before processing this node's expressions.
         // After GROUP BY, these attributes represent expanded single values, not the original multi-valued literals.

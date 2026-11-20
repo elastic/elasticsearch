@@ -597,7 +597,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
         // The delegated cross-cluster EQL search must honor the remote DLS: only emp_id 21 comes back, not 25.
         Response dls = performRequestWithRemoteSearchUser(esqlRequest("""
-            EQL my_remote_cluster:index_eql_events "any where true"
+            EQL my_remote_cluster:index_eql_events "any where true" WITH {"size": 100}
             | KEEP emp_id
             | SORT emp_id
             | LIMIT 100"""));
@@ -622,7 +622,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertOK(adminClient().performRequest(putRoleRequest));
 
         Response fls = performRequestWithRemoteSearchUser(esqlRequest("""
-            EQL my_remote_cluster:index_eql_events "any where true" METADATA _source
+            EQL my_remote_cluster:index_eql_events "any where true" METADATA _source WITH {"size": 100}
             | KEEP _source
             | LIMIT 100"""));
         assertOK(fls);

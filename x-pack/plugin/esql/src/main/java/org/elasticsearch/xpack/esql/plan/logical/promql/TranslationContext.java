@@ -35,8 +35,11 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWitho
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -75,6 +78,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -182,7 +186,8 @@ public record TranslationContext(
         if (cmd.promqlPlan() instanceof VectorBinaryOperator op) {
             VectorMatch match = op.match();
             if (match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) {
-                return doTranslateFinal(op.translateJoin(this).plan(), false);
+                IntermediateResult matched = op.translateMatched(this);
+                return doTranslateFinal(emitTimeSeriesAlias(matched, new NameId()), false);
             }
         }
 
@@ -522,6 +527,114 @@ public record TranslationContext(
             false
         );
         return derived.isEmpty() ? collapse : new Eval(source, collapse, derived);
+    }
+
+    /**
+     * The label container of every label of a finished table: its finest packing - every label but the ones the
+     * table leaves out - or no label at all, with each label column written over it, as a column can hold a value the
+     * packing does not (a relabel writes one) and a null column is an absent label.
+     */
+    public Expression labels(IntermediateResult table) {
+        Source source = cmd.source();
+        Set<String> finest = table.schema().finestSkip();
+        Expression labels = finest == null ? Literal.keyword(source, "{}") : table.packed(finest);
+        for (String label : table.schema().labels()) {
+            Attribute column = table.label(label);
+            Expression value = column == null ? new Literal(source, null, DataType.KEYWORD)
+                : DataType.isString(column.dataType()) ? column
+                : new ToString(source, column, configuration());
+            labels = new TimeSeriesMetadataSet(source, labels, Literal.keyword(source, label), value, labelPath(label));
+        }
+        return labels;
+    }
+
+    /**
+     * The keys of the source field holding {@code label}, the path a label written into a label container takes so that it reads
+     * as the source holds it. A passthrough object holds its fields by their names below it, dots and all, as the synthetic
+     * source writes them, and every other object nests at each dot: remote write keeps {@code pod} at {@code [labels, pod]}.
+     * The root aliases of a passthrough object are not source fields, so the longest field name holding the label is the one.
+     * A label no dimension holds, as a relabel writes one, is a field of its own name.
+     */
+    public List<String> labelPath(String label) {
+        String field = null;
+        for (Attribute attribute : cmd.child().output()) {
+            if (attribute instanceof FieldAttribute dimension
+                && dimension.isDimension()
+                && PromqlLabels.labelName(dimension).equals(label)
+                && (field == null || dimension.fieldName().string().length() > field.length())) {
+                field = dimension.fieldName().string();
+            }
+        }
+        if (field == null) {
+            return List.of(label);
+        }
+        List<String> keys = List.of(field.split("\\."));
+        for (IndexResolution resolution : analyzer.indexResolution().values()) {
+            if (resolution.isValid() == false) {
+                continue;
+            }
+            Map<String, EsField> mapping = resolution.get().mapping();
+            for (int i = 0; i < keys.size() - 1 && mapping.get(keys.get(i)) instanceof EsField object; i++) {
+                if (object.isPassthrough()) {
+                    var path = new ArrayList<>(keys.subList(0, i + 1));
+                    path.add(String.join(".", keys.subList(i + 1, keys.size())));
+                    return path;
+                }
+                mapping = object.getProperties();
+            }
+        }
+        return keys;
+    }
+
+    /**
+     * A finished table over {@code plan}, whose labels are the label container {@code labels}: every label column {@code wanted}
+     * names reads its values out of it, and every packing leaves its labels out of it. The {@code promoted} labels, the ones
+     * a node declares as its own columns, stand beside the packing of every other label, which takes the place of a
+     * whole-label-set packing, so a label shows once.
+     */
+    public IntermediateResult fromLabels(
+        LogicalPlan plan,
+        Attribute labels,
+        TranslationSchema wanted,
+        Set<String> promoted,
+        Attribute value,
+        Attribute step
+    ) {
+        Source source = cmd.source();
+        var columns = new ArrayList<Alias>();
+        var skips = new LinkedHashSet<Set<String>>();
+        for (Set<String> skip : wanted.skips()) {
+            skips.add(skip.isEmpty() ? promoted : skip);
+        }
+        if (skips.isEmpty()) {
+            skips.add(promoted);
+        }
+        for (Set<String> skip : skips) {
+            columns.add(new Alias(source, mapOpen(skip), unset(labels, skip.stream())));
+        }
+        for (String label : wanted.labels()) {
+            columns.add(new Alias(source, label, new TimeSeriesMetadataPath(source, labels, Literal.keyword(source, label))));
+        }
+        LogicalPlan table = columns.isEmpty() ? plan : new Eval(source, plan, columns);
+        return new IntermediateResult(
+            table,
+            new TranslationSchema(wanted.labels(), skips),
+            value,
+            step,
+            null,
+            Kind.AFTER_INITIAL_AGGREGATE
+        );
+    }
+
+    /**
+     * The double column {@code alias} defines, under its id even while its value is unresolved: an attribute taken from an
+     * unresolved alias is never bound again once a join or a projection holds it.
+     */
+    public static Attribute pinned(Alias alias) {
+        if (alias.resolved()) {
+            return alias.toAttribute();
+        }
+        return new ReferenceAttribute(alias.source(), null, alias.name(), DataType.DOUBLE, Nullability.TRUE, alias.id(), true);
     }
 
     /**

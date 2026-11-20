@@ -1232,8 +1232,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             List<DataNodeRequest.Shard> batch = shards.subList(startBatchIndex, endBatchIndex);
             // acquiring the search contexts of the batch is work of its compute
             QueryLoad batchLoad = new QueryLoad();
-            ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
-                final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
+            ComputeCompletionListener batchListener = new ComputeCompletionListener() {
+                final ComputeCompletionListener ref = computeListener.acquireCompute();
 
                 @Override
                 public void onResponse(DriverCompletionInfo info) {
@@ -1246,6 +1246,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
+                    // no driver ran, so the batch only did what it charged to its load
+                    onFailure(e, batchUsage(batchLoad));
+                }
+
+                @Override
+                public void onFailure(Exception e, DriverCompletionInfo usage) {
                     // TODO: once FROM supports INTO, fail fast if a writer in this batch has already sent a bulk
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
@@ -1255,7 +1261,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         if (sortBound != null) {
                             sortBound.invalidate();
                         }
-                        onResponse(DriverCompletionInfo.EMPTY);
+                        onResponse(usage);
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
@@ -1265,7 +1271,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 exchangeService.finishSinkHandler(externalId, e);
                             }
                         } finally {
-                            ref.onFailure(e);
+                            ref.onFailure(e, usage);
                         }
                     }
                 }
@@ -1280,7 +1286,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 ActionListener.wrap(acquiredSearchContexts -> {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
                     if (acquiredSearchContexts.isEmpty()) {
-                        batchListener.onResponse(DriverCompletionInfo.EMPTY);
+                        batchListener.onResponse(batchUsage(batchLoad));
                         return;
                     }
                     var computeContext = new ComputeContext(
@@ -1310,6 +1316,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     );
                 }, batchListener::onFailure)
             );
+        }
+
+        /**
+         * What a batch that ran no driver did: the load it charged, including the task running it so far.
+         */
+        private static DriverCompletionInfo batchUsage(QueryLoad batchLoad) {
+            QueryLoad.Charging running = QueryLoad.Charging.running();
+            if (running != null && running.load() == batchLoad) {
+                TaskLoadAttribution.chargeSoFar(running, System.nanoTime());
+            }
+            return DriverCompletionInfo.excludingProfiles(List.of(), 0L, batchLoad, false);
         }
 
         private void acquireSearchContexts(

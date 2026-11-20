@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.sourcebatch.CompactedColumns;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
@@ -100,6 +101,11 @@ public class LuceneBinaryColumn extends BinaryColumn implements LuceneColumn {
     @Override
     public Column toLuceneColumn() {
         return this;
+    }
+
+    @Override
+    public Column toLuceneColumn(int[] compactedDocIds) {
+        return CompactedColumns.of(this, compactedDocIds);
     }
 
     @Override

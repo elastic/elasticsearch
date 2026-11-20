@@ -30,7 +30,7 @@ public class ReadDimsExec extends UnaryExec implements EstimatesRowSize {
     private final Attribute tsidAttribute;
     private final List<Attribute> dims;
     private final MappedFieldType.FieldExtractPreference fieldExtractPreference;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
     public ReadDimsExec(
         Source source,

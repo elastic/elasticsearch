@@ -3734,6 +3734,24 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * {@code formatConfigIdentity} mints a configured reader only to read {@code identity()}.
+     * That remint must close; the registry prototype must not.
+     */
+    public void testFormatConfigIdentityClosesConfiguredRemint() {
+        AtomicInteger prototypeCloses = new AtomicInteger();
+        AtomicInteger remintCloses = new AtomicInteger();
+        ExternalSourceResolver resolver = createResolverWithReader(
+            new CountingStorageProvider(Map.of(), Map.of()),
+            new RemintingStubFormatReader(Map.of(), prototypeCloses, remintCloses, false),
+            null
+        );
+        String identity = resolver.formatConfigIdentity("file.parquet", Map.of("schema_max_fields", "10"));
+        assertFalse("configured identity should fold the consumed key", identity.isEmpty());
+        assertEquals(1, remintCloses.get());
+        assertEquals(0, prototypeCloses.get());
+    }
+
+    /**
      * A cut-short gather forwards read configs only for the files it reached, and the promise is registered on
      * that partial map. The map is why: a cacheable text dataset whose schema budget refuses every entry has no
      * per-file warm rail, so the memoized dataset aggregate is its only metadata-served COUNT(*). An unrecorded
@@ -5266,7 +5284,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
@@ -5288,7 +5306,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(e));
@@ -5314,7 +5332,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(glob), Map.of(), future);
+        resolvePaths(resolver, List.of(glob), Map.of(), future);
 
         Exception e = expectThrows(Exception.class, future::actionGet);
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
@@ -5335,7 +5353,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             null
         );
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
-        resolver.resolve(List.of(path), Map.of(), future);
+        resolvePaths(resolver, List.of(path), Map.of(), future);
 
         expectThrows(TaskCancelledException.class, future::actionGet);
     }
@@ -10453,6 +10471,47 @@ public class ExternalSourceResolverTests extends ESTestCase {
         public void close() {}
     }
 
+    /**
+     * Mints a distinct configured copy so {@link ExternalSourceResolver#formatConfigIdentity} has a
+     * remint to close. Prototype and remint share the close counters.
+     */
+    private static final class RemintingStubFormatReader extends StubFormatReader {
+        private final Map<String, List<Attribute>> schemas;
+        private final AtomicInteger prototypeCloses;
+        private final AtomicInteger remintCloses;
+        private final boolean remint;
+
+        RemintingStubFormatReader(
+            Map<String, List<Attribute>> schemas,
+            AtomicInteger prototypeCloses,
+            AtomicInteger remintCloses,
+            boolean remint
+        ) {
+            super(schemas);
+            this.schemas = schemas;
+            this.prototypeCloses = prototypeCloses;
+            this.remintCloses = remintCloses;
+            this.remint = remint;
+        }
+
+        @Override
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            if (remint) {
+                return Configured.empty(this);
+            }
+            return Configured.fromKnownSubset(
+                new RemintingStubFormatReader(schemas, prototypeCloses, remintCloses, true),
+                config,
+                Set.of("schema_max_fields")
+            );
+        }
+
+        @Override
+        public void close() {
+            (remint ? remintCloses : prototypeCloses).incrementAndGet();
+        }
+    }
+
     private static class StubSourceMetadata implements SourceMetadata {
         private final String location;
         private final List<Attribute> schema;
@@ -11353,8 +11412,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4, ExternalSourceResolver.schemaSampleShare(3));
         assertEquals(4, ExternalSourceResolver.schemaSampleShare(4));
         assertEquals(8, ExternalSourceResolver.schemaSampleShare(5));
-        // No overflow clamp is needed: MAX_DISCOVERED_FILES caps a resolved listing at 1,000,000 files.
+        // No overflow clamp is needed: MAX_DISCOVERED_FILES caps a resolved listing at 10,000,000 files.
         assertEquals(1 << 20, ExternalSourceResolver.schemaSampleShare(1_000_000));
+        assertEquals(1 << 24, ExternalSourceResolver.schemaSampleShare(10_000_000));
     }
 
     /**

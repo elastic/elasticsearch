@@ -205,10 +205,11 @@ public class ExternalSourceResolver {
      * Per-file schema-map allowance, reserved before reconciliation, first-file-wins, or the strict schema loop.
      * Not a measured deep size. A shared schema keeps one {@code ExternalSchema} and one {@code ColumnMapping};
      * each file adds a map node, a {@code FileSchemaInfo}, and a path key. 320 bytes covers that shape and
-     * leaves a few megabytes of slack at the default discovered-files cap. A file with its own attribute list
-     * can exceed it.
+     * leaves a few megabytes of slack at the discovered-files floor. A file with its own attribute list
+     * can exceed it. Package-visible so {@link ExternalSourceSettings} can size the discovered-files
+     * default from the same billed bytes.
      */
-    private static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
+    static final long SCHEMA_MAP_BYTES_PER_FILE = 320L;
 
     private final Executor executor;
     /**
@@ -998,8 +999,13 @@ public class ExternalSourceResolver {
      */
     String formatConfigIdentity(String objectName, Map<String, Object> config) {
         try {
-            FormatReader reader = FormatNameResolver.resolveReader(config, objectName, dataSourceModule.formatReaderRegistry());
-            return reader.withConfigTrackingConsumedKeys(config).identity();
+            FormatReader prototype = FormatNameResolver.resolveReader(config, objectName, dataSourceModule.formatReaderRegistry());
+            Configured<FormatReader> configured = prototype.withConfigTrackingConsumedKeys(config);
+            try {
+                return configured.identity();
+            } finally {
+                FormatReaders.closeDistinctFrom(configured.value(), prototype);
+            }
         } catch (IllegalArgumentException e) {
             LOGGER.trace(() -> "no format claims [" + objectName + "]; no format-config identity to derive", e);
             return "";
@@ -1023,10 +1029,15 @@ public class ExternalSourceResolver {
             return 0;
         }
         try {
-            FormatReader reader = dataSourceModule.formatReaderRegistry()
-                .readerForListedObject(filePath.toString(), filePath.objectName(), config);
+            FormatReaderRegistry registry = dataSourceModule.formatReaderRegistry();
+            FormatReader prototype = registry.byName(FormatNameResolver.datasetFormat(config, filePath.toString(), registry));
+            FormatReader reader = registry.readerForListedObject(filePath.toString(), filePath.objectName(), config);
             FormatReader shared = reader.withSchemaSampleShare(files);
-            return shared == reader ? 0 : shared.schemaSampleSize();
+            try {
+                return shared == reader ? 0 : shared.schemaSampleSize();
+            } finally {
+                FormatReaders.closeAll(prototype, reader, shared);
+            }
         } catch (IllegalArgumentException e) {
             LOGGER.trace(() -> "no format claims [" + filePath + "] or its reader rejects the config; no schema sample to share", e);
             return 0;
@@ -1049,12 +1060,17 @@ public class ExternalSourceResolver {
         List<String> segments = GlobExpander.commaSegments(path);
         String anchor = segments.isEmpty() ? path : segments.get(0);
         try {
-            FormatReader reader = FormatNameResolver.resolveReader(
+            FormatReader prototype = FormatNameResolver.resolveReader(
                 config,
                 StoragePath.of(anchor).objectName(),
                 dataSourceModule.formatReaderRegistry()
             );
-            currentPathConfigWarnings = reader.withConfig(config).configWarnings();
+            FormatReader configured = prototype.withConfig(config);
+            try {
+                currentPathConfigWarnings = configured.configWarnings();
+            } finally {
+                FormatReaders.closeDistinctFrom(configured, prototype);
+            }
         } catch (IllegalArgumentException e) {
             LOGGER.trace(() -> "no configure-time notices for [" + anchor + "]: no format claims it or the reader rejects the config", e);
             return;
@@ -3138,7 +3154,7 @@ public class ExternalSourceResolver {
      * would re-key - and re-read - every file each time it does. Rounded, the keys move only when the count crosses a
      * power of two, and stop moving once the per-file floor is reached.
      * <p>
-     * Deliberately not clamped: listings are capped at 1,000,000 files by
+     * Deliberately not clamped: listings are capped at 10,000,000 files by
      * {@link ExternalSourceSettings#MAX_DISCOVERED_FILES}, far below the first {@code int} overflow at {@code 2^30}.
      */
     static int schemaSampleShare(int fileCount) {

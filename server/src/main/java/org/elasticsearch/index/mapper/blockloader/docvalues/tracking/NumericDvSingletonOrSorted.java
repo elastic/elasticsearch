@@ -10,6 +10,8 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.tracking;
 
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -26,7 +28,9 @@ import static org.elasticsearch.index.mapper.blockloader.docvalues.tracking.Trac
  */
 public record NumericDvSingletonOrSorted(@Nullable TrackingNumericDocValues singleton, @Nullable TrackingSortedNumericDocValues sorted) {
     /**
-     * Atomically load the {@link NumericDvSingletonOrSorted}.
+     * Atomically load the {@link NumericDvSingletonOrSorted}, or {@code null} if the field has no numeric doc values in this segment.
+     *
+     * @throws IllegalStateException if the field has binary doc values, which this can't read
      */
     public static NumericDvSingletonOrSorted get(CircuitBreaker breaker, LeafReaderContext context, String fieldName) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
@@ -46,6 +50,14 @@ public record NumericDvSingletonOrSorted(@Nullable TrackingNumericDocValues sing
             if (singleton != null) {
                 result = new NumericDvSingletonOrSorted(new TrackingNumericDocValues(breaker, singleton), null);
                 return result;
+            }
+            // Both getters return null for a field with binary doc values, which would read as all nulls. A number field with
+            // binary doc values has a block loader of its own, so reaching here with one is a bug.
+            FieldInfo fieldInfo = context.reader().getFieldInfos().fieldInfo(fieldName);
+            if (fieldInfo != null && fieldInfo.getDocValuesType() == DocValuesType.BINARY) {
+                throw new IllegalStateException(
+                    "field [" + fieldName + "] has binary doc values, which a numeric doc values block loader can't read"
+                );
             }
             return null;
         } finally {

@@ -301,6 +301,58 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(tight.getUsed(), equalTo(0L));
     }
 
+    public void testContentParsedOnTheRequestsBehalfIsCheckedButNotHeld() throws IOException {
+        XContentType type = randomFrom(TYPES);
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofMb(100));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, true)) {
+            Releasable hold = reservation.hold();
+            // As a reindex parses the query inside a wrapper query again for every search it sends.
+            int searches = between(2, 5);
+            for (int i = 0; i < searches; i++) {
+                try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+                    readAllTokens(parser);
+                    assertThat(breaker.getUsed(), greaterThan(0L));
+                }
+                assertThat("released when the parser is closed", breaker.getUsed(), equalTo(0L));
+            }
+            assertThat("not held by the request, even while its work holds the charge", reservation.reservedBytes(), equalTo(0L));
+            hold.close();
+        }
+
+        CircuitBreaker tight = requestBreaker(ByteSizeValue.ofBytes(2 * ChargingXContentParser.CHUNK_BYTES));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(tight, true)) {
+            try (XContentParser parser = reservation.trackWhileParsing(parser(type, document(type, 20_000)))) {
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> readAllTokens(parser));
+                assertThat(e.getMessage(), containsString("data for [" + ParsedContentReservation.LABEL + "]"));
+            }
+            assertThat(reservation.reservedBytes(), equalTo(0L));
+        }
+        assertThat(tight.getUsed(), equalTo(0L));
+
+        // Work that runs after the response, such as a reindex started with wait_for_completion=false, still parses.
+        ParsedContentReservation released = new ParsedContentReservation(tight, true);
+        released.close();
+        try (XContentParser parser = released.trackWhileParsing(parser(type, document(type, 20_000)))) {
+            expectThrows(CircuitBreakingException.class, () -> readAllTokens(parser));
+        }
+        assertThat(tight.getTrippedCount(), equalTo(2L));
+        assertThat(tight.getUsed(), equalTo(0L));
+
+        // A request that must not trip the breaker does not trip it for what is parsed on its behalf either, within its allowance. The
+        // document charges more than the tight breaker would allow, and less than the allowance for any type, since YAML charges the most.
+        BytesReference withinAllowance = document(type, 10_000);
+        assertThat(expectedCharge(type, withinAllowance), greaterThan(2 * ChargingXContentParser.CHUNK_BYTES));
+        assertThat(expectedCharge(type, withinAllowance), lessThan(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(tight, false)) {
+            try (XContentParser parser = reservation.trackWhileParsing(parser(type, withinAllowance))) {
+                readAllTokens(parser);
+                assertThat(tight.getUsed(), greaterThan(2 * ChargingXContentParser.CHUNK_BYTES));
+            }
+        }
+        assertThat(tight.getTrippedCount(), equalTo(2L));
+        assertThat(tight.getUsed(), equalTo(0L));
+    }
+
     public void testSmallParsersOfOneRequestAreCheckedTogether() throws IOException {
         CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1));
         XContentType type = randomFrom(TYPES);
@@ -399,17 +451,43 @@ public class ParsedContentReservationTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
-    public void testReservationThatCannotTripChargesWithoutBreaking() throws IOException {
+    public void testReservationThatCannotTripIsNotCheckedWithinItsAllowance() throws IOException {
         CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1));
         XContentType type = randomFrom(TYPES);
-        BytesReference content = document(type, 20_000);
+        // Several chunks, so the parser passes them to the reservation, which would check each of them if it could trip.
+        BytesReference content = document(type, 10_000);
+        long expected = expectedCharge(type, content);
+        assertThat(expected, greaterThan(2 * ChargingXContentParser.CHUNK_BYTES));
+        assertThat(expected, lessThan(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES));
         try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, false)) {
             try (XContentParser parser = reservation.track(parser(type, content))) {
                 readAllTokens(parser);
             }
-            assertThat(reservation.reservedBytes(), equalTo(expectedCharge(type, content)));
+            assertThat(reservation.reservedBytes(), equalTo(expected));
             assertThat(breaker.getUsed(), equalTo(reservation.reservedBytes()));
             assertThat(breaker.getTrippedCount(), equalTo(0L));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testReservationThatCannotTripIsCheckedBeyondItsAllowance() throws IOException {
+        CircuitBreaker breaker = requestBreaker(ByteSizeValue.ofBytes(1));
+        XContentType type = randomFrom(TYPES);
+        BytesReference content = document(type, 40_000);
+        assertThat(expectedCharge(type, content), greaterThan(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES));
+        try (ParsedContentReservation reservation = new ParsedContentReservation(breaker, false)) {
+            expectThrows(CircuitBreakingException.class, () -> {
+                try (XContentParser parser = reservation.track(parser(type, content))) {
+                    readAllTokens(parser);
+                }
+            });
+            // Every chunk within the allowance was charged without a check, and the one that would go beyond it tripped.
+            assertThat(reservation.reservedBytes(), lessThanOrEqualTo(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES));
+            assertThat(
+                reservation.reservedBytes(),
+                greaterThan(ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES - 2 * ChargingXContentParser.CHUNK_BYTES)
+            );
+            assertThat(breaker.getTrippedCount(), equalTo(1L));
         }
         assertThat(breaker.getUsed(), equalTo(0L));
     }

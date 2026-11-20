@@ -3555,7 +3555,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Logs a warning and the hot threads if the returned {@link Releasable} is not closed within
      * {@link #SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD}, so that a shard snapshot stuck reading file metadata is visible while it is stuck.
      */
-    private Releasable warnIfReadingMetadataIsSlow(ShardId shardId, SnapshotId snapshotId) {
+    // package-private for testing
+    Releasable warnIfReadingMetadataIsSlow(ShardId shardId, SnapshotId snapshotId) {
         final Scheduler.Cancellable warning = threadPool.schedule(() -> {
             logger.warn("[{}][{}] still reading file metadata after [{}]", shardId, snapshotId, SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD);
             HotThreads.logLocalHotThreads(

@@ -162,6 +162,13 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
             everyItem(allOf(greaterThanOrEqualTo(0.0), lessThan(maxHistogramDurationSeconds)))
         );
 
+        // Sanity check shard metadata duration observations
+        assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_SHARDS_METADATA_DURATION, hasSize(numShards));
+        assertDoubleHistogramMetrics(
+            SnapshotMetrics.SNAPSHOT_SHARDS_METADATA_DURATION,
+            everyItem(allOf(greaterThanOrEqualTo(0.0), lessThan(maxHistogramDurationSeconds)))
+        );
+
         // Sanity check snapshot observations
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, hasSize(1));
         assertDoubleHistogramMetrics(SnapshotMetrics.SNAPSHOT_DURATION, everyItem(lessThan(maxHistogramDurationSeconds)));
@@ -205,6 +212,7 @@ public class SnapshotMetricsIT extends AbstractSnapshotIntegTestCase {
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_SHARDS_COMPLETED, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_DURATION, expectedAttrsWithShardStage);
         assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_QUEUE_TIME, expectedAttrs);
+        assertMetricsHaveAttributes(InstrumentType.DOUBLE_HISTOGRAM, SnapshotMetrics.SNAPSHOT_SHARDS_METADATA_DURATION, expectedAttrs);
 
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_UPLOAD_DURATION, expectedAttrs);
         assertMetricsHaveAttributes(InstrumentType.LONG_COUNTER, SnapshotMetrics.SNAPSHOT_BYTES_UPLOADED, expectedAttrs);

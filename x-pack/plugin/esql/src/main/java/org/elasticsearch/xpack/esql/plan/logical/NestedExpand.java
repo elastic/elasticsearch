@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -168,9 +169,17 @@ public final class NestedExpand extends UnaryPlan implements SortAgnostic, DocPr
     }
 
     private boolean expandedScope(Attribute attribute) {
-        return attribute instanceof FieldAttribute field
-            && field.field() instanceof NestedScopeField scope
-            && (bound() == false || scope.path().equals(path) || scope.path().startsWith(path + "."));
+        if (attribute instanceof FieldAttribute field) {
+            String fieldPath = null;
+            if (field.field() instanceof NestedScopeField scope) {
+                fieldPath = scope.path();
+            } else if (field.field() instanceof NestedLeafField leaf) {
+                // The same names are packed columns below the command. Expansion owns them from here up.
+                fieldPath = leaf.path();
+            }
+            return fieldPath != null && (bound() == false || fieldPath.equals(path) || fieldPath.startsWith(path + "."));
+        }
+        return false;
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -104,7 +105,13 @@ public class FieldNameUtils {
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
-        return addNestedExpand(parsed, collectFieldNames(parsed, hasEnriches, includePrefixFields));
+        PreAnalysisResult result = addNestedExpand(parsed, collectFieldNames(parsed, hasEnriches, includePrefixFields));
+        // A snapshot query reads nested leaves as columns, so field caps has to return them. The private schema is where
+        // they are built; publishing the columns happens later, and only when every node can read them.
+        if (result.nestedScope() || EsqlCapabilities.Cap.NESTED_FLATTENED_LEAVES.isEnabled() == false) {
+            return result;
+        }
+        return new PreAnalysisResult(result.fieldNames(), result.parentPaths(), true, result.wildcardJoinIndices());
     }
 
     /**

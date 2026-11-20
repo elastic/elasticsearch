@@ -86,13 +86,17 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedLeavesOperator;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -115,7 +119,9 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -268,13 +274,52 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
+        List<Attribute> plain = new ArrayList<>();
+        Map<String, List<Attribute>> leavesByPath = new LinkedHashMap<>();
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            layout.append(attr);
+            if (attr instanceof FieldAttribute field
+                && field.field() instanceof NestedLeafField leaf
+                && NestedLeavesOperator.supports(attr.dataType())) {
+                leavesByPath.computeIfAbsent(leaf.path(), path -> new ArrayList<>()).add(attr);
+            } else {
+                plain.add(attr);
+            }
         }
-        var fields = extractFields(fieldExtractExec);
-        int docSequenceThreshold = context.queryPragmas()
-            .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
-        return source.with(valuesSourceReader(fields, docChannel, docSequenceThreshold), layout.build());
+        PhysicalOperation operation = source;
+        if (plain.isEmpty() == false) {
+            for (Attribute attr : plain) {
+                layout.append(attr);
+            }
+            var fields = extractFields(fieldExtractExec, plain, fieldExtractExec::fieldExtractPreference);
+            int docSequenceThreshold = context.queryPragmas()
+                .docSequenceBytesRefFieldThreshold(plannerSettings.docSequenceBytesRefFieldThreshold());
+            operation = source.with(valuesSourceReader(fields, docChannel, docSequenceThreshold), layout.build());
+        }
+        for (var group : leavesByPath.entrySet()) {
+            List<Attribute> columns = group.getValue();
+            for (Attribute attr : columns) {
+                layout.append(attr);
+            }
+            List<DataType> types = columns.stream().map(Attribute::dataType).toList();
+            operation = operation.with(
+                new NestedLeavesOperator.Factory(
+                    docChannel,
+                    NestedChildren.factory(
+                        shardContexts,
+                        group.getKey(),
+                        columns.stream().map(column -> ((NestedLeafField) ((FieldAttribute) column).field()).relative()).toList(),
+                        types,
+                        columns.stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
+                        plannerSettings,
+                        configuration
+                    ),
+                    group.getKey(),
+                    types
+                ),
+                layout.build()
+            );
+        }
+        return operation;
     }
 
     /**
@@ -522,8 +567,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     public static @Nullable UnionTypeEsField findUnionTypes(Attribute attr) {
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField unionTypeEsField) {
-            return unionTypeEsField;
+        if (attr instanceof FieldAttribute fa) {
+            EsField field = fa.field();
+            if (field instanceof NestedLeafField leaf) {
+                field = leaf.leaf();
+            }
+            if (field instanceof UnionTypeEsField unionTypeEsField) {
+                return unionTypeEsField;
+            }
         }
         return null;
     }

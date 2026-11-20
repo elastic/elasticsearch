@@ -107,8 +107,8 @@ public class FieldNameUtilsTests extends ESTestCase {
         assertThat(nestedScope(query), is(true));
     }
 
-    public void testAQueryWithoutNestedPredicatesIsNotNestedScoped() {
-        assertThat(nestedScope("from test | where id > 1 | keep id"), is(false));
+    public void testASnapshotQueryReadsNestedLeaves() {
+        assertThat(nestedScope("from test | where id > 1 | keep id"), is(true));
     }
 
     public void testNestedWithoutNarrowingAsksForAllFields() {

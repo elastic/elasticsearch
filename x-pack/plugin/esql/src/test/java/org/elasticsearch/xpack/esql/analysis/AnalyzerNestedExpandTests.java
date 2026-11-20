@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -234,12 +235,14 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         assertThat(types(plan.output()), contains(DataType.KEYWORD, DataType.KEYWORD));
     }
 
-    public void testWithoutNestedExpandChildrenAreUnknown() {
-        nestedAnalyzer().error("FROM ne | KEEP items.sku", equalTo("1:16: Unknown column [items.sku]"));
+    public void testWithoutNestedExpandAChildIsAPackedColumn() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | KEEP items.sku");
+        assertThat(((FieldAttribute) plan.output().getFirst()).field(), instanceOf(NestedLeafField.class));
     }
 
-    public void testMappedChildBeforeExpansionIsUnknown() {
-        nestedAnalyzer().error("FROM ne | WHERE items.sku == \"a\" | NESTED_EXPAND items", equalTo("1:17: Unknown column [items.sku]"));
+    public void testMappedChildBeforeExpansionIsThePackedColumn() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | WHERE items.sku == \"a\" | NESTED_EXPAND items | KEEP items.sku");
+        assertThat(((FieldAttribute) plan.output().getFirst()).field(), not(instanceOf(NestedLeafField.class)));
     }
 
     public void testUndeclaredNameBeforeExpansionLoadsFromParent() {
@@ -382,7 +385,7 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
     }
 
     private TestAnalyzer nestedAnalyzer() {
-        return nestedAnalyzer(minimumVersionAtLeast(NestedExpand.VERSION));
+        return nestedAnalyzer(minimumVersionAtLeast(NestedLeafField.VERSION));
     }
 
     /** An analyzer over the indices this class describes. */

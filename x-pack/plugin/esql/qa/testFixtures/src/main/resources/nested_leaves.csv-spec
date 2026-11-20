@@ -1,0 +1,64 @@
+// Nested leaves over nested_orders: order 1 has items a/1 and b/2, order 2 has none, order 3 has item c/5.
+
+packEachObject
+required_capability: nested_flattened_leaves
+
+FROM nested_orders
+| KEEP id, items.sku, items.qty
+| SORT id
+;
+
+id:keyword | items.sku:keyword | items.qty:long
+1          | [a, b]            | [1, 2]
+2          | null              | null
+3          | c                 | 5
+;
+
+compareThePackedColumn
+required_capability: nested_flattened_leaves
+
+FROM nested_orders
+| EVAL hit = items.qty > 1
+| KEEP id, hit, items.qty
+| SORT id
+;
+
+warningRegex:evaluation of \[items\.qty > 1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+id:keyword | hit:boolean | items.qty:long
+1          | null        | [1, 2]
+2          | null        | null
+3          | true        | 5
+;
+
+filterThePackedColumn
+required_capability: nested_flattened_leaves
+
+FROM nested_orders
+| WHERE items.qty > 1
+| KEEP id, items.qty
+| SORT id
+;
+
+warningRegex:evaluation of \[items\.qty > 1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+id:keyword | items.qty:long
+3          | 5
+;
+
+anyThenKeep
+required_capability: nested_flattened_leaves
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id, items.sku
+| SORT id
+;
+
+id:keyword | items.sku:keyword
+1          | [a, b]
+3          | c
+;

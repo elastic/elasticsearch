@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -163,6 +164,7 @@ public interface LucenePushdownPredicates {
         return exp instanceof FieldAttribute fa
             && fa.field() instanceof FunctionEsField == false
             && fa.field() instanceof UnionTypeEsField == false
+            && fa.field() instanceof NestedLeafField == false
             && hasValueQueries(fa);
     }
 
@@ -179,6 +181,7 @@ public interface LucenePushdownPredicates {
         // field behind them, so predicates and TopN over them must stay in the compute engine even though they are exact values.
         if (exp instanceof FieldAttribute fa
             && fa.field() instanceof FunctionEsField == false
+            && fa.field() instanceof NestedLeafField == false
             && fa.getExactInfo().hasExact()
             && isQueryable(fa)) {
             return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);

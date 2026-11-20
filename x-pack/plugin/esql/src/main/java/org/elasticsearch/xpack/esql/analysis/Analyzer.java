@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedSingleTypeEsField;
@@ -655,6 +656,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = indexResolution.get();
 
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            if (plan.indexMode() != IndexMode.LOOKUP && context.minimumVersion().supports(NestedLeafField.VERSION)) {
+                publishNestedLeaves(attributes);
+            }
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
 
             return new EsRelation(
@@ -712,6 +716,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             return result;
         }
+    }
+
+    /**
+     * Adds a public column for each nested leaf. The private schema stays, so {@code NESTED_EXPAND} and {@code NESTED_ANY}
+     * still bind against it. The nested object itself is not a column.
+     */
+    private static void publishNestedLeaves(List<Attribute> attributes) {
+        List<Attribute> leaves = new ArrayList<>();
+        for (Attribute attribute : attributes) {
+            if (attribute instanceof FieldAttribute field
+                && field.field() instanceof NestedScopeField scope
+                && scope.kind() == NestedScopeField.Kind.VALUE
+                && scope.leaf() != null
+                && scope.leaf().getDataType() != DataType.UNSUPPORTED) {
+                String publicName = field.name().substring(NestedScopeField.PREFIX.length());
+                if (publicName.startsWith(scope.path() + ".") == false) {
+                    continue;
+                }
+                leaves.add(
+                    new FieldAttribute(
+                        field.source(),
+                        null,
+                        null,
+                        publicName,
+                        new NestedLeafField(scope.leaf(), scope.path(), publicName.substring(scope.path().length() + 1))
+                    )
+                );
+            }
+        }
+        attributes.addAll(leaves);
     }
 
     /**

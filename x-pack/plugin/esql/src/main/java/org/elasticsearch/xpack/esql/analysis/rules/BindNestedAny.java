@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
@@ -206,9 +207,17 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
         throw error(nested, "NESTED_ANY requires a nested collection first, not [" + named.sourceText() + "]");
     }
 
-    /** Whether a column of the query, not a private schema entry, has this name. */
+    /**
+     * Whether a column of the query, not a private schema entry and not the packed nested leaf of this name, has this name.
+     * The packed leaf is the same field read across every child; the predicate still reads one child at a time.
+     */
     private static boolean replacedByColumn(List<Attribute> output, String name) {
-        return output.stream().anyMatch(column -> column.synthetic() == false && column.name().equals(name));
+        return output.stream()
+            .anyMatch(
+                column -> column.synthetic() == false
+                    && column.name().equals(name)
+                    && (column instanceof FieldAttribute field && field.field() instanceof NestedLeafField) == false
+            );
     }
 
     private static Attribute nestedField(UnresolvedAttribute attribute, List<Attribute> output) {

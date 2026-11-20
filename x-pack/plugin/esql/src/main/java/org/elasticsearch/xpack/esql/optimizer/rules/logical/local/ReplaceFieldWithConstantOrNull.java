@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicate;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -114,7 +115,9 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || lookupFields.contains(f)
             || externalFields.contains(f)
             // The expansion reads a child of a nested field from its hidden child documents, which no shard's stats count as a field.
-            || nestedChildren.contains(f);
+            // A packed nested leaf is the same kind of field: its values are not on the parent document the stats counted.
+            || nestedChildren.contains(f)
+            || f.field() instanceof NestedLeafField;
 
         boolean nullifyUnmappedFields = localLogicalOptimizerContext.searchStats().mayHoldUnmappedFields() == false;
 

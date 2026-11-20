@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedAny;
@@ -86,11 +87,9 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
-    public void testChildNamesAreNotColumns() {
-        nestedAnalyzer().error(
-            "FROM ne | WHERE NESTED_ANY(items.sku == \"a\") | KEEP items.sku",
-            containsString("Unknown column [items.sku]")
-        );
+    public void testChildNameOutsideTheCallIsThePackedColumn() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.sku == \"a\") | KEEP items.sku");
+        assertThat(((FieldAttribute) plan.output().getFirst()).field(), instanceOf(NestedLeafField.class));
     }
 
     public void testCollectionFormBindsToANestedPredicate() {
@@ -450,15 +449,13 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         assertThat(nullified.getFirst().dataType(), equalTo(DataType.NULL));
     }
 
-    public void testChildNameOutsideTheCallStaysUnknown() {
-        nestedAnalyzer().error(
-            "FROM ne | EVAL u = items.sku | WHERE NESTED_ANY(items.sku == \"a\")",
-            containsString("Unknown column [items.sku]")
-        );
+    public void testEvalOfAChildReadsThePackedColumn() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | EVAL u = items.sku | WHERE NESTED_ANY(items.sku == \"a\") | KEEP u");
+        assertThat(plan.output().getFirst().dataType(), equalTo(DataType.KEYWORD));
     }
 
     private TestAnalyzer nestedAnalyzer() {
-        return nestedAnalyzer(minimumVersionAtLeast(NestedPredicate.VERSION));
+        return nestedAnalyzer(minimumVersionAtLeast(NestedLeafField.VERSION));
     }
 
     private static TestAnalyzer nestedAnalyzer(TransportVersion minimumVersion) {

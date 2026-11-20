@@ -4992,6 +4992,12 @@ public class EsqlCapabilities {
         NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
+         * A field under a nested object, such as {@code items.price}, is an ordinary multivalued column of the parent row.
+         * Snapshot-only while the read is still changing.
+         */
+        NESTED_FLATTENED_LEAVES(Build.current().isSnapshot()),
+
+        /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.

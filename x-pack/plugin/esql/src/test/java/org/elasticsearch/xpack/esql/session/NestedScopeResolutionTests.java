@@ -150,9 +150,9 @@ public class NestedScopeResolutionTests extends ESTestCase {
         assertThat(result.fieldNames(), not(equalTo(IndexResolver.ALL_FIELDS)));
     }
 
-    public void testQueryWithoutNestedExpandHasNoNestedScope() {
+    public void testSnapshotQueryReadsNestedLeaves() {
         PreAnalysisResult result = resolveFieldNames("FROM ne | KEEP items.sku");
-        assertThat(result.nestedScope(), is(false));
+        assertThat(result.nestedScope(), is(Build.current().isSnapshot()));
     }
 
     public void testRequestFilterThatRequiresAllFieldsKeepsNestedScope() {

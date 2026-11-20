@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.NestedLeafField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -557,9 +558,9 @@ public abstract class FullTextFunction extends Function
             if (plan instanceof Highlight) {
                 return;
             }
-            // A Lucene query runs on the document each row was read from, which is the parent of an expanded child. The field is
-            // resolved through renames, which the optimizer removes, turning a search of the alias into one of the child.
-            if (isExpandedNestedChild(plan, fieldAttribute)) {
+            // A Lucene query runs on the parent document. A nested leaf's values live on the child documents, and so do the
+            // columns an expansion publishes from those children.
+            if (fieldAttribute.field() instanceof NestedLeafField || isExpandedNestedChild(plan, fieldAttribute)) {
                 failures.add(
                     fail(
                         field,

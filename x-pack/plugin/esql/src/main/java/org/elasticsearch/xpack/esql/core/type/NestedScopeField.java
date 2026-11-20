@@ -25,9 +25,9 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Analysis-only schema for fields under a mapped {@code nested} object. It is requested only by a query that uses
- * {@code NESTED_EXPAND}, and it stays out of ordinary field resolution so a query without that command still hides
- * nested fields.
+ * Analysis-only schema for fields under a mapped {@code nested} object. A snapshot query asks for it so a nested leaf
+ * can be published as a multivalued column, and {@code NESTED_EXPAND} and {@code NESTED_ANY} bind against it. The
+ * attributes themselves stay out of ordinary name resolution.
  */
 public final class NestedScopeField extends EsField {
     public static final String NAMESPACE = "$$nested_scope";

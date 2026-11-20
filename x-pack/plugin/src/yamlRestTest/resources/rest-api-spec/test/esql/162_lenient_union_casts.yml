@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast]
+          capabilities: [lenient_cast]
       reason: "Lenient explicit casts of union-typed fields"
 
   - do:
@@ -354,7 +354,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast_nothing_converts]
+          capabilities: [lenient_cast]
       reason: "Lenient casts of union-typed fields where no type converts"
   - do:
       warnings:
@@ -376,7 +376,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast_nothing_converts]
+          capabilities: [lenient_cast]
       reason: "Lenient casts of union-typed fields where no type converts"
   - do:
       warnings:
@@ -421,7 +421,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast_unsupported_types]
+          capabilities: [lenient_cast]
       reason: "Lenient casts of union-typed fields with unsupported types"
   - do:
       warnings:
@@ -443,7 +443,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast_unsupported_types]
+          capabilities: [lenient_cast]
       reason: "Lenient casts of union-typed fields with unsupported types"
   - do:
       warnings:
@@ -484,7 +484,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast_nothing_converts]
+          capabilities: [lenient_cast]
       reason: "Lenient casts of union-typed fields where no type converts"
   - do:
       warnings:
@@ -505,7 +505,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Impossible casts return null"
   - do:
       warnings:
@@ -527,7 +527,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Impossible casts return null"
   - do:
       warnings_regex:
@@ -549,7 +549,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Impossible casts return null"
   - do:
       warnings:
@@ -570,7 +570,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Impossible casts return null"
   - do:
       warnings:
@@ -597,7 +597,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Casts with a base only accept strings, also in union types"
   - do:
       catch: bad_request
@@ -621,7 +621,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Casts with a base don't accept union types"
   - do:
       catch: bad_request
@@ -647,7 +647,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [subquery_in_from_command, lenient_impossible_casts]
+          capabilities: [subquery_in_from_command, lenient_cast]
       reason: "Lenient casts of fields that are a union across subquery branches"
   - do:
       warnings:
@@ -681,7 +681,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Unmapped indices of an unsupported field are loaded from _source"
   - do:
       warnings:
@@ -715,7 +715,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Impossible casts return null"
   - do:
       warnings:
@@ -783,7 +783,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Invalid options stay errors"
   - do:
       catch: bad_request
@@ -814,7 +814,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "Impossible casts return null"
   - do:
       warnings:

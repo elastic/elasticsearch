@@ -106,7 +106,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "the unmapped index is null under a cast that can't convert keyword, with a warning"
   - do:
       warnings:
@@ -128,7 +128,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "impossible casts return null instead of failing"
   - do:
       catch: bad_request
@@ -149,7 +149,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [lenient_impossible_casts]
+          capabilities: [lenient_cast]
       reason: "impossible casts return null instead of failing"
   - do:
       warnings:
@@ -171,7 +171,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast]
+          capabilities: [lenient_cast]
       reason: "lenient union casts null the unmapped keyword leg instead of failing"
   - do:
       catch: bad_request
@@ -194,7 +194,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_lenient_cast]
+          capabilities: [lenient_cast]
       reason: "lenient union casts null the unmapped keyword leg"
   - do:
       warnings:

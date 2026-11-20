@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166674
+summary: "ES|QL|DS: Close cancels hung storage GETs"
+type: enhancement

@@ -97,8 +97,7 @@ public class MeteredInputStreamTests extends ESTestCase {
         assertEquals(payload.length, counters.snapshot().bytesRead());
     }
 
-    public void testAbortDoesNotCallCloseWhenOnAbortSet() throws IOException {
-        AtomicBoolean abortCalled = new AtomicBoolean();
+    public void testAbortClosesInner() throws IOException {
         AtomicBoolean closeCalled = new AtomicBoolean();
         StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
         InputStream inner = new FilterInputStream(new ByteArrayInputStream(new byte[32])) {
@@ -108,14 +107,13 @@ public class MeteredInputStreamTests extends ESTestCase {
                 super.close();
             }
         };
-        MeteredInputStream in = new MeteredInputStream(inner, counters, () -> abortCalled.set(true));
+        MeteredInputStream in = new MeteredInputStream(inner, counters);
         assertEquals(8, in.read(new byte[8]));
         in.abort();
         in.abort();
         in.close();
         assertEquals(8L, counters.snapshot().bytesRead());
-        assertTrue(abortCalled.get());
-        assertFalse(closeCalled.get());
+        assertTrue(closeCalled.get());
     }
 
     public void testAbortWithoutCallbackClosesInner() throws IOException {

@@ -1595,8 +1595,9 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
-         * A FORK may follow a subquery, a view or a LET binding that itself contains a FORK. Each of them is its own FORK scope, so the
-         * two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still rejected while parsing.
+         * A FORK may follow a subquery, a view or a LET named subquery that itself contains a FORK. Each of them is its own FORK
+         * scope, so the two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still
+         * rejected while parsing.
          */
         ALLOW_FORK_ACROSS_SUBQUERY_VIEW_LET_BOUNDARY,
 
@@ -4661,13 +4662,13 @@ public class EsqlCapabilities {
          * A {@code LET} clause binds a subquery plan to a name that can be referenced
          * in the main query as a relation or as an {@code IN} operand.
          */
-        NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET,
 
         /**
-         * {@code METADATA _class, _name} on a {@code LET} binding referenced in {@code FROM} answers {@code subquery} and the
-         * binding name, instead of {@code null} for both.
+         * {@code METADATA _class, _name} on a {@code LET} named subquery referenced in {@code FROM} answers {@code subquery} and the
+         * subquery name, instead of {@code null} for both.
          */
-        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
 
         /**
          * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,

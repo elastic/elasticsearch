@@ -668,7 +668,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             root.set(false);
         });
 
-        verifyMetadataManipulationPlacement(p, null, failures);
+        verifyMetadataManipulationPlacement(p, null, failures, containerFunctions);
     }
 
     /**
@@ -681,25 +681,47 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
      * consumes it; a bare (non-aggregated) call or an {@link AcrossSeriesReduction} only when the relabel refines an
      * aggregated identity; a {@code without(...)} grouping or a binary operator would require identity-blob rewriting and is
      * rejected.
+     * <p>
+     * A relabel rewrites the label containers too where every node knows the label container functions, so it may then
+     * sit anywhere and overwrite a label.
      *
      * @param consumer the nearest enclosing identity consumer for a relabel at this position, or {@code null} at the root
+     * @param containerFunctions whether the translation may use the label container functions
      */
-    private void verifyMetadataManipulationPlacement(LogicalPlan node, LogicalPlan consumer, Failures failures) {
+    private void verifyMetadataManipulationPlacement(
+        LogicalPlan node,
+        LogicalPlan consumer,
+        Failures failures,
+        boolean containerFunctions
+    ) {
         if (node instanceof MetadataManipulationFunction relabel) {
-            checkRelabelConsumer(relabel, consumer, failures);
+            checkRelabelConsumer(relabel, consumer, failures, containerFunctions);
             // A relabel passes identity through unchanged, so a nested relabel is consumed by the same enclosing consumer.
-            verifyMetadataManipulationPlacement(relabel.child(), consumer, failures);
+            verifyMetadataManipulationPlacement(relabel.child(), consumer, failures, containerFunctions);
             return;
         }
         // A relabel appearing beneath an identity-consuming node (see PromqlPlan#isIdentityTransparent) is consumed by it;
         // identity-transparent nodes (and any non-PromqlPlan node such as a relation) keep the parent's consumer.
         LogicalPlan childConsumer = node instanceof PromqlPlan promqlPlan && promqlPlan.isIdentityTransparent() == false ? node : consumer;
         for (LogicalPlan child : node.children()) {
-            verifyMetadataManipulationPlacement(child, childConsumer, failures);
+            verifyMetadataManipulationPlacement(child, childConsumer, failures, containerFunctions);
         }
     }
 
-    private void checkRelabelConsumer(MetadataManipulationFunction relabel, LogicalPlan consumer, Failures failures) {
+    private void checkRelabelConsumer(
+        MetadataManipulationFunction relabel,
+        LogicalPlan consumer,
+        Failures failures,
+        boolean containerFunctions
+    ) {
+        if (containerFunctions) {
+            // Under a `by(...)` aggregation the derived label is grouped on or dropped; elsewhere it may reach the output.
+            boolean underBy = consumer instanceof AcrossSeriesAggregate by && by.grouping() == AcrossSeriesAggregate.Grouping.BY;
+            if (underBy == false) {
+                checkBuiltInColumnCollision(relabel, PromqlLabels.labelName(relabel.destination().name()), failures);
+            }
+            return;
+        }
         String name = relabel.definition().name();
         if (consumer instanceof AcrossSeriesAggregate agg) {
             if (agg.grouping() == AcrossSeriesAggregate.Grouping.BY) {

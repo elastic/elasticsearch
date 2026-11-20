@@ -47,15 +47,9 @@ public class PromqlBuiltinFunctionDefinitions {
      * translator (see {@code AcrossSeriesReduction#translate}) appends the ranking/limiting step itself.
      */
     private static final String LABEL_FUNCTION_NOT_SUPPORTED_YET =
-        "A call that isn't aggregated or is under `without(...)`, and a destination label named `step`, which is an output "
-            + "column of the `PROMQL` command, aren't supported yet.\n\n"
-            + "{applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, "
-            + "isn't supported yet.\n\n"
-            + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation "
-            + "or `count_values`, such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that "
-            + "overwrites a grouping label or the `count_values` label, such as "
-            + "`label_replace(sum by (job) (x), \"job\", \"$1\", \"job\", \"(.*)\")`, aren't supported yet. Write a new label "
-            + "instead.\n\n";
+        "A destination label named `step`, which is an output column of the `PROMQL` command, isn't supported yet.\n\n"
+            + "{applies_to}`stack: ga =9.6` A call that isn't aggregated or is under `without(...)`, and a call over an "
+            + "aggregation, such as `label_replace(sum by (job) (x), ...)`, aren't supported yet.\n\n";
 
     private static final String SORT_DIVERGENCE =
         "{applies_to}`stack: ga =9.6` A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. "

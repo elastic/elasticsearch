@@ -58,7 +58,7 @@ Compression reduces what every query fetches, which is both faster and cheaper, 
 
 The general model is that you allocate memory for {{esql}} itself and the rest for {{es}}, and enough memory on the coordinating node to execute planning and schema inference. Further memory is needed to hold the concurrent streams a query reads.
 
-Parquet currently trades memory for performance well: its read path draws on a fixed node-wide budget shared by every query, so pressure becomes waiting rather than failure. Text has no such budget and must be sized explicitly.
+Parquet currently trades memory for performance quite flexibly. The text formats require additional heap to be allocated for concurrent queries.
 
 Adding cores increases parallelism and increases memory allocation with it, so heap must be adjusted per core. For compressed text the per-core requirement itself rises as cores are added, so heap and cores cannot be scaled independently.
 
@@ -125,7 +125,7 @@ Twelve queries at one core per eight to ten needs only two cores, so the node's 
 | | |
 |---|---|
 | Starting heap | 4 GB, compressed text |
-| Cores for twelve concurrent queries | 4 |
+| Cores for twelve concurrent queries | 3 to 4 |
 | Heap at 4 cores | 4 GB to 8 GB |
 | Each further concurrent query | about 0.3 core, and 1 GB to 2 GB of heap with it |
 
@@ -140,7 +140,7 @@ Three years of hourly files is about 26,000 objects, past the [`esql.external.ma
 | | With a mapping | Schema inferred |
 |---|---|---|
 | Starting heap | 4 GB | 6 GB to 8 GB |
-| Cores for twelve concurrent queries | 4 | 4 |
+| Cores for twelve concurrent queries | 3 to 4 | 3 to 4 |
 | Heap at 4 cores | 4 GB to 8 GB | 6 GB to 12 GB |
 | Each further concurrent query | about 0.3 core | about 0.3 core |
 
@@ -161,16 +161,22 @@ Because the figures on this page are starting points rather than targets, the co
 * **Query times that scale worse than the data they read**, which usually points at too few files, or at compressed text files too large to divide.
 * **Planning time growing with your file count**, which points at schema inference or, on Parquet, at footer reads on the coordinating node.
 
-### `circuit_breaking_exception` with `[parent] Data too large` [parent-breaker]
+### `circuit_breaking_exception` with `Data too large` [breaker]
 
-The node is holding more than it can collect. Lower [`esql.external.max_concurrent_requests`](#lower-concurrency) first. Adding heap may not help on its own.
+The node is holding more than it can collect. This is the same condition whether the error names the `[parent]` or the `[request]` breaker, and the remedy is the same: give the instance more memory, and raise the heap with it.
+
+Two things are worth checking before you do. On a text dataset, the usual cause is schema inference at planning time, so [specify a mapping](#declare-schema) with `dynamic` set to `false` first — that removes the cost rather than paying for it. And lowering [`esql.external.max_concurrent_requests`](#lower-concurrency) will clear the condition at the cost of some wall-clock time, which is useful if more memory is not available to you.
 
 Not all of the memory this workload holds is attributed to the query that allocated it, so the error may name an unrelated operation rather than the read that filled the heap. Refer to [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
 
-### `circuit_breaking_exception` with `[request] Data too large` [request-breaker]
+### Queries are slow under load [slow-under-load]
 
-On a text format, this is usually schema inference at planning time. [Specify a mapping](#declare-schema) with `dynamic` set to `false`. If you already have, this is the case that does need more heap.
+Queries that still succeed but take longer as load rises are contended rather than exhausted: the readers are shared, and there are not enough of them to go round.
 
-### Queries slow under load but still succeeding [contended]
+To improve query performance under load:
 
-The file readers are contended rather than exhausted. Lower [`esql.external.max_concurrent_requests`](#lower-concurrency), or add nodes.
+* **Add cores**, with the heap that goes with them. For compressed text, add those cores as more nodes rather than as a wider one.
+* **Check your file layout.** Too few files, or compressed text files too large to divide, leave cores idle whatever the size of the node.
+* **Narrow the query.** On Parquet, [`KEEP`](/reference/query-languages/esql/commands/keep.md) cuts both the bytes fetched and the work done. On text it saves less, because whole rows are read either way.
+* **Specify a mapping** on text datasets, which takes schema inference out of planning.
+* **Lower [`esql.external.max_concurrent_requests`](#lower-concurrency)** if the slowdown comes with breaker rejections, trading some wall-clock time for stability.

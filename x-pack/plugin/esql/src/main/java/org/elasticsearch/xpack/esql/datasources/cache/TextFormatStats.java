@@ -161,8 +161,15 @@ public final class TextFormatStats {
      * already in the store is served until its entry turns over.
      */
     private static Object publishable(Object extremum, int maxExtremumBytes) {
-        assert extremum instanceof CharSequence == false
-            : "a text extremum must reach the cap as a BytesRef; [" + extremum.getClass().getName() + "] would pass uncapped";
+        assert extremum == null
+            || extremum instanceof BytesRef
+            || extremum instanceof Integer
+            || extremum instanceof Long
+            || extremum instanceof Double
+            || extremum instanceof Boolean
+            : "a harvested extremum must be one of ColumnStatTypeSupport's carriers; ["
+                + extremum.getClass().getName()
+                + "] would pass the cap uncapped";
         return extremum instanceof BytesRef bytes && bytes.length > maxExtremumBytes ? null : extremum;
     }
 }

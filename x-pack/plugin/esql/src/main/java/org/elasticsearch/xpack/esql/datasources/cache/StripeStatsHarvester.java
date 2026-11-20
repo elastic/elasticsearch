@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StripeStatsSink;
 
@@ -88,14 +87,6 @@ public final class StripeStatsHarvester {
     private final int maxExtremumBytes;
     /** Per-stripe accumulators keyed by ordinal; the emit loop reads them by byte-range geometry. */
     private final TreeMap<Long, StripeAccum> stripeAccums = new TreeMap<>();
-
-    public StripeStatsHarvester(long stripeSize, boolean fileFinal) {
-        this(stripeSize, fileFinal, null);
-    }
-
-    public StripeStatsHarvester(long stripeSize, boolean fileFinal, StripeStatsSink staging) {
-        this(stripeSize, fileFinal, staging, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
-    }
 
     public StripeStatsHarvester(long stripeSize, boolean fileFinal, StripeStatsSink staging, int maxExtremumBytes) {
         this.stripeSize = stripeSize;

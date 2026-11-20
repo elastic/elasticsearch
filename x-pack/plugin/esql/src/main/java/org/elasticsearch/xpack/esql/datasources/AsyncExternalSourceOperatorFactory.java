@@ -700,7 +700,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
          * {@link FormatReadContext#DEFAULT_MAX_EXTREMUM_BYTES} default; zero withholds every text extremum that has any bytes.
          */
         public Builder statsMaxExtremumBytes(int statsMaxExtremumBytes) {
-            this.statsMaxExtremumBytes = statsMaxExtremumBytes < 0 ? FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES : statsMaxExtremumBytes;
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
             return this;
         }
 

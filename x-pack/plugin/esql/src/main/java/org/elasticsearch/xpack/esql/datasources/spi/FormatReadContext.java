@@ -383,7 +383,7 @@ public record FormatReadContext(
          * at all rather than how much of one is kept.
          */
         public Builder statsMaxExtremumBytes(int statsMaxExtremumBytes) {
-            this.statsMaxExtremumBytes = statsMaxExtremumBytes < 0 ? DEFAULT_MAX_EXTREMUM_BYTES : statsMaxExtremumBytes;
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
             return this;
         }
 

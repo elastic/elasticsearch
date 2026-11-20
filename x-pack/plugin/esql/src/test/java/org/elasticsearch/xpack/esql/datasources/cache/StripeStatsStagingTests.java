@@ -734,7 +734,12 @@ public class StripeStatsStagingTests extends ESTestCase {
 
     /** A chunk that summarises only the first schema column, leaving the second unmeasured for its stripe. */
     private void narrowChunk(StripeStatsStaging staging, long stripeSize, boolean fileFinal, long start, long end, long number) {
-        StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);
+        StripeStatsHarvester harvester = new StripeStatsHarvester(
+            stripeSize,
+            fileFinal,
+            staging,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+        );
         StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(start));
         accum.rows++;
         accum.cols = ColumnStatsAccumulator.forProjectedAttributes(new Attribute[] { SCHEMA.get(0) });
@@ -856,7 +861,12 @@ public class StripeStatsStagingTests extends ESTestCase {
         List<Attribute> schema,
         Row... rows
     ) {
-        StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);
+        StripeStatsHarvester harvester = new StripeStatsHarvester(
+            stripeSize,
+            fileFinal,
+            staging,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+        );
         for (Row r : rows) {
             StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(r.offset()));
             accum.rows++;
@@ -928,7 +938,12 @@ public class StripeStatsStagingTests extends ESTestCase {
         long stripeSize,
         Row... rows
     ) {
-        StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);
+        StripeStatsHarvester harvester = new StripeStatsHarvester(
+            stripeSize,
+            fileFinal,
+            staging,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES
+        );
         for (Row r : rows) {
             StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(r.offset()));
             accum.rows++;

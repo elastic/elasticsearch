@@ -288,7 +288,7 @@ public class TextFormatStatsTests extends ESTestCase {
         long number,
         BytesRef keyword
     ) {
-        StripeStatsHarvester harvester = new StripeStatsHarvester(1024, fileFinal, staging);
+        StripeStatsHarvester harvester = new StripeStatsHarvester(1024, fileFinal, staging, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
         StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(0);
         accum.rows++;
         accum.cols = ColumnStatsAccumulator.forProjectedAttributes(schema.toArray(new Attribute[0]));

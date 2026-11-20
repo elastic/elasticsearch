@@ -195,9 +195,9 @@ public final class ExternalSourceCacheSettings {
      * contribution rides back to the coordinator of that query, which merges it into its own store, so under
      * a heterogeneous setting what a coordinator can serve turns on which node read the file for it. Nothing
      * enforces that — {@code NodeScope} is per node — and the cost is a miss rather than a wrong answer.
-     * Raising it does not make a withheld column answerable again in the general case: a fold over more than
-     * one piece writes an unservable marker, and the marker outlives every later measurement. Only a file
-     * read whole as a single piece re-measures cleanly.
+     * A poisoned end stays poisoned for the life of its entry: a fold over more than one piece writes an
+     * unservable marker, and a later measurement cannot refill it. Only a file read whole as a single piece
+     * re-measures cleanly.
      * Restart-only for the reason {@link #STRIPE_COLUMNS} is: its consumer reads it from the node's startup
      * {@code Settings}, so declaring it Dynamic would accept a runtime update and silently never observe it.
      */

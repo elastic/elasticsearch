@@ -17,6 +17,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -41,6 +43,8 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -310,6 +314,41 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
         assertThat(result.seen, equalTo(new boolean[] { true, true }));
     }
 
+    /**
+     * A field alias is resolved to the field that holds the data in the shard, so it is answered from that field's metadata: doc
+     * values are never read, which a scan of the unresolved alias name would not show.
+     */
+    public void testFieldAliasUsesBackingFieldMetadata() throws IOException {
+        ElementType type = randomElementType();
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+            for (int i = 0; i < 20; i++) {
+                addDoc(writer, "a" + i, 100L + i);
+            }
+            readers.add(writer.getReader());
+        }
+        IndexReader reader = track(failDocValuesOnLeavesWithoutDeletions(lastReader()));
+        LuceneSourceOperatorTests.MockShardContext shardContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0) {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                return name.equals("alias") ? new NumberFieldMapper.NumberFieldType(FIELD, NumberFieldMapper.NumberType.LONG) : null;
+            }
+        };
+        LuceneMinMaxFactory factory = new LuceneMinMaxFactory(
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())),
+            DataPartitioning.SHARD,
+            1,
+            "alias",
+            type,
+            List.of(Function.MIN, Function.MAX),
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        Result result = run(factory, type, 2);
+        assertThat(result.values, equalTo(new long[] { 100L, 119L }));
+        assertThat(result.seen, equalTo(new boolean[] { true, true }));
+    }
+
     /** A segment that holds no value for the field is skipped instead of being iterated, and does not change the result. */
     public void testSegmentWithoutTheFieldIsSkipped() throws IOException {
         ElementType type = randomElementType();
@@ -346,21 +385,23 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
         int segments = 3;
         // AUTO only partitions an index that is larger than the small index boundary
         int docsPerSegment = LuceneOperator.SMALL_INDEX_BOUNDARY / 2;
-        try (
-            RandomIndexWriter writer = new RandomIndexWriter(
-                random(),
-                directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
-            )
-        ) {
+        // exactly one segment per commit: the randomized flush settings would otherwise split the documents into a huge number of
+        // segments, because nothing is merged
+        IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            .setRAMBufferSizeMB(512);
+        try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int segment = 0; segment < segments; segment++) {
                 for (int doc = 0; doc < docsPerSegment; doc++) {
-                    addDoc(writer, "d" + segment + "_" + doc, (long) segment * docsPerSegment + doc);
+                    Document document = new Document();
+                    document.add(SortedNumericDocValuesField.indexedField(FIELD, (long) segment * docsPerSegment + doc));
+                    writer.addDocument(document);
                 }
                 writer.commit();
             }
-            readers.add(writer.getReader());
         }
+        readers.add(DirectoryReader.open(directory));
+        assertThat(lastReader().leaves().size(), equalTo(segments));
         long lowest = 1_000;
         long highest = (long) segments * docsPerSegment - 2;
         Query filter = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, lowest, highest);

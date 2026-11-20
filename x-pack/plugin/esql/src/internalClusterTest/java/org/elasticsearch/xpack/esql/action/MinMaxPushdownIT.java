@@ -210,7 +210,10 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    /** A field alias is answered from the metadata of the field it points to. */
+    /**
+     * A field alias returns the extrema of the field it points to. This only checks the result and that the min/max source is used;
+     * that the metadata of the backing field is read is covered by {@code LuceneMinMaxFactoryTests}.
+     */
     public void testFieldAlias() {
         String index = "alias_target";
         Settings.Builder settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
@@ -228,7 +231,6 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
         Outcome outcome = profiled("FROM " + index + " | STATS lo = MIN(i_alias), hi = MAX(i_alias)");
         assertThat(asLongs(outcome.row), equalTo(List.of(expected(false, true), expected(false, false))));
         assertThat("the alias uses the min/max source", outcome.minMaxSource, is(true));
-        assertThat("the alias does not load values", outcome.valuesReader, is(false));
     }
 
     /** A filter means the metadata does not describe the matching documents: the query is not answered by the min/max source. */

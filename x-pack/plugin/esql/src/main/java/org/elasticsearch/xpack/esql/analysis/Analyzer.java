@@ -2149,16 +2149,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             ArrayList<Attribute> resolvedGroupings = new ArrayList<>(newGroupings.size());
             Set<String> unresolvedGroupingNames = new HashSet<>(newGroupings.size());
-            for (Expression e : newGroupings) {
-                Attribute attr = Expressions.attribute(e);
+            // Walk backwards: the last grouping of a name wins. A resolved grouping that a later one of the same name, not yet resolved,
+            // shadows must not be what the aggregates resolve to, or they would bind to it and miss the one that wins once it resolves.
+            for (int i = newGroupings.size() - 1; i >= 0; i--) {
+                Attribute attr = Expressions.attribute(newGroupings.get(i));
                 if (attr != null) {
                     if (attr.resolved()) {
-                        resolvedGroupings.add(attr);
+                        if (unresolvedGroupingNames.contains(attr.name()) == false) {
+                            resolvedGroupings.add(attr);
+                        }
                     } else {
                         unresolvedGroupingNames.add(attr.name());
                     }
                 }
             }
+            Collections.reverse(resolvedGroupings);
 
             boolean allGroupingsResolved = groupings.size() == resolvedGroupings.size();
             if (allGroupingsResolved == false || Resolvables.resolved(aggregates) == false) {

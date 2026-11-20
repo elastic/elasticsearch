@@ -75,6 +75,8 @@ Time durations, such as `1h30m`, and duration arithmetic, such as `x[5m + 1m]`.
 
 A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_requests_total{job="api", code=~"5.."}`.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The pattern of a `=~` or `!~` matcher takes at most 1000 characters.
+
 **Not supported yet**
 
 :::{table}

@@ -137,6 +137,7 @@ public class LabelMatcher implements NodeStringRenderable {
     /**
      * The bound the regexp query applies through {@code index.max_regex_length}, at its default: a label matcher has no
      * index to read the setting from, but an unbounded pattern is how a query author overflows the compiler's stack.
+     * The length also bounds the time spent parsing the pattern, which neither the budget nor the work limit counts.
      */
     public static final int MAX_REGEX_LENGTH = IndexSettings.MAX_REGEX_LENGTH_SETTING.getDefault(Settings.EMPTY);
 

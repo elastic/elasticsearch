@@ -87,8 +87,6 @@ More nodes give more parallelism, and no node should be scaled past 31 GB of hea
 
 [Specify a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) on text datasets, and set [`dynamic`](esql-data-federation-schema.md#mapping-properties) to `false`, which terminates the inference path.
 
-Inference is the largest single cost you can remove, and on a wide schema it is the first thing to fail.
-
 ### Increase read concurrency for more parallelism [read-concurrency]
 
 [`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) controls how many storage requests a node keeps in flight. Its default is derived from the node's cores.

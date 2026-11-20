@@ -48,7 +48,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_drop_stored_metric_name
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h network_in_bits=(network.total_bytes_in * 8)
 | SORT network_in_bits DESC;
 
@@ -69,7 +69,7 @@ required_capability: promql_command_v0
 required_capability: fix_promql_drop_stored_metric_name
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h network_in_bits=(last_over_time(network.total_bytes_in[1h]) * 8)
 | SORT network_in_bits DESC;
 
@@ -182,7 +182,7 @@ addition_metric_metric_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h in_n_out=(network.eth0.rx + network.eth0.tx)
 | SORT in_n_out DESC;
 
@@ -264,7 +264,7 @@ chained_addition_metric_metric_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx + network.eth0.rx + network.eth0.tx)
 | SORT _timeseries, step;
 
@@ -285,7 +285,7 @@ nested_operands_on_both_sides_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=((network.eth0.tx - network.eth0.rx) - (network.eth0.tx + network.eth0.rx))
 | SORT _timeseries, step;
 
@@ -306,7 +306,7 @@ scalar_arithmetic_in_or_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx / 1000 or network.eth0.rx / 1000)
 | EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
 | SORT _timeseries, step;
@@ -328,7 +328,7 @@ chained_addition_with_matchers_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx{pod="one"} + network.eth0.rx{pod="one"} + network.eth0.tx{pod="one"})
 | SORT _timeseries, step;
 
@@ -343,7 +343,7 @@ nested_subtraction_with_matchers_promql-Ignore
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_ts_block_loader_passthrough_aliasing
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=prometheus-k8s step=1h result=(network.eth0.tx{cluster="qa"} - network.eth0.rx{cluster="qa"} - (network.eth0.tx{cluster="qa"} + network.eth0.rx{cluster="qa"}))
 | SORT _timeseries, step;
 

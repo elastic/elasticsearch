@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -30,8 +31,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 
 import java.time.Instant;
@@ -62,9 +61,14 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
             .minimumTransportVersion(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
     }
 
-    /** Whether every node of the test's minimum version knows the label container functions, which some PromQL shapes take. */
-    protected boolean containerFunctions() {
-        return PromqlCommand.containerFunctions(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
+    /**
+     * Whether {@code _timeseries} is a typed label container for {@link #tsAnalyzer()}'s minimum version. A view is then read as
+     * a typed label container without its labels instead of a keyword column without them.
+     */
+    protected boolean typedLabelContainer() {
+        return EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE.isEnabled()
+            && DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion()
+                .supportedOn(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE), Build.current().isSnapshot());
     }
 
     protected LogicalPlan planPromql(String query) {
@@ -85,15 +89,61 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         return planPromql(tsAnalyzer(), query, allowEmptyReferences, optimize);
     }
 
-    /** Plans {@code query} translated over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
-    protected LogicalPlan planPromqlV2(String query, boolean optimize) {
-        return planPromql(withPromqlTranslationV2(tsAnalyzer()), query, false, optimize);
+    /**
+     * The labels {@code plan} keys by through {@code key}: the labels of what is packed into it, the labels written into it where
+     * it is a typed label container packed whole (in name order), none where it is a constant, or the key itself.
+     */
+    protected static List<String> keyLabels(LogicalPlan plan, Attribute key) {
+        for (PackDims pack : plan.collect(PackDims.class)) {
+            if (pack.packed().id().equals(key.id())) {
+                var labels = new ArrayList<String>();
+                pack.dims().forEach(dim -> labels.addAll(keyLabels(plan, dim)));
+                return labels;
+            }
+        }
+        for (Eval eval : plan.collect(Eval.class)) {
+            for (Alias field : eval.fields()) {
+                if (field.id().equals(key.id()) && field.child() instanceof TimeSeriesMetadataSet) {
+                    return writtenLabels(field.child());
+                }
+                if (field.id().equals(key.id()) && field.child() instanceof Literal) {
+                    return List.of();
+                }
+            }
+        }
+        return List.of(key.name());
     }
 
-    /** {@code analyzer} translating PromQL over a label container, see {@link QueryPragmas#ENABLE_PROMQL_TRANSLATION_V2}. */
-    protected static TestAnalyzer withPromqlTranslationV2(TestAnalyzer analyzer) {
-        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.ENABLE_PROMQL_TRANSLATION_V2.getKey(), true).build());
-        return analyzer.configuration(EsqlTestUtils.configuration(pragmas));
+    /** The labels the {@link TimeSeriesMetadataSet} calls of {@code container} write into it, in the order they write them. */
+    protected static List<String> writtenLabels(Expression container) {
+        var labels = new ArrayList<String>();
+        for (Expression k = container; k instanceof TimeSeriesMetadataSet set; k = set.children().getFirst()) {
+            labels.addFirst(BytesRefs.toString(((Literal) set.label()).value()));
+        }
+        return labels;
+    }
+
+    /**
+     * The labels each view of the source's series in {@code plan} leaves out, sorted: the typed label container's
+     * {@link TimeSeriesWithout}, or the keyword {@code _timeseries} it is lowered to where a node before 9.7 takes part.
+     */
+    protected static Set<List<String>> sourceViews(LogicalPlan plan) {
+        var views = new LinkedHashSet<List<String>>();
+        plan.forEachDown(node -> node.forEachExpressionDown(Expression.class, e -> {
+            switch (e) {
+                case TimeSeriesWithout without -> views.add(without.children().stream().map(c -> ((Attribute) c).name()).sorted().toList());
+                case TimeSeriesMetadataAttribute keyword -> views.add(keyword.excludedFields().stream().sorted().toList());
+                case FieldAttribute field when field.name().equals(MetadataAttribute.TIMESERIES) -> views.add(List.of());
+                default -> {
+                }
+            }
+        }));
+        return views;
+    }
+
+    /** Plans {@code query} as where a node before 9.7 takes part: the label container is the keyword {@code _timeseries}. */
+    protected LogicalPlan planPromqlKeyword(String query, boolean optimize) {
+        return planPromql(tsAnalyzer().minimumTransportVersion(TimeSeriesCollapse.TS_COLLAPSE), query, false, optimize);
     }
 
     private LogicalPlan planPromql(TestAnalyzer analyzer, String query, boolean allowEmptyReferences, boolean optimize) {
@@ -135,57 +185,5 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         Alias bucketAlias = as(stepEval.fields().getFirst(), Alias.class);
         assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
         assertThat(bucketAlias.id(), equalTo(step.id()));
-    }
-
-    /**
-     * The labels {@code plan} keys by through {@code key}: the labels of what is packed into it, the labels written into it where
-     * it is a typed label container packed whole (in name order), none where it is a constant, or the key itself.
-     */
-    protected static List<String> keyLabels(LogicalPlan plan, Attribute key) {
-        for (PackDims pack : plan.collect(PackDims.class)) {
-            if (pack.packed().id().equals(key.id())) {
-                var labels = new ArrayList<String>();
-                pack.dims().forEach(dim -> labels.addAll(keyLabels(plan, dim)));
-                return labels;
-            }
-        }
-        for (Eval eval : plan.collect(Eval.class)) {
-            for (Alias field : eval.fields()) {
-                if (field.id().equals(key.id()) && field.child() instanceof TimeSeriesMetadataSet) {
-                    return writtenLabels(field.child());
-                }
-                if (field.id().equals(key.id()) && field.child() instanceof Literal) {
-                    return List.of();
-                }
-            }
-        }
-        return List.of(key.name());
-    }
-
-    /** The labels the {@link TimeSeriesMetadataSet} calls of {@code container} write into it, in the order they write them. */
-    protected static List<String> writtenLabels(Expression container) {
-        var labels = new ArrayList<String>();
-        for (Expression k = container; k instanceof TimeSeriesMetadataSet set; k = set.children().getFirst()) {
-            labels.addFirst(BytesRefs.toString(((Literal) set.label()).value()));
-        }
-        return labels;
-    }
-
-    /**
-     * The labels each view of the source's series in {@code plan} leaves out, sorted: the typed label container's
-     * {@link TimeSeriesWithout}, or the {@code _timeseries} attribute it is lowered to.
-     */
-    protected static Set<List<String>> sourceViews(LogicalPlan plan) {
-        var views = new LinkedHashSet<List<String>>();
-        plan.forEachDown(node -> node.forEachExpressionDown(Expression.class, e -> {
-            switch (e) {
-                case TimeSeriesWithout without -> views.add(without.children().stream().map(c -> ((Attribute) c).name()).sorted().toList());
-                case TimeSeriesMetadataAttribute lowered -> views.add(lowered.excludedFields().stream().sorted().toList());
-                case FieldAttribute field when field.name().equals(MetadataAttribute.TIMESERIES) -> views.add(List.of());
-                default -> {
-                }
-            }
-        }));
-        return views;
     }
 }

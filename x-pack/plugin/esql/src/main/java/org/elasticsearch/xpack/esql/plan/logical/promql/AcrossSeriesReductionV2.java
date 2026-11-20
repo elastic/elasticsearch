@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -31,25 +30,22 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 
 /**
  * Translates the PromQL reductions across series ({@code topk}, {@code bottomk}, {@code limitk}, {@code limit_ratio}) over a
- * label container: they select series and keep their labels, partitioning by the listed labels of each series.
+ * label container: they select series and keep their labels, partitioning by the listed labels of each series, or by every
+ * label but the listed ones and the metric name under {@code without(...)}.
  */
 final class AcrossSeriesReductionV2 {
 
     private AcrossSeriesReductionV2() {}
 
     static IntermediateResult translate(AcrossSeriesReduction reduction, TranslationContextV2 context) {
-        if (reduction.grouping() == WITHOUT) {
-            throw new VerificationException("function [{}] is not yet supported with [{}]", reduction.functionName(), WITHOUT.name());
-        }
-
         // Ranking happens per series; limit_ratio is membership-neutral, so outer partitions are neither required from the
         // child nor materialized below.
         List<String> partitions = PromqlLabels.labelNames(reduction.groupings());
@@ -110,19 +106,32 @@ final class AcrossSeriesReductionV2 {
         Expression k = new ToInteger(source, new Floor(source, reduction.parameters().getFirst()));
         LogicalPlan plan = table.plan();
         var groupings = new ArrayList<Expression>(List.of(table.step()));
-        if (reduction.grouping() == AcrossSeriesAggregate.Grouping.BY && partitions.isEmpty() == false && table.labels() != null) {
-            // A partition is the series' partition labels; a label absent from every series is one partition, like Prometheus.
-            Alias partition = new Alias(
-                source,
-                TemporaryNameGenerator.locallyUniqueTemporaryName("partition"),
-                new TimeSeriesMetadataFilter(
+        Expression partition = table.labels() == null ? null : switch (reduction.grouping()) {
+            // The partition labels; a label absent from every series is one partition, like Prometheus.
+            case BY -> partitions.isEmpty()
+                ? null
+                : new TimeSeriesMetadataFilter(
                     table.labels().source(),
                     table.labels(),
                     PromqlLabels.labelLiterals(table.labels().source(), partitions),
                     false
-                )
-            );
-            PackDims pack = TranslationContextV2.packLabels(source, new Eval(source, plan, List.of(partition)), partition.toAttribute());
+                );
+            // Every label but the listed ones and the metric name, as Prometheus groups a without.
+            case WITHOUT -> {
+                var leftOut = new LinkedHashSet<>(partitions);
+                leftOut.add(LabelMatcher.NAME);
+                yield new TimeSeriesMetadataFilter(
+                    table.labels().source(),
+                    table.labels(),
+                    PromqlLabels.labelLiterals(table.labels().source(), leftOut),
+                    true
+                );
+            }
+            case NONE -> null;
+        };
+        if (partition != null) {
+            Alias alias = new Alias(source, TemporaryNameGenerator.locallyUniqueTemporaryName("partition"), partition);
+            PackDims pack = TranslationContextV2.packLabels(source, new Eval(source, plan, List.of(alias)), alias.toAttribute());
             plan = pack;
             groupings.add(pack.packed());
         }

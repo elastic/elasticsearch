@@ -42,6 +42,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -90,7 +91,7 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
                 + "(http_request_duration_seconds_bucket)))"
         );
 
-        // `le` is dropped and `cluster` retained: the output carries cluster, not le. (The histogram regroup packs its
+        // `le` is dropped and `cluster` retained: the output carries cluster, not le. (The histogram emitAggregate packs its
         // carried dimensions for multi-value safety, so the grouping keys are packed aliases - assert on the output.)
         assertThat(outputColumns(plan), equalTo(List.of("result", "step", "cluster")));
         assertThat(collectHistogramQuantiles(plan), hasSize(1));
@@ -241,8 +242,10 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
             .stream()
             .flatMap(aggregate -> packedDims(aggregate.aggregates()).stream())
             .map(e -> e instanceof Attribute attribute ? attribute.name() : e.toString())
+            .filter(name -> name.equals(MetadataAttribute.TIMESERIES) == false)
             .toList();
-        assertThat(dimensions, equalTo(List.of(MetadataAttribute.TIMESERIES)));
+        assertThat(dimensions, empty());
+        assertThat(sourceViews(plan), equalTo(Set.of(List.of())));
     }
 
     public void testGroupByAllInstantSelectorRate() {

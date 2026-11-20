@@ -12,13 +12,9 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
 
@@ -106,9 +102,4 @@ public final class InstantSelector extends Selector {
         return PromqlDataType.INSTANT_VECTOR;
     }
 
-    /** An instant selector maps to LastOverTime to get the latest sample per time series. */
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        return translateSeries(context, new LastOverTime(source(), series(), AggregateFunction.NO_WINDOW, context.time()));
-    }
 }

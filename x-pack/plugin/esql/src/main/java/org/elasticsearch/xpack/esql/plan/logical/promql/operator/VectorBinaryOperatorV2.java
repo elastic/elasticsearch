@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -128,9 +129,9 @@ public final class VectorBinaryOperatorV2 {
 
     /**
      * Whether the operands must translate as independent pipelines before anything is known about their plans - the
-     * properties that pick the translation context rather than describe the result: explicit vector matching and a
-     * source-backed scalar (which broadcasts on {@code step}). Pure scalars may share the other side's frame. Set
-     * operators override for force-fold.
+     * properties that pick the translation context rather than describe the result: explicit vector matching, a
+     * source-backed scalar (which broadcasts on {@code step}), and selectors disagreeing on {@code offset} (one shared
+     * TimeSeriesAggregate carries a single evaluation timestamp). Pure scalars may share the other side's frame.
      */
     private boolean requiresIndependentPipelines() {
         // unless without matching modifiers folds over a shared frame like the other operators
@@ -151,7 +152,7 @@ public final class VectorBinaryOperatorV2 {
                 || isPureScalar(right()) && leftScalar == false;
             return shared == false;
         }
-        return false;
+        return PromqlCommand.collectAllOffsetsForBranch(left()).equals(PromqlCommand.collectAllOffsetsForBranch(right())) == false;
     }
 
     /**
@@ -257,6 +258,7 @@ public final class VectorBinaryOperatorV2 {
             if (leftFrame == null
                 || rightFrame == null
                 || leftFrame.sharesGrainWith(rightFrame) == false
+                || sameSeriesLabels(left.labels(), right.labels()) == false
                 || readsDisjointSeries(context.cmd().child())) {
                 return translateAsLeftJoin(context, leftTranslated, rightTranslated);
             }
@@ -334,7 +336,11 @@ public final class VectorBinaryOperatorV2 {
         Expression binaryExpr = binaryOp().asFunction().create(source(), leftExpr, rightExpr, context.configuration());
         if (filterModeVector) {
             plan = new Filter(source(), plan, binaryExpr);
-            binaryExpr = leftExpr;
+            // A filter keeps the vector's value, wherever the scalar sits, as Prometheus does.
+            binaryExpr = PromqlPlan.returnsScalar(left()) ? rightExpr : leftExpr;
+        } else if (op instanceof VectorBinaryComparison) {
+            // bool yields 1 or 0: a number, which an enclosing aggregate reads like any other value
+            binaryExpr = new ToDouble(source(), binaryExpr);
         }
         IntermediateResult vector = PromqlPlan.returnsScalar(left()) ? right : left;
         IntermediateResult result = new IntermediateResult(plan, null, resultLabels(vector.labels(), null), step, filter, kind);
@@ -378,6 +384,34 @@ public final class VectorBinaryOperatorV2 {
             return new Frame(aggregate, evals, filter, aggregatesAcrossSeries(aggregate));
         }
         return null;
+    }
+
+    /**
+     * Whether two collapsed operands label each series of their frames alike, but for the metric name, which matching ignores: a
+     * relabel on one side only makes its series match none of the other side's row by row.
+     */
+    private static boolean sameSeriesLabels(@Nullable Expression left, @Nullable Expression right) {
+        Expression leftProgram = labelProgram(left);
+        Expression rightProgram = labelProgram(right);
+        return leftProgram == null ? rightProgram == null : rightProgram != null && leftProgram.semanticEquals(rightProgram);
+    }
+
+    /** {@code labels} over any frame key, without removing the metric name. */
+    private static @Nullable Expression labelProgram(@Nullable Expression labels) {
+        if (labels == null) {
+            return null;
+        }
+        Expression program = labels.transformUp(Attribute.class, key -> Literal.keyword(key.source(), "{}"));
+        return program.transformUp(
+            TimeSeriesMetadataFilter.class,
+            unset -> unset.exclude() && unset.labels().size() == 1 && isMetricName(unset.labels().getFirst())
+                ? unset.children().getFirst()
+                : unset
+        );
+    }
+
+    private static boolean isMetricName(Expression label) {
+        return label instanceof Literal literal && LabelMatcher.NAME.equals(BytesRefs.toString(literal.value()));
     }
 
     /** Whether every field an Eval defines is the sample value - a relabel defines label columns instead. */
@@ -474,15 +508,15 @@ public final class VectorBinaryOperatorV2 {
     }
 
     /**
-     * Prometheus' {@code resultMetric}: the many side's labels, with only the {@code on(...)} labels or without the
-     * {@code ignoring(...)} ones when one-to-one, and with each
+     * Prometheus' {@code resultMetric}: the many side's labels, without the metric name for arithmetic and {@code bool},
+     * with only the {@code on(...)} labels or without the {@code ignoring(...)} ones when one-to-one, and with each
      * {@code group_x} included label written from the one side's. Set operators keep the left series as they are.
      */
     private @Nullable Expression resultLabels(@Nullable Expression many, @Nullable Expression one) {
         if (op instanceof VectorBinarySet) {
             return many;
         }
-        Expression labels = many;
+        Expression labels = op.dropMetricName() ? PromqlLabels.withoutMetricName(many) : many;
         if (match().grouping() == Joining.NONE && labels != null) {
             if (match().filter() == VectorMatch.Filter.ON) {
                 labels = new TimeSeriesMetadataFilter(
@@ -587,18 +621,25 @@ public final class VectorBinaryOperatorV2 {
         Expression filter = null;
         if (op instanceof VectorBinaryComparison comparison) {
             filter = comparison.filterMode() ? value : null;
-            value = comparison.filterMode() ? lhsExpr : new ToDouble(value.source(), value);
+            // A filter keeps the vector's value, wherever the scalar sits, as Prometheus does.
+            Expression kept = PromqlPlan.returnsScalar(op.left()) ? rhsExpr : lhsExpr;
+            value = comparison.filterMode() ? kept : new ToDouble(value.source(), value);
         }
         // Expose the step under the enclosing frame's step identity so enclosing translations (union branches, parent
         // aggregates) resolve it by id, not just by name.
         Alias stepAlias = new Alias(step.source(), step.name(), step, context.stepAttr().id());
         Alias valueAlias = new Alias(source(), cmd.valueColumnName(), value, new NameId());
         Alias labelsAlias = labels == null ? null : new Alias(source(), MetadataAttribute.TIMESERIES, labels, new NameId());
-        LogicalPlan plan = new Eval(
-            cmd.source(),
-            join,
-            labelsAlias == null ? List.of(valueAlias, stepAlias) : List.of(valueAlias, stepAlias, labelsAlias)
-        );
+        LogicalPlan plan = join;
+        if (labelsAlias != null) {
+            plan = new Eval(cmd.source(), plan, List.of(labelsAlias));
+            if (match().grouping() != Joining.NONE) {
+                // Prometheus fails a group_left/group_right match before it compares values: copying the one side's labels over
+                // the many side's can leave two many side series with the same labels. Below the value: it shadows the operands'.
+                plan = TranslationContextV2.uniqueSeries(cmd.source(), plan, step, labelsAlias.toAttribute());
+            }
+        }
+        plan = new Eval(cmd.source(), plan, List.of(valueAlias, stepAlias));
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }

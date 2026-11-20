@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -17,10 +20,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSe
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
 import org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Translates {@code label_replace} and {@code label_join} over a label container: the destination label of each series is
@@ -44,14 +51,38 @@ final class MetadataManipulationFunctionV2 {
         Expression value = relabel.definition() == PromqlBuiltinFunctionDefinitions.LABEL_REPLACE
             ? labelReplaceValue(relabel, labels)
             : labelJoinValue(relabel, labels);
-        return aggregated.withLabels(
-            new TimeSeriesMetadataSet(
-                labels.source(),
-                labels,
-                Literal.keyword(labels.source(), PromqlLabels.labelName(relabel.destination())),
-                value
-            )
+        Expression relabeled = new TimeSeriesMetadataSet(
+            labels.source(),
+            labels,
+            Literal.keyword(labels.source(), PromqlLabels.labelName(relabel.destination())),
+            value
         );
+        if (overwritesLabel(relabel, context) == false) {
+            return aggregated.withLabels(relabeled);
+        }
+        // Overwriting a label can leave two series with one label set, which Prometheus fails.
+        Source source = relabel.source();
+        Alias alias = new Alias(source, TemporaryNameGenerator.locallyUniqueTemporaryName(MetadataAttribute.TIMESERIES), relabeled);
+        LogicalPlan plan = new Eval(source, aggregated.plan(), List.of(alias));
+        plan = TranslationContextV2.uniqueSeries(source, plan, aggregated.step(), alias.toAttribute());
+        return aggregated.with(plan, aggregated.value()).withLabels(alias.toAttribute());
+    }
+
+    /**
+     * Whether the destination may name a label the input series carry, so that overwriting it can leave two series with one
+     * label set: the input names it, or its label container keeps it and the source maps a field for it.
+     */
+    private static boolean overwritesLabel(MetadataManipulationFunction relabel, TranslationContextV2 context) {
+        String name = PromqlLabels.labelName(relabel.destination().name());
+        for (Attribute attribute : relabel.child().output()) {
+            if (PromqlLabels.isTagsLabel(attribute) == false && PromqlLabels.labelName(attribute).equals(name)) {
+                return true;
+            }
+        }
+        Set<String> excluded = PromqlLabels.excluded(relabel.child());
+        return excluded != null
+            && excluded.contains(name) == false
+            && context.cmd().child().output().stream().anyMatch(field -> PromqlLabels.labelName(field).equals(name));
     }
 
     /**

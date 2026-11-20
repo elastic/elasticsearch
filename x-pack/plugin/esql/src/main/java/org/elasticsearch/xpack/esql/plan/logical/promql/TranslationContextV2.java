@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.DistinctBy;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -446,6 +447,20 @@ public record TranslationContextV2(
         return new IntermediateResult(plan, pinnedAttribute(valueAlias), ir.labels(), ir.step(), null, kind);
     }
 
+    /**
+     * {@code plan} failing the query where two of its series share a label set at a step, as Prometheus fails a result
+     * vector holding one label set twice.
+     */
+    public static LogicalPlan uniqueSeries(Source source, LogicalPlan plan, Attribute step, Attribute labels) {
+        // Binary, not keyword: a sort the optimizer pushes below the result's projection carries it along. Named apart from
+        // a join key packed below.
+        Attribute packed = PackDims.newPackedAttribute(
+            source,
+            TemporaryNameGenerator.locallyUniqueTemporaryName(PackDims.PACKED_FIELD_NAME)
+        );
+        return new DistinctBy(source, new PackDims(source, plan, List.of(step, labels), packed), packed, true);
+    }
+
     /** Same id as alias while unresolved - Projects must not freeze a toAttribute snapshot. */
     public static Attribute pinnedAttribute(Alias alias) {
         if (alias.resolved()) {
@@ -493,7 +508,7 @@ public record TranslationContextV2(
     // -- core --
 
     /**
-     * The synthesized attribute of a PromQL node ({@link PromqlPlan#translate}): its translated subtree and the state not
+     * The synthesized attribute of a PromQL node ({@link #translate}): its translated subtree and the state not
      * yet represented by plan operators. Mid-descent the value is a (possibly not yet materialized) expression parents
      * compose into larger expressions; a finished table's value is a defined column ({@link #valueColumn()}).
      */

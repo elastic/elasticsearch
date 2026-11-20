@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -97,6 +99,14 @@ public final class PromqlLabels {
     /** Label names as the keyword literals the label container functions take. */
     public static List<Expression> labelLiterals(Source source, Collection<String> names) {
         return names.stream().<Expression>map(name -> Literal.keyword(source, name)).toList();
+    }
+
+    /** {@code labels} without the metric name, which Prometheus drops from what most functions and operators compute. */
+    public static @Nullable Expression withoutMetricName(@Nullable Expression labels) {
+        if (labels == null) {
+            return null;
+        }
+        return new TimeSeriesMetadataFilter(labels.source(), labels, List.of(Literal.keyword(labels.source(), LabelMatcher.NAME)), true);
     }
 
     /** Canonical label names in declaration order, without duplicates. */

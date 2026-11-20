@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
+import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -577,6 +578,26 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         );
     }
 
+    /**
+     * Classic Prometheus shape {@code sum by (dst) (label_replace(m, "dst", "$1", "src", "(.*):.*"))}: derive a host from
+     * {@code host:port}, then regroup. The derived {@code dst} must be the outer STATS grouping key and the regex must
+     * survive translation as RegexExpand.
+     */
+    public void testSumByLabelReplaceHostPortPlans() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        String q =
+            "PROMQL index=k8s step=1h result=(sum by (dst) (label_replace(network.bytes_in, \"dst\", \"$1\", \"pod\", \"(.*):.*\")))";
+        LogicalPlan plan = planPromql(q);
+        assertTrue(plan.resolved());
+        assertTrue("outer result must expose dst", plan.output().stream().anyMatch(a -> "dst".equals(a.name())));
+        List<Expression> expands = new ArrayList<>();
+        plan.forEachExpressionDown(org.elasticsearch.xpack.esql.expression.promql.function.RegexExpand.class, expands::add);
+        assertThat(expands, not(empty()));
+        // Outer regroup by the derived label, not only the per-series TSA.
+        List<Aggregate> outer = plan.collect(Aggregate.class).stream().filter(a -> (a instanceof TimeSeriesAggregate) == false).toList();
+        assertThat(outer, not(empty()));
+    }
+
     private static List<Expression> nonFiniteExpressions(LogicalPlan plan) {
         List<Expression> nonFiniteExpressions = new ArrayList<>();
         plan.forEachExpressionDown(Expression.class, e -> {
@@ -585,5 +606,42 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             }
         });
         return nonFiniteExpressions;
+    }
+
+    /**
+     * Overwriting a stored label under an across-series aggregate checks that series stay apart where the label container can
+     * state their label sets.
+     */
+    public void testLabelReplaceOverStoredLabelUnderAggregate() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1h result=(count by (cluster) (label_replace(network.bytes_in, \"pod\", \"$1\", \"cluster\", \"(.*)\")))"
+        );
+        assertTrue(plan.resolved());
+    }
+
+    /**
+     * {@code label_replace(m) + m} cannot fold the pending metric into an Eval over an already-collapsed relabel: that
+     * would embed {@code LastOverTime} outside STATS. Asymmetric arithmetic joins two finished per-series pipelines.
+     */
+    public void testLabelReplacePlusSameMetricPlansWithoutLooseAggregate() {
+        assumeTrue("requires PromQL label functions", EsqlCapabilities.Cap.PROMQL_LABEL_FUNCTIONS.isEnabled());
+        assumeTrue("requires typed _timeseries", typedLabelContainer());
+        for (String expr : List.of(
+            "label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\") + network.bytes_in",
+            "network.bytes_in + label_replace(network.bytes_in, \"tier\", \"$1\", \"region\", \"(.+)\")"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1h result=(" + expr + ")");
+            // forEachExpression (not Down): Down walks into Aggregate children and would false-flag their AFs.
+            plan.forEachDown(p -> {
+                if (p instanceof Aggregate) {
+                    return;
+                }
+                p.forEachExpression(AggregateFunction.class, af -> {
+                    fail("aggregate function [" + af.sourceText() + "] outside Aggregate in [" + expr + "]");
+                });
+            });
+            assertThat("expected a join of independent series pipelines for [" + expr + "]", plan.collect(HashJoin.class), not(empty()));
+        }
     }
 }

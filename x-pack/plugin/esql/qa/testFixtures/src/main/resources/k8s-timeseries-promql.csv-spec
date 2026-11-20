@@ -2698,7 +2698,7 @@ topk_without_partitions_by_the_rest
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: promql_reduction_without
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (pod) (1, last_over_time(network.eth0.tx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2714,7 +2714,7 @@ bottomk_without_partitions_by_the_rest
 required_capability: promql_command_v0
 required_capability: promql_bottomk
 required_capability: promql_reduction_without
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(bottomk without (pod) (1, last_over_time(network.eth0.tx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2731,7 +2731,7 @@ topk_without_every_label_is_one_partition
 required_capability: promql_command_v0
 required_capability: promql_topk
 required_capability: promql_reduction_without
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(topk without (cluster, pod, region) (1, last_over_time(network.eth0.rx[5m])))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries;
@@ -2744,7 +2744,7 @@ limitk_without_keeps_k_per_partition
 required_capability: promql_command_v0
 required_capability: promql_limitk
 required_capability: promql_reduction_without
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(count by (cluster) (limitk without (pod) (1, last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, cluster
@@ -2777,7 +2777,7 @@ or_under_binary_operator
 required_capability: promql_command_v0
 required_capability: promql_set_operator_matching
 required_capability: promql_binary_independent_join
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) / ((last_over_time(network.eth0.tx[5m]) or last_over_time(network.eth0.rx[5m])) + (last_over_time(network.eth0.rx[5m]) or last_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
@@ -2800,7 +2800,7 @@ or_on_nothing_under_division
 required_capability: promql_command_v0
 required_capability: promql_set_operator_matching
 required_capability: promql_binary_independent_join
-required_capability: promql_timeseries_metadata_functions
+required_capability: enable_tsmd_data_type
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(sum(rate(network.total_bytes_in[10m])) / (sum(rate(network.total_bytes_in[10m])) or on () vector(1)))
 | KEEP result, step
 | SORT step;

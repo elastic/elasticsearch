@@ -17,9 +17,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a PromQL aggregate function call that operates on range vectors.
@@ -68,10 +69,14 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
         return output;
     }
 
-    /** {@code first_over_time} and {@code last_over_time} keep the metric name; Prometheus drops it from other range functions. */
     @Override
-    protected boolean dropsMetricName() {
-        return definition() != FirstOverTime.PROMQL_DEFINITION && definition() != LastOverTime.PROMQL_DEFINITION;
+    public Set<String> excludedLabels() {
+        return PromqlLabels.excludedWith(child(), keepsMetricName() ? List.of() : List.of(LabelMatcher.NAME));
+    }
+
+    /** {@code first_over_time} and {@code last_over_time} keep the metric name; Prometheus drops it from other range functions. */
+    public boolean keepsMetricName() {
+        return definition() == FirstOverTime.PROMQL_DEFINITION || definition() == LastOverTime.PROMQL_DEFINITION;
     }
 
     @Override
@@ -85,8 +90,4 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
         return true;
     }
 
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        return translateValueFunction(context);
-    }
 }

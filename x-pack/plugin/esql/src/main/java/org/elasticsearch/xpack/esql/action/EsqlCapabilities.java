@@ -2805,7 +2805,8 @@ public class EsqlCapabilities {
 
         /**
          * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
-         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         * timestamp. When the two sides of an arithmetic/comparison binary carry different offsets, the operator joins
+         * independent pipelines (see {@link #PROMQL_BINARY_INDEPENDENT_JOIN}) rather than folding into one frame.
          */
         PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
 
@@ -2814,13 +2815,6 @@ public class EsqlCapabilities {
          * Gates regression specs on older nodes that do not implement this parsing behavior.
          */
         FIX_PROMQL_OFFSET_PRECEDENCE(PROMQL_COMMAND_V0.isEnabled()),
-
-        /**
-         * PromQL reads and rewrites labels in {@code _timeseries} with the label container functions, which every node of the
-         * cluster must know: the shapes this admits, and the canonical {@code _timeseries} the command outputs. A cluster with a
-         * node that does not know them keeps rejecting those shapes. Gates test coverage of both.
-         */
-        PROMQL_TIMESERIES_METADATA_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * PromQL shapes the translation admits by reading labels through references bound after it, rather than from

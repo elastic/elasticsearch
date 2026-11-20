@@ -14,9 +14,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a PromQL function call that performs element-wise transformations on an instant vector.
@@ -52,12 +53,12 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
 
     @Override
     public List<Attribute> output() {
-        return withoutMetricName(child().output());
+        return child().output();
     }
 
     @Override
-    protected boolean dropsMetricName() {
-        return true;
+    public Set<String> excludedLabels() {
+        return PromqlLabels.excludedWith(child(), List.of(LabelMatcher.NAME));
     }
 
     @Override
@@ -70,8 +71,4 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
         return true;
     }
 
-    @Override
-    public IntermediateResult translate(TranslationContext context) {
-        return translateValueFunction(context);
-    }
 }

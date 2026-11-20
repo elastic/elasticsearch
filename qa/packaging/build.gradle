@@ -15,7 +15,7 @@ dependencies {
   testImplementation project(':server')
   testImplementation project(':libs:core')
   testImplementation(testArtifact(project(':x-pack:plugin:core')))
-  testImplementation project(":test:junit-vintage")
+  testImplementation project(":test:vintage-randomized-runner")
   testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   testImplementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   testImplementation "org.apache.httpcomponents:fluent-hc:${versions.httpclient}"

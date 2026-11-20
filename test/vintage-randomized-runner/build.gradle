@@ -27,7 +27,7 @@ dependencies {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
 
-  implementation "org.junit.jupiter:junit-jupiter:${versions.junit}"
+  runtimeOnly "org.junit.jupiter:junit-jupiter:${versions.junit}"
   runtimeOnly "org.junit.vintage:junit-vintage-engine:${versions.junit}"
   runtimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit}"
 }

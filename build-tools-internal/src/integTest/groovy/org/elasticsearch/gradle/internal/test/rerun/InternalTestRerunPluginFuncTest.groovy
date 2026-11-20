@@ -139,7 +139,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         testNotExecuted(result.output, "someTest1 > someTest1 {phase=0}")
         testExecuted(result.output, "someTest1 > someTest1 {phase=1}")
         testExecuted(result.output, "someTest1 > someTest1 {phase=2}")
-        // The bare method pattern the randomized runner needs must not take the other method down with it
+        // Only the excluded parameter is filtered out: the other method still runs
         testExecuted(result.output, "someTest2 > someTest2 {phase=0}")
     }
 
@@ -154,7 +154,7 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
         def result = gradleRunner("test", "--warning-mode", "all").build()
         then:
         result.task(":subproject1:test").outcome == TaskOutcome.SUCCESS
-        // Without parameters both descriptions the runner checks are identical, so the single bare pattern excludes it
+        // Without parameters the name of the test is just the method name, which is what the pattern matches
         testNotExecuted(result.output, "RandomizedTestClazz > someTest1")
         testExecuted(result.output, "RandomizedTestClazz > someTest2")
     }
@@ -356,9 +356,13 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
 
                 dependencies {
                     testImplementation 'junit:junit:4.13.2'
+                    testImplementation 'org.junit.jupiter:junit-jupiter:6.1.3'
+                    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+                    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
                 }
 
                 tasks.named("test").configure {
+                    useJUnitPlatform()
                     testLogging {
                         events("started", "skipped")
                     }
@@ -376,11 +380,13 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     /**
-     * Sets up a single subproject holding a suite parameterized by the randomized runner alongside a plain JUnit4 suite.
-     * The randomized runner reports such tests as {@code someTest1 {phase=0}} and only excludes one when both that name
-     * and the bare method name are filtered out, which is what the parameterized pruning has to get right.
+     * Sets up a single subproject holding a suite parameterized by the randomized runner alongside a plain JUnit4 suite. Like in the
+     * Elasticsearch build, they run on the JUnit Platform with the Vintage engine, and the randomized suites with the runner of the
+     * Elasticsearch tests. That runner reports such tests as {@code someTest1 {phase=0}}, and the parameterized pruning has to
+     * exclude exactly the ones that were successful.
      */
     void parameterizedTestSetup(boolean optOutOfIndividualTestPruning = false) {
+        String runnerSource = esRandomizedRunnerSource()
         buildFile << """
         allprojects {
                 apply plugin: 'java'
@@ -393,9 +399,13 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
                 dependencies {
                     testImplementation 'junit:junit:4.13.2'
                     testImplementation 'com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.8.2'
+                    testImplementation 'org.junit.jupiter:junit-jupiter:6.1.3'
+                    testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+                    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
                 }
 
                 tasks.named("test").configure {
+                    useJUnitPlatform()
                     testLogging {
                         events("started", "skipped")
                     }
@@ -409,14 +419,15 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
                 """
             }
             createTest("SubProject1TestClazz1")
+            file("src/test/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java") << runnerSource
             file("src/test/java/org/acme/RandomizedTestClazz.java") << """
             package org.acme;
 
-            import com.carrotsearch.randomizedtesting.RandomizedRunner;
+            import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
             import org.junit.Test;
             import org.junit.runner.RunWith;
 
-            @RunWith(RandomizedRunner.class)
+            @RunWith(ESRandomizedRunner.class)
             public class RandomizedTestClazz {
 
                 @Test
@@ -431,14 +442,14 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
             file("src/test/java/org/acme/ParameterizedTestClazz.java") << """
             package org.acme;
 
-            import com.carrotsearch.randomizedtesting.RandomizedRunner;
             import com.carrotsearch.randomizedtesting.annotations.Name;
             import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
             import java.util.List;
+            import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
             import org.junit.Test;
             import org.junit.runner.RunWith;
 
-            @RunWith(RandomizedRunner.class)
+            @RunWith(ESRandomizedRunner.class)
             public class ParameterizedTestClazz {
 
                 private final int phase;
@@ -462,5 +473,13 @@ class InternalTestRerunPluginFuncTest extends AbstractGradleFuncTest {
             }
             """
         }
+    }
+
+    /**
+     * The source of the runner of the Elasticsearch tests, which the fixture projects compile. It cannot be a dependency of this
+     * build, see the integTest task definition in build.gradle.
+     */
+    static String esRandomizedRunnerSource() {
+        new File(System.getProperty("es.randomized.runner.source")).text
     }
 }

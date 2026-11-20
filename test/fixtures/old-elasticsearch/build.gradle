@@ -105,5 +105,5 @@ dependencies {
   runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
   runtimeOnly("org.hamcrest:hamcrest:${versions.hamcrest}")
 
-  testImplementation project(":test:junit-vintage")
+  testImplementation project(":test:vintage-randomized-runner")
 }

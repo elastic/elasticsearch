@@ -20,7 +20,7 @@ dependencies {
   api project(":libs:cli")
   api project(":libs:entitlement:bridge")
 
-  api project(":test:junit-vintage")
+  api project(":test:vintage-randomized-runner")
   api("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
     exclude group: "junit", module: "junit"
     exclude group: 'com.carrotsearch.randomizedtesting', module: 'randomizedtesting-runner'

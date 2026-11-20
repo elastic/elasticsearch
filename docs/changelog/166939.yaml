@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166939
+summary: "[Nested] Read nested leaves as multivalued columns"
+type: feature

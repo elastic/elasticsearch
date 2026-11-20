@@ -509,11 +509,6 @@ tests:
   - :test:test-clusters:test
   method: testWaitsForLiveFileRecreatedAfterRename
   issue: https://github.com/elastic/elasticsearch/issues/164549
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  tasks:
-  - :modules:repository-azure:test
-  method: testContentsChangeWhileStreaming
-  issue: https://github.com/elastic/elasticsearch/issues/164636
 - class: org.elasticsearch.xpack.inference.external.http.ByteArrayFlowPublisherTests
   tasks:
   - :x-pack:plugin:inference:test

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.glob;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -14,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.Operator;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionSpec;
@@ -26,13 +29,17 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.junit.After;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.DAY_SPEC;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.FILES_PER_DAY;
@@ -42,19 +49,30 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.L
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.MIXED_GLOB;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.NOW;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.PADDED_GLOB;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_END;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_START;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_GLOB;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_COMPLETE_WALK;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_FILES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIX;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIXES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.expand;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.fieldShapedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.folderRange;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.listingHints;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.mixedTree;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.objectPages;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.paddedTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.pathsOf;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.reference;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.temporalHints;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveTree;
 
 /**
- * Named-tree harness: listing must match a flat prefix listing plus {@code PartitionValueMatcher} and
- * {@code PartitionSpec.overlaps}. LIST pins record request counts under the request-count finish rule.
+ * Named-tree harness: listing must match a flat prefix listing plus {@code PartitionValueMatcher},
+ * {@code PartitionSpec.overlaps}, and {@code _file.*} hints. LIST pins record request counts under the
+ * request-count finish rule. Key-dump replay and the 154-prefix AWS VPC Hive tree pin listing cost.
  *
  * <p>Documented holes (flipped by later PRs):
  * <ul>
@@ -64,6 +82,7 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.t
  */
 public class ListingWalkHarnessTests extends ESTestCase {
 
+    private static final Logger logger = LogManager.getLogger(ListingWalkHarnessTests.class);
     private static final Source SRC = Source.EMPTY;
     private static final int MAX = Integer.MAX_VALUE;
     /**
@@ -104,6 +123,181 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertEquals(0, provider.listChildrenRequests.get());
         assertEquals(3, provider.requestCount());
         assertEquals(PartitionPruningWalk.LIST_PAGE_SIZE, LIST_PAGE_SIZE);
+        assertEquals(3, objectPages(2500));
+        assertEquals(1, objectPages(0));
+        assertEquals(1, objectPages(1));
+        assertEquals(1, objectPages(1000));
+        assertEquals(2, objectPages(1001));
+    }
+
+    public void testLoadKeyDumpResourceRoundTrip() throws IOException {
+        List<StorageEntry> loaded = ListingWalkHarness.loadKeyDumpResource("key-dump-sample.keys");
+        ListingWalkHarness provider = new ListingWalkHarness(loaded);
+        assertEquals(4, provider.entries().size());
+        List<String> paths = ListingWalkHarness.pathsOf(provider.entries());
+        assertEquals(
+            List.of(
+                "s3://bucket/AWSLogs/aws-account-id=000000000001/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=06/day=01/hour=00/f-0.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=000000000001/aws-service=vpcflowlogs/"
+                    + "aws-region=us-east-1/year=2026/month=07/day=01/hour=00/f-0.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=000000000002/aws-service=vpcflowlogs/"
+                    + "aws-region=us-west-2/year=2026/month=06/day=01/hour=00/f-0.parquet",
+                "s3://bucket/AWSLogs/aws-account-id=000000000003/aws-service=vpcflowlogs/"
+                    + "aws-region=eu-west-1/year=2026/month=06/day=01/hour=00/f-0.parquet"
+            ),
+            paths
+        );
+        StorageEntry tsv = provider.entries().get(0);
+        assertEquals(50L, tsv.length());
+        assertEquals(Instant.parse("2026-06-01T00:00:00Z"), tsv.lastModified());
+        assertEquals(100L, provider.entries().get(2).length());
+        StorageEntry millis = provider.entries().get(3);
+        assertEquals(10L, millis.length());
+        assertEquals(Instant.EPOCH, millis.lastModified());
+        expectThrows(IllegalArgumentException.class, () -> ListingWalkHarness.loadKeyDumpResource("missing.keys"));
+    }
+
+    public void testLoadKeyDumpEmptyAndCommentsOnly() throws IOException {
+        assertEquals(List.of(), ListingWalkHarness.loadKeyDump(new BufferedReader(new StringReader(""))));
+        assertEquals(List.of(), ListingWalkHarness.loadKeyDump(new BufferedReader(new StringReader("# comment\n\n  \n"))));
+    }
+
+    public void testDelayHooksFireOncePerListCall() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(fieldShapedTree());
+        AtomicInteger childrenDelays = new AtomicInteger();
+        AtomicInteger objectDelays = new AtomicInteger();
+        provider.setListChildrenDelayNanos(() -> {
+            childrenDelays.incrementAndGet();
+            return 0L;
+        });
+        provider.setListObjectPageDelayNanos(() -> {
+            objectDelays.incrementAndGet();
+            return 0L;
+        });
+        List<Expression> filters = List.of(window(LAST_DAY, NOW));
+        expand(provider, LOGS_GLOB, listingHints(filters, DAY_SPEC), MAX, folderRange(filters, DAY_SPEC));
+        assertEquals(provider.listChildrenRequests(), childrenDelays.get());
+        assertEquals(provider.listObjectPages(), objectDelays.get());
+        assertTrue("walk issues listChildren", childrenDelays.get() > 0);
+        assertTrue("walk issues listObjects pages", objectDelays.get() > 0);
+    }
+
+    public void testReferenceAppliesFileNameHint() throws IOException {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/logs/year=2026/month=9/day=14/keep.parquet"),
+            ListingWalkHarness.entry("s3://bucket/logs/year=2026/month=9/day=14/drop.parquet")
+        );
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint(FileMetadataColumns.NAME, Operator.EQUALS, List.of("keep.parquet"))
+        );
+        ListingWalkHarness.Reference ref = reference(tree, LOGS_GLOB, hints, PartitionSpec.EMPTY, List.of(), HIVE_ON);
+        assertEquals(List.of("s3://bucket/logs/year=2026/month=9/day=14/keep.parquet"), ref.paths());
+        assertEquals(1, ref.excludedByFileHint());
+        assertFalse(ref.inferenceAnchor());
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, LOGS_GLOB, hints, MAX);
+        assertObserved(walked, ref);
+
+        ListingWalkHarness flat = new ListingWalkHarness(tree);
+        flat.setChildrenUnsupported(true);
+        FileList flattened = expand(flat, LOGS_GLOB, hints, MAX);
+        assertObserved(flattened, ref);
+        assertEquals(pathsOf(walked), pathsOf(flattened));
+    }
+
+    public void testReferenceAllFilteredFileHintStashesOneFile() throws IOException {
+        List<StorageEntry> tree = List.of(ListingWalkHarness.entry("s3://bucket/logs/year=2026/month=9/day=14/f.parquet"));
+        List<PartitionFilterHint> hints = List.of(
+            new PartitionFilterHint(FileMetadataColumns.NAME, Operator.EQUALS, List.of("missing.parquet"))
+        );
+        ListingWalkHarness.Reference ref = reference(tree, LOGS_GLOB, hints, PartitionSpec.EMPTY, List.of(), HIVE_ON);
+        assertEquals(List.of("s3://bucket/logs/year=2026/month=9/day=14/f.parquet"), ref.paths());
+        assertFalse("file-hint stash is not a partition inference anchor", ref.inferenceAnchor());
+        assertEquals(1, ref.excludedByFileHint());
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, LOGS_GLOB, hints, MAX);
+        assertObserved(walked, ref);
+        assertFalse(walked.isInferenceAnchor());
+        assertEquals(1, walked.fileCount());
+
+        ListingWalkHarness flat = new ListingWalkHarness(tree);
+        flat.setChildrenUnsupported(true);
+        FileList flattened = expand(flat, LOGS_GLOB, hints, MAX);
+        assertObserved(flattened, ref);
+        assertEquals(pathsOf(walked), pathsOf(flattened));
+    }
+
+    /**
+     * 154-prefix Hive tree, time-only 1 June filter. Walk and forced-flat keep the same files as the
+     * oracle. LIST counts pin the walk ceiling: today's 512 cap is below
+     * {@link ListingWalkHarness#WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES}.
+     */
+    public void testWideHiveTreeOneDayWalkCostVersusFlat() throws IOException {
+        List<StorageEntry> tree = wideHiveTree();
+        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, WIDE_HIVE_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+        assertEquals(WIDE_HIVE_ONE_DAY_FILES, ref.paths().size());
+        assertFalse(ref.inferenceAnchor());
+        assertEquals(0, ref.excludedByFileHint());
+        Set<String> accountRegions = new HashSet<>();
+        for (String path : ref.paths()) {
+            int yearAt = path.indexOf("/year=");
+            assertTrue(path, yearAt > 0);
+            accountRegions.add(path.substring(0, yearAt));
+        }
+        assertEquals(WIDE_HIVE_PREFIXES, accountRegions.size());
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, WIDE_HIVE_GLOB, hints, MAX, pred);
+        assertObserved(walked, ref);
+
+        ListingWalkHarness flatExpand = new ListingWalkHarness(tree);
+        flatExpand.setChildrenUnsupported(true);
+        FileList flattened = expand(flatExpand, WIDE_HIVE_GLOB, hints, MAX, pred);
+        assertObserved(flattened, ref);
+        assertEquals(pathsOf(walked), pathsOf(flattened));
+
+        ListingWalkHarness rawFlat = new ListingWalkHarness(tree);
+        int drained = 0;
+        try (var it = rawFlat.listObjects(StoragePath.of(WIDE_HIVE_PREFIX), true)) {
+            while (it.hasNext()) {
+                it.next();
+                drained++;
+            }
+        }
+        assertEquals(tree.size(), drained);
+        assertEquals(0, rawFlat.listChildrenRequests());
+        assertEquals("raw flat pages of " + tree.size() + " keys", objectPages(tree.size()), rawFlat.listObjectPages());
+
+        String listShape = "walk="
+            + walk.requestCount()
+            + " children="
+            + walk.listChildrenRequests()
+            + " objectPages="
+            + walk.listObjectPages()
+            + " rawFlatPages="
+            + rawFlat.listObjectPages()
+            + " expandFlatPages="
+            + flatExpand.listObjectPages()
+            + " walkDirectories="
+            + WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES
+            + " completeWalk="
+            + WIDE_HIVE_ONE_DAY_COMPLETE_WALK;
+        logger.info("154-prefix Hive 1-day LIST {}", listShape);
+        assertTrue(
+            "walk directory-listing ceiling is gated on walk directories, not finish pages: " + listShape,
+            WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES > PartitionPruningWalk.MAX_DIRECTORY_LISTINGS
+        );
+        assertTrue(
+            "today's 512 ceiling falls back to a prefix listObjects: " + listShape,
+            walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/")
+        );
+        assertTrue("walk starts with listChildren: " + listShape, walk.listChildrenRequests() > 0);
     }
 
     public void testChildrenUnsupportedForcesOnePrefixList() throws IOException {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166951
+summary: Do not splice Hive numeric partitions
+type: enhancement

@@ -16,8 +16,13 @@ import org.apache.lucene.geo.XYGeometry;
 /** Lucene geometry query for {@link BinaryShapeDocValuesField}. */
 public class CartesianShapeDocValuesQuery extends ShapeDocValuesQuery<XYGeometry> {
 
-    public CartesianShapeDocValuesQuery(String field, ShapeField.QueryRelation relation, XYGeometry... geometries) {
-        super(field, CoordinateEncoder.CARTESIAN, relation, geometries);
+    public CartesianShapeDocValuesQuery(
+        String field,
+        GeometryDocValueFormat format,
+        ShapeField.QueryRelation relation,
+        XYGeometry... geometries
+    ) {
+        super(field, CoordinateEncoder.CARTESIAN, format, relation, geometries);
     }
 
     @Override

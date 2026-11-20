@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.test.ESTestCase;
@@ -53,8 +54,8 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
     private static final GeoShapeIndexer INDEXER = new GeoShapeIndexer(Orientation.CCW, FIELD);
 
     /** Points get one "cell", rectangles two, unless the extent is entirely west of the meridian, which gets none. */
-    static long[] extentCells(BytesRef encodedShape) throws IOException {
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+    static long[] extentCells(BytesRef encodedShape, GeometryDocValueFormat format) throws IOException {
+        GeometryDocValueReader reader = new GeometryDocValueReader(format);
         reader.reset(encodedShape);
         var extent = reader.getExtent();
         if (extent.maxX() < 0) {
@@ -78,6 +79,7 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
             });
         }
         MockWarnings warnings = new MockWarnings();
+        GeometryDocValueFormat format = randomFrom(GeometryDocValueFormat.values());
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             for (Geometry geometry : geometries) {
@@ -85,19 +87,19 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
                 if (geometry != null) {
                     CentroidCalculator centroid = new CentroidCalculator();
                     centroid.add(geometry);
-                    doc.add(
-                        new BinaryDocValuesField(
-                            FIELD,
-                            GeometryDocValueWriter.write(INDEXER.indexShape(geometry), CoordinateEncoder.GEO, centroid, List.of(geometry))
-                        )
-                    );
+                    List<IndexableField> fields = INDEXER.indexShape(geometry);
+                    BytesRef encoded = switch (format) {
+                        case LEGACY -> GeometryDocValueWriter.writeLegacy(fields, CoordinateEncoder.GEO, centroid);
+                        case V2 -> GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroid, List.of(geometry));
+                    };
+                    doc.add(new BinaryDocValuesField(FIELD, encoded));
                 }
                 iw.addDocument(doc);
             }
             iw.forceMerge(1);
             try (DirectoryReader dr = iw.getReader()) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
-                List<Object> expected = expectedCells(ctx);
+                List<Object> expected = expectedCells(ctx, format);
 
                 var config = new BlockLoaderFunctionConfig.GeoGrid(
                     BlockLoaderFunctionConfig.Function.ST_GEOHASH,
@@ -106,12 +108,13 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
                     () -> (lon, lat) -> {
                         throw new AssertionError("points are not loaded by the shape loader");
                     },
-                    w -> {
+                    (w, f) -> {
                         assertThat("the loader must pass its warnings to the tiler", w, sameInstance(warnings));
-                        return GeoGridFromShapeDocValuesBlockLoaderTests::extentCells;
+                        assertThat("the loader must pass the field's doc-value format to the tiler", f, equalTo(format));
+                        return encoded -> extentCells(encoded, f);
                     }
                 );
-                var loader = new GeoGridFromShapeDocValuesBlockLoader(FIELD, config, warnings);
+                var loader = new GeoGridFromShapeDocValuesBlockLoader(FIELD, format, config, warnings);
                 assertThat(loader, hasToString("GeoGridFromShapeDocValues[field, ST_GEOHASH, 3]"));
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     assertThat(reader, hasToString("GeoGridFromShapeDocValues"));
@@ -139,11 +142,11 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
                     5,
                     null,
                     () -> (lon, lat) -> 0,
-                    w -> encoded -> {
+                    (w, f) -> encoded -> {
                         throw new AssertionError("no doc values to tile");
                     }
                 );
-                var loader = new GeoGridFromShapeDocValuesBlockLoader(FIELD, config, null);
+                var loader = new GeoGridFromShapeDocValuesBlockLoader(FIELD, randomFrom(GeometryDocValueFormat.values()), config, null);
                 try (BlockLoader.ColumnAtATimeReader reader = loader.reader(breaker, ctx)) {
                     try (TestBlock block = (TestBlock) reader.read(TestBlock.factory(), TestBlock.docs(ctx), 0, false)) {
                         assertThat(block.size(), equalTo(2));
@@ -157,7 +160,7 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
     }
 
     /** Recomputes the expected value of every document straight from the doc values, in index order. */
-    private static List<Object> expectedCells(LeafReaderContext ctx) throws IOException {
+    private static List<Object> expectedCells(LeafReaderContext ctx, GeometryDocValueFormat format) throws IOException {
         var docValues = ctx.reader().getBinaryDocValues(FIELD);
         List<Object> expected = new ArrayList<>();
         for (int doc = 0; doc < ctx.reader().numDocs(); doc++) {
@@ -165,7 +168,7 @@ public class GeoGridFromShapeDocValuesBlockLoaderTests extends ESTestCase {
                 expected.add(null);
                 continue;
             }
-            long[] cells = extentCells(docValues.binaryValue());
+            long[] cells = extentCells(docValues.binaryValue(), format);
             if (cells.length == 0) {
                 expected.add(null);
             } else if (cells.length == 1) {

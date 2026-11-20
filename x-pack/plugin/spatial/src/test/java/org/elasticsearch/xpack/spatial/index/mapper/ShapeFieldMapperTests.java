@@ -8,7 +8,10 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
@@ -22,7 +25,10 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
-import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.lucene.spatial.CentroidCalculator;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
+import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.junit.AssumptionViolatedException;
 
@@ -267,25 +273,34 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
      * so that their on-disk format matches what the index version declares.
      */
     public void testDocValuesFormatFollowsIndexVersion() throws IOException {
-        assertDocValuesFormat(IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.GEOMETRY_DOC_VALUES_V2), false);
-        assertDocValuesFormat(IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.GEOMETRY_DOC_VALUES_V2), true);
+        assertDocValuesFormat(
+            IndexVersionUtils.randomPreviousCompatibleWriteVersion(IndexVersions.GEOMETRY_DOC_VALUES_V2),
+            GeometryDocValueFormat.LEGACY
+        );
+        assertDocValuesFormat(IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.GEOMETRY_DOC_VALUES_V2), GeometryDocValueFormat.V2);
     }
 
-    private void assertDocValuesFormat(IndexVersion version, boolean expectV2) throws IOException {
+    private void assertDocValuesFormat(IndexVersion version, GeometryDocValueFormat expectedFormat) throws IOException {
         DocumentMapper mapper = createDocumentMapper(version, fieldMapping(b -> {
             b.field("type", getFieldName());
             b.field("doc_values", true);
         }));
+        var fieldType = (AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType<?>) mapper.mappers().getFieldType(FIELD_NAME);
+        assertThat("index version " + version, fieldType.docValueFormat(), equalTo(expectedFormat));
+
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
         ParsedDocument doc = mapper.parse(source(b -> b.field(FIELD_NAME, "POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")));
-        List<IndexableField> docValues = doc.rootDoc()
-            .getFields(FIELD_NAME)
-            .stream()
-            .filter(f -> f instanceof BinaryShapeDocValuesField)
-            .toList();
+        List<IndexableField> fields = doc.rootDoc().getFields(FIELD_NAME);
+        List<IndexableField> docValues = fields.stream().filter(f -> f instanceof BinaryShapeDocValuesField).toList();
+        List<IndexableField> triangles = fields.stream().filter(f -> f instanceof BinaryShapeDocValuesField == false).toList();
         assertThat(docValues, hasSize(1));
-        GeometryDocValueReader reader = new GeometryDocValueReader();
-        reader.reset(docValues.getFirst().binaryValue());
-        assertThat("index version " + version, reader.isV2Format(), equalTo(expectV2));
+        CentroidCalculator centroid = new CentroidCalculator();
+        centroid.add(polygon);
+        BytesRef expected = switch (expectedFormat) {
+            case LEGACY -> GeometryDocValueWriter.writeLegacy(triangles, CoordinateEncoder.CARTESIAN, centroid);
+            case V2 -> GeometryDocValueWriter.write(triangles, CoordinateEncoder.CARTESIAN, centroid, List.of(polygon));
+        };
+        assertThat("index version " + version, docValues.getFirst().binaryValue(), equalTo(expected));
     }
 
     public void testShapeMapperMerge() throws Exception {

@@ -63,7 +63,7 @@ public class V2PointsWriterTests extends ESTestCase {
         centroid.add(geometry);
 
         BytesRef legacy = GeometryDocValueWriter.writeLegacy(fields, CoordinateEncoder.GEO, centroid);
-        GeometryDocValueReader legacyReader = new GeometryDocValueReader();
+        GeometryDocValueReader legacyReader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
         legacyReader.reset(legacy);
         List<Long> expected = sortedPoints(legacyReader.getGeometry(CoordinateEncoder.GEO));
         Extent legacyExtent = legacyReader.getExtent();
@@ -72,9 +72,8 @@ public class V2PointsWriterTests extends ESTestCase {
 
         BytesRef bytes = GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroid, List.of(geometry));
         String message = geometry.toString();
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytes);
-        assertTrue(message, reader.isV2Format());
         assertThat(message, reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
         assertThat(message, reader.getCentroidX(), equalTo(legacyReader.getCentroidX()));
         assertThat(message, reader.getCentroidY(), equalTo(legacyReader.getCentroidY()));

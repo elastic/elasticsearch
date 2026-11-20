@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
@@ -21,15 +22,18 @@ import java.io.IOException;
 final class CartesianShapeDVAtomicShapeFieldData extends LeafShapeFieldData<CartesianShapeValues> {
     private final LeafReader reader;
     private final String fieldName;
+    private final GeometryDocValueFormat docValueFormat;
 
     CartesianShapeDVAtomicShapeFieldData(
         LeafReader reader,
         String fieldName,
+        GeometryDocValueFormat docValueFormat,
         ToScriptFieldFactory<CartesianShapeValues> toScriptFieldFactory
     ) {
         super(toScriptFieldFactory);
         this.reader = reader;
         this.fieldName = fieldName;
+        this.docValueFormat = docValueFormat;
     }
 
     @Override
@@ -41,7 +45,7 @@ final class CartesianShapeDVAtomicShapeFieldData extends LeafShapeFieldData<Cart
     public CartesianShapeValues getShapeValues() {
         try {
             final BinaryDocValues binaryValues = DocValues.getBinary(reader, fieldName);
-            final CartesianShapeValues.CartesianShapeValue shapeValue = new CartesianShapeValues.CartesianShapeValue();
+            final CartesianShapeValues.CartesianShapeValue shapeValue = new CartesianShapeValues.CartesianShapeValue(docValueFormat);
             return new CartesianShapeValues() {
 
                 @Override

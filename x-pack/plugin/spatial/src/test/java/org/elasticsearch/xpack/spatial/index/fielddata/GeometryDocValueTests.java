@@ -288,7 +288,6 @@ public class GeometryDocValueTests extends ESTestCase {
         Line line = new Line(new double[] { 10, 20 }, new double[] { 100, 100 });
         Line expected = new Line(new double[] { -170, -160 }, new double[] { 80, 80 });
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(line, CoordinateEncoder.GEO);
-        assertTrue(reader.isV2Format());
         assertThat(reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(expected));
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -245,12 +246,19 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = CircleUtils.createRegularShapePolygon(circle, numSides);
 
-        Query sameShapeQuery = XYQueriesUtils.toXYShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, IndexType.points(true, true));
+        Query sameShapeQuery = XYQueriesUtils.toXYShapeQuery(
+            geometry,
+            fieldName,
+            ShapeRelation.INTERSECTS,
+            IndexType.points(true, true),
+            GeometryDocValueFormat.V2
+        );
         Query centerPointQuery = XYQueriesUtils.toXYShapeQuery(
             new Point(circle.getLon(), circle.getLat()),
             fieldName,
             ShapeRelation.INTERSECTS,
-            IndexType.points(true, true)
+            IndexType.points(true, true),
+            GeometryDocValueFormat.V2
         );
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

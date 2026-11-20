@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
@@ -92,7 +93,8 @@ public class GeometryDocValueBenchmark {
     private String wktString;
     private byte[] wkbBytes;
 
-    private final GeometryDocValueReader reader = new GeometryDocValueReader();
+    private final GeometryDocValueReader legacyReader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
+    private final GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
 
     private boolean sizeReported;
 
@@ -125,14 +127,11 @@ public class GeometryDocValueBenchmark {
         System.out.println("  Triangles:    " + tessellatedFields.size());
         System.out.println("  Legacy bytes: " + legacyBytes.length);
         System.out.println("  V2 bytes:     " + v2Bytes.length);
-        reader.reset(autoBytes);
-        System.out.println("  Auto bytes:   " + autoBytes.length + " (" + (reader.isV2Format() ? "V2" : "legacy") + ")");
+        System.out.println("  Auto bytes:   " + autoBytes.length);
         System.out.println("  WKT chars:    " + wktString.length());
         System.out.println("  WKB bytes:    " + wkbBytes.length);
 
-        if (reader.isV2Format()) {
-            reportV2Breakdown(autoBytes);
-        }
+        reportV2Breakdown(autoBytes);
     }
 
     private void reportV2Breakdown(BytesRef bytes) throws IOException {
@@ -198,9 +197,9 @@ public class GeometryDocValueBenchmark {
 
     @Benchmark
     public void visitTreeLegacy(Blackhole bh) throws IOException {
-        reader.reset(legacyBytes);
+        legacyReader.reset(legacyBytes);
         CountingVisitor visitor = new CountingVisitor();
-        reader.visit(visitor);
+        legacyReader.visit(visitor);
         bh.consume(visitor.count);
     }
 

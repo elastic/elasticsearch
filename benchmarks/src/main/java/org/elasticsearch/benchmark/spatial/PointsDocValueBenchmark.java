@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
@@ -70,7 +71,7 @@ public class PointsDocValueBenchmark {
     private CentroidCalculator centroidCalculator;
     private Geometry normalizedGeometry;
     private BytesRef bytes;
-    private final GeometryDocValueReader reader = new GeometryDocValueReader();
+    private GeometryDocValueReader reader;
     private int queryMinX, queryMinY, queryMaxX, queryMaxY;
 
     @Setup(Level.Trial)
@@ -83,6 +84,7 @@ public class PointsDocValueBenchmark {
         centroidCalculator.add(geometry);
         bytes = write();
 
+        reader = new GeometryDocValueReader(layout.equals("legacy") ? GeometryDocValueFormat.LEGACY : GeometryDocValueFormat.V2);
         reader.reset(bytes);
         Extent extent = reader.getExtent();
         // A query box over the middle tenth of the extent in each dimension, so subtrees and blocks can be pruned.

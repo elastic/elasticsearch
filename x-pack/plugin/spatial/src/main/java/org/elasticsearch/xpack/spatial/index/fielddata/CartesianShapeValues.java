@@ -15,6 +15,7 @@ import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
@@ -65,13 +66,16 @@ public abstract class CartesianShapeValues extends ShapeValues<CartesianShapeVal
      */
     public static class CartesianShapeValue extends ShapeValues.ShapeValue {
 
-        public CartesianShapeValue() {
-            super(CoordinateEncoder.CARTESIAN, CartesianPoint::new);
+        /**
+         * @param format the format of the doc values this value is reset to
+         */
+        public CartesianShapeValue(GeometryDocValueFormat format) {
+            super(CoordinateEncoder.CARTESIAN, CartesianPoint::new, format);
         }
 
         @SuppressWarnings("this-escape")
         public CartesianShapeValue(StreamInput in) throws IOException {
-            this();
+            this(readFormat(in));
             this.reset(in);
         }
 

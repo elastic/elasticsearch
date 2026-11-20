@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -27,7 +28,7 @@ import java.util.List;
  */
 public final class GeoShapeScriptDocValues extends GeoShapeValues {
     private final GeometryFieldScript script;
-    private final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue();
+    private final GeoShapeValues.GeoShapeValue geoShapeValue = new GeoShapeValues.GeoShapeValue(GeometryDocValueFormat.LEGACY);
     private final GeoShapeIndexer indexer;
 
     public GeoShapeScriptDocValues(GeometryFieldScript script, String fieldName) {

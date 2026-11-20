@@ -28,25 +28,16 @@ public class BinaryShapeDocValuesField extends CustomDocValuesField {
     private final List<Geometry> geometries;
 
     /**
-     * Creates a field that writes the V2 format, which supports geometry reconstruction.
+     * @param format the format to write. Field mappers write the format of their index version
+     *               ({@link GeometryDocValueFormat#forIndexVersion}). {@link GeometryDocValueFormat#LEGACY} is
+     *               also cheaper for transient encodings that only need the triangle tree.
      */
-    public BinaryShapeDocValuesField(String name, CoordinateEncoder coordinateEncoder) {
-        this(name, coordinateEncoder, true);
-    }
-
-    /**
-     * @param supportsReconstruction when true, non-point shapes are written in the V2 format that supports
-     *                               geometry reconstruction. When false, the legacy triangle-tree format is
-     *                               written, which is required for indices created before
-     *                               {@code IndexVersions.GEOMETRY_DOC_VALUES_V2}, and is cheaper for transient
-     *                               encodings that only need the triangle tree.
-     */
-    public BinaryShapeDocValuesField(String name, CoordinateEncoder coordinateEncoder, boolean supportsReconstruction) {
+    public BinaryShapeDocValuesField(String name, CoordinateEncoder coordinateEncoder, GeometryDocValueFormat format) {
         super(name);
         this.fields = new ArrayList<>();
         this.coordinateEncoder = coordinateEncoder;
         this.centroidCalculator = new CentroidCalculator();
-        this.supportsReconstruction = supportsReconstruction;
+        this.supportsReconstruction = format == GeometryDocValueFormat.V2;
         this.geometries = new ArrayList<>();
     }
 

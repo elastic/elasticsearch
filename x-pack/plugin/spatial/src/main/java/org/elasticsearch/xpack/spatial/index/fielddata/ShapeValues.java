@@ -27,6 +27,7 @@ import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -36,7 +37,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * A stateful lightweight per document geo values.
@@ -55,13 +56,14 @@ import java.util.function.Supplier;
  */
 public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
     protected final CoordinateEncoder encoder;
-    protected final Supplier<T> supplier;
+    protected final Function<GeometryDocValueFormat, T> supplier;
     protected final ShapeIndexer missingShapeIndexer;
 
     /**
      * Creates a new {@link ShapeValues} instance
+     * @param supplier creates a {@link ShapeValue} that reads values in the given format
      */
-    protected ShapeValues(CoordinateEncoder encoder, Supplier<T> supplier, ShapeIndexer missingShapeIndexer) {
+    protected ShapeValues(CoordinateEncoder encoder, Function<GeometryDocValueFormat, T> supplier, ShapeIndexer missingShapeIndexer) {
         this.encoder = encoder;
         this.supplier = supplier;
         this.missingShapeIndexer = missingShapeIndexer;
@@ -89,9 +91,10 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
     public T missing(String missing) {
         try {
             final Geometry geometry = WellKnownText.fromWKT(geometryValidator(), true, missing);
-            final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder, false);
+            // The missing value only needs the triangle tree, which the legacy format holds without the vertex table
+            final BinaryShapeDocValuesField field = new BinaryShapeDocValuesField("missing", encoder, GeometryDocValueFormat.LEGACY);
             field.add(missingShapeIndexer.indexShape(geometry), geometry);
-            final T value = supplier.get();
+            final T value = supplier.apply(GeometryDocValueFormat.LEGACY);
             value.reset(field.binaryValue());
             return value;
         } catch (IOException | ParseException e) {
@@ -104,14 +107,19 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
      * the provided decoder (could be geo or cartesian)
      */
     protected abstract static class ShapeValue implements ToXContentFragment, GenericNamedWriteable {
+        private static final TransportVersion SHAPE_VALUE_DOC_VALUE_FORMAT = TransportVersion.fromName("shape_value_doc_value_format");
+
         private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final CoordinateEncoder encoder;
         private final BiFunction<Double, Double, SpatialPoint> pointMaker;
         private final Component2DRelationVisitor component2DRelationVisitor;
 
-        public ShapeValue(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker) {
-            this.reader = new GeometryDocValueReader();
+        /**
+         * @param format the format of the doc values this value is {@link #reset(BytesRef) reset} to
+         */
+        public ShapeValue(CoordinateEncoder encoder, BiFunction<Double, Double, SpatialPoint> pointMaker, GeometryDocValueFormat format) {
+            this.reader = new GeometryDocValueReader(format);
             this.boundingBox = new BoundingBox();
             this.encoder = encoder;
             this.pointMaker = pointMaker;
@@ -126,6 +134,19 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
             this.boundingBox.reset(reader.getExtent(), encoder);
         }
 
+        /**
+         * Reads the format written before the doc value by {@link #writeTo}. Streams from nodes that predate the V2 format
+         * only carry legacy doc values.
+         */
+        protected static GeometryDocValueFormat readFormat(StreamInput in) throws IOException {
+            return in.getTransportVersion().supports(SHAPE_VALUE_DOC_VALUE_FORMAT)
+                ? in.readEnum(GeometryDocValueFormat.class)
+                : GeometryDocValueFormat.LEGACY;
+        }
+
+        /**
+         * Reads the doc value written by {@link #writeTo}, after {@link #readFormat} has read its format.
+         */
         protected void reset(StreamInput in) throws IOException {
             BytesReference bytes = in.readBytesReference();
             reset(bytes.toBytesRef());
@@ -213,13 +234,26 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().supports(SHAPE_VALUE_DOC_VALUE_FORMAT)) {
+                out.writeEnum(reader.format());
+            } else if (reader.format() != GeometryDocValueFormat.LEGACY) {
+                throw new IllegalArgumentException(
+                    "cannot send a ["
+                        + getWriteableName()
+                        + "] read from doc values in the ["
+                        + reader.format()
+                        + "] format to a node on transport version ["
+                        + out.getTransportVersion().toReleaseVersion()
+                        + "], which only reads the legacy format"
+                );
+            }
             out.writeBytesReference(new BytesArray(reader.getBytesRef()));
         }
 
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof ShapeValue other) {
-                return reader.getBytesRef().equals(other.reader.getBytesRef());
+                return reader.format() == other.reader.format() && reader.getBytesRef().equals(other.reader.getBytesRef());
             }
             return false;
         }

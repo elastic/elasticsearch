@@ -129,10 +129,8 @@ public class TriangleTreeTests extends ESTestCase {
 
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
 
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytesRef);
-
-        assertTrue(reader.isV2Format());
 
         // Reading centroid should work without loading anything extra
         assertNotEquals(0, reader.getCentroidX());
@@ -158,10 +156,8 @@ public class TriangleTreeTests extends ESTestCase {
         BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
         assertThat(bytesRef.length, lessThan(legacyBytes.length));
 
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytesRef);
-
-        assertTrue(reader.isV2Format());
         assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
         assertThat(reader.getSumCentroidWeight(), equalTo(1.0));
         assertThat(reader.getVertexTable().size(), equalTo(1));
@@ -190,10 +186,8 @@ public class TriangleTreeTests extends ESTestCase {
 
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(multiPoint));
 
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytesRef);
-
-        assertTrue(reader.isV2Format());
         assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
         assertThat(reader.getSumCentroidWeight(), equalTo(3.0));
 
@@ -211,7 +205,7 @@ public class TriangleTreeTests extends ESTestCase {
         centroidCalculator.add(line);
         assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
 
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(line)));
         assertThat(reader.getSumCentroidWeight(), equalTo(centroidCalculator.sumWeight()));
         assertThat(reader.getSumCentroidWeight(), equalTo(2.0));
@@ -229,9 +223,8 @@ public class TriangleTreeTests extends ESTestCase {
         assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
 
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(line));
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytesRef);
-        assertTrue(reader.isV2Format());
         Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
         assertThat(reconstructed.type(), equalTo(ShapeType.LINESTRING));
     }
@@ -246,9 +239,8 @@ public class TriangleTreeTests extends ESTestCase {
         assertThat(centroidCalculator.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
 
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(collection));
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytesRef);
-        assertTrue("Point-only geometry collections need the V2 bit even though DST is POINT", reader.isV2Format());
         Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
         assertThat(reconstructed.type(), equalTo(ShapeType.GEOMETRYCOLLECTION));
     }
@@ -264,7 +256,7 @@ public class TriangleTreeTests extends ESTestCase {
         centroidCalculator.add(collection);
 
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(collection));
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytesRef);
         Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
         assertThat(reconstructed.type(), equalTo(ShapeType.GEOMETRYCOLLECTION));
@@ -286,10 +278,8 @@ public class TriangleTreeTests extends ESTestCase {
         BytesRef bytesRef = GeometryDocValueWriter.writeV2(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
 
         // Read and verify
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytesRef);
-
-        assertTrue(reader.isV2Format());
 
         // Verify centroid is readable
         assertNotEquals(0, reader.getCentroidX());
@@ -334,7 +324,7 @@ public class TriangleTreeTests extends ESTestCase {
 
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry));
 
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(bytesRef);
 
         Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
@@ -359,17 +349,14 @@ public class TriangleTreeTests extends ESTestCase {
         BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
 
         // Read with the new reader
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
         reader.reset(legacyBytes);
-
-        // Should detect as legacy format
-        assertFalse(reader.isV2Format());
 
         // Centroid should be readable
         assertNotEquals(0, reader.getCentroidX());
         assertNotEquals(0, reader.getCentroidY());
 
-        // DimensionalShapeType should be readable (high bit is stripped)
+        // DimensionalShapeType should be readable
         assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POLYGON));
 
         // Extent should be readable
@@ -398,10 +385,8 @@ public class TriangleTreeTests extends ESTestCase {
         BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
 
         // Read with the new reader
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
         reader.reset(legacyBytes);
-
-        assertFalse(reader.isV2Format());
 
         // Extent should be readable
         assertNotNull(reader.getExtent());
@@ -433,10 +418,10 @@ public class TriangleTreeTests extends ESTestCase {
         BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
         BytesRef v2Bytes = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(polygon));
 
-        GeometryDocValueReader legacyReader = new GeometryDocValueReader();
+        GeometryDocValueReader legacyReader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
         legacyReader.reset(legacyBytes);
 
-        GeometryDocValueReader v2Reader = new GeometryDocValueReader();
+        GeometryDocValueReader v2Reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         v2Reader.reset(v2Bytes);
 
         // Both should have same centroid
@@ -492,7 +477,7 @@ public class TriangleTreeTests extends ESTestCase {
         MultiLine multiLine = new MultiLine(lines);
         BytesRef v2Bytes = writeV2(multiLine);
 
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         reader.reset(v2Bytes);
         assertThat(reader.getGeometry(CoordinateEncoder.GEO), equalTo(quantize(multiLine)));
         int totalVertices = lines.stream().mapToInt(Line::length).sum();
@@ -525,11 +510,11 @@ public class TriangleTreeTests extends ESTestCase {
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
         BytesRef legacyBytes = GeometryDocValueWriter.writeLegacy(fieldList, CoordinateEncoder.GEO, centroidCalculator);
-        GeometryDocValueReader legacyReader = new GeometryDocValueReader();
+        GeometryDocValueReader legacyReader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
         legacyReader.reset(legacyBytes);
         RecordingVisitor legacy = new RecordingVisitor();
         legacyReader.visit(legacy);
-        GeometryDocValueReader v2Reader = new GeometryDocValueReader();
+        GeometryDocValueReader v2Reader = new GeometryDocValueReader(GeometryDocValueFormat.V2);
         v2Reader.reset(v2Bytes);
         RecordingVisitor v2 = new RecordingVisitor();
         v2Reader.visit(v2);

@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -98,11 +99,12 @@ public interface BlockLoaderFunctionConfig {
 
     /**
      * Creates a {@link GeoGridShapeTiler} for one reader. The warnings, when not null, receive a warning if the cells
-     * of a shape are truncated. Tilers may keep scratch state, so one is created per reader.
+     * of a shape are truncated. The tiler reads doc values written in {@code format}, the format of the field being
+     * loaded. Tilers may keep scratch state, so one is created per reader.
      */
     @FunctionalInterface
     interface GeoGridShapeTilerFactory {
-        GeoGridShapeTiler create(@Nullable Warnings warnings);
+        GeoGridShapeTiler create(@Nullable Warnings warnings, GeometryDocValueFormat format);
     }
 
     /**

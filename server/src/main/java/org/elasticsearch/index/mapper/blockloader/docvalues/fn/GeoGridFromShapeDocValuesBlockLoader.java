@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 
 import java.io.IOException;
 
@@ -30,12 +31,22 @@ import java.io.IOException;
 public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     private final String fieldName;
+    private final GeometryDocValueFormat format;
     private final BlockLoaderFunctionConfig.GeoGrid config;
     @Nullable
     private final Warnings warnings;
 
-    public GeoGridFromShapeDocValuesBlockLoader(String fieldName, BlockLoaderFunctionConfig.GeoGrid config, @Nullable Warnings warnings) {
+    /**
+     * @param format the format of the field's doc values, which the tilers need to read them
+     */
+    public GeoGridFromShapeDocValuesBlockLoader(
+        String fieldName,
+        GeometryDocValueFormat format,
+        BlockLoaderFunctionConfig.GeoGrid config,
+        @Nullable Warnings warnings
+    ) {
         this.fieldName = fieldName;
+        this.format = format;
         this.config = config;
         this.warnings = warnings;
     }
@@ -52,7 +63,7 @@ public class GeoGridFromShapeDocValuesBlockLoader extends BlockDocValuesReader.D
             return ConstantNull.COLUMN_READER;
         }
         // Tilers may carry scratch state, so every reader gets its own
-        return new Reader(tracking, config.shapeTilers().create(warnings));
+        return new Reader(tracking, config.shapeTilers().create(warnings, format));
     }
 
     @Override

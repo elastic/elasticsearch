@@ -10,18 +10,26 @@ package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafShapeFieldData;
 
 public class LatLonShapeIndexFieldData extends AbstractShapeIndexFieldData<GeoShapeValues> {
+    private final GeometryDocValueFormat docValueFormat;
+
+    /**
+     * @param docValueFormat the format of the field's doc values
+     */
     public LatLonShapeIndexFieldData(
         String fieldName,
+        GeometryDocValueFormat docValueFormat,
         ValuesSourceType valuesSourceType,
         ToScriptFieldFactory<GeoShapeValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, toScriptFieldFactory);
+        this.docValueFormat = docValueFormat;
     }
 
     @Override
@@ -31,7 +39,7 @@ public class LatLonShapeIndexFieldData extends AbstractShapeIndexFieldData<GeoSh
         if (info != null) {
             checkCompatible(info, "geo_shape");
         }
-        return new LatLonShapeDVAtomicShapeFieldData(reader, fieldName, toScriptFieldFactory);
+        return new LatLonShapeDVAtomicShapeFieldData(reader, fieldName, docValueFormat, toScriptFieldFactory);
     }
 
     @Override

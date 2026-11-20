@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -136,7 +137,7 @@ public class SpatialRelatesUtils {
         if (geometry == null) {
             return null;
         }
-        GeometryDocValueReader reader = new GeometryDocValueReader();
+        GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         if (geometry instanceof Circle) {
             // Both the centroid calculator and the shape indexer do not support circles

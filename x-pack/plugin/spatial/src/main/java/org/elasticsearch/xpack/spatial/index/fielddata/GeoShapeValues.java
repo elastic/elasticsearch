@@ -17,6 +17,7 @@ import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -67,14 +68,17 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
     public static class GeoShapeValue extends ShapeValues.ShapeValue {
         private final Tile2DVisitor tile2DVisitor;  // This does not work for cartesian, so we currently only support this in geo
 
-        public GeoShapeValue() {
-            super(CoordinateEncoder.GEO, (x, y) -> new GeoPoint(y, x));
+        /**
+         * @param format the format of the doc values this value is reset to
+         */
+        public GeoShapeValue(GeometryDocValueFormat format) {
+            super(CoordinateEncoder.GEO, (x, y) -> new GeoPoint(y, x), format);
             this.tile2DVisitor = new Tile2DVisitor();
         }
 
         @SuppressWarnings("this-escape")
         public GeoShapeValue(StreamInput in) throws IOException {
-            this();
+            this(readFormat(in));
             reset(in);
         }
 

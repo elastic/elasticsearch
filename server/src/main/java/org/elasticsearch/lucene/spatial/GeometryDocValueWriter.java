@@ -20,16 +20,17 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Serializes geometry data into a binary doc-value format.
+ * Serializes geometry data into a binary doc-value format. The bytes don't record which {@link GeometryDocValueFormat}
+ * they use: readers are told by whoever knows how they were written, the index version for persisted doc-values.
  *
- * <p><b>V2 format</b> (DimensionalShapeType high bit set):
+ * <p><b>V2 format</b>:
  * <pre>
  * -----------------------------------------------
  * |   centroid-x-coord (4 bytes)                |
  * -----------------------------------------------
  * |   centroid-y-coord (4 bytes)                |
  * -----------------------------------------------
- * |   DimensionalShapeType (1 byte, V2 bit set) |
+ * |   DimensionalShapeType (1 byte)             |
  * -----------------------------------------------
  * |   Sum of weights (VLong 1-9 bytes)          |
  * -----------------------------------------------
@@ -54,7 +55,7 @@ import java.util.List;
  * {@link DimensionalShapeType} is {@link DimensionalShapeType#POINT}, the sum of weights is the number of points,
  * since every point has weight 1, and is stored as that count rather than as the bits of a double.
  *
- * <p><b>Legacy format</b> (DimensionalShapeType high bit clear):
+ * <p><b>Legacy format</b>:
  * <pre>
  * -----------------------------------------------
  * |   centroid-x-coord (4 bytes)                |
@@ -147,7 +148,7 @@ public class GeometryDocValueWriter {
     ) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
 
-        // 1. Centroid header (with V2 format marker in DimensionalShapeType)
+        // 1. Centroid header
         writeV2Header(out, coordinateEncoder, centroidCalculator);
 
         // 2. Build connectivity first, so the original geometry vertices take the first ordinals in geometry order.
@@ -189,7 +190,7 @@ public class GeometryDocValueWriter {
         out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
         out.writeInt(coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));
         final DimensionalShapeType shapeType = centroidCalculator.getDimensionalShapeType();
-        shapeType.writeV2To(out);
+        shapeType.writeTo(out);
         final double sumWeight = centroidCalculator.sumWeight();
         if (shapeType == DimensionalShapeType.POINT) {
             assert sumWeight == (long) sumWeight && sumWeight >= 0 : "points have weight 1, but the sum is " + sumWeight;
@@ -213,7 +214,7 @@ public class GeometryDocValueWriter {
     ) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
 
-        // Centroid header (without V2 format marker)
+        // Centroid header
         out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
         out.writeInt(coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));
         centroidCalculator.getDimensionalShapeType().writeTo(out);

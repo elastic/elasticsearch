@@ -28,6 +28,7 @@ import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RectangleMatcher;
 
@@ -69,7 +70,10 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
     }
 
     public void testCartesianBoundsNoData() throws IOException {
-        var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field");
+        var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader(
+            "field",
+            randomFrom(GeometryDocValueFormat.values())
+        );
         try (Directory directory = newDirectory()) {
             try (var iw = new IndexWriter(directory, new IndexWriterConfig(null /* analyzer */))) {
                 iw.addDocument(List.of());
@@ -124,13 +128,14 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
         Function<Geometry, Optional<Rectangle>> visitor,
         BiFunction<CoordinateEncoder, Object, Rectangle> rectangleMaker
     ) throws IOException {
-        var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field");
+        GeometryDocValueFormat format = randomFrom(GeometryDocValueFormat.values());
+        var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field", format);
         try (Directory directory = newDirectory()) {
             // Since we also test that the documents are loaded in the correct order, we need to write them in order, so we can't use
             // RandomIndexWriter here.
             try (var iw = new IndexWriter(directory, new IndexWriterConfig(null /* analyzer */))) {
                 for (Geometry geometry : geometries) {
-                    var shape = new BinaryShapeDocValuesField("field", encoder);
+                    var shape = new BinaryShapeDocValuesField("field", encoder, format);
                     shape.add(indexerFactory.apply("field").indexShape(geometry), geometry);
                     var doc = new Document();
                     doc.add(shape);

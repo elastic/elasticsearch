@@ -36,15 +36,23 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
 
     private final String field;
     private final CoordinateEncoder encoder;
+    private final GeometryDocValueFormat format;
     private final ShapeField.QueryRelation relation;
     private final GEOMETRY[] geometries;
 
-    ShapeDocValuesQuery(String field, CoordinateEncoder encoder, ShapeField.QueryRelation relation, GEOMETRY[] geometries) {
+    ShapeDocValuesQuery(
+        String field,
+        CoordinateEncoder encoder,
+        GeometryDocValueFormat format,
+        ShapeField.QueryRelation relation,
+        GEOMETRY[] geometries
+    ) {
         if (field == null) {
             throw new IllegalArgumentException("field must not be null");
         }
         this.field = field;
         this.encoder = encoder;
+        this.format = format;
         this.relation = relation;
         this.geometries = geometries;
     }
@@ -77,13 +85,17 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
             return false;
         }
         ShapeDocValuesQuery<?> other = (ShapeDocValuesQuery<?>) obj;
-        return field.equals(other.field) && relation == other.relation && Arrays.equals(geometries, other.geometries);
+        return field.equals(other.field)
+            && format == other.format
+            && relation == other.relation
+            && Arrays.equals(geometries, other.geometries);
     }
 
     @Override
     public int hashCode() {
         int h = classHash();
         h = 31 * h + field.hashCode();
+        h = 31 * h + format.hashCode();
         h = 31 * h + relation.hashCode();
         h = 31 * h + Arrays.hashCode(geometries);
         return h;
@@ -121,7 +133,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         if (values == null) {
                             return new ConstantScoreScorer(0f, scoreMode, DocIdSetIterator.empty());
                         }
-                        final GeometryDocValueReader reader = new GeometryDocValueReader();
+                        final GeometryDocValueReader reader = new GeometryDocValueReader(format);
                         final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation, encoder);
                         final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
                             @Override
@@ -177,7 +189,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         for (int i = 0; i < components2D.size(); i++) {
                             visitors[i] = Component2DVisitor.getVisitor(components2D.get(i), relation, encoder);
                         }
-                        final GeometryDocValueReader reader = new GeometryDocValueReader();
+                        final GeometryDocValueReader reader = new GeometryDocValueReader(format);
                         final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
 
                             @Override

@@ -18,6 +18,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.test.ESTestCase;
 
@@ -59,8 +60,8 @@ public class GeoShapeDocValuesTests extends ESTestCase {
     private static void assertFormatsAgree(BytesRef legacyBytes, BytesRef v2Bytes) throws IOException {
         assertThat(v2Bytes, not(equalTo(legacyBytes)));
 
-        GeoShapeDocValues legacy = GeoShapeDocValues.fromDocValue(legacyBytes);
-        GeoShapeDocValues v2 = GeoShapeDocValues.fromDocValue(v2Bytes);
+        GeoShapeDocValues legacy = GeoShapeDocValues.fromDocValue(legacyBytes, GeometryDocValueFormat.LEGACY);
+        GeoShapeDocValues v2 = GeoShapeDocValues.fromDocValue(v2Bytes, GeometryDocValueFormat.V2);
         assertThat(v2.minLon(), equalTo(legacy.minLon()));
         assertThat(v2.maxLon(), equalTo(legacy.maxLon()));
         assertThat(v2.minLat(), equalTo(legacy.minLat()));

@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.script.GeometryFieldScript;
@@ -53,7 +54,7 @@ public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFiel
         if (geometry == null) {
             return false;
         }
-        final GeometryDocValueReader reader = new GeometryDocValueReader();
+        final GeometryDocValueReader reader = new GeometryDocValueReader(GeometryDocValueFormat.LEGACY);
         final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation.getLuceneRelation(), CoordinateEncoder.GEO);
         try {
             reader.reset(encodeGeometry(geometry));

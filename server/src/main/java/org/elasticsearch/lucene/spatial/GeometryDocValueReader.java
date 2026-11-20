@@ -20,27 +20,28 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A reusable Geometry doc value reader that supports two binary formats:
+ * A reusable Geometry doc value reader for one of two binary formats:
  *
- * <p><b>Legacy format</b> (DimensionalShapeType high bit clear):
+ * <p><b>Legacy format</b>:
  * <pre>
  * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1) | sumWeight(VLong) | extent | tree(coordinate deltas)
  * </pre>
  *
- * <p><b>V2 format</b> (DimensionalShapeType high bit set):
+ * <p><b>V2 format</b>:
  * <pre>
- * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1, 0x80 set) | sumWeight(VLong) | extent |
+ * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1) | sumWeight(VLong) | extent |
  * treeLength(VInt) | tree(vertex ordinals) | connectivityLength(VInt) | connectivity | vertexTable
  * </pre>
  * or, for values made only of points:
  * <pre>
- * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1, 0x80 set) | sumWeight(VLong) | extent |
+ * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1) | sumWeight(VLong) | extent |
  * treeLength(VInt, 0) | vertexTable(points)
  * </pre>
  *
- * <p>The format is detected from the {@link DimensionalShapeType} high bit after
- * {@link #reset(BytesRef)}, and a V2 value made only of points from its zero tree length. In V2,
- * the sum of weights of a {@link DimensionalShapeType#POINT} value is stored as the number of points.
+ * <p>The bytes don't say which format they use, so the reader is created for one {@link GeometryDocValueFormat} and
+ * must only be given values written in it: the doc-values of one index, or transient values it encoded itself. A V2
+ * value made only of points is detected from its zero tree length. In V2, the sum of weights of a
+ * {@link DimensionalShapeType#POINT} value is stored as the number of points.
  * Reading the centroid or extent never loads the vertex table, keeping analytics-only access paths fast.
  * The tree and connectivity length prefixes allow the reader to skip to the vertex table at
  * the end (loaded lazily on first tree visit or geometry reconstruction).
@@ -52,8 +53,10 @@ public class GeometryDocValueReader {
     private int docValueOffset;
     private BytesRef bytesRef;
 
-    /** True if the doc value uses the V2 format with vertex table and connectivity. */
-    private boolean v2Format;
+    private final GeometryDocValueFormat format;
+
+    /** True if the doc values use the V2 format with vertex table and connectivity. */
+    private final boolean v2Format;
 
     /**
      * True for V2 {@link DimensionalShapeType#POINT} values, whose sum of weights is stored as a count of points. Only
@@ -78,9 +81,14 @@ public class GeometryDocValueReader {
     /** Position of the connectivity data (V2 only). Set when vertex table is loaded. */
     private int connectivityOffset;
 
-    public GeometryDocValueReader() {
+    /**
+     * @param format the format of every value this reader will be {@link #reset} to
+     */
+    public GeometryDocValueReader(GeometryDocValueFormat format) {
         this.extent = new Extent();
         this.input = new ByteArrayStreamInput();
+        this.format = format;
+        this.v2Format = format == GeometryDocValueFormat.V2;
     }
 
     /**
@@ -96,11 +104,8 @@ public class GeometryDocValueReader {
         treeLength = 0;
         vertexTable = null;
         connectivityOffset = 0;
-        // Detect format from the DimensionalShapeType byte (offset 8)
-        input.setPosition(docValueOffset + 8);
-        byte shapeType = input.readByte();
-        v2Format = DimensionalShapeType.isV2Format(shapeType);
-        v2PointType = DimensionalShapeType.isV2Point(shapeType);
+        // The DimensionalShapeType byte sits at offset 8
+        v2PointType = v2Format && bytesRef.bytes[docValueOffset + 8] == DimensionalShapeType.POINT.ordinal();
     }
 
     // ---- Centroid header: accessible at fixed offsets, no parsing needed ----
@@ -146,6 +151,8 @@ public class GeometryDocValueReader {
                 // V2: tree length prefix sits between extent and tree
                 treeLength = input.readVInt();
                 treeOffset = input.getPosition();
+                assert treeOffset + treeLength <= bytesRef.offset + bytesRef.length
+                    : "tree length [" + treeLength + "] overruns the value, which may not be in the V2 format";
             } else {
                 // Legacy: tree starts right after extent
                 treeOffset = afterExtentOffset;
@@ -333,8 +340,8 @@ public class GeometryDocValueReader {
         return new MultiPoint(points);
     }
 
-    public boolean isV2Format() {
-        return v2Format;
+    public GeometryDocValueFormat format() {
+        return format;
     }
 
     public BytesRef getBytesRef() {

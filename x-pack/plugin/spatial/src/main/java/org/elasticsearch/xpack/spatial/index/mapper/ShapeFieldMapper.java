@@ -35,6 +35,7 @@ import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueFormat;
 import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -190,6 +191,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             failIfNoDocValues();
             return (a, b) -> new CartesianShapeIndexFieldData(
                 name(),
+                docValueFormat(),
                 CartesianShapeValuesSourceType.instance(),
                 ShapeFieldMapper.CartesianShapeDocValuesField::new
             );
@@ -206,7 +208,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 );
             }
             try {
-                return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, indexType());
+                return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, indexType(), docValueFormat());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
@@ -225,13 +227,13 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
-                return new CartesianBoundsBlockLoader(name());
+                return new CartesianBoundsBlockLoader(name(), docValueFormat());
             }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_CENTROID) {
-                return new CartesianCentroidBlockLoader(name());
+                return new CartesianCentroidBlockLoader(name(), docValueFormat());
             }
             if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS_AND_CENTROID) {
-                return new CartesianBoundsAndCentroidBlockLoader(name());
+                return new CartesianBoundsAndCentroidBlockLoader(name(), docValueFormat());
             }
             if (isColumnar && blContext.parentField(name()) == null) {
                 // Columnar: read the geometry value (WKB) straight from the field-owned doc value. Multi fields are
@@ -248,8 +250,8 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         static class CartesianBoundsBlockLoader extends BoundsBlockLoader {
-            protected CartesianBoundsBlockLoader(String fieldName) {
-                super(fieldName);
+            protected CartesianBoundsBlockLoader(String fieldName, GeometryDocValueFormat format) {
+                super(fieldName, format);
             }
 
             protected void writeExtent(BlockLoader.IntBuilder builder, Extent extent) {
@@ -264,14 +266,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         static class CartesianCentroidBlockLoader extends CentroidBlockLoader {
-            protected CartesianCentroidBlockLoader(String fieldName) {
-                super(fieldName, CoordinateEncoder.CARTESIAN);
+            protected CartesianCentroidBlockLoader(String fieldName, GeometryDocValueFormat format) {
+                super(fieldName, CoordinateEncoder.CARTESIAN, format);
             }
         }
 
         static class CartesianBoundsAndCentroidBlockLoader extends BoundsAndCentroidBlockLoader {
-            protected CartesianBoundsAndCentroidBlockLoader(String fieldName) {
-                super(fieldName, CoordinateEncoder.CARTESIAN);
+            protected CartesianBoundsAndCentroidBlockLoader(String fieldName, GeometryDocValueFormat format) {
+                super(fieldName, CoordinateEncoder.CARTESIAN, format);
             }
 
             @Override
@@ -322,11 +324,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             String name = fieldType().name();
             BinaryShapeDocValuesField docValuesField = (BinaryShapeDocValuesField) context.doc().getByKey(name);
             if (docValuesField == null) {
-                docValuesField = new BinaryShapeDocValuesField(
-                    name,
-                    CoordinateEncoder.CARTESIAN,
-                    fieldType().supportsGeometryDocValueReconstruction()
-                );
+                docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN, fieldType().docValueFormat());
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);

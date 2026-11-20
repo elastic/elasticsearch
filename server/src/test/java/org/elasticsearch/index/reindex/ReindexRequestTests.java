@@ -778,10 +778,7 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
 
     public void testDestSliceAllRejectedAtParse() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        Exception e = expectThrows(
-            Exception.class,
-            () -> parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, SliceIndexing.SLICE_ALL)
-        );
+        Exception e = expectThrows(Exception.class, () -> parseRequestWithDestRoutingField(SliceIndexing.FIELD_NAME, "_all"));
         assertThat(e.getMessage(), containsString("[reindex] failed to parse field [dest]"));
     }
 
@@ -793,13 +790,9 @@ public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTes
         assertEquals("tenant-a", request.getSearchRequest().routing());
     }
 
-    public void testSourceSliceAllParsesWhenFeatureFlagEnabled() throws IOException {
+    public void testSourceSliceAllRejectedAtParse() throws IOException {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        ReindexRequest request = parseRequestWithSourceSlice(SliceIndexing.SLICE_ALL);
-        assertEquals(SliceIndexing.SLICE_ALL, request.getSearchRequest().searchSlice());
-        assertTrue(request.getSearchRequest().isRoutingFromSlice());
-        // [_all] leaves routing unrestricted so every slice is read.
-        assertNull(request.getSearchRequest().routing());
+        expectThrows(Exception.class, () -> parseRequestWithSourceSlice("_all"));
     }
 
     public void testSourceSliceRejectedWhenFeatureFlagDisabled() throws IOException {

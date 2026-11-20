@@ -24,27 +24,15 @@ public class SliceSelectionTests extends ESTestCase {
     public void testUnspecified() {
         SliceSelection slices = SliceSelection.fromSearchSlice(null);
         assertThat(slices, sameInstance(SliceSelection.UNSPECIFIED));
-        assertFalse(slices.isSpecified());
         assertFalse(slices.isRestricted());
         assertThat(slices.names(), empty());
         assertNull(slices.toSearchSlice());
         assertNull(slices.toRouting());
     }
 
-    public void testAll() {
-        SliceSelection slices = SliceSelection.fromSearchSlice(SliceIndexing.SLICE_ALL);
-        assertThat(slices, sameInstance(SliceSelection.ALL));
-        assertTrue(slices.isSpecified());
-        assertFalse(slices.isRestricted());
-        assertThat(slices.names(), empty());
-        assertThat(slices.toSearchSlice(), equalTo(SliceIndexing.SLICE_ALL));
-        assertNull(slices.toRouting());
-    }
-
     public void testNamed() {
         SliceSelection slices = SliceSelection.fromSearchSlice("s1,s2");
         assertThat(slices.kind(), equalTo(SliceSelection.Kind.NAMED));
-        assertTrue(slices.isSpecified());
         assertTrue(slices.isRestricted());
         assertThat(slices.names(), contains("s1", "s2"));
         assertThat(slices.toSearchSlice(), equalTo("s1,s2"));
@@ -65,14 +53,8 @@ public class SliceSelectionTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> SliceSelection.of(List.of()));
     }
 
-    public void testRejectsAllCombinedWithNames() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SliceSelection.fromSearchSlice("s1,_all"));
-        assertThat(e.getMessage(), containsString("[_all] cannot be combined with other slices"));
-        expectThrows(IllegalArgumentException.class, () -> SliceSelection.of(List.of(SliceIndexing.SLICE_ALL)));
-    }
-
     public void testNamesRequireNamedKind() {
-        expectThrows(IllegalArgumentException.class, () -> new SliceSelection(SliceSelection.Kind.ALL, List.of("s1")));
+        expectThrows(IllegalArgumentException.class, () -> new SliceSelection(SliceSelection.Kind.UNSPECIFIED, List.of("s1")));
         expectThrows(IllegalArgumentException.class, () -> new SliceSelection(SliceSelection.Kind.NAMED, List.of()));
     }
 }

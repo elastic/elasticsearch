@@ -38,7 +38,7 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
             request.preference(randomAlphaOfLength(10));
         }
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && randomBoolean()) {
-            request.searchSlice(randomBoolean() ? SliceIndexing.SLICE_ALL : randomAlphaOfLength(10));
+            request.searchSlice(randomAlphaOfLength(10));
         } else if (randomBoolean()) {
             request.routing(randomAlphaOfLength(10));
         }
@@ -114,11 +114,6 @@ public class OpenPointInTimeRequestTests extends AbstractWireSerializingTestCase
         OpenPointInTimeRequest request = new OpenPointInTimeRequest("idx").searchSlice("s1");
         assertEquals("s1", request.routing());
         assertEquals("s1", request.searchSlice());
-        assertTrue(request.isRoutingFromSlice());
-
-        request.searchSlice(SliceIndexing.SLICE_ALL);
-        assertNull(request.routing());
-        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
         assertTrue(request.isRoutingFromSlice());
 
         request.setRoutingFromSlice(false);

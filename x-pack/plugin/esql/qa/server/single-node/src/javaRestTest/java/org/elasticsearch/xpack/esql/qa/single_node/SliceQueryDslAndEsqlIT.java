@@ -251,8 +251,8 @@ public class SliceQueryDslAndEsqlIT extends ESRestTestCase {
         assertThat(fromEsql.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(fromEsql.getMessage(), containsString(rejected));
 
-        // selecting every slice does not name the slices to search
-        Request allSlices = new Request("POST", path(List.of("_all"), "_search"));
+        // searching without a slice does not name the slices to search
+        Request allSlices = new Request("POST", path(List.of(), "_search"));
         allSlices.setJsonEntity("{" + knnSearch + "}");
         ResponseException fromAll = expectThrows(ResponseException.class, () -> client().performRequest(allSlices));
         assertThat(fromAll.getResponse().getStatusLine().getStatusCode(), equalTo(400));

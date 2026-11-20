@@ -133,27 +133,6 @@ setup:
   - contains: { hits.hits: { _id: "4" } }
 
 ---
-"KNN search with _all is rejected":
-  - requires:
-      capabilities:
-        - method: POST
-          path: /_search
-          capabilities: [ knn_requires_slice_selection ]
-      test_runner_features: [ capabilities ]
-      reason: "knn search requires the slices to be selected by name on a slice-enabled index"
-  - do:
-      catch: /to perform knn search on field \[vector\], the slices to search must be selected by name/
-      search:
-        index: bbq_disk_slice
-        _slice: _all
-        body:
-          knn:
-            field: vector
-            query_vector: [0.707107, 0.707107, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-            k: 4
-            num_candidates: 10
-
----
 "Search without slice reads every slice of a slice-enabled index":
   - do:
       search:

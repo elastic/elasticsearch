@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -81,5 +82,16 @@ public class RestOpenPointInTimeActionTests extends RestActionTestCase {
         assertThat(transportRequest.searchSlice(), equalTo("tenant-a"));
         assertThat(transportRequest.routing(), equalTo("tenant-a"));
         assertThat(transportRequest.isRoutingFromSlice(), equalTo(true));
+    }
+
+    public void testSliceParameterRejectsAll() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        RestOpenPointInTimeAction action = new RestOpenPointInTimeAction(CrossProjectModeDecider.NOOP);
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("/slice-index/_pit")
+            .withParams(Map.of("_slice", "_all", "keep_alive", "5m"))
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
+        assertThat(e.getMessage(), containsString("invalid [_slice] value [_all]"));
     }
 }

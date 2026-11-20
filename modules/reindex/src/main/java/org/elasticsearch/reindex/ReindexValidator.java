@@ -103,7 +103,8 @@ public class ReindexValidator {
     /**
      * Validates the interaction between the source {@code slice} (which slice of a slice-enabled source to read) and the destination
      * {@code slice} (which slice every reindexed document is written to). A destination {@code slice} may be omitted for a slice-enabled
-     * destination when either the source is read in slice mode (each document preserves the slice it was read from) or a script is present
+     * destination when either the source has slices, because it names one or targets a slice-enabled index (each document preserves the
+     * slice it was read from), or a script is present
      * (the script may assign {@code ctx._slice} per document). If neither holds, a static destination {@code slice} is required.
      */
     private void validateSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
@@ -113,7 +114,7 @@ public class ReindexValidator {
         final boolean destSliceProvided = destination.isRoutingFromSlice();
         final boolean sourceSliceMode = request.getSearchRequest().isRoutingFromSlice();
 
-        validateNoRequiredRoutingMixedWithSlices(
+        final boolean anySourceSliceEnabled = validateNoRequiredRoutingMixedWithSlices(
             request,
             projectMetadata,
             destination,
@@ -146,11 +147,12 @@ public class ReindexValidator {
                         + "] instead"
                 );
             }
-            // Omitting [_slice] in [dest] works when the source is read in slice mode (each document keeps its source slice) or a script is
-            // present (it may assign [_slice] per document). Documents that are left without a slice are rejected at index time by the
-            // slice-enabled destination, so we only reject up-front when neither mechanism can supply one.
+            // Omitting [_slice] in [dest] works when the source has slices, named or not (each document keeps its source slice) or a
+            // script is present (it may assign [_slice] per document). Documents that are left without a slice are rejected at index
+            // time by the slice-enabled destination, so we only reject up-front when neither mechanism can supply one.
+            final boolean sourceHasSlices = sourceSliceMode || anySourceSliceEnabled;
             final boolean scriptMayProvideSlice = request.getScript() != null;
-            if (destSliceProvided == false && sourceSliceMode == false && scriptMayProvideSlice == false) {
+            if (destSliceProvided == false && sourceHasSlices == false && scriptMayProvideSlice == false) {
                 throw new IllegalArgumentException(
                     "["
                         + SliceIndexing.FIELD_NAME
@@ -173,8 +175,10 @@ public class ReindexValidator {
      * distinct routing models that cannot be reconciled during reindex: the former routes documents by their {@code slice}, the latter by
      * an arbitrary user-supplied {@code routing} value. When slices are involved on either side of the reindex, reject any participating
      * non-slice index that requires routing rather than silently producing an unusable destination.
+     *
+     * @return whether any local source index is slice-enabled
      */
-    private void validateNoRequiredRoutingMixedWithSlices(
+    private boolean validateNoRequiredRoutingMixedWithSlices(
         ReindexRequest request,
         ProjectMetadata projectMetadata,
         IndexRequest destination,
@@ -207,7 +211,7 @@ public class ReindexValidator {
 
         final boolean slicesInvolved = sourceSliceMode || destSliceProvided || destinationSliceEnabled || anySourceSliceEnabled;
         if (slicesInvolved == false) {
-            return;
+            return anySourceSliceEnabled;
         }
 
         if (sourceRequiresRouting) {
@@ -228,6 +232,7 @@ public class ReindexValidator {
                 );
             }
         }
+        return anySourceSliceEnabled;
     }
 
     private static boolean routingRequired(IndexMetadata indexMetadata) {

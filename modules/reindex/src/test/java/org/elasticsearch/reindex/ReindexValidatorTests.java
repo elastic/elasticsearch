@@ -158,6 +158,40 @@ public class ReindexValidatorTests extends ESTestCase {
         validator.initialValidation(request);
     }
 
+    public void testAllowOmittedSliceInSliceEnabledDestinationWhenSourceIsSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexValidator validator = validatorWithProject(projectMetadataWithSliceEnabledSourceAndDestination());
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+
+        // Reading a slice-enabled source without a slice reads every slice, and each document keeps its own.
+        validator.initialValidation(request);
+    }
+
+    public void testRemoteSourceIsNotReadInSliceMode() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:9200").build();
+        ReindexValidator validator = validatorWithProject(projectMetadataWithSliceEnabledSourceAndDestination(), settings);
+        ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
+        // The remote cluster cannot be resolved here, so a local index with the same name must not make the source slice-enabled.
+        request.setRemoteInfo(
+            new RemoteInfo(
+                "http",
+                "127.0.0.1",
+                9200,
+                null,
+                new BytesArray("{\"match_all\":{}}"),
+                null,
+                null,
+                Map.of(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
+        assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
+    }
+
     public void testAllowOmittedSliceInSliceEnabledDestinationWhenScriptPresent() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         ReindexValidator validator = validatorWithProject(projectMetadataWithDestinationSliceSetting(true));
@@ -230,8 +264,11 @@ public class ReindexValidatorTests extends ESTestCase {
     }
 
     private ReindexValidator validatorWithProject(ProjectMetadata projectMetadata) {
+        return validatorWithProject(projectMetadata, Settings.EMPTY);
+    }
+
+    private ReindexValidator validatorWithProject(ProjectMetadata projectMetadata, Settings settings) {
         IndexNameExpressionResolver indexResolver = TestIndexNameExpressionResolver.newInstance();
-        Settings settings = Settings.EMPTY;
         AutoCreateIndex autoCreateIndex = new AutoCreateIndex(
             settings,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -252,6 +289,21 @@ public class ReindexValidatorTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
         when(clusterService.state()).thenReturn(clusterState);
         return clusterService;
+    }
+
+    private ProjectMetadata projectMetadataWithSliceEnabledSourceAndDestination() {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(randomUniqueProjectId());
+        for (String name : new String[] { "source-index", "dest-index" }) {
+            project.put(
+                IndexMetadata.builder(name)
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SLICE_ENABLED.getKey(), true).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                true
+            );
+        }
+        return project.build();
     }
 
     private ProjectMetadata projectMetadataWithDestinationSliceSetting(boolean destinationSliceEnabled) {

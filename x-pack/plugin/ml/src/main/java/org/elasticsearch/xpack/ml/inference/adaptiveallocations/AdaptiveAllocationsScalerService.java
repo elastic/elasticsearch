@@ -38,17 +38,21 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignme
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Periodically schedules adaptive allocations scaling. This process consists
@@ -433,6 +437,19 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 if (nodeStats.getStartTime() != null && now < nodeStats.getStartTime().toEpochMilli() + scaleUpCooldownTimeMillis.get()) {
                     hasRecentObservedScaleUp.add(deploymentId);
                 }
+            }
+            AdaptiveAllocationsScaler scaler = scalers.get(deploymentId);
+            if (scaler != null) {
+                // The last time the deployment was used or started on any node.
+                Instant lastActivity = assignmentStats.getNodeStats()
+                    .stream()
+                    .flatMap(nodeStats -> Stream.of(nodeStats.getLastAccess(), nodeStats.getStartTime()))
+                    .filter(Objects::nonNull)
+                    .max(Comparator.naturalOrder())
+                    .orElse(null);
+                scaler.maybeInitTimeWithoutRequestsSeconds(
+                    lastActivity == null ? 0.0 : Math.max(0.0, (now - lastActivity.toEpochMilli()) / 1000.0)
+                );
             }
         }
 

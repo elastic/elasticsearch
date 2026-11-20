@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -124,6 +125,24 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         boolean recentStartup,
         AssignmentState assignmentState
     ) {
+        return getDeploymentStatsResponse(
+            numAllocations,
+            inferenceCount,
+            latency,
+            Instant.now(),
+            recentStartup ? Instant.now() : Instant.now().minus(1, ChronoUnit.HOURS),
+            assignmentState
+        );
+    }
+
+    private GetDeploymentStatsAction.Response getDeploymentStatsResponse(
+        int numAllocations,
+        int inferenceCount,
+        double latency,
+        Instant lastAccess,
+        Instant startTime,
+        AssignmentState assignmentState
+    ) {
         return new GetDeploymentStatsAction.Response(
             List.of(),
             List.of(),
@@ -148,8 +167,8 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
                             0,
                             0,
                             0,
-                            Instant.now(),
-                            recentStartup ? Instant.now() : Instant.now().minus(1, ChronoUnit.HOURS),
+                            lastAccess,
+                            startTime,
                             1,
                             numAllocations,
                             inferenceCount,
@@ -469,6 +488,49 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
         verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         verifyNoMoreInteractions(client, clusterService);
+
+        service.stop();
+    }
+
+    public void test_scaleDownToZero_afterMasterFailover_whenAlreadyIdle() throws Exception {
+        // A newly elected master starts with a deployment with 1 allocation,
+        // which was started and last used a day ago, so it has been idle for longer than the scale-to-zero time.
+        ClusterState clusterState = getClusterState(1, AssignmentState.STARTED);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        AdaptiveAllocationsScalerService service = new AdaptiveAllocationsScalerService(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            true,
+            ONE_SECOND,
+            SIXTY_SECONDS,
+            SIXTY_THOUSAND_MILLISECONDS
+        );
+
+        Instant oneDayAgo = Instant.now().minus(1, ChronoUnit.DAYS);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(getDeploymentStatsResponse(1, 10, 10.0, oneDayAgo, oneDayAgo, AssignmentState.STARTED));
+            return Void.TYPE;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<CreateTrainedModelAssignmentAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return Void.TYPE;
+        }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
+        service.start();
+
+        // Scale down to zero on the first evaluation, without waiting for the scale-to-zero time again.
+        var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
+        updateRequest.setNumberOfAllocations(0);
+        updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
+        assertBusy(() -> verify(client, atLeastOnce()).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any()));
 
         service.stop();
     }

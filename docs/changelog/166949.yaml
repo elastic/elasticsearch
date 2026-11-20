@@ -1,5 +1,5 @@
 area: Vector Search
 issues: []
 pr: 166949
-summary: Keep IVF kNN results deterministic when scores tie the shared leaf cutoff
+summary: Only prune IVF kNN candidates scoring below another segment's min competitive score
 type: bug

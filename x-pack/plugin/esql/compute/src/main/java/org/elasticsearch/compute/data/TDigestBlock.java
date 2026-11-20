@@ -54,8 +54,9 @@ public sealed interface TDigestBlock extends HistogramBlock permits ConstantNull
     /**
      * Returns a view on the encoded t-digest at the given value index.
      * <p>
-     * The view is {@code scratch} itself, reset to the digest bytes. It is therefore only valid until
-     * {@code scratch} is reused or this block is closed.
+     * This behaves like {@link BytesRefBlock#getBytesRef(int, BytesRef)}: the view is {@code scratch} itself, reset to the
+     * digest bytes. Those bytes are likely to be a zero-copy view on the underlying data of this block, so they must be
+     * considered read-only. The view is only valid until {@code scratch} is reused or this block is closed.
      * </p>
      */
     EncodedTDigest getEncodedTDigest(int valueIndex, EncodedTDigest scratch);

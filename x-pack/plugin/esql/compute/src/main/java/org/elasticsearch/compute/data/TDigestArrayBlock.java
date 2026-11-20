@@ -286,8 +286,11 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
         return scratch;
     }
 
-    public EncodedTDigest getEncodedTDigest(int valueIndex, TDigestHolder scratch) {
-        return new EncodedTDigest(encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(valueIndex), scratch.scratchBytesRef()));
+    @Override
+    public EncodedTDigest getEncodedTDigest(int valueIndex, EncodedTDigest scratch) {
+        BytesRef bytes = encodedDigests.getBytesRef(encodedDigests.getFirstValueIndex(valueIndex), scratch.encodedDigest());
+        scratch.reset(bytes);
+        return scratch;
     }
 
     public static TDigestBlock createConstant(TDigestHolder histogram, int positionCount, BlockFactory blockFactory) {

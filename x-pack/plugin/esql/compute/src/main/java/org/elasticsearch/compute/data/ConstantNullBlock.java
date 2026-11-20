@@ -363,7 +363,7 @@ public final class ConstantNullBlock extends AbstractBlockRefCounted
     }
 
     @Override
-    public EncodedTDigest getEncodedTDigest(int valueIndex, TDigestHolder scratch) {
+    public EncodedTDigest getEncodedTDigest(int valueIndex, EncodedTDigest scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

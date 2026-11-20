@@ -51,7 +51,14 @@ public sealed interface TDigestBlock extends HistogramBlock permits ConstantNull
 
     TDigestHolder getTDigestHolder(int offset, TDigestHolder scratch);
 
-    EncodedTDigest getEncodedTDigest(int valueIndex, TDigestHolder scratch);
+    /**
+     * Returns a view on the encoded t-digest at the given value index.
+     * <p>
+     * The view is {@code scratch} itself, reset to the digest bytes. It is therefore only valid until
+     * {@code scratch} is reused or this block is closed.
+     * </p>
+     */
+    EncodedTDigest getEncodedTDigest(int valueIndex, EncodedTDigest scratch);
 
     interface SerializedTDigestOutput {
         void appendDouble(double value);

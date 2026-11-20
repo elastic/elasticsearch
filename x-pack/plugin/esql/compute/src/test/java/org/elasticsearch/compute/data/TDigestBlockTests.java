@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class TDigestBlockTests extends ComputeTestCase {
 
@@ -170,12 +171,14 @@ public class TDigestBlockTests extends ComputeTestCase {
     public void testEncodedTDigest() {
         TDigestBlock block = randomBlockWithNulls(true);
         try {
-            TDigestHolder scratch = new TDigestHolder();
+            EncodedTDigest scratch = new EncodedTDigest();
             TDigestHolder expectedScratch = new TDigestHolder();
             for (int p = 0; p < block.getPositionCount(); p++) {
                 int first = block.getFirstValueIndex(p);
                 for (int v = 0; v < block.getValueCount(p); v++) {
-                    EncodedTDigest encoded = ((TDigestArrayBlock) block).getEncodedTDigest(first + v, scratch);
+                    // The scratch is reused for every value, and the result is consumed before the next call
+                    EncodedTDigest encoded = block.getEncodedTDigest(first + v, scratch);
+                    assertThat(encoded, sameInstance(scratch));
                     TDigestHolder expected = block.getTDigestHolder(first + v, expectedScratch);
                     assertThat(encoded.size(), equalTo(expected.size()));
                     assertThat(encoded.centroidCount(), equalTo(expected.centroidCount()));

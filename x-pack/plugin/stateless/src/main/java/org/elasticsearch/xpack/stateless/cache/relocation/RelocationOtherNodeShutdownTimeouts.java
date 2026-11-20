@@ -102,7 +102,7 @@ public class RelocationOtherNodeShutdownTimeouts {
         // added to the competing shards (+1) below, and left out of the "other" recoveries here.
         final int otherRecoveriesOnTarget = Math.max(
             0,
-            SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, targetNodeId) - 1
+            SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, targetNodeId) - 1
         );
         final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
         final long now = threadPool.absoluteTimeInMillis();

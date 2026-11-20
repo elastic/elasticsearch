@@ -649,17 +649,7 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
      */
     public void testSearchRecoveryReevaluationSwitchesToShutdownTimeoutWhenAnotherClusterNodeStartsShuttingDown() {
         try (var threadPool = new TestThreadPool(getTestName(), StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true))) {
-            // the data nodes throttle the relocations, which is when the slots of the target can be shared, and the sharing is off
-            final var clusterSettings = newClusterSettings(
-                Settings.builder()
-                    .put(DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 2)
-                    .put(
-                        SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING.getKey(),
-                        false
-                    )
-                    .build()
-            );
-            final var service = newCalculationService(threadPool, clusterSettings, 0L);
+            final var service = newCalculationService(threadPool, newClusterSettings(Settings.EMPTY), 0L);
             final ClusterState stateWithoutShutdown = ClusterStateCreationUtils.state(
                 DEFAULT_PROJECT_ID,
                 "test",
@@ -701,30 +691,12 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     )
                 )
             );
-            // the share-slots setting is disabled, so the shard waits for the plain with-shutdown timeout
+            // the share-slots setting is disabled by default, so the shard waits for the plain with-shutdown timeout
             assertThat(
                 reevaluatedPlan.timeoutContext(),
                 equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
             );
             assertThat(reevaluatedPlan.extendable(), is(true));
-
-            // once enabled, the shutting-down node still holds a shard that the master has not begun to relocate, so the relocations to the
-            // target are not all known and the shard keeps waiting for the with-shutdown timeout
-            clusterSettings.applySettings(
-                Settings.builder()
-                    .put(
-                        SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING.getKey(),
-                        true
-                    )
-                    .build()
-            );
-            final var slotSharingPlan = service.searchRecoveryTimeout(stateWithOtherNodeShutdown, mockIndexShard(self), 0L, null);
-            assertThat(slotSharingPlan.timeout(), equalTo(reevaluatedPlan.timeout()));
-            assertThat(
-                slotSharingPlan.timeoutContext(),
-                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
-            );
-            assertThat(slotSharingPlan.extendable(), is(true));
         }
     }
 

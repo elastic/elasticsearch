@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -53,6 +54,9 @@ public class SearchShardRelocationsTests extends ESTestCase {
     private static final String MASTER_NODE = "master-node";
 
     private record Relocation(String source, String target) {}
+
+    /// A recovery that is not a relocation, of an unassigned shard, on the node.
+    private record Recovery(String node, RecoveryPriority priority) {}
 
     public void testFromCountsOnlySearchShardsRelocatingBetweenTheTwoNodes() {
         final var state = clusterState(
@@ -126,7 +130,7 @@ public class SearchShardRelocationsTests extends ESTestCase {
         assertThat(SearchShardRelocations.countFromShuttingDownNodesTo(state, OTHER_TARGET), equalTo(0));
     }
 
-    public void testInitializingNotFromShuttingDownNodesCountsTheRelocationsFromOtherNodesAndTheOtherRecoveries() {
+    public void testNonCriticalInitializingNotFromShuttingDownNodesCountsTheRelocationsFromOtherNodesAndTheOtherRecoveries() {
         final var state = clusterState(
             List.of(
                 new Relocation(SOURCE_A, TARGET),
@@ -146,16 +150,21 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 SingleNodeShutdownMetadata.Type.RESTART
             ),
             List.of(),
-            // recoveries that are not relocations, as of an unassigned shard or a snapshot restore
-            List.of(TARGET, OTHER_TARGET, OTHER_TARGET)
+            List.of(
+                new Recovery(TARGET, RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING),
+                // critical recoveries do not use the non-critical slots
+                new Recovery(TARGET, RecoveryPriority.UNASSIGNED_UNEXPECTED),
+                new Recovery(OTHER_TARGET, RecoveryPriority.UNASSIGNED_RESTORING),
+                new Recovery(OTHER_TARGET, RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING)
+            )
         );
 
-        // 3 relocations from the nodes that are not marked for removal, and 1 other recovery
-        assertThat(SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, TARGET), equalTo(4));
-        // 1 relocation and 2 other recoveries
-        assertThat(SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, OTHER_TARGET), equalTo(3));
-        assertThat(SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, SOURCE_A), equalTo(0));
-        assertThat(SearchShardRelocations.countInitializingNotFromShuttingDownNodes(state, "no-such-node"), equalTo(0));
+        // 3 relocations from the nodes that are not marked for removal, and 1 other non-critical recovery
+        assertThat(SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, TARGET), equalTo(4));
+        // 1 relocation and 2 other non-critical recoveries
+        assertThat(SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, OTHER_TARGET), equalTo(3));
+        assertThat(SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, SOURCE_A), equalTo(0));
+        assertThat(SearchShardRelocations.countNonCriticalInitializingNotFromShuttingDownNodes(state, "no-such-node"), equalTo(0));
     }
 
     public void testPendingRelocationsCountsOnlyTheStartedSearchShardsOfTheNode() {
@@ -228,16 +237,16 @@ public class SearchShardRelocationsTests extends ESTestCase {
         return clusterState(searchRelocations, promotableRelocations, shutdowns, startedSearchShardNodes, List.of());
     }
 
-    /// As above, with one more search replica initializing on the node, without a relocation, per entry of `initializingSearchShardNodes`.
+    /// As above, with one more search replica initializing on the node, without a relocation, per entry of `initializingRecoveries`.
     private static ClusterState clusterState(
         List<Relocation> searchRelocations,
         List<Relocation> promotableRelocations,
         Map<String, SingleNodeShutdownMetadata.Type> shutdowns,
         List<String> startedSearchShardNodes,
-        List<String> initializingSearchShardNodes
+        List<Recovery> initializingRecoveries
     ) {
         final int numShards = searchRelocations.size() + promotableRelocations.size() + startedSearchShardNodes.size()
-            + initializingSearchShardNodes.size();
+            + initializingRecoveries.size();
         final var index = new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE);
         final var indexMetadata = IndexMetadata.builder(index.getName())
             .settings(indexSettings(IndexVersion.current(), index.getUUID(), numShards, 1))
@@ -273,13 +282,14 @@ public class SearchShardRelocationsTests extends ESTestCase {
                 .build();
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica));
         }
-        for (final var nodeId : initializingSearchShardNodes) {
+        for (final var recovery : initializingRecoveries) {
             final var shardId = new ShardId(index, shard++);
             final var primary = TestShardRouting.shardRoutingBuilder(shardId, PRIMARY_NODE, true, STARTED)
                 .withRole(ShardRouting.Role.INDEX_ONLY)
                 .build();
-            final var replica = TestShardRouting.shardRoutingBuilder(shardId, nodeId, false, INITIALIZING)
+            final var replica = TestShardRouting.shardRoutingBuilder(shardId, recovery.node(), false, INITIALIZING)
                 .withRole(ShardRouting.Role.SEARCH_ONLY)
+                .withRecoveryPriority(recovery.priority())
                 .build();
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replica));
         }

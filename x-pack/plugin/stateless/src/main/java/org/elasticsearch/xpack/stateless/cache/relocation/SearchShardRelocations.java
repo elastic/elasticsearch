@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-/// Counts the search shards relocating to a node, as seen from the `RoutingNode` of the target, where they are the shards initializing
-/// with their source set, and the search shards of a node that are yet to start relocating.
+/// Counts the shards initializing on a search node, as seen from its `RoutingNode`, where the relocations are the ones with their source
+/// set, and the search shards of a node that are yet to start relocating.
 final class SearchShardRelocations {
 
     private SearchShardRelocations() {}
@@ -33,10 +33,14 @@ final class SearchShardRelocations {
         return countRelocationsToTarget(state, targetNodeId, nodeShutdowns::isNodeMarkedForRemoval);
     }
 
-    /// The shards initializing on `targetNodeId` other than the relocations from the nodes marked for removal: the relocations from the
-    /// other nodes, the recoveries of unassigned shards and the snapshot restores, which use the slots of the target as well.
-    static int countInitializingNotFromShuttingDownNodes(ClusterState state, String targetNodeId) {
-        return countWithState(state, targetNodeId, ShardRoutingState.INITIALIZING) - countFromShuttingDownNodesTo(state, targetNodeId);
+    /// The non-critical recoveries on `targetNodeId` other than the relocations from the nodes marked for removal: the relocations from the
+    /// other nodes, the snapshot restores and the replicas added for performance, which use the non-critical slots of the target as well.
+    /// The critical recoveries are left out, as they do not use those slots.
+    static int countNonCriticalInitializingNotFromShuttingDownNodes(ClusterState state, String targetNodeId) {
+        // all the relocations are non-critical, so the ones from the shutting-down nodes are among the non-critical recoveries counted
+        // first
+        return countInitializing(state, targetNodeId, shard -> shard.recoveryPriority().isCritical() == false)
+            - countFromShuttingDownNodesTo(state, targetNodeId);
     }
 
     /// The search shards started on `nodeId`, which have not begun to relocate yet.
@@ -58,14 +62,22 @@ final class SearchShardRelocations {
 
     /// The relocations to `targetNodeId` from the nodes that match `sourceNodeFilter`.
     private static int countRelocationsToTarget(ClusterState state, String targetNodeId, Predicate<String> sourceNodeFilter) {
-        return searchRoutingNode(state, targetNodeId).map(node -> countInitializingRelocations(node, sourceNodeFilter)).orElse(0);
+        return countInitializing(
+            state,
+            targetNodeId,
+            shard -> shard.relocatingNodeId() != null && sourceNodeFilter.test(shard.relocatingNodeId())
+        );
     }
 
-    private static int countInitializingRelocations(RoutingNode targetNode, Predicate<String> sourceNodeFilter) {
+    /// The shards initializing on `targetNodeId` that match `shardFilter`.
+    private static int countInitializing(ClusterState state, String targetNodeId, Predicate<ShardRouting> shardFilter) {
+        return searchRoutingNode(state, targetNodeId).map(node -> countMatching(node, shardFilter)).orElse(0);
+    }
+
+    private static int countMatching(RoutingNode targetNode, Predicate<ShardRouting> shardFilter) {
         int count = 0;
         for (final ShardRouting shard : targetNode.initializing()) {
-            final String sourceNodeId = shard.relocatingNodeId();
-            if (sourceNodeId != null && sourceNodeFilter.test(sourceNodeId)) {
+            if (shardFilter.test(shard)) {
                 count++;
             }
         }

@@ -34,7 +34,10 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWitho
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -72,6 +75,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -165,7 +169,8 @@ public record TranslationContext(
         if (cmd.promqlPlan() instanceof VectorBinaryOperator op) {
             VectorMatch match = op.match();
             if (match.filter() != VectorMatch.Filter.NONE || match.grouping() != Joining.NONE) {
-                return doTranslateFinal(op.translateJoin(this).plan(), false);
+                IntermediateResult matched = op.translateMatched(this);
+                return doTranslateFinal(emitTimeSeriesAlias(matched, new NameId()), false);
             }
         }
 
@@ -230,6 +235,14 @@ public record TranslationContext(
             value = unset(packed, promoted.stream());
         }
         return new Eval(cmd.source(), table.plan(), List.of(new Alias(cmd.source(), MetadataAttribute.TIMESERIES, value, id)));
+    }
+
+    /**
+     * The canonical label container of a packing: labels named as PromQL names them and sorted, so equal label sets compare
+     * equal whether the source held them nested, prefixed or in another order.
+     */
+    public static Expression canonical(Expression packing) {
+        return new TimeSeriesMetadataFilter(packing.source(), packing, List.of(), true);
     }
 
     /**
@@ -461,6 +474,76 @@ public record TranslationContext(
             false
         );
         return derived.isEmpty() ? collapse : new Eval(source, collapse, derived);
+    }
+
+    /**
+     * The canonical label container of every label of a finished table: its finest packing - every label but the ones the
+     * table leaves out - or no label at all, with each label column written over it, as a column can hold a value the
+     * packing does not (a relabel writes one) and a null column is an absent label.
+     */
+    public Expression labels(IntermediateResult table) {
+        Source source = cmd.source();
+        Set<String> finest = table.schema().finestSkip();
+        Expression labels = finest == null ? Literal.keyword(source, "{}") : canonical(table.packed(finest));
+        for (String label : table.schema().labels()) {
+            Attribute column = table.label(label);
+            Expression value = column == null ? new Literal(source, null, DataType.KEYWORD)
+                : DataType.isString(column.dataType()) ? column
+                : new ToString(source, column, configuration());
+            labels = new TimeSeriesMetadataSet(source, labels, Literal.keyword(source, label), value);
+        }
+        return labels;
+    }
+
+    /**
+     * A finished table over {@code plan}, whose labels are the label container {@code labels}: every label column {@code wanted}
+     * names reads its values out of it, and every packing leaves its labels out of it. The {@code promoted} labels, the ones
+     * a node declares as its own columns, stand beside the packing of every other label, which takes the place of a
+     * whole-label-set packing, so a label shows once.
+     */
+    public IntermediateResult fromLabels(
+        LogicalPlan plan,
+        Attribute labels,
+        TranslationSchema wanted,
+        Set<String> promoted,
+        Attribute value,
+        Attribute step
+    ) {
+        Source source = cmd.source();
+        var columns = new ArrayList<Alias>();
+        var skips = new LinkedHashSet<Set<String>>();
+        for (Set<String> skip : wanted.skips()) {
+            skips.add(skip.isEmpty() ? promoted : skip);
+        }
+        if (skips.isEmpty()) {
+            skips.add(promoted);
+        }
+        for (Set<String> skip : skips) {
+            columns.add(new Alias(source, mapOpen(skip), unset(labels, skip.stream())));
+        }
+        for (String label : wanted.labels()) {
+            columns.add(new Alias(source, label, new TimeSeriesMetadataPath(source, labels, Literal.keyword(source, label))));
+        }
+        LogicalPlan table = columns.isEmpty() ? plan : new Eval(source, plan, columns);
+        return new IntermediateResult(
+            table,
+            new TranslationSchema(wanted.labels(), skips),
+            value,
+            step,
+            null,
+            Kind.AFTER_INITIAL_AGGREGATE
+        );
+    }
+
+    /**
+     * The double column {@code alias} defines, under its id even while its value is unresolved: an attribute taken from an
+     * unresolved alias is never bound again once a join or a projection holds it.
+     */
+    public static Attribute pinned(Alias alias) {
+        if (alias.resolved()) {
+            return alias.toAttribute();
+        }
+        return new ReferenceAttribute(alias.source(), null, alias.name(), DataType.DOUBLE, Nullability.TRUE, alias.id(), true);
     }
 
     /** {@code packing} leaving {@code labels} out as well: the canonical label container of the remaining labels. */

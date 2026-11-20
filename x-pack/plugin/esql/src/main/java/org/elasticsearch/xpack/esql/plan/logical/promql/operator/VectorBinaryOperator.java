@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -20,6 +21,10 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -38,11 +43,14 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.Inter
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult.Kind;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -295,6 +303,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     /** Translates explicit vector matching as a join; other binary operators compose over a shared frame. */
     @Override
     public IntermediateResult translate(TranslationContext context) {
+        boolean containerFunctions = context.containerFunctions();
         if (match().filter() == VectorMatch.Filter.NONE && match().grouping() == Joining.NONE) {
             boolean scalarOperand = left().resolved() && getType(left()) == SCALAR || right().resolved() && getType(right()) == SCALAR;
             boolean nestedMatch = anyMatchVectorBinaryOperator(left()) || anyMatchVectorBinaryOperator(right());
@@ -303,15 +312,246 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             // aggregates twice, so it cannot share a single aggregate with the other operand either.
             boolean countValues = CountValuesAggregate.usesCountValues(left()) || CountValuesAggregate.usesCountValues(right());
             if (scalarOperand || (nestedMatch == false && countValues == false && hasMismatchedLabelSets() == false)) {
+                if (containerFunctions && requiresIndependentPipelines(context)) {
+                    return translateContainerJoin(context);
+                }
                 return translateAggregate(context);
             }
         }
+        return translateMatched(context);
+    }
+
+    /** Translates the operator as a join: on the operands' label containers when an operand's labels stay packed. */
+    public IntermediateResult translateMatched(TranslationContext context) {
+        if (context.containerFunctions() && (hasPackedLabels(left().output()) || hasPackedLabels(right().output()))) {
+            return translateContainerJoin(context);
+        }
         return translateJoin(context);
+    }
+
+    /**
+     * Whether the operands cannot fold into one shared aggregate: operands reading different metrics stored as separate
+     * series, which never share a series.
+     */
+    private boolean requiresIndependentPipelines(TranslationContext context) {
+        return context.cmd().storesMetricName()
+            && readsDifferentMetrics()
+            && (hasPackedLabels(left().output()) || hasPackedLabels(right().output()));
+    }
+
+    /** Whether the operands select different metrics, each its own set. */
+    private boolean readsDifferentMetrics() {
+        Set<String> leftNames = metricNames(left());
+        Set<String> rightNames = metricNames(right());
+        return leftNames.isEmpty() == false && rightNames.isEmpty() == false && leftNames.equals(rightNames) == false;
+    }
+
+    private static Set<String> metricNames(LogicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        for (Selector selector : plan.collect(Selector.class)) {
+            if (selector instanceof LiteralSelector == false && selector.series() instanceof Attribute series) {
+                names.add(series.name());
+            }
+        }
+        return names;
+    }
+
+    /** The join key column: the labels two series match on. */
+    private static final String SIGNATURE = "$prom_sig";
+    /** The one side's labels, under a name of their own since the join merges its output by name. */
+    private static final String ONE_LABELS = "$prom_one";
+    /** The many side's labels, read before the join so its page holds only what the join reads. */
+    private static final String PROBE_LABELS = "$prom_many";
+    /** The result labels, from which the result's label columns and packings read. */
+    private static final String RESULT_LABELS = "$prom_labels";
+
+    /**
+     * Translates the operator as a join of independent pipelines matched on their label containers, with the label container
+     * functions: each operand's labels are one container - its packing with its label columns written over it - so an
+     * operand whose labels stay packed in {@code _timeseries} matches like any other. Two series match on Prometheus'
+     * signature, the {@code on(...)} labels or every label but the {@code ignoring(...)} ones and the metric name, and the
+     * result labels are the many side's, as Prometheus' {@code resultMetric} computes them; the columns the enclosing
+     * translation requires read out of them.
+     */
+    private IntermediateResult translateContainerJoin(TranslationContext context) {
+        return finish(context, joinOnLabels(context));
+    }
+
+    /** A finished table of the operator's result. */
+    private record LabeledTable(LogicalPlan plan, Attribute value, Attribute step, Attribute labels) {}
+
+    /**
+     * The result table, exposing the labels the operator declares, and whatever the enclosing translation requires, read out
+     * of the result labels.
+     */
+    private IntermediateResult finish(TranslationContext context, LabeledTable table) {
+        var declared = new TreeSet<String>();
+        for (Attribute attribute : output()) {
+            if (MetadataAttribute.isTimeSeriesAttributeName(attribute.name()) == false) {
+                declared.add(TranslationContext.mapFinite(attribute));
+            }
+        }
+        var columns = new LinkedHashSet<String>(context.required().labels());
+        columns.addAll(declared);
+        TranslationSchema wanted = new TranslationSchema(columns, context.required().skips());
+        return context.fromLabels(table.plan(), table.labels(), wanted, declared, table.value(), table.step());
+    }
+
+    /** The join of the operands on their label containers, projected to the result value, step and labels. */
+    private LabeledTable joinOnLabels(TranslationContext context) {
+        PromqlCommand cmd = context.cmd();
+        TranslationContext operands = context.withRequired(open());
+        IntermediateResult left = operands.translateIntermediate(left(), new NameId(), new NameId());
+        IntermediateResult right = operands.translateIntermediate(right(), new NameId(), new NameId());
+        // Orientation: the many side probes and keeps its identities; the one side builds and is re-identified, so a
+        // self-join of structurally identical operands has distinct attributes on each side.
+        boolean probeRight = match.grouping() == Joining.RIGHT;
+        IntermediateResult probe = probeRight ? right : left;
+        IntermediateResult build = reidentify(cmd, probeRight ? left : right);
+        // The probe side carries exactly what the join reads, its value, step and labels: a join below can leave a column in
+        // its pages that its output no longer names, which the join would misplace (#158164).
+        Alias probeValue = new Alias(
+            cmd.source(),
+            TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName()),
+            new ToDouble(cmd.source(), probe.valueColumn())
+        );
+        Alias labelsColumn = new Alias(cmd.source(), PROBE_LABELS, context.labels(probe));
+        List<Alias> pinned = List.of(probeValue, labelsColumn);
+        Attribute probeLabels = labelsColumn.toAttribute();
+        Attribute probeValueColumn = TranslationContext.pinned(probeValue);
+        List<NamedExpression> pinnedColumns = List.of(probeValueColumn, probe.step(), probeLabels);
+        // A series without a sample at a step is no element of the vector there, so it neither matches nor repeats a signature.
+        LogicalPlan probeSampled = new Filter(
+            cmd.source(),
+            new Eval(cmd.source(), probe.plan(), pinned),
+            new IsNotNull(cmd.source(), probeValueColumn)
+        );
+        LogicalPlan probePinned = new Project(cmd.source(), probeSampled, pinnedColumns);
+        probe = new IntermediateResult(probePinned, probe.schema(), probeValueColumn, probe.step(), null, probe.kind());
+        // The build side's value is a double column under a name of its own too, which the join adds to the probe's rows.
+        Alias buildValue = new Alias(
+            cmd.source(),
+            TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName()),
+            new ToDouble(cmd.source(), build.valueColumn())
+        );
+        Attribute buildValueColumn = TranslationContext.pinned(buildValue);
+        build = new IntermediateResult(
+            new Filter(
+                cmd.source(),
+                new Eval(cmd.source(), build.plan(), List.of(buildValue)),
+                new IsNotNull(cmd.source(), buildValueColumn)
+            ),
+            build.schema(),
+            buildValueColumn,
+            build.step(),
+            null,
+            build.kind()
+        );
+        Expression leftValue = probeRight ? build.value() : probe.value();
+        Expression rightValue = probeRight ? probe.value() : build.value();
+
+        Alias probeSignature = new Alias(cmd.source(), SIGNATURE, signature(probeLabels));
+        LogicalPlan probePlan = new Eval(cmd.source(), probe.plan(), List.of(probeSignature));
+        Expression buildLabels = context.labels(build);
+        Alias buildSignature = new Alias(cmd.source(), SIGNATURE, signature(buildLabels));
+        var buildColumns = new ArrayList<Alias>(List.of(buildSignature));
+        List<Attribute> added = new ArrayList<>(List.of(build.valueColumn()));
+        Attribute oneLabels = null;
+        if (match.groupingLabels().isEmpty() == false) {
+            Alias one = new Alias(cmd.source(), ONE_LABELS, buildLabels);
+            buildColumns.add(one);
+            oneLabels = one.toAttribute();
+            added.add(oneLabels);
+        }
+        LogicalPlan buildPlan = new Eval(cmd.source(), build.plan(), buildColumns);
+        List<Attribute> buildFields = List.of(build.step(), buildSignature.toAttribute());
+        var projection = new ArrayList<NamedExpression>(buildFields);
+        projection.addAll(added);
+        buildPlan = new Project(cmd.source(), buildPlan, projection);
+        LogicalPlan join = new HashJoin(
+            cmd.source(),
+            probePlan,
+            buildPlan,
+            List.of(probe.step(), probeSignature.toAttribute()),
+            buildFields,
+            added,
+            match.grouping() == Joining.NONE
+        );
+        Expression labels = resultLabels(probeLabels, oneLabels);
+
+        Expression lhsExpr = new ToDouble(leftValue.source(), leftValue);
+        Expression rhsExpr = new ToDouble(rightValue.source(), rightValue);
+        Expression value = binaryOp().asFunction().create(source(), lhsExpr, rhsExpr, context.configuration());
+        Expression filter = null;
+        if (this instanceof VectorBinaryComparison comparison) {
+            filter = comparison.filterMode() ? value : null;
+            value = comparison.filterMode() ? lhsExpr : new ToDouble(value.source(), value);
+        }
+        // Expose the step under the enclosing frame's step identity so enclosing translations (union branches, parent
+        // aggregates) resolve it by id, not just by name.
+        Attribute step = probe.step();
+        Alias stepAlias = new Alias(step.source(), step.name(), step, context.stepAttr().id());
+        Alias valueAlias = new Alias(source(), cmd.valueColumnName(), value, new NameId());
+        Alias labelsAlias = new Alias(source(), RESULT_LABELS, labels, new NameId());
+        LogicalPlan plan = new Eval(cmd.source(), join, List.of(valueAlias, stepAlias, labelsAlias));
+        if (filter != null) {
+            plan = new Filter(source(), plan, filter);
+        }
+        plan = new Project(cmd.source(), plan, List.of(valueAlias.toAttribute(), stepAlias.toAttribute(), labelsAlias.toAttribute()));
+        return new LabeledTable(plan, valueAlias.toAttribute(), stepAlias.toAttribute(), labelsAlias.toAttribute());
+    }
+
+    /** The labels two series match on: Prometheus' signature. */
+    private Expression signature(Expression labels) {
+        if (match.filter() == VectorMatch.Filter.ON) {
+            return new TimeSeriesMetadataFilter(labels.source(), labels, labelLiterals(labels.source(), match.filterLabels()), false);
+        }
+        var ignored = new TreeSet<String>(match.filterLabels());
+        ignored.add(LabelMatcher.NAME);
+        return new TimeSeriesMetadataFilter(labels.source(), labels, labelLiterals(labels.source(), ignored), true);
+    }
+
+    /**
+     * Prometheus' {@code resultMetric}: the many side's labels, without the metric name for arithmetic and {@code bool},
+     * with only the {@code on(...)} labels or without the {@code ignoring(...)} ones when one-to-one, and with each
+     * {@code group_x} included label written from the one side's.
+     */
+    private Expression resultLabels(Expression many, Attribute one) {
+        Expression labels = many;
+        if (dropMetricName) {
+            labels = new TimeSeriesMetadataFilter(
+                labels.source(),
+                labels,
+                labelLiterals(labels.source(), List.of(LabelMatcher.NAME)),
+                true
+            );
+        }
+        if (match.grouping() == Joining.NONE && match.filter() != VectorMatch.Filter.NONE) {
+            boolean keep = match.filter() == VectorMatch.Filter.ON;
+            labels = new TimeSeriesMetadataFilter(
+                labels.source(),
+                labels,
+                labelLiterals(labels.source(), match.filterLabels()),
+                keep == false
+            );
+        }
+        for (String included : match.groupingLabels()) {
+            Expression value = one == null
+                ? new Literal(source(), null, DataType.KEYWORD)
+                : new TimeSeriesMetadataPath(one.source(), one, Literal.keyword(one.source(), included));
+            labels = new TimeSeriesMetadataSet(labels.source(), labels, Literal.keyword(labels.source(), included), value);
+        }
+        return labels;
+    }
+
+    private static List<Expression> labelLiterals(Source source, Collection<String> labels) {
+        return new TreeSet<>(labels).stream().<Expression>map(label -> Literal.keyword(source, label)).toList();
     }
 
     /** Composes a binary operator as an expression over the operands' shared aggregate. */
     private IntermediateResult translateAggregate(TranslationContext context) {
         // Arithmetic and a bool comparison drop the metric name; so do both operands, folding into one frame.
+        TranslationContext outer = context;
         context = dropMetricName ? context.withoutMetricName() : context;
         IntermediateResult left = context.translate(left());
         Expression leftExpr = new ToDouble(left.value().source(), left.value());
@@ -326,6 +566,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         LogicalPlan plan;
         Expression filter;
         if (left.kind().afterInitialAggregation && right.kind().afterInitialAggregation) {
+            if (outer.containerFunctions()
+                && sharesGrouping(left, right) == false
+                && PromqlPlan.returnsScalar(left()) == false
+                && PromqlPlan.returnsScalar(right()) == false) {
+                // Aggregates over different groupings, such as two different without, pair like any match. A scalar has no
+                // labels to match on.
+                return translateContainerJoin(outer);
+            }
             plan = emitBinaryOperatorAggregateExpression(left, right);
             filter = null;
         } else {
@@ -581,6 +829,27 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             return a.withId(ids.computeIfAbsent(a.id(), k -> new NameId()));
         }
         return e;
+    }
+
+    /** Whether both operands' aggregates group by the same columns, so they fold into one. */
+    private static boolean sharesGrouping(IntermediateResult left, IntermediateResult right) {
+        List<Aggregate> leftAggregates = left.plan().collect(Aggregate.class);
+        List<Aggregate> rightAggregates = right.plan().collect(Aggregate.class);
+        if (leftAggregates.isEmpty() || rightAggregates.isEmpty()) {
+            return true;
+        }
+        return groupingNames(leftAggregates.getFirst()).equals(groupingNames(rightAggregates.getFirst()))
+            && leftAggregates.getFirst().groupings().size() == rightAggregates.getFirst().groupings().size();
+    }
+
+    private static Set<String> groupingNames(Aggregate aggregate) {
+        Set<String> names = new HashSet<>();
+        for (Expression grouping : aggregate.groupings()) {
+            if (grouping instanceof NamedExpression ne) {
+                names.add(ne.name());
+            }
+        }
+        return names;
     }
 
     /** Fold left and right aggregates into a single plan. */

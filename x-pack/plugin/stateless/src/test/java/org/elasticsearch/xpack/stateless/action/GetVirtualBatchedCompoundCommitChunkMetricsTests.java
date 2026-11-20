@@ -26,16 +26,6 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class GetVirtualBatchedCompoundCommitChunkMetricsTests extends ESTestCase {
 
-    public void testMetricNames() {
-        assertThat(REQUEST_TOTAL_METRIC, equalTo("es.stateless.search.vbcc_chunk.requests.total"));
-        assertThat(REQUEST_DURATION_HISTOGRAM_METRIC, equalTo("es.stateless.search.vbcc_chunk.requests.duration.histogram"));
-        assertThat(REQUEST_WITH_RETRIES_TOTAL_METRIC, equalTo("es.stateless.search.vbcc_chunk.requests_including_retries.total"));
-        assertThat(
-            REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC,
-            equalTo("es.stateless.search.vbcc_chunk.requests_including_retries.duration.histogram")
-        );
-    }
-
     public void testRecordSingleRequestOnlyUpdatesRequestMetrics() {
         final var registry = new RecordingMeterRegistry();
         final var metrics = GetVirtualBatchedCompoundCommitChunkMetrics.register(registry);

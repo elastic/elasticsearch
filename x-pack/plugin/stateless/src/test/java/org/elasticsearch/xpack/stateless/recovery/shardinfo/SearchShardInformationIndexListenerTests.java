@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_SEARCHER_ACQUIRED_RESPONSE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -169,7 +170,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertEmptyMetrics();
     }
 
-    public void testLastSearcherIsZero() {
+    public void testNoSearcherAcquiredResponseIsIgnored() {
         IndexShard indexShard = mock(IndexShard.class);
         ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
         when(indexShard.routingEntry()).thenReturn(shardRouting);
@@ -192,8 +193,8 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertThat(execution.request().getShardId(), equalTo(shardId));
 
         reset(indexShard);
-        execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(0));
-        // no interactions with the indexshard if acquired time is set to 0
+        execution.listener().onResponse(NO_SEARCHER_ACQUIRED_RESPONSE);
+        // no interactions with the index shard when there is no searcher acquisition to install
         verifyNoInteractions(indexShard);
 
         assertMetrics(1, 0);
@@ -329,7 +330,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         reset(indexShard);
         when(indexShard.state()).thenReturn(IndexShardState.STARTED);
 
-        // change time before execution
+        // change time before execution, so the request duration metric reflects 20ms and the response arrives 20ms after the request
         time.addAndGet(20);
         execution.listener().onResponse(new TransportFetchSearchShardInformationAction.Response(123));
 
@@ -337,6 +338,9 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<ActionListener<Void>> voidListenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         verify(indexShard).waitForEngineOrClosedShard(voidListenerCaptor.capture());
+
+        // 5 more ms pass while the engine becomes available; the reported age must be adjusted by that delay
+        time.addAndGet(5);
         ActionListener<Void> voidActionListener = voidListenerCaptor.getValue();
         voidActionListener.onResponse(null);
 
@@ -349,7 +353,7 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
 
         function.apply(searchEngine);
 
-        verify(searchEngine).setLastSearcherAcquiredTime(eq(123L));
+        verify(searchEngine).setLastSearcherAcquiredMillisAgo(eq(128L));
 
         assertMetrics(1, 0);
         List<Measurement> measurements = meterRegistry.getRecorder()
@@ -357,6 +361,35 @@ public class SearchShardInformationIndexListenerTests extends ESTestCase {
         assertThat(measurements, hasSize(1));
         assertThat(measurements.get(0).getLong(), equalTo(20L));
         assertThat(measurements.get(0).attributes(), hasEntry("es_search_last_searcher_acquired_greater_zero", true));
+    }
+
+    public void testEngineNotUpdatedWhenNoSearcherWasAcquired() {
+        IndexShard indexShard = mock(IndexShard.class);
+        ShardRouting shardRouting = createSearchOnlyShard(shardId, "search_node_1").moveToStarted(1);
+        when(indexShard.routingEntry()).thenReturn(shardRouting);
+        when(indexShard.shardId()).thenReturn(shardId);
+
+        AtomicLong time = new AtomicLong(0);
+        SearchShardInformationIndexListener listener = new SearchShardInformationIndexListener(
+            client,
+            collector,
+            clusterSettings,
+            time::get
+        );
+
+        listener.beforeIndexShardRecovery(indexShard, indexSettings, latchedActionListener);
+
+        reset(indexShard);
+        when(indexShard.state()).thenReturn(IndexShardState.STARTED);
+        client.lastExecution().listener().onResponse(NO_SEARCHER_ACQUIRED_RESPONSE);
+
+        verify(indexShard, never()).waitForEngineOrClosedShard(any());
+
+        assertMetrics(1, 0);
+        List<Measurement> measurements = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_HISTOGRAM, SearchShardInformationMetricsCollector.REQUESTS_DURATION_HISTOGRAM);
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).attributes(), hasEntry("es_search_last_searcher_acquired_greater_zero", false));
     }
 
     public void testSetInactive() {

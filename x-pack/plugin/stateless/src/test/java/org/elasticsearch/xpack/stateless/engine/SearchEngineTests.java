@@ -46,6 +46,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -802,7 +803,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             searchTaskQueue.advanceTime();
 
             try (var ignored = searchEngine.acquireSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
-                assertThat(searchEngine.getLastSearcherAcquiredTime(), is(0L));
+                assertThat(searchEngine.getMillisSinceLastSearcherAcquired().isPresent(), is(false));
             }
 
             try (
@@ -811,7 +812,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                     SplitShardCountSummary.IRRELEVANT
                 )
             ) {
-                assertThat(searchEngine.getLastSearcherAcquiredTime(), is(searchTaskQueue.getCurrentTimeMillis()));
+                assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), equalTo(OptionalLong.of(0L)));
             }
         }
         assertWarnings(
@@ -829,13 +830,23 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             var indexEngine = newIndexEngine(indexConfig);
             var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
         ) {
-            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(0L));
+            assertThat(searchEngine.getMillisSinceLastSearcherAcquired().isPresent(), is(false));
 
-            searchEngine.setLastSearcherAcquiredTime(10L);
-            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(10L));
+            // ages are ordered inversely to the timestamps they derive: 10ms ago is more recent than 20ms ago
+            searchEngine.setLastSearcherAcquiredMillisAgo(20L);
+            assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), equalTo(OptionalLong.of(20L)));
 
-            searchEngine.setLastSearcherAcquiredTime(5L);
-            assertThat(searchEngine.getLastSearcherAcquiredTime(), equalTo(10L));
+            searchEngine.setLastSearcherAcquiredMillisAgo(5L);
+            assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), equalTo(OptionalLong.of(5L)));
+
+            // 30ms ago is older than the known 5ms ago, so it must be ignored
+            searchEngine.setLastSearcherAcquiredMillisAgo(30L);
+            assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), equalTo(OptionalLong.of(5L)));
+
+            // an absurd elapsed time must not corrupt the known state, whether it is ignored by the monotonicity check or by the
+            // underflow guard
+            searchEngine.setLastSearcherAcquiredMillisAgo(Long.MAX_VALUE);
+            assertThat(searchEngine.getMillisSinceLastSearcherAcquired(), equalTo(OptionalLong.of(5L)));
         }
 
         assertWarnings(

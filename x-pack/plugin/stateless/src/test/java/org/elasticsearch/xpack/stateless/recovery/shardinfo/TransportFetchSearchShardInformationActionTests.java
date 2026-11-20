@@ -50,12 +50,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_OTHER_SHARDS_FOUND_RESPONSE;
+import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.NO_SEARCHER_ACQUIRED_RESPONSE;
 import static org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction.SHARD_HAS_MOVED_RESPONSE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -115,24 +117,43 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
 
     public void testShardOperation() {
         IndexShard indexShard = mock(IndexShard.class);
-        final long lastSearcherTime = randomLongBetween(0, 1000);
-        when(indexShard.tryWithEngineOrNull(any())).thenReturn(lastSearcherTime);
+        final long millisSinceLastSearcherAcquired = randomLongBetween(0, 1000);
+        when(indexShard.tryWithEngineOrNull(any())).thenReturn(OptionalLong.of(millisSinceLastSearcherAcquired));
 
         when(indicesService.getShardOrNull(shardId)).thenReturn(indexShard);
 
         TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request("abc", shardId);
         action.shardOperation(request, ActionListener.wrap(response -> {
-            assertThat(response.getLastSearcherAcquiredTime(), equalTo(lastSearcherTime));
+            assertThat(response.getMillisSinceLastSearcherAcquired(), equalTo(millisSinceLastSearcherAcquired));
         }, e -> fail("should not happen")));
 
         // test the function
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<Function<Engine, Long>> functionCaptor = ArgumentCaptor.forClass(Function.class);
+        ArgumentCaptor<Function<Engine, OptionalLong>> functionCaptor = ArgumentCaptor.forClass(Function.class);
         verify(indexShard).tryWithEngineOrNull(functionCaptor.capture());
 
         SearchEngine searchEngine = mock(SearchEngine.class);
-        when(searchEngine.getLastSearcherAcquiredTime()).thenReturn(lastSearcherTime + 1);
-        assertThat(functionCaptor.getValue().apply(searchEngine), equalTo(lastSearcherTime + 1));
+        when(searchEngine.getMillisSinceLastSearcherAcquired()).thenReturn(OptionalLong.of(millisSinceLastSearcherAcquired + 1));
+        assertThat(functionCaptor.getValue().apply(searchEngine), equalTo(OptionalLong.of(millisSinceLastSearcherAcquired + 1)));
+
+        // a non-search engine never acquired a searcher for search purposes
+        Engine indexEngine = mock(Engine.class);
+        assertThat(functionCaptor.getValue().apply(indexEngine), equalTo(OptionalLong.empty()));
+    }
+
+    public void testShardOperationWithoutSearcherAcquired() {
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.tryWithEngineOrNull(any())).thenReturn(OptionalLong.empty());
+        when(indicesService.getShardOrNull(shardId)).thenReturn(indexShard);
+
+        TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request("abc", shardId);
+        action.shardOperation(
+            request,
+            ActionListener.wrap(
+                response -> { assertThat(response, equalTo(NO_SEARCHER_ACQUIRED_RESPONSE)); },
+                e -> fail("should not happen")
+            )
+        );
     }
 
     public void testShardsEmpty() {
@@ -300,13 +321,12 @@ public class TransportFetchSearchShardInformationActionTests extends ESTestCase 
         ClusterState clusterState = createClusterStateWithDataStreams(routingTable, 2, idx -> System.currentTimeMillis(), backingIndex);
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        long currentTimeMillis = randomLongBetween(1000, 2000);
-        when(threadPool.absoluteTimeInMillis()).thenReturn(currentTimeMillis);
 
         TransportFetchSearchShardInformationAction.Request request = new TransportFetchSearchShardInformationAction.Request(null, shardId);
 
         action.doExecute(createTask(), request, ActionListener.wrap(response -> {
-            assertThat(response.getLastSearcherAcquiredTime(), equalTo(currentTimeMillis));
+            // the latest write index of a data stream is always actively searched, so its searcher age is zero
+            assertThat(response.getMillisSinceLastSearcherAcquired(), equalTo(0L));
         }, e -> fail("should not happen")));
 
         verifyNoInteractions(transportService);

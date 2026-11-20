@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166905
+summary: Send searcher acquisition age across nodes instead of timestamp
+type: bug

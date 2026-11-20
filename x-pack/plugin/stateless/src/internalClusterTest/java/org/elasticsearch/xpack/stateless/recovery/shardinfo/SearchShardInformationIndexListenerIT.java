@@ -52,6 +52,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -78,8 +79,10 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         indexRandomDocs(indexName, 100);
 
         IndexShard searchShard = findSearchShard(indexName);
-        final long lastAcquiredTime = searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(lastAcquiredTime, greaterThan(0L));
+        assertThat(
+            searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getMillisSinceLastSearcherAcquired()).isPresent(),
+            equalTo(true)
+        );
 
         // increase replica count
         String secondNode = startSearchNode();
@@ -90,8 +93,8 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         Index index = resolveIndex(indexName);
         ShardId shardId = new ShardId(index, 0);
 
-        assertSearchShardOnNode(firstNode, shardId, lastAcquiredTime);
-        assertBusy(() -> assertSearchShardOnNode(secondNode, shardId, lastAcquiredTime));
+        assertSearchShardOnNode(firstNode, shardId);
+        assertBusy(() -> assertSearchShardOnNode(secondNode, shardId));
 
         var numberOfCommits = randomIntBetween(1, 4);
         for (int j = 0; j < numberOfCommits; j++) {
@@ -112,8 +115,10 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         indexRandomDocs(indexName, 100);
 
         IndexShard searchShard = findSearchShard(indexName);
-        final long lastAcquiredTime = searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(lastAcquiredTime, greaterThan(0L));
+        assertThat(
+            searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getMillisSinceLastSearcherAcquired()).isPresent(),
+            equalTo(true)
+        );
 
         String secondNode = startSearchNode();
 
@@ -133,7 +138,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, firstNode);
         assertThat(indicesService.hasIndex(index), equalTo(false));
 
-        assertBusy(() -> assertSearchShardOnNode(secondNode, shardId, lastAcquiredTime));
+        assertBusy(() -> assertSearchShardOnNode(secondNode, shardId));
 
         var numberOfCommits = randomIntBetween(1, 4);
         for (int j = 0; j < numberOfCommits; j++) {
@@ -147,7 +152,6 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
     }
 
     public void testLastSearcherSetForLatestDatastream() throws ExecutionException, InterruptedException {
-        long testStartTime = System.currentTimeMillis();
         startMasterAndIndexNode();
         startSearchNode();
 
@@ -185,11 +189,13 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
 
         assertThat(index, not(equalTo("my-logs")));
 
-        // last searcher acquired time should be set, because this data stream is the latest
-        // there is also no need for other copies of that shard to be around, it will still be set
+        // A searcher age is reported for this shard even though no searcher has been acquired locally and no other copy of the shard
+        // exists, because this is the latest write index of a data stream and therefore always considered eligible for prefetching.
         IndexShard searchShard = findSearchShard(index);
-        final long lastAcquiredTime = searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(lastAcquiredTime, greaterThan(testStartTime));
+        assertThat(
+            searchShard.tryWithEngineOrNull(e -> ((SearchEngine) e).getMillisSinceLastSearcherAcquired().isPresent()),
+            equalTo(true)
+        );
     }
 
     private void assertPrefetchedBytesOnNode(String nodeId, ShardId shardId, Matcher<Long> matcher) {
@@ -206,7 +212,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         assertThat(prefetchedBytes, matcher);
     }
 
-    private void assertSearchShardOnNode(String nodeId, ShardId shardId, long expectedLastAcquiredTime) {
+    private void assertSearchShardOnNode(String nodeId, ShardId shardId) {
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeId);
         IndexService indexService = indicesService.indexService(shardId.getIndex());
         assertThat(indexService, notNullValue());
@@ -216,9 +222,11 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         assertThat(shard.isActive(), equalTo(true));
         assertThat(shard.routingEntry().role(), equalTo(ShardRouting.Role.SEARCH_ONLY));
 
-        long searchShardLastAcquiredTime = shard.tryWithEngineOrNull(e -> ((SearchEngine) e).getLastSearcherAcquiredTime());
-        assertThat(searchShardLastAcquiredTime, greaterThan(0L));
-        assertThat(searchShardLastAcquiredTime, equalTo(expectedLastAcquiredTime));
+        // The age is transferred across nodes as an elapsed time and re-based on the receiving node's relative clock, so only its
+        // presence and plausibility can be asserted here. Two nodes' relative clocks share no origin, so equality is not meaningful.
+        final var ageInMillis = shard.tryWithEngineOrNull(e -> ((SearchEngine) e).getMillisSinceLastSearcherAcquired());
+        assertThat(ageInMillis.isPresent(), equalTo(true));
+        assertThat(ageInMillis.getAsLong(), greaterThanOrEqualTo(0L));
     }
 
     private void indexRandomDocs(String indexName, int docs) {

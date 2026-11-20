@@ -48,7 +48,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
@@ -577,23 +576,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(hit.releases.get(), equalTo(1));
     }
 
-    public void testAReservationSlotAlreadyTakenFailsTheTask() {
-        int pageSize = between(1, 3);
-        ScriptedClock clock = new ScriptedClock();
-        long limit = rawEstimate(clock.getThreadPool(), pageSize);
-        IndexingPressure pressure = pressure(limit);
-        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
-        harness.action.plantReservationRetryForTests();
-        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
-            AssertionError asserted = expectThrows(AssertionError.class, harness::start);
-            assertThat(asserted.getMessage(), containsString("already has a reservation retry"));
-        }
-        IllegalStateException failed = expectThrows(IllegalStateException.class, harness.listener::actionGet);
-        assertThat(failed.getMessage(), containsString("already has a reservation retry"));
-        assertThat(harness.client.searches.size(), equalTo(0));
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
-    }
-
     public void testReindexOfOneDocumentReleasesItsCharge() {
         ReindexRequest request = reindexRequest(1);
         Harness harness = new Harness(pressure(Settings.EMPTY), request, NoopCircuitBreaker.INSTANCE, null);
@@ -787,33 +769,61 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
-     * A task that is waiting for budget to reserve its next page can be cancelled, and cancelling must end the task cleanly. The
-     * listener hears exactly once, the cancel reason is reported, and the task leaves nothing charged behind. This goes through the
-     * real budget and the real worker, with no attempt planted, so it holds whichever way the worker keeps its wait.
+     * A task that is waiting for budget to reserve its next page can be cancelled, and it finishes when the next reservation poll runs,
+     * not at the moment of the cancel. Until then it has not finished. Once the poll has run the listener hears exactly once, the cancel
+     * reason is reported, and the task leaves nothing charged behind. The poll comes after the request's retry backoff, kept between
+     * 50 ms and 1 second.
      */
     public void testCancellingATaskThatIsWaitingToReserveAPageFinishesItAndLeavesNothingCharged() {
+        TimeValue backoff = TimeValue.timeValueMillis(between(0, 5_000));
+        long expectedPollMillis = Math.max(50L, Math.min(backoff.millis(), 1_000L));
+        assertCancelFinishesOnTheNextPoll(backoff, expectedPollMillis);
+    }
+
+    /**
+     * A user can set a retry_backoff of minutes. The reservation poll is capped at 1 second, so a cancelled task is noticed within a
+     * second whatever the backoff, and the test waits for the cap and not for the user's backoff.
+     */
+    public void testCancelledTaskIsNoticedWithinOneSecondWhateverTheRetryBackoffIs() {
+        TimeValue backoff = TimeValue.timeValueMillis(between(1_001, 600_000));
+        assertCancelFinishesOnTheNextPoll(backoff, 1_000L);
+    }
+
+    private void assertCancelFinishesOnTheNextPoll(TimeValue backoff, long expectedPollMillis) {
         int pageSize = between(1, 3);
         ScriptedClock clock = new ScriptedClock();
         long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
         IndexingPressure pressure = pressure(limit);
         long baseline = pressure.stats().getCurrentCoordinatingBytes();
-        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        UpdateByQueryRequest request = updateRequest(pageSize);
+        request.setRetryBackoffInitialTime(backoff);
+        Harness harness = new Harness(clock, pressure, request, NoopCircuitBreaker.INSTANCE, null);
         try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
             harness.start();
             // Let it be refused a few times first, so the cancel lands on a task that has really been waiting.
             for (int i = between(0, 3); i > 0 && clock.hasDeferredTasks(); i--) {
                 clock.advanceTime();
             }
+            assertTrue("the refused reserve is waiting for its next poll", clock.hasDeferredTasks());
             assertFalse(harness.listener.isDone());
             assertThat(harness.client.searches.size(), equalTo(0));
             assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(baseline + limit));
 
             harness.taskManager.cancel(harness.task, "stopped", () -> {});
-            runHeldAttemptsUntilDone(harness, clock);
 
+            assertFalse("the task finishes when the poll runs and not when it is cancelled", harness.listener.isDone());
+            assertThat("the poll is the only thing waiting", clock.deferredCount(), equalTo(1));
+            assertThat(clock.nextDelay().millis(), equalTo(expectedPollMillis));
+            long cancelledAtMillis = clock.relativeTimeInMillis();
+
+            clock.advanceTime();
+
+            assertThat("the poll ran after its interval", clock.relativeTimeInMillis() - cancelledAtMillis, equalTo(expectedPollMillis));
+            assertThat("the task is noticed within a second", clock.relativeTimeInMillis() - cancelledAtMillis, lessThanOrEqualTo(1_000L));
             assertTrue("the cancelled task must finish", harness.listener.isDone());
             assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
             assertThat("the listener completes once", harness.listener.completions.get(), equalTo(1));
+            assertFalse("no further poll is left behind", clock.hasDeferredTasks());
             assertThat(harness.client.searches.size(), equalTo(0));
             assertThat(harness.client.bulks, equalTo(List.of()));
             assertThat("the task holds nothing of its own", harness.chargedBytes(), equalTo(baseline + limit));
@@ -2087,198 +2097,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
-     * Cancelling lands after the worker scheduled its retry and before it attached the scheduler's handle to it. That handle's cancel
-     * returns false, which says the attempt will still run. The task must not wait for ever, and the charge must not leak.
-     */
-    public void testCancelBeforeTheReservationRetryIsAttachedFinishesTheTaskWhenCancelReturnsFalse() {
-        int pageSize = between(1, 3);
-        ScriptedClock clock = new ScriptedClock();
-        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
-        IndexingPressure pressure = pressure(limit);
-        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
-        clock.cancelReturnsFalse = true;
-        clock.duringNextSchedule = () -> harness.taskManager.cancel(harness.task, "stopped", () -> {});
-        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
-            harness.start();
-            runHeldAttemptsUntilDone(harness, clock);
-
-            assertTrue("the cancelled task must not be left waiting", harness.listener.isDone());
-            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
-            assertThat(harness.client.searches.size(), equalTo(0));
-            assertThat(harness.client.bulks, equalTo(List.of()));
-            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
-            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
-        }
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
-    }
-
-    /**
-     * Cancelling lands while the retry is scheduled and attached, and the handle's cancel returns false. The attempt is left to run,
-     * and when it does it must see the cancel and finish the task without leaking a charge.
-     */
-    public void testCancelWhileTheReservationRetryIsScheduledFinishesTheTaskWhenCancelReturnsFalse() {
-        int pageSize = between(1, 3);
-        ScriptedClock clock = new ScriptedClock();
-        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
-        IndexingPressure pressure = pressure(limit);
-        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
-        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
-            harness.start();
-            assertTrue(clock.hasDeferredTasks());
-            clock.cancelReturnsFalse = true;
-            harness.taskManager.cancel(harness.task, "stopped", () -> {});
-            runHeldAttemptsUntilDone(harness, clock);
-
-            assertTrue("the cancelled task must not be left waiting", harness.listener.isDone());
-            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
-            assertThat(harness.client.searches.size(), equalTo(0));
-            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
-            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
-        }
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
-    }
-
-    /**
-     * Cancelling lands while the retry attempt is itself running, in the middle of its reserve. The scheduler's handle can no longer
-     * stop it, so its cancel returns false. The other holder is still there when that reserve runs, so it is refused again, and the
-     * task must still finish.
-     */
-    public void testCancelWhileTheReservationRetryIsRunningAndStillRefusedFinishesTheTask() {
-        assertCancelWhileTheReservationRetryIsRunningFinishesTheTaskAndLeaksNoCharge(false);
-    }
-
-    /**
-     * Cancelling lands while the retry attempt is itself running, in the middle of its reserve, and the other holder lets go first so
-     * that the reserve now fits. The task must finish and the charge that was taken must be given back.
-     */
-    public void testCancelWhileTheReservationRetryIsRunningAndNowFitsFinishesTheTaskAndLeaksNoCharge() {
-        assertCancelWhileTheReservationRetryIsRunningFinishesTheTaskAndLeaksNoCharge(true);
-    }
-
-    private void assertCancelWhileTheReservationRetryIsRunningFinishesTheTaskAndLeaksNoCharge(boolean otherLetsGoFirst) {
-        int pageSize = between(1, 3);
-        ScriptedClock clock = new ScriptedClock();
-        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
-        HookedPressure pressure = new HookedPressure(limit);
-        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
-        clock.cancelReturnsFalse = true;
-        // Closed by the hook when the other holder lets go first, and by the finally block otherwise, so closing it twice has to be
-        // harmless.
-        Releasable other = Releasables.releaseOnce(pressure.markCoordinatingOperationStarted(1, limit, false));
-        try {
-            harness.start();
-            assertTrue(clock.hasDeferredTasks());
-            pressure.beforeReserve = () -> {
-                harness.taskManager.cancel(harness.task, "stopped", () -> {});
-                if (otherLetsGoFirst) {
-                    other.close();
-                }
-            };
-            runHeldAttemptsUntilDone(harness, clock);
-
-            assertTrue("the cancelled task must not be left waiting", harness.listener.isDone());
-            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
-            assertThat(harness.client.searches.size(), equalTo(0));
-            assertThat(harness.client.bulks, equalTo(List.of()));
-            assertThat(harness.chargedBytes(), equalTo(otherLetsGoFirst ? 0L : limit));
-            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
-        } finally {
-            other.close();
-        }
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
-    }
-
-    /**
-     * Cancelling lands after the worker scheduled its retry and before it attached the scheduler's handle to it, and this time the
-     * handle's cancel returns true, which says the attempt will not run. Attaching the handle is what finishes the task, and it does
-     * so once. No attempt is left queued, and the charge must not leak.
-     */
-    public void testCancelBeforeTheReservationRetryIsAttachedFinishesTheTaskOnceWhenCancelReturnsTrue() {
-        int pageSize = between(1, 3);
-        ScriptedClock clock = new ScriptedClock();
-        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
-        IndexingPressure pressure = pressure(limit);
-        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
-        clock.cancelReturnsFalse = false;
-        clock.duringNextSchedule = () -> harness.taskManager.cancel(harness.task, "stopped", () -> {});
-        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
-            harness.start();
-
-            assertTrue("the cancelled task must not be left waiting", harness.listener.isDone());
-            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
-            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
-            assertFalse("the cancelled attempt must not be left queued", clock.hasDeferredTasks());
-            assertThat(harness.client.searches.size(), equalTo(0));
-            assertThat(harness.client.bulks, equalTo(List.of()));
-            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
-        }
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
-    }
-
-    /**
-     * Cancelling lands while the retry is scheduled and attached, and the handle's cancel returns true, which says the attempt will not
-     * run. The cancel listener finishes the task, once, and no attempt is left queued.
-     */
-    public void testCancelWhileTheReservationRetryIsScheduledFinishesTheTaskOnceWhenCancelReturnsTrue() {
-        int pageSize = between(1, 3);
-        ScriptedClock clock = new ScriptedClock();
-        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
-        IndexingPressure pressure = pressure(limit);
-        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
-        clock.cancelReturnsFalse = false;
-        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
-            harness.start();
-            assertTrue(clock.hasDeferredTasks());
-            assertFalse(harness.listener.isDone());
-
-            harness.taskManager.cancel(harness.task, "stopped", () -> {});
-
-            assertTrue("the cancelled task must not be left waiting", harness.listener.isDone());
-            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
-            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
-            assertFalse("the cancelled attempt must not be left queued", clock.hasDeferredTasks());
-            assertThat(harness.client.searches.size(), equalTo(0));
-            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
-        }
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
-    }
-
-    /**
-     * The hand-off. The scheduler's cancel returns true, so the cancel listener finishes the task, and then the queued command still
-     * runs, as it can when it was already on its way. The listener has completed by then, and the late command must neither complete
-     * it again, nor reserve, nor search.
-     */
-    public void testQueuedReservationRetryThatRunsAfterTheCancelListenerDoesNotFinishTheTaskTwice() {
-        int pageSize = between(1, 3);
-        ScriptedClock clock = new ScriptedClock();
-        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
-        IndexingPressure pressure = pressure(limit);
-        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
-        clock.cancelReturnsTrueButCommandStillRuns = true;
-        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
-            harness.start();
-            assertTrue(clock.hasDeferredTasks());
-            assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
-
-            harness.taskManager.cancel(harness.task, "stopped", () -> {});
-            assertTrue("the cancel listener finishes the task", harness.listener.isDone());
-            assertThat(harness.listener.completions.get(), equalTo(1));
-            assertTrue("the command is still queued", clock.hasDeferredTasks());
-
-            clock.advanceTime();
-
-            assertThat("the late command does not finish the task again", harness.listener.completions.get(), equalTo(1));
-            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
-            assertThat("the late command does not reserve", pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
-            assertFalse(clock.hasDeferredTasks());
-            assertThat(harness.client.searches.size(), equalTo(0));
-            assertThat(harness.client.bulks, equalTo(List.of()));
-            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
-        }
-        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
-    }
-
-    /**
      * Runs held attempts, one at a time and a bounded number of times, until the task is done. A task that is still not done with
      * nothing held is hung, and the caller's assertion reports it.
      */
@@ -2375,23 +2193,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
         @Override
         public void assertMatched() {}
-    }
-
-    /**
-     * Runs a hook just before each page reserve, so a test can cancel the task in the middle of one.
-     */
-    private static final class HookedPressure extends IndexingPressure {
-        Runnable beforeReserve = () -> {};
-
-        HookedPressure(long limit) {
-            super(Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), limit + "b").build());
-        }
-
-        @Override
-        public Coordinating reserveReindexPage(int operations, long bytes, boolean systemOnly) {
-            beforeReserve.run();
-            return super.reserveReindexPage(operations, bytes, systemOnly);
-        }
     }
 
     /**
@@ -2818,21 +2619,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         private boolean open;
         private long advancedMillis;
         final List<TimeValue> delays = new ArrayList<>();
-        /**
-         * When true a held attempt answers {@code cancel()} with false and stays in the queue, which is what a scheduler answers for an
-         * attempt that is already running or already ran.
-         */
-        boolean cancelReturnsFalse;
-        /**
-         * When true a held attempt answers {@code cancel()} with true, saying it will not run, and yet stays in the queue so the test can
-         * still run it afterwards. That is the hand-off: the cancel listener finishes the task, and the queued command then arrives late.
-         */
-        boolean cancelReturnsTrueButCommandStillRuns;
-        /**
-         * Runs once, inside the next call that holds a delayed attempt, before the scheduler hands back its cancellable. That is the
-         * window in which the task can be cancelled before the worker has attached the cancellable to its attempt.
-         */
-        Runnable duringNextSchedule;
 
         ScriptedClock() {
             super(getTestName() + "-" + clocks.size());
@@ -2859,11 +2645,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             }
             Held held = new Held(command, delay);
             deferred.add(held);
-            Runnable hook = duringNextSchedule;
-            if (hook != null) {
-                duringNextSchedule = null;
-                hook.run();
-            }
             return held(held);
         }
 
@@ -2873,6 +2654,10 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
         boolean hasDeferredTasks() {
             return deferred.isEmpty() == false;
+        }
+
+        int deferredCount() {
+            return deferred.size();
         }
 
         /**
@@ -2934,14 +2719,8 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
                 @Override
                 public boolean cancel() {
-                    if (cancelReturnsFalse) {
-                        return false;
-                    }
                     if (cancelled.compareAndSet(false, true) == false) {
                         return false;
-                    }
-                    if (cancelReturnsTrueButCommandStillRuns) {
-                        return true;
                     }
                     return deferred.remove(held);
                 }

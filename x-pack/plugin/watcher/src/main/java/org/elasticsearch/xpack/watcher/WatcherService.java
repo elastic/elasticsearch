@@ -220,10 +220,6 @@ public class WatcherService implements WatcherEventConsumer {
         // changes
         processedClusterStateVersion.set(state.getVersion());
 
-        triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
-        logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
-
         executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> {
             logger.error("error reloading watcher", e);
             exceptionConsumer.accept(e);
@@ -237,7 +233,6 @@ public class WatcherService implements WatcherEventConsumer {
      * @param postWatchesLoadedCallback the callback to be triggered, when watches where loaded successfully
      */
     public void start(ClusterState state, Runnable postWatchesLoadedCallback, Consumer<Exception> exceptionConsumer) {
-        executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
             if (reloadInner(state, "starting", true)) {
@@ -270,6 +265,12 @@ public class WatcherService implements WatcherEventConsumer {
             return false;
         }
 
+        // Pause trigger execution and clear the execution queue before loading watches.
+        // This must happen on the lifecycle executor to avoid blocking the cluster-applier thread.
+        triggerService.pauseExecution();
+        int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
+        logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
+
         Collection<Watch> watches = loadWatches(state);
         Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
         if (loadTriggeredWatches) {
@@ -279,15 +280,11 @@ public class WatcherService implements WatcherEventConsumer {
         // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
         // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
         // execution service, so that we make sure that existing executions finish, but no new ones are executed
-        if (processedClusterStateVersion.get() == state.getVersion()) {
+        final boolean applied = processedClusterStateVersion.get() == state.getVersion();
+        if (applied) {
             executionService.unPause();
             triggerService.start(watches);
             addPendingWatches(state);
-            if (triggeredWatches.isEmpty() == false) {
-                executionService.executeTriggeredWatches(triggeredWatches);
-            }
-            logger.debug("watch service has been reloaded, reason [{}]", reason);
-            return true;
         } else {
             logger.debug(
                 "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
@@ -296,16 +293,53 @@ public class WatcherService implements WatcherEventConsumer {
             );
             return false;
         }
+        if (triggeredWatches.isEmpty() == false) {
+            if (processedClusterStateVersion.get() == state.getVersion()) {
+                executionService.executeTriggeredWatches(triggeredWatches);
+            }
+        }
+        logger.debug("watch service has been reloaded, reason [{}]", reason);
+        return true;
     }
 
     /**
      * Stop execution of watches on this node, do not try to reload anything, but still allow
-     * manual watch execution, i.e. via the execute watch API
+     * manual watch execution, i.e. via the execute watch API.
+     *
+     * This method publishes the invalidating cluster-state version to processedClusterStateVersion
+     * before enqueuing the actual pause work on the lifecycle executor. This prevents stale watch
+     * data from being applied by in-flight reloads after the local .watches shard leaves this node.
+     * See issue #161574.
+     *
+     * The lifecycle executor serializes all reload and pause tasks. A reload checks the version
+     * before applying side effects, and a pause checks the version before applying pause side effects.
+     * This ensures that:
+     * - A reload for a stale state cannot apply watches or execute triggered watches.
+     * - A pause task for an older state cannot undo a newer valid reload that has already succeeded.
+     * - The cluster-applier thread is never blocked waiting for lifecycle work.
+     *
+     * @param reason the reason for pausing
+     * @param invalidatingStateVersion the cluster-state version that invalidates in-flight reloads
      */
-    public void pauseExecution(String reason) {
-        triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.pause(() -> {});
-        logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
+    public void pauseExecution(String reason, long invalidatingStateVersion) {
+        processedClusterStateVersion.set(invalidatingStateVersion);
+        executor.execute(wrapWatcherService(() -> {
+            // Only pause if this invalidating version is still current.
+            // If a newer reload has already succeeded with a higher version,
+            // skip pausing to avoid undoing that valid state.
+            if (processedClusterStateVersion.get() == invalidatingStateVersion) {
+                triggerService.pauseExecution();
+                int cancelledTaskCount = executionService.pause(() -> {});
+                logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
+            } else {
+                logger.debug(
+                    "skipping pause execution, reason [{}], invalidating version [{}] no longer current (now [{}])",
+                    reason,
+                    invalidatingStateVersion,
+                    processedClusterStateVersion.get()
+                );
+            }
+        }, e -> { logger.error("error pausing watch execution", e); }));
     }
 
     /**

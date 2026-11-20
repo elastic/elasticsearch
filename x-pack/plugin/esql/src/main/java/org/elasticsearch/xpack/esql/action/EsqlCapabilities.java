@@ -5017,9 +5017,9 @@ public class EsqlCapabilities {
         FIX_TS_FIRST_LAST_SAMPLES,
 
         /**
-         * {@code LOOKUP JOIN ... ON left == right} with a left key that is an unmapped field, under {@code unmapped_fields} {@code "nullify"},
-         * {@code "load"} or {@code "load_all"}, no longer loads the right operand onto the left side as an unmapped field, which made it
-         * ambiguous once the join resolved ("Found ambiguous reference"). See
+         * {@code LOOKUP JOIN ... ON left == right} with a left key that is an unmapped field, under {@code unmapped_fields}
+         * {@code "nullify"}, {@code "load"} or {@code "load_all"}, no longer loads the right operand onto the left side as an unmapped
+         * field, which made it ambiguous once the join resolved ("Found ambiguous reference"). See
          * <a href="https://github.com/elastic/elasticsearch/issues/165755">#165755</a>.
          */
         LOOKUP_JOIN_EXPRESSION_ON_UNMAPPED_LEFT_KEY,

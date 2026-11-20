@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.analytics.ttest;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -44,6 +45,7 @@ import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -725,7 +727,7 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             .interval(1)
             .subAggregation(ttestAggregationBuilder);
         int buckets = randomIntBetween(2, 10);
-        testCase(iw -> {
+        withNonMergingIndex(iw -> {
             for (int i = 0; i < buckets; i++) {
                 iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 102), new IntPoint("b", 1)));
                 iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 99), new IntPoint("b", 1)));
@@ -734,24 +736,30 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 101), new IntPoint("b", 1)));
                 iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 99), new IntPoint("b", 1)));
             }
-            // put the b docs in their own segment, so that segment has several buckets with values for b and none for a
             iw.commit();
+            // the b docs are added as one batch so they all land in a single segment with several buckets and no values for a
+            List<List<IndexableField>> bDocs = new ArrayList<>();
             for (int i = 0; i < buckets; i++) {
-                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 89), new IntPoint("b", 2)));
-                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 93), new IntPoint("b", 2)));
-                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 72), new IntPoint("b", 2)));
-                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 98), new IntPoint("b", 2)));
-                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 102), new IntPoint("b", 2)));
-                iw.addDocument(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 98), new IntPoint("b", 2)));
+                bDocs.add(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 89), new IntPoint("b", 2)));
+                bDocs.add(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 93), new IntPoint("b", 2)));
+                bDocs.add(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 72), new IntPoint("b", 2)));
+                bDocs.add(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 98), new IntPoint("b", 2)));
+                bDocs.add(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 102), new IntPoint("b", 2)));
+                bDocs.add(asList(new NumericDocValuesField("h", i), new NumericDocValuesField("a", 98), new IntPoint("b", 2)));
             }
-        }, (Consumer<InternalHistogram>) histogram -> {
+            iw.addDocuments(bDocs);
+        }, reader -> {
+            InternalHistogram histogram = searchAndReduce(
+                reader,
+                new AggTestConfig(aggregationBuilder, fieldType1, fieldType2, fieldType3).withSplitLeavesIntoSeperateAggregators(true)
+            );
             assertEquals(buckets, histogram.getBuckets().size());
             for (int i = 0; i < buckets; i++) {
                 InternalTTest ttest = histogram.getBuckets().get(i).getAggregations().get("t_test");
                 double expected = tTestType == TTestType.HOMOSCEDASTIC ? 0.03928288693 : 0.04538666214;
                 assertEquals(expected * tails, ttest.getValue(), 0.00001);
             }
-        }, new AggTestConfig(aggregationBuilder, fieldType1, fieldType2, fieldType3).withSplitLeavesIntoSeperateAggregators(true));
+        });
     }
 
     public void testFilterByFilterOrScript() throws IOException {

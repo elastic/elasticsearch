@@ -91,6 +91,13 @@ tasks.named('nmcpZipAggregation').configure {
   from(zipTree("build-tools/build/nmcp/zip/allPublications.zip"))
 }
 
+tasks.named('prepareDraSnapshotMavenAggregation').configure {
+  // This task reuses nmcpZipAggregation's copy-spec source, which includes the build-tools
+  // zip above via a plain file path. That path carries no task dependency, and the dependsOn
+  // declared on nmcpZipAggregation is not inherited, so wire the build-tools zip task explicitly.
+  dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
+}
+
 /**
  * This is a convenient method for declaring test artifact dependencies provided by the internal
  * test artifact plugin. It replaces basically the longer dependency notation with explicit capability

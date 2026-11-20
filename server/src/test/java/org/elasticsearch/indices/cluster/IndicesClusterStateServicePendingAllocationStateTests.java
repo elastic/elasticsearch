@@ -907,7 +907,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         assertFalse(isAwaitingRecoveryRetry(shardRouting));
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        // create failure path notifies master via failAndRemoveShard(sendShardFailure=true)
+        // create failure path notifies master via failAndRemoveShard
         verify(shardStateAction).localShardFailed(any(), anyString(), any(), any(), any());
         assertTrue(isFailureReported(shardRouting));
     }

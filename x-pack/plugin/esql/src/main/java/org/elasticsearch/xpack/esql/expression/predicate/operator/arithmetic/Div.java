@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,7 +24,7 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation.OperationSymbol.DIV;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 
-public class Div extends EsqlArithmeticOperation implements BinaryComparisonInversible {
+public class Div extends EsqlArithmeticOperation implements BinaryComparisonInversible, AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Div", Div::new);
 
     private DataType type;
@@ -76,10 +77,12 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
 
     @Override
     public DataType dataType() {
-        if (type == null) {
-            type = super.dataType();
+        DataType dataType = type;
+        if (dataType == null) {
+            dataType = super.dataType();
+            type = dataType;
         }
-        return type;
+        return dataType;
     }
 
     @Override

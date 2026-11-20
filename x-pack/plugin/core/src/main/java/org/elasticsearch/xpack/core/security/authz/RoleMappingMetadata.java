@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
@@ -149,12 +148,12 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // It is safest to have this persisted to gateway and snapshots, although maybe redundant.
+        // It is safest to have this persisted to gateway.
         // The persistence can become an issue in cases where {@link ReservedStateMetadata}
         // (which records the names of the role mappings last applied) is persisted,
         // but the role mappings themselves (stored here by the {@link RoleMappingMetadata})
         // are not persisted.
-        return ALL_CONTEXTS;
+        return Metadata.API_AND_GATEWAY;
     }
 
     /**

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -20,8 +22,8 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
     LongVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
-        values = new long[Math.max(estimatedSize, 2)];
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+        values = new long[initialSize];
     }
 
     @Override

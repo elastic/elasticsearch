@@ -14,6 +14,7 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,7 +33,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
-public class MvMin extends AbstractMultivalueFunction {
+public class MvMin extends AbstractMultivalueFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvMin", MvMin::new);
 
     @FunctionInfo(

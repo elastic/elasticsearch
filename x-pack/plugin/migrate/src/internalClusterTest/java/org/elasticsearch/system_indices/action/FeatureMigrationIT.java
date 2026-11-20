@@ -123,12 +123,13 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // We should see that the migration is in progress even though we just started the migration.
         assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS));
 
-        // Now wait for the migration to finish (otherwise the test infra explodes)
+        // Now wait for the migration to finish (otherwise the test infra explodes). The feature upgrade may take longer than ten
+        // seconds when tests are running in parallel, so we give assertBusy a thirty-second timeout.
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testMigrateSystemIndex() throws Exception {
@@ -240,6 +241,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
 
+        // The feature upgrade may take longer than the default ten seconds when tests are running in parallel,
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
@@ -247,7 +249,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testIndexBlockIsRemovedWhenAliasRequestFails() throws Exception {
@@ -259,7 +261,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // Start the migration
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
 
-        // Wait till the migration fails
+        // Wait till the migration fails. The feature upgrade may take longer than the default ten seconds when tests are running in
+        // parallel
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
@@ -267,7 +270,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR));
-        });
+        }, 30, TimeUnit.SECONDS);
 
         // Get the settings to see if the write block was removed
         var allsettings = client().admin().indices().prepareGetSettings(INTERNAL_UNMANAGED.getIndexPattern()).get().getIndexToSettings();
@@ -281,7 +284,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // Retry the migration
         client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT)).get();
 
-        // Ensure that the migration is successful after the alias request is unblocked
+        // Ensure that the migration is successful after the alias request is unblocked. The feature upgrade may take longer than the
+        // default ten seconds when tests are running in parallel
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
@@ -289,7 +293,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testMigrationWillRunAfterError() throws Exception {
@@ -341,13 +345,14 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             migrationResponse.getFeatures().stream().anyMatch(feature -> feature.getFeatureName().equals(FEATURE_NAME))
         );
 
-        // Now wait for the migration to finish (otherwise the test infra explodes)
+        // Now wait for the migration to finish (otherwise the test infra explodes). The feature upgrade may take longer than the default
+        // ten seconds when tests are running in parallel
         assertBusy(() -> {
             GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT);
             GetFeatureUpgradeStatusResponse statusResp = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testMigrateUsingScript() throws Exception {
@@ -419,6 +424,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // this should pass for both, kibana allows templates, the unmanaged doesn't match the template
         migrateWithTemplatesV1(".kibana", KIBANA_MOCK_INDEX_DESCRIPTOR, INTERNAL_UNMANAGED);
 
+        // The feature upgrade may take longer than the default ten seconds when tests are running in parallel
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
@@ -426,7 +432,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void migrateWithTemplatesV2(String prefix, SystemIndexDescriptor... descriptors) throws Exception {
@@ -509,6 +515,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // this should pass for both, kibana allows templates, the unmanaged doesn't match the template
         migrateWithTemplatesV2(".kibana", KIBANA_MOCK_INDEX_DESCRIPTOR, INTERNAL_UNMANAGED);
 
+        // The feature upgrade may take longer than the default ten seconds when tests are running in parallel
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResp = client().execute(
                 GetFeatureUpgradeStatusAction.INSTANCE,
@@ -516,7 +523,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             ).get();
             logger.info(Strings.toString(statusResp));
             assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public static class SecondTestPlugin extends Plugin implements SystemIndexPlugin {

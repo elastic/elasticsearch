@@ -88,6 +88,15 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
         int maxNumberOfInputsPerBatch,
         ChunkingSettings defaultChunkingSettings
     ) {
+        this(inputs, maxNumberOfInputsPerBatch, RecursiveChunkingSettings.DEFAULT_REGEX_READ_LIMIT_FACTOR, defaultChunkingSettings);
+    }
+
+    public EmbeddingRequestChunker(
+        List<ChunkInferenceInput> inputs,
+        int maxNumberOfInputsPerBatch,
+        int regexReadLimitFactor,
+        ChunkingSettings defaultChunkingSettings
+    ) {
         this.resultEmbeddings = new ArrayList<>(inputs.size());
         this.resultOffsetStarts = new ArrayList<>(inputs.size());
         this.resultOffsetEnds = new ArrayList<>(inputs.size());
@@ -102,8 +111,10 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
             .filter(Objects::nonNull)
             .map(ChunkingSettings::getChunkingStrategy)
             .distinct()
-            .collect(Collectors.toMap(chunkingStrategy -> chunkingStrategy, ChunkerBuilder::fromChunkingStrategy));
-        Chunker defaultChunker = ChunkerBuilder.fromChunkingStrategy(defaultChunkingSettings.getChunkingStrategy());
+            .collect(
+                Collectors.toMap(chunkingStrategy -> chunkingStrategy, s -> ChunkerBuilder.fromChunkingStrategy(s, regexReadLimitFactor))
+            );
+        Chunker defaultChunker = ChunkerBuilder.fromChunkingStrategy(defaultChunkingSettings.getChunkingStrategy(), regexReadLimitFactor);
 
         List<Request> allRequests = new ArrayList<>();
         for (int inputIndex = 0; inputIndex < inputs.size(); inputIndex++) {

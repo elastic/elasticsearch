@@ -58,4 +58,9 @@ public class EvalExecSerializationTests extends AbstractPhysicalPlanSerializatio
     protected boolean alwaysEmptySource() {
         return true;
     }
+
+    public void testOutputIsCached() {
+        PhysicalPlan plan = createTestInstance();
+        assertSame(plan.output(), plan.output());
+    }
 }

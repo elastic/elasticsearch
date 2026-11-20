@@ -27,10 +27,6 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
 
     Class<? extends Plugin> pluginClassUnderTest = SnykDependencyMonitoringGradlePlugin.class
 
-    def setup() {
-        configurationCacheCompatible = false // configuration is not cc compliant
-    }
-
     @Unroll
     def "can calculate snyk dependency graph"() {
         given:
@@ -172,6 +168,35 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
 
         and: "every nodeId has a matching pkg entry"
         json.depGraphJSON.pkgs*.id.toSet() == nodes*.pkgId.toSet()
+    }
+
+    def "generateSnykDependencyGraph reuses the configuration cache"() {
+        given:
+        buildFile << """
+            apply plugin:'java'
+            version = "1.0"
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                implementation 'org.apache.lucene:lucene-monitor:9.2.0'
+            }
+
+            tasks.named('generateSnykDependencyGraph').configure {
+                remoteUrl = "http://acme.org"
+            }
+        """
+
+        when:
+        def firstBuild = gradleRunner("generateSnykDependencyGraph").build()
+        def secondBuild = gradleRunner("generateSnykDependencyGraph").build()
+
+        then:
+        firstBuild.task(":generateSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
+        secondBuild.task(":generateSnykDependencyGraph").outcome == TaskOutcome.UP_TO_DATE
+        secondBuild.output.contains("Configuration cache entry reused.")
     }
 
     @Unroll

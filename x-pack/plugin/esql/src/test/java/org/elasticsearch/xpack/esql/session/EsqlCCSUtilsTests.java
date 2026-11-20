@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -689,12 +691,29 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
     }
 
+    public void testCanAllowPartial() {
+        assertTrue(EsqlCCSUtils.canAllowPartial(new RuntimeException("boom")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new IndexNotFoundException("idx")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new ElasticsearchSecurityException("nope")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new TaskCancelledException("by user request")));
+        assertFalse(EsqlCCSUtils.canAllowPartial(new RemoteTransportException("remote", new TaskCancelledException("by user request"))));
+    }
+
     public void testConcreteIndexRequested() {
         assertThat(EsqlCCSUtils.concreteIndexRequested("logs*"), equalTo(false));
         assertThat(EsqlCCSUtils.concreteIndexRequested("mylogs1,mylogs2,logs*"), equalTo(true));
         assertThat(EsqlCCSUtils.concreteIndexRequested("x*,logs"), equalTo(true));
         assertThat(EsqlCCSUtils.concreteIndexRequested("logs,metrics"), equalTo(true));
         assertThat(EsqlCCSUtils.concreteIndexRequested("*"), equalTo(false));
+    }
+
+    public void testConcreteIndexRequestedWithEmptySegments() {
+        // empty segments must not cause StringIndexOutOfBoundsException
+        assertThat(EsqlCCSUtils.concreteIndexRequested(",logs*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("logs*,,metrics*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested(",logs"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("logs*,,metrics"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested(","), equalTo(false));
     }
 
     public void testCheckForCcsLicense() {

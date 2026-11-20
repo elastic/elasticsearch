@@ -277,6 +277,7 @@ public class GoogleVertexAiService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs,
             EMBEDDING_MAX_BATCH_SIZE,
+            getRegexReadLimitFactor(),
             googleVertexAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
-import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
+import static org.elasticsearch.datastreams.TimeSeriesIndexSettingsProvider.FORMATTER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -490,8 +490,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test")).metadata(builder).build();
     }
 
-    static DataStreamIndexSettingsProvider createSettingsProvider(NamedXContentRegistry xContentRegistry) {
-        return new DataStreamIndexSettingsProvider(
+    static TimeSeriesIndexSettingsProvider createSettingsProvider(NamedXContentRegistry xContentRegistry) {
+        return new TimeSeriesIndexSettingsProvider(
             im -> MapperTestUtils.newMapperService(xContentRegistry, createTempDir(), im.getSettings(), im.getIndex().getName())
         );
     }

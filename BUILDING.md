@@ -79,7 +79,6 @@ When creating a new subproject, choose the appropriate Elasticsearch plugin base
 | Java REST tests | `elasticsearch.internal-java-rest-test` | modules/plugins needing Java test flexibility |
 | Cluster integration tests | `elasticsearch.internal-cluster-test` | Projects testing cluster behavior |
 | BWC/upgrade tests | `elasticsearch.bwc-test` or `elasticsearch.fwc-test` | `qa/rolling-upgrade`, `qa/full-cluster-restart` |
-| Standalone QA project | `elasticsearch.standalone-rest-test` | `qa/*` subprojects |
 
 ## Build guidelines
 

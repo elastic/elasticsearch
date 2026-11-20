@@ -110,6 +110,13 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
                > Following test classes do not extend any supported base class:
                  \torg.acme.InvalidTests""".stripIndent()
         )
+
+        and: "problems report contains testing-conventions violations"
+        assertProblemsReportContains("Testing Conventions")
+        assertProblemsReportContainsProblem("Missing test base class")
+        assertProblemsReportSeverity("Missing test base class", "ERROR")
+        def diagnostics = problemsReportDiagnostics()
+        diagnostics.any { it.contextualLabel?.contains("org.acme.InvalidTests") }
     }
 
     def "checks naming convention"() {
@@ -146,6 +153,10 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
                > Following test classes do not match naming convention to use suffix 'UnitTest':
                  \torg.acme.valid.SomeNameMissmatchingTest""".stripIndent()
         )
+
+        and: "problems report contains invalid-suffix violations"
+        assertProblemsReportContains("Testing Conventions")
+        assertProblemsReportContainsProblem("Invalid test class suffix")
     }
 
     def "provided base classes do not need match naming convention"() {
@@ -171,49 +182,9 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
     }
 
-    def "applies conventions on yaml-rest-test tests"() {
-        given:
-        buildApiRestrictionsDisabled = true
-        clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase")
-        buildFile << """
-        apply plugin:'elasticsearch.legacy-yaml-rest-test'
-
-        dependencies {
-            yamlRestTestImplementation "org.apache.lucene:tests.util:1.0"
-            yamlRestTestImplementation "org.junit:junit:4.42"
-        }
-        """
-
-        clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeMatchingIT", "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase") {
-            """
-            public void testMe() {
-            }
-            """
-        }
-        clazz(dir("src/yamlRestTest/java"), "org.acme.valid.SomeOtherMatchingIT", null) {
-            """
-            public void testMe() {
-            }
-            """
-        }
-
-        when:
-        def result = gradleRunner("testingConventions").buildAndFail()
-        then:
-        result.task(":yamlRestTestTestingConventions").outcome == TaskOutcome.FAILED
-        assertOutputContains(result.getOutput(), """\
-            * What went wrong:
-            Execution failed for task ':yamlRestTestTestingConventions' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin').
-            > A failure occurred while executing org.elasticsearch.gradle.internal.precommit.TestingConventionsCheckTask\$TestingConventionsCheckWorkAction
-               > Following test classes do not extend any supported base class:
-                 \torg.acme.valid.SomeOtherMatchingIT""".stripIndent()
-        )
-    }
-
     @Unroll
     def "applies conventions on #sourceSetName tests"() {
         given:
-        buildApiRestrictionsDisabled = pluginName.contains('legacy')
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.ESIntegTestCase")
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.rest.ESRestTestCase")
         buildFile << """
@@ -255,9 +226,8 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         )
 
         where:
-        pluginName                              | taskName                                 | sourceSetName
-        "elasticsearch.legacy-java-rest-test"   | ":javaRestTestTestingConventions"        | "javaRestTest"
-        "elasticsearch.internal-cluster-test"   | ":internalClusterTestTestingConventions" | "internalClusterTest"
+        pluginName                            | taskName                                 | sourceSetName
+        "elasticsearch.internal-cluster-test" | ":internalClusterTestTestingConventions" | "internalClusterTest"
     }
 
     private void simpleJavaBuild() {

@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -258,11 +259,12 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
     public void testGetModelsByTaskType() throws InterruptedException {
         var service = "foo";
         var sparseAndTextEmbeddingModels = new ArrayList<Model>();
-        sparseAndTextEmbeddingModels.add(createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service));
-        sparseAndTextEmbeddingModels.add(createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service));
-        sparseAndTextEmbeddingModels.add(createModel(randomAlphaOfLength(5), TaskType.SPARSE_EMBEDDING, service));
-        sparseAndTextEmbeddingModels.add(createModel(randomAlphaOfLength(5), TaskType.TEXT_EMBEDDING, service));
-        sparseAndTextEmbeddingModels.add(createModel(randomAlphaOfLength(5), TaskType.TEXT_EMBEDDING, service));
+        var modelIds = generateUniqueModelIds(5);
+        sparseAndTextEmbeddingModels.add(createModel(modelIds.get(0), TaskType.SPARSE_EMBEDDING, service));
+        sparseAndTextEmbeddingModels.add(createModel(modelIds.get(1), TaskType.SPARSE_EMBEDDING, service));
+        sparseAndTextEmbeddingModels.add(createModel(modelIds.get(2), TaskType.SPARSE_EMBEDDING, service));
+        sparseAndTextEmbeddingModels.add(createModel(modelIds.get(3), TaskType.TEXT_EMBEDDING, service));
+        sparseAndTextEmbeddingModels.add(createModel(modelIds.get(4), TaskType.TEXT_EMBEDDING, service));
 
         for (var model : sparseAndTextEmbeddingModels) {
             ModelRegistryTests.assertStoreModel(modelRegistry, model);
@@ -301,8 +303,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
+        var modelIds = generateUniqueModelIds(modelCount);
         for (int i = 0; i < modelCount; i++) {
-            var model = createModel(randomAlphaOfLength(5), randomFrom(TaskType.values()), service);
+            var model = createModel(modelIds.get(i), randomFrom(TaskType.values()), service);
             createdModels.add(model);
             ModelRegistryTests.assertStoreModel(modelRegistry, model);
         }
@@ -375,8 +378,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         var createdModels = new HashMap<String, Model>();
+        var modelIds = generateUniqueModelIds(configuredModelCount);
         for (int i = 0; i < configuredModelCount; i++) {
-            var id = randomAlphaOfLength(5) + i;
+            var id = modelIds.get(i);
             var model = createModel(id, randomFrom(TaskType.values()), serviceName);
             createdModels.put(id, model);
             ModelRegistryTests.assertStoreModel(modelRegistry, model);
@@ -631,6 +635,14 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 itr.remove();
             }
         }
+    }
+
+    private List<String> generateUniqueModelIds(int n) {
+        Set<String> ids = new HashSet<>();
+        while (ids.size() < n) {
+            ids.add(randomAlphaOfLength(5));
+        }
+        return ids.stream().toList();
     }
 
     static ElserInternalModel buildElserModelConfig(String inferenceEntityId, TaskType taskType) {

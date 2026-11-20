@@ -198,4 +198,9 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
             return List.of();
         }
     }
+
+    @Override
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { "1.0.0", "2.0.0", "3.0.0" };
+    }
 }

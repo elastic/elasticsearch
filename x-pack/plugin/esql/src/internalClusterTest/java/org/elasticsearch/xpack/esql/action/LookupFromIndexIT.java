@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -186,7 +187,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 1,
                 10000,
                 DocIdSetIterator.NO_MORE_DOCS,
-                false // no scoring
+                false, // no scoring
+                QueryWarnings.EMIT
             );
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 PhysicalSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),

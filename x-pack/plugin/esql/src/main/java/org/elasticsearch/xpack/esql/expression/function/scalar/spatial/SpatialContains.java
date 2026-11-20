@@ -215,7 +215,7 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
+    public Object doFold(Source source, FoldContext ctx) {
         try {
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
             Geometry rightGeom = makeGeometryFromLiteral(ctx, right());

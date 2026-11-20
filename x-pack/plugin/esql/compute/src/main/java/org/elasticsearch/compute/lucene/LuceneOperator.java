@@ -23,8 +23,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.querydsl.query.QueryWarnings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,6 +39,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,7 +47,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
@@ -55,6 +60,13 @@ public abstract class LuceneOperator extends SourceOperator {
     public static final int SMALL_INDEX_BOUNDARY = LuceneSliceQueue.MAX_DOCS_PER_SLICE;
 
     protected final BlockFactory blockFactory;
+    protected final DriverContext driverContext;
+    private final QueryWarnings singleValueQueryWarnings;
+
+    /**
+     * {@link Warnings} for each {@link Query} that needs one. These exist per {@link Driver}.
+     */
+    private final IdentityHashMap<Query, Warnings> queryWarnings = new IdentityHashMap<>();
 
     /**
      * Count of the number of slices processed.
@@ -64,7 +76,7 @@ public abstract class LuceneOperator extends SourceOperator {
     private final LuceneSliceQueue sliceQueue;
 
     private final Set<Query> processedQueries = new HashSet<>();
-    private final Set<String> processedShards = new HashSet<>();
+    private final Set<String> processedShards = new TreeSet<>();
 
     private LuceneSlice currentSlice;
     private int sliceIndex;
@@ -79,10 +91,17 @@ public abstract class LuceneOperator extends SourceOperator {
      */
     private long rowsEmitted;
 
-    protected LuceneOperator(BlockFactory blockFactory, int maxPageSize, LuceneSliceQueue sliceQueue) {
-        this.blockFactory = blockFactory;
+    protected LuceneOperator(
+        DriverContext driverContext,
+        int maxPageSize,
+        LuceneSliceQueue sliceQueue,
+        QueryWarnings singleValueQueryWarnings
+    ) {
+        this.driverContext = driverContext;
+        this.blockFactory = driverContext.blockFactory();
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+        this.singleValueQueryWarnings = singleValueQueryWarnings;
     }
 
     public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
@@ -91,6 +110,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final int limit;
         protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
+        protected final QueryWarnings singleValueQueryWarnings;
 
         /**
          * Build the factory.
@@ -106,8 +126,10 @@ public abstract class LuceneOperator extends SourceOperator {
             int taskConcurrency,
             int limit,
             boolean needsScore,
-            Function<ShardContext, ScoreMode> scoreModeFunction
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            QueryWarnings singleValueQueryWarnings
         ) {
+            this.singleValueQueryWarnings = singleValueQueryWarnings;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -134,7 +156,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final Page getOutput() {
-        try {
+        try (Releasable ignored = singleValueQueryWarnings.bind(driverContext, queryWarnings)) {
             Page page = getCheckedOutput();
             if (page != null) {
                 pagesEmitted++;
@@ -285,8 +307,8 @@ public abstract class LuceneOperator extends SourceOperator {
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
 
         private final int processedSlices;
-        private final Set<String> processedQueries;
-        private final Set<String> processedShards;
+        private final List<String> processedQueries;
+        private final List<String> processedShards;
         private final long processingNanos;
         private final int totalSlices;
         private final int pagesEmitted;
@@ -299,9 +321,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         private Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
-            processedQueries = operator.processedQueries.stream().map(Query::toString).collect(Collectors.toCollection(TreeSet::new));
+            processedQueries = operator.processedQueries.stream().map(Query::toString).sorted().toList();
             processingNanos = operator.processingNanos;
-            processedShards = new TreeSet<>(operator.processedShards);
+            processedShards = List.copyOf(operator.processedShards);
             sliceIndex = operator.sliceIndex;
             totalSlices = operator.sliceQueue.totalSlices();
             LuceneSlice slice = operator.currentSlice;
@@ -326,8 +348,8 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(
             int processedSlices,
-            Set<String> processedQueries,
-            Set<String> processedShards,
+            List<String> processedQueries,
+            List<String> processedShards,
             long processingNanos,
             int sliceIndex,
             int totalSlices,
@@ -355,11 +377,11 @@ public abstract class LuceneOperator extends SourceOperator {
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                processedQueries = in.readCollectionAsSet(StreamInput::readString);
-                processedShards = in.readCollectionAsSet(StreamInput::readString);
+                processedQueries = in.readCollectionAsImmutableList(StreamInput::readString);
+                processedShards = in.readCollectionAsImmutableList(StreamInput::readString);
             } else {
-                processedQueries = Collections.emptySet();
-                processedShards = Collections.emptySet();
+                processedQueries = Collections.emptyList();
+                processedShards = Collections.emptyList();
             }
             processingNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
             sliceIndex = in.readVInt();
@@ -411,11 +433,11 @@ public abstract class LuceneOperator extends SourceOperator {
             return processedSlices;
         }
 
-        public Set<String> processedQueries() {
+        public List<String> processedQueries() {
             return processedQueries;
         }
 
-        public Set<String> processedShards() {
+        public List<String> processedShards() {
             return processedShards;
         }
 

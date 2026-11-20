@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -42,7 +43,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 /**
  * Round down to one of a list of values.
  */
-public class RoundTo extends EsqlScalarFunction {
+public class RoundTo extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
 
     private final Expression field;
@@ -117,17 +118,21 @@ public class RoundTo extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        if (resultType != null) {
-            return resultType;
+        DataType type = resultType;
+        if (type != null) {
+            return type;
         }
-        resultType = field.dataType();
+        // Compute in a local and publish only the final type: this field is shared by every thread that holds the plan, and an
+        // unsupported combination must keep returning null rather than whatever was computed before it was found.
+        type = field.dataType();
         for (Expression f : points) {
-            if (resultType == DataType.UNSIGNED_LONG || resultType == null || f.dataType() == UNSIGNED_LONG) {
+            if (type == DataType.UNSIGNED_LONG || type == null || f.dataType() == UNSIGNED_LONG) {
                 return null;
             }
-            resultType = commonType(resultType, f.dataType());
+            type = commonType(type, f.dataType());
         }
-        return resultType;
+        resultType = type;
+        return type;
     }
 
     @Override

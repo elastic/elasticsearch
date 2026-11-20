@@ -219,7 +219,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
         if (postFilterDelegate) {
-            this.rawPerLeafResults = perLeafResults;
+            this.rawPerLeafResults = sharedScore == null ? perLeafResults : aboveSharedCutoff(perLeafResults, sharedScore.get());
         }
 
         final int mergeK = leafReaderContexts.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
@@ -246,6 +246,48 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
      * post-filter delegates, where the pool has already been filtered.
      */
     abstract Query getAutoRescoreQuery(IndexSearcher indexSearcher, Query approxTopN, int finalK, int rescoreK);
+
+    /**
+     * Returns the per-leaf candidates that score strictly above the final shared cutoff.
+     * <p>
+     * A leaf only prunes against the shared cutoff once it has adopted it and its own queue is full, so it can retain
+     * candidates at or below the final cutoff: those it collected before adopting it, and everything in a leaf too small to
+     * fill its queue. Which of them it retains depends on how the leaves interleave. The merged top hits never include them,
+     * but {@link PostFilterKnnQuery} filters the un-merged per-leaf pool. There they make the result differ between runs on
+     * the same reader, and when the filter rejects the nearest candidates they can fill the result in place of better
+     * matches that no leaf kept, instead of the query falling back. Candidates that tie with the cutoff are dropped too,
+     * since another leaf may or may not have pruned them.
+     */
+    static TopDocs[] aboveSharedCutoff(TopDocs[] perLeafResults, long sharedCutoff) {
+        if (sharedCutoff == AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE) {
+            // no leaf published a cutoff, so nothing was pruned against one
+            return perLeafResults;
+        }
+        float cutoffScore = BulkNeighborQueue.decodeScoreRaw(sharedCutoff);
+        TopDocs[] trimmed = new TopDocs[perLeafResults.length];
+        for (int i = 0; i < perLeafResults.length; i++) {
+            ScoreDoc[] scoreDocs = perLeafResults[i].scoreDocs;
+            int kept = 0;
+            for (ScoreDoc scoreDoc : scoreDocs) {
+                if (scoreDoc.score > cutoffScore) {
+                    kept++;
+                }
+            }
+            if (kept == scoreDocs.length) {
+                trimmed[i] = perLeafResults[i];
+                continue;
+            }
+            ScoreDoc[] above = new ScoreDoc[kept];
+            int next = 0;
+            for (ScoreDoc scoreDoc : scoreDocs) {
+                if (scoreDoc.score > cutoffScore) {
+                    above[next++] = scoreDoc;
+                }
+            }
+            trimmed[i] = new TopDocs(perLeafResults[i].totalHits, above);
+        }
+        return trimmed;
+    }
 
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
         BulkNeighborQueue mergeQueue = BulkNeighborQueue.forMerging(mergeK);

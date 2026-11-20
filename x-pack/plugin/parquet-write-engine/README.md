@@ -137,6 +137,13 @@ any of them loses no row:
 5. write the high-water mark and the row count in the commit data, and remove the marker;
 6. delete the local files.
 
+The merge copies the values from the column readers of the local files to the column writers of the merged file, with their repetition
+and definition levels, so no row is ever assembled (the merge before it built a parquet-mr `Group` for each row). A column has the same
+type and so the same levels in every file, and a column that an earlier file lacks becomes nulls. On 600,000 rows of 105 columns like
+ClickBench's (68 integers, 10 longs, 27 keywords) with ZSTD, one thread on a laptop, the merge took 6.2 s where the row-wise merge took
+11.2 s, and the files had the same size. The rest of the time is parquet-mr itself: the dictionaries, the min/max statistics of the
+binary columns, and the compression (about 14% of the samples). A merge of the columns on several threads is not built.
+
 On start, the engine finishes a flush that a crash cut off. The table, and not the commit, is the source of truth for what is uploaded.
 
 **Every file has a column for every mapped field.** A batch has a column only for the fields that one of its documents has a value for,

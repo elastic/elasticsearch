@@ -110,3 +110,169 @@ id:keyword | items.sku:keyword | events.start:integer
 3          | c                 | 30
 3          | c                 | 31
 ;
+
+matchOnTextChild
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE MATCH(items.note, "hello")
+| KEEP id, items.note
+| SORT id, items.note
+;
+
+id:keyword | items.note:text
+a          | hello world
+b          | say Hello there
+;
+
+colonOnTextChild
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE items.note : "hello"
+| KEEP id, items.note
+| SORT id, items.note
+;
+
+id:keyword | items.note:text
+a          | hello world
+b          | say Hello there
+;
+
+matchPhraseOnTextChild
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE MATCH_PHRASE(items.note, "hello world")
+| KEEP id, items.note
+| SORT id, items.note
+;
+
+id:keyword | items.note:text
+a          | hello world
+;
+
+matchOnKeywordChild
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE MATCH(items.tag, "x1")
+| KEEP id, items.tag
+| SORT id, items.tag
+;
+
+id:keyword | items.tag:keyword
+a          | x1
+d          | x1
+;
+
+matchOnChildOrParentCondition
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE MATCH(items.note, "hello") OR id == "d"
+| KEEP id, items.note
+| SORT id, items.note
+;
+
+id:keyword | items.note:text
+a          | hello world
+b          | say Hello there
+d          | nothing
+;
+
+notMatchOnChildKeepsRowsWithoutTheField
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE NOT MATCH(items.note, "hello")
+| KEEP id, items.note
+| SORT id, items.note
+;
+
+id:keyword | items.note:text
+a          | goodbye
+c          | null
+d          | nothing
+;
+
+matchOnChildAfterRename
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| RENAME items.note AS note
+| WHERE MATCH(note, "hello")
+| KEEP id, note
+| SORT id, note
+;
+
+id:keyword | note:text
+a          | hello world
+b          | say Hello there
+;
+
+matchOnChildScoresRows
+required_capability: nested_expand
+
+FROM nested_notes METADATA _score
+| NESTED_EXPAND items
+| WHERE MATCH(items.note, "hello")
+| EVAL scored = _score > 0
+| KEEP id, scored
+| SORT id
+;
+
+id:keyword | scored:boolean
+a          | true
+b          | true
+;
+
+matchOnParentFieldAfterExpansionStillWorks
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE MATCH(id, "a")
+| KEEP id, items.note
+| SORT items.note
+;
+
+id:keyword | items.note:text
+a          | goodbye
+a          | hello world
+;
+
+matchWithOptionsOnTextChild
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE MATCH(items.note, "world hello", {"operator": "AND"})
+| KEEP id, items.note
+| SORT id, items.note
+;
+
+id:keyword | items.note:text
+a          | hello world
+;
+
+matchOnChildAndParentCondition
+required_capability: nested_expand
+
+FROM nested_notes
+| NESTED_EXPAND items
+| WHERE MATCH(items.note, "hello") AND id == "b"
+| KEEP id, items.note
+| SORT id, items.note
+;
+
+id:keyword | items.note:text
+b          | say Hello there
+;

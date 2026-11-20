@@ -62,6 +62,8 @@ import static org.hamcrest.Matchers.startsWith;
  *     <li>{@code ne_orders}: only {@code id}.</li>
  *     <li>{@code ne_lookup}: a lookup index with {@code id} and nested {@code items}.</li>
  *     <li>{@code ne_conflict}: two indices, one maps {@code items.sub} as an object and the other as nested.</li>
+ *     <li>{@code ne_text}: nested {@code items} with {@code note}, a {@code text} field that reports the {@code standard} analyzer, and
+ *     {@code legacy}, a {@code text} field that reports none.</li>
  *     <li>{@code ne_ts}: a time-series index with nested {@code items}.</li>
  *     <li>{@code ne_types}: two indices that disagree on the type of {@code v} and {@code items.v} ({@code integer} and
  *     {@code keyword}), and of {@code n} and {@code items.n} ({@code short} and {@code integer}); {@code items.small} is a
@@ -193,31 +195,57 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         assertConsistent(plan);
     }
 
-    public void testMatchOnExpandedChildIsRejected() {
+    public void testMatchOnKeywordExpandedChildIsAccepted() {
+        nestedAnalyzer().query("FROM ne | NESTED_EXPAND items | WHERE MATCH(items.sku, \"a\") | KEEP id");
+    }
+
+    public void testMatchPhraseOnKeywordExpandedChildIsAccepted() {
+        nestedAnalyzer().query("FROM ne | NESTED_EXPAND items | WHERE MATCH_PHRASE(items.sku, \"a\") | KEEP id");
+    }
+
+    public void testMatchOperatorOnKeywordExpandedChildIsAccepted() {
+        nestedAnalyzer().query("FROM ne | NESTED_EXPAND items | WHERE items.sku : \"a\" | KEEP id");
+    }
+
+    public void testMatchOnRenamedExpandedChildIsAccepted() {
+        nestedAnalyzer().query("FROM ne | NESTED_EXPAND items | RENAME items.sku AS s | WHERE MATCH(s, \"a\") | KEEP id");
+    }
+
+    public void testMatchOnTextExpandedChildWithKnownAnalyzerIsAccepted() {
+        nestedAnalyzer().query("FROM ne_text | NESTED_EXPAND items | WHERE MATCH(items.note, \"a\") | KEEP id");
+    }
+
+    public void testMatchOnTextExpandedChildWithUnreportedAnalyzerIsRejected() {
         nestedAnalyzer().error(
-            "FROM ne | NESTED_EXPAND items | WHERE MATCH(items.sku, \"a\") | KEEP id",
+            "FROM ne_text | NESTED_EXPAND items | WHERE MATCH(items.legacy, \"a\") | KEEP id",
             containsString("Full-text matching on expanded nested fields is not supported yet")
         );
     }
 
-    public void testMatchPhraseOnExpandedChildIsRejected() {
+    public void testValuesAnalyzerOnTextExpandedChildIsAccepted() {
+        nestedAnalyzer().query(
+            "FROM ne_text | NESTED_EXPAND items | WHERE MATCH(TO_TEXT(items.note, {\"analyzer\": \"standard\"}), \"a\") | KEEP id"
+        );
+    }
+
+    public void testMatchOnNumericExpandedChildIsRejected() {
         nestedAnalyzer().error(
-            "FROM ne | NESTED_EXPAND items | WHERE MATCH_PHRASE(items.sku, \"a\") | KEEP id",
+            "FROM ne | NESTED_EXPAND items | WHERE MATCH(items.qty, 1) | KEEP id",
             containsString("Full-text matching on expanded nested fields is not supported yet")
         );
     }
 
-    public void testMatchOperatorOnExpandedChildIsRejected() {
+    public void testQueryStringOnExpandedChildIsRejected() {
         nestedAnalyzer().error(
-            "FROM ne | NESTED_EXPAND items | WHERE items.sku : \"a\" | KEEP id",
-            containsString("Full-text matching on expanded nested fields is not supported yet")
+            "FROM ne | NESTED_EXPAND items | WHERE QSTR(\"items.sku:a\") | KEEP id",
+            containsString("[QSTR] function cannot be used after NESTED_EXPAND")
         );
     }
 
-    public void testMatchOnRenamedExpandedChildIsRejected() {
+    public void testKqlOnExpandedChildIsRejected() {
         nestedAnalyzer().error(
-            "FROM ne | NESTED_EXPAND items | RENAME items.sku AS s | WHERE MATCH(s, \"a\") | KEEP id",
-            containsString("Full-text matching on expanded nested fields is not supported yet")
+            "FROM ne | NESTED_EXPAND items | WHERE KQL(\"items.sku:a\") | KEEP id",
+            containsString("[KQL] function cannot be used after NESTED_EXPAND")
         );
     }
 
@@ -428,6 +456,7 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
                 "ne_types",
                 resolution("ne_types", typesIndex("ne_types_a", "integer", "short"), typesIndex("ne_types_b", "keyword", "integer"))
             )
+            .addIndex("ne_text", resolution("ne_text", textIndex()))
             .addIndex("ne_ts", resolution("ne_ts", timeSeriesIndex()))
             .addLookupIndex(
                 "ne_lookup",
@@ -457,6 +486,19 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
             field("items.parts.pn", "keyword"),
             field("events", "nested"),
             field("events.start", "long")
+        );
+    }
+
+    private static FieldCapabilitiesIndexResponse textIndex() {
+        return index(
+            "ne_text",
+            IndexMode.STANDARD,
+            field("id", "keyword"),
+            field("items", "nested"),
+            new IndexFieldCapabilitiesBuilder("items.note", "text").indexAnalyzer("standard")
+                .indexAnalyzerPositionIncrementGap(100)
+                .build(),
+            field("items.legacy", "text")
         );
     }
 

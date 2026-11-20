@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -39,10 +40,12 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -113,6 +116,9 @@ public abstract class FullTextFunction extends Function
         PostOptimizationVerificationAware,
         RewriteableAware,
         PostOptimizationPlanVerificationAware {
+
+    /** The prebuilt analyzer that keeps a whole value as one token, which is how an exact {@code keyword} field is matched. */
+    private static final String KEYWORD_ANALYZER = "keyword";
 
     public static final TransportVersion ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS = TransportVersion.fromName("esql_options_for_search_functions");
 
@@ -559,16 +565,11 @@ public abstract class FullTextFunction extends Function
             }
             // A Lucene query runs on the document each row was read from, which is the parent of an expanded child. The field is
             // resolved through renames, which the optimizer removes, turning a search of the alias into one of the child.
-            if (isExpandedNestedChild(plan, fieldAttribute)) {
-                failures.add(
-                    fail(
-                        field,
-                        "Full-text matching on expanded nested fields is not supported yet: [{}] {} cannot operate on [{}]",
-                        function.functionName(),
-                        function.functionType(),
-                        field.sourceText()
-                    )
-                );
+            // Searches the optimizer can turn into a per-row search are accepted here and checked again once it has run.
+            if (function.isRuntimeSearch() == false
+                && NestedExpand.expands(plan, fieldAttribute)
+                && expandedChildAnalyzer(function, fieldAttribute) == null) {
+                failures.add(expandedChildFailure(function, field));
                 return;
             }
             // Fields from the right-hand side of a LOOKUP JOIN are not in the main index. A Lucene query on them
@@ -595,14 +596,47 @@ public abstract class FullTextFunction extends Function
         }
     }
 
-    private static boolean isExpandedNestedChild(LogicalPlan plan, FieldAttribute field) {
-        Holder<Boolean> expanded = new Holder<>(false);
-        plan.forEachDown(NestedExpand.class, expand -> {
-            if (expand.expanded().stream().anyMatch(child -> child.id().equals(field.id()))) {
-                expanded.set(true);
-            }
-        });
-        return expanded.get();
+    /**
+     * The analyzer that makes a per-row search of the expanded nested child {@code child} behave like the search the mapping
+     * defines, or {@code null} when no per-row search can stand in for it: other functions, other field types, and text
+     * fields whose analyzer the indices do not agree on or do not report.
+     */
+    @Nullable
+    public static String expandedChildAnalyzer(FullTextFunction function, FieldAttribute child) {
+        if (function instanceof Match == false && function instanceof MatchPhrase == false) {
+            return null;
+        }
+        if (child.dataType() == KEYWORD) {
+            return KEYWORD_ANALYZER;
+        }
+        if (child.field() instanceof TextEsField text && text.unknownAnalyzer() == TextEsField.UnknownAnalyzer.NONE) {
+            return text.analyzerName();
+        }
+        return null;
+    }
+
+    /**
+     * Fails a search of an expanded nested child that the optimizer left as an index search: it would run on the parent
+     * document and silently match nothing.
+     */
+    final void verifyExpandedChildSearchedPerRow(LogicalPlan plan, Expression field, Failures failures) {
+        if (isRuntimeSearch() || isInCurrentNode(plan, this) == false) {
+            return;
+        }
+        FieldAttribute fieldAttribute = resolveToFieldAttribute(plan, field);
+        if (fieldAttribute != null && NestedExpand.expands(plan, fieldAttribute) && expandedChildAnalyzer(this, fieldAttribute) != null) {
+            failures.add(expandedChildFailure(this, field));
+        }
+    }
+
+    static Failure expandedChildFailure(FullTextFunction function, Expression field) {
+        return fail(
+            field,
+            "Full-text matching on expanded nested fields is not supported yet: [{}] {} cannot operate on [{}]",
+            function.functionName(),
+            function.functionType(),
+            field.sourceText()
+        );
     }
 
     /**
@@ -762,6 +796,9 @@ public abstract class FullTextFunction extends Function
         Expression fieldExpression = field;
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
+            if (convertFunction instanceof ToText toText && toText.valuesAnalyzer() != null) {
+                return null;
+            }
             fieldExpression = convertFunction.field();
         }
 

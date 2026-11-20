@@ -22,8 +22,6 @@ setup:
                   type: keyword
                 txt:
                   type: text
-                mot:
-                  type: match_only_text
                 lng:
                   type: long
                 dt:
@@ -49,8 +47,6 @@ setup:
                   type: keyword
                 txt:
                   type: text
-                mot:
-                  type: match_only_text
                 lng:
                   type: long
                 dt:
@@ -77,8 +73,6 @@ setup:
                   type: keyword
                 txt:
                   type: text
-                mot:
-                  type: match_only_text
                 lng:
                   type: long
                 dt:
@@ -95,25 +89,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{ "kwd": "a", "txt": "a", "mot": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
+          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{ "kwd": [ null ], "txt": [ null ], "mot": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
+          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{ "kwd": [ null, null ], "txt": [ null, null ], "mot": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
+          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
           - '{ "index": { "_id": "mixed" } }'
-          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "mot": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{ "kwd": null, "txt": null, "mot": null, "lng": null, "dt": null, "addr": null, "flag": null }'
+          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null }'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{ "kwd": [], "txt": [], "mot": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
+          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "mot": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
+          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "mot": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
+          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "mot": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
+          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
 
   - do:
       bulk:
@@ -121,25 +115,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{ "kwd": "a", "txt": "a", "mot": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
+          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{ "kwd": [ null ], "txt": [ null ], "mot": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
+          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{ "kwd": [ null, null ], "txt": [ null, null ], "mot": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
+          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
           - '{ "index": { "_id": "mixed" } }'
-          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "mot": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{ "kwd": null, "txt": null, "mot": null, "lng": null, "dt": null, "addr": null, "flag": null }'
+          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null }'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{ "kwd": [], "txt": [], "mot": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
+          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "mot": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
+          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "mot": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
+          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "mot": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
+          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
 
   - do:
       bulk:
@@ -147,25 +141,25 @@ setup:
         refresh: true
         body:
           - '{ "index": { "_id": "value" } }'
-          - '{ "kwd": "a", "txt": "a", "mot": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
+          - '{ "kwd": "a", "txt": "a", "lng": 1, "dt": "2026-01-01T00:00:00.000Z", "addr": "192.168.0.1", "flag": true }'
           - '{ "index": { "_id": "null_in_array" } }'
-          - '{ "kwd": [ null ], "txt": [ null ], "mot": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
+          - '{ "kwd": [ null ], "txt": [ null ], "lng": [ null ], "dt": [ null ], "addr": [ null ], "flag": [ null ] }'
           - '{ "index": { "_id": "only_nulls" } }'
-          - '{ "kwd": [ null, null ], "txt": [ null, null ], "mot": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
+          - '{ "kwd": [ null, null ], "txt": [ null, null ], "lng": [ null, null ], "dt": [ null, null ], "addr": [ null, null ], "flag": [ null, null ] }'
           - '{ "index": { "_id": "mixed" } }'
-          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "mot": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
+          - '{ "kwd": [ "a", null, "b" ], "txt": [ "a", null, "b" ], "lng": [ 1, null, 2 ], "dt": [ "2026-01-01T00:00:00.000Z", null, "2026-01-02T00:00:00.000Z" ], "addr": [ "192.168.0.1", null, "192.168.0.2" ], "flag": [ true, null, false ] }'
           - '{ "index": { "_id": "bare_null" } }'
-          - '{ "kwd": null, "txt": null, "mot": null, "lng": null, "dt": null, "addr": null, "flag": null }'
+          - '{ "kwd": null, "txt": null, "lng": null, "dt": null, "addr": null, "flag": null }'
           - '{ "index": { "_id": "empty_array" } }'
-          - '{ "kwd": [], "txt": [], "mot": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
+          - '{ "kwd": [], "txt": [], "lng": [], "dt": [], "addr": [], "flag": [] }'
           - '{ "index": { "_id": "missing" } }'
           - '{ "other": "c" }'
           - '{ "index": { "_id": "leading_null" } }'
-          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "mot": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
+          - '{ "kwd": [ null, "a" ], "txt": [ null, "a" ], "lng": [ null, 1 ], "dt": [ null, "2026-01-01T00:00:00.000Z" ], "addr": [ null, "192.168.0.1" ], "flag": [ null, true ] }'
           - '{ "index": { "_id": "trailing_null" } }'
-          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "mot": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
+          - '{ "kwd": [ "a", null ], "txt": [ "a", null ], "lng": [ 1, null ], "dt": [ "2026-01-01T00:00:00.000Z", null ], "addr": [ "192.168.0.1", null ], "flag": [ true, null ] }'
           - '{ "index": { "_id": "both_ends_null" } }'
-          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "mot": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
+          - '{ "kwd": [ null, "a", null ], "txt": [ null, "a", null ], "lng": [ null, 1, null ], "dt": [ null, "2026-01-01T00:00:00.000Z", null ], "addr": [ null, "192.168.0.1", null ], "flag": [ null, true, null ] }'
 
 ---
 columnar_stored returns the same source as synthetic for every field type on both indexing paths:
@@ -216,16 +210,16 @@ columnar_stored drops the null elements of every field type:
 
   - match:
       hits.hits:
-        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
         - _source: {}
         - _source: {}
-        - _source: { kwd: [ a, b ], txt: [ a, b ], mot: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ] }
+        - _source: { kwd: [ a, b ], txt: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ] }
         - _source: {}
         - _source: {}
         - _source: { other: c }
-        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
-        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
-        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
 
 ---
 columnar_stored drops the null elements of every field type on the row indexing path:
@@ -243,16 +237,16 @@ columnar_stored drops the null elements of every field type on the row indexing 
 
   - match:
       hits.hits:
-        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
         - _source: {}
         - _source: {}
-        - _source: { kwd: [ a, b ], txt: [ a, b ], mot: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ] }
+        - _source: { kwd: [ a, b ], txt: [ a, b ], lng: [ 1, 2 ], dt: [ "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z" ], addr: [ "192.168.0.1", "192.168.0.2" ], flag: [ true, false ] }
         - _source: {}
         - _source: {}
         - _source: { other: c }
-        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
-        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
-        - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+        - _source: { kwd: a, txt: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
 
 ---
 every document of the bulk requests is indexed:

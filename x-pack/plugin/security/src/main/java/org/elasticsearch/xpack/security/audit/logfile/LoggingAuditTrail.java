@@ -1852,18 +1852,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRestUriAndMethod(HttpPreRequest request) {
-            final int queryStringIndex = request.uri().indexOf('?');
-            int queryStringLength = request.uri().indexOf('#');
-            if (queryStringLength < 0) {
-                queryStringLength = request.uri().length();
+            final String uri = request.uri();
+            int fragmentIndex = uri.indexOf('#');
+            if (fragmentIndex < 0) {
+                fragmentIndex = uri.length();
             }
-            if (queryStringIndex < 0) {
-                logEntry.with(URL_PATH_FIELD_NAME, request.uri().substring(0, queryStringLength));
+            final int queryStringIndex = uri.indexOf('?');
+            // a '?' after the '#' is part of the fragment, not the start of a query string
+            if (queryStringIndex < 0 || queryStringIndex > fragmentIndex) {
+                logEntry.with(URL_PATH_FIELD_NAME, uri.substring(0, fragmentIndex));
             } else {
-                logEntry.with(URL_PATH_FIELD_NAME, request.uri().substring(0, queryStringIndex));
-            }
-            if (queryStringIndex > -1) {
-                logEntry.with(URL_QUERY_FIELD_NAME, request.uri().substring(queryStringIndex + 1, queryStringLength));
+                logEntry.with(URL_PATH_FIELD_NAME, uri.substring(0, queryStringIndex));
+                logEntry.with(URL_QUERY_FIELD_NAME, uri.substring(queryStringIndex + 1, fragmentIndex));
             }
             logEntry.with(REQUEST_METHOD_FIELD_NAME, request.method().toString());
             return this;

@@ -219,8 +219,14 @@ public class InMemoryStreamStore implements StreamStorage {
             // Completion info is only available once the stream is no longer running.
             StreamMetadata.StreamCompletionInfo completionInfo = status == StreamMetadata.Status.RUNNING
                 ? null
-                : new StreamMetadata.StreamCompletionInfo(partial, 0L, pages.size(), rows, exception);
-            return new StreamMetadata(streamId, ttl, taskId, headers, columns, status, List.of(), completionInfo);
+                : new StreamMetadata.StreamCompletionInfo(
+                    partial,
+                    0L,
+                    (long) pages.size(),
+                    (long) rows,
+                    exception != null ? StreamMetadata.StreamFailure.of(exception) : null
+                );
+            return new StreamMetadata(streamId, taskId, ttl, columns, headers, List.of(), status, completionInfo);
         }
 
         synchronized List<Page> getPages(long offset, long rows) {

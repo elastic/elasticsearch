@@ -4,8 +4,8 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [index_sort_expression]
-      reason: index.sort expression setting is not supported on older nodes
+          capabilities: [index_sort_expression, index_sort_computed_keys]
+      reason: index.sort expression setting is parsed by ES|QL on newer nodes
 
 ---
 "Sort expression configures the index sort":
@@ -131,19 +131,19 @@ setup:
   - match: { error.root_cause.0.reason: "/cannot.be.combined.with.\\[index.sort.field\\]/" }
 
 ---
-"Sort expression rejects an unexpected token":
+"Sort expression must be an ES|QL sort":
   - do:
       catch: bad_request
       indices.create:
         index: sorted_index
         body:
           settings:
-            index.sort: "rank SIDEWAYS"
+            index.sort: "rank ASC DESC"
           mappings:
             properties:
               rank:
                 type: long
-  - match: { error.root_cause.0.reason: "/unexpected.token.\\[SIDEWAYS\\]/" }
+  - match: { error.root_cause.0.reason: "/setting.\\[index.sort\\].can't.be.parsed/" }
 
 ---
 "Sort expression rejects the previous keyword syntax and unsupported functions":
@@ -158,7 +158,7 @@ setup:
             properties:
               rank:
                 type: long
-  - match: { error.root_cause.0.reason: "/unexpected.token.\\[MV_FIRST_MAX\\]/" }
+  - match: { error.root_cause.0.reason: "/setting.\\[index.sort\\].can't.be.parsed/" }
 
   - do:
       catch: bad_request
@@ -166,12 +166,12 @@ setup:
         index: sorted_index
         body:
           settings:
-            index.sort: "ABS(rank)"
+            index.sort: "NOW()"
           mappings:
             properties:
               rank:
                 type: long
-  - match: { error.root_cause.0.reason: "/unsupported.function.\\[ABS\\]/" }
+  - match: { error.root_cause.0.reason: "/index.sort.key.\\[NOW\\(\\)\\].uses.\\[NOW\\(\\)\\],.which.isn't.guaranteed.to.compute.the.same.values/" }
 
 ---
 "Sort expression rejects a trailing comma":
@@ -186,7 +186,7 @@ setup:
             properties:
               rank:
                 type: long
-  - match: { error.root_cause.0.reason: "/empty.sort.entry/" }
+  - match: { error.root_cause.0.reason: "/setting.\\[index.sort\\].can't.be.parsed/" }
 
 ---
 "Sort expression rejects a duplicate field":
@@ -228,8 +228,8 @@ setup:
           index_patterns: [ "invalid_sorted_template_*" ]
           template:
             settings:
-              index.sort: "rank SIDEWAYS"
-  - match: { error.reason: "/unexpected.token.\\[SIDEWAYS\\]/" }
+              index.sort: "rank NULLS SOMETIMES"
+  - match: { error.reason: "/setting.\\[index.sort\\].can't.be.parsed/" }
 
 ---
 "Sort expression cannot sort on a field under a nested object":

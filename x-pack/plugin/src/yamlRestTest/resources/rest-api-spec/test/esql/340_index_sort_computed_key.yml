@@ -1,0 +1,101 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [index_sort_computed_keys]
+      reason: index.sort keys computed by a function are not supported on older nodes
+
+---
+"Index sorted on a key computed by an ES|QL function":
+  - do:
+      indices.create:
+        index: computed_sort
+        body:
+          settings:
+            number_of_shards: 1
+            index.sort: "DATE_TRUNC(1 hour, @timestamp) DESC, host"
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+
+  - do:
+      indices.get_settings:
+        index: computed_sort
+        flat_settings: true
+  - match: { computed_sort.settings.index\.sort: "DATE_TRUNC(1 hour, @timestamp) DESC, host" }
+
+  # One document per segment, then merged: the merge sorts them on the hour, newest first, then on the host
+  - do:
+      index: { index: computed_sort, id: "1", refresh: true, body: { "@timestamp": "2026-01-01T10:59:00Z", host: "b" } }
+  - do:
+      index: { index: computed_sort, id: "2", refresh: true, body: { "@timestamp": "2026-01-01T11:01:00Z", host: "b" } }
+  - do:
+      index: { index: computed_sort, id: "3", refresh: true, body: { "@timestamp": "2026-01-01T10:01:00Z", host: "a" } }
+  - do:
+      index: { index: computed_sort, id: "4", refresh: true, body: { "@timestamp": "2026-01-01T11:59:00Z", host: "a" } }
+  - do:
+      indices.forcemerge: { index: computed_sort, max_num_segments: 1 }
+  - do:
+      indices.refresh: { index: computed_sort }
+
+  - do:
+      search:
+        index: computed_sort
+        body:
+          sort: [ "_doc" ]
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "1" }
+
+---
+"Index sort rejects keys of types that are not supported yet":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: computed_sort
+        body:
+          settings:
+            index.sort: "COALESCE(host, \"none\")"
+          mappings:
+            properties:
+              host:
+                type: keyword
+  - match: { error.root_cause.0.reason: "/index.sort.key.\\[COALESCE\\(host,..none.\\)\\].returns.type.\\[keyword\\],.which.isn't.supported.yet/" }
+
+---
+"Index sort rejects functions that aren't deterministic":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: computed_sort
+        body:
+          settings:
+            index.sort: "DATE_DIFF(\"hour\", @timestamp, NOW())"
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+  - match: { error.root_cause.0.reason: "/uses.\\[NOW\\(\\)\\],.which.isn't.guaranteed.to.compute.the.same.values/" }
+
+---
+"Index sort rejects a computed key on an unmapped field":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: computed_sort
+        body:
+          settings:
+            index.sort: "DATE_TRUNC(1 hour, @timestamp)"
+          mappings:
+            properties:
+              host:
+                type: keyword
+  - match: { error.root_cause.0.reason: "/references.unknown.field.\\[@timestamp\\]/" }

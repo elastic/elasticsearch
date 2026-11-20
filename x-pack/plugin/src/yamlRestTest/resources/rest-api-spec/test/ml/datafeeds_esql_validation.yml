@@ -90,7 +90,7 @@ setup:
             }
           }
   - do:
-      catch: /name the bucket after its source field/
+      catch: /Name the bucket after its source field/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       ml.put_datafeed:
@@ -122,7 +122,7 @@ setup:
             }
           }
   - do:
-      catch: /time column \[host\] has type \[keyword\], but must be date or date_nanos/
+      catch: /time column \[host\] has type \[keyword\]\. It must be date or date_nanos/
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       ml.put_datafeed:

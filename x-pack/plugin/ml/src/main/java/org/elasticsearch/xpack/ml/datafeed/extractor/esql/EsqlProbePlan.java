@@ -13,25 +13,27 @@ import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 
 import java.util.Objects;
 
-/** Which ES|QL {@code LIMIT 0} probes a datafeed validation runs: required columns and {@code source_time_field} type. */
-public record EsqlProbePlan(boolean columns, boolean sourceTimeField) {
+/** Decides whether a datafeed update needs the ES|QL {@code DESCRIBE} probe re-run. */
+public final class EsqlProbePlan {
 
-    public static final EsqlProbePlan ALL = new EsqlProbePlan(true, true);
-    private static final EsqlProbePlan NONE = new EsqlProbePlan(false, false);
+    private EsqlProbePlan() {}
 
-    /** Both probes read project routing and credential; only the columns probe reads the required summary count field. */
-    public static EsqlProbePlan forUpdate(DatafeedConfig current, DatafeedConfig updated, Job job) {
+    /**
+     * An ES|QL datafeed update needs the probe when its project routing or credential changed, or when it newly requires a summary
+     * count column. Other updates cannot change the probe outcome. A PUT always probes and does not use this method.
+     */
+    public static boolean needsProbe(DatafeedConfig current, DatafeedConfig updated, Job job) {
         if (updated.getEsqlQuery() == null) {
-            return NONE;
+            return false;
         }
         boolean searchScopeChanged = Objects.equals(current.getProjectRouting(), updated.getProjectRouting()) == false
             || Objects.equals(credentialId(current), credentialId(updated)) == false;
         if (searchScopeChanged) {
-            return ALL;
+            return true;
         }
         String requiredBefore = EsqlDatafeedQueryValidator.requiredSummaryCountField(current, job);
         String requiredAfter = EsqlDatafeedQueryValidator.requiredSummaryCountField(updated, job);
-        return new EsqlProbePlan(requiredAfter != null && Objects.equals(requiredBefore, requiredAfter) == false, false);
+        return requiredAfter != null && Objects.equals(requiredBefore, requiredAfter) == false;
     }
 
     private static String credentialId(DatafeedConfig config) {

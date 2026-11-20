@@ -46,17 +46,18 @@ public final class Messages {
     /** Arg {0} of the ES|QL datafeed messages below: the subject without and with the datafeed id. */
     public static final String DATAFEED_ESQL_SUBJECT = "ES|QL datafeed";
     public static final String DATAFEED_ESQL_SUBJECT_WITH_ID = "ES|QL datafeed [{0}]";
-    public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}], but must be date or date_nanos";
+    public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_DATE = "{0} time column [{1}] has type [{2}]. It must be date or date_nanos.";
     public static final String DATAFEED_ESQL_SOURCE_TIME_FIELD_MISMATCH =
-        "{0} source_time_field [{1}] must equal the source field [{2}] that time column [{3}] reads; set source_time_field to [{2}]";
+        "{0} source_time_field [{1}] does not match the source field [{2}] that time column [{3}] reads. Set source_time_field to [{2}].";
     public static final String DATAFEED_ESQL_TIME_COLUMN_BUCKET_NAME =
-        "{0} time column [{1}] is a date bucket, so source_time_field [{2}] must equal the column name; name the bucket after its "
-            + "source field: BY {2} = BUCKET({2}, ...)";
+        "{0} time column [{1}] is a date bucket, so source_time_field [{2}] must equal the column name. "
+            + "Name the bucket after its source field: BY {2} = BUCKET({2}, ...).";
     public static final String DATAFEED_ESQL_TIME_COLUMN_NOT_BUCKET =
-        "{0} time column [{1}] is computed by an expression that is not a date bucket; use BUCKET, TBUCKET, TSTEP or DATE_TRUNC "
-            + "with constant arguments on the source time field, or project the source time field itself";
+        "{0} time column [{1}] is computed by an expression that is not a date bucket. "
+            + "Use BUCKET, TBUCKET, TSTEP or DATE_TRUNC with constant arguments on the source time field, "
+            + "or project the source time field itself.";
     public static final String DATAFEED_ESQL_TIME_COLUMN_ORIGIN_UNSUPPORTED =
-        "{0} time column [{1}] has origin [{2}]; it must be a field of the queried source or a date bucket of the source time field";
+        "{0} time column [{1}] has origin [{2}]. It must be a field of the queried source or a date bucket of the source time field.";
     public static final String DATAFEED_ESQL_MISSING_TIME_COLUMN =
         "The final output of {0} query is missing the configured job data_description.time_field [{1}]; "
             + "project [{1}] in the final ES|QL output.";

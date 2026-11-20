@@ -22,13 +22,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.cloud.CloudCredentialTestUtils.randomPersistedCloudCredential;
-import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlProbePlanTests extends ESTestCase {
 
     private static final String ESQL_QUERY = "FROM logs-* | STATS c = COUNT(*) BY time = BUCKET(@timestamp, 1h)";
-    private static final EsqlProbePlan NONE = new EsqlProbePlan(false, false);
-    private static final EsqlProbePlan COLUMNS_ONLY = new EsqlProbePlan(true, false);
 
     private static Job job(String summaryCountField) {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
@@ -46,85 +43,81 @@ public class EsqlProbePlanTests extends ESTestCase {
             .setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1)));
     }
 
-    public void testPutPlanShouldRunBothProbes() {
-        assertThat(EsqlProbePlan.ALL, equalTo(new EsqlProbePlan(true, true)));
-    }
-
-    public void testOnlyCheckWindowChangedShouldRunNoProbes() {
+    public void testOnlyCheckWindowChangedShouldRunNoProbe() {
         DatafeedConfig current = esqlDatafeed().build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
             DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(2))
         ).build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(NONE));
+        assertFalse(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testDelayedDataCheckEnabledWithJobSummaryFieldShouldRunColumnsProbeOnly() {
+    public void testDelayedDataCheckEnabledWithJobSummaryFieldShouldRunProbe() {
         DatafeedConfig current = esqlDatafeed().setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig()).build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
             DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))
         ).build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(COLUMNS_ONLY));
+        assertTrue(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testDelayedDataCheckDisabledShouldRunNoProbes() {
+    public void testDelayedDataCheckDisabledShouldRunNoProbe() {
         DatafeedConfig current = esqlDatafeed().build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
             DelayedDataCheckConfig.disabledDelayedDataCheckConfig()
         ).build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(NONE));
+        assertFalse(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testDelayedDataCheckEnabledWithoutJobSummaryFieldShouldRunNoProbes() {
+    public void testDelayedDataCheckEnabledWithoutJobSummaryFieldShouldRunNoProbe() {
         DatafeedConfig current = esqlDatafeed().setDelayedDataCheckConfig(DelayedDataCheckConfig.disabledDelayedDataCheckConfig()).build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setDelayedDataCheckConfig(
             DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(1))
         ).build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job(null)), equalTo(NONE));
+        assertFalse(EsqlProbePlan.needsProbe(current, updated, job(null)));
     }
 
-    public void testProjectRoutingChangedShouldRunBothProbes() {
+    public void testProjectRoutingChangedShouldRunProbe() {
         DatafeedConfig current = esqlDatafeed().setProjectRouting("_alias:_origin").build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setProjectRouting("_alias:prod-*").build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(EsqlProbePlan.ALL));
+        assertTrue(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testCredentialReplacedWithSameRoutingShouldRunBothProbes() {
+    public void testCredentialReplacedWithSameRoutingShouldRunProbe() {
         DatafeedConfig current = esqlDatafeed().setProjectRouting("_alias:_origin")
             .setCloudInternalCredential(randomPersistedCloudCredential("old-key"))
             .build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setCloudInternalCredential(randomPersistedCloudCredential("new-key"))
             .build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(EsqlProbePlan.ALL));
+        assertTrue(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testCredentialMintedFirstTimeShouldRunBothProbes() {
+    public void testCredentialMintedFirstTimeShouldRunProbe() {
         DatafeedConfig current = esqlDatafeed().build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setCloudInternalCredential(randomPersistedCloudCredential("new-key"))
             .build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(EsqlProbePlan.ALL));
+        assertTrue(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testCredentialClearedShouldRunBothProbes() {
+    public void testCredentialClearedShouldRunProbe() {
         DatafeedConfig current = esqlDatafeed().setCloudInternalCredential(randomPersistedCloudCredential("old-key")).build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setCloudInternalCredential(null).build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(EsqlProbePlan.ALL));
+        assertTrue(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testHeadersChangedWithSameCredentialShouldRunNoProbes() {
+    public void testHeadersChangedWithSameCredentialShouldRunNoProbe() {
         DatafeedConfig current = esqlDatafeed().setHeaders(Map.of("es-security-runas-user", "a")).build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setHeaders(Map.of("es-security-runas-user", "b")).build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(NONE));
+        assertFalse(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testOnlyQueryDelayChangedShouldRunNoProbes() {
+    public void testOnlyQueryDelayChangedShouldRunNoProbe() {
         DatafeedConfig current = esqlDatafeed().build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setQueryDelay(TimeValue.timeValueSeconds(90)).build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(NONE));
+        assertFalse(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 
-    public void testDslDatafeedShouldRunNoProbes() {
+    public void testDslDatafeedShouldRunNoProbe() {
         DatafeedConfig current = new DatafeedConfig.Builder("df", "job").setIndices(List.of("logs-*")).build();
         DatafeedConfig updated = new DatafeedConfig.Builder(current).setProjectRouting("_alias:prod-*").build();
-        assertThat(EsqlProbePlan.forUpdate(current, updated, job("c")), equalTo(NONE));
+        assertFalse(EsqlProbePlan.needsProbe(current, updated, job("c")));
     }
 }

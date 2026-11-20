@@ -131,6 +131,7 @@ public class EsqlDatafeedQueryValidator {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (isDeferredExistenceFailure(cause)) {
                 // Source may not exist yet; skip column checks (same as DSL datafeed PUT).
+                // NOTE: this also skips the _clusters remote-source check; datafeed start re-checks it (follow-up).
                 listener.onResponse(Boolean.TRUE);
             } else {
                 listener.onFailure(e);
@@ -195,6 +196,8 @@ public class EsqlDatafeedQueryValidator {
                 );
             }
         } else if ("computed".equals(origin)) {
+            // DESCRIBE does not expose a computed bucket's source argument: BY @timestamp = BUCKET(other, 1 hour) passes PUT and the
+            // runtime emitted-time window check catches it.
             if ("time".equals(time.role()) == false || time.interval() == null) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_ESQL_TIME_COLUMN_NOT_BUCKET, subject, timeField));
             }
@@ -373,17 +376,6 @@ public class EsqlDatafeedQueryValidator {
     }
 
     static void checkRequiredColumns(
-        List<? extends ColumnInfo> columns,
-        String timeField,
-        @Nullable String requiredSummaryCountField,
-        @Nullable String datafeedId
-    ) {
-        Map<String, String> types = new LinkedHashMap<>();
-        columns.forEach(column -> types.put(column.name(), column.outputType()));
-        checkRequiredColumns(types, timeField, requiredSummaryCountField, datafeedId);
-    }
-
-    private static void checkRequiredColumns(
         Map<String, String> columnTypes,
         String timeField,
         @Nullable String requiredSummaryCountField,

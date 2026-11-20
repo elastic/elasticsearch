@@ -36,7 +36,9 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -242,7 +244,14 @@ public class EsqlDataExtractor implements DataExtractor {
             EsqlResponse esqlResponse = response.response();
             List<? extends ColumnInfo> columns = esqlResponse.columns();
             // Runtime extraction has no datafeed id for column-check messages.
-            EsqlDatafeedQueryValidator.checkRequiredColumns(columns, context.emittedTimeField(), context.requiredSummaryCountField(), null);
+            Map<String, String> columnTypes = new LinkedHashMap<>();
+            columns.forEach(column -> columnTypes.put(column.name(), column.outputType()));
+            EsqlDatafeedQueryValidator.checkRequiredColumns(
+                columnTypes,
+                context.emittedTimeField(),
+                context.requiredSummaryCountField(),
+                null
+            );
             List<List<Object>> materializedRows = new ArrayList<>();
             for (Iterable<Object> row : esqlResponse.rows()) {
                 List<Object> values = new ArrayList<>();

@@ -38,7 +38,9 @@ import org.elasticsearch.xpack.ml.datafeed.crossproject.NoMatchingProjectTestMes
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -90,7 +92,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             validation().timeField("ts").sourceTimeField("other")
         );
         assertThat(failure, instanceOf(IllegalArgumentException.class));
-        assertThat(failure.getMessage(), containsString("source_time_field [other] must equal the source field [@timestamp]"));
+        assertThat(failure.getMessage(), containsString("source_time_field [other] does not match the source field [@timestamp]"));
     }
 
     public void testMappedTimeFieldWithMismatchingSourceTimeFieldShouldFailValidation() {
@@ -98,7 +100,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             harness(row("@timestamp", "date", "time", "@timestamp", "mapped")),
             validation().sourceTimeField("event.created")
         );
-        assertThat(failure.getMessage(), containsString("must equal the source field [@timestamp]"));
+        assertThat(failure.getMessage(), containsString("does not match the source field [@timestamp]"));
     }
 
     public void testComputedBucketNamedDifferentlyFromSourceTimeFieldShouldFailWithHint() {
@@ -107,17 +109,17 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
             validation().timeField("hour").sourceTimeField("@timestamp")
         );
         assertThat(failure, instanceOf(IllegalArgumentException.class));
-        assertThat(failure.getMessage(), containsString("name the bucket after its source field: BY @timestamp = BUCKET(@timestamp, ...)"));
+        assertThat(failure.getMessage(), containsString("Name the bucket after its source field: BY @timestamp = BUCKET(@timestamp, ...)"));
     }
 
     public void testComputedDateWithoutIntervalShouldFailValidation() {
         Exception failure = assertValidationFails(harness(row("@timestamp", "date", null, null, "computed")), validation());
-        assertThat(failure.getMessage(), containsString("is not a date bucket"));
+        assertThat(failure.getMessage(), containsString("is not a date bucket."));
     }
 
     public void testComputedDateWithIntervalButWithoutTimeRoleShouldFailValidation() {
         Exception failure = assertValidationFails(harness(row("@timestamp", "date", null, null, "computed", "1 hour")), validation());
-        assertThat(failure.getMessage(), containsString("is not a date bucket"));
+        assertThat(failure.getMessage(), containsString("is not a date bucket."));
     }
 
     public void testUnsupportedTimeColumnOriginShouldFailValidation() {
@@ -128,7 +130,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     public void testNonDateTimeColumnShouldFailValidation() {
         Exception failure = assertValidationFails(harness(row("@timestamp", "keyword", null, "@timestamp", "mapped")), validation());
         assertThat(failure, instanceOf(IllegalArgumentException.class));
-        assertThat(failure.getMessage(), containsString("time column [@timestamp] has type [keyword], but must be date or date_nanos"));
+        assertThat(failure.getMessage(), containsString("time column [@timestamp] has type [keyword]. It must be date or date_nanos."));
     }
 
     public void testMissingTimeColumnShouldFailValidation() {
@@ -478,17 +480,23 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         );
     }
 
+    private static void checkColumns(List<ColumnInfo> columns, String timeField, String requiredSummaryCountField, String datafeedId) {
+        Map<String, String> types = new LinkedHashMap<>();
+        columns.forEach(column -> types.put(column.name(), column.outputType()));
+        EsqlDatafeedQueryValidator.checkRequiredColumns(types, timeField, requiredSummaryCountField, datafeedId);
+    }
+
     public void testAllRequiredColumnsPresentShouldSucceedCheck() {
         List<ColumnInfo> columns = List.of(
             mockColumn(TIME_FIELD, "date"),
             mockColumn(SUMMARY_COUNT_FIELD, "long"),
             mockColumn("other", "keyword")
         );
-        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null);
+        checkColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null);
     }
 
     public void testIntegerSummaryCountColumnShouldPassColumnCheck() {
-        EsqlDatafeedQueryValidator.checkRequiredColumns(
+        checkColumns(
             List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "integer")),
             TIME_FIELD,
             SUMMARY_COUNT_FIELD,
@@ -499,7 +507,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     public void testDoubleSummaryCountColumnShouldFailColumnCheck() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(
+            () -> checkColumns(
                 List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "double")),
                 TIME_FIELD,
                 SUMMARY_COUNT_FIELD,
@@ -515,7 +523,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     public void testKeywordSummaryCountColumnShouldFailColumnCheck() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(
+            () -> checkColumns(
                 List.of(mockColumn(TIME_FIELD, "date"), mockColumn(SUMMARY_COUNT_FIELD, "keyword")),
                 TIME_FIELD,
                 SUMMARY_COUNT_FIELD,
@@ -530,15 +538,12 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
 
     public void testNoSummaryCountFieldRequiredShouldSucceedColumnCheck() {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
-        EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, null);
+        checkColumns(columns, TIME_FIELD, null, null);
     }
 
     public void testMissingTimeFieldShouldThrowFromColumnCheck() {
         List<ColumnInfo> columns = List.of(mockColumn("other_field", "keyword"));
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, null)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> checkColumns(columns, TIME_FIELD, null, null));
         assertThat(e.getMessage(), containsString("final ES|QL output"));
         assertThat(e.getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
     }
@@ -547,7 +552,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         List<ColumnInfo> columns = List.of(mockColumn("other_field", "keyword"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, null, "esql-datafeed")
+            () -> checkColumns(columns, TIME_FIELD, null, "esql-datafeed")
         );
         assertThat(e.getMessage(), containsString("ES|QL datafeed [esql-datafeed] query"));
         assertThat(e.getMessage(), containsString("data_description.time_field [" + TIME_FIELD + "]"));
@@ -557,7 +562,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         List<ColumnInfo> columns = List.of(mockColumn(TIME_FIELD, "date"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null)
+            () -> checkColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null)
         );
         assertThat(e.getMessage(), containsString(SUMMARY_COUNT_FIELD));
         assertThat(e.getMessage(), containsString("numeric count column"));
@@ -567,7 +572,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
         List<ColumnInfo> columns = List.of(mockColumn("unrelated", "keyword"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null)
+            () -> checkColumns(columns, TIME_FIELD, SUMMARY_COUNT_FIELD, null)
         );
         assertThat(e.getMessage(), containsString(TIME_FIELD));
         assertThat(e.getMessage(), containsString(SUMMARY_COUNT_FIELD));
@@ -576,10 +581,7 @@ public class EsqlDatafeedQueryValidatorTests extends ESTestCase {
     }
 
     public void testEmptyColumnsShouldThrowFromColumnCheck() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> EsqlDatafeedQueryValidator.checkRequiredColumns(List.of(), TIME_FIELD, null, null)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> checkColumns(List.of(), TIME_FIELD, null, null));
         assertThat(e.getMessage(), containsString(TIME_FIELD));
     }
 

@@ -1,0 +1,666 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index modes and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              f:
+                type: flattened
+              dv:
+                type: dense_vector
+                dims: 3
+              sv:
+                type: sparse_vector
+              ck:
+                type: constant_keyword
+                value: a
+
+  - do:
+      bulk:
+        index: test_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "f": {"k": "a"}}'
+          - '{ "index": { "_id": "key_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "f": {"k": null}}'
+          - '{ "index": { "_id": "key_array_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "f": {"k": [null]}}'
+          - '{ "index": { "_id": "key_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "f": {"k": [null, null]}}'
+          - '{ "index": { "_id": "key_mixed" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "f": {"k": ["a", null, "b"]}}'
+          - '{ "index": { "_id": "key_leading_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "f": {"k": [null, "a"]}}'
+          - '{ "index": { "_id": "nested_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "f": {"k": {"x": null}}}'
+          - '{ "index": { "_id": "nested_mixed" } }'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "f": {"k": {"x": ["a", null]}}}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "f": null}'
+          - '{ "index": { "_id": "empty_object" } }'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "f": {}}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:11.000Z"}'
+          - '{ "index": { "_id": "vectors" } }'
+          - '{"@timestamp": "2026-01-01T00:00:12.000Z", "dv": [1.0, 2.0, 3.0], "sv": {"a": 1.0}, "ck": "a"}'
+
+  - do:
+      indices.create:
+        index: test_logsdb_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              f:
+                type: flattened
+              dv:
+                type: dense_vector
+                dims: 3
+              sv:
+                type: sparse_vector
+              ck:
+                type: constant_keyword
+                value: a
+
+  - do:
+      bulk:
+        index: test_logsdb_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "f": {"k": "a"}}'
+          - '{ "index": { "_id": "key_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "f": {"k": null}}'
+          - '{ "index": { "_id": "key_array_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "f": {"k": [null]}}'
+          - '{ "index": { "_id": "key_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "f": {"k": [null, null]}}'
+          - '{ "index": { "_id": "key_mixed" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "f": {"k": ["a", null, "b"]}}'
+          - '{ "index": { "_id": "key_leading_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "f": {"k": [null, "a"]}}'
+          - '{ "index": { "_id": "nested_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "f": {"k": {"x": null}}}'
+          - '{ "index": { "_id": "nested_mixed" } }'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "f": {"k": {"x": ["a", null]}}}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "f": null}'
+          - '{ "index": { "_id": "empty_object" } }'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "f": {}}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:11.000Z"}'
+          - '{ "index": { "_id": "vectors" } }'
+          - '{"@timestamp": "2026-01-01T00:00:12.000Z", "dv": [1.0, 2.0, 3.0], "sv": {"a": 1.0}, "ck": "a"}'
+
+  - do:
+      indices.create:
+        index: test_vectordb_columnar
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              f:
+                type: flattened
+              dv:
+                type: dense_vector
+                dims: 3
+              sv:
+                type: sparse_vector
+              ck:
+                type: constant_keyword
+                value: a
+
+  - do:
+      bulk:
+        index: test_vectordb_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "f": {"k": "a"}}'
+          - '{ "index": { "_id": "key_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "f": {"k": null}}'
+          - '{ "index": { "_id": "key_array_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "f": {"k": [null]}}'
+          - '{ "index": { "_id": "key_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "f": {"k": [null, null]}}'
+          - '{ "index": { "_id": "key_mixed" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "f": {"k": ["a", null, "b"]}}'
+          - '{ "index": { "_id": "key_leading_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z", "f": {"k": [null, "a"]}}'
+          - '{ "index": { "_id": "nested_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "f": {"k": {"x": null}}}'
+          - '{ "index": { "_id": "nested_mixed" } }'
+          - '{"@timestamp": "2026-01-01T00:00:08.000Z", "f": {"k": {"x": ["a", null]}}}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:09.000Z", "f": null}'
+          - '{ "index": { "_id": "empty_object" } }'
+          - '{"@timestamp": "2026-01-01T00:00:10.000Z", "f": {}}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:11.000Z"}'
+          - '{ "index": { "_id": "vectors" } }'
+          - '{"@timestamp": "2026-01-01T00:00:12.000Z", "dv": [1.0, 2.0, 3.0], "sv": {"a": 1.0}, "ck": "a"}'
+
+---
+exists matches only documents with a non-null value on a flattened field in every strict columnar mode:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "exists on the flattened field matches documents whose keys hold only nulls (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: f } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_mixed }
+  - match: { hits.hits.2._id: key_leading_null }
+  - match: { hits.hits.3._id: nested_mixed }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: f } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_mixed }
+  - match: { hits.hits.2._id: key_leading_null }
+  - match: { hits.hits.3._id: nested_mixed }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: f } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_mixed }
+  - match: { hits.hits.2._id: key_leading_null }
+  - match: { hits.hits.3._id: nested_mixed }
+
+---
+exists on a flattened key matches only documents with a non-null value for that key in every strict columnar mode:
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: f.k } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_mixed }
+  - match: { hits.hits.2._id: key_leading_null }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: f.k } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_mixed }
+  - match: { hits.hits.2._id: key_leading_null }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: f.k } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_mixed }
+  - match: { hits.hits.2._id: key_leading_null }
+
+---
+synthetic source drops the null elements of a flattened field in every strict columnar mode:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps null array elements and null keys of a flattened field (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: f
+
+  - length: { hits.hits: 12 }
+  - match: { hits.hits.0._source.f: {"k": "a"} }
+  - is_false: hits.hits.1._source.f
+  - is_false: hits.hits.2._source.f
+  - is_false: hits.hits.3._source.f
+  - match: { hits.hits.4._source.f: {"k": ["a", "b"]} }
+  - match: { hits.hits.5._source.f: {"k": "a"} }
+  - is_false: hits.hits.6._source.f
+  - match: { hits.hits.7._source.f: {"k": {"x": "a"}} }
+  - is_false: hits.hits.8._source.f
+  - is_false: hits.hits.9._source.f
+  - is_false: hits.hits.10._source.f
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: f
+
+  - length: { hits.hits: 12 }
+  - match: { hits.hits.0._source.f: {"k": "a"} }
+  - is_false: hits.hits.1._source.f
+  - is_false: hits.hits.2._source.f
+  - is_false: hits.hits.3._source.f
+  - match: { hits.hits.4._source.f: {"k": ["a", "b"]} }
+  - match: { hits.hits.5._source.f: {"k": "a"} }
+  - is_false: hits.hits.6._source.f
+  - match: { hits.hits.7._source.f: {"k": {"x": "a"}} }
+  - is_false: hits.hits.8._source.f
+  - is_false: hits.hits.9._source.f
+  - is_false: hits.hits.10._source.f
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: f
+
+  - length: { hits.hits: 12 }
+  - match: { hits.hits.0._source.f: {"k": "a"} }
+  - is_false: hits.hits.1._source.f
+  - is_false: hits.hits.2._source.f
+  - is_false: hits.hits.3._source.f
+  - match: { hits.hits.4._source.f: {"k": ["a", "b"]} }
+  - match: { hits.hits.5._source.f: {"k": "a"} }
+  - is_false: hits.hits.6._source.f
+  - match: { hits.hits.7._source.f: {"k": {"x": "a"}} }
+  - is_false: hits.hits.8._source.f
+  - is_false: hits.hits.9._source.f
+  - is_false: hits.hits.10._source.f
+
+---
+dense_vector rejects a null coordinate in every strict columnar mode:
+  - do:
+      catch: '/expecting token of type \[VALUE_NUMBER\] but found \[VALUE_NULL\]/'
+      index:
+        index: test_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": [null]}
+
+  - do:
+      catch: '/expecting token of type \[VALUE_NUMBER\] but found \[VALUE_NULL\]/'
+      index:
+        index: test_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": [1.0, null, 3.0]}
+
+  - do:
+      catch: '/expecting token of type \[VALUE_NUMBER\] but found \[VALUE_NULL\]/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": [null]}
+
+  - do:
+      catch: '/expecting token of type \[VALUE_NUMBER\] but found \[VALUE_NULL\]/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": [1.0, null, 3.0]}
+
+  - do:
+      catch: '/expecting token of type \[VALUE_NUMBER\] but found \[VALUE_NULL\]/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": [null]}
+
+  - do:
+      catch: '/expecting token of type \[VALUE_NUMBER\] but found \[VALUE_NULL\]/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": [1.0, null, 3.0]}
+
+---
+dense_vector rejects an empty array in every strict columnar mode:
+  - do:
+      catch: '/has a different number of dimensions \[0\]/'
+      index:
+        index: test_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": []}
+
+  - do:
+      catch: '/has a different number of dimensions \[0\]/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": []}
+
+  - do:
+      catch: '/has a different number of dimensions \[0\]/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "dv": []}
+
+---
+sparse_vector rejects a null in every strict columnar mode:
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": null}
+
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": [null]}
+
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_columnar
+        id: reject_2
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": [{"a": 1.0}, null]}
+
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": null}
+
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": [null]}
+
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_2
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": [{"a": 1.0}, null]}
+
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": null}
+
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": [null]}
+
+  - do:
+      catch: '/\[sparse_vector\] fields must be json objects, expected a START_OBJECT but got: VALUE_NULL/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_2
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "sv": [{"a": 1.0}, null]}
+
+---
+constant_keyword rejects a null in every strict columnar mode:
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": null}
+
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": [null]}
+
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_columnar
+        id: reject_2
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": ["a", null]}
+
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": null}
+
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": [null]}
+
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_logsdb_columnar
+        id: reject_2
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": ["a", null]}
+
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_0
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": null}
+
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_1
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": [null]}
+
+  - do:
+      catch: '/doesn''t accept \[null\] values/'
+      index:
+        index: test_vectordb_columnar
+        id: reject_2
+        body: {"@timestamp": "2026-01-01T00:00:30.000Z", "ck": ["a", null]}
+
+---
+exists on a dense_vector field matches only documents that hold a vector in every strict columnar mode:
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: dv } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: vectors }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: dv } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: vectors }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: dv } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: vectors }
+
+---
+exists on a constant_keyword field matches every document in every strict columnar mode:
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: ck } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 12 }
+  - length: { hits.hits: 12 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_null }
+  - match: { hits.hits.2._id: key_array_null }
+  - match: { hits.hits.3._id: key_nulls }
+  - match: { hits.hits.4._id: key_mixed }
+  - match: { hits.hits.5._id: key_leading_null }
+  - match: { hits.hits.6._id: nested_null }
+  - match: { hits.hits.7._id: nested_mixed }
+  - match: { hits.hits.8._id: bare_null }
+  - match: { hits.hits.9._id: empty_object }
+  - match: { hits.hits.10._id: missing }
+  - match: { hits.hits.11._id: vectors }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: ck } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 12 }
+  - length: { hits.hits: 12 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_null }
+  - match: { hits.hits.2._id: key_array_null }
+  - match: { hits.hits.3._id: key_nulls }
+  - match: { hits.hits.4._id: key_mixed }
+  - match: { hits.hits.5._id: key_leading_null }
+  - match: { hits.hits.6._id: nested_null }
+  - match: { hits.hits.7._id: nested_mixed }
+  - match: { hits.hits.8._id: bare_null }
+  - match: { hits.hits.9._id: empty_object }
+  - match: { hits.hits.10._id: missing }
+  - match: { hits.hits.11._id: vectors }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: ck } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 12 }
+  - length: { hits.hits: 12 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: key_null }
+  - match: { hits.hits.2._id: key_array_null }
+  - match: { hits.hits.3._id: key_nulls }
+  - match: { hits.hits.4._id: key_mixed }
+  - match: { hits.hits.5._id: key_leading_null }
+  - match: { hits.hits.6._id: nested_null }
+  - match: { hits.hits.7._id: nested_mixed }
+  - match: { hits.hits.8._id: bare_null }
+  - match: { hits.hits.9._id: empty_object }
+  - match: { hits.hits.10._id: missing }
+  - match: { hits.hits.11._id: vectors }
+

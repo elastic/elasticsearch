@@ -227,6 +227,8 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
         indicesAdmin().prepareRefresh(index).get();
         Outcome outcome = profiled("FROM " + index + " | STATS lo = MIN(i_alias), hi = MAX(i_alias)");
         assertThat(asLongs(outcome.row), equalTo(List.of(expected(false, true), expected(false, false))));
+        assertThat("the alias uses the min/max source", outcome.minMaxSource, is(true));
+        assertThat("the alias does not load values", outcome.valuesReader, is(false));
     }
 
     /** A filter means the metadata does not describe the matching documents: the query is not answered by the min/max source. */

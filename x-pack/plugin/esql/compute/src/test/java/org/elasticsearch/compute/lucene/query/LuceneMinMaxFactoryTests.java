@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
@@ -307,6 +308,107 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
         Result result = run(factory(reader, type, Queries.ALL_DOCS_INSTANCE, List.of(Function.MIN, Function.MAX)), type, 2);
         assertThat(result.values, equalTo(new long[] { 100L, 519L }));
         assertThat(result.seen, equalTo(new boolean[] { true, true }));
+    }
+
+    /** A segment that holds no value for the field is skipped instead of being iterated, and does not change the result. */
+    public void testSegmentWithoutTheFieldIsSkipped() throws IOException {
+        ElementType type = randomElementType();
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < 50; i++) {
+                addDoc(writer, "empty" + i, null);
+            }
+            writer.commit();
+            for (int i = 0; i < 20; i++) {
+                addDoc(writer, "a" + i, 100L + i);
+            }
+            writer.commit();
+            readers.add(writer.getReader());
+        }
+        // without deletions only metadata may be read: iterating the segment without the field would read its doc values
+        IndexReader reader = track(failDocValuesOnLeavesWithoutDeletions(lastReader()));
+        Result result = run(factory(reader, type, Queries.ALL_DOCS_INSTANCE, List.of(Function.MIN, Function.MAX)), type, 2);
+        assertThat(result.values, equalTo(new long[] { 100L, 119L }));
+        assertThat(result.seen, equalTo(new boolean[] { true, true }));
+    }
+
+    /**
+     * A query that is not match-all cannot be answered from metadata, so the scan is split across drivers with the regular auto
+     * partitioning, and the partial results of the drivers merge to the extrema of the matching documents only.
+     */
+    public void testFilteredScanIsPartitionedAcrossDrivers() throws IOException {
+        ElementType type = randomElementType();
+        int segments = 3;
+        // AUTO only partitions an index that is larger than the small index boundary
+        int docsPerSegment = LuceneOperator.SMALL_INDEX_BOUNDARY / 2;
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int segment = 0; segment < segments; segment++) {
+                for (int doc = 0; doc < docsPerSegment; doc++) {
+                    addDoc(writer, "d" + segment + "_" + doc, (long) segment * docsPerSegment + doc);
+                }
+                writer.commit();
+            }
+            readers.add(writer.getReader());
+        }
+        long lowest = 1_000;
+        long highest = (long) segments * docsPerSegment - 2;
+        Query filter = SortedNumericDocValuesField.newSlowRangeQuery(FIELD, lowest, highest);
+        LuceneMinMaxFactory factory = new LuceneMinMaxFactory(
+            new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(lastReader(), 0)),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(filter, List.of())),
+            DataPartitioning.AUTO,
+            4,
+            FIELD,
+            type,
+            List.of(Function.MIN, Function.MAX),
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        assertThat("the scan is split into several slices", factory.taskConcurrency(), greaterThan(1));
+
+        List<List<Page>> pagesPerDriver = new ArrayList<>();
+        List<Driver> drivers = new ArrayList<>();
+        for (int i = 0; i < factory.taskConcurrency(); i++) {
+            List<Page> pages = new ArrayList<>();
+            pagesPerDriver.add(pages);
+            DriverContext ctx = driverContext();
+            drivers.add(TestDriverFactory.create(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(pages::add)));
+        }
+        new TestDriverRunner().run(drivers);
+
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        boolean anySeen = false;
+        for (List<Page> pages : pagesPerDriver) {
+            for (Page page : pages) {
+                try {
+                    if (((BooleanBlock) page.getBlock(1)).getBoolean(0)) {
+                        anySeen = true;
+                        min = Math.min(min, getLong(page, 0, type));
+                        max = Math.max(max, getLong(page, 2, type));
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+        }
+        assertThat(anySeen, equalTo(true));
+        assertThat(new long[] { min, max }, equalTo(new long[] { lowest, highest }));
+    }
+
+    private static long getLong(Page page, int channel, ElementType type) {
+        return type == ElementType.INT ? ((IntBlock) page.getBlock(channel)).getInt(0) : ((LongBlock) page.getBlock(channel)).getLong(0);
     }
 
     /** Documents without a value are ignored, and a segment without any value does not break the others. */

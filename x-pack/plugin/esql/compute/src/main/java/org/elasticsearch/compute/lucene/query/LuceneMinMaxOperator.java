@@ -9,6 +9,8 @@ package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -194,6 +196,11 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                         scorer.markAsDone();
                     }
                 }
+                // A segment without any value for the field cannot change the result: skip it instead of iterating every document.
+                // Only without a limit, because a limit counts the documents that are visited.
+                if (scorer.isDone() == false && remainingDocs == NO_LIMIT && hasNoValues(reader, field, skipper)) {
+                    scorer.markAsDone();
+                }
                 // Leaf pruning: once we have a result, skip any segment whose skipper bound
                 // cannot improve it, regardless of the query.
                 if (scorer.isDone() == false && seen && skipper != null && canSkipLeaf(skipper)) {
@@ -251,6 +258,15 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+    }
+
+    /** Whether the segment holds no value at all for the field: it is not in the segment, or no document has a value. */
+    private static boolean hasNoValues(LeafReader reader, String field, DocValuesSkipper skipper) {
+        if (skipper != null) {
+            return skipper.docCount() == 0;
+        }
+        FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(field);
+        return fieldInfo == null || (fieldInfo.getDocValuesType() == DocValuesType.NONE && fieldInfo.getPointDimensionCount() == 0);
     }
 
     /** The name of the field that holds the data in the given shard: differs from {@link #fieldName} for a field alias. */

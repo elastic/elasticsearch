@@ -1581,6 +1581,117 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * group_left copies the one side's labels over the many side's: two many side series left with the same labels fail the
+     * query, as in Prometheus, rather than come back as two series with one label set. Prometheus matches before it compares,
+     * so a comparison no series passes fails too; copying a label the series agree on keeps them apart.
+     */
+    public void testPromqlGroupLeftLabelCollisionFails() {
+        String index = "promql-group-left-collision";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "optional", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "optional", "east", "tx", 3.0);
+        refresh(index);
+
+        for (String expression : List.of(
+            "tx * on(cluster) group_left(host) sum by (cluster) (tx)",
+            "tx > on(cluster) group_left(host) (sum by (cluster) (tx) * 100)"
+        )) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, expression)));
+            assertThat(error.getMessage(), containsString("input must not have duplicates"));
+        }
+        try (
+            EsqlQueryResponse response = run(
+                promqlQuery(index, "tx * on(cluster) group_left(optional) sum by (cluster, optional) (tx)")
+                    + " | KEEP result, optional | SORT result"
+            )
+        ) {
+            assertThat(EsqlTestUtils.getValuesList(response), equalTo(List.of(List.of(4.0, "east"), List.of(12.0, "east"))));
+        }
+    }
+
+    /**
+     * label_replace and label_join may overwrite a label of a by() aggregation or of the source series: two series left with
+     * one label set fail the query, as in Prometheus, before an aggregation reads them. A label the source does not map
+     * is only ever added.
+     */
+    public void testPromqlRelabelOverwritingLabelFailsOnRepeatedLabelSets() {
+        String index = "promql-relabel-overwrite";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "region", "east", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "region", "east", "tx", 3.0);
+        refresh(index);
+
+        assertPromqlColumns(
+            index,
+            "label_replace(sum by (host) (tx), \"host\", \"h-$1\", \"host\", \"(.*)\")",
+            "host",
+            List.of(List.of(1.0, "h-a"), List.of(3.0, "h-b"))
+        );
+        assertPromqlColumns(
+            index,
+            "label_join(sum by (host, region) (tx), \"host\", \"-\", \"host\", \"region\")",
+            "host",
+            List.of(List.of(1.0, "a-east"), List.of(3.0, "b-east"))
+        );
+        assertPromqlColumns(
+            index,
+            "topk(1, label_replace(sum by (host) (tx), \"host\", \"h-$1\", \"host\", \"(.*)\"))",
+            "host",
+            List.of(List.of(3.0, "h-b"))
+        );
+        for (String merging : List.of(
+            "label_replace(sum by (host) (tx), \"host\", \"x\", \"host\", \".*\")",
+            "sum by (region) (label_replace(tx, \"host\", \"x\", \"host\", \".*\"))"
+        )) {
+            var error = expectThrows(Exception.class, () -> run(promqlQuery(index, merging)));
+            assertThat(error.getMessage(), containsString("input must not have duplicates"));
+        }
+        assertPromqlColumns(
+            index,
+            "sum by (tier) (label_replace(tx, \"tier\", \"t-$1\", \"host\", \"(.*)\"))",
+            "tier",
+            List.of(List.of(1.0, "t-a"), List.of(3.0, "t-b"))
+        );
+    }
+
+    /** A relabel over an aggregated result keeps its series, whether or not the regex matches, and composes under operators. */
+    public void testPromqlLabelReplaceOverAggregatesKeepsSeries() {
+        String index = "promql-relabel-aggregates";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 20.0);
+        refresh(index);
+
+        assertPromqlColumns(
+            index,
+            "label_replace(sum by (cluster)(tx), \"role\", \"$1\", \"cluster\", \"(.+)\")",
+            "cluster, role",
+            List.of(List.of(30.0, "prod", "prod"))
+        );
+        assertPromqlColumns(
+            index,
+            "label_replace(sum by (cluster)(tx), \"role\", \"v\", \"cluster\", \"nomatch\")",
+            "cluster",
+            List.of(List.of(30.0, "prod"))
+        );
+        // "$1" with no capture group expands to empty, which deletes the destination: the result still matches the left side.
+        assertPromqlColumns(
+            index,
+            "(sum by (cluster)(tx)) / label_replace(sum by (cluster)(tx), \"role\", \"$1\", \"cluster\", \".+\")",
+            "cluster",
+            List.of(List.of(1.0, "prod"))
+        );
+        for (String collapsed : List.of(
+            "label_replace(min(sum by (cluster)(tx)), \"role\", \"v\", \"host\", \"nomatch\")",
+            "label_replace(min(ceil(avg(tx))), \"role\", \"v\", \"host\", \"nomatch\")"
+        )) {
+            try (EsqlQueryResponse response = run(promqlQuery(index, collapsed) + " | KEEP result")) {
+                assertThat(EsqlTestUtils.getValuesList(response), hasSize(1));
+            }
+        }
+    }
+
     /** (... or ...) * scalar must pin UnionAll layout before the composed Eval (#158164). */
     public void testPromqlOrUnderArithmetic() {
         String index = "promql-or-under-arithmetic";
@@ -1613,6 +1724,65 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                     + " + ((max by (cluster)(tx)) or (min by (cluster)(tx))))"
             ) + " | KEEP result, cluster",
             List.of(List.of(0.5, "prod"))
+        );
+    }
+
+    /** Empty right of or (disjoint label_replace/and) must keep left fingerprints. */
+    public void testPromqlOrWithLabelReplaceRightKeepsTierWhenDisjoint() {
+        String index = "promql-or-with-label-replace-right-keeps-tier-when-disjoint";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "__name__", "rx", "rx", 20.0);
+        refresh(index);
+        // Destination is a named column beside rest (not necessarily inside the _timeseries blob).
+        assertRowsAnyOrder(
+            promqlQuery(index, "label_replace(rx, \"tier\", \"x-$1\", \"host\", \"(.*)\")") + " | KEEP result, tier, _timeseries",
+            List.of(List.of(20.0, "x-b", "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"b\"}"))
+        );
+        // Different hosts -> or keeps both; right still exposes tier.
+        assertRowsAnyOrder(
+            promqlQuery(index, "(floor(tx)) or (label_replace(rx, \"tier\", \"x-$1\", \"host\", \"(.*)\"))")
+                + " | KEEP result, tier, _timeseries",
+            List.of(
+                Arrays.asList(10.0, null, "{\"cluster\":\"prod\",\"host\":\"a\"}"),
+                Arrays.asList(20.0, "x-b", "{\"__name__\":\"rx\",\"cluster\":\"prod\",\"host\":\"b\"}")
+            )
+        );
+        // Fuzz 050 shape: empty right (label_replace x and-ignoring does not match on tier) must not wipe left labels.
+        assertRowsAnyOrder(
+            promqlQuery(
+                index,
+                "(floor(tx)) or (label_replace(rx, \"tier\", \"x-$1\", \"host\", \".+\") " + "and ((rx) and ignoring (host, cluster) (tx)))"
+            ) + " | KEEP result, _timeseries",
+            List.of(List.of(10.0, "{\"cluster\":\"prod\",\"host\":\"a\"}"))
+        );
+        // Same with bottomk on the left (fuzz wraps bottomk in math); union must still expose left rest.
+        assertRowsAnyOrder(
+            promqlQuery(
+                index,
+                "(bottomk(1, tx)) or (label_replace(rx, \"tier\", \"x-$1\", \"host\", \".+\") "
+                    + "and ((rx) and ignoring (host, cluster) (tx)))"
+            ) + " | KEEP result, _timeseries",
+            List.of(List.of(10.0, "{\"__name__\":\"tx\",\"cluster\":\"prod\",\"host\":\"a\"}"))
+        );
+    }
+
+    /** or with name-dropping label_replace right keeps both limbs; listener finds _timeseries. */
+    public void testPromqlOrWithLabelReplaceIncreaseKeepsBothLimbs() {
+        String index = "promql-or-with-label-replace-increase-keeps-both-limbs";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSampleAt(index, "2024-05-10T00:00:00Z", "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSampleAt(index, PROMQL_QUERY_TIME, "cluster", "prod", "host", "a", "__name__", "tx", "tx", 10.0);
+        indexPromqlSampleAt(index, "2024-05-10T00:00:00Z", "cluster", "prod", "host", "b", "__name__", "rx", "rx", 0.0);
+        indexPromqlSampleAt(index, PROMQL_QUERY_TIME, "cluster", "prod", "host", "b", "__name__", "rx", "rx", 60.0);
+        refresh(index);
+        assertRowsAnyOrder(
+            promqlQuery(index, "(floor(tx)) or (label_replace(round(increase(rx[5m])), \"tier\", \"x-$1\", \"host\", \"(.*)\"))")
+                + " | KEEP result, tier, _timeseries",
+            List.of(
+                Arrays.asList(10.0, null, "{\"cluster\":\"prod\",\"host\":\"a\"}"),
+                Arrays.asList(60.0, "x-b", "{\"cluster\":\"prod\",\"host\":\"b\"}")
+            )
         );
     }
 
@@ -1868,6 +2038,17 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             promqlQuery(index, "sum by(event)(sum by(cluster)(tx))") + " | KEEP result, event",
             List.of(Arrays.asList(11.0, null))
         );
+    }
+
+    /** A label named {@code a$b} leaves out a different view than labels {@code a} and {@code b}. */
+    public void testPromqlDistinctLabelContainerViewsDoNotCollideOnLabelSeparator() {
+        String index = "promql-label-views";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0, "rx", 2.0);
+        refresh(index);
+        String expression = "label_join(tx, \"a$b\", \"-\", \"host\") or "
+            + "label_join(label_join(rx, \"a\", \"-\", \"host\"), \"b\", \"-\", \"host\")";
+        assertRowsAnyOrder(promqlQuery(index, expression) + " | KEEP result", List.of(List.of(1.0), List.of(2.0)));
     }
 
     /** Removing the metric name from the output must not merge histogram families before their quantiles. */

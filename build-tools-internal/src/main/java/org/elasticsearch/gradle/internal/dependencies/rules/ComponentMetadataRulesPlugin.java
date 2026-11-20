@@ -78,6 +78,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("com.google.code.gson:gson", ExcludeAllTransitivesRule.class);
         components.withModule("com.google.guava:guava", ExcludeAllTransitivesRule.class);
         components.withModule("com.google.http-client:google-http-client", ExcludeAllTransitivesRule.class);
+        components.withModule("com.google.http-client:google-http-client-apache-v5", ExcludeAllTransitivesRule.class);
         components.withModule("com.google.http-client:google-http-client-appengine", ExcludeAllTransitivesRule.class);
         components.withModule("com.google.http-client:google-http-client-gson", ExcludeAllTransitivesRule.class);
         components.withModule("com.google.http-client:google-http-client-jackson2", ExcludeAllTransitivesRule.class);

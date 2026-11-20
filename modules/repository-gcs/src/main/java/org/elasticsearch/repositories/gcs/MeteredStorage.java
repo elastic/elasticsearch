@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpTransport;
 import com.google.api.gax.paging.Page;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.RestorableState;
@@ -36,8 +37,10 @@ import com.google.cloud.storage.multipartupload.model.UploadPartResponse;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
@@ -55,18 +58,23 @@ import static org.elasticsearch.repositories.gcs.StorageOperation.LIST;
  * A wrapper for GCP {@link Storage} client. Provides metering and telemetry.
  * It's mostly boilerplate code that wraps Storage calls with thread-local metrics.
  * And special cases, such as Paginated List calls, WriteChannel, ReadChannel.
+ * <p>
+ * The instance owns the HTTP transport (connection pool) of the wrapped client; {@link #close()} shuts it down.
  */
-public class MeteredStorage {
+public class MeteredStorage implements Closeable {
     private final Storage storage;
     private final com.google.api.services.storage.Storage storageRpc;
     private final GcsRepositoryStatsCollector statsCollector;
     private final MultipartUploadClient multipartUploadClient;
+    @Nullable // in tests
+    private final HttpTransport httpTransport;
 
-    public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector) {
+    public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector, HttpTransport httpTransport) {
         this.storage = storage;
         this.storageRpc = getStorageRpc(storage);
         this.statsCollector = statsCollector;
         this.multipartUploadClient = MultipartUploadClient.create(MultipartUploadSettings.of((HttpStorageOptions) storage.getOptions()));
+        this.httpTransport = httpTransport;
     }
 
     // for testing
@@ -75,6 +83,18 @@ public class MeteredStorage {
         this.storageRpc = storageRpc;
         this.statsCollector = statsCollector;
         this.multipartUploadClient = null;
+        this.httpTransport = null;
+    }
+
+    /**
+     * Shuts down the HTTP transport of this client, closing its pooled connections. Requests in flight on this client fail
+     * and the client must not be used afterwards.
+     */
+    @Override
+    public void close() throws IOException {
+        if (httpTransport != null) {
+            httpTransport.shutdown();
+        }
     }
 
     @SuppressForbidden(reason = "need access to storage client")

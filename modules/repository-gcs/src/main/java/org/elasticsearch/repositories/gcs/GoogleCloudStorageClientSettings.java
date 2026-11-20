@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
@@ -338,7 +337,7 @@ public class GoogleCloudStorageClientSettings {
             ? OptionalInt.of(Math.toIntExact(concreteResumableWriteBufferSizeSetting.get(settings).getBytes()))
             : OptionalInt.empty();
         return new GoogleCloudStorageClientSettings(
-            loadCredential(settings, clientName, proxy),
+            loadCredential(settings, clientName),
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
             getConfigValue(settings, clientName, PROJECT_ID_SETTING),
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
@@ -356,6 +355,10 @@ public class GoogleCloudStorageClientSettings {
     /**
      * Loads the service account file corresponding to a given client name. If no
      * file is defined for the client, a {@code null} credential is returned.
+     * <p>
+     * The returned credentials carry the SDK default HTTP transport. {@link GoogleCloudStorageService} replaces it with the
+     * client's own transport (trust store, proxy and connection pool) when it builds the storage client, so that access token
+     * refreshes share the same configuration as the storage requests.
      *
      * @param settings
      *            the {@link Settings}
@@ -365,7 +368,7 @@ public class GoogleCloudStorageClientSettings {
      * @return the {@link ServiceAccountCredentials} to use for the given client,
      *         {@code null} if no service account is defined.
      */
-    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName, @Nullable Proxy proxy) {
+    static ServiceAccountCredentials loadCredential(final Settings settings, final String clientName) {
         final var credentialsFileSetting = CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName);
         try {
             if (credentialsFileSetting.exists(settings) == false) {
@@ -375,8 +378,7 @@ public class GoogleCloudStorageClientSettings {
             }
             try (InputStream credStream = credentialsFileSetting.get(settings)) {
                 final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
-                NetHttpTransport netHttpTransport = new NetHttpTransport.Builder().setProxy(proxy).build();
-                final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream, () -> netHttpTransport);
+                final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream);
                 if (credentials.createScopedRequired()) {
                     return (ServiceAccountCredentials) credentials.createScoped(scopes);
                 }

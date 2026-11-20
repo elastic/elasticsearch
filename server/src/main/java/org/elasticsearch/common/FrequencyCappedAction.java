@@ -11,22 +11,29 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.core.TimeValue;
 
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 /**
- * Execute an action at most once per time interval
+ * Execute an action at most once per time interval. Safe to use from multiple threads: if several threads call
+ * {@link #maybeExecute} concurrently when the action is due, only one of them runs it, and it runs without holding any lock. An
+ * interval of zero milliseconds imposes no cap, so in that case every due caller may run the action.
  */
 public class FrequencyCappedAction {
 
     private final LongSupplier currentTimeMillisSupplier;
-    private TimeValue minInterval;
+    private volatile TimeValue minInterval;
 
-    private long next;
+    private final AtomicLong next;
 
     public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier, TimeValue initialDelay) {
+        this(currentTimeMillisSupplier, initialDelay, TimeValue.MAX_VALUE);
+    }
+
+    public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier, TimeValue initialDelay, TimeValue minInterval) {
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
-        this.minInterval = TimeValue.MAX_VALUE;
-        this.next = currentTimeMillisSupplier.getAsLong() + initialDelay.getMillis();
+        this.minInterval = minInterval;
+        this.next = new AtomicLong(currentTimeMillisSupplier.getAsLong() + initialDelay.getMillis());
     }
 
     public void setMinInterval(TimeValue minInterval) {
@@ -35,8 +42,8 @@ public class FrequencyCappedAction {
 
     public void maybeExecute(Runnable runnable) {
         var current = currentTimeMillisSupplier.getAsLong();
-        if (current >= next) {
-            next = current + minInterval.millis();
+        var nextExecution = next.get();
+        if (current >= nextExecution && next.compareAndSet(nextExecution, current + minInterval.millis())) {
             runnable.run();
         }
     }

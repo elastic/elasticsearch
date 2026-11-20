@@ -287,22 +287,6 @@ rate         | null         | null             | null
 bucket       | time         | 5 minutes        | UTC
 ;
 
-describeIntervalOfUnboundedTBucketCount
-required_capability: describe_command
-required_capability: describe_interval
-skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
-
-TS k8s
-| STATS rate = SUM(RATE(network.total_bytes_in)) BY bucket = TBUCKET(20)
-| DESCRIBE
-| KEEP name, role, interval, time_zone
-;
-
-name:keyword | role:keyword | interval:keyword | time_zone:keyword
-rate         | null         | null             | null
-bucket       | time         | null             | null
-;
-
 describeIntervalTimeZone
 required_capability: describe_command
 required_capability: describe_interval

@@ -96,7 +96,6 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.MergeBlob;
@@ -1330,7 +1329,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
-            .filter(BatchedCompoundCommit::startsWithBlobPrefix)
+            .filter(BccBlob::startsWithBlobPrefix)
             .collect(Collectors.toSet());
     }
 
@@ -1408,8 +1407,8 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
             statelessCompoundCommits.forEach(filename -> {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(filename)) {
-                    set.add(new PrimaryTermAndGeneration(primaryTerm, BatchedCompoundCommit.parseGenerationFromBlobName(filename)));
+                if (BccBlob.startsWithBlobPrefix(filename)) {
+                    set.add(new PrimaryTermAndGeneration(primaryTerm, BccBlob.parseGenerationFromBlobName(filename)));
                 }
             });
         }

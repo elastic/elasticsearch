@@ -432,7 +432,6 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertNotNull(supersededListener);
         MockIndexShard supersededShard = indicesService.getShardOrNull(shardRouting.shardId());
         assertNotNull(supersededShard);
-        RecoveryState supersededRecoveryState = supersededShard.recoveryState();
 
         // A primary term bump for this same allocation (e.g. a batched cluster-state application
         // that goes straight from initializing(term1) to initializing(term2)) evicts the old ticket
@@ -443,7 +442,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         // The superseded attempt's own recovery listener aborts late. It must be a no-op: the new
         // ticket survives untouched, and master is never notified (ABORT's whole point).
         supersededListener.onRecoveryFailure(
-            new RecoveryFailedException(supersededRecoveryState, "simulated", new Exception("simulated")),
+            new RecoveryFailedException(supersededShard.recoveryState(), "simulated", new Exception("simulated")),
             ABORT
         );
 

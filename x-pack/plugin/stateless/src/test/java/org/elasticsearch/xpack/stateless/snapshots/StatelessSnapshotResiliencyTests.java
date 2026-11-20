@@ -124,7 +124,7 @@ import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionS
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessHeartbeatStore;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessPersistedClusterStateService;
 import org.elasticsearch.xpack.stateless.commits.BCCHeaderReadExecutor;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
@@ -429,6 +429,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TIMEOUT_REEVALUATION_ABORT_THRESHOLD_SETTING);
             res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_TOTAL_TIMEOUT_CAP_SETTING);
             res.add(SearchRecoveryTimeoutCalculationService.OFFLINE_WARMING_IGNORE_NON_SEARCH_NODE_SHUTDOWNS_SETTING);
+            res.add(SearchRecoveryTimeoutCalculationService.SEARCH_OFFLINE_WARMING_SOURCE_WARMING_INFO_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_CACHE_RATIO_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_FILTER_SOURCE_SHARDS_BY_TARGET_SETTING);
             res.add(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING);
@@ -884,7 +885,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                 threadPool,
                 clusterService.getClusterSettings(),
                 clusterService.getSettings(),
-                ByteSizeValue.ZERO
+                ByteSizeValue.ZERO,
+                TelemetryProvider.NOOP
             );
             this.cacheWarmingService = new SharedBlobCacheWarmingService(
                 cacheService,
@@ -918,7 +920,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     WarmingRatioProvider warmingRatioProvider,
-                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -1137,7 +1139,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         projectResolver,
                         bccHeaderReadExecutor,
                         clusterService,
-                        warmingRatioProviderFactory
+                        warmingRatioProviderFactory,
+                        client
                     )
                 );
             }

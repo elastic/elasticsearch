@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -35,6 +37,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * Wraps a {@link StorageObject} with retry logic for transient storage failures.
@@ -68,6 +72,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     private final RetryPolicy retryPolicy;
     /** Schedules the async read-retry continuation after a backoff delay without parking a thread on the wait. */
     private final RetryScheduler retryScheduler;
+    @Nullable
+    private final ThreadContext threadContext;
     /**
      * Local counter for retries observed at this decorator boundary, merged into {@link #metrics()}
      * via {@link StorageObjectMetrics#add}.
@@ -170,6 +176,20 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     }
 
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy, RetryScheduler retryScheduler) {
+        this(delegate, retryPolicy, retryScheduler, null);
+    }
+
+    /**
+     * @param threadContext when non-null, an async read runs the caller's listener under the context of the thread that issued it,
+     *                      so a completion arriving on a storage-SDK thread does not carry that thread's (empty or stale) identity
+     *                      into whatever the listener runs next
+     */
+    RetryableStorageObject(
+        StorageObject delegate,
+        RetryPolicy retryPolicy,
+        RetryScheduler retryScheduler,
+        @Nullable ThreadContext threadContext
+    ) {
         if (delegate == null) {
             throw new IllegalArgumentException("delegate cannot be null");
         }
@@ -182,6 +202,7 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         this.delegate = delegate;
         this.retryPolicy = retryPolicy;
         this.retryScheduler = retryScheduler;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -357,6 +378,14 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     }
 
     @Override
+    public void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
+        ActionListener<Integer> callerListener = threadContext == null
+            ? listener
+            : new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
+        StorageObject.super.readBytesAsync(position, target, executor, callerListener);
+    }
+
+    @Override
     public Releasable startReadBytesAsync(
         long position,
         long length,
@@ -366,7 +395,24 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
     ) {
         AtomicBoolean cancelled = new AtomicBoolean();
         AtomicReference<InflightSlot> inflight = new AtomicReference<>(InflightSlot.NONE);
-        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime(), 0L, 0L, inflight, cancelled);
+        Supplier<ThreadContext.StoredContext> issuingContext = threadContext == null ? null : threadContext.newRestorableContext(false);
+        ActionListener<DirectReadBuffer> callerListener = issuingContext == null
+            ? listener
+            : new ContextPreservingActionListener<>(issuingContext, listener);
+        readBytesAsyncWithRetry(
+            position,
+            length,
+            factory,
+            executor,
+            callerListener,
+            0,
+            System.nanoTime(),
+            0L,
+            0L,
+            inflight,
+            cancelled,
+            issuingContext
+        );
         return () -> {
             cancelled.set(true);
             inflight.get().handle().close();
@@ -408,7 +454,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         long accumulatedBackoffMillis,
         long admissionDeadlineNanos,
         AtomicReference<InflightSlot> inflight,
-        AtomicBoolean cancelled
+        AtomicBoolean cancelled,
+        @Nullable Supplier<ThreadContext.StoredContext> issuingContext
     ) {
         if (cancelled.get()) {
             listener.onFailure(new TaskCancelledException(StorageRetryCancellation.CANCELLED_MESSAGE));
@@ -425,7 +472,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             accumulatedBackoffMillis,
             admissionDeadlineNanos,
             inflight,
-            cancelled
+            cancelled,
+            issuingContext
         );
         registerInflight(attempt, inner, inflight, cancelled);
     }
@@ -447,7 +495,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         long accumulatedBackoffMillis,
         long admissionDeadlineNanos,
         AtomicReference<InflightSlot> inflight,
-        AtomicBoolean cancelled
+        AtomicBoolean cancelled,
+        @Nullable Supplier<ThreadContext.StoredContext> issuingContext
     ) {
         ActionListener<DirectReadBuffer> retryingListener = new ActionListener<>() {
             @Override
@@ -491,7 +540,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                         accumulatedBackoffMillis,
                         admissionDeadlineNanos,
                         inflight,
-                        cancelled
+                        cancelled,
+                        issuingContext
                     );
                     return;
                 }
@@ -522,18 +572,22 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
                 // Fresh storage attempt: reset the admission deadline so this hop gets a full permit wait.
                 try {
                     retryScheduler.schedule(
-                        () -> readBytesAsyncWithRetry(
-                            position,
-                            length,
-                            factory,
-                            executor,
-                            listener,
-                            attempt + 1,
-                            startNanos,
-                            accumulatedBackoffMillis + decision.delayMillis(),
-                            0L,
-                            inflight,
-                            cancelled
+                        () -> runUnder(
+                            issuingContext,
+                            () -> readBytesAsyncWithRetry(
+                                position,
+                                length,
+                                factory,
+                                executor,
+                                listener,
+                                attempt + 1,
+                                startNanos,
+                                accumulatedBackoffMillis + decision.delayMillis(),
+                                0L,
+                                inflight,
+                                cancelled,
+                                issuingContext
+                            )
                         ),
                         decision.delayMillis(),
                         executor
@@ -566,7 +620,8 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         long accumulatedBackoffMillis,
         long admissionDeadlineNanos,
         AtomicReference<InflightSlot> inflight,
-        AtomicBoolean cancelled
+        AtomicBoolean cancelled,
+        @Nullable Supplier<ThreadContext.StoredContext> issuingContext
     ) {
         long now = retryPolicy.nanoTime();
         long deadline = admissionDeadlineNanos != 0L
@@ -587,24 +642,38 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         logger.debug("waiting for concurrency permit for [{}] (delay [{}]ms, remaining [{}]ms)", delegate.path(), delay, remainingMs);
         try {
             retryScheduler.schedule(
-                () -> readBytesAsyncWithRetry(
-                    position,
-                    length,
-                    factory,
-                    executor,
-                    listener,
-                    attempt,
-                    startNanos,
-                    accumulatedBackoffMillis,
-                    deadline,
-                    inflight,
-                    cancelled
+                () -> runUnder(
+                    issuingContext,
+                    () -> readBytesAsyncWithRetry(
+                        position,
+                        length,
+                        factory,
+                        executor,
+                        listener,
+                        attempt,
+                        startNanos,
+                        accumulatedBackoffMillis,
+                        deadline,
+                        inflight,
+                        cancelled,
+                        issuingContext
+                    )
                 ),
                 delay,
                 executor
             );
         } catch (Exception rejected) {
             completeWithRefusal(rejected, miss, accumulatedBackoffMillis, listener);
+        }
+    }
+
+    private static void runUnder(@Nullable Supplier<ThreadContext.StoredContext> issuingContext, Runnable command) {
+        if (issuingContext == null) {
+            command.run();
+            return;
+        }
+        try (ThreadContext.StoredContext ignored = issuingContext.get()) {
+            command.run();
         }
     }
 
@@ -846,41 +915,55 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
             if (decision.retry() == false) {
                 throw rethrow(e);
             }
-            closeQuietly(current);
+            closeQuietly(current); // abort, not drain: a small unread S3 tail would otherwise block resume/cancel
+            // abortStream sets aborted on another thread (parse close). Sleep and RetryPolicy.execute
+            // only poll StorageRetryCancellation; they would ignore aborted and sit out a 30s throttle
+            // hop. Nest abort into the ambient cancel signal so both sleeps see it. Compose with any
+            // producer cancel scope already on this thread. No join, no pool interrupt.
+            BooleanSupplier previous = StorageRetryCancellation.current();
             try {
-                // Cancellation-aware sleep: aborts a parked backoff if the query is cancelled before or
-                // during the delay, rather than sleeping through the remaining per-episode retry budget.
-                StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new IOException("interrupted while waiting to resume read of [" + delegate.path().objectName() + "]", ie);
+                StorageRetryCancellation.runWithCancellation(() -> aborted || (previous != null && previous.getAsBoolean()), () -> {
+                    try {
+                        StorageRetryCancellation.sleepWithCancellationChecks(decision.delayMillis());
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted while waiting to resume read of [" + delegate.path().objectName() + "]", ie);
+                    }
+                    throwIfAborted(e);
+                    long resumeFrom = position + delivered;
+                    // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to
+                    // re-open the range (not just to read it) is itself retried. A plain IOException inside
+                    // execute is not retryable, so an abort mid-open does not burn the open-retry budget.
+                    if (length == READ_TO_END) {
+                        // Open-ended (to-EOF) mode: re-open [resumeFrom, end] as an open-ended range; the
+                        // underlying stream's EOF marks completion. If the fault landed exactly at EOF, the
+                        // provider answers the past-the-end open-ended read with an empty stream.
+                        adoptResume(openResumeAdmitted(resumeFrom, READ_TO_END, "newStream(resume-open)"));
+                    } else {
+                        long remaining = length - delivered;
+                        // If everything was delivered, an empty stream is EOF.
+                        adoptResume(
+                            remaining > 0 ? openResumeAdmitted(resumeFrom, remaining, "newStream(resume)") : InputStream.nullInputStream()
+                        );
+                    }
+                    retryCounters.addRetry();
+                    failuresSinceProgress++;
+                    totalResumes++;
+                    logger.debug(
+                        "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]): [{}]",
+                        delegate.path(),
+                        resumeFrom,
+                        failuresSinceProgress,
+                        e.getMessage()
+                    );
+                    ensureGenerationConsistent();
+                });
+            } catch (TaskCancelledException tce) {
+                if (aborted) {
+                    throw new IOException("read aborted", tce);
+                }
+                throw tce;
             }
-            throwIfAborted(e);
-            long resumeFrom = position + delivered;
-            // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to re-open the
-            // range (not just to read it) is itself retried. A plain IOException inside execute is not
-            // retryable, so an abort mid-open does not burn the open-retry budget.
-            if (length == READ_TO_END) {
-                // Open-ended (to-EOF) mode: re-open [resumeFrom, end] as an open-ended range; the underlying
-                // stream's EOF marks completion. If the fault landed exactly at EOF, the provider answers the
-                // past-the-end open-ended read with an empty stream.
-                adoptResume(openResumeAdmitted(resumeFrom, READ_TO_END, "newStream(resume-open)"));
-            } else {
-                long remaining = length - delivered;
-                // If everything was delivered, an empty stream is EOF.
-                adoptResume(remaining > 0 ? openResumeAdmitted(resumeFrom, remaining, "newStream(resume)") : InputStream.nullInputStream());
-            }
-            retryCounters.addRetry();
-            failuresSinceProgress++;
-            totalResumes++;
-            logger.debug(
-                "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]): [{}]",
-                delegate.path(),
-                resumeFrom,
-                failuresSinceProgress,
-                e.getMessage()
-            );
-            ensureGenerationConsistent();
         }
 
         /**
@@ -1042,9 +1125,15 @@ class RetryableStorageObject implements StorageObject, ResumeBypassingStorageObj
         }
 
         private void closeQuietly(InputStream in) {
-            // Best-effort discard before re-opening a fresh range. Swallow both a checked IOException and an
-            // unchecked close failure (e.g. the AWS SDK's AbortedException) so a noisy close never masks the resume.
-            IOUtils.closeWhileHandlingException(in);
+            // Best-effort discard before re-opening a fresh range. abortStream, not close(): S3 close()
+            // drains a small unread tail and would park cancel before the abort-aware backoff. Swallow
+            // checked and unchecked failures (e.g. the AWS SDK's AbortedException) so a noisy abort
+            // never masks the resume.
+            try {
+                delegate.abortStream(in);
+            } catch (Exception e) {
+                // continue to resume
+            }
         }
 
         /**

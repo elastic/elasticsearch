@@ -1,0 +1,5 @@
+area: Indices APIs
+issues: []
+pr: 163786
+summary: Adding a `DotPrefixValidator`
+type: bug

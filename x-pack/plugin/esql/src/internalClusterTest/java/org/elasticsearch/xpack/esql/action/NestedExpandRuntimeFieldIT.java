@@ -122,6 +122,12 @@ public class NestedExpandRuntimeFieldIT extends AbstractEsqlIntegTestCase {
         assertRows("FROM rt | NESTED_EXPAND items | STATS c = COUNT(items.qty), m = MAX(items.calc) BY id", List.of(List.of(2L, 4L, "a")));
     }
 
+    public void testRuntimeFieldCanBeTestedForNotNull() {
+        createIndex("rt", RUNTIME_FROM_SOURCE, randomBoolean());
+        assertRows("FROM rt | WHERE items.calc IS NOT NULL | KEEP id", List.of(List.of("a")));
+        assertRows("FROM rt | NESTED_EXPAND items | WHERE items.calc IS NOT NULL | STATS n = COUNT(*)", List.of(List.of(2L)));
+    }
+
     public void testRuntimeFieldAndAnUndeclaredNameUnderTheCollectionStayParentColumns() {
         createIndex("rt", RUNTIME_FROM_SOURCE, false);
         try (

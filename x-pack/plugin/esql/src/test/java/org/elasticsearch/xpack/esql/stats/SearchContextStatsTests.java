@@ -910,7 +910,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         try {
             SearchExecutionContext context = createSearchExecutionContext(mapper, newSearcher(reader));
             assertTrue(context.isMappedField("item.calc"));
-            assertNotNull(context.nestedLookup().getNestedParent("item.calc"));
+            assertThat(context.nestedLookup().hasNestedParent("item.calc"), is(true));
             assertThat(SearchContextStats.isExtractableMappedField(context, "item.calc"), is(true));
             assertThat(SearchContextStats.isExtractableMappedField(context, "item.value"), is(false));
             assertThat(SearchContextStats.from(List.of(context)).exists(new FieldAttribute.FieldName("item.calc")), is(true));

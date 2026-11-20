@@ -1133,7 +1133,6 @@ public class IndexResolver {
         return FlattenedFieldMapper.CONTENT_TYPE.equals(fc.type());
     }
 
-    /** The key {@code name} of the {@code flattened} field {@code root}, a {@code keyword}. */
     /**
      * The key {@code name} of a {@code flattened} field of {@code fields}, or {@code null} if it is none there. A key is in the
      * nested scope when its field is, like a child of a nested object: it is no ordinary column, and the nested scope is its own.
@@ -1142,6 +1141,7 @@ public class IndexResolver {
      * @param inNestedScope whether the key asked for is the one in the nested scope or the ordinary one
      * @param nestedScope whether field caps was asked for the nested fields
      */
+    @Nullable
     private static IndexFieldCapabilities keyInScope(
         Map<String, IndexFieldCapabilities> fields,
         String name,
@@ -1156,6 +1156,7 @@ public class IndexResolver {
         return rootInNestedScope == inNestedScope ? key(name, root) : null;
     }
 
+    /** The key {@code name} of the {@code flattened} field {@code root}, a {@code keyword}. */
     private static IndexFieldCapabilities key(String name, IndexFieldCapabilities root) {
         return new IndexFieldCapabilities(
             name,

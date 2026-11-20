@@ -2026,7 +2026,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new Eval(expand.source(), new NestedExpand(expand.source(), parentWithValues, null, path, expanded, paths), merged);
         }
 
-        /** The column of the parent documents named {@code name}: what an index that defines it as a runtime field gives. */
+        /**
+         * The column of the parent documents named {@code name}, what an index that defines it as a runtime field gives, or
+         * {@code null} when there is none.
+         */
+        @Nullable
         private static FieldAttribute runtimeFieldOfTheParent(List<Attribute> output, String name) {
             for (Attribute attribute : output) {
                 if (attribute instanceof FieldAttribute field

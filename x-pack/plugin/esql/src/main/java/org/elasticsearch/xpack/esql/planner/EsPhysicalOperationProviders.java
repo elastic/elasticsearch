@@ -529,10 +529,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     /**
-     * The cast that {@code unionTypes} applies to each mapped type, applied to {@code keyword}, or {@code null} if it takes no
-     * keyword.
-     */
-    /**
      * Reads {@code name}, a key of a {@code flattened} field loaded as the keyword {@code keys}, as a column of {@code type}: through
      * the cast from keyword to {@code type}, or through the one {@code unionTypes} holds where indices map the name with different
      * types, and as nulls where there is none. A column outside a nested object and a child of one read a key the same way.
@@ -554,6 +550,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
     }
 
+    /**
+     * The cast that {@code unionTypes} applies to each mapped type, applied to {@code keyword}, or {@code null} if it takes no
+     * keyword.
+     */
     private static @Nullable AbstractConvertFunction keywordConversion(UnionTypeEsField unionTypes, Expression keyword) {
         for (Expression conversion : unionTypes.getConversionExpressions()) {
             if (conversion instanceof AbstractConvertFunction convert && convert.supportedTypes().contains(DataType.KEYWORD)) {

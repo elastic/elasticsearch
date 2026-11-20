@@ -94,6 +94,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptySet;
@@ -141,18 +142,24 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
     /**
      * A full coordinating budget cannot take the next estimate. The task keeps running, sends no search and holds no hit.
-     * Once the budget can take the estimate, that one search is sent.
+     * Once the budget can take the estimate, that one search is sent, and it reserves half the limit because the raw estimate is above
+     * that. The page then shrinks to its hits as soon as it arrives, and grows to the bulk that is built from it. Each move is counted
+     * on its own estimate error counter.
      */
     public void testWaitingTaskSearchesOnceTheEstimateFits() {
         int pageSize = between(1, 3);
         ScriptedClock clock = new ScriptedClock();
         long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        long context = clock.getThreadPool().getThreadContext().estimatedRequestContextBytes();
         long limit = estimate + between(1, 4_096);
         IndexingPressure pressure = pressure(limit);
         Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
-        CountingHit hit = harness.hit(bytes(between(32, 256)));
+        int sourceLength = between(32, 256);
+        CountingHit hit = harness.hit(bytes(sourceLength));
+        AtomicLong chargeAtBulk = new AtomicLong();
         harness.client.handler = (bulk, listener) -> {
             assertTrue(bulk.indexingPressureAccounted());
+            chargeAtBulk.set(harness.chargedBytes());
             listener.onResponse(harness.success(bulk));
         };
         harness.onDone = harness::finishWithEmptyPage;
@@ -170,7 +177,8 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
         harness.queue.advanceTime();
         assertThat(harness.client.searches.size(), equalTo(1));
-        assertThat(harness.chargedBytes(), equalTo(Math.min(estimate, pressure.getCoordinatingLimitInBytes())));
+        assertThat("the raw estimate is above half the limit", estimate, greaterThan(halfTheLimit(pressure)));
+        assertThat(harness.chargedBytes(), equalTo(halfTheLimit(pressure)));
         harness.feed(List.of(hit));
 
         BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
@@ -178,23 +186,36 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(harness.client.searches.size(), equalTo(1));
         assertThat(harness.chargedBytes(), equalTo(0L));
         assertThat(hit.releases.get(), equalTo(1));
+        long hitBytes = sourceLength + context;
+        assertThat("the bulk is bigger than the source it carries", chargeAtBulk.get(), greaterThan(hitBytes));
         assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
-        assertThat(pressure.stats().getReindexPageBytesBelowEstimate(), greaterThan(0L));
-        assertThat(pressure.stats().getReindexPageBytesAboveEstimate(), equalTo(0L));
+        assertThat(
+            "shrunk from the estimate to the hit source",
+            pressure.stats().getReindexPageBytesBelowEstimate(),
+            equalTo(halfTheLimit(pressure) - hitBytes)
+        );
+        assertThat(
+            "grown from the hit source to the bulk",
+            pressure.stats().getReindexPageBytesAboveEstimate(),
+            equalTo(chargeAtBulk.get() - hitBytes)
+        );
         assertThat(pressure.stats().getReindexPageExceedsLimit(), equalTo(0L));
     }
 
     /**
-     * Two tasks share a budget that can hold one estimate. The second does not search while the first still holds its page.
-     * Releasing that page lets the second search once, and both finish with nothing still charged.
+     * Three tasks share a budget whose limit is the raw estimate of one page, so each reserve is cut to half the limit. The first task
+     * holds a small page. The second task's half still fits beside it. The third task's half does not, because the first page and two
+     * halves are more than the limit, so it does not search. Releasing the first page lets the third search once, and all three
+     * finish with nothing still charged.
      */
-    public void testSecondTaskSearchesOnceTheHeldPageReleasesItsCharge() {
+    public void testThirdTaskSearchesOnceTheHeldPageReleasesItsCharge() {
         int pageSize = 1;
         ScriptedClock clock = new ScriptedClock();
         long estimate = rawEstimate(clock.getThreadPool(), pageSize);
         IndexingPressure pressure = pressure(estimate);
         Harness first = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
         Harness second = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        Harness third = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
         CountingHit held = first.hit(bytes(between(64, 512)));
         AtomicReference<ActionListener<BulkResponse>> heldListener = new AtomicReference<>();
         first.client.handler = (bulk, listener) -> {
@@ -208,30 +229,50 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
         assertThat(first.client.bulks.size(), equalTo(1));
         assertThat(held.releases.get(), equalTo(0));
-        assertThat(first.chargedBytes(), greaterThan(0L));
+        long firstPage = first.chargedBytes();
+        assertThat(firstPage, greaterThan(0L));
+        assertThat(firstPage, lessThan(halfTheLimit(pressure)));
         assertFalse(first.listener.isDone());
 
         second.start();
-        assertThat(second.client.searches.size(), equalTo(0));
-        assertThat(second.client.bulks, equalTo(List.of()));
-        assertFalse(second.listener.isDone());
-        assertTrue(clock.hasDeferredTasks());
+        assertThat("a half reserve fits beside the held page", second.client.searches.size(), equalTo(1));
+        assertFalse(clock.hasDeferredTasks());
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(firstPage + halfTheLimit(pressure)));
 
-        CountingHit followed = second.hit(bytes(between(64, 512)));
+        third.start();
+        assertThat(third.client.searches.size(), equalTo(0));
+        assertThat(third.client.bulks, equalTo(List.of()));
+        assertFalse(third.listener.isDone());
+        assertTrue(clock.hasDeferredTasks());
+        assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(firstPage + halfTheLimit(pressure)));
+
+        CountingHit secondHit = second.hit(bytes(between(64, 512)));
+        CountingHit thirdHit = third.hit(bytes(between(64, 512)));
         second.client.handler = (bulk, listener) -> {
             assertTrue(bulk.indexingPressureAccounted());
             listener.onResponse(second.success(bulk));
         };
         second.onDone = second::finishWithEmptyPage;
+        third.client.handler = (bulk, listener) -> {
+            assertTrue(bulk.indexingPressureAccounted());
+            listener.onResponse(third.success(bulk));
+        };
+        third.onDone = third::finishWithEmptyPage;
         heldListener.get().onResponse(first.success(first.client.bulks.get(0)));
         assertThat(first.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
         assertThat(held.releases.get(), equalTo(1));
+        assertThat(third.client.searches.size(), equalTo(0));
 
         clock.advanceTime();
-        assertThat(second.client.searches.size(), equalTo(1));
-        second.feed(List.of(followed));
+        assertThat(third.client.searches.size(), equalTo(1));
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(2 * halfTheLimit(pressure)));
+        second.feed(List.of(secondHit));
         assertThat(second.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
-        assertThat(followed.releases.get(), equalTo(1));
+        third.feed(List.of(thirdHit));
+        assertThat(third.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
+        assertThat(secondHit.releases.get(), equalTo(1));
+        assertThat(thirdHit.releases.get(), equalTo(1));
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
@@ -795,10 +836,40 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
      * A bulk that does not use up max_docs leaves the rest of the page for another bulk. The page is in memory until that second
      * bulk finishes, so the charge stays at the size of the hits the page holds. It is sized once for the page, and the second bulk
      * neither resizes it nor records another estimate error.
+     * <p>
+     * Here the estimate is above the page, so the charge shrinks to the whole page when the page arrives. The first bulk may then be
+     * bigger than the page, and the charge grows to it, so each move is on its own counter.
      */
-    public void testChargeStaysAtThePageSizeAcrossTwoSubBulksAndErrorIsCountedOnce() {
+    public void testChargeStaysAtThePageSizeAcrossTwoSubBulksWhenTheEstimateIsAboveThePageAndTheConflictIsFirst() {
+        assertChargeStaysAtThePageSizeAcrossTwoSubBulks(false, true);
+    }
+
+    /**
+     * As {@link #testChargeStaysAtThePageSizeAcrossTwoSubBulksWhenTheEstimateIsAboveThePageAndTheConflictIsFirst}, with the version
+     * conflict on the second hit of the first bulk.
+     */
+    public void testChargeStaysAtThePageSizeAcrossTwoSubBulksWhenTheEstimateIsAboveThePageAndTheConflictIsSecond() {
+        assertChargeStaysAtThePageSizeAcrossTwoSubBulks(false, false);
+    }
+
+    /**
+     * Here the estimate is below the page, so the page does not shrink when it arrives, and the charge grows once to the whole page.
+     * Nothing is counted as a low estimate.
+     */
+    public void testChargeStaysAtThePageSizeAcrossTwoSubBulksWhenTheEstimateIsBelowThePageAndTheConflictIsFirst() {
+        assertChargeStaysAtThePageSizeAcrossTwoSubBulks(true, true);
+    }
+
+    /**
+     * As {@link #testChargeStaysAtThePageSizeAcrossTwoSubBulksWhenTheEstimateIsBelowThePageAndTheConflictIsFirst}, with the version
+     * conflict on the second hit of the first bulk.
+     */
+    public void testChargeStaysAtThePageSizeAcrossTwoSubBulksWhenTheEstimateIsBelowThePageAndTheConflictIsSecond() {
+        assertChargeStaysAtThePageSizeAcrossTwoSubBulks(true, false);
+    }
+
+    private void assertChargeStaysAtThePageSizeAcrossTwoSubBulks(boolean pageLargerThanEstimate, boolean conflictFirst) {
         int maxDocs = 2;
-        boolean pageLargerThanEstimate = randomBoolean();
         UpdateByQueryRequest request = updateRequest(3);
         request.setMaxDocs(maxDocs);
         request.setAbortOnVersionConflict(false);
@@ -816,7 +887,6 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         CountingHit conflicted = harness.hit(bytes(conflictedLength));
         CountingHit left = harness.hit(bytes(leftLength));
         long pageSourceBytes = (long) updatedLength + conflictedLength + leftLength;
-        boolean conflictFirst = randomBoolean();
         List<CountingHit> hits = conflictFirst ? List.of(conflicted, updated, left) : List.of(updated, conflicted, left);
         int conflictAt = conflictFirst ? 0 : 1;
         long context = clock.getThreadPool().getThreadContext().estimatedRequestContextBytes();
@@ -853,17 +923,26 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat("the second sub bulk must not resize the charge", chargePerBulk.get(1), equalTo(chargePerBulk.get(0)));
         assertThat("the second sub bulk must not record an estimate error", belowPerBulk.get(1), equalTo(belowPerBulk.get(0)));
         assertThat("the second sub bulk must not record an estimate error", abovePerBulk.get(1), equalTo(abovePerBulk.get(0)));
-        // The page was sized once, so the whole difference from the estimate is on one counter and it stays there.
+        // The page was sized once, so the counters moved on the first bulk only and stayed there.
         long reserved = reservedBeforeSearch.get();
         long charged = chargePerBulk.get(0);
+        long pageBytes = pageSourceBytes + context;
         if (pageLargerThanEstimate) {
             assertThat(charged, greaterThan(reserved));
             assertThat(pressure.stats().getReindexPageBytesAboveEstimate(), equalTo(charged - reserved));
             assertThat(pressure.stats().getReindexPageBytesBelowEstimate(), equalTo(0L));
         } else {
-            assertThat(charged, lessThan(reserved));
-            assertThat(pressure.stats().getReindexPageBytesBelowEstimate(), equalTo(reserved - charged));
-            assertThat(pressure.stats().getReindexPageBytesAboveEstimate(), equalTo(0L));
+            assertThat(pageBytes, lessThan(reserved));
+            assertThat(
+                "shrunk from the estimate to the page",
+                pressure.stats().getReindexPageBytesBelowEstimate(),
+                equalTo(reserved - pageBytes)
+            );
+            assertThat(
+                "grown from the page to the bulk, if the bulk is bigger",
+                pressure.stats().getReindexPageBytesAboveEstimate(),
+                equalTo(charged - pageBytes)
+            );
         }
         assertThat(pressure.stats().getReindexPageExceedsLimit(), equalTo(0L));
         assertThat(harness.chargedBytes(), equalTo(0L));
@@ -874,7 +953,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
     /**
      * A single max_docs truncated bulk also sizes the page once. The charge covers the hits the bulk left behind until the task
-     * finishes, and the estimate error is the difference between the estimate and that whole page.
+     * finishes. The page shrinks from the estimate to the whole page when it arrives, so the low estimate error is the difference
+     * between the estimate and the whole page. The bulk may then be bigger than the page, in which case the charge grows once more
+     * and the high estimate error is that growth.
      */
     public void testTruncatedMaxDocsBulkSizesTheChargeToTheWholePage() {
         int maxDocs = between(1, 3);
@@ -906,8 +987,16 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
         harness.listener.actionGet(TimeValue.ZERO);
         assertThat(chargeAtBulk.get(), greaterThanOrEqualTo(expectedFloor));
-        assertThat(pressure.stats().getReindexPageBytesBelowEstimate(), equalTo(estimate - chargeAtBulk.get()));
-        assertThat(pressure.stats().getReindexPageBytesAboveEstimate(), equalTo(0L));
+        assertThat(
+            "shrunk from the estimate to the whole page",
+            pressure.stats().getReindexPageBytesBelowEstimate(),
+            equalTo(estimate - expectedFloor)
+        );
+        assertThat(
+            "grown from the whole page to the bulk, when the bulk is the bigger of the two",
+            pressure.stats().getReindexPageBytesAboveEstimate(),
+            equalTo(chargeAtBulk.get() - expectedFloor)
+        );
         assertThat(harness.chargedBytes(), equalTo(0L));
     }
 
@@ -1147,15 +1236,16 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
     /**
      * A 32kb guess reserves twice the per-document bytes of the 16kb default for the same page. A page whose guess is
-     * above the coordinating limit still reserves only that limit. The second reserve reads the updated setting.
+     * above half the coordinating limit still reserves only that half. The second reserve reads the updated setting.
      */
-    public void testLargerBytesEstimateReservesTwiceAsMuchUntilTheLimit() {
+    public void testLargerBytesEstimateReservesTwiceAsMuchUntilHalfTheLimit() {
         int pageSize = 2;
         ScriptedClock clock = new ScriptedClock();
         long context = clock.getThreadPool().getThreadContext().estimatedRequestContextBytes();
         long perDocument = ESTIMATED_HIT_BYTES;
         long doubled = perDocument * 2;
-        long roomy = doubled * pageSize + context + 4_096;
+        // Half of this is above a doubled page and below two doubled pages, so the first two reserves are not capped and the third is.
+        long roomy = 2 * (doubled * pageSize + context) + 4_096;
         Settings nodeSettings = Settings.builder().put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), roomy + "b").build();
         ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         IndexingPressure pressure = new IndexingPressure(nodeSettings);
@@ -1173,21 +1263,31 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         long atDouble = reservedPage(clock, pressure, pageSize);
         assertThat(atDouble, equalTo(pageSize * doubled + context));
         assertThat(atDouble - context, equalTo(2 * (atDefault - context)));
-        assertThat(atDouble, lessThan(pressure.getCoordinatingLimitInBytes()));
+        assertThat(atDouble, lessThan(halfTheLimit(pressure)));
 
         int cappedPage = pageSize * 2;
         long capped = reservedPage(clock, pressure, cappedPage);
-        assertThat((long) cappedPage * doubled + context, greaterThan(pressure.getCoordinatingLimitInBytes()));
-        assertThat(capped, equalTo(pressure.getCoordinatingLimitInBytes()));
+        assertThat((long) cappedPage * doubled + context, greaterThan(halfTheLimit(pressure)));
+        assertThat(capped, equalTo(halfTheLimit(pressure)));
     }
 
     /**
      * A bulk that only targets system indices was never refused at the coordinating stage, so a page of them that turns out larger than
      * the coordinating limit still completes. The charge grows past the limit to the real page, and nothing counts as over the limit.
      */
-    public void testSystemOnlyPageLargerThanTheLimitCompletesAndTheChargeGrowsPastTheLimit() {
+    public void testSystemOnlyReindexPageLargerThanTheLimitCompletesAndTheChargeGrowsPastTheLimit() {
+        assertSystemOnlyPageLargerThanTheLimitCompletes(true);
+    }
+
+    /**
+     * As {@link #testSystemOnlyReindexPageLargerThanTheLimitCompletesAndTheChargeGrowsPastTheLimit}, for an update by query.
+     */
+    public void testSystemOnlyUpdateByQueryPageLargerThanTheLimitCompletesAndTheChargeGrowsPastTheLimit() {
+        assertSystemOnlyPageLargerThanTheLimitCompletes(false);
+    }
+
+    private void assertSystemOnlyPageLargerThanTheLimitCompletes(boolean reindex) {
         String systemIndex = ".sys-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        boolean reindex = randomBoolean();
         int pageSize = 1;
         ScriptedClock clock = new ScriptedClock();
         long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(1, 4_096);
@@ -1247,16 +1347,289 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
     /**
      * A bulk is only system-only when every index it targets is a system index. One ordinary index beside a system index makes it an
-     * ordinary bulk, and a page of it larger than the limit fails.
+     * ordinary bulk, and a page of it larger than the limit fails. The system index is named first.
      */
-    public void testPageOverTheLimitFailsWhenOnlySomeOfItsIndicesAreSystemIndices() {
+    public void testPageOverTheLimitFailsWhenTheSystemIndexIsFirstAndTheOtherIsNot() {
+        assertPageOverTheLimitFailsWhenOnlySomeOfItsIndicesAreSystemIndices(true);
+    }
+
+    /**
+     * As {@link #testPageOverTheLimitFailsWhenTheSystemIndexIsFirstAndTheOtherIsNot}, with the ordinary index named first.
+     */
+    public void testPageOverTheLimitFailsWhenTheOrdinaryIndexIsFirstAndTheOtherIsASystemIndex() {
+        assertPageOverTheLimitFailsWhenOnlySomeOfItsIndicesAreSystemIndices(false);
+    }
+
+    private void assertPageOverTheLimitFailsWhenOnlySomeOfItsIndicesAreSystemIndices(boolean systemFirst) {
         String system = ".sys-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         String plain = "plain-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        List<String> hitIndices = randomBoolean() ? List.of(system, plain) : List.of(plain, system);
+        List<String> hitIndices = systemFirst ? List.of(system, plain) : List.of(plain, system);
         SortedMap<String, IndexAbstraction> both = new TreeMap<>();
         both.putAll(lookupOf(true, system).get());
         both.putAll(lookupOf(false, plain).get());
         assertOversizedPageFails(hitIndices, systemIndicesMatching(".sys*"), () -> both);
+    }
+
+    /**
+     * A reindex that writes only to a system index skips the node total check on its page reserve, as a system-only bulk is never
+     * refused there. It searches at once even when the node already holds a whole coordinating limit. The source is an ordinary index,
+     * because a reindex is judged by where it writes.
+     */
+    public void testSystemOnlyReindexIsAdmittedOnALoadedNode() {
+        String system = systemIndexName();
+        assertSystemOnlyTaskIsAdmittedOnALoadedNode(
+            reindexRequest(1, "plain-" + randomAlphaOfLength(5), system),
+            -1L,
+            lookupOf(true, system)
+        );
+    }
+
+    /**
+     * An update by query over only system indices skips the node total check on its page reserve, so it searches at once even when
+     * the node already holds a whole coordinating limit.
+     */
+    public void testSystemOnlyUpdateByQueryIsAdmittedOnALoadedNode() {
+        String system = systemIndexName();
+        assertSystemOnlyTaskIsAdmittedOnALoadedNode(updateRequest(1, system), 1L, lookupOf(true, system));
+    }
+
+    /**
+     * A delete by query over only system indices skips the node total check on its page reserve, so it searches at once even when
+     * the node already holds a whole coordinating limit.
+     */
+    public void testSystemOnlyDeleteByQueryIsAdmittedOnALoadedNode() {
+        String system = systemIndexName();
+        assertSystemOnlyTaskIsAdmittedOnALoadedNode(deleteRequest(1, system), 1L, lookupOf(true, system));
+    }
+
+    /**
+     * A wildcard that matches only system indices is system-only, so it is admitted on a loaded node. The page that comes back belongs
+     * to one of the matched indices.
+     */
+    public void testWildcardOverOnlySystemIndicesIsAdmittedOnALoadedNode() {
+        String first = ".sys-a-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        String second = ".sys-b-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        SortedMap<String, IndexAbstraction> both = new TreeMap<>();
+        both.putAll(lookupOf(true, first).get());
+        both.putAll(lookupOf(true, second).get());
+        assertSystemOnlyTaskIsAdmittedOnALoadedNode(updateRequest(1, ".sys-*"), 1L, () -> both, first);
+    }
+
+    /**
+     * A reindex is judged by the index it writes to. One that reads a system index and writes an ordinary one is not system-only, so
+     * on a loaded node it waits.
+     */
+    public void testReindexFromASystemIndexToAnOrdinaryIndexIsNotSystemOnlyAndWaits() {
+        String system = systemIndexName();
+        String plain = "plain-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        SortedMap<String, IndexAbstraction> both = bothLookups(system, plain);
+        assertTaskWaitsOnALoadedNode(reindexRequest(1, system, plain), systemIndicesMatching(".sys*"), () -> both);
+    }
+
+    /**
+     * An ordinary index beside a system index makes the target mixed, so it is not system-only and an update by query waits on a loaded
+     * node.
+     */
+    public void testUpdateByQueryOverASystemAndAnOrdinaryIndexIsNotSystemOnlyAndWaits() {
+        String system = systemIndexName();
+        String plain = "plain-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        SortedMap<String, IndexAbstraction> both = bothLookups(system, plain);
+        assertTaskWaitsOnALoadedNode(updateRequest(1, system, plain), systemIndicesMatching(".sys*"), () -> both);
+    }
+
+    /**
+     * An ordinary index beside a system index makes the target mixed, so it is not system-only and a delete by query waits on a loaded
+     * node.
+     */
+    public void testDeleteByQueryOverASystemAndAnOrdinaryIndexIsNotSystemOnlyAndWaits() {
+        String system = systemIndexName();
+        String plain = "plain-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        SortedMap<String, IndexAbstraction> both = bothLookups(system, plain);
+        assertTaskWaitsOnALoadedNode(deleteRequest(1, plain, system), systemIndicesMatching(".sys*"), () -> both);
+    }
+
+    /**
+     * A wildcard that matches both a system index and an ordinary index is a mixed target, so it is not system-only and waits on a
+     * loaded node.
+     */
+    public void testWildcardOverASystemAndAnOrdinaryIndexIsNotSystemOnlyAndWaits() {
+        String system = systemIndexName();
+        String plain = "plain-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        SortedMap<String, IndexAbstraction> both = bothLookups(system, plain);
+        assertTaskWaitsOnALoadedNode(updateRequest(1, "*"), systemIndicesMatching(".sys*"), () -> both);
+    }
+
+    /**
+     * A target that resolves to nothing is not system-only, so an update by query over it waits on a loaded node. Nothing is known about
+     * what such a target would write, so it is treated as an ordinary one.
+     */
+    public void testUpdateByQueryOverAWildcardThatMatchesNothingIsNotSystemOnlyAndWaits() {
+        String system = systemIndexName();
+        assertTaskWaitsOnALoadedNode(updateRequest(1, "nomatch-*"), systemIndicesMatching(".sys*"), lookupOf(true, system));
+    }
+
+    /**
+     * A target that resolves to nothing is not system-only, so a delete by query over it waits on a loaded node.
+     */
+    public void testDeleteByQueryOverAWildcardThatMatchesNothingIsNotSystemOnlyAndWaits() {
+        String system = systemIndexName();
+        assertTaskWaitsOnALoadedNode(deleteRequest(1, "nomatch-*"), systemIndicesMatching(".sys*"), lookupOf(true, system));
+    }
+
+    /**
+     * A page that is waiting out a requests_per_second throttle has already shrunk from its estimate to the size of its hits, so it does
+     * not keep an estimate's worth of the budget idle. A small client bulk that fits beside those hits, and would not fit beside the
+     * estimate, is admitted while the throttle waits.
+     */
+    public void testSmallClientBulkIsAdmittedWhileAThrottleWaitHoldsAPageThatHasShrunkToItsHits() {
+        ScriptedClock clock = new ScriptedClock();
+        long limit = between(64 * 1024, 1024 * 1024);
+        IndexingPressure pressure = pressureWhereEveryEstimateHitsTheLimit(limit);
+        UpdateByQueryRequest request = updateRequest(1);
+        // One document at one request a second makes the wait before the second page about a second, which the clock holds.
+        request.setRequestsPerSecond(1f);
+        Harness harness = new Harness(clock, pressure, request, NoopCircuitBreaker.INSTANCE, null);
+        long context = clock.getThreadPool().getThreadContext().estimatedRequestContextBytes();
+        int secondLength = between(32, 256);
+        CountingHit first = harness.hit(bytes(between(32, 256)));
+        CountingHit second = harness.hit(bytes(secondLength));
+        harness.client.handler = (bulk, listener) -> {
+            harness.client.bulks.add(bulk);
+            listener.onResponse(harness.success(bulk));
+        };
+        AtomicInteger pages = new AtomicInteger();
+        harness.onDone = () -> {
+            if (pages.getAndIncrement() == 0) {
+                harness.feed(List.of(second));
+            } else {
+                harness.action.setScroll(null);
+                harness.finishWithEmptyPage();
+            }
+        };
+        harness.action.setScroll("more");
+        harness.start();
+        assertThat("the first page reserves the capped estimate", harness.chargedBytes(), equalTo(halfTheLimit(pressure)));
+        // The first page is not throttled. Its bulk completes, and the second page then arrives and has to wait out the throttle.
+        harness.feed(List.of(first));
+
+        assertTrue("the second page is waiting out the throttle", clock.hasDeferredTasks());
+        assertThat(clock.nextDelay().millis(), greaterThan(0L));
+        assertFalse(harness.listener.isDone());
+        assertThat(harness.client.bulks.size(), equalTo(1));
+        long pageBytes = secondLength + context;
+        assertThat("the waiting page holds its hits and not the estimate", harness.chargedBytes(), equalTo(pageBytes));
+        assertThat(pressure.stats().getReindexPageBytesBelowEstimate(), greaterThan(0L));
+
+        // Fills the node exactly, and is more than would be left beside an estimate of half the limit.
+        long clientBytes = limit - pageBytes - between(0, 64);
+        assertThat(clientBytes, greaterThan(limit - halfTheLimit(pressure)));
+        try (Releasable client = pressure.markCoordinatingOperationStarted(1, clientBytes, false)) {
+            assertThat(pressure.stats().getCurrentCoordinatingBytes(), greaterThanOrEqualTo(clientBytes + pageBytes));
+            assertThat(pressure.stats().getCoordinatingRejections(), equalTo(0L));
+        }
+
+        runHeldAttemptsUntilDone(harness, clock);
+        BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(response.getUpdated(), equalTo(2L));
+        assertThat(harness.client.bulks.size(), equalTo(2));
+        assertThat(first.releases.get(), equalTo(1));
+        assertThat(second.releases.get(), equalTo(1));
+        assertThat(pressure.stats().getCoordinatingRejections(), equalTo(0L));
+        assertThat(harness.chargedBytes(), equalTo(0L));
+    }
+
+    private static String systemIndexName() {
+        return ".sys-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+    }
+
+    private static SortedMap<String, IndexAbstraction> bothLookups(String system, String plain) {
+        SortedMap<String, IndexAbstraction> both = new TreeMap<>();
+        both.putAll(lookupOf(true, system).get());
+        both.putAll(lookupOf(false, plain).get());
+        return both;
+    }
+
+    private void assertSystemOnlyTaskIsAdmittedOnALoadedNode(
+        AbstractBulkByPaginatedSearchRequest<?> request,
+        long hitVersion,
+        Supplier<SortedMap<String, IndexAbstraction>> lookup
+    ) {
+        assertSystemOnlyTaskIsAdmittedOnALoadedNode(request, hitVersion, lookup, lookup.get().firstKey());
+    }
+
+    /**
+     * The node already holds a whole coordinating limit, so a reserve that was checked against the node total would be refused.
+     * A system-only task is searching at once, and its page completes.
+     *
+     * @param hitIndex the index the hit that comes back belongs to
+     */
+    private void assertSystemOnlyTaskIsAdmittedOnALoadedNode(
+        AbstractBulkByPaginatedSearchRequest<?> request,
+        long hitVersion,
+        Supplier<SortedMap<String, IndexAbstraction>> lookup,
+        String hitIndex
+    ) {
+        ScriptedClock clock = new ScriptedClock();
+        IndexingPressure pressure = pressureWhereEveryEstimateHitsTheLimit(between(64 * 1024, 1024 * 1024));
+        Harness harness = new Harness(clock, pressure, request, NoopCircuitBreaker.INSTANCE, null, systemIndicesMatching(".sys*"), lookup);
+        CountingHit hit = harness.hitIn(hitIndex, bytes(between(32, 256)), hitVersion);
+        harness.client.handler = (bulk, listener) -> listener.onResponse(harness.success(bulk, hitVersion == -1L));
+        harness.onDone = harness::finishWithEmptyPage;
+        long limit = pressure.getCoordinatingLimitInBytes();
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
+            harness.start();
+
+            assertThat("a system-only task is not made to wait for what the node holds", harness.client.searches.size(), equalTo(1));
+            assertFalse(clock.hasDeferredTasks());
+            assertThat(harness.chargedBytes(), equalTo(limit + halfTheLimit(pressure)));
+            assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(0L));
+            assertThat(pressure.stats().getCoordinatingRejections(), equalTo(0L));
+
+            harness.feed(List.of(hit));
+            BulkByPaginatedSearchResponse response = harness.listener.actionGet(TimeValue.ZERO);
+            assertThat(response.getUpdated() + response.getCreated() + response.getDeleted(), equalTo(1L));
+            assertThat(hit.releases.get(), equalTo(1));
+            assertThat(pressure.stats().getReindexPageExceedsLimit(), equalTo(0L));
+            assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(0L));
+            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
+        }
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    /**
+     * The node already holds a whole coordinating limit, and the target is not system-only, so the page reserve is checked against the
+     * node total and is refused. The task keeps running with no search sent, and it searches, with half the limit reserved, once the
+     * node lets go.
+     */
+    private void assertTaskWaitsOnALoadedNode(
+        AbstractBulkByPaginatedSearchRequest<?> request,
+        @Nullable SystemIndices systemIndices,
+        Supplier<SortedMap<String, IndexAbstraction>> lookup
+    ) {
+        ScriptedClock clock = new ScriptedClock();
+        IndexingPressure pressure = pressureWhereEveryEstimateHitsTheLimit(between(64 * 1024, 1024 * 1024));
+        Harness harness = new Harness(clock, pressure, request, NoopCircuitBreaker.INSTANCE, null, systemIndices, lookup);
+        long limit = pressure.getCoordinatingLimitInBytes();
+        Releasable other = pressure.markCoordinatingOperationStarted(1, limit, false);
+        try {
+            harness.start();
+
+            assertThat("a task that is not system-only waits for what the node holds", harness.client.searches.size(), equalTo(0));
+            assertTrue("the refused reserve has to be tried again", clock.hasDeferredTasks());
+            assertFalse(harness.listener.isDone());
+            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
+            assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
+            assertThat(pressure.stats().getCoordinatingRejections(), equalTo(0L));
+        } finally {
+            other.close();
+        }
+
+        clock.advanceTime();
+        assertThat(harness.client.searches.size(), equalTo(1));
+        assertThat(harness.chargedBytes(), equalTo(halfTheLimit(pressure)));
+        harness.finishWithEmptyPage();
+        harness.listener.actionGet(TimeValue.ZERO);
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
     private void assertOversizedPageFails(
@@ -1297,28 +1670,77 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
-     * Opens an estimate that was cut down to the coordinating limit, while other bytes up to a whole limit are held. A capped estimate
-     * is admitted whatever the node holds, because it could only ever fit on an empty node. The worker then fetches the page.
+     * An estimate that was cut down to half the coordinating limit is admitted when the node holds coordinating bytes that leave room
+     * for that half. The worker then fetches the page.
      */
-    public void testEstimateCappedAtTheLimitIsAdmittedWhileOtherBytesAreHeld() {
+    public void testCappedEstimateIsAdmittedBesideCoordinatingBytesThatLeaveRoomForHalfTheLimit() {
+        assertCappedEstimateIsAdmittedBesideOtherBytes(false, limit -> between(1, (int) roomBesideAHalfReserve(limit)));
+    }
+
+    /**
+     * An estimate that was cut down to half the coordinating limit is admitted when the node holds replica bytes that leave room for
+     * that half, because the node total counts replica bytes too.
+     */
+    public void testCappedEstimateIsAdmittedBesideReplicaBytesThatLeaveRoomForHalfTheLimit() {
+        assertCappedEstimateIsAdmittedBesideOtherBytes(true, limit -> between(1, (int) roomBesideAHalfReserve(limit)));
+    }
+
+    /**
+     * The node total may equal the limit. A node that holds exactly what leaves room for half the limit still admits the estimate.
+     */
+    public void testCappedEstimateIsAdmittedWhenTheNodeHoldsExactlyTheRoomLeftForHalfTheLimit() {
+        assertCappedEstimateIsAdmittedBesideOtherBytes(false, limit -> roomBesideAHalfReserve(limit));
+    }
+
+    /**
+     * A node holding more than half the limit in coordinating bytes cannot take a capped estimate, so the worker waits and sends no
+     * search. It searches once those bytes are released.
+     */
+    public void testCappedEstimateWaitsBesideCoordinatingBytesAboveHalfTheLimit() {
+        assertCappedEstimateWaitsBesideOtherBytes(false, limit -> between((int) roomBesideAHalfReserve(limit) + 1, (int) limit));
+    }
+
+    /**
+     * A node holding more than half the limit in replica bytes cannot take a capped estimate, so the worker waits and sends no search.
+     * It searches once those bytes are released.
+     */
+    public void testCappedEstimateWaitsBesideReplicaBytesAboveHalfTheLimit() {
+        assertCappedEstimateWaitsBesideOtherBytes(true, limit -> between((int) roomBesideAHalfReserve(limit) + 1, (int) limit));
+    }
+
+    /**
+     * One byte more than the room left for half the limit is enough to make a capped estimate wait.
+     */
+    public void testCappedEstimateWaitsWhenTheNodeHoldsOneByteMoreThanTheRoomLeftForHalfTheLimit() {
+        assertCappedEstimateWaitsBesideOtherBytes(false, limit -> roomBesideAHalfReserve(limit) + 1);
+    }
+
+    /**
+     * What a node may already hold for a reserve of half the limit to fit.
+     */
+    private static long roomBesideAHalfReserve(long limit) {
+        return limit - limit / 2;
+    }
+
+    private void assertCappedEstimateIsAdmittedBesideOtherBytes(boolean otherIsReplica, LongUnaryOperator otherBytesForLimit) {
         int pageSize = between(2, 5);
         ScriptedClock clock = new ScriptedClock();
         long estimate = rawEstimate(clock.getThreadPool(), pageSize);
         long limit = between((int) (estimate / 4), (int) estimate - 1);
         IndexingPressure pressure = pressure(limit);
+        assertThat("the raw estimate is above half the limit, so it is capped", estimate, greaterThan(halfTheLimit(pressure)));
         Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
         CountingHit hit = harness.hit(bytes(between(32, 256)));
         harness.client.handler = (bulk, listener) -> listener.onResponse(harness.success(bulk));
         harness.onDone = harness::finishWithEmptyPage;
-        long otherBytes = between(1, (int) limit);
-        boolean otherIsReplica = randomBoolean();
+        long otherBytes = otherBytesForLimit.applyAsLong(limit);
         long otherCoordinating = otherIsReplica ? 0L : otherBytes;
         try (Releasable ignored = holdOtherBytes(pressure, otherBytes, otherIsReplica)) {
             harness.start();
 
-            assertThat("a capped estimate is not made to wait", harness.client.searches.size(), equalTo(1));
+            assertThat("a capped estimate that fits is not made to wait", harness.client.searches.size(), equalTo(1));
             assertFalse(harness.queue.hasDeferredTasks());
-            assertThat(harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes() + otherCoordinating));
+            assertThat(harness.chargedBytes(), equalTo(halfTheLimit(pressure) + otherCoordinating));
             assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(0L));
             assertThat(pressure.stats().getCoordinatingRejections(), equalTo(0L));
 
@@ -1331,10 +1753,47 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(pressure.stats().getCurrentReplicaBytes(), equalTo(0L));
     }
 
+    private void assertCappedEstimateWaitsBesideOtherBytes(boolean otherIsReplica, LongUnaryOperator otherBytesForLimit) {
+        int pageSize = between(2, 5);
+        ScriptedClock clock = new ScriptedClock();
+        long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        long limit = between((int) (estimate / 4), (int) estimate - 1);
+        IndexingPressure pressure = pressure(limit);
+        assertThat("the raw estimate is above half the limit, so it is capped", estimate, greaterThan(halfTheLimit(pressure)));
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        CountingHit hit = harness.hit(bytes(between(32, 256)));
+        harness.client.handler = (bulk, listener) -> listener.onResponse(harness.success(bulk));
+        harness.onDone = harness::finishWithEmptyPage;
+        long otherBytes = otherBytesForLimit.applyAsLong(limit);
+        long otherCoordinating = otherIsReplica ? 0L : otherBytes;
+        Releasable other = holdOtherBytes(pressure, otherBytes, otherIsReplica);
+        try {
+            harness.start();
+
+            assertThat("a capped estimate that does not fit has to wait", harness.client.searches.size(), equalTo(0));
+            assertTrue("the refused reserve has to be tried again", harness.queue.hasDeferredTasks());
+            assertFalse(harness.listener.isDone());
+            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(otherCoordinating));
+            assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
+            assertThat(pressure.stats().getCoordinatingRejections(), equalTo(0L));
+        } finally {
+            other.close();
+        }
+
+        harness.queue.advanceTime();
+        assertThat(harness.client.searches.size(), equalTo(1));
+        assertThat(harness.chargedBytes(), equalTo(halfTheLimit(pressure)));
+        harness.feed(List.of(hit));
+        assertThat(harness.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
+        assertThat(hit.releases.get(), equalTo(1));
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+        assertThat(pressure.stats().getCurrentReplicaBytes(), equalTo(0L));
+    }
+
     /**
-     * Several workers on one node each want their first page, and every estimate is as big as the coordinating limit. The limit is
-     * a limit on the node, so the workers must not all be admitted together: the node may not hold more coordinating bytes than the
-     * limit, and the ones that do not fit keep waiting.
+     * Several workers on one node each want their first page, and every raw estimate is far above the coordinating limit, so each one
+     * reserves half the limit. Two of them fill the budget on an empty node, so the third is not admitted. The node may not hold more
+     * coordinating bytes than the limit, and the one that does not fit keeps waiting.
      */
     public void testWorkersWithLimitSizedEstimatesDoNotTogetherHoldMoreThanTheCoordinatingLimit() {
         int pageSize = between(1, 3);
@@ -1365,16 +1824,18 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             lessThanOrEqualTo(pressure.getCoordinatingLimitInBytes())
         );
         assertThat(
-            format("every one of the [%d] workers is searching, none is waiting for the others", workers),
+            format("two of the [%d] workers fit together, and the third has to wait for one of them", workers),
             searching,
-            lessThan((long) workers)
+            equalTo(2L)
         );
+        assertThat(charged, equalTo(2 * halfTheLimit(pressure)));
         assertTrue("a worker that does not fit has to be tried again", clock.hasDeferredTasks());
     }
 
     /**
-     * Replica writes already hold a good part of the node's budget. A worker whose estimate is as big as the whole coordinating limit
-     * has to wait for them, because admitting it would put the node well over the limit. It searches once they are gone.
+     * Replica writes already hold a good part of the node's budget. A worker whose estimate is capped at half the coordinating limit
+     * has to wait for them when they leave less than half the limit free, because admitting it would put the node over the limit.
+     * It searches once they are gone.
      */
     public void testWorkerWithALimitSizedEstimateWaitsForReplicaBytesAndThenSearches() {
         int pageSize = between(1, 3);
@@ -1406,11 +1867,11 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         clock.advanceTime();
 
         assertThat(harness.client.searches.size(), equalTo(1));
-        assertThat(harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes()));
+        assertThat(harness.chargedBytes(), equalTo(halfTheLimit(pressure)));
     }
 
     /**
-     * Replica writes hold only a small part of the node's budget, so a worker whose estimate is as big as the coordinating limit
+     * Replica writes hold only a small part of the node's budget, so a worker whose estimate is capped at half the coordinating limit
      * still has to be admitted. Without this a node with a steady trickle of replica writes would never let a reindex search again.
      */
     public void testWorkerWithALimitSizedEstimateIsAdmittedWhenReplicaBytesAreSmall() {
@@ -1434,14 +1895,14 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
                 harness.client.searches.size(),
                 equalTo(1)
             );
-            assertThat(harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes()));
+            assertThat(harness.chargedBytes(), equalTo(halfTheLimit(pressure)));
             assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(0L));
         }
     }
 
     /**
-     * Every page estimate is above the coordinating limit, even for a page of one document, so the estimate is always cut down to the
-     * limit and the worker reserves the limit itself. One byte more than the limit per document is enough, because the estimate is the
+     * Every raw page estimate is above the coordinating limit, even for a page of one document, so the estimate is always cut down to
+     * half the limit and the worker reserves that. One byte more than the limit per document is enough, because the estimate is the
      * per-document bytes times the page size, plus the request context.
      */
     private static IndexingPressure pressureWhereEveryEstimateHitsTheLimit(long limit) {
@@ -1454,10 +1915,22 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
-     * A capped estimate is admitted without forcing the reservation. A page that is not a system page and whose own size is above the
-     * limit therefore still fails when it arrives, and the charge it held is given back.
+     * A capped estimate is admitted without forcing the reservation, beside coordinating bytes that leave room for half the limit. A
+     * page that is not a system page and whose own size is above the limit therefore still fails when it arrives, and the charge it
+     * held is given back.
      */
-    public void testPageLargerThanTheLimitStillFailsAfterACappedEstimateWasAdmitted() {
+    public void testPageLargerThanTheLimitStillFailsAfterACappedEstimateWasAdmittedBesideCoordinatingBytes() {
+        assertPageLargerThanTheLimitFailsAfterACappedEstimateWasAdmitted(false);
+    }
+
+    /**
+     * As {@link #testPageLargerThanTheLimitStillFailsAfterACappedEstimateWasAdmittedBesideCoordinatingBytes}, beside replica bytes.
+     */
+    public void testPageLargerThanTheLimitStillFailsAfterACappedEstimateWasAdmittedBesideReplicaBytes() {
+        assertPageLargerThanTheLimitFailsAfterACappedEstimateWasAdmitted(true);
+    }
+
+    private void assertPageLargerThanTheLimitFailsAfterACappedEstimateWasAdmitted(boolean otherIsReplica) {
         int pageSize = between(2, 5);
         ScriptedClock clock = new ScriptedClock();
         long estimate = rawEstimate(clock.getThreadPool(), pageSize);
@@ -1465,8 +1938,8 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         IndexingPressure pressure = pressure(limit);
         Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
         CountingHit hit = harness.hit(bytes((int) limit + between(1_024, 4_096)));
-        long otherBytes = between(1, (int) limit);
-        boolean otherIsReplica = randomBoolean();
+        // Little enough that a reserve of half the limit is admitted beside it.
+        long otherBytes = between(1, (int) roomBesideAHalfReserve(limit));
         long otherCoordinating = otherIsReplica ? 0L : otherBytes;
         try (Releasable ignored = holdOtherBytes(pressure, otherBytes, otherIsReplica)) {
             harness.start();
@@ -1486,19 +1959,32 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
-     * An estimate that fits under the limit, and so was not capped, waits when the budget is full. Each refused attempt counts as a
-     * reserve rejection. None counts as a coordinating rejection, because no client sees a 429 for it.
+     * An estimate that is under half the limit, and so was not capped, waits when the budget is full of coordinating bytes. Each refused
+     * attempt counts as a reserve rejection. None counts as a coordinating rejection, because no client sees a 429 for it.
      */
-    public void testRefusedUncappedReserveCountsReserveRejectionsAndNoCoordinatingRejections() {
+    public void testRefusedUncappedReserveBesideCoordinatingBytesCountsReserveRejectionsAndNoCoordinatingRejections() {
+        assertRefusedUncappedReserveCountsReserveRejectionsAndNoCoordinatingRejections(false);
+    }
+
+    /**
+     * As {@link #testRefusedUncappedReserveBesideCoordinatingBytesCountsReserveRejectionsAndNoCoordinatingRejections}, with the budget
+     * full of replica bytes.
+     */
+    public void testRefusedUncappedReserveBesideReplicaBytesCountsReserveRejectionsAndNoCoordinatingRejections() {
+        assertRefusedUncappedReserveCountsReserveRejectionsAndNoCoordinatingRejections(true);
+    }
+
+    private void assertRefusedUncappedReserveCountsReserveRejectionsAndNoCoordinatingRejections(boolean otherIsReplica) {
         int pageSize = between(1, 3);
         ScriptedClock clock = new ScriptedClock();
-        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
+        long estimate = rawEstimate(clock.getThreadPool(), pageSize);
+        // Half of this is above the raw estimate, so the reserve is the raw estimate and nothing cuts it down.
+        long limit = 2 * estimate + between(0, 4_096);
         IndexingPressure pressure = pressure(limit);
         Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
         CountingHit hit = harness.hit(bytes(between(32, 256)));
         harness.client.handler = (bulk, listener) -> listener.onResponse(harness.success(bulk));
         harness.onDone = harness::finishWithEmptyPage;
-        boolean otherIsReplica = randomBoolean();
         Releasable other = otherIsReplica
             ? pressure.markReplicaOperationStarted(1, limit, false)
             : pressure.markCoordinatingOperationStarted(1, limit, false);
@@ -1520,6 +2006,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
         harness.queue.advanceTime();
         assertThat(harness.client.searches.size(), equalTo(1));
+        assertThat("the whole raw estimate, as it is under half the limit", harness.chargedBytes(), equalTo(estimate));
         harness.feed(List.of(hit));
         assertThat(harness.listener.actionGet(TimeValue.ZERO).getUpdated(), equalTo(1L));
         assertThat(pressure.stats().getCoordinatingRejections(), equalTo(0L));
@@ -1584,6 +2071,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             assertThat(harness.client.searches.size(), equalTo(0));
             assertThat(harness.client.bulks, equalTo(List.of()));
             assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
+            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
         }
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
@@ -1609,24 +2097,37 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
             assertThat(harness.client.searches.size(), equalTo(0));
             assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
+            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
         }
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
     /**
      * Cancelling lands while the retry attempt is itself running, in the middle of its reserve. The scheduler's handle can no longer
-     * stop it, so its cancel returns false. Whether that reserve is refused again or now fits, the task must finish and the
-     * charge, if one was taken, must be given back.
+     * stop it, so its cancel returns false. The other holder is still there when that reserve runs, so it is refused again, and the
+     * task must still finish.
      */
-    public void testCancelWhileTheReservationRetryIsRunningFinishesTheTaskAndLeaksNoCharge() {
+    public void testCancelWhileTheReservationRetryIsRunningAndStillRefusedFinishesTheTask() {
+        assertCancelWhileTheReservationRetryIsRunningFinishesTheTaskAndLeaksNoCharge(false);
+    }
+
+    /**
+     * Cancelling lands while the retry attempt is itself running, in the middle of its reserve, and the other holder lets go first so
+     * that the reserve now fits. The task must finish and the charge that was taken must be given back.
+     */
+    public void testCancelWhileTheReservationRetryIsRunningAndNowFitsFinishesTheTaskAndLeaksNoCharge() {
+        assertCancelWhileTheReservationRetryIsRunningFinishesTheTaskAndLeaksNoCharge(true);
+    }
+
+    private void assertCancelWhileTheReservationRetryIsRunningFinishesTheTaskAndLeaksNoCharge(boolean otherLetsGoFirst) {
         int pageSize = between(1, 3);
         ScriptedClock clock = new ScriptedClock();
         long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
         HookedPressure pressure = new HookedPressure(limit);
         Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
         clock.cancelReturnsFalse = true;
-        boolean otherLetsGoFirst = randomBoolean();
-        // Closed by the hook in one case and by the finally block in the other, so closing it twice has to be harmless.
+        // Closed by the hook when the other holder lets go first, and by the finally block otherwise, so closing it twice has to be
+        // harmless.
         Releasable other = Releasables.releaseOnce(pressure.markCoordinatingOperationStarted(1, limit, false));
         try {
             harness.start();
@@ -1644,8 +2145,99 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             assertThat(harness.client.searches.size(), equalTo(0));
             assertThat(harness.client.bulks, equalTo(List.of()));
             assertThat(harness.chargedBytes(), equalTo(otherLetsGoFirst ? 0L : limit));
+            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
         } finally {
             other.close();
+        }
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    /**
+     * Cancelling lands after the worker scheduled its retry and before it attached the scheduler's handle to it, and this time the
+     * handle's cancel returns true, which says the attempt will not run. Attaching the handle is what finishes the task, and it does
+     * so once. No attempt is left queued, and the charge must not leak.
+     */
+    public void testCancelBeforeTheReservationRetryIsAttachedFinishesTheTaskOnceWhenCancelReturnsTrue() {
+        int pageSize = between(1, 3);
+        ScriptedClock clock = new ScriptedClock();
+        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
+        IndexingPressure pressure = pressure(limit);
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        clock.cancelReturnsFalse = false;
+        clock.duringNextSchedule = () -> harness.taskManager.cancel(harness.task, "stopped", () -> {});
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
+            harness.start();
+
+            assertTrue("the cancelled task must not be left waiting", harness.listener.isDone());
+            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
+            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
+            assertFalse("the cancelled attempt must not be left queued", clock.hasDeferredTasks());
+            assertThat(harness.client.searches.size(), equalTo(0));
+            assertThat(harness.client.bulks, equalTo(List.of()));
+            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
+        }
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    /**
+     * Cancelling lands while the retry is scheduled and attached, and the handle's cancel returns true, which says the attempt will not
+     * run. The cancel listener finishes the task, once, and no attempt is left queued.
+     */
+    public void testCancelWhileTheReservationRetryIsScheduledFinishesTheTaskOnceWhenCancelReturnsTrue() {
+        int pageSize = between(1, 3);
+        ScriptedClock clock = new ScriptedClock();
+        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
+        IndexingPressure pressure = pressure(limit);
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        clock.cancelReturnsFalse = false;
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
+            harness.start();
+            assertTrue(clock.hasDeferredTasks());
+            assertFalse(harness.listener.isDone());
+
+            harness.taskManager.cancel(harness.task, "stopped", () -> {});
+
+            assertTrue("the cancelled task must not be left waiting", harness.listener.isDone());
+            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
+            assertThat("the task finishes once", harness.listener.completions.get(), equalTo(1));
+            assertFalse("the cancelled attempt must not be left queued", clock.hasDeferredTasks());
+            assertThat(harness.client.searches.size(), equalTo(0));
+            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
+        }
+        assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+    }
+
+    /**
+     * The hand-off. The scheduler's cancel returns true, so the cancel listener finishes the task, and then the queued command still
+     * runs, as it can when it was already on its way. The listener has completed by then, and the late command must neither complete
+     * it again, nor reserve, nor search.
+     */
+    public void testQueuedReservationRetryThatRunsAfterTheCancelListenerDoesNotFinishTheTaskTwice() {
+        int pageSize = between(1, 3);
+        ScriptedClock clock = new ScriptedClock();
+        long limit = rawEstimate(clock.getThreadPool(), pageSize) + between(0, 4_096);
+        IndexingPressure pressure = pressure(limit);
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        clock.cancelReturnsTrueButCommandStillRuns = true;
+        try (Releasable ignored = pressure.markCoordinatingOperationStarted(1, limit, false)) {
+            harness.start();
+            assertTrue(clock.hasDeferredTasks());
+            assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
+
+            harness.taskManager.cancel(harness.task, "stopped", () -> {});
+            assertTrue("the cancel listener finishes the task", harness.listener.isDone());
+            assertThat(harness.listener.completions.get(), equalTo(1));
+            assertTrue("the command is still queued", clock.hasDeferredTasks());
+
+            clock.advanceTime();
+
+            assertThat("the late command does not finish the task again", harness.listener.completions.get(), equalTo(1));
+            assertThat(harness.listener.actionGet(TimeValue.ZERO).getReasonCancelled(), equalTo("stopped"));
+            assertThat("the late command does not reserve", pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
+            assertFalse(clock.hasDeferredTasks());
+            assertThat(harness.client.searches.size(), equalTo(0));
+            assertThat(harness.client.bulks, equalTo(List.of()));
+            assertThat("only the other holder's bytes", harness.chargedBytes(), equalTo(limit));
         }
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
@@ -1662,9 +2254,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
 
     /**
      * A page count times a per-document setting that wraps around must not reserve a negative number, which would shrink the node's
-     * total. It is capped at the coordinating limit like any other estimate larger than the limit.
+     * total. It falls back to half the coordinating limit, which is where any other estimate above that is capped.
      */
-    public void testOverflowingEstimateReservesTheCoordinatingLimitAndNeverGoesNegative() {
+    public void testOverflowingEstimateReservesHalfTheCoordinatingLimitAndNeverGoesNegative() {
         int pageSize = between(2, 1_000);
         long perDocument = Long.MAX_VALUE / pageSize + between(1, 1_000);
         assertThat("the product has to overflow for this test to mean anything", (long) pageSize * perDocument, lessThan(0L));
@@ -1680,7 +2272,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         harness.start();
 
         assertThat(harness.client.searches.size(), equalTo(1));
-        assertThat(harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes()));
+        assertThat(harness.chargedBytes(), equalTo(halfTheLimit(pressure)));
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), greaterThanOrEqualTo(0L));
         assertThat(pressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThanOrEqualTo(0L));
         assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(0L));
@@ -1760,9 +2352,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         }
 
         @Override
-        public Coordinating reserveReindexPage(int operations, long bytes, boolean cappedAtLimit) {
+        public Coordinating reserveReindexPage(int operations, long bytes, boolean systemOnly) {
             beforeReserve.run();
-            return super.reserveReindexPage(operations, bytes, cappedAtLimit);
+            return super.reserveReindexPage(operations, bytes, systemOnly);
         }
     }
 
@@ -1771,6 +2363,13 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
      */
     private static Releasable holdOtherBytes(IndexingPressure pressure, long bytes, boolean replica) {
         return replica ? pressure.markReplicaOperationStarted(1, bytes, false) : pressure.markCoordinatingOperationStarted(1, bytes, false);
+    }
+
+    /**
+     * The most a page estimate may reserve. Two reserves of this size fill the budget on an empty node.
+     */
+    private static long halfTheLimit(IndexingPressure pressure) {
+        return pressure.getCoordinatingLimitInBytes() / 2;
     }
 
     private static SystemIndices systemIndicesMatching(String pattern) {
@@ -1840,8 +2439,8 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         return deleteRequest(pageSize, randomAlphaOfLength(6));
     }
 
-    private static DeleteByQueryRequest deleteRequest(int pageSize, String index) {
-        DeleteByQueryRequest request = new DeleteByQueryRequest(index);
+    private static DeleteByQueryRequest deleteRequest(int pageSize, String... indices) {
+        DeleteByQueryRequest request = new DeleteByQueryRequest(indices);
         request.getSearchRequest().source().size(pageSize);
         request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
         return request;
@@ -1935,16 +2534,16 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         }
 
         @Override
-        public Coordinating reserveReindexPage(int operations, long bytes, boolean cappedAtLimit) {
+        public Coordinating reserveReindexPage(int operations, long bytes, boolean systemOnly) {
             bytesBeforeReservation.add(stats().getCurrentCoordinatingBytes());
-            return super.reserveReindexPage(operations, bytes, cappedAtLimit);
+            return super.reserveReindexPage(operations, bytes, systemOnly);
         }
     }
 
     private final class Harness {
         final ScriptedClock queue;
         final IndexingPressure pressure;
-        final PlainActionFuture<BulkByPaginatedSearchResponse> listener = new PlainActionFuture<>();
+        final CountingListener listener = new CountingListener();
         final RecordingClient client;
         final TaskManager taskManager;
         final BulkByPaginatedSearchTask task;
@@ -2102,6 +2701,26 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         }
     }
 
+    /**
+     * The task's listener, counting how often it is completed. A plain future ignores a second completion, and a task has to finish
+     * exactly once however many paths try to finish it.
+     */
+    private static final class CountingListener extends PlainActionFuture<BulkByPaginatedSearchResponse> {
+        final AtomicInteger completions = new AtomicInteger();
+
+        @Override
+        public void onResponse(BulkByPaginatedSearchResponse result) {
+            completions.incrementAndGet();
+            super.onResponse(result);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            completions.incrementAndGet();
+            super.onFailure(e);
+        }
+    }
+
     private static final class RecordingClient extends FilterClient {
         final List<BulkRequest> bulks = new ArrayList<>();
         final List<ActionListener<SearchResponse>> searches = new ArrayList<>();
@@ -2168,6 +2787,11 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
          * attempt that is already running or already ran.
          */
         boolean cancelReturnsFalse;
+        /**
+         * When true a held attempt answers {@code cancel()} with true, saying it will not run, and yet stays in the queue so the test can
+         * still run it afterwards. That is the hand-off: the cancel listener finishes the task, and the queued command then arrives late.
+         */
+        boolean cancelReturnsTrueButCommandStillRuns;
         /**
          * Runs once, inside the next call that holds a delayed attempt, before the scheduler hands back its cancellable. That is the
          * window in which the task can be cancelled before the worker has attached the cancellable to its attempt.
@@ -2279,6 +2903,9 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
                     }
                     if (cancelled.compareAndSet(false, true) == false) {
                         return false;
+                    }
+                    if (cancelReturnsTrueButCommandStillRuns) {
+                        return true;
                     }
                     return deferred.remove(held);
                 }

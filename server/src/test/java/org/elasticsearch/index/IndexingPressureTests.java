@@ -388,6 +388,144 @@ public class IndexingPressureTests extends ESTestCase {
         assertEquals(0, indexingPressure.stats().getCoordinatingRejections());
     }
 
+    /**
+     * A reindex page reserve that fits on an empty node is held as coordinating bytes and operations, until it is released.
+     */
+    public void testReserveReindexPageIsAdmittedAndHeldUntilReleased() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        int operations = between(1, 10);
+        long bytes = between(1, 10 * 1024);
+
+        try (IndexingPressure.Coordinating page = indexingPressure.reserveReindexPage(operations, bytes, false)) {
+            assertEquals(bytes, page.currentBytes());
+            IndexingPressureStats stats = indexingPressure.stats();
+            assertEquals(bytes, stats.getCurrentCoordinatingBytes());
+            assertEquals(bytes, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
+            assertEquals(operations, stats.getCurrentCoordinatingOps());
+            assertEquals(0, stats.getCoordinatingRejections());
+        }
+
+        IndexingPressureStats stats = indexingPressure.stats();
+        assertEquals(0, stats.getCurrentCoordinatingBytes());
+        assertEquals(0, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(0, stats.getCurrentCoordinatingOps());
+    }
+
+    /**
+     * A reserve that brings the node's total exactly to the coordinating limit is admitted, as the limit is only passed by one byte more.
+     */
+    public void testReserveReindexPageBringingTheNodeExactlyToTheLimitIsAdmitted() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        long held = between(1, 5 * 1024);
+        try (
+            Releasable other = indexingPressure.markCoordinatingOperationStarted(1, held, false);
+            IndexingPressure.Coordinating page = indexingPressure.reserveReindexPage(1, 10 * 1024 - held, false)
+        ) {
+            assertEquals(10 * 1024, indexingPressure.stats().getCurrentCoordinatingBytes());
+            assertEquals(0, indexingPressure.stats().getCoordinatingRejections());
+        }
+    }
+
+    /**
+     * A reserve is refused when coordinating bytes held by others leave too little room. The refusal does not count in
+     * {@code coordinating_rejections} and nothing stays reserved.
+     */
+    public void testReserveReindexPageRefusedBesideCoordinatingBytesIsNotCountedAsACoordinatingRejection() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        long held = between(5 * 1024, 10 * 1024);
+        try (Releasable other = indexingPressure.markCoordinatingOperationStarted(1, held, false)) {
+            long room = 10 * 1024 - held;
+            expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.reserveReindexPage(1, room + 1, false));
+
+            IndexingPressureStats stats = indexingPressure.stats();
+            assertEquals(0, stats.getCoordinatingRejections());
+            assertEquals(held, stats.getCurrentCoordinatingBytes());
+            assertEquals(held, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
+            assertEquals(1, stats.getCurrentCoordinatingOps());
+        }
+    }
+
+    /**
+     * A reserve is refused when primary bytes held by others leave too little room, because coordinating and primary bytes share one
+     * total. The refusal does not count as a coordinating or a primary rejection.
+     */
+    public void testReserveReindexPageRefusedBesidePrimaryBytesIsNotCountedAsARejection() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        long held = between(5 * 1024, 10 * 1024);
+        try (Releasable other = indexingPressure.markPrimaryOperationStarted(1, held, false)) {
+            long room = 10 * 1024 - held;
+            expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.reserveReindexPage(1, room + 1, false));
+
+            IndexingPressureStats stats = indexingPressure.stats();
+            assertEquals(0, stats.getCoordinatingRejections());
+            assertEquals(0, stats.getPrimaryRejections());
+            assertEquals(held, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
+            assertEquals(0, stats.getCurrentCoordinatingBytes());
+        }
+    }
+
+    /**
+     * A reserve is refused when replica bytes held by others leave too little room, because the node total counts replica bytes. The
+     * refusal does not count as a coordinating or a replica rejection.
+     */
+    public void testReserveReindexPageRefusedBesideReplicaBytesIsNotCountedAsARejection() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        long held = between(5 * 1024, 10 * 1024);
+        try (Releasable other = indexingPressure.markReplicaOperationStarted(1, held, false)) {
+            long room = 10 * 1024 - held;
+            expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.reserveReindexPage(1, room + 1, false));
+
+            IndexingPressureStats stats = indexingPressure.stats();
+            assertEquals(0, stats.getCoordinatingRejections());
+            assertEquals(0, stats.getReplicaRejections());
+            assertEquals(held, stats.getCurrentReplicaBytes());
+            assertEquals(0, stats.getCurrentCoordinatingBytes());
+            assertEquals(0, stats.getCurrentCombinedCoordinatingAndPrimaryBytes());
+        }
+    }
+
+    /**
+     * A system-only reserve skips the node total check, so it is admitted beside coordinating bytes that would make a normal reserve
+     * of the same size wait.
+     */
+    public void testSystemOnlyReserveReindexPageIsAdmittedWhileTheNodeHoldsCoordinatingBytes() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        long held = between(6 * 1024, 10 * 1024);
+        long bytes = between(5 * 1024, 10 * 1024);
+        try (Releasable other = indexingPressure.markCoordinatingOperationStarted(1, held, false)) {
+            expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.reserveReindexPage(1, bytes, false));
+            assertEquals(held, indexingPressure.stats().getCurrentCoordinatingBytes());
+
+            try (IndexingPressure.Coordinating page = indexingPressure.reserveReindexPage(1, bytes, true)) {
+                assertEquals(bytes, page.currentBytes());
+                assertEquals(held + bytes, indexingPressure.stats().getCurrentCoordinatingBytes());
+                assertEquals(held + bytes, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                assertEquals(0, indexingPressure.stats().getCoordinatingRejections());
+            }
+            assertEquals(held, indexingPressure.stats().getCurrentCoordinatingBytes());
+        }
+    }
+
+    /**
+     * A system-only reserve is admitted beside replica bytes that would make a normal reserve of the same size wait.
+     */
+    public void testSystemOnlyReserveReindexPageIsAdmittedWhileTheNodeHoldsReplicaBytes() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        long held = between(6 * 1024, 10 * 1024);
+        long bytes = between(5 * 1024, 10 * 1024);
+        try (Releasable other = indexingPressure.markReplicaOperationStarted(1, held, false)) {
+            expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.reserveReindexPage(1, bytes, false));
+
+            try (IndexingPressure.Coordinating page = indexingPressure.reserveReindexPage(1, bytes, true)) {
+                assertEquals(bytes, page.currentBytes());
+                assertEquals(bytes, indexingPressure.stats().getCurrentCoordinatingBytes());
+                assertEquals(held, indexingPressure.stats().getCurrentReplicaBytes());
+                assertEquals(0, indexingPressure.stats().getCoordinatingRejections());
+            }
+            assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());
+        }
+    }
+
     public void testCoordinatingIncreaseBytesLeavesTheTotalsAtTheFirstReserve() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         IndexingPressure.Coordinating coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024, false);

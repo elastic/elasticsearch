@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +48,15 @@ import static org.hamcrest.Matchers.not;
 public class ReplaceAnyParamsTests extends ESTestCase {
 
     private static final String ANY = QuerySettings.PARAM_ANY_VALUE_DEFAULT;
+
+    /**
+     * The analyzer here follows the build, and release builds don't apply the default value of the setting, so no parameter stands
+     * for "Any" in them.
+     */
+    @BeforeClass
+    public static void requireAnyParam() {
+        assumeTrue("requires the Any conditions replacement", EsqlCapabilities.Cap.PARAM_ANY_VALUE_V3.isEnabled());
+    }
 
     @Override
     protected List<String> filteredWarnings() {

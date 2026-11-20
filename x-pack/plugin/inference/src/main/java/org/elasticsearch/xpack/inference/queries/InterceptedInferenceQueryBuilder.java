@@ -123,6 +123,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     /**
+     * Returns coordinator inference results for query capture, keyed by cluster and inference endpoint.
+     * An empty map means no results are available. Consumers must treat the results as read-only.
+     */
+    public Map<FullyQualifiedInferenceId, InferenceResults> getInferenceResults() {
+        return inferenceResultsMap == null ? Map.of() : inferenceResultsMap;
+    }
+
+    /**
      * <p>
      * Get the fields queried by the original query.
      * </p>

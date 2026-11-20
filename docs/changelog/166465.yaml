@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 166465
+summary: Add capture point after rewrite for semantic text vectors
+type: enhancement

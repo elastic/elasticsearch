@@ -230,50 +230,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
         CircuitBreaker circuitBreaker,
-        String breakerLabel
-    ) {
-        // No indexing pressure was given, so this action does not reserve a charge of its own.
-        this(
-            task,
-            needsSourceDocumentVersions,
-            needsSourceDocumentSeqNoAndPrimaryTerm,
-            needsVectors,
-            logger,
-            client,
-            threadPool,
-            mainRequest,
-            listener,
-            scriptService,
-            sslConfig,
-            bulkByPaginatedSearchSearchContextMetrics,
-            bulkByPaginatedSearchTaskKind,
-            remoteBulkByPaginatedSearch,
-            maxTaskShutdownGracePeriod,
-            reindexSettings,
-            circuitBreaker,
-            breakerLabel,
-            null
-        );
-    }
-
-    AbstractAsyncBulkByPaginatedSearchAction(
-        BulkByPaginatedSearchTask task,
-        boolean needsSourceDocumentVersions,
-        boolean needsSourceDocumentSeqNoAndPrimaryTerm,
-        boolean needsVectors,
-        Logger logger,
-        ParentTaskAssigningClient client,
-        ThreadPool threadPool,
-        Request mainRequest,
-        ActionListener<BulkByPaginatedSearchResponse> listener,
-        @Nullable ScriptService scriptService,
-        @Nullable ReindexSslConfig sslConfig,
-        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
-        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
-        boolean remoteBulkByPaginatedSearch,
-        TimeValue maxTaskShutdownGracePeriod,
-        ReindexSettings reindexSettings,
-        CircuitBreaker circuitBreaker,
         String breakerLabel,
         @Nullable IndexingPressure indexingPressure
     ) {
@@ -299,54 +255,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             circuitBreaker,
             breakerLabel,
             indexingPressure
-        );
-    }
-
-    AbstractAsyncBulkByPaginatedSearchAction(
-        BulkByPaginatedSearchTask task,
-        boolean needsSourceDocumentVersions,
-        boolean needsSourceDocumentSeqNoAndPrimaryTerm,
-        boolean needsVectors,
-        Logger logger,
-        ParentTaskAssigningClient searchClient,
-        ParentTaskAssigningClient bulkClient,
-        ThreadPool threadPool,
-        Request mainRequest,
-        ActionListener<BulkByPaginatedSearchResponse> listener,
-        @Nullable ScriptService scriptService,
-        @Nullable ReindexSslConfig sslConfig,
-        @Nullable Version remoteVersion,
-        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
-        BulkByPaginatedSearchSearchContextMetrics.TaskKind bulkByPaginatedSearchTaskKind,
-        boolean remoteBulkByPaginatedSearch,
-        TimeValue maxTaskShutdownGracePeriod,
-        ReindexSettings reindexSettings,
-        CircuitBreaker circuitBreaker,
-        String breakerLabel
-    ) {
-        // No indexing pressure was given, so this action does not reserve a charge of its own.
-        this(
-            task,
-            needsSourceDocumentVersions,
-            needsSourceDocumentSeqNoAndPrimaryTerm,
-            needsVectors,
-            logger,
-            searchClient,
-            bulkClient,
-            threadPool,
-            mainRequest,
-            listener,
-            scriptService,
-            sslConfig,
-            remoteVersion,
-            bulkByPaginatedSearchSearchContextMetrics,
-            bulkByPaginatedSearchTaskKind,
-            remoteBulkByPaginatedSearch,
-            maxTaskShutdownGracePeriod,
-            reindexSettings,
-            circuitBreaker,
-            breakerLabel,
-            null
         );
     }
 

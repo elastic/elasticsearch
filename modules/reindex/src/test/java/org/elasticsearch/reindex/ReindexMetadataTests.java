@@ -115,7 +115,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActi
                 randomPositiveTimeValue(),
                 null,
                 new ReindexSettings(),
-                NoopCircuitBreaker.INSTANCE
+                NoopCircuitBreaker.INSTANCE,
+                null
             );
         }
 

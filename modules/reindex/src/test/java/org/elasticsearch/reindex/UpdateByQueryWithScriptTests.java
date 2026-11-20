@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -75,7 +76,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSe
             null,
             null,
             new ReindexSettings(),
-            circuitBreakerService
+            circuitBreakerService,
+            new IndexingPressure(Settings.EMPTY)
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
             task,
@@ -88,7 +90,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSe
             randomPositiveTimeValue(),
             null,
             new ReindexSettings(),
-            NoopCircuitBreaker.INSTANCE
+            NoopCircuitBreaker.INSTANCE,
+            null
         );
     }
 }

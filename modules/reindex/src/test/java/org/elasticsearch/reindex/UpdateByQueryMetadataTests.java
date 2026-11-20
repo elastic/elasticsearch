@@ -48,7 +48,8 @@ public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByPaginatedSear
                 randomPositiveTimeValue(),
                 null,
                 new ReindexSettings(),
-                NoopCircuitBreaker.INSTANCE
+                NoopCircuitBreaker.INSTANCE,
+                null
             );
         }
 

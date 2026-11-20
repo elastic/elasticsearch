@@ -163,42 +163,6 @@ public class Reindexer {
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
         TaskResultsService taskResultsService,
-        CircuitBreakerService circuitBreakerService
-    ) {
-        // No indexing pressure was given, so bulks stay unaccounted and the node charges each attempt.
-        this(
-            clusterService,
-            reindexSettings,
-            projectResolver,
-            client,
-            threadPool,
-            scriptService,
-            reindexSslConfig,
-            reindexMetrics,
-            bulkByPaginatedSearchSearchContextMetrics,
-            transportService,
-            relocationNodePicker,
-            featureService,
-            taskResultsService,
-            circuitBreakerService,
-            null
-        );
-    }
-
-    Reindexer(
-        ClusterService clusterService,
-        ReindexSettings reindexSettings,
-        ProjectResolver projectResolver,
-        Client client,
-        ThreadPool threadPool,
-        ScriptService scriptService,
-        ReindexSslConfig reindexSslConfig,
-        @Nullable ReindexMetrics reindexMetrics,
-        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
-        TransportService transportService,
-        ReindexRelocationNodePicker relocationNodePicker,
-        FeatureService featureService,
-        TaskResultsService taskResultsService,
         CircuitBreakerService circuitBreakerService,
         @Nullable IndexingPressure indexingPressure
     ) {
@@ -1039,44 +1003,6 @@ public class Reindexer {
          * instead we let it create threads but we watch them carefully and assert that they are dead when the process is over.
          */
         private List<Thread> createdThreads = emptyList();
-
-        AsyncIndexBySearchAction(
-            BulkByPaginatedSearchTask task,
-            Logger logger,
-            ParentTaskAssigningClient searchClient,
-            ParentTaskAssigningClient bulkClient,
-            ThreadPool threadPool,
-            ScriptService scriptService,
-            ProjectState state,
-            ReindexSslConfig sslConfig,
-            ReindexRequest request,
-            ActionListener<BulkByPaginatedSearchResponse> listener,
-            @Nullable Version remoteVersion,
-            TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
-            ReindexSettings reindexSettings,
-            CircuitBreaker requestBreaker
-        ) {
-            // No indexing pressure was given, so bulks stay unaccounted and the node charges each attempt.
-            this(
-                task,
-                logger,
-                searchClient,
-                bulkClient,
-                threadPool,
-                scriptService,
-                state,
-                sslConfig,
-                request,
-                listener,
-                remoteVersion,
-                maxTaskShutdownGracePeriod,
-                bulkByPaginatedSearchSearchContextMetrics,
-                reindexSettings,
-                requestBreaker,
-                null
-            );
-        }
 
         AsyncIndexBySearchAction(
             BulkByPaginatedSearchTask task,

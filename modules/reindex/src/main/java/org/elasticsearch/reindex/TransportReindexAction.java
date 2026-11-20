@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Objects;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByPaginatedSearchResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.stringListSetting(
@@ -123,6 +124,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         IndexingPressure indexingPressure
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        Objects.requireNonNull(indexingPressure, "indexingPressure must not be null");
         this.client = client;
         this.reindexValidator = new ReindexValidator(
             settings,

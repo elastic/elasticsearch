@@ -49,39 +49,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
-    /** Null when this action was not given the node's indexing pressure. Bulks then stay unaccounted. */
-    @Nullable
     private final IndexingPressure indexingPressure;
-
-    public TransportDeleteByQueryAction(
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        Client client,
-        TransportService transportService,
-        ScriptService scriptService,
-        ClusterService clusterService,
-        ProjectResolver projectResolver,
-        @Nullable DeleteByQueryMetrics deleteByQueryMetrics,
-        @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
-        ReindexSettings reindexSettings,
-        CircuitBreakerService circuitBreakerService
-    ) {
-        // No indexing pressure was given, so bulks stay unaccounted and the node charges each attempt.
-        this(
-            threadPool,
-            actionFilters,
-            client,
-            transportService,
-            scriptService,
-            clusterService,
-            projectResolver,
-            deleteByQueryMetrics,
-            bulkByPaginatedSearchSearchContextMetrics,
-            reindexSettings,
-            circuitBreakerService,
-            null
-        );
-    }
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -96,7 +64,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService,
-        @Nullable IndexingPressure indexingPressure
+        IndexingPressure indexingPressure
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -115,7 +83,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
             "REQUEST circuit breaker must be available — delete-by-query relies on it for per-batch heap reservations"
         );
-        this.indexingPressure = indexingPressure;
+        this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure must not be null");
     }
 
     @Override

@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
+
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -21,16 +25,24 @@ record StreamOptions(Store store, long maxRows, long maxBytes) {
 
     /** The values of the {@code store} body field. */
     enum Store {
-        /** The response has no storage behind it. */
-        NONE;
+        /** No pages stored. */
+        NONE,
+        /** Only pages that are not consumed immediately are stored. */
+        OVERFLOW,
+        /** All pages are stored. */
+        ALL;
+
+        private static final List<Store> STORE_MODES = EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()
+            ? List.of(values())
+            : List.of(NONE);
 
         static Store fromString(String value) {
-            for (Store store : values()) {
+            for (Store store : STORE_MODES) {
                 if (store.toString().equals(value)) {
                     return store;
                 }
             }
-            throw new IllegalArgumentException("[store] only supports [" + NONE + "] for now, got [" + value + "]");
+            throw new IllegalArgumentException("[store] must be one of " + Arrays.toString(values()) + ", got [" + value + "]");
         }
 
         @Override
@@ -66,11 +78,11 @@ record StreamOptions(Store store, long maxRows, long maxBytes) {
     /** Collects the raw body values while parsing, then validates them together in {@link #build()}. */
     static final class Builder {
         // null means the field was not in the body; this keeps a user-supplied -1 distinguishable from "unset"
-        private String store;
+        private Store store;
         private Long maxRows;
         private Long maxBytes;
 
-        void store(String store) {
+        void store(Store store) {
             this.store = store;
         }
 
@@ -83,7 +95,7 @@ record StreamOptions(Store store, long maxRows, long maxBytes) {
         }
 
         StreamOptions build() {
-            Store parsedStore = store == null ? Store.NONE : Store.fromString(store);
+            Store parsedStore = store == null ? Store.NONE : store;
             if (maxRows != null && maxRows < 0) {
                 throw new IllegalArgumentException("[max_rows] must be greater than or equal to 0, got [" + maxRows + "]");
             }

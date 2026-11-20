@@ -521,6 +521,54 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
+    public void testAntUsageRuleIgnoresStringLiterals() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "subproject/build.gradle",
+            List.of(
+                "tasks.register('x') { description = 'Replaces the former project.ant based task' }",
+                "def a = \"uses ant.copy and getAnt() in text\"",
+                "def b = '''",
+                "  project.ant { echo(message: 'x') }",
+                "'''",
+                "def c = $/ant.move(file: 'a') and a $$ and $/ escape/$"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testAntUsageRuleChecksCodeAfterCommentMarkersInStrings() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "subproject/build.gradle",
+            List.of(
+                "def glob = $/src/*.txt/$",
+                "ant.echo(message: 'x')",
+                "def url = 'http://example.com/*'",
+                "def message = \"${project.ant.properties['x']}\""
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            String message = e.getMessage();
+            assertTrue(message.contains("[ant-usage] subproject/build.gradle:2"));
+            assertTrue(message.contains("[ant-usage] subproject/build.gradle:4"));
+            assertEquals(2, message.lines().filter(l -> l.startsWith("- [ant-usage]")).count());
+        }
+    }
+
+    @Test
     public void testEagerTestSeedRuleOnlyAppliesToBuildScripts() throws Exception {
         Project project = createProject();
         File scriptPlugin = writeFile(

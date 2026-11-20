@@ -248,7 +248,8 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     static final String ANT_USAGE_RULE_ID = "ant-usage";
 
     /**
-     * Matches Ant usages in code (comments are blanked out before matching, see {@link #blankComments(String)}): {@code ant.xyz},
+     * Matches Ant usages in code (comments and string literal text are blanked out before matching, see
+     * {@link #blankCommentsAndStrings(String)}): {@code ant.xyz},
      * {@code ant { }}, {@code ant(...)}, a read of the {@code ant} property of a project ({@code project.ant}), {@code getAnt()},
      * {@code createAntBuilder}, {@code addToAntBuilder}, the deprecated Gradle types {@code AntBuilder}, {@code AntTarget},
      * {@code AntBuilderAware} and {@code FileCollection.AntType}, and references to the {@code org.apache.tools.ant} or
@@ -262,47 +263,102 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     );
 
     /**
-     * Replaces the contents of line and block comments with spaces, keeping line breaks so that offsets and line numbers are
-     * unchanged. String literals (single, double and triple quoted) are left alone, so {@code "http://..."} is not mistaken for
-     * a comment. Slashy strings and dollar-slashy strings are not recognised.
+     * Replaces line and block comments and the literal text of strings with spaces, keeping line breaks so that offsets and
+     * line numbers are unchanged. This lets a rule match Groovy code only: an explanatory comment or a task description that
+     * mentions an API is not reported. Recognised strings are single, double and triple quoted strings and dollar-slashy
+     * strings ({@code $/.../$}); a {@code /*} or {@code //} inside them does not start a comment. The {@code ${...}}
+     * interpolations of GStrings are code and are kept. Slashy strings ({@code /.../}) are not recognised, because they cannot
+     * be told apart from division without parsing the script.
      */
-    static String blankComments(String content) {
+    static String blankCommentsAndStrings(String content) {
         StringBuilder result = new StringBuilder(content.length());
         int length = content.length();
         int i = 0;
         while (i < length) {
             char c = content.charAt(i);
-            if (c == '/' && i + 1 < length && content.charAt(i + 1) == '/') {
-                while (i < length && content.charAt(i) != '\n') {
-                    result.append(' ');
-                    i++;
-                }
-            } else if (c == '/' && i + 1 < length && content.charAt(i + 1) == '*') {
+            if (content.startsWith("//", i)) {
+                int end = content.indexOf('\n', i);
+                i = blank(content, i, end < 0 ? length : end, result);
+            } else if (content.startsWith("/*", i)) {
                 int end = content.indexOf("*/", i + 2);
-                int stop = end < 0 ? length : end + 2;
-                for (; i < stop; i++) {
-                    result.append(content.charAt(i) == '\n' ? '\n' : ' ');
-                }
+                i = blank(content, i, end < 0 ? length : end + 2, result);
+            } else if (content.startsWith("$/", i) && (i == 0 || Character.isJavaIdentifierPart(content.charAt(i - 1)) == false)) {
+                i = blankStringLiteral(content, i, "$/", "/$", true, result);
             } else if (c == '\'' || c == '"') {
-                String quote = content.startsWith(String.valueOf(c).repeat(3), i) ? String.valueOf(c).repeat(3) : String.valueOf(c);
-                int start = i;
-                i += quote.length();
-                while (i < length && content.startsWith(quote, i) == false) {
-                    if (content.charAt(i) == '\\') {
-                        i++;
-                    } else if (quote.length() == 1 && content.charAt(i) == '\n') {
-                        break;
-                    }
-                    i++;
-                }
-                i = Math.min(length, i + (i < length && content.startsWith(quote, i) ? quote.length() : 0));
-                result.append(content, start, i);
+                String triple = String.valueOf(c).repeat(3);
+                String quote = content.startsWith(triple, i) ? triple : String.valueOf(c);
+                i = blankStringLiteral(content, i, quote, quote, c == '"', result);
             } else {
                 result.append(c);
                 i++;
             }
         }
         return result.toString();
+    }
+
+    /**
+     * Blanks the string literal starting at {@code start} up to and including its closing delimiter, keeping the delimiters,
+     * line breaks and, for GStrings, {@code ${...}} interpolations. Returns the offset after the literal. An unterminated
+     * single-line string ends at the line break, so the rest of the script is still checked.
+     */
+    private static int blankStringLiteral(String content, int start, String open, String close, boolean gString, StringBuilder result) {
+        int length = content.length();
+        boolean dollarSlashy = open.equals("$/");
+        boolean multiLine = dollarSlashy || open.length() == 3;
+        result.append(open);
+        int i = start + open.length();
+        while (i < length) {
+            char c = content.charAt(i);
+            if (content.startsWith(close, i)) {
+                result.append(close);
+                return i + close.length();
+            } else if (c == '\n') {
+                if (multiLine == false) {
+                    return i;
+                }
+                result.append('\n');
+                i++;
+            } else if (dollarSlashy && (content.startsWith("$$", i) || content.startsWith("$/", i))) {
+                // escaped '$' or '/' in a dollar-slashy string
+                result.append("  ");
+                i += 2;
+            } else if (dollarSlashy == false && c == '\\' && i + 1 < length) {
+                result.append(' ').append(content.charAt(i + 1) == '\n' ? '\n' : ' ');
+                i += 2;
+            } else if (gString && content.startsWith("${", i)) {
+                int end = endOfInterpolation(content, i + 2);
+                result.append(content, i, end);
+                i = end;
+            } else {
+                result.append(' ');
+                i++;
+            }
+        }
+        return i;
+    }
+
+    /**
+     * Returns the offset after the closing brace of a {@code ${...}} interpolation whose body starts at {@code bodyStart}.
+     */
+    private static int endOfInterpolation(String content, int bodyStart) {
+        int depth = 1;
+        int i = bodyStart;
+        while (i < content.length() && depth > 0) {
+            char c = content.charAt(i++);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+            }
+        }
+        return i;
+    }
+
+    private static int blank(String content, int start, int end, StringBuilder result) {
+        for (int i = start; i < end; i++) {
+            result.append(content.charAt(i) == '\n' ? '\n' : ' ');
+        }
+        return end;
     }
 
     /**
@@ -350,7 +406,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             if (rule.appliesToPath().test(relativePath) == false) {
                 continue;
             }
-            Matcher matcher = rule.pattern().matcher(rule.skipComments() ? blankComments(content) : content);
+            Matcher matcher = rule.pattern().matcher(rule.codeOnly() ? blankCommentsAndStrings(content) : content);
             while (matcher.find()) {
                 int lineNumber = lineNumber(content, matcher.start());
                 String lineText = lineText(content, matcher.start()).trim();
@@ -564,15 +620,15 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     }
 
     /**
-     * @param skipComments whether the pattern is matched against the script with comments blanked out, so that commented-out
-     *                     code or an explanatory comment never counts as a violation
+     * @param codeOnly whether the pattern is matched against the script with comments and string literal text blanked out,
+     *                 so that commented-out code, an explanatory comment or a description never counts as a violation
      */
     private record ScriptRule(
         String id,
         String title,
         Predicate<String> appliesToPath,
         Pattern pattern,
-        boolean skipComments,
+        boolean codeOnly,
         String details,
         String solution
     ) {

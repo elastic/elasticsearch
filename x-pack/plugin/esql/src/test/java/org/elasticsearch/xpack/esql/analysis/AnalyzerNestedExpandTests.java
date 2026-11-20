@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
@@ -25,9 +26,11 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.junit.Before;
@@ -62,6 +65,10 @@ import static org.hamcrest.Matchers.startsWith;
  *     <li>{@code ne_orders}: only {@code id}.</li>
  *     <li>{@code ne_lookup}: a lookup index with {@code id} and nested {@code items}.</li>
  *     <li>{@code ne_conflict}: two indices, one maps {@code items.sub} as an object and the other as nested.</li>
+ *     <li>{@code ne_rt}: nested {@code items} with {@code sku}, and a runtime {@code long} {@code items.calc}.</li>
+ *     <li>{@code ne_rt_mix}: two indices, one defines {@code items.calc} as a runtime field and the other maps it as a child of
+ *     nested {@code items}.</li>
+ *     <li>{@code ne_rt_types}: as {@code ne_rt_mix}, but the child is a {@code keyword} and the runtime field a {@code long}.</li>
  *     <li>{@code ne_ts}: a time-series index with nested {@code items}.</li>
  *     <li>{@code ne_types}: two indices that disagree on the type of {@code v} and {@code items.v} ({@code integer} and
  *     {@code keyword}), and of {@code n} and {@code items.n} ({@code short} and {@code integer}); {@code items.small} is a
@@ -367,6 +374,102 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         );
     }
 
+    public void testRuntimeFieldNamedUnderTheCollectionIsNotExpanded() {
+        NestedExpand expand = expand(nestedAnalyzer().query("FROM ne_rt | NESTED_EXPAND items"));
+        assertThat(names(expand.expanded()), contains("items.sku"));
+    }
+
+    public void testRuntimeFieldNamedUnderTheCollectionIsAnOrdinaryColumnAfterExpansion() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt | NESTED_EXPAND items | KEEP id, items.sku, items.calc");
+        assertThat(names(plan.output()), contains("id", "items.sku", "items.calc"));
+        assertThat(types(plan.output()), contains(DataType.KEYWORD, DataType.KEYWORD, DataType.LONG));
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat(names(relations.getFirst().output()), hasItem("items.calc"));
+        assertConsistent(plan);
+    }
+
+    public void testRuntimeFieldNamedUnderTheCollectionIsAnOrdinaryColumnBeforeExpansion() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt | WHERE items.calc > 1 | NESTED_EXPAND items | KEEP id, items.calc");
+        assertThat(names(plan.output()), contains("id", "items.calc"));
+        assertThat(names(expand(plan).expanded()), contains("items.sku"));
+    }
+
+    public void testRuntimeFieldNamedUnderTheCollectionIsNotAChildInAnEval() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt | NESTED_EXPAND items | EVAL c = items.calc + 1 | KEEP id, c");
+        assertThat(types(plan.output()), contains(DataType.KEYWORD, DataType.LONG));
+    }
+
+    public void testUndeclaredNameStillLoadsFromTheParentNextToARuntimeField() {
+        LogicalPlan plan = nestedAnalyzer().statement(
+            "SET unmapped_fields=\"load\"; FROM ne_rt | NESTED_EXPAND items | EVAL u = items.undeclared, c = items.calc | KEEP id, u, c"
+        );
+        assertThat(names(expand(plan).expanded()), contains("items.sku"));
+        List<EsRelation> relations = new ArrayList<>();
+        plan.forEachDown(EsRelation.class, relations::add);
+        assertThat(names(relations.getFirst().output()), hasItems("items.undeclared", "items.calc"));
+    }
+
+    public void testRuntimeFieldInOneIndexAndChildInAnotherIsOneColumnAfterTheExpansion() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt_mix | NESTED_EXPAND items | KEEP id, items.sku, items.calc");
+        assertThat(names(plan.output()), contains("id", "items.sku", "items.calc"));
+        assertThat(types(plan.output()), contains(DataType.KEYWORD, DataType.KEYWORD, DataType.LONG));
+        assertConsistent(plan);
+    }
+
+    public void testBothOwnersOfANameAreReadAndMerged() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt_mix | NESTED_EXPAND items");
+        List<Eval> evals = new ArrayList<>();
+        plan.forEachDown(Eval.class, evals::add);
+        assertThat(evals, hasSize(2));
+        Eval merge = evals.getFirst();
+        assertThat(merge.child(), instanceOf(NestedExpand.class));
+        assertThat(merge.fields(), hasSize(1));
+        assertThat(merge.fields().getFirst().name(), equalTo("items.calc"));
+        assertThat(merge.fields().getFirst().child(), instanceOf(Coalesce.class));
+        Eval parentValue = evals.get(1);
+        assertThat(parentValue.fields(), hasSize(1));
+        assertThat(parentValue.fields().getFirst().child(), instanceOf(FieldAttribute.class));
+        assertThat(parentValue.fields().getFirst().synthetic(), is(true));
+        assertThat(names(expand(plan).expanded()), contains("items.calc", "items.sku"));
+        assertConsistent(plan);
+    }
+
+    public void testTheParentValueKeptForAMergedNameIsHidden() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt_mix | NESTED_EXPAND items | KEEP *");
+        assertThat(names(plan.output()), everyItem(not(startsWith(Attribute.SYNTHETIC_ATTRIBUTE_NAME_PREFIX))));
+    }
+
+    public void testNamesOnlyOneIndexOwnsAreNotMerged() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt | NESTED_EXPAND items");
+        List<Eval> evals = new ArrayList<>();
+        plan.forEachDown(Eval.class, evals::add);
+        assertThat(evals, is(empty()));
+    }
+
+    public void testRuntimeFieldInOneIndexAndChildOfAnotherTypeInAnotherIsAnError() {
+        nestedAnalyzer().error(
+            "FROM ne_rt_types | NESTED_EXPAND items",
+            equalTo(
+                "1:34: NESTED_EXPAND cannot read [items.calc]: it is a runtime field of type [long] in some indices and a field of "
+                    + "nested [items] of type [keyword] in others"
+            )
+        );
+    }
+
+    public void testRuntimeFieldInOneIndexAndChildInAnotherIsTheOrdinaryColumnWithoutTheExpansion() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne_rt_mix | KEEP items.calc");
+        assertThat(names(plan.output()), contains("items.calc"));
+        assertThat(types(plan.output()), contains(DataType.LONG));
+    }
+
+    public void testNodeThatDoesNotReportRuntimeFields() {
+        TransportVersion beforeRuntimeFields = TransportVersionUtils.getPreviousVersion(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD);
+        assumeTrue("the nested expansion is older than runtime fields in field caps", beforeRuntimeFields.supports(NestedExpand.VERSION));
+        nestedAnalyzer().minimumTransportVersion(beforeRuntimeFields)
+            .error("FROM ne_rt | NESTED_EXPAND items", equalTo("1:28: NESTED_EXPAND requires all nodes to support nested expansion"));
+    }
+
     public void testOlderNode() {
         nestedAnalyzer().minimumTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedExpand.VERSION))
             .error("FROM ne | NESTED_EXPAND items", equalTo("1:25: NESTED_EXPAND requires all nodes to support nested expansion"));
@@ -385,7 +488,7 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
         return nestedAnalyzer(minimumVersionAtLeast(NestedExpand.VERSION));
     }
 
-    /** An analyzer over the indices this class describes. */
+    /** An analyzer over the indices this class describes, over nodes that report runtime fields in field caps. */
     public static TestAnalyzer nestedAnalyzer(TransportVersion minimumVersion) {
         return EsqlTestUtils.analyzer()
             .addIndex("ne", resolution("ne", nestedIndex()))
@@ -428,6 +531,62 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
                 "ne_types",
                 resolution("ne_types", typesIndex("ne_types_a", "integer", "short"), typesIndex("ne_types_b", "keyword", "integer"))
             )
+            .addIndex(
+                "ne_rt",
+                resolution(
+                    "ne_rt",
+                    index(
+                        "ne_rt",
+                        IndexMode.STANDARD,
+                        field("id", "keyword"),
+                        field("items", "nested"),
+                        field("items.sku", "keyword"),
+                        new IndexFieldCapabilitiesBuilder("items.calc", "long").isRuntimeField(true).build()
+                    )
+                )
+            )
+            .addIndex(
+                "ne_rt_mix",
+                resolution(
+                    "ne_rt_mix",
+                    index(
+                        "ne_rt_mix_a",
+                        IndexMode.STANDARD,
+                        field("id", "keyword"),
+                        field("items", "nested"),
+                        field("items.sku", "keyword"),
+                        new IndexFieldCapabilitiesBuilder("items.calc", "long").isRuntimeField(true).build()
+                    ),
+                    index(
+                        "ne_rt_mix_b",
+                        IndexMode.STANDARD,
+                        field("id", "keyword"),
+                        field("items", "nested"),
+                        field("items.sku", "keyword"),
+                        field("items.calc", "long")
+                    )
+                )
+            )
+            .addIndex(
+                "ne_rt_types",
+                resolution(
+                    "ne_rt_types",
+                    index(
+                        "ne_rt_types_a",
+                        IndexMode.STANDARD,
+                        field("id", "keyword"),
+                        field("items", "nested"),
+                        new IndexFieldCapabilitiesBuilder("items.calc", "long").isRuntimeField(true).build()
+                    ),
+                    index(
+                        "ne_rt_types_b",
+                        IndexMode.STANDARD,
+                        field("id", "keyword"),
+                        field("items", "nested"),
+                        field("items.calc", "keyword")
+                    )
+                )
+            )
             .addIndex("ne_ts", resolution("ne_ts", timeSeriesIndex()))
             .addLookupIndex(
                 "ne_lookup",
@@ -441,7 +600,11 @@ public class AnalyzerNestedExpandTests extends AnalyzerTestCase {
                 resolution("ne_lookup_note", index("ne_lookup_note", IndexMode.LOOKUP, field("id", "keyword"), field("note", "keyword")))
             )
             .stripErrorPrefix(true)
-            .minimumTransportVersion(minimumVersion);
+            .minimumTransportVersion(
+                minimumVersion.supports(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD)
+                    ? minimumVersion
+                    : FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD
+            );
     }
 
     private static FieldCapabilitiesIndexResponse nestedIndex() {

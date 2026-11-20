@@ -126,13 +126,16 @@ public final class NestedChildren implements Releasable {
                 if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType) {
                     return keyChild(context, driverContext, name, type, union, settings, configuration);
                 }
+                if (fieldType instanceof AbstractScriptFieldType) {
+                    // A runtime field is a field of the parent documents, so this shard has no such child
+                    return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+                }
                 BlockLoader loader = context.nestedChildBlockLoader(
                     name,
                     new BlockLoaderWarnings(driverContext, Source.EMPTY),
                     settings.blockLoaderSizeOrdinals(),
                     settings.blockLoaderSizeScript()
                 );
-                BitSetProducer parents = shards.get(shard).parents();
                 if (loader instanceof FallbackSyntheticSourceBlockLoader fallback) {
                     // The child's own _ignored_source misses the values the nested object or an object above it keeps whole, so
                     // they are read from the _source. It holds them under the paths of the field, not of an alias to it, and
@@ -140,15 +143,7 @@ public final class NestedChildren implements Releasable {
                     Set<String> sourcePaths = context.executionContext().sourcePath(fieldType.name());
                     loader = new NestedChildSourceBlockLoader(fallback, sourcePaths.isEmpty() ? Set.of(fieldType.name()) : sourcePaths);
                 }
-                if (fieldType instanceof AbstractScriptFieldType && parents != null) {
-                    // This shard maps the name as a runtime field, which runs on the parent rather than on the child
-                    loader = new NestedParentBlockLoader(
-                        loader,
-                        parents,
-                        context::newSourceLoader,
-                        NestedParentBlockLoader.valueBlockFactory(driverContext.blockFactory())
-                    );
-                } else if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
+                if (loader.rowStrideStoredFieldSpec().requiresSource() && context.storesFilteredSource()) {
                     driverContext.addWarning(
                         Strings.format(
                             "Field [%s] cannot be retrieved from the filtered _source of index [%s]; returning null",
@@ -211,7 +206,7 @@ public final class NestedChildren implements Releasable {
         if (union == null && DataType.isString(type)) {
             return ValuesSourceReaderOperator.load(keys);
         }
-        return context.convertedNestedKey(union, name, type, keys, configuration);
+        return EsPhysicalOperationProviders.keyColumn(Source.EMPTY, name, type, union, keys, configuration);
     }
 
     private final DriverContext context;

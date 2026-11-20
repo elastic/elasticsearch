@@ -246,6 +246,13 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             "single valued flag requires transport version " + FieldCapabilities.FIELD_CAPS_SINGLE_VALUED,
             hasSingleValued == false || version.supports(FieldCapabilities.FIELD_CAPS_SINGLE_VALUED)
         );
+        final boolean hasRuntimeField = indexResponses.stream()
+            .flatMap(r -> r.get().values().stream())
+            .anyMatch(IndexFieldCapabilities::isRuntimeField);
+        assumeTrue(
+            "runtime field flag requires transport version " + FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD,
+            hasRuntimeField == false || version.supports(FieldCapabilities.FIELD_CAPS_RUNTIME_FIELD)
+        );
 
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(

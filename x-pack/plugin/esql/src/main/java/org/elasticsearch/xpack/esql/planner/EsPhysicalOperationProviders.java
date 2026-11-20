@@ -73,7 +73,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -84,6 +83,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
@@ -227,8 +227,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return false;
         }
 
+        /**
+         * Whether ES|QL reads {@code name} as a field of the parent documents: a mapped field that is not a child of a nested field.
+         * A runtime field is one wherever its name falls, as it is defined at the root of the mapping.
+         */
         public boolean isExtractableMappedField(String name) {
-            return isMappedField(name) && mappingLookup().nestedLookup().hasNestedParent(name) == false;
+            return isMappedField(name)
+                && (mappingLookup().nestedLookup().hasNestedParent(name) == false
+                    || mappingLookup().getFieldType(name) instanceof AbstractScriptFieldType<?>);
         }
     }
 
@@ -388,13 +394,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
-            ReferenceAttribute keyword = new ReferenceAttribute(attr.source(), fieldName, DataType.KEYWORD);
-            AbstractConvertFunction cast = unionTypes == null
-                ? EsqlDataTypeConverter.castFromKeyword(attr.dataType(), keyword, configuration)
-                : keywordConversion(unionTypes, keyword);
-            return cast == null
-                ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
-                : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
+            return keyColumn(attr.source(), fieldName, attr.dataType(), unionTypes, keys, configuration);
         }
         if (unionTypes == null && attr.dataType() != DataType.KEYWORD && shardContext.readsFromSource(fieldName)) {
             // A field read from _source is read as a keyword: a column of another type reads it only through a conversion
@@ -526,6 +526,28 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return unionTypeEsField;
         }
         return null;
+    }
+
+    /**
+     * Reads {@code name}, a key of a {@code flattened} field loaded as the keyword {@code keys}, as a column of {@code type}: through
+     * the cast from keyword to {@code type}, or through the one {@code unionTypes} holds where indices map the name with different
+     * types, and as nulls where there is none. A column outside a nested object and a child of one read a key the same way.
+     */
+    public static ValuesSourceReaderOperator.LoaderAndConverter keyColumn(
+        Source source,
+        String name,
+        DataType type,
+        @Nullable UnionTypeEsField unionTypes,
+        BlockLoader keys,
+        Configuration configuration
+    ) {
+        ReferenceAttribute keyword = new ReferenceAttribute(source, name, DataType.KEYWORD);
+        AbstractConvertFunction cast = unionTypes == null
+            ? EsqlDataTypeConverter.castFromKeyword(type, keyword, configuration)
+            : keywordConversion(unionTypes, keyword);
+        return cast == null
+            ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
+            : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
     }
 
     /**
@@ -966,36 +988,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 : ValuesSourceReaderOperator.loadAndConvert(loader, new TypeConverter((EsqlScalarFunction) conversion));
         }
 
-        /**
-         * Reads the child field {@code name}, a key of a {@code flattened} field loaded as the keyword {@code keys}, as a top-level
-         * column reads a key: through the cast to {@code type}, or through the one {@code unionTypes} holds where indices map the
-         * name with different types, and as nulls where there is none.
-         */
-        public ValuesSourceReaderOperator.LoaderAndConverter convertedNestedKey(
-            @Nullable UnionTypeEsField unionTypes,
-            String name,
-            DataType type,
-            BlockLoader keys,
-            Configuration configuration
-        ) {
-            ReferenceAttribute keyword = new ReferenceAttribute(
-                org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
-                name,
-                DataType.KEYWORD
-            );
-            AbstractConvertFunction cast = unionTypes == null
-                ? EsqlDataTypeConverter.castFromKeyword(type, keyword, configuration)
-                : keywordConversion(unionTypes, keyword);
-            return cast == null
-                ? ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS
-                : ValuesSourceReaderOperator.loadAndConvert(keys, new TypeConverter((EsqlScalarFunction) cast));
-        }
-
-        /**
-         * Loads a field under a nested object from the hidden child documents. A runtime field runs on the parent document and
-         * reads the parent's {@code _source} through its mapper, as it does for a top-level field, rather than the
-         * {@code _ignored_source} that synthetic source keeps.
-         */
+        /** Loads a field under a nested object from the hidden child documents, or gives nulls where this shard has no such field. */
         public BlockLoader nestedChildBlockLoader(
             String name,
             Warnings warnings,
@@ -1006,7 +999,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (fieldType == null) {
                 return ConstantNull.INSTANCE;
             }
-            boolean runtimeField = fieldType instanceof AbstractScriptFieldType;
             BlockLoader loader = fieldType.blockLoader(
                 new EsqlBlockLoaderContext(
                     ctx,
@@ -1015,12 +1007,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     warnings,
                     blockLoaderSizeOrdinals,
                     blockLoaderSizeScript
-                ) {
-                    @Override
-                    public SearchLookup lookup() {
-                        return runtimeField ? super.lookup().withoutOnlyMappedAsRuntimeField() : super.lookup();
-                    }
-                }
+                )
             );
             return loader == null ? ConstantNull.INSTANCE : loader;
         }

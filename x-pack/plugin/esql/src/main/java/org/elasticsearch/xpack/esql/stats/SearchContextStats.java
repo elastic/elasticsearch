@@ -159,10 +159,12 @@ public class SearchContextStats implements SearchStats {
      * A field ES|QL can extract from this shard: present in the mapping and not under a nested
      * parent. {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested}
      * on the field-caps request, so treating nested subfields as present here would make
-     * {@code exists}/{@code count} or pushed-down predicates disagree with extraction.
+     * {@code exists}/{@code count} or pushed-down predicates disagree with extraction. A runtime field is
+     * defined at the root of the mapping, so it is extractable wherever its name falls.
      */
     public static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
-        return context.isMappedField(field) && isNestedSubfield(context, field) == false;
+        return context.isMappedField(field)
+            && (isNestedSubfield(context, field) == false || context.getFieldType(field) instanceof AbstractScriptFieldType<?>);
     }
 
     private static boolean isNestedSubfield(SearchExecutionContext context, String field) {

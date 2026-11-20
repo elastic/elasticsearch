@@ -299,7 +299,15 @@ public class ListingWalkHarnessTests extends ESTestCase {
     public void testWideHiveTreeSevenDayHourWalkCostVersusFlat() throws IOException {
         List<StorageEntry> tree = wideHiveSevenDayTree();
         assertEquals(1957, WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES);
-        assertTrue(tree.stream().anyMatch(e -> e.path().toString().contains("/month=07/")));
+        Set<String> julyPrefixes = new HashSet<>();
+        for (StorageEntry e : tree) {
+            String path = e.path().toString();
+            int monthAt = path.indexOf("/month=07/");
+            if (monthAt >= 0) {
+                julyPrefixes.add(path.substring(0, monthAt));
+            }
+        }
+        assertEquals(WIDE_HIVE_PREFIXES, julyPrefixes.size());
         List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END));
         List<PartitionFilterHint> hourHint = List.of(new PartitionFilterHint("hour", Operator.EQUALS, List.of(0)));
         List<PartitionFilterHint> hints = new ArrayList<>(listingHints(filters, DAY_SPEC));

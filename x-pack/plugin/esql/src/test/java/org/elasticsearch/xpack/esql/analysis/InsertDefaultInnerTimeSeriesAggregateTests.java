@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DefaultTimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Earliest;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -70,6 +74,36 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
         assertStatsEqual("LAST(network.bytes_in, @timestamp)", "LAST(last_over_time(network.bytes_in), max_over_time(@timestamp))");
     }
 
+    /**
+     * {@code EARLIEST} must pick the earliest sample like {@code FIRST(field, @timestamp)}. Wrapping both of its arguments in the
+     * default {@code LAST_OVER_TIME} returned the last value of the series whose last sample was the earliest.
+     */
+    public void testEarliest() {
+        assertStatsEqual("EARLIEST(network.bytes_in)", "FIRST(first_over_time(network.bytes_in), min_over_time(@timestamp))");
+    }
+
+    /**
+     * {@code LATEST} must pick the latest sample like {@code LAST(field, @timestamp)}. Before multi-field aggregates were wrapped,
+     * the implicit {@code @timestamp} stayed unwrapped and the second pass referenced a field the first pass does not output.
+     */
+    public void testLatest() {
+        assertStatsEqual("LATEST(network.bytes_in)", "LAST(last_over_time(network.bytes_in), max_over_time(@timestamp))");
+    }
+
+    public void testEarliestWithFilter() {
+        assertStatsEqual(
+            "EARLIEST(network.bytes_in) WHERE pod == \"one\"",
+            "FIRST(first_over_time(network.bytes_in), min_over_time(@timestamp)) WHERE pod == \"one\""
+        );
+    }
+
+    public void testLatestWithFilter() {
+        assertStatsEqual(
+            "LATEST(network.bytes_in) WHERE pod == \"one\"",
+            "LAST(last_over_time(network.bytes_in), max_over_time(@timestamp)) WHERE pod == \"one\""
+        );
+    }
+
     private void assertStatsEqual(String stats1, String stats2) {
         var baseQuery = """
             TS k8s
@@ -93,6 +127,8 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
      *       and {@code SORT} reference the first-pass aliases by name, so those names differ too.</li>
      *   <li>Replacing {@link DefaultTimeSeriesAggregateFunction} with its delegate ({@link
      *       org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime}).</li>
+     *   <li>Replacing {@link Earliest} and {@link Latest} with their {@link First} and {@link Last} surrogates. The optimizer does
+     *       the same later. Inline filters are already moved to the first pass at this point, so the surrogates lose nothing.</li>
      * </ol>
      */
     private static LogicalPlan normalize(LogicalPlan plan) {
@@ -102,6 +138,8 @@ public class InsertDefaultInnerTimeSeriesAggregateTests extends AbstractLogicalP
             ra -> new ReferenceAttribute(ra.source(), ra.qualifier(), "dummy", ra.dataType(), ra.nullable(), ra.id(), ra.synthetic())
         );
         plan = plan.transformExpressionsDown(DefaultTimeSeriesAggregateFunction.class, DefaultTimeSeriesAggregateFunction::surrogate);
+        plan = plan.transformExpressionsDown(Earliest.class, Earliest::surrogate);
+        plan = plan.transformExpressionsDown(Latest.class, Latest::surrogate);
         return plan;
     }
 }

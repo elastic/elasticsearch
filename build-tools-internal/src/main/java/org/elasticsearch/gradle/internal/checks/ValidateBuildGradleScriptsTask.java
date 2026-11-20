@@ -16,9 +16,9 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.problems.Problem;
-import org.gradle.api.problems.ProblemId;
 import org.gradle.api.problems.ProblemReporter;
 import org.gradle.api.problems.Problems;
+import org.gradle.api.problems.ThirdLevelProblemGroup;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
@@ -60,6 +60,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     private final File rootBuildFile;
     private final ProjectLayout projectLayout;
     private final ProblemReporter problemReporter;
+    private final ThirdLevelProblemGroup problemGroup;
 
     @Inject
     public ValidateBuildGradleScriptsTask(ProjectLayout projectLayout, Problems problems) {
@@ -67,6 +68,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         this.rootBuildFile = projectLayout.getSettingsDirectory().file("build.gradle").getAsFile();
         this.projectLayout = projectLayout;
         this.problemReporter = problems.getReporter();
+        this.problemGroup = ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS.group(problems);
         setDescription("Validates build.gradle scripts against repository guardrails");
     }
 
@@ -275,7 +277,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                 violations.add("- " + label + System.lineSeparator() + "  " + lineText);
                 problems.add(
                     problemReporter.create(
-                        ProblemId.create(rule.id(), rule.title(), ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS),
+                        problemGroup.problemId(rule.title()),
                         spec -> spec.contextualLabel(label)
                             .details(rule.details())
                             .lineInFileLocation(scriptFile.getAbsolutePath(), lineNumber)
@@ -304,11 +306,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             violations.add("- " + label + System.lineSeparator() + "  " + e.getMessage());
             problems.add(
                 problemReporter.create(
-                    ProblemId.create(
-                        "build-script-parse-failure",
-                        "Cannot parse build.gradle for execution-closure validation",
-                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
-                    ),
+                    problemGroup.problemId("Cannot parse build.gradle for execution-closure validation"),
                     spec -> spec.contextualLabel(label)
                         .details(e.getMessage())
                         .fileLocation(scriptFile.getAbsolutePath())
@@ -329,11 +327,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             violations.add("- " + label + " (" + finding.reference() + ")");
             problems.add(
                 problemReporter.create(
-                    ProblemId.create(
-                        ExecutionClosureScanner.RULE_ID,
-                        "Project-model reference in task execution closure",
-                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
-                    ),
+                    problemGroup.problemId("Project-model reference in task execution closure"),
                     spec -> spec.contextualLabel(label)
                         .details(
                             "Direct "
@@ -372,11 +366,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             violations.add("- " + label);
             problems.add(
                 problemReporter.create(
-                    ProblemId.create(
-                        "stale-ignore-entry",
-                        "Stale build.gradle validation ignore entry",
-                        ElasticsearchBuildProblems.BUILD_GRADLE_SCRIPTS
-                    ),
+                    problemGroup.problemId("Stale build.gradle validation ignore entry"),
                     spec -> spec.contextualLabel(label)
                         .details(details)
                         .fileLocation(rootBuildFile.getAbsolutePath())

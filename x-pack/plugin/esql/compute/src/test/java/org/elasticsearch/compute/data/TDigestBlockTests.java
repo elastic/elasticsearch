@@ -266,6 +266,24 @@ public class TDigestBlockTests extends ComputeTestCase {
         Releasables.close(tdigestBlock, copy);
     }
 
+    /** Sub-blocks are indexed by value index, so they can be used on multi-valued blocks with the parent's first value indices. */
+    public void testCountBlockWithMultiValues() {
+        try (TDigestBlock block = randomBlockWithNulls(true)) {
+            LongBlock counts = block.getCountBlock();
+            TDigestHolder scratch = new TDigestHolder();
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                int first = block.getFirstValueIndex(p);
+                assertThat(counts.isNull(first), equalTo(block.isNull(p)));
+                for (int v = 0; v < block.getValueCount(p); v++) {
+                    assertThat(
+                        counts.getLong(counts.getFirstValueIndex(first + v)),
+                        equalTo(block.getTDigestHolder(first + v, scratch).size())
+                    );
+                }
+            }
+        }
+    }
+
     public void testMultiValueBlock() {
         TDigestHolder digest1 = BlockTestUtils.randomTDigest();
         TDigestHolder digest2 = BlockTestUtils.randomTDigest();

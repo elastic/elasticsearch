@@ -52,11 +52,13 @@ public interface HistogramBlock extends Block {
     /**
      * Returns the block holding the minimum of each histogram, null for empty or null histograms.
      * <p>
-     * This is the block backing this histogram block, with one position per histogram: it is neither copied nor ref-counted
-     * on behalf of the caller, which must not close it and must not use it after this block is closed.
+     * This is the block backing this histogram block: it is neither copied nor ref-counted on behalf of the caller, which must
+     * not close it and must not use it after this block is closed.
      * </p>
      * <p>
-     * This only works on blocks without multi-valued positions.
+     * The returned block is indexed by <em>value index</em>, not by position: the component of the histogram at value index
+     * {@code i}, as given by {@link #getFirstValueIndex(int)}, is at index {@code i}. Its position count therefore only
+     * equals the position count of this block if there are no multi-valued positions.
      * </p>
      */
     DoubleBlock getMinBlock();

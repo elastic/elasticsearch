@@ -177,7 +177,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             )
         );
 
-        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.EVENT, schema, false);
+        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.EVENT, schema);
         Page page = null;
         try {
             // Before the response, the operator blocks and yields nothing.
@@ -225,7 +225,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         Event missing = new Event("", "", null, null, true);
         EqlSearchResponse response = sequenceResponse(List.of(new Sequence(List.of("host-a"), List.of(present, missing))));
 
-        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.SEQUENCE, schema, false);
+        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.SEQUENCE, schema);
         Page page = null;
         try {
             assertBlocked(operator); // first poll issues the request and captures the listener
@@ -266,8 +266,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         Page page = null;
         try {
@@ -308,8 +307,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator); // issue the request, capture the listener
@@ -341,8 +339,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator);
@@ -370,8 +367,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         Page page = null;
         try {
@@ -405,8 +401,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator);
@@ -434,8 +429,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator);
@@ -463,7 +457,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         List<Attribute> schema = List.of(metadata("_score"));
         EqlSearchResponse response = eventResponse(List.of(fieldEvent("a")));
 
-        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.EVENT, schema, false);
+        SourceOperator operator = operator(client, driverContext, eqlRequest(1000), EqlRelation.Mode.EVENT, schema);
         try {
             assertBlocked(operator);
             client.capturedListener.onResponse(response);
@@ -493,8 +487,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertBlocked(operator);
@@ -523,8 +516,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             driverContext,
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         try {
             assertFalse(operator.isFinished());
@@ -533,49 +525,6 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         } finally {
             operator.close();
         }
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
-    }
-
-    /**
-     * With {@code warnOnTruncation} and a response that fills the request size cap, a truncation warning is emitted —
-     * and only from the {@code getOutput()} (driver-thread) path, never from the response callback. In production the
-     * callback runs on a transport thread whose thread-context headers are not collected, so the operator defers the
-     * warning to {@code getOutput()}; here we assert the callback emits no warning header and only {@code getOutput()}
-     * does.
-     */
-    public void testTruncationWarningEmittedFromGetOutputNotCallback() {
-        CapturingEqlClient client = new CapturingEqlClient(threadPool);
-        DriverContext driverContext = driverContext();
-        int size = 2;
-        Source source = new Source(1, 0, "eqlq");
-        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b"))); // fills the cap of 2
-
-        String expected = "Line "
-            + source.lineNumber()
-            + ":"
-            + source.columnNumber()
-            + " ["
-            + source.text()
-            + "]: EQL query returned the maximum number of results ["
-            + size
-            + "]; results may be incomplete. Raise the size option or the [esql.query.result_truncation_max_size] setting";
-
-        SourceOperator operator = operator(client, driverContext, eqlRequest(size), EqlRelation.Mode.EVENT, source, true);
-        Page page = null;
-        try {
-            assertBlocked(operator);
-            client.capturedListener.onResponse(response);
-            page = operator.getOutput();
-            assertThat(page.getPositionCount(), equalTo(2));
-        } finally {
-            if (page != null) {
-                page.releaseBlocks();
-            }
-            operator.close();
-            response.decRef();
-        }
-        // The warning is registered on the driver context during getOutput(), not the response callback.
-        assertThat(collectWarnings(driverContext), equalTo(List.of(expected)));
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -598,8 +547,7 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
             eqlRequest(1000),
             EqlRelation.Mode.EVENT,
             source,
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            false
+            List.of(fieldAttribute("process.name", KEYWORD))
         );
         Page page = null;
         try {
@@ -632,65 +580,41 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
-    /** No warning when the result count is below the size cap, even with {@code warnOnTruncation} on. */
-    public void testNoTruncationWarningBelowCap() {
-        CapturingEqlClient client = new CapturingEqlClient(threadPool);
-        DriverContext driverContext = driverContext();
-        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"))); // one result, cap is 5
-
-        SourceOperator operator = operator(
-            client,
-            driverContext,
-            eqlRequest(5),
-            EqlRelation.Mode.EVENT,
+    public void testDefaultSizeWarningIsRegisteredWhenTheSearchIsIssued() {
+        assertDefaultSizeWarning(
             new Source(1, 0, "eqlq"),
-            List.of(fieldAttribute("process.name", KEYWORD)),
-            true
+            "Line 1:1: EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more."
         );
-        Page page = null;
-        try {
-            assertBlocked(operator);
-            client.capturedListener.onResponse(response);
-            page = operator.getOutput();
-        } finally {
-            if (page != null) {
-                page.releaseBlocks();
-            }
-            operator.close();
-            response.decRef();
-        }
-        assertThat("below the cap must not warn", collectWarnings(driverContext), equalTo(List.of()));
-        assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
-    /** With {@code warnOnTruncation} off, a full response does not warn (the size did not come from the cap). */
-    public void testNoTruncationWarningWhenFlagDisabled() {
+    public void testDefaultSizeWarningNamesTheViewWithoutEchoingItsDefinition() {
+        assertDefaultSizeWarning(
+            new Source(1, 0, "EQL logs \"process where secret_field == \\\"secret\\\"\"").withViewName("eql_view"),
+            "Line 1:1 (in view [eql_view]): EQL query used the default size of [10] matches. Set WITH {\"size\": n} to return more."
+        );
+    }
+
+    private void assertDefaultSizeWarning(Source source, String expectedWarning) {
         CapturingEqlClient client = new CapturingEqlClient(threadPool);
         DriverContext driverContext = driverContext();
-        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a"), fieldEvent("b"))); // fills the cap of 2
-
-        SourceOperator operator = operator(
+        EqlSearchResponse response = eventResponse(List.of(fieldEvent("a")));
+        SourceOperator operator = new EqlSourceOperator.Factory(
             client,
-            driverContext,
-            eqlRequest(2),
+            eqlRequest(10),
             EqlRelation.Mode.EVENT,
-            new Source(1, 0, "eqlq"),
             List.of(fieldAttribute("process.name", KEYWORD)),
-            false
-        );
-        Page page = null;
+            source,
+            true
+        ).get(driverContext);
         try {
             assertBlocked(operator);
+            assertThat(collectWarnings(driverContext), equalTo(List.of(expectedWarning)));
+            operator.close();
             client.capturedListener.onResponse(response);
-            page = operator.getOutput();
         } finally {
-            if (page != null) {
-                page.releaseBlocks();
-            }
             operator.close();
             response.decRef();
         }
-        assertThat("flag off must not warn", collectWarnings(driverContext), equalTo(List.of()));
         assertThat(driverContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -724,10 +648,9 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         DriverContext driverContext,
         EqlSearchRequest request,
         EqlRelation.Mode mode,
-        List<Attribute> schema,
-        boolean warnOnTruncation
+        List<Attribute> schema
     ) {
-        return operator(client, driverContext, request, mode, Source.EMPTY, schema, warnOnTruncation);
+        return operator(client, driverContext, request, mode, Source.EMPTY, schema);
     }
 
     private SourceOperator operator(
@@ -736,21 +659,9 @@ public class EqlSourceOperatorTests extends AnyOperatorTestCase {
         EqlSearchRequest request,
         EqlRelation.Mode mode,
         Source source,
-        boolean warnOnTruncation
+        List<Attribute> schema
     ) {
-        return operator(client, driverContext, request, mode, source, List.of(fieldAttribute("process.name", KEYWORD)), warnOnTruncation);
-    }
-
-    private SourceOperator operator(
-        CapturingEqlClient client,
-        DriverContext driverContext,
-        EqlSearchRequest request,
-        EqlRelation.Mode mode,
-        Source source,
-        List<Attribute> schema,
-        boolean warnOnTruncation
-    ) {
-        return new EqlSourceOperator.Factory(client, request, mode, schema, source, warnOnTruncation).get(driverContext);
+        return new EqlSourceOperator.Factory(client, request, mode, schema, source, false).get(driverContext);
     }
 
     private static void assertBlocked(SourceOperator operator) {

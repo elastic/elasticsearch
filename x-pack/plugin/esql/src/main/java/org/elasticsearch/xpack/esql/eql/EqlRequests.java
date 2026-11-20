@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.eql.action.RequestDefaults;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -43,10 +44,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * under {@code SET unmapped_fields} follow their kind: nullified ({@code NULL}) columns carry no fetch, LOAD columns
  * fetch from {@code _source} with {@code include_unmapped}.
  *
- * <p>The request {@code size} follows an explicit precedence: a {@code WITH {"size"}} option wins; otherwise the
- * row {@code LIMIT} folded into the plan ({@code pushedLimit}); otherwise the ES|QL result-truncation cap
- * ({@link EnclosingQuery#truncationCap}). Only the last case can silently truncate, so the caller warns on it (see
- * {@link #usesTruncationCapSize}).
+ * <p>The request {@code size} is the EQL engine's default unless a {@code WITH {"size"}} option sets it. A row
+ * {@code LIMIT} folded into the plan ({@code pushedLimit}) can only lower it, never raise it.
  *
  * <p>The supported {@code WITH} options are the single source of truth in {@link #OPTIONS}: {@link #validateOptions}
  * rejects anything else (or a wrong-typed value) at parse time, and {@link #applyOptions} applies exactly these.
@@ -62,12 +61,17 @@ public final class EqlRequests {
      */
     private record Option(Class<?> type, String typeName, int min, Set<String> allowedValues, BiConsumer<EqlSearchRequest, Object> apply) {}
 
+    private static final String SIZE_OPTION = "size";
+    private static final String RESULT_POSITION_OPTION = "result_position";
+    private static final String RESULT_POSITION_HEAD = "head";
+    private static final String RESULT_POSITION_TAIL = "tail";
+
     private static final Map<String, Option> OPTIONS = options();
 
     private static Map<String, Option> options() {
         Map<String, Option> options = new LinkedHashMap<>();
         // Minimums mirror EqlSearchRequest.validate() so a below-range value fails at parse, not mid-execution.
-        intOption(options, "size", 0, EqlSearchRequest::size);
+        intOption(options, SIZE_OPTION, 0, EqlSearchRequest::size);
         intOption(options, "fetch_size", 2, EqlSearchRequest::fetchSize);
         intOption(options, "max_samples_per_key", 1, EqlSearchRequest::maxSamplesPerKey);
         stringOption(options, "timestamp_field", EqlSearchRequest::timestampField);
@@ -75,7 +79,7 @@ public final class EqlRequests {
         stringOption(options, "event_category_field", EqlSearchRequest::eventCategoryField);
         // result_position is the one string option with a closed value set; validate it at parse time (the others are
         // free-form field names) so a miscased "TAIL" fails loud here rather than as a late engine-worded error.
-        stringOption(options, "result_position", Set.of("head", "tail"), EqlSearchRequest::resultPosition);
+        stringOption(options, RESULT_POSITION_OPTION, Set.of(RESULT_POSITION_HEAD, RESULT_POSITION_TAIL), EqlSearchRequest::resultPosition);
         // The one EQL knob ESQL has no equivalent for: whether a sequence that spanned a failed shard may be returned.
         options.put(
             "allow_partial_sequence_results",
@@ -163,18 +167,20 @@ public final class EqlRequests {
         }
     }
 
+    public static boolean readsFromHead(Map<String, Object> options) {
+        return RESULT_POSITION_HEAD.equals(options.get(RESULT_POSITION_OPTION));
+    }
+
+    public static boolean usesDefaultSize(Map<String, Object> options, @Nullable Integer pushedLimit) {
+        return options.containsKey(SIZE_OPTION) == false && (pushedLimit == null || pushedLimit > RequestDefaults.SIZE);
+    }
+
     /**
      * The settings an EQL source inherits from the ES|QL query that hosts it — bridged from the query, not from the
      * command's own {@code WITH} options, so an EQL source honors the same contract as a {@code FROM} source in the
-     * same query: the result-truncation cap (the {@code size} fallback), the partial-results contract, cross-project
-     * routing, and the out-of-band request {@code filter}.
+     * same query: the partial-results contract, cross-project routing, and the out-of-band request {@code filter}.
      */
-    public record EnclosingQuery(
-        int truncationCap,
-        boolean allowPartialSearchResults,
-        @Nullable String projectRouting,
-        @Nullable QueryBuilder filter
-    ) {}
+    public record EnclosingQuery(boolean allowPartialSearchResults, @Nullable String projectRouting, @Nullable QueryBuilder filter) {}
 
     public static EqlSearchRequest build(
         String query,
@@ -209,18 +215,11 @@ public final class EqlRequests {
         if (fetchFields.isEmpty() == false) {
             request.fetchFields(fetchFields);
         }
-        // Effective size default; a WITH {"size"} option overrides it in applyOptions.
-        request.size(pushedLimit != null ? pushedLimit : enclosing.truncationCap());
         applyOptions(request, options);
+        if (pushedLimit != null) {
+            request.size(Math.min(pushedLimit, request.size()));
+        }
         return request;
-    }
-
-    /**
-     * Whether the effective request size came from the truncation cap (no {@code WITH {"size"}} and no pushed
-     * {@code LIMIT}) — the only case where a full response may be silently incomplete, so the caller warns on it.
-     */
-    public static boolean usesTruncationCapSize(Map<String, Object> options, Integer pushedLimit) {
-        return options.get("size") instanceof Number == false && pushedLimit == null;
     }
 
     /**

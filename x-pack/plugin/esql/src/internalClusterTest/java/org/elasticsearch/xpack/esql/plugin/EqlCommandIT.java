@@ -155,13 +155,13 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testLimitReturnsMostRecentEventByDefault() {
-        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | LIMIT 1", "powershell.exe");
-        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | KEEP process.name | LIMIT 1", "powershell.exe");
+    public void testLimitTrimsRowsOfTheDefaultTailResult() {
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | LIMIT 1", "cmd.exe");
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | KEEP process.name | LIMIT 1", "cmd.exe");
     }
 
-    public void testLimitReturnsOldestEventWithHeadResultPosition() {
-        assertSingleProcessName("EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\"} | LIMIT 1", "cmd.exe");
+    public void testHeadResultPositionReturnsTheOldestEvent() {
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\", \"size\": 1}", "cmd.exe");
     }
 
     public void testSequenceQueryUnnestsToOneRowPerEventWithTypedColumns() {
@@ -267,7 +267,13 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
 
     public void testRequestFilterAppliesBeforeTheEqlResultSize() {
         QueryBuilder filter = new RangeQueryBuilder("@timestamp").lte("2026-07-22T10:00:01Z");
-        assertSingleProcessName(syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" | LIMIT 1").filter(filter), "cmd.exe");
+        QueryBuilder afterFirstEvent = new RangeQueryBuilder("@timestamp").gte("2026-07-22T10:00:01Z");
+        assertSingleProcessName(
+            syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\"} | LIMIT 1").filter(
+                afterFirstEvent
+            ),
+            "powershell.exe"
+        );
         assertSingleProcessName(
             syncEsqlQueryRequest("EQL " + INDEX + " \"process where true\" WITH {\"size\": 1}").filter(filter),
             "cmd.exe"
@@ -335,39 +341,6 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         // ES|QL passes timestamp_field through opaquely, so the error must originate in the EQL delegate, not ES|QL
         // analysis — pin that origin so a future change that resolves the field ES|QL-side does not silently pass here.
         assertThat(e, not(instanceOf(VerificationException.class)));
-    }
-
-    public void testLimitDrivesSizeAndSuppressesTruncationWarning() throws Exception {
-        // Lower the cap to 1. A pushed LIMIT 1 must set size from the LIMIT (not the cap), so NO truncation warning
-        // fires. If the pushed limit failed to reach the request, size would fall back to the cap and the warning
-        // WOULD fire at size == cap == 1 — so asserting its absence discriminates the whole plumbing chain.
-        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
-        try {
-            CapturedQuery result = runCapturingWarnings("EQL " + INDEX + " \"process where true\" | LIMIT 1");
-            assertThat(result.rows(), hasSize(1));
-            assertTrue(
-                "a LIMIT-driven size must not warn about truncation, got: " + result.warnings(),
-                result.warnings().stream().noneMatch(w -> w.contains("results may be incomplete"))
-            );
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
-        }
-    }
-
-    public void testTruncationWarningWhenCapHit() throws Exception {
-        // Lower the cap below the number of process events. STATS has no LIMIT pushed past the aggregation, so the
-        // request size defaults to the cap and the (real) truncation must surface a client Warning.
-        updateClusterSettings(Settings.builder().put("esql.query.result_truncation_max_size", 1));
-        try {
-            CapturedQuery result = runCapturingWarnings("EQL " + INDEX + " \"process where true\" | STATS count = COUNT(*)");
-            assertThat("STATS must count only the capped events", ((Number) result.rows().get(0).get(0)).longValue(), equalTo(1L));
-            assertTrue(
-                "client must receive a truncation Warning, got: " + result.warnings(),
-                result.warnings().stream().anyMatch(w -> w.contains("results may be incomplete"))
-            );
-        } finally {
-            updateClusterSettings(Settings.builder().putNull("esql.query.result_truncation_max_size"));
-        }
     }
 
     public void testEventQueryWarnsOnALostShard() throws Exception {
@@ -574,16 +547,6 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
     }
 
     private record CapturedQuery(List<List<Object>> rows, List<String> warnings) {}
-
-    /**
-     * Runs a query and captures both its rows and the coordinator's response {@code Warning} headers — the only way
-     * to observe a runtime warning end to end. Mirrors the header capture in {@code ExternalMaxRecordSizeTruncationIT}
-     * / {@code WarningsIT}: {@code ActionListener.wrap} (not {@code run()}) since the transport client owns the
-     * response ref-count, so we must not close it here.
-     */
-    private CapturedQuery runCapturingWarnings(String query) throws Exception {
-        return runCapturingWarnings(syncEsqlQueryRequest(query));
-    }
 
     private CapturedQuery runCapturingWarnings(EsqlQueryRequest request) throws Exception {
         DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());

@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.client.NoOpClient;
@@ -92,10 +93,20 @@ class IntoTestUtils {
         }
     }
 
-    /** An {@link EscfBulkService} whose callbacks run on the calling thread, so {@code answer()} settles a writer before it returns. */
+    /** Bulks in flight in the default policy of {@link #bulks()}. */
+    static final int IN_FLIGHT = 3;
+
+    /**
+     * An {@link EscfBulkService} whose callbacks run on the calling thread, so {@code answer()} settles a writer before it returns.
+     * Its default policy takes {@link #IN_FLIGHT} bulks of {@link Operator#TARGET_PAGE_SIZE}, whatever the test heap.
+     */
     static EscfBulkService bulks() {
         IndexingPressure pressure = new IndexingPressure(
-            Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1gb").build()
+            Settings.builder()
+                .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1gb")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), Operator.TARGET_PAGE_SIZE + "b")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), (long) IN_FLIGHT * Operator.TARGET_PAGE_SIZE + "b")
+                .build()
         );
         return new EscfBulkService(pressure, Runnable::run, mockBigArrays().bytesRefRecycler());
     }

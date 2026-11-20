@@ -271,6 +271,32 @@ public class EscfBulkWriterTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new EscfBulkWriter.Policy(1, MAX_TARGET + 1));
     }
 
+    public void testDefaultPolicyFollowsIndexingPressure() {
+        assertThat(defaultPolicy("20mb", "4mb"), equalTo(new EscfBulkWriter.Policy(5, ONE_MB * 4)));
+        // a large heap still keeps few bulks in flight until rejected bulks are retried
+        assertThat(
+            defaultPolicy("2gb", "4mb"),
+            equalTo(new EscfBulkWriter.Policy(EscfBulkWriter.Policy.MAX_DEFAULT_BULKS_IN_FLIGHT, ONE_MB * 4))
+        );
+        // a watermark below one batch still lets a bulk go
+        assertThat(defaultPolicy("1mb", "4mb"), equalTo(new EscfBulkWriter.Policy(1, ONE_MB * 4)));
+        // batches stay within what a writer may build
+        assertThat(
+            defaultPolicy("1gb", "1gb"),
+            equalTo(new EscfBulkWriter.Policy(EscfBulkWriter.Policy.MAX_DEFAULT_BULKS_IN_FLIGHT, MAX_TARGET))
+        );
+    }
+
+    private static EscfBulkWriter.Policy defaultPolicy(String lowWatermark, String lowWatermarkSize) {
+        IndexingPressure pressure = new IndexingPressure(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), lowWatermark)
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), lowWatermarkSize)
+                .build()
+        );
+        return new EscfBulkService(pressure, Runnable::run, BytesRefRecycler.NON_RECYCLING_INSTANCE).defaultPolicy();
+    }
+
     public void testRowsGoToTheBatchInOrder() {
         try (EscfBulkWriter.Producer producer = writer(new EscfBulkWriter.Policy(1, MAX_TARGET)).newProducer()) {
             producer.add(page(0, 3), false);

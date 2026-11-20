@@ -35,18 +35,18 @@ import java.util.function.LongConsumer;
  * <p>
  * Remains {@link Abortable} so a caller's abort fast-path still reaches the underlying S3 stream rather than
  * falling back to a draining {@code close()}. {@link #close()} itself aborts when the unread remainder is
- * larger than {@link #MAX_TRAILING_DRAIN_BYTES} (or the body length is unknown) so uncompressed
- * {@code LIMIT} teardown does not drain a 64 MiB GET. A small leftover on a healthy stream is
- * drained and {@code onDrained} credits the bytes actually read. A failed read, abort, or thrown
- * drain does not credit expected leftover: resume would fetch those bytes again.
+ * larger than {@link #MAX_TRAILING_DRAIN_BYTES}, the body length is unknown, or a body read already
+ * failed. Apache {@code close()} of a just-failed socket can stall another timeout before resume.
+ * A small leftover on a healthy stream is drained and {@code onDrained} credits the bytes actually
+ * read. Abort and thrown drain do not credit expected leftover: resume would fetch those bytes again.
  */
 final class TransientTypingInputStream extends FilterInputStream implements Abortable {
 
     /**
      * Leftover GET bytes at or below this {@code close()} the inner stream instead of aborting.
      * Apache {@code close()} drains that leftover onto the socket; {@code onDrained} credits
-     * bytes actually read after a successful drain of a healthy stream. Larger leftover (or
-     * unknown length) aborts the connection instead.
+     * bytes actually read after a successful drain of a healthy stream. Larger leftover,
+     * unknown length, or a failed body read aborts the connection instead.
      * Keep in sync with {@code DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES} (64 KiB) and
      * Hadoop S3A readahead. Different package; do not import that package-private field.
      */
@@ -62,7 +62,7 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
      */
     private volatile long bytesRead;
     private final AtomicBoolean terminal = new AtomicBoolean();
-    /** Set when a body read failed; close must not credit leftover the resume path will fetch. */
+    /** Set when a body read failed; {@link #close()} aborts instead of draining the failed socket. */
     private volatile boolean readFailed;
     @Nullable
     private final LongConsumer onDrained;
@@ -160,17 +160,13 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         long leftover = expectedLength < 0 ? Long.MAX_VALUE : expectedLength - bytesRead;
         // Unknown length always aborts, including leftover 0: without Content-Length we cannot
         // treat EOF as a complete window. S3 almost always sends length; callers that need pool
-        // reuse on a fully-read window must pass expectedLength.
-        if (expectedLength < 0 || leftover > MAX_TRAILING_DRAIN_BYTES) {
+        // reuse on a fully-read window must pass expectedLength. A failed read also aborts:
+        // Apache close() of that socket can stall resume/cancel another timeout.
+        if (expectedLength < 0 || leftover > MAX_TRAILING_DRAIN_BYTES || readFailed) {
             abort();
             return;
         }
         if (terminal.getAndSet(true)) {
-            return;
-        }
-        if (readFailed) {
-            // Resume will fetch the remainder; do not credit a drain of a failed stream.
-            super.close();
             return;
         }
         long before = bytesRead;

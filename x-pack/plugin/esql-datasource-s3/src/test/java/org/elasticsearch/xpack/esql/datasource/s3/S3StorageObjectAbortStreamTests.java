@@ -198,7 +198,9 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         int leftover = 64;
         int delivered = 8;
         AtomicLong credited = new AtomicLong();
-        InputStream inner = new FilterInputStream(new ByteArrayInputStream(new byte[delivered + leftover])) {
+        AtomicBoolean abortCalled = new AtomicBoolean();
+        AtomicBoolean closeCalled = new AtomicBoolean();
+        InputStream inner = new AbortableInputStream(new FilterInputStream(new ByteArrayInputStream(new byte[delivered + leftover])) {
             int seen;
 
             @Override
@@ -212,13 +214,15 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
                 }
                 return got;
             }
-        };
+        }, abortCalled, closeCalled);
         TransientTypingInputStream typed = new TransientTypingInputStream(inner, PATH, delivered + leftover, credited::addAndGet);
         MeteredInputStream metered = new MeteredInputStream(typed, new StorageObjectMetricsCounters());
         assertEquals(delivered, metered.read(new byte[delivered]));
         expectThrows(ExternalUnavailableException.class, () -> metered.read(new byte[1]));
         metered.close();
         assertEquals("failed-stream drain must not credit leftover the resume path will fetch", 0L, credited.get());
+        assertTrue("failed-stream close must abort; Apache drain of that socket can stall resume", abortCalled.get());
+        assertFalse(closeCalled.get());
     }
 
     public void testCloseAbortsRemainderAbove64KiB() throws IOException {

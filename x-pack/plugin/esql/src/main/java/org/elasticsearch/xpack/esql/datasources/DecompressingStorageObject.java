@@ -227,13 +227,15 @@ final class DecompressingStorageObject implements StorageObject {
     @Override
     public void close() throws IOException {
         closed.set(true);
-        InputStream raw = inFlightRaw.getAndSet(null);
+        // Abort the GET first. gzip header init can be parked in raw.read() with leftover
+        // ≤64 KiB; closing that body would drain the stalled socket and delay the abort.
         try {
+            delegate.close();
+        } finally {
+            InputStream raw = inFlightRaw.getAndSet(null);
             if (raw != null) {
                 raw.close();
             }
-        } finally {
-            delegate.close();
         }
     }
 

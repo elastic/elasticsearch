@@ -421,6 +421,46 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         assertCloseUnblocksGzipHeaderRead(true);
     }
 
+    /**
+     * gzip header parked in {@code raw.read()} with a leftover that Apache would drain. Stream
+     * {@code close()} hangs until {@link StorageObject#close()} aborts. {@code DecompressingStorageObject.close()}
+     * must abort the delegate first; closing the raw body first never reaches the abort.
+     */
+    public void testCloseAbortsDelegateBeforeRawDrainHang() throws Exception {
+        DrainHangUntilAbortStorageObject leaf = new DrainHangUntilAbortStorageObject();
+        AtomicInteger decoderClosesOnCloser = new AtomicInteger();
+        AtomicReference<Thread> closer = new AtomicReference<>();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(leaf, countingGzip(decoderClosesOnCloser, closer));
+
+        AtomicReference<Exception> openerError = new AtomicReference<>();
+        CountDownLatch openerDone = new CountDownLatch(1);
+        Thread opener = new Thread(() -> {
+            try {
+                decompressing.newStream();
+            } catch (Exception e) {
+                openerError.set(e);
+            } finally {
+                openerDone.countDown();
+            }
+        }, "gzip-header-drain-hang-opener");
+        opener.start();
+        try {
+            assertTrue("newStream must enter codec.decompress (header read parked)", leaf.inHeaderRead.await(5, TimeUnit.SECONDS));
+            closer.set(Thread.currentThread());
+            long startNanos = System.nanoTime();
+            decompressing.close();
+            assertTrue("delegate abort must unblock gzip header and raw close()", openerDone.await(5, TimeUnit.SECONDS));
+            assertThat(System.nanoTime() - startNanos, Matchers.lessThan(TimeUnit.SECONDS.toNanos(5)));
+            assertThat(openerError.get(), Matchers.instanceOf(IOException.class));
+            assertEquals("closer must abort the GET once", 1, leaf.objectCloses.get());
+            assertEquals("closer must still close the raw GET once abort unparks it", 1, leaf.streamCloses.get());
+            assertEquals("closer must not close a decoder that does not exist yet", 0, decoderClosesOnCloser.get());
+        } finally {
+            leaf.aborted.countDown();
+            opener.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
     private void assertCloseUnblocksGzipHeaderRead(boolean closeRetryable) throws Exception {
         HeaderParkStorageObject leaf = new HeaderParkStorageObject();
         AtomicInteger decoderClosesOnCloser = new AtomicInteger();
@@ -999,6 +1039,93 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("s3://bucket/parked.gz");
+        }
+    }
+
+    /**
+     * Leaf GET whose body {@code read()} and {@code close()} both park until
+     * {@link StorageObject#close()}. Models Apache draining a stalled leftover of at most 64 KiB:
+     * closing the raw stream first never reaches the abort that unparks it.
+     */
+    static final class DrainHangUntilAbortStorageObject extends AbstractTestStorageObject {
+        final CountDownLatch inHeaderRead = new CountDownLatch(1);
+        final CountDownLatch aborted = new CountDownLatch(1);
+        final AtomicInteger objectCloses = new AtomicInteger();
+        final AtomicInteger streamCloses = new AtomicInteger();
+        private final AtomicBoolean streamClosed = new AtomicBoolean();
+
+        @Override
+        public InputStream newStream() {
+            return parkedBody();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            return parkedBody();
+        }
+
+        private InputStream parkedBody() {
+            return new FilterInputStream(InputStream.nullInputStream()) {
+                @Override
+                public int read() throws IOException {
+                    inHeaderRead.countDown();
+                    parkUntilAbort("header read");
+                    throw new IOException("GET aborted");
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    inHeaderRead.countDown();
+                    parkUntilAbort("header read");
+                    throw new IOException("GET aborted");
+                }
+
+                @Override
+                public void close() throws IOException {
+                    parkUntilAbort("raw close drain");
+                    if (streamClosed.compareAndSet(false, true)) {
+                        streamCloses.incrementAndGet();
+                    }
+                    super.close();
+                }
+            };
+        }
+
+        private void parkUntilAbort(String what) throws IOException {
+            try {
+                if (aborted.await(15, TimeUnit.SECONDS) == false) {
+                    throw new IOException(what + " was not unblocked by StorageObject.close()");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException(what + " interrupted", e);
+            }
+        }
+
+        @Override
+        public void close() {
+            objectCloses.incrementAndGet();
+            aborted.countDown();
+        }
+
+        @Override
+        public long length() {
+            return 1024;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/drain-hang.gz");
         }
     }
 

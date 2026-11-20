@@ -186,6 +186,8 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 indexShard.preRecovery(l);
             }).andThenApply(unused -> {
                 logger.trace("{} preparing unpromotable shard for recovery", recoveryTarget.shardId());
+                // Must stay after preRecovery, which waits on offline warming: BlobByteRangeWarmer stops warming early once a direct
+                // cancellation has been requested, so without this check the shard would go on to start with a partially warmed cache.
                 indexShard.ensureRecoveryNotCancelled();
                 indexShard.prepareForIndexRecovery();
                 // Skip unnecessary intermediate stages

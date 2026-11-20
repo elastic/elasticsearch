@@ -92,7 +92,7 @@ import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
-import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -1091,6 +1091,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
                 if (notification.getGeneration() == beforeGeneration) {
                     assertThat(notification.getNodeId(), equalTo(getNodeId(indexNodeSource)));
+                    logger.info(
+                        "--> source commit notification received: generation=[{}], uploaded=[{}]",
+                        notification.getGeneration(),
+                        notification.isUploaded()
+                    );
                     // Delayed the uploaded notification to ensure fetching from the indexing node
                     if (notification.isUploaded()) {
                         if (delayActions.get()) {
@@ -1118,14 +1123,23 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
                     if (chunkRequest.getVirtualBatchedCompoundCommitGeneration() == beforeGeneration) {
                         assertThat(chunkRequest.getPreferredNodeId(), equalTo(getNodeId(indexNodeSource)));
+                        logger.info(
+                            "--> source get-chunk request received: generation=[{}]",
+                            chunkRequest.getVirtualBatchedCompoundCommitGeneration()
+                        );
                         sourceGetChunkRequestReceived.countDown();
                     }
                     handler.messageReceived(request, channel, task);
                 }
             );
 
+        logger.info("--> refresh index");
         var refreshFuture = admin().indices().prepareRefresh(indexName).execute();
+
+        logger.info("--> wait for source notification");
         safeAwait(sourceNotificationReceived);
+
+        logger.info("--> wait for chunk request");
         safeAwait(sourceGetChunkRequestReceived);
 
         // check that the target indexing shard sent a new commit notification with the correct generation and node id.
@@ -1313,7 +1327,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     WarmingRatioProvider warmingRatioProvider,
-                    @Nullable Map<BlobFile, WarmTarget> endTargetsToWarm,
+                    @Nullable Map<BccBlob, WarmTarget> endTargetsToWarm,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -1339,7 +1353,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 public void warmCacheForBCCHeadersRead(
                     IndexShard indexShard,
                     BlobStoreCacheDirectory directory,
-                    Set<BlobFile> lastCommitBlobs,
+                    Set<BccBlob> lastCommitBlobs,
                     ActionListener<Void> listener
                 ) {
                     if (deferRegion0Prewarm.get()) {

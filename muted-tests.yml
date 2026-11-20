@@ -844,3 +844,8 @@ tests:
   - :server:test
   method: testDimsDerivedConfigFollowsFieldDimension
   issue: https://github.com/elastic/elasticsearch/issues/166795
+- class: org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithoutPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166894

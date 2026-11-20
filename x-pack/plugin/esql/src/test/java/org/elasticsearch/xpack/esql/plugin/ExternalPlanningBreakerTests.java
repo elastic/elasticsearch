@@ -684,6 +684,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             null,
             // Holds no node back, so every node of a state is a worker.
             new ExternalWorkerReadiness(clusterService, null, threadPool, false),
+            null,
             null
         );
     }

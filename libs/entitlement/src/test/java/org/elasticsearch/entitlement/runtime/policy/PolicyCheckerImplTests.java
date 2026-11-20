@@ -9,8 +9,12 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteAllSystemPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -27,6 +31,8 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.TE
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.createEmptyTestServerPolicy;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.makeClassInItsOwnModule;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PolicyCheckerImplTests extends ESTestCase {
     public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
@@ -77,7 +83,69 @@ public class PolicyCheckerImplTests extends ESTestCase {
         Files.createFile(allegedDir); // Not a dir!
         Files.createSymbolicLink(symlink, target);
 
-        PathLookup testPathLookup = new PathLookup() {
+        PathLookup testPathLookup = testPathLookup();
+
+        var policyManager = new TestPolicyManager(
+            createEmptyTestServerPolicy(),
+            Map.of(
+                "testComponent",
+                new Policy(
+                    "testPolicy",
+                    List.of(new Scope("testModule", List.of(new FilesEntitlement(List.of(FileData.ofPath(symlink, READ))))))
+                )
+            ),
+            c -> PolicyManager.PolicyScope.plugin("testComponent", "testModule"),
+            testPathLookup,
+            List.of(),
+            List.of()
+        );
+        policyManager.setActive(true);
+        policyManager.setTriviallyAllowingTestCode(false);
+
+        var checker = checker(NO_ENTITLEMENTS_MODULE, policyManager, testPathLookup);
+        var exception = assertThrows(IOException.class, () -> checker.checkFileRead(getClass(), symlink, true));
+    }
+
+    public void testFirstUntrustedFrame() throws IOException, ClassNotFoundException {
+        var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
+        var trustedClass = makeClassInItsOwnModule();         // Stands in for a JDK class
+        var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
+        var ignorableClass = makeClassInItsOwnModule();
+
+        // a mock, because a real PolicyManager only trusts classes of the running JDK, and the test needs its own trusted class
+        PolicyManager policyManager = mock(PolicyManager.class);
+        when(policyManager.isTriviallyAllowed(trustedClass)).thenReturn(true);
+        var checker = checker(entitlementsClass.getModule(), policyManager, TEST_PATH_LOOKUP);
+
+        assertEquals(
+            "Skip entitlement library and trusted frames",
+            requestingClass,
+            checker.findFirstUntrustedFrame(
+                Stream.of(entitlementsClass, trustedClass, entitlementsClass, trustedClass, requestingClass, ignorableClass)
+                    .map(PolicyManagerTests.MockFrame::new)
+            ).map(StackWalker.StackFrame::getDeclaringClass).orElse(null)
+        );
+        assertTrue(
+            "No untrusted frame",
+            checker.findFirstUntrustedFrame(Stream.of(entitlementsClass, trustedClass).map(PolicyManagerTests.MockFrame::new)).isEmpty()
+        );
+    }
+
+    public void testWriteProperty() {
+        var listed = writePropertyChecker(new WriteSystemPropertiesEntitlement(List.of("listed")));
+        listed.checkWriteProperty(getClass(), "listed");
+        assertThrows(NotEntitledException.class, () -> listed.checkWriteProperty(getClass(), "other"));
+
+        var all = writePropertyChecker(new WriteAllSystemPropertiesEntitlement());
+        all.checkWriteProperty(getClass(), "listed");
+        all.checkWriteProperty(getClass(), "other");
+
+        var none = writePropertyChecker();
+        assertThrows(NotEntitledException.class, () -> none.checkWriteProperty(getClass(), "listed"));
+    }
+
+    private static PathLookup testPathLookup() {
+        return new PathLookup() {
             @Override
             public Path pidFile() {
                 throw new UnsupportedOperationException();
@@ -99,26 +167,21 @@ public class PolicyCheckerImplTests extends ESTestCase {
                 return true;
             }
         };
+    }
 
+    private static PolicyCheckerImpl writePropertyChecker(Entitlement... entitlements) {
+        PathLookup pathLookup = testPathLookup();
         var policyManager = new TestPolicyManager(
             createEmptyTestServerPolicy(),
-            Map.of(
-                "testComponent",
-                new Policy(
-                    "testPolicy",
-                    List.of(new Scope("testModule", List.of(new FilesEntitlement(List.of(FileData.ofPath(symlink, READ))))))
-                )
-            ),
+            Map.of("testComponent", new Policy("testPolicy", List.of(new Scope("testModule", List.of(entitlements))))),
             c -> PolicyManager.PolicyScope.plugin("testComponent", "testModule"),
-            testPathLookup,
+            pathLookup,
             List.of(),
             List.of()
         );
         policyManager.setActive(true);
         policyManager.setTriviallyAllowingTestCode(false);
-
-        var checker = checker(NO_ENTITLEMENTS_MODULE, policyManager, testPathLookup);
-        var exception = assertThrows(IOException.class, () -> checker.checkFileRead(getClass(), symlink, true));
+        return checker(NO_ENTITLEMENTS_MODULE, policyManager, pathLookup);
     }
 
     private static PolicyCheckerImpl checker(Module entitlementsModule) {

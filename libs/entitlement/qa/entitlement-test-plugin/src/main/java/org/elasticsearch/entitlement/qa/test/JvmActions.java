@@ -45,11 +45,6 @@ class JvmActions {
         return System.clearProperty("es.entitlements.checkClearSystemProperty");
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void getSystemProperties() {
-        System.getProperties();
-    }
-
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void setSystemProperties() {
         System.setProperties(System.getProperties());

@@ -33,7 +33,6 @@ public abstract class AbstractEntitlementsIT extends ESRestTestCase {
         builder.value("outbound_network");
         builder.value("load_native_libraries");
         builder.value("manage_threads");
-        builder.value("write_all_system_properties");
         builder.value(
             Map.of(
                 "write_system_properties",

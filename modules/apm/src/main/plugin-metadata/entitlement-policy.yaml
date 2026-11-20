@@ -60,6 +60,3 @@ io.opentelemetry.instrumentation.runtime_telemetry:
 
 io.opentelemetry.sdk.common:
   - manage_threads
-
-io.opentelemetry.common:
-  - write_all_system_properties # ConfigUtil reads System.getProperties()

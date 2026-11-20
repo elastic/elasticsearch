@@ -60,6 +60,11 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     }
 
     @Override
+    public void checkWriteProperty$(String property) {
+        policyChecker.checkWritePropertyFromStack(property);
+    }
+
+    @Override
     public Map<String, Map<MethodSignature, InstrumentationInfo>> getInstrumentedMethods() {
         return Collections.unmodifiableMap(rulesByClass);
     }

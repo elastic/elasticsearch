@@ -20,7 +20,6 @@ unboundid.ldapsdk:
   - set_https_connection_properties # TODO: review if we need this once we have proper test coverage
   - outbound_network
   - manage_threads
-  - write_all_system_properties # StaticUtils reads System.getProperties()
   - write_system_properties:
       properties:
         - java.security.auth.login.config

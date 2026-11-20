@@ -1,2 +1,0 @@
-ALL-UNNAMED:
-  - write_all_system_properties # xmlbeans reads System.getProperties()

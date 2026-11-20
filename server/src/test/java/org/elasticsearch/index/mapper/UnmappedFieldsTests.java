@@ -47,6 +47,7 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.joining;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasToString;
@@ -559,6 +560,34 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
     /**
      * The same document read by a named loader, which writes no JSON, is not charged for it.
      */
+    /**
+     * A write that would need an array larger than the JVM allows is rejected before anything is charged or copied. Growing to it
+     * would throw an {@code OutOfMemoryError}, which is fatal for the node, and {@code toIntExact} on a larger size an
+     * {@code ArithmeticException}.
+     */
+    public void testJsonBufferRejectsAWriteBeyondTheLargestArray() {
+        long[] charged = new long[1];
+        CircuitBreaker breaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                charged[0] += bytes;
+            }
+        };
+        try (UnmappedFields.HeldValues charge = UnmappedFields.HeldValues.ofWrittenJson(breaker, 0)) {
+            UnmappedFields.ChargingByteArrayOutputStream out = new UnmappedFields.ChargingByteArrayOutputStream(charge);
+            long before = charged[0];
+            // The check runs before the bytes are read, so a one byte array stands in for the huge write.
+            for (int length : new int[] { Integer.MAX_VALUE - 7, Integer.MAX_VALUE }) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> out.write(new byte[1], 0, length));
+                assertThat(e.getMessage(), containsString("the JSON of the unmapped fields of a document needs"));
+            }
+            assertThat("nothing is charged for a write that is rejected", charged[0], equalTo(before));
+            // A write the array can take is not affected.
+            out.write(new byte[] { 1, 2, 3 }, 0, 3);
+            assertThat(out.bytesRefSharingArray().length, equalTo(3));
+        }
+    }
+
     public void testNamedLoaderChargesNoJson() throws IOException {
         Source source = json(documentWithALongKeyAboveManyLeaves(1_000, 10_000));
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(4));

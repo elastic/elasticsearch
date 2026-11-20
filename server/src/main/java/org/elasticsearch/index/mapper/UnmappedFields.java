@@ -666,7 +666,7 @@ public final class UnmappedFields {
      * one are alive together while the bytes are copied, so the capacity of the new one is charged before the copy and the old one is
      * given back after it.
      */
-    private static final class ChargingByteArrayOutputStream extends ByteArrayOutputStream {
+    static final class ChargingByteArrayOutputStream extends ByteArrayOutputStream {
         /** The largest array to grow to by doubling; past it growth falls back to what is needed, as {@link ByteArrayOutputStream} does. */
         private static final int MAX_LENGTH = Integer.MAX_VALUE - 8;
 
@@ -701,8 +701,19 @@ public final class UnmappedFields {
             if (needed <= buf.length) {
                 return;
             }
+            if (needed > MAX_LENGTH) {
+                // Past the largest array the JVM allows, Arrays.copyOf throws an OutOfMemoryError, which is fatal for the node. Reject
+                // the query before the charge or the copy, as ArrayUtil.oversize does.
+                throw new IllegalArgumentException(
+                    "the JSON of the unmapped fields of a document needs ["
+                        + needed
+                        + "] bytes, more than the largest array of ["
+                        + MAX_LENGTH
+                        + "]"
+                );
+            }
             int oldLength = buf.length;
-            int grown = Math.toIntExact(Math.max(needed, Math.min((long) oldLength * 2, MAX_LENGTH)));
+            int grown = (int) Math.max(needed, Math.min((long) oldLength * 2, MAX_LENGTH));
             charge.add(grown);
             buf = Arrays.copyOf(buf, grown);
             charge.release(oldLength);
@@ -733,7 +744,7 @@ public final class UnmappedFields {
      * what is held beyond it is charged. The charge is made in steps of {@link #STEP} bytes, so that holding a value usually costs no
      * more than an addition. The breaker is asked, and may trip, when a step is made.
      */
-    private static final class HeldValues implements Releasable {
+    static final class HeldValues implements Releasable {
         private static final long STEP = 64 * 1024;
         private static final String HELD_VALUES_LABEL = "unmapped fields held values";
         private static final String WRITTEN_JSON_LABEL = "unmapped fields written json";

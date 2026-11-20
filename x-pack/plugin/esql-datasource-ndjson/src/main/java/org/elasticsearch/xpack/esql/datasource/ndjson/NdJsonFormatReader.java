@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
@@ -40,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
@@ -604,14 +607,30 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * user-facing message in this reader spells the format in capitals. CSV takes its name from a field for a
      * reason that does not apply here -- one reader there serves both CSV and TSV.
      */
+    /**
+     * Refuses when the sample budget ran out before a single complete record was read.
+     * <p>
+     * Typed rather than raised through {@link Check#clientError}, which throws a plain
+     * {@link IllegalArgumentException}: the resolver forwards one of those only after
+     * {@code ExternalFailures.forwardableDetail} has passed the whole message through its storage-path guard,
+     * which matches a bare storage host anywhere in the text — so once this message names the object, an object
+     * legitimately called {@code logs.amazonaws.com.ndjson} loses the whole sentence and the remedy with it. An
+     * {@link ExternalClientException} is returned whole by the same resolver without consulting that guard.
+     * {@code CsvFormatReader.sampleLimitError} is the twin of this.
+     */
     private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead, StorageObject object) {
-        String objectName = RowLocation.displayObjectName(object.path().objectName());
-        Check.clientError(
-            sampleRows > 0 || bytesRead < schemaSampleBytes,
-            "NDJSON schema inference{} reached the decoded-byte sample limit [{}] before reading a complete " + "record; declare a schema",
-            objectName.isEmpty() ? "" : " of [" + objectName + "]",
-            ByteSizeValue.ofBytes(schemaSampleBytes)
+        if (sampleRows > 0 || bytesRead < schemaSampleBytes) {
+            return;
+        }
+        ExternalClientException limitEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
+        limitEx.setDetail(
+            "NDJSON schema inference"
+                + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
+                + " reached the decoded-byte sample limit ["
+                + ByteSizeValue.ofBytes(schemaSampleBytes)
+                + "] before reading a complete record; declare a schema"
         );
+        throw limitEx;
     }
 
     @Override

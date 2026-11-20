@@ -3393,7 +3393,7 @@ public class NdJsonPageDecoderTests extends ESTestCase {
         }
         assertEquals("one summary + one detail, got: " + warnings, 2, warnings.size());
         assertEquals(
-            "row [2] of [test://chunked] counted from byte [640491456], column [v]: cannot read [nope] as [long]",
+            "row [2] of [test://chunked] counted from byte [640491456] of the decoded stream, column [v]: cannot read [nope] as [long]",
             warnings.get(1)
         );
     }
@@ -3423,7 +3423,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             ParsingException e = expectThrows(ParsingException.class, decoder::decodePage);
             assertThat(
                 e.getMessage(),
-                Matchers.containsString("rows of [test://chunked-budget] counted from byte [4194304]; over [max_errors] of [0]")
+                Matchers.containsString(
+                    "rows of [test://chunked-budget] counted from byte [4194304] of the decoded stream; over [max_errors] of [0]"
+                )
             );
         }
     }
@@ -3451,7 +3453,9 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             ParsingException e = expectThrows(ParsingException.class, decoder::decodePage);
             assertThat(
                 e.getMessage(),
-                Matchers.containsString("row [2] of [test://chunked-strict] counted from byte [4194304]: malformed JSON")
+                Matchers.containsString(
+                    "row [2] of [test://chunked-strict] counted from byte [4194304] of the decoded stream: malformed JSON"
+                )
             );
         }
     }

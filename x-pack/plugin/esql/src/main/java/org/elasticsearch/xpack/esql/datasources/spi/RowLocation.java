@@ -21,17 +21,13 @@ import org.elasticsearch.core.Strings;
  * the window's start.
  * <p>
  * Naming the object also separates the detail lines of a glob read, which arrive interleaved in one response
- * under a single summary warning. It does not fully disambiguate them: {@link StoragePath#objectName(String)} is the
- * last path segment by design (it "never returns the full URI — fails closed rather than leaking a bucket or
- * prefix"), so a glob over objects that share a basename — {@code dt=…/part-00000.csv} under many prefixes,
- * the hive-partitioned norm — still names every one of them the same. The byte clause does not rescue that
- * case: two such objects each failing at the same ordinal of their FIRST split render the identical string,
- * because a read starting at byte zero carries no byte clause at all. What the byte clause does fix is the
- * case where the windows differ — two chunks of ONE object failing at the same ordinal, which is every gzip
- * read, since the stream is segmented and each segment's decoder counts from zero.
- * {@code InformationalWarningBudget} deduplicates by exact string, so those previously collapsed into a
- * single warning with nothing to say that a second record had failed. The same-basename collision survives
- * and is not addressed here.
+ * under a single summary warning. It does not fully disambiguate them: {@link StoragePath#objectName(String)}
+ * is the last path segment by design — it never returns the full URI, failing closed rather than leaking a
+ * bucket or prefix — so a glob over objects sharing a basename names every one of them the same, and that
+ * collision survives this class. What the byte clause does fix is two chunks of ONE object failing at the same
+ * ordinal, which is every gzip read, since the stream is segmented and each segment's decoder counts from
+ * zero; {@code InformationalWarningBudget} deduplicates by exact string, so those previously collapsed into
+ * one warning with nothing to say a second record had failed.
  */
 public final class RowLocation {
 
@@ -94,11 +90,26 @@ public final class RowLocation {
      *                       null-splices that slot for a compressed-offset split.
      */
     public static String of(long row, String objectName, long readStartByte) {
-        StringBuilder where = new StringBuilder("row [").append(row).append(']');
-        if (objectName != null && objectName.isEmpty() == false) {
-            where.append(" of [").append(shorten(objectName)).append(']');
-        }
-        return where.append(countedIn(readStartByte)).toString();
+        return new StringBuilder("row [").append(row)
+            .append(']')
+            .append(objectClause(" of", displayObjectName(objectName)))
+            .append(countedIn(readStartByte))
+            .toString();
+    }
+
+    /**
+     * The bracketed object part of a message, with {@code leadIn} carrying the preposition ({@code " of"},
+     * {@code " for"}, or empty where the sentence already supplies the word) so the whole phrase disappears
+     * together when the name is unavailable, rather than leaving a dangling preposition or an empty
+     * {@code []}.
+     * <p>
+     * One owner because every message that names an object has to agree about that, and they did not: the
+     * schema-path refusals, the per-row clause {@link #of} builds and the sample-budget refusals each rendered
+     * their own copy of it, which agree only until one of them is edited. The name is expected to have been
+     * reduced by {@link #displayObjectName} already, so this neither caps nor escapes.
+     */
+    public static String objectClause(String leadIn, String objectName) {
+        return objectName == null || objectName.isEmpty() ? "" : leadIn + " [" + objectName + "]";
     }
 
     /**
@@ -115,10 +126,19 @@ public final class RowLocation {
      * <p>
      * Returns the empty string for a read from the start of the file, whose counts ARE the file's and need no
      * qualification.
+     * <p>
+     * The byte names its own axis because on a stream-compressed object it is not an offset anyone can seek to
+     * in the stored object. A gzip or zstd read is segmented and each segment's start is a cumulative offset
+     * into the DECOMPRESSED stream, which is the axis the records sit on and the only one the reader is given;
+     * printed bare beside the stored object's name it exceeds that object's length, so a user following it
+     * seeks past the end of the {@code .gz}. Naming the axis is accurate for a plain file too, whose decoded
+     * stream is its stored bytes, which is why it is said unconditionally rather than only where the reader
+     * suspects compression -- it is not told. Placing the byte in the stored object for a compressed read needs
+     * a compression signal the read context does not carry, and stays with esql-planning#2022.
      */
     public static String countedIn(long readStartByte) {
         if (readStartByte > 0L) {
-            return " counted from byte [" + readStartByte + "]";
+            return " counted from byte [" + readStartByte + "] of the decoded stream";
         }
         return readStartByte < 0L ? " counted within a split" : "";
     }
@@ -133,18 +153,11 @@ public final class RowLocation {
      * returned as it stands — so a caller that has not cannot emit an uncut or unescaped name. This is the one
      * statement of that rationale; call sites point here rather than repeat it.
      * <p>
-     * Two names agreeing on the kept head and tail but differing in the cut middle reduce to one token, so
-     * objects that would otherwise have been told apart can produce identical text and the exact-string
-     * deduplication then keeps only the first. That is the same limitation as the shared-basename case this
-     * class documents above, reached through the cap rather than through the path, and it is accepted for the
-     * same reason: the alternative is an unbounded name in a response header.
-     * <p>
-     * What that acceptance covers is two HONEST names coinciding — a glob whose objects happen to share a
-     * basename, or a head and a tail. It does not extend to a name built to impersonate the location text
-     * around it, where the collapse is the point rather than the accident and whoever chose the name decides
-     * which other row's warning disappears. {@link #escapeImpersonatingCharacters} closes that off separately,
-     * and the distinction is why the two live apart: a coincidence is bounded by what users happen to call
-     * their files, and a forgery is bounded by nothing.
+     * Two names agreeing on the kept head and tail reduce to one token and the exact-string deduplication then
+     * keeps only the first — the shared-basename collision above, reached through the cap instead of the path,
+     * and accepted for the same reason: the alternative is an unbounded name in a response header. That covers
+     * names that coincide by accident. A name BUILT to impersonate the text around it is a different thing and
+     * is closed off separately, by {@link #escapeImpersonatingCharacters}.
      * <p>
      * Cuts to {@link #MAX_OBJECT_NAME_CHARS}, keeping both ends. Same head/tail shape as
      * {@link ErrorExcerpts#summarize}, without its character count: the count tells a user how much of a VALUE
@@ -203,17 +216,12 @@ public final class RowLocation {
      * either bracket is enough to break the forgery; both are escaped so the rule is "a bracket in a name is never
      * a bracket in the message" rather than a rule about which one happened to matter.
      * <p>
-     * Escaping is one-way and is not meant to be reversed: an object whose name literally holds the six
-     * characters of a bracket's escape renders exactly as one that holds the bracket, so the rendering is not
-     * injective and two names can still reach one token through it. Escaping the backslash as well would close
-     * that, and is declined on purpose: the escape's own output would then hold an escapable character, which
-     * is precisely what {@link #displayObjectName} relies on NOT being true when {@link #of} applies this a
-     * second time. That idempotence protects every message — a reader that forgets to reduce its own name
-     * still cannot emit an unescaped one — whereas what it costs is a name-to-name collision rather than the
-     * field-structure forgery a bracket allowed: it needs the OTHER object's name to hold a bracket or a
-     * control character, and it cannot move a row to a byte it was never read at. {@code RowLocationTests}
-     * pins the idempotence this choice rests on, so a later addition to the escaped set fails a test rather
-     * than silently double-escaping every bracketed name.
+     * Escaping is one-way: a name literally holding the six characters of a bracket's escape renders exactly
+     * as one holding the bracket, so two names can still reach one token. Escaping the backslash as well would
+     * close that, and is declined, because the escape's own output would then hold an escapable character —
+     * and {@link #of} applies this a second time over an already-reduced name, the idempotence that stops a
+     * reader which forgot to reduce its own name from emitting an unescaped one. {@code RowLocationTests} pins
+     * that, so adding to the escaped set fails a test rather than silently double-escaping every bracketed name.
      * <p>
      * Applied before the cap, so {@link #MAX_OBJECT_NAME_CHARS} bounds what is actually emitted — an escape is
      * six characters where the original was one, and capping first would let a name of them expand past the

@@ -33,8 +33,11 @@ public class RowLocationTests extends ESTestCase {
      * depending on how the file happened to be divided, with nothing in either message to say so.
      */
     public void testALaterReadNamesTheByteItCountedFrom() {
-        assertThat(RowLocation.of(5, "v.csv", 612L), equalTo("row [5] of [v.csv] counted from byte [612]"));
-        assertThat(RowLocation.of(5, "v.csv", 612L, "id"), equalTo("row [5] of [v.csv] counted from byte [612], column [id]"));
+        assertThat(RowLocation.of(5, "v.csv", 612L), equalTo("row [5] of [v.csv] counted from byte [612] of the decoded stream"));
+        assertThat(
+            RowLocation.of(5, "v.csv", 612L, "id"),
+            equalTo("row [5] of [v.csv] counted from byte [612] of the decoded stream, column [id]")
+        );
     }
 
     /**
@@ -89,7 +92,7 @@ public class RowLocationTests extends ESTestCase {
      */
     public void testTheWindowClauseRendersTheSameAloneAsItDoesInAFullClause() {
         assertThat("a read from the start of the file qualifies nothing", RowLocation.countedIn(0L), equalTo(""));
-        assertThat(RowLocation.countedIn(4194304L), equalTo(" counted from byte [4194304]"));
+        assertThat(RowLocation.countedIn(4194304L), equalTo(" counted from byte [4194304] of the decoded stream"));
         assertThat(RowLocation.countedIn(RowLocation.BYTE_UNKNOWN), equalTo(" counted within a split"));
         for (long startByte : new long[] { 0L, 4194304L, RowLocation.BYTE_UNKNOWN }) {
             assertThat(
@@ -187,7 +190,7 @@ public class RowLocationTests extends ESTestCase {
     public void testAnUnavailableObjectNameIsOmittedRatherThanEmpty() {
         assertThat(RowLocation.of(3, "", 0L), equalTo("row [3]"));
         assertThat(RowLocation.of(3, null, 0L), equalTo("row [3]"));
-        assertThat(RowLocation.of(3, "", 99L), equalTo("row [3] counted from byte [99]"));
+        assertThat(RowLocation.of(3, "", 99L), equalTo("row [3] counted from byte [99] of the decoded stream"));
     }
 
     /**

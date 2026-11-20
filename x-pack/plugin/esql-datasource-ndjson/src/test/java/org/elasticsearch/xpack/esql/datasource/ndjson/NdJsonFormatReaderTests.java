@@ -312,7 +312,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     public void testSchemaSampleBytesRefusesWhenFirstLineExceedsBudget() throws IOException {
         byte[] bytes = ("{\"blob\":\"" + "x".repeat(200) + "\"}\n").getBytes(StandardCharsets.UTF_8);
         FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(50);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(bytes)));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.metadata(new BytesObject(bytes)));
         // This fixture's path carries no last segment, so there is no object to name: the clause has to
         // disappear whole rather than leave a dangling preposition or an empty bracket.
         assertThat(e.getMessage(), containsString("NDJSON schema inference reached the decoded-byte sample limit"));
@@ -327,7 +327,7 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     public void testSchemaSampleBytesRefusalNamesTheObject() {
         byte[] bytes = ("{\"blob\":\"" + "x".repeat(200) + "\"}\n").getBytes(StandardCharsets.UTF_8);
         FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(50);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(new NamedBytesObject(bytes)));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.metadata(new NamedBytesObject(bytes)));
         assertThat(
             e.getMessage(),
             containsString("NDJSON schema inference of [wide-first-line.ndjson] reached the decoded-byte sample limit")

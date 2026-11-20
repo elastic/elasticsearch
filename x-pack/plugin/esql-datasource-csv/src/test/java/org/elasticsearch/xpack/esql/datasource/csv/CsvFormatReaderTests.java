@@ -3982,7 +3982,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testSchemaSampleBytesRefusesWhenFirstRecordExceedsBudget() throws IOException {
         String csv = "id,blob\n1," + "x".repeat(200) + "\n";
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(createStorageObject(csv)));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.metadata(createStorageObject(csv)));
         // A glob fails on the first file whose first record is over-wide, so the message says which one.
         assertThat(e.getMessage(), containsString("CSV schema inference of [test.csv] reached the decoded-byte sample limit"));
         assertThat(e.getMessage(), containsString("declare a schema"));
@@ -6544,9 +6544,11 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Every schema-path failure names the object it came from. These three messages sat in one file with a
-     * fourth that already did, and the inconsistency survived precisely because nothing compared them: a
-     * distinct name per case here fails if any one of them reverts to naming only the format.
+     * Every schema-path failure names the object it came from, so a glob read says which of the user's files
+     * to open. Each path has its own test for the rest of what it says; this one holds only the shared
+     * property, across all seven, because the inconsistency it was written for survived precisely while
+     * nothing compared them. A distinct name per case fails here if any one reverts to naming the format
+     * alone, and an eighth path that forgets the clause has to be added to this list to stay green.
      */
     public void testEverySchemaPathFailureNamesTheObject() {
         CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
@@ -6556,6 +6558,116 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader headed = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true));
         IOException noHeader = expectThrows(IOException.class, () -> headed.schema(createStorageObject("", "events.csv")));
         assertThat(noHeader.getMessage(), containsString("file [events.csv] has no schema line"));
+
+        String alwaysMalformed = unterminatedRows(CsvFormatReader.MAX_CONSECUTIVE_SAMPLING_FAILURES + 4);
+
+        assertThat(
+            samplingFailureMessage(
+                Map.of("header_row", false, "multi_value_syntax", "NONE", "multiline_fields", true),
+                alwaysMalformed,
+                "fail-fast.csv"
+            ),
+            containsString("of [fail-fast.csv]")
+        );
+
+        assertThat(
+            samplingFailureMessage(
+                Map.of(
+                    "header_row",
+                    false,
+                    "multi_value_syntax",
+                    "NONE",
+                    "error_mode",
+                    "skip_row",
+                    "max_errors",
+                    5,
+                    "multiline_fields",
+                    true
+                ),
+                unterminatedRows(30),
+                "over-budget.csv"
+            ),
+            containsString("of [over-budget.csv]")
+        );
+
+        // The zero-rows message says "for", not "of", so that "schema inference failed" stays contiguous.
+        assertThat(
+            samplingFailureMessage(
+                Map.of(
+                    "header_row",
+                    false,
+                    "multi_value_syntax",
+                    "NONE",
+                    "error_mode",
+                    "skip_row",
+                    "max_errors",
+                    Long.MAX_VALUE,
+                    "multiline_fields",
+                    true
+                ),
+                alwaysMalformed,
+                "all-bad.csv"
+            ),
+            containsString("for [all-bad.csv]")
+        );
+
+        CsvFormatReader narrowSample = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
+        ExternalClientException overWide = expectThrows(
+            ExternalClientException.class,
+            () -> narrowSample.metadata(createStorageObject("id,blob\n1," + "x".repeat(200) + "\n", "wide-record.csv"))
+        );
+        assertThat(overWide.getMessage(), containsString("of [wide-record.csv]"));
+
+        // The seventh: a duplicate header column. Its sibling rejectDuplicateHeaderNames named the object for
+        // the identical fault while this one named only the format, so a glob said a file had a duplicate
+        // column without saying which file.
+        ExternalClientException duplicateHeader = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(createStorageObject("id,id\n1,2\n", "duplicate-header.csv"))
+        );
+        assertThat(duplicateHeader.getMessage(), containsString("of [duplicate-header.csv]"));
+    }
+
+    /**
+     * Naming the object put a user-chosen string into these messages, and one legal filename is a storage host.
+     * {@code ExternalFailures.containsStoragePath} tests the WHOLE message for a bare {@code amazonaws.com} and
+     * the resolver withholds the message it matches, so a message raised as a plain
+     * {@link IllegalArgumentException} loses its sentence — the remedy with it — for an object the user is
+     * entitled to call {@code logs.amazonaws.com.csv}. The schema-path refusals raise
+     * {@link ExternalClientException} instead, which the resolver returns whole without consulting the guard.
+     * Asserted as the exception's type rather than through the resolver because the type is what decides it.
+     */
+    public void testASchemaRefusalSurvivesAnObjectNamedLikeAStorageHost() {
+        CsvFormatReader narrowSample = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
+        ExternalClientException e = expectThrows(
+            ExternalClientException.class,
+            () -> narrowSample.metadata(createStorageObject("id,blob\n1," + "x".repeat(200) + "\n", "logs.amazonaws.com.csv"))
+        );
+        assertThat(e.getMessage(), containsString("of [logs.amazonaws.com.csv]"));
+        assertThat("the remedy is the part a withheld message loses", e.getMessage(), containsString("declare a schema"));
+    }
+
+    /** Rows that every CSV parse fails on, for the sampling paths that need a file they cannot read. */
+    private static String unterminatedRows(long count) {
+        StringBuilder csv = new StringBuilder();
+        for (long i = 0; i < count; i++) {
+            csv.append(i).append(",\"unterminated\n");
+        }
+        return csv.toString();
+    }
+
+    /** The message from a full read that fails during schema sampling. */
+    private String samplingFailureMessage(Map<String, Object> config, String content, String objectName) {
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(config);
+        StorageObject object = createStorageObject(content, objectName);
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        return e.getMessage();
     }
 
     public void testHeaderlessEmptyInputThrows() {
@@ -12083,7 +12195,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             ExternalClientException.class,
             () -> tsv.schema(createStorageObject("id:long\tid:long\n1\t2\n"))
         );
-        assertThat(onTsv.getMessage(), containsString("TSV header has duplicate column names"));
+        assertThat(onTsv.getMessage(), containsString("TSV header of [test.csv] has duplicate column names"));
         assertThat("a tsv read must not name CSV, got: " + onTsv.getMessage(), onTsv.getMessage(), not(containsString("CSV")));
 
         // Control: the same fault through the csv-constructed reader still says CSV, so the assertion above is
@@ -12092,7 +12204,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             ExternalClientException.class,
             () -> new CsvFormatReader(blockFactory).schema(createStorageObject("id:long,id:long\n1,2\n"))
         );
-        assertThat(onCsv.getMessage(), containsString("CSV header has duplicate column names"));
+        assertThat(onCsv.getMessage(), containsString("CSV header of [test.csv] has duplicate column names"));
     }
 
     /**
@@ -12197,7 +12309,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(
             "read as a later split, the ordinal restarts and the message must say where from",
             split,
-            equalTo("row [1] of [test.csv] counted from byte [" + cut + "]: cannot read [bad_id] as [long]")
+            equalTo("row [1] of [test.csv] counted from byte [" + cut + "] of the decoded stream: cannot read [bad_id] as [long]")
         );
     }
 
@@ -12226,7 +12338,12 @@ public class CsvFormatReaderTests extends ESTestCase {
             createStorageObject("bad_id,Carol\n"),
             laterSplitContext(schema, cut, new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 100, 0.0, false))
         );
-        assertThat(detail, equalTo("row [1] of [test.csv] counted from byte [" + cut + "], column [id]: cannot read [bad_id] as [long]"));
+        assertThat(
+            detail,
+            equalTo(
+                "row [1] of [test.csv] counted from byte [" + cut + "] of the decoded stream, column [id]: cannot read [bad_id] as [long]"
+            )
+        );
     }
 
     /**
@@ -12278,7 +12395,10 @@ public class CsvFormatReaderTests extends ESTestCase {
                 }
             }
         });
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("Row [1] of [test.csv] counted from byte [" + cut + "]:"));
+        assertThat(
+            ExceptionsHelper.stackTrace(e),
+            containsString("Row [1] of [test.csv] counted from byte [" + cut + "] of the decoded stream:")
+        );
     }
 
     /**
@@ -12327,7 +12447,10 @@ public class CsvFormatReaderTests extends ESTestCase {
             createUndatedStorageObject("bad_id,Carol\n4,Dan\n"),
             laterSplitContext(schema, cut, new ErrorPolicy(100, true))
         );
-        assertThat(detail, equalTo("row [1] of [test.csv] counted from byte [" + cut + "]: cannot read [bad_id] as [long]"));
+        assertThat(
+            detail,
+            equalTo("row [1] of [test.csv] counted from byte [" + cut + "] of the decoded stream: cannot read [bad_id] as [long]")
+        );
     }
 
     /**
@@ -12348,7 +12471,10 @@ public class CsvFormatReaderTests extends ESTestCase {
                 laterSplitContext(schema, cut, new ErrorPolicy(0, false))
             )
         );
-        assertThat(aligned.getMessage(), containsString("rows of [test.csv] counted from byte [" + cut + "]; over [max_errors] of [0]"));
+        assertThat(
+            aligned.getMessage(),
+            containsString("rows of [test.csv] counted from byte [" + cut + "] of the decoded stream; over [max_errors] of [0]")
+        );
 
         // recordAligned=false discards the leading partial record, so the first row counted is the bad one, and the
         // split's start byte is on the compressed axis -- withheld, with the window still named.

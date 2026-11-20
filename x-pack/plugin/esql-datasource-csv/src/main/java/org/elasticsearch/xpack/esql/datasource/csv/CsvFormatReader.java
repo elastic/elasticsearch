@@ -1733,17 +1733,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 throw new IOException(
                     displayName(format)
                         + " file"
-                        + objectClause("", sourceLocation)
+                        + RowLocation.objectClause("", sourceLocation)
                         + " has no schema line: the object is empty or contains only comments"
                 );
             }
             List<Attribute> typedSchema = parseSchema(headerLine);
             if (typedSchema != null) {
-                checkUniqueAttributeNames(typedSchema, format);
+                checkUniqueAttributeNames(typedSchema, format, sourceLocation);
                 return new InferredSchema(typedSchema, 0L, 0);
             }
             InferredSchema inferred = inferSchemaFromSample(headerLine, recordReader, sourceLocation, warningSink, widenedColumnSink);
-            checkUniqueAttributeNames(inferred.schema(), format);
+            checkUniqueAttributeNames(inferred.schema(), format, sourceLocation);
             return inferred;
         }
     }
@@ -1831,7 +1831,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         );
         try {
             if (sample.rows().isEmpty()) {
-                throw new IOException(displayName(format) + " file" + objectClause("", sourceLocation) + " has no data rows");
+                throw new IOException(displayName(format) + " file" + RowLocation.objectClause("", sourceLocation) + " has no data rows");
             }
             maybeHintUndecodedNullMarker(sample.rows(), sourceLocation, warningSink);
             int columns = syntheticColumnCount(sample.rows());
@@ -1991,8 +1991,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Throws an {@link ExternalClientException} when the inferred or typed header has duplicate column names.
      * Without this guard the optimizer's {@code PlanConsistencyChecker} would later 500 with a
      * "duplicate output attribute" error that is hard to map back to the CSV input.
+     * <p>
+     * Names the object for the same reason the other schema-path refusals do, and for the same reason
+     * {@link #rejectDuplicateHeaderNames} does for the identical condition: a glob over many objects fails the
+     * whole query here, and without the name the user is told that one of their files duplicates a column
+     * without being told which one.
      */
-    private static void checkUniqueAttributeNames(List<Attribute> attributes, String format) {
+    private static void checkUniqueAttributeNames(List<Attribute> attributes, String format, String sourceLocation) {
         Set<String> seen = new HashSet<>(attributes.size());
         LinkedHashSet<String> duplicates = null;
         for (Attribute a : attributes) {
@@ -2018,7 +2023,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             );
             headerEx.setDetail(
                 displayName(format)
-                    + " header has duplicate column names "
+                    + " header"
+                    + RowLocation.objectClause(" of", sourceLocation)
+                    + " has duplicate column names "
                     + ErrorExcerpts.summarize(rendered.toString())
                     + "; if the file has no header row, set header_row=false"
             );
@@ -2305,15 +2312,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // Outside the row-parse catch: an oversized first record is a sample-budget
                 // refusal, not a skippable malformed row. CSV still fully reads that record
                 // (truncating it would look like FAIL_FAST malformed data).
-                if (recordReader != null && sampledBefore == 0 && sampleRows.size() == 1) {
-                    Check.clientError(
-                        recordReader.lastRecordBytes() <= maxSampleBytes,
-                        "{} schema inference{} reached the decoded-byte sample limit [{}] before reading a complete "
-                            + "record; declare a schema",
-                        displayName(format),
-                        objectClause(" of", sourceLocation),
-                        ByteSizeValue.ofBytes(maxSampleBytes)
-                    );
+                if (recordReader != null
+                    && sampledBefore == 0
+                    && sampleRows.size() == 1
+                    && recordReader.lastRecordBytes() > maxSampleBytes) {
+                    throw sampleLimitError(maxSampleBytes, format, sourceLocation);
                 }
             }
             if (sampleRows.isEmpty() && capturedErrors != null) {
@@ -2336,16 +2339,27 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * The bracketed object part a schema-path message carries, with {@code leadIn} ({@code " of"},
-     * {@code " for"}, or empty where the sentence already supplies the word) so the whole phrase disappears
-     * together when the name is
-     * unavailable rather than leaving a dangling preposition. One owner because the four messages that take it
-     * must agree: three of them named no object at all, so a single bad file in a glob failed the query with a
-     * message saying only which format it was. {@link RowLocation#displayObjectName} has already been applied
-     * to what arrives here, so this neither caps nor escapes.
+     * The refusal for a first record too wide to sample within {@code schema_sample_bytes}.
+     * <p>
+     * Typed rather than raised through {@link Check#clientError}, which throws a plain
+     * {@link IllegalArgumentException}: the resolver forwards one of those only after
+     * {@code ExternalFailures.forwardableDetail} has passed the whole message through its storage-path guard,
+     * and that guard matches a bare storage host anywhere in the text — so once this message names the object,
+     * an object legitimately called {@code logs.amazonaws.com.csv} loses the whole sentence, the remedy with
+     * it. An {@link ExternalClientException} is returned whole by the same resolver without consulting the
+     * guard, which is why its five schema-path siblings already use it.
      */
-    private static String objectClause(String leadIn, String sourceLocation) {
-        return sourceLocation == null || sourceLocation.isEmpty() ? "" : leadIn + " [" + sourceLocation + "]";
+    private static ExternalClientException sampleLimitError(long maxSampleBytes, String format, String sourceLocation) {
+        ExternalClientException limitEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
+        limitEx.setDetail(
+            displayName(format)
+                + " schema inference"
+                + RowLocation.objectClause(" of", sourceLocation)
+                + " reached the decoded-byte sample limit ["
+                + ByteSizeValue.ofBytes(maxSampleBytes)
+                + "] before reading a complete record; declare a schema"
+        );
+        return limitEx;
     }
 
     private static ExternalClientException failFastSamplingError(long row, Throwable cause, String format, String sourceLocation) {
@@ -2362,7 +2376,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 + " schema sampling failed at row ["
                 + row
                 + "]"
-                + objectClause(" of", sourceLocation)
+                + RowLocation.objectClause(" of", sourceLocation)
                 + ": "
                 + rowErrorReason(cause != null ? cause.getMessage() : "(no message)", format)
                 + "; set [error_mode] to [skip_row] to skip the row instead"
@@ -2384,7 +2398,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // object here, so a glob tripping the sampling budget said less about where it failed than a glob
         // tripping any of the others.
         StringBuilder details = new StringBuilder(displayName(format)).append(" schema sampling")
-            .append(objectClause(" of", sourceLocation))
+            .append(RowLocation.objectClause(" of", sourceLocation))
             .append(": [")
             .append(errorCount)
             .append("] errors in [")
@@ -2439,7 +2453,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // The object goes AFTER "failed" so that phrase stays contiguous: a test pinned it as one
         // substring, and splitting it is a silent break for anything else matching the same way.
         StringBuilder details = new StringBuilder(displayName(format)).append(" schema inference failed")
-            .append(objectClause(" for", sourceLocation))
+            .append(RowLocation.objectClause(" for", sourceLocation))
             .append(": no rows could be parsed; first errors: ");
         appendCapturedErrors(details, capturedErrors);
         ExternalClientException zeroEx = new ExternalClientException(

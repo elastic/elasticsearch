@@ -137,8 +137,13 @@ public class EsqlUsageReportingPlugin extends Plugin {
 
     @Override
     public void close() throws IOException {
-        // The reporter first: its final flush uses the publisher. If both fail, the reporter's exception is thrown and the
-        // publisher's is attached to it.
-        IOUtils.close(reporter, publisher::close);
+        UsagePublisher publisherToClose = publisher;
+        UsageReporter reporterToClose = reporter;
+        // The reporter is closed first (resources close in reverse order): its final flush uses the publisher. The publisher is
+        // closed even if the reporter throws anything, an Error included, and if both fail the reporter's exception is thrown with
+        // the publisher's attached to it.
+        try (publisherToClose; reporterToClose) {
+            // nothing to do: closing is the point
+        }
     }
 }

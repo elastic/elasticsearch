@@ -128,6 +128,7 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         private final boolean failToBuildReporter;
         private final boolean failToStartReporter;
         boolean failOnClose;
+        boolean reporterCloseError;
 
         RecordingPlugin(boolean failToBuildReporter, boolean failToStartReporter) {
             this.failToBuildReporter = failToBuildReporter;
@@ -177,6 +178,9 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                 @Override
                 public void close() {
                     events.add("reporter closed");
+                    if (reporterCloseError) {
+                        throw new AssertionError("reporter close error");
+                    }
                     if (failOnClose) {
                         throw new IllegalStateException("reporter close failed");
                     }
@@ -219,6 +223,15 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("reporter close failed"));
         assertThat(e.getSuppressed().length, equalTo(1));
         assertThat(e.getSuppressed()[0].getMessage(), equalTo("publisher close failed"));
+        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
+    }
+
+    /** Not only exceptions: the publisher must be closed even if the final flush of the reporter throws an Error. */
+    public void testPublisherIsClosedEvenIfTheReporterThrowsAnError() throws Exception {
+        RecordingPlugin plugin = new RecordingPlugin(false, false);
+        createComponents(plugin, complete().build());
+        plugin.reporterCloseError = true;
+        expectThrows(AssertionError.class, plugin::close);
         assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
     }
 

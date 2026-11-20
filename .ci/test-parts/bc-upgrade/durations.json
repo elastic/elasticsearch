@@ -1,0 +1,40 @@
+{
+ "source": "median executed duration (s), elasticsearch-pull-request pr-upgrade-part-1..6 jobs, 14 days to 2026-11-03",
+ "tests": {
+  ":modules:ingest-geoip:qa:full-cluster-restart:bcUpgradeTest": 51,
+  ":modules:ip-location:qa:full-cluster-restart:bcUpgradeTest": 55,
+  ":qa:full-cluster-restart:bcUpgradeTest": 524,
+  ":qa:rolling-upgrade:bcUpgradeTest": 2025,
+  ":x-pack:plugin:ent-search:qa:full-cluster-restart:bcUpgradeTest": 153,
+  ":x-pack:plugin:eql:qa:mixed-node:bcUpgradeTest": 114,
+  ":x-pack:plugin:esql:qa:server:mixed-cluster:bcUpgradeTest": 124,
+  ":x-pack:plugin:inference:qa:mixed-cluster:bcUpgradeTest": 160,
+  ":x-pack:plugin:inference:qa:rolling-upgrade:bcUpgradeTest": 370,
+  ":x-pack:plugin:logsdb:qa:legacy-rolling-upgrade:bcUpgradeTest": 472,
+  ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest": 2437,
+  ":x-pack:plugin:security:qa:multi-cluster:bcUpgradeTest": 79,
+  ":x-pack:plugin:shutdown:qa:full-cluster-restart:bcUpgradeTest": 190,
+  ":x-pack:plugin:shutdown:qa:rolling-upgrade:bcUpgradeTest": 268,
+  ":x-pack:plugin:sql:qa:mixed-node:bcUpgradeTest": 113,
+  ":x-pack:qa:full-cluster-restart:bcUpgradeTest": 423,
+  ":x-pack:qa:rolling-upgrade-basic:bcUpgradeTest": 237,
+  ":x-pack:qa:rolling-upgrade:bcUpgradeTest": 2207
+ },
+ "shards": {
+  ":qa:rolling-upgrade:bcUpgradeTest#0": 524,
+  ":qa:rolling-upgrade:bcUpgradeTest#1": 367,
+  ":qa:rolling-upgrade:bcUpgradeTest#2": 538,
+  ":qa:rolling-upgrade:bcUpgradeTest#3": 228,
+  ":qa:rolling-upgrade:bcUpgradeTest#4": 368,
+  ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest#0": 719,
+  ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest#1": 757,
+  ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest#2": 316,
+  ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest#3": 644,
+  ":x-pack:qa:rolling-upgrade:bcUpgradeTest#0": 503,
+  ":x-pack:qa:rolling-upgrade:bcUpgradeTest#1": 645,
+  ":x-pack:qa:rolling-upgrade:bcUpgradeTest#2": 165,
+  ":x-pack:qa:rolling-upgrade:bcUpgradeTest#3": 551,
+  ":x-pack:qa:rolling-upgrade:bcUpgradeTest#4": 342
+ },
+ "projects": {}
+}

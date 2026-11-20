@@ -79,6 +79,42 @@ public class SystemIndexStreamWriterIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testFinalStatusIsNotOverwritten() throws Exception {
+        updateClusterSettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true));
+
+        var writer = new SystemIndexStreamWriter(client(), BytesRefRecycler.NON_RECYCLING_INSTANCE, TransportVersion.current());
+        TaskId taskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
+        Instant expiration = Instant.ofEpochMilli(System.currentTimeMillis()).plusSeconds(randomIntBetween(30, 3600));
+        List<ColumnInfo> columns = List.of(new ColumnInfoImpl("value", "integer", null));
+        Map<String, String> headers = Map.of(randomIdentifier(), randomIdentifier());
+        List<String> warnings = List.of(randomAlphaOfLengthBetween(5, 30));
+
+        String streamId = writer.createStarted(taskId, expiration, columns, headers, warnings);
+        awaitCapacity(writer);
+        writer.markComplete(false, 10, 0, 0);
+        awaitCapacity(writer);
+
+        writer.markFailed(false, 20, new RuntimeException("test"));
+        writer.markCanceled();
+        try (Page page = new Page(TestBlockFactory.getNonBreakingInstance().newConstantIntBlockWith(1, 3))) {
+            writer.appendPage(1, 0, page);
+        }
+        awaitCapacity(writer);
+
+        StreamMetadata expected = StreamMetadata.started(streamId, taskId, expiration, columns, headers, warnings)
+            .complete(false, 10, 0, 0);
+        var response = client().prepareGet(INDEX, streamId).setRouting(streamId).get();
+        assertTrue(response.isExists());
+        assertThat(StreamMetadataDocument.fromSource(response.getSourceAsMap()), equalTo(expected));
+        assertFalse(client().prepareGet(INDEX, streamId + "_1").setRouting(streamId).get().isExists());
+    }
+
+    private static void awaitCapacity(SystemIndexStreamWriter writer) {
+        var capacity = new CountDownLatch(1);
+        writer.onCapacity(capacity::countDown);
+        safeAwait(capacity);
+    }
+
     private record PageSpec(int seq, long offset, int positions) {}
 
     private static void appendPages(SystemIndexStreamWriter writer, PageSpec[] pages, int index, long rows, CountDownLatch complete) {

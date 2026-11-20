@@ -157,6 +157,9 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
     }
 
     private synchronized void addToCurrentBulk(boolean force, boolean refresh, Consumer<Bulk> consumer) {
+        if (metadata != null && metadata.status() != StreamMetadata.Status.RUNNING) {
+            return;
+        }
         if (currentBulk == null) {
             currentBulk = new Bulk();
         }
@@ -215,7 +218,9 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             stringField(row, STREAM_ID_FIELD, streamId);
             row.longField(PAGE_SEQ_FIELD, 0);
             stringField(row, STREAM_TASK, metadata.taskId().toString());
-            row.longField(STREAM_EXPIRATION_TIME_FIELD, metadata.expiration().toEpochMilli());
+            if (metadata.expiration() != null) {
+                row.longField(STREAM_EXPIRATION_TIME_FIELD, metadata.expiration().toEpochMilli());
+            }
             stringField(row, STREAM_STATUS, metadata.status().name());
             stringField(row, STREAM_COLUMNS, withJsonBuilder(json -> {
                 json.startArray();

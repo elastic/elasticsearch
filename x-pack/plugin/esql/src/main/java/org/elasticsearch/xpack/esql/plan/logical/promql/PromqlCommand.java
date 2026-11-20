@@ -627,7 +627,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         && hasSourceBackedExpression(binaryOperator.left())
                         && hasSourceBackedExpression(binaryOperator.right())) {
                         verifySourceBackedOperands(failures, binaryOperator);
-                    } else if (binaryOperator instanceof VectorBinarySet == false
+                    } else if (containerFunctions == false
+                        && binaryOperator instanceof VectorBinarySet == false
                         && binaryOperator.match() == VectorMatch.NONE
                         && (pairsCountValuesWithRawOperand(binaryOperator.left(), binaryOperator.right())
                             || pairsCountValuesWithRawOperand(binaryOperator.right(), binaryOperator.left()))) {
@@ -804,7 +805,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     /**
      * Whether {@code countValues} contains a {@code count_values} aggregation and {@code other} is a vector without a
-     * concrete label set. Such an operator translates as a join, which matches operands on their label columns.
+     * concrete label set. Without the label container functions such an operator translates as a join, which matches
+     * operands on their label columns; with them it matches on the operands' label containers.
      */
     private static boolean pairsCountValuesWithRawOperand(LogicalPlan countValues, LogicalPlan other) {
         return CountValuesAggregate.usesCountValues(countValues)

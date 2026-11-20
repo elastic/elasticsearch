@@ -165,10 +165,9 @@ public class PromqlBuiltinFunctionDefinitions {
             "`without(...)`, such as `count_values without (instance) (\"v\", x)`, and native histogram samples aren't "
                 + "supported yet. A label named `step` or `_timeseries`, or with the same name as the value column (set by "
                 + "`name=(...)`), such as `value=(count_values(\"value\", x))`, isn't supported: the `PROMQL` command reserves "
-                + "these names for its own columns. A binary operator between `count_values` and a vector that isn't "
-                + "aggregated, such as `count_values(\"v\", vector(1)) / x`, isn't supported yet. The `or` operator with a vector "
-                + "that has a label of the same name mapped as a type other than `keyword`, such as "
-                + "`sum by (shard) (x) or count_values(\"shard\", x)` where `shard` is a `long` field, isn't supported yet."
+                + "these names for its own columns. The `or` operator with a vector that has a label of the same name mapped "
+                + "as a type other than `keyword`, such as `sum by (shard) (x) or count_values(\"shard\", x)` where `shard` is "
+                + "a `long` field, isn't supported yet."
         )
         .name("count_values");
 

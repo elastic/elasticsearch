@@ -338,8 +338,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * Whether the operands cannot fold into one shared aggregate, which the verifier rejects without the label container
      * functions: a source-backed scalar, which broadcasts on the step; operands disagreeing on {@code offset}, as one
      * aggregate has one evaluation time; an operand aggregated across series beside a raw one, or nested aggregations,
-     * which no single aggregate computes; a {@code topk}-like reduction, which ranks after its own aggregate; and operands
-     * reading different metrics stored as separate series, which never share a series.
+     * which no single aggregate computes; a {@code topk}-like reduction, which ranks after its own aggregate; a filter
+     * comparison of two vectors, which pairs them like any match; and operands reading different metrics stored as
+     * separate series, which never share a series.
      */
     private boolean requiresIndependentPipelines(TranslationContext context) {
         boolean leftScalar = PromqlPlan.returnsScalar(left());
@@ -349,6 +350,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         }
         if (leftScalar || rightScalar) {
             return hasSourceBackedExpression(leftScalar ? left() : right());
+        }
+        if (this instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
+            return true;
         }
         // Different metrics stored as separate series never share a series, so no shared per-series aggregate pairs them.
         if (context.cmd().storesMetricName()
@@ -567,7 +571,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Expression filter = null;
         if (this instanceof VectorBinaryComparison comparison) {
             filter = comparison.filterMode() ? value : null;
-            value = comparison.filterMode() ? lhsExpr : new ToDouble(value.source(), value);
+            // A filter keeps the vector's value, wherever the scalar sits, as Prometheus does.
+            Expression kept = leftScalar ? rhsExpr : lhsExpr;
+            value = comparison.filterMode() ? kept : new ToDouble(value.source(), value);
         }
         // Expose the step under the enclosing frame's step identity so enclosing translations (union branches, parent
         // aggregates) resolve it by id, not just by name.
@@ -643,20 +649,45 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return new TreeSet<>(labels).stream().<Expression>map(label -> Literal.keyword(source, label)).toList();
     }
 
+    /**
+     * A filter comparison of a vector against a scalar that reads no source: the vector, aggregated per series, keeps the
+     * series the comparison holds for, with its own value whichever side the scalar is on, as Prometheus does.
+     */
+    private IntermediateResult translateFilter(TranslationContext context, VectorBinaryComparison comparison) {
+        boolean scalarLeft = PromqlPlan.returnsScalar(left());
+        // The comparison filters each series, so the vector keeps one row per series up to the filter.
+        TranslationContext perSeries = context.withRequired(union(context.required(), open()));
+        IntermediateResult vector = perSeries.translate(scalarLeft ? right() : left());
+        IntermediateResult scalar = context.translate(scalarLeft ? left() : right());
+        IntermediateResult table = vector.kind().afterInitialAggregation
+            ? vector
+            : context.collapse(vector, vector.schema(), vector.value());
+        Expression value = new ToDouble(table.value().source(), table.value());
+        Expression threshold = new ToDouble(scalar.value().source(), scalar.value());
+        Expression condition = scalarLeft
+            ? comparison.op().asFunction().create(source(), threshold, value, context.configuration())
+            : comparison.op().asFunction().create(source(), value, threshold, context.configuration());
+        return table.with(new Filter(source(), table.plan(), condition), table.schema(), value);
+    }
+
     /** Composes a binary operator as an expression over the operands' shared aggregate. */
     private IntermediateResult translateAggregate(TranslationContext context) {
+        if (this instanceof VectorBinaryComparison comp && comp.filterMode()) {
+            return translateFilter(context, comp);
+        }
         // Arithmetic and a bool comparison drop the metric name; so do both operands, folding into one frame.
         TranslationContext outer = context;
         context = dropMetricName ? context.withoutMetricName() : context;
         IntermediateResult left = context.translate(left());
         Expression leftExpr = new ToDouble(left.value().source(), left.value());
-        if (this instanceof VectorBinaryComparison comp && comp.filterMode()) {
-            return left.with(left.plan(), left.schema(), leftExpr);
-        }
 
         IntermediateResult right = context.translate(right());
         Expression rightExpr = new ToDouble(right.value().source(), right.value());
         Expression binaryExpr = binaryOp().asFunction().create(source(), leftExpr, rightExpr, context.configuration());
+        if (this instanceof VectorBinaryComparison) {
+            // bool yields 1 or 0: a number, which an enclosing aggregate reads like any other value
+            binaryExpr = new ToDouble(source(), binaryExpr);
+        }
 
         LogicalPlan plan;
         Expression filter;

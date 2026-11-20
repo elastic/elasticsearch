@@ -1597,6 +1597,23 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A filter comparison against a scalar computed from the source keeps the vector's value, whichever side the scalar is
+     * on, as Prometheus does; with bool it keeps every series with 0 or 1.
+     */
+    public void testPromqlComparisonWithComputedScalarKeepsTheVectorValue() {
+        String index = "promql-comparison-with-computed-scalar-keeps-the-vector-value";
+        createOptionalLabelMetricsIndex(index);
+        indexPromqlSample(index, "cluster", "prod", "host", "a", "tx", 1.0);
+        indexPromqlSample(index, "cluster", "prod", "host", "b", "tx", 3.0);
+        refresh(index);
+        String hostB = "{\"cluster\":\"prod\",\"host\":\"b\"}";
+
+        assertRowsAnyOrder(promqlQuery(index, "tx > scalar(avg(tx))") + " | KEEP result, _timeseries", List.of(List.of(3.0, hostB)));
+        assertRowsAnyOrder(promqlQuery(index, "scalar(avg(tx)) < tx") + " | KEEP result, _timeseries", List.of(List.of(3.0, hostB)));
+        assertRowsAnyOrder(promqlQuery(index, "tx > bool scalar(avg(tx))") + " | KEEP result", List.of(List.of(0.0), List.of(1.0)));
+    }
+
     /** A by() key no parent reads still decides the rows it aggregates. */
     public void testPromqlUnusedByKeyStillDeterminesRows() {
         String index = "promql-unused-by-key";

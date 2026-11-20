@@ -126,14 +126,21 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
             }
             first = false;
             sb.append("[").append(entry.getKey()).append("] in ");
-            Sample sample = entry.getValue();
-            sb.append(sample.kept());
-            int extras = sample.total() - sample.kept().size();
-            if (extras > 0) {
-                sb.append(" and [").append(extras).append("] other ").append(sample.total() == 4 ? "index" : "indices");
-            }
+            appendIndices(sb, entry.getValue());
         }
         return sb.toString();
+    }
+
+    /**
+     * Appends the kept index names of a sample, and how many more indices the type is mapped in, as in
+     * {@code [idx1, idx2] and [1] other index}.
+     */
+    private static void appendIndices(StringBuilder sb, Sample sample) {
+        sb.append(sample.kept());
+        int extras = sample.total() - sample.kept().size();
+        if (extras > 0) {
+            sb.append(" and [").append(extras).append("] other ").append(sample.total() == 4 ? "index" : "indices");
+        }
     }
 
     record Sample(Collection<String> kept, int total) {}
@@ -171,12 +178,7 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
             sb.append(
                 entry.getKey().equals(DataType.KEYWORD.typeName()) && includeUnmappedKeyword ? "due to loading from _source and in " : "in "
             );
-            Sample sample = entry.getValue();
-            sb.append(sample.kept());
-            int extras = sample.total() - sample.kept().size();
-            if (extras > 0) {
-                sb.append(" and [").append(extras).append("] other ").append(sample.total() == 4 ? "index" : "indices");
-            }
+            appendIndices(sb, entry.getValue());
         }
         return sb.toString();
     }

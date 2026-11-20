@@ -4707,22 +4707,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<DataType> supportedTypes,
             Expression convertExpression
         ) {
-            String dropped = unsupportedMappedTypeNames(unionTypeEsField, supportedTypes);
+            List<String> dropped = unsupportedMappedTypeNames(unionTypeEsField, supportedTypes);
             if (dropped.isEmpty()) {
                 return;
             }
             // This union is stored per source type, so the warning names the dropped types and not their indices.
-            String described = "[" + dropped.replace(", ", "], [") + "]";
+            String described = "[" + String.join("], [", dropped) + "]";
             context.deferredHeaderWarnings().add(lenientNullWarning(fieldName, described, castTargetName(convertExpression)));
         }
 
-        private static String unsupportedMappedTypeNames(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
+        private static List<String> unsupportedMappedTypeNames(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
             return unionTypeEsField.getConversionExpressions().stream().<String>mapMulti((e, consumer) -> {
                 if (e instanceof AbstractConvertFunction cf) {
                     DataType dataType = cf.field().dataType();
                     if (supportedTypes.contains(dataType.widenSmallNumeric()) == false) consumer.accept(dataType.typeName());
                 }
-            }).distinct().sorted().collect(Collectors.joining(", "));
+            }).distinct().sorted().toList();
         }
 
         private static String unsupportedExplicitCastMessage(
@@ -4741,7 +4741,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return Strings.format(
                     "Mapped types [%s] of [%s] cannot be accepted in [%s]",
-                    unsupportedMappedTypeNames(unionTypeEsField, supportedTypes),
+                    String.join(", ", unsupportedMappedTypeNames(unionTypeEsField, supportedTypes)),
                     fieldName,
                     sourceText
                 );
@@ -4749,7 +4749,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return supportedTypes.contains(KEYWORD)
                 ? Strings.format(
                     "Mapped types [%s] of partially unmapped field [%s] cannot be accepted in [%s]",
-                    unsupportedMappedTypeNames(unionTypeEsField, supportedTypes),
+                    String.join(", ", unsupportedMappedTypeNames(unionTypeEsField, supportedTypes)),
                     fieldName,
                     sourceText
                 )

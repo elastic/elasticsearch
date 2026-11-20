@@ -181,6 +181,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             paths,
             List.copyOf(outers.values()),
             List.copyOf(outers.keySet()),
+            null,
             configuration
         );
     }

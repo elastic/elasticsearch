@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,7 +25,11 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.nestedAnalyzer;
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class NestedPredicateSerializationTests extends AbstractExpressionSerializationTests<NestedPredicate> {
     @Override
@@ -38,6 +44,7 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             randomRelativePaths(size),
             randomInputs(outer),
             randomOuters(outer),
+            null,
             configuration()
         );
     }
@@ -66,7 +73,17 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             case 5 -> relativePaths = randomValueOtherThan(relativePaths, () -> randomRelativePaths(size));
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, outerInputs, outers, instance.configuration());
+        return new NestedPredicate(
+            instance.source(),
+            path,
+            body,
+            inputs,
+            relativePaths,
+            outerInputs,
+            outers,
+            null,
+            instance.configuration()
+        );
     }
 
     public void testWriteToRefusesNodesWithoutNestedPredicates() throws IOException {
@@ -87,6 +104,31 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == CONCAT(id, \"x\")) | LIMIT 10");
         assertThat(predicate.outers(), hasSize(1));
         SerializationTestUtils.assertSerialization(predicate);
+    }
+
+    public void testAQueryBuilderOfTheNodeThatPlansItIsNotSerialized() throws IOException {
+        NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == \"a\") | LIMIT 10").withQueryBuilder(
+            QueryBuilders.matchAllQuery()
+        );
+        assertThat(predicate.queryBuilder(), is(notNullValue()));
+        NestedPredicate copy = (NestedPredicate) SerializationTestUtils.serializeDeserialize(
+            (Expression) predicate,
+            PlanStreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(Expression.class)
+        );
+        assertThat(copy.queryBuilder(), is(nullValue()));
+        assertThat(copy.path(), equalTo(predicate.path()));
+        assertThat(copy.inputs().size(), equalTo(predicate.inputs().size()));
+        assertThat(copy.relativePaths(), equalTo(predicate.relativePaths()));
+    }
+
+    public void testWriteToRefusesNodesWithoutNestedPredicatesForAPredicateWithOuters() throws IOException {
+        NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == CONCAT(id, \"x\")) | LIMIT 10");
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedPredicate.VERSION));
+            IOException e = expectThrows(IOException.class, () -> predicate.writeTo(out));
+            assertThat(e.getMessage(), containsString("NESTED_ANY requires nested predicate transport support"));
+        }
     }
 
     public void testRoundTripsAPredicateOverTheCollection() throws IOException {

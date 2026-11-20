@@ -84,23 +84,43 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
     private record Pushed(QueryBuilder query, boolean exact) {}
 
     private static Pushed push(NestedPredicate predicate, boolean negated, LucenePushdownPredicates children, SearchStats stats) {
+        Translation translation = translate(predicate, children, stats);
+        if (translation == null) {
+            return null;
+        }
+        if (negated ? translation.exact() == false : translation.translatable().finish() == FinishedTranslatable.NO) {
+            return null;
+        }
+        return new Pushed(
+            negated ? QueryBuilders.boolQuery().mustNot(translation.query()) : translation.query(),
+            negated || translation.translatable().finish() == FinishedTranslatable.YES
+        );
+    }
+
+    /**
+     * The nested query for {@code predicate}, and how well it translates, or {@code null} when it cannot be a query on every
+     * shard here. {@link Translation#exact} says the query matches exactly the parents the predicate does.
+     */
+    static Translation translate(NestedPredicate predicate, LucenePushdownPredicates children, SearchStats stats) {
         Expression childPredicate = childPredicate(predicate, stats);
         if (childPredicate == null) {
             return null;
         }
         Translatable translatable = Literal.TRUE.equals(childPredicate) ? Translatable.YES : translatable(childPredicate, children);
-        boolean exactPositive = translatable == Translatable.YES || translatable == Translatable.YES_BUT_RECHECK_NEGATED;
-        if (negated ? exactPositive == false : translatable.finish() == FinishedTranslatable.NO) {
+        if (translatable.finish() == FinishedTranslatable.NO) {
             return null;
         }
         Query child = Literal.TRUE.equals(childPredicate)
             ? new MatchAll(predicate.source())
             : TRANSLATOR_HANDLER.asQuery(children, childPredicate);
         QueryBuilder nested = new NestedQuery(predicate.source(), predicate.path(), child, ScoreMode.None).toQueryBuilder();
-        return new Pushed(
-            negated ? QueryBuilders.boolQuery().mustNot(nested) : nested,
-            negated || translatable.finish() == FinishedTranslatable.YES
-        );
+        return new Translation(nested, translatable);
+    }
+
+    record Translation(QueryBuilder query, Translatable translatable) {
+        boolean exact() {
+            return translatable == Translatable.YES || translatable == Translatable.YES_BUT_RECHECK_NEGATED;
+        }
     }
 
     /** The scan below row-preserving steps, if a filter there keeps the same rows; not once a limit is pushed into it. */

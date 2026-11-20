@@ -20,9 +20,12 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
+import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -77,6 +80,13 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     /** Where {@link #body} reads the value of each of {@link #outers}, in the same order. */
     private final List<Attribute> outerInputs;
     private final List<Expression> outers;
+    /**
+     * The nested query this predicate is exactly equivalent to on the shards of the node that plans it, or {@code null}.
+     * With it the predicate is evaluated by Lucene, which stops at a parent's first matching child, instead of reading the
+     * children. It is not serialized: each node decides from its own shards.
+     */
+    @Nullable
+    private final QueryBuilder queryBuilder;
 
     public NestedPredicate(
         Source source,
@@ -86,16 +96,17 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         List<String> relativePaths,
         List<Attribute> outerInputs,
         List<Expression> outers,
+        @Nullable QueryBuilder queryBuilder,
         Configuration configuration
     ) {
         super(source, children(body, outers), configuration);
-        assert outerInputs.size() == outers.size();
         this.path = path;
         this.body = body;
         this.inputs = List.copyOf(inputs);
         this.relativePaths = List.copyOf(relativePaths);
         this.outerInputs = List.copyOf(outerInputs);
         this.outers = List.copyOf(outers);
+        this.queryBuilder = queryBuilder;
     }
 
     private static List<Expression> children(Expression body, List<Expression> outers) {
@@ -114,6 +125,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             in.readStringCollectionAsList(),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readNamedWriteableCollectionAsList(Expression.class),
+            null,
             ((PlanStreamInput) in).configuration()
         );
     }
@@ -173,6 +185,15 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         return outerInputs;
     }
 
+    @Nullable
+    public QueryBuilder queryBuilder() {
+        return queryBuilder;
+    }
+
+    public NestedPredicate withQueryBuilder(QueryBuilder queryBuilder) {
+        return new NestedPredicate(source(), path, body, inputs, relativePaths, outerInputs, outers, queryBuilder, configuration());
+    }
+
     /** The full names of the child fields this predicate reads. */
     public List<String> fieldNames() {
         return relativePaths.stream().map(relative -> path + "." + relative).toList();
@@ -194,10 +215,11 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             EsField field = new EsField(names.get(i), input.dataType(), Map.of(), true, EsField.TimeSeriesFieldType.NONE);
             fields.put(input.id(), new FieldAttribute(input.source(), names.get(i), field));
         }
-        if (body.references().stream().anyMatch(attribute -> fields.containsKey(attribute.id()) == false)) {
+        Expression effective = bodyWithConstantOuters();
+        if (effective.references().stream().anyMatch(attribute -> fields.containsKey(attribute.id()) == false)) {
             return null;
         }
-        return body.transformUp(Attribute.class, attribute -> fields.get(attribute.id()));
+        return effective.transformUp(Attribute.class, attribute -> fields.get(attribute.id()));
     }
 
     @Override
@@ -222,29 +244,46 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     @Override
     protected NodeInfo<NestedPredicate> info() {
-        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, outerInputs, outers, configuration());
+        return NodeInfo.create(
+            this,
+            NestedPredicate::new,
+            path,
+            body,
+            inputs,
+            relativePaths,
+            outerInputs,
+            outers,
+            queryBuilder,
+            configuration()
+        );
     }
 
-    /** An outer expression that a rewrite folded to a constant is part of the body again. */
     @Override
     public NestedPredicate replaceChildren(List<Expression> newChildren) {
-        Expression newBody = newChildren.getFirst();
+        return new NestedPredicate(
+            source(),
+            path,
+            newChildren.getFirst(),
+            inputs,
+            relativePaths,
+            outerInputs,
+            newChildren.subList(1, newChildren.size()),
+            queryBuilder,
+            configuration()
+        );
+    }
+
+    /** The body, with each outer expression that a rewrite folded to a constant in its place. */
+    private Expression bodyWithConstantOuters() {
         Map<NameId, Expression> constants = new HashMap<>();
-        List<Attribute> keptInputs = new ArrayList<>();
-        List<Expression> keptOuters = new ArrayList<>();
-        for (int i = 0; i < outerInputs.size(); i++) {
-            Expression outer = newChildren.get(i + 1);
-            if (outer instanceof Literal) {
-                constants.put(outerInputs.get(i).id(), outer);
-            } else {
-                keptInputs.add(outerInputs.get(i));
-                keptOuters.add(outer);
+        for (int i = 0; i < Math.min(outerInputs.size(), outers.size()); i++) {
+            if (outers.get(i) instanceof Literal) {
+                constants.put(outerInputs.get(i).id(), outers.get(i));
             }
         }
-        if (constants.isEmpty() == false) {
-            newBody = newBody.transformUp(Attribute.class, attribute -> constants.getOrDefault(attribute.id(), attribute));
-        }
-        return new NestedPredicate(source(), path, newBody, inputs, relativePaths, keptInputs, keptOuters, configuration());
+        return constants.isEmpty()
+            ? body
+            : body.transformUp(Attribute.class, attribute -> constants.getOrDefault(attribute.id(), attribute));
     }
 
     /**
@@ -266,16 +305,22 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             && inputs.equals(other.inputs)
             && relativePaths.equals(other.relativePaths)
             && outerInputs.equals(other.outerInputs)
-            && outers.equals(other.outers);
+            && outers.equals(other.outers)
+            && Objects.equals(queryBuilder, other.queryBuilder);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, outerInputs, outers);
+        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, outerInputs, outers, queryBuilder);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+        if (queryBuilder != null) {
+            return new LuceneQueryExpressionEvaluator.Factory(
+                toEvaluator.shardContexts().map(shard -> new ShardConfig(shard.toQuery(queryBuilder), shard.searcher()))
+            );
+        }
         Layout layout = new Layout.Builder().append(inputs).append(outerInputs).build();
         FoldContext foldCtx = toEvaluator.foldCtx();
         List<ExpressionEvaluator.Factory> outerEvaluators = outers.stream().map(toEvaluator::apply).toList();
@@ -415,7 +460,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
                     blocks[i].incRef();
                 }
                 for (int i = 0; i < outerBlocks.length; i++) {
-                    blocks[fieldChannels.length + i] = outerBlocks[i].filter(false, parentPositions);
+                    blocks[fieldChannels.length + i] = outerBlocks[i].filter(true, parentPositions);
                 }
                 Page page = new Page(loaded.getPositionCount(), blocks);
                 built = true;

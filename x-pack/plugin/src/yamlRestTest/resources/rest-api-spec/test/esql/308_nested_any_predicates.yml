@@ -1345,3 +1345,14 @@ setup:
       esql.query:
         body:
           query: 'FROM nested_any_shapes | WHERE NESTED_ANY(items.sku == "a" AND items.undeclared == "x") | KEEP id'
+
+---
+"a limit after EVAL of a nested predicate keeps the predicate on the data nodes":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM nested_any_shapes | EVAL h = NESTED_ANY(items.qty > 4) | KEEP id, h | LIMIT 100 | SORT id'
+  - match: { values: [["1", false], ["2", true], ["3", true], ["4", false], ["5", false], ["6", true]] }
+

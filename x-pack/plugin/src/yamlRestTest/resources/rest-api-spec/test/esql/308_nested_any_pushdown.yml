@@ -307,3 +307,47 @@ setup:
   - match: { values: [["a"]] }
   - match: { documents_found: 1 }
 
+---
+"a nested predicate in EVAL is evaluated against the nested query":
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_push | EVAL h = NESTED_ANY(items.price > 10), s = NESTED_ANY(items.sku == "pen") | KEEP id, h, s | SORT id | LIMIT 10'
+  - match: { values: [["a", true, true], ["b", false, false], ["c", false, false], ["d", true, false]] }
+
+---
+"a nested predicate in EVAL still reads the children when the shards cannot query them":
+  - do:
+      indices.create:
+        index: na_push_normalized_eval
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            analysis:
+              normalizer:
+                lower:
+                  type: custom
+                  filter: [lowercase]
+          mappings:
+            dynamic: strict
+            properties:
+              id: { type: keyword }
+              items:
+                type: nested
+                properties:
+                  sku: { type: keyword, normalizer: lower }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "na_push_normalized_eval", "_id": "n1" } }
+          - { "id": "n1", "items": [ { "sku": "a" } ] }
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_push_normalized_eval | EVAL h = NESTED_ANY(items.sku == "A") | KEEP id, h | LIMIT 10'
+  - match: { values: [["n1", false]] }
+

@@ -74,7 +74,8 @@ public class Max extends UnaryAggregateFunction
 
     /**
      * When {@code true}, the {@code double} maximum uses Prometheus non-finite semantics (NaN skipped unless all inputs
-     * are NaN). Set only by the PromQL translation; native ES|QL {@code MAX} uses the default aggregator, which also skips NaN but orders -0.0 below 0.0.
+     * are NaN). Set only by the PromQL translation; native ES|QL {@code MAX} uses the default aggregator, which also skips
+     * NaN but orders -0.0 below 0.0.
      */
     private final boolean allowNonFinite;
 

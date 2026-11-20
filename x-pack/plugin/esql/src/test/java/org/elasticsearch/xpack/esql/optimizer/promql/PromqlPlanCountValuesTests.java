@@ -176,6 +176,23 @@ public class PromqlPlanCountValuesTests extends AbstractPromqlPlanOptimizerTests
         assertThat(e.getMessage(), containsString("binary operations between vectors with mismatched grouping keys are not yet supported"));
     }
 
+    /**
+     * A vector that isn't aggregated has no concrete label set to join a {@code count_values} operand on; where every node
+     * knows the label container functions they join on their label containers.
+     */
+    public void testCountValuesWithRawOperand() {
+        String query = "count_values(\"v\", network.bytes_in) / network.cost";
+        if (containerFunctions()) {
+            assertThat(countValuesPlan(query).collect(HashJoin.class), hasSize(1));
+            return;
+        }
+        VerificationException e = expectThrows(VerificationException.class, () -> countValuesPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("binary operations between an aggregated and a raw vector are not supported at this time")
+        );
+    }
+
     private LogicalPlan countValuesPlan(String promql) {
         return planPromql("PROMQL index=k8s step=1h " + promql, false);
     }

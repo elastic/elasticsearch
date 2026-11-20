@@ -4338,9 +4338,9 @@ public class EsqlCapabilities {
 
         /**
          * PromQL arithmetic/comparison binaries join independent operand pipelines when they cannot share one aggregation:
-         * different {@code offset}s, nested across-series next to another operand, aggregated x raw, and {@code scalar()} x
-         * labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} join over a typed
-         * label container; a keyword one still rejects them. Gates csv-spec coverage of those shapes.
+         * different {@code offset}s, nested across-series next to another operand, aggregated x raw (including
+         * {@code count_values}), {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio}, and {@code scalar()} x
+         * labeled (step-broadcast). Gates csv-spec coverage of those shapes.
          */
         PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
 

@@ -1179,8 +1179,9 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     /**
-     * A {@code count_values} operand is translated on its own and then joined, which needs concrete label sets on both
-     * sides; an operand that is neither scalar nor labelled concretely cannot be joined.
+     * A {@code count_values} operand is translated on its own and then joined. Without the label container functions the
+     * join needs concrete label sets on both sides, so an operand that is neither scalar nor labelled concretely cannot be
+     * joined.
      */
     public void testCountValuesWithRawOperandNotSupported() {
         for (String query : List.of(
@@ -1188,7 +1189,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "network.connections / count_values(\"v\", vector(1))",
             "abs(count_values(\"v\", vector(1))) / rate(network.bytes_in[5m])"
         )) {
-            tsdb.error(
+            mixedTsdb.error(
                 "PROMQL index=test step=5m " + query,
                 containsString("binary operations between an aggregated and a raw vector are not supported at this time")
             );

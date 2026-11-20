@@ -1388,7 +1388,7 @@ result:double | cluster:keyword
 5756040.0     | staging
 ;
 
-// Opaque topk x raw selector (default match): joins under typed _timeseries. Labels stay in _timeseries.
+// Opaque topk x raw selector (default match): joins on the label containers. Labels stay in _timeseries.
 binary_independent_opaque_topk_times_raw
 required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
@@ -1409,6 +1409,20 @@ required_capability: promql_command_v0
 required_capability: promql_vector_matching_v0
 required_capability: promql_binary_independent_join
 PROMQL index=k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) + network.eth0.rx)
+| WHERE step == "2024-05-10T00:10:00.000Z"
+| KEEP result;
+
+result:double
+;
+
+// count_values next to a raw selector (default match) joins on the label containers. Label sets differ ({v} vs
+// full), so empty, as in Prometheus - must plan/run, not reject.
+binary_independent_count_values_over_raw
+required_capability: promql_command_v0
+required_capability: promql_vector_matching_v0
+required_capability: promql_binary_independent_join
+required_capability: promql_count_values
+PROMQL index=k8s step=10m result=(count_values("v", network.eth0.tx) / network.eth0.rx)
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result;
 

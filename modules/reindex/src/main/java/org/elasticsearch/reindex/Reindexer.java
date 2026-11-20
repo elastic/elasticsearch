@@ -36,6 +36,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -72,6 +73,7 @@ import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
@@ -105,6 +107,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -114,6 +117,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
@@ -148,6 +152,9 @@ public class Reindexer {
     /** Null when this reindexer was not given the node's indexing pressure. Bulks then stay unaccounted. */
     @Nullable
     private final IndexingPressure indexingPressure;
+    /** Null when this reindexer was not given the node's system indices. No bulk then counts as system-only. */
+    @Nullable
+    private final SystemIndices systemIndices;
 
     Reindexer(
         ClusterService clusterService,
@@ -164,7 +171,8 @@ public class Reindexer {
         FeatureService featureService,
         TaskResultsService taskResultsService,
         CircuitBreakerService circuitBreakerService,
-        @Nullable IndexingPressure indexingPressure
+        @Nullable IndexingPressure indexingPressure,
+        @Nullable SystemIndices systemIndices
     ) {
         this.clusterService = clusterService;
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
@@ -183,6 +191,7 @@ public class Reindexer {
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
         this.indexingPressure = indexingPressure;
+        this.systemIndices = systemIndices;
     }
 
     public void initTask(BulkByPaginatedSearchTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -316,7 +325,9 @@ public class Reindexer {
                 bulkByPaginatedSearchSearchContextMetrics,
                 reindexSettings,
                 requestBreaker,
-                indexingPressure
+                indexingPressure,
+                systemIndices,
+                () -> projectResolver.getProjectMetadata(clusterService.state()).getIndicesLookup()
             );
             searchAction.start();
         };
@@ -1020,7 +1031,9 @@ public class Reindexer {
             @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker,
-            @Nullable IndexingPressure indexingPressure
+            @Nullable IndexingPressure indexingPressure,
+            @Nullable SystemIndices systemIndices,
+            @Nullable Supplier<SortedMap<String, IndexAbstraction>> indicesLookup
         ) {
             super(
                 task,
@@ -1047,7 +1060,9 @@ public class Reindexer {
                 reindexSettings,
                 requestBreaker,
                 "reindex_bulk_batch",
-                indexingPressure
+                indexingPressure,
+                systemIndices,
+                indicesLookup
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
             this.destinationSliceEnabled = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && destinationSliceEnabled(state);

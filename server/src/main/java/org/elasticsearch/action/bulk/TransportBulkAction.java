@@ -845,7 +845,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         );
     }
 
-    static boolean isOnlySystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
+    public static boolean isOnlySystem(
+        BulkRequest request,
+        SortedMap<String, IndexAbstraction> indicesLookup,
+        SystemIndices systemIndices
+    ) {
         return request.getIndices().stream().allMatch(indexName -> isSystemIndex(indicesLookup, systemIndices, indexName));
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -60,7 +61,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         FeatureService featureService,
         TaskResultsService taskResultsService,
         CircuitBreakerService circuitBreakerService,
-        IndexingPressure indexingPressure
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices
     ) {
         super(
             EnrichReindexAction.NAME,
@@ -84,7 +86,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             featureService,
             taskResultsService,
             circuitBreakerService,
-            indexingPressure
+            indexingPressure,
+            systemIndices
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

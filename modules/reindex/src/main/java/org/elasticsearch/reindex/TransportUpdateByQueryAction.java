@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.ShutdownPrepareService;
@@ -42,9 +44,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByPaginatedSearchResponse> {
 
@@ -60,6 +64,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
     private final IndexingPressure indexingPressure;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportUpdateByQueryAction(
@@ -74,7 +79,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService,
-        IndexingPressure indexingPressure
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices
     ) {
         super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -90,6 +96,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
         this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
         this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure must not be null");
+        this.systemIndices = Objects.requireNonNull(systemIndices, "systemIndices must not be null");
     }
 
     @Override
@@ -126,7 +133,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     bulkByPaginatedSearchSearchContextMetrics,
                     reindexSettings,
                     requestBreaker,
-                    indexingPressure
+                    indexingPressure,
+                    systemIndices,
+                    () -> projectResolver.getProjectMetadata(clusterService.state()).getIndicesLookup()
                 ).start();
             }
         );
@@ -151,7 +160,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
             CircuitBreaker requestBreaker,
-            @Nullable IndexingPressure indexingPressure
+            @Nullable IndexingPressure indexingPressure,
+            @Nullable SystemIndices systemIndices,
+            @Nullable Supplier<SortedMap<String, IndexAbstraction>> indicesLookup
         ) {
             super(
                 task,
@@ -173,7 +184,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 reindexSettings,
                 requestBreaker,
                 "update_by_query_bulk_batch",
-                indexingPressure
+                indexingPressure,
+                systemIndices,
+                indicesLookup
             );
         }
 

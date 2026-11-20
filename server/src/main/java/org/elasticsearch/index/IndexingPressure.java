@@ -138,7 +138,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final AtomicLong largeOpsRejections = new AtomicLong(0);
     private final AtomicLong totalRejectedLargeOpsBytes = new AtomicLong(0);
 
-    // A reindex page reserve that did not fit. Also counted in coordinatingRejections.
+    // A reindex page reserve that did not fit. Not counted in coordinatingRejections, because no client sees a 429 for it.
     private final AtomicLong reindexPageReserveRejections = new AtomicLong(0);
     // Bytes a built reindex page gave back, or took on, against the estimate it reserved.
     private final AtomicLong reindexPageBytesBelowEstimate = new AtomicLong(0);
@@ -183,7 +183,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
     }
 
     /**
-     * One reindex page reserve was refused. The task waits and tries again.
+     * One reindex page reserve was refused. The task waits and tries again. This is not a coordinating rejection.
      */
     public void addReindexPageReserveRejection() {
         reindexPageReserveRejections.incrementAndGet();
@@ -245,6 +245,28 @@ public class IndexingPressure implements IndexingPressureMonitor {
 
     public Coordinating createCoordinatingOperation(boolean forceExecution) {
         return new Coordinating(forceExecution);
+    }
+
+    /**
+     * Reserves coordinating bytes for a reindex, update-by-query, or delete-by-query search page before the page exists. The caller
+     * resizes the reservation to the real page afterwards, and waits and tries again when this refuses.
+     * <p>
+     * A refusal here is not counted in {@code coordinating_rejections}. The caller polls until the bytes fit, and no client sees a 429 for
+     * it. The caller counts the refusal with {@link #addReindexPageReserveRejection()} instead.
+     * <p>
+     * The reservation is never forced, so {@link Coordinating#increaseBytes} still refuses a page whose own size is above the
+     * coordinating limit.
+     *
+     * @param cappedAtLimit true when the caller's estimate was cut down to the coordinating limit. The node can only hold that much when
+     *                      it holds nothing else, so waiting for the node total to fit could wait forever on a node with steady replica
+     *                      bytes. A capped reserve is admitted whatever the node already holds. Its own size is still checked against
+     *                      the limit.
+     * @throws EsRejectedExecutionException if the bytes do not fit, in which case nothing was reserved
+     */
+    public Coordinating reserveReindexPage(int operations, long bytes, boolean cappedAtLimit) {
+        Coordinating coordinating = new Coordinating(false);
+        coordinating.increment(operations, bytes, cappedAtLimit, false);
+        return coordinating;
     }
 
     /**
@@ -444,15 +466,27 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
 
         public void increment(int operations, long bytes) {
+            increment(operations, bytes, false, true);
+        }
+
+        /**
+         * @param admitAboveNodeTotal when true, only this reservation's own size is checked against the coordinating limit, and what
+         *                            the node already holds is not
+         * @param countRejection whether a refusal counts in {@code coordinating_rejections}
+         */
+        private void increment(int operations, long bytes, boolean admitAboveNodeTotal, boolean countRejection) {
             assert closed.get() == false;
             long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
             long replicaWriteBytes = currentReplicaBytes.get();
             long totalBytes = combinedBytes + replicaWriteBytes;
-            if (forceExecution == false && totalBytes > coordinatingLimit) {
+            final boolean overLimit = admitAboveNodeTotal ? bytes > coordinatingLimit : totalBytes > coordinatingLimit;
+            if (forceExecution == false && overLimit) {
                 long bytesWithoutOperation = combinedBytes - bytes;
                 long totalBytesWithoutOperation = totalBytes - bytes;
                 currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
-                coordinatingRejections.getAndIncrement();
+                if (countRejection) {
+                    coordinatingRejections.getAndIncrement();
+                }
                 throw new EsRejectedExecutionException(
                     "rejected execution of coordinating operation ["
                         + "coordinating_and_primary_bytes="
@@ -496,11 +530,30 @@ public class IndexingPressure implements IndexingPressureMonitor {
          * The node's coordinating total may pass its limit, because the bytes are already in memory and the reservation has to match them.
          * Refuses when this reservation's own new size would pass the coordinating limit, and leaves the reservation unchanged when it
          * refuses.
+         * <p>
+         * One coordinating reservation is only resized and closed on a single thread, the worker chain that owns it. It is not safe to
+         * resize from two threads at once.
+         * <p>
+         * The total counters keep the amount first reserved. Growing the reservation moves the current counters only.
          *
          * @param bytes additional bytes to hold
          * @throws EsRejectedExecutionException when this reservation's own size would exceed the coordinating limit
          */
         public void increaseBytes(long bytes) {
+            increaseBytes(bytes, false);
+        }
+
+        /**
+         * Adds bytes to this reservation, as {@link #increaseBytes(long)} does, but lets the caller grow it past the coordinating limit.
+         * That is for a system-only bulk, which a plain coordinating reservation never refuses, so a system index page larger than the
+         * limit can still be admitted.
+         *
+         * @param bytes additional bytes to hold
+         * @param allowPastLimit when true, this reservation's own size is not checked against the coordinating limit
+         * @throws EsRejectedExecutionException when {@code allowPastLimit} is false and this reservation's own size would exceed the
+         *                                      coordinating limit
+         */
+        public void increaseBytes(long bytes, boolean allowPastLimit) {
             assert closed.get() == false;
             assert bytes >= 0 : bytes;
             if (bytes == 0) {
@@ -509,7 +562,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
             long newSize = currentOperationsSize + bytes;
             // The check is this reservation alone. The node total is allowed to pass the limit so one admitted page can grow to its real
             // size while other work is still in flight.
-            if (forceExecution == false && newSize > coordinatingLimit) {
+            if (forceExecution == false && allowPastLimit == false && newSize > coordinatingLimit) {
                 coordinatingRejections.getAndIncrement();
                 throw new EsRejectedExecutionException(
                     "rejected execution of coordinating operation ["
@@ -533,6 +586,11 @@ public class IndexingPressure implements IndexingPressureMonitor {
         /**
          * Reduces the tracked byte count for this coordinating operation without closing it.
          * Use this to lower a reservation once the actual size is known to be smaller than the initially reserved amount.
+         * <p>
+         * One coordinating reservation is only resized and closed on a single thread, the worker chain that owns it. It is not safe to
+         * resize from two threads at once.
+         * <p>
+         * The total counters keep the amount first reserved. Shrinking the reservation moves the current counters only.
          */
         public void reduceBytes(long bytes) {
             assert closed.get() == false;

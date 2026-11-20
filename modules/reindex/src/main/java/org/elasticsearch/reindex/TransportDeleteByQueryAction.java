@@ -25,6 +25,7 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.ShutdownPrepareService;
@@ -50,6 +51,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
     private final IndexingPressure indexingPressure;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -64,7 +66,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
         CircuitBreakerService circuitBreakerService,
-        IndexingPressure indexingPressure
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -84,6 +87,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             "REQUEST circuit breaker must be available — delete-by-query relies on it for per-batch heap reservations"
         );
         this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure must not be null");
+        this.systemIndices = Objects.requireNonNull(systemIndices, "systemIndices must not be null");
     }
 
     @Override
@@ -120,7 +124,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     taskShutdownGracePeriod,
                     reindexSettings,
                     requestBreaker,
-                    indexingPressure
+                    indexingPressure,
+                    systemIndices,
+                    () -> projectResolver.getProjectMetadata(clusterService.state()).getIndicesLookup()
                 ).start();
             }
         );

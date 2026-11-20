@@ -321,13 +321,18 @@ public abstract class PaginatedHitSource {
 
         /**
          * Forgets the hits of this batch so they can be garbage collected while something still holds the response.
-         * Only call this once every hit has been released and nothing needs to read the hits again. The scroll id,
+         * Only call this once nothing needs to read the hits again. Any hit that has not been released yet is released here, and a hit
+         * that was already released is left alone, because {@link Hit#release()} is safe to call twice. The scroll id,
          * search-after values and PIT id are kept so a later reader of the response still sees the cursor for this page.
          */
         public void dropHits() {
-            // When no explicit values were given the getter falls back to the last hit, so pin that answer down before the hits go.
+            // When no explicit values were given the getter falls back to the last hit, so pin that answer down before any hit is
+            // released. A released hit is not guaranteed to still answer, even though a SearchHit happens to keep its sort values.
             // Only the sort values array is kept, not the hit itself.
             searchAfterValues = getSearchAfterValues();
+            for (Hit hit : hits) {
+                hit.release();
+            }
             hits = List.of();
         }
 
@@ -416,6 +421,7 @@ public abstract class PaginatedHitSource {
         /**
          * Release any ref-counted resources held by this hit. Call when the hit is no longer needed.
          * Default is no-op; implementations that wrap ref-counted resources (e.g. {@link SearchHit}) override to release.
+         * A second call must do nothing, because the script, the page cleanup and {@link Response#dropHits()} can each release a hit.
          */
         default void release() {}
 

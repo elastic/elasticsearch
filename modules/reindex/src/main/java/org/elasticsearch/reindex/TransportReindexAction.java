@@ -28,6 +28,7 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
@@ -75,7 +76,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         FeatureService featureService,
         TaskResultsService taskResultsService,
         CircuitBreakerService circuitBreakerService,
-        IndexingPressure indexingPressure
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices
     ) {
         this(
             ReindexAction.NAME,
@@ -97,7 +99,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             featureService,
             taskResultsService,
             circuitBreakerService,
-            indexingPressure
+            indexingPressure,
+            systemIndices
         );
     }
 
@@ -121,10 +124,12 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         FeatureService featureService,
         TaskResultsService taskResultsService,
         CircuitBreakerService circuitBreakerService,
-        IndexingPressure indexingPressure
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(indexingPressure, "indexingPressure must not be null");
+        Objects.requireNonNull(systemIndices, "systemIndices must not be null");
         this.client = client;
         this.reindexValidator = new ReindexValidator(
             settings,
@@ -148,7 +153,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             featureService,
             taskResultsService,
             circuitBreakerService,
-            indexingPressure
+            indexingPressure,
+            systemIndices
         );
     }
 

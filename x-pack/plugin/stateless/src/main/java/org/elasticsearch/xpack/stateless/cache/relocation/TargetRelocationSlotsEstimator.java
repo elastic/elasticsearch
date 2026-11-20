@@ -69,7 +69,8 @@ public class TargetRelocationSlotsEstimator {
                 : Math.min(maxRecoveries, relocationsInFlight);
     }
 
-    /// The data node limit on the incoming non-critical recoveries of a target
+    /// The data node limit on the incoming non-critical recoveries of a target. It is `Integer.MAX_VALUE` when the data nodes have no
+    /// limit.
     public int maxConcurrentRelocations() {
         return maxConcurrentNonCriticalRecoveries;
     }

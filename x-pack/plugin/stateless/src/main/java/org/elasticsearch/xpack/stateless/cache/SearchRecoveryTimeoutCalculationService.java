@@ -95,8 +95,8 @@ public class SearchRecoveryTimeoutCalculationService {
 
     /// When enabled, a shard relocating from a source that is not shutting down while a search node is shutting down shares the target's
     /// free relocation slots with the shards of the shutting-down node, which makes delaying them past their grace period less likely, see
-    /// [RelocationOtherNodeShutdownTimeouts#timeout]. When disabled, or when the data nodes do not throttle the
-    /// relocations, such a shard always waits for the plain relocation-with-shutdown timeout.
+    /// [RelocationOtherNodeShutdownTimeouts#timeout]. When disabled, or while a shutting-down search node still holds shards that the
+    /// master has not begun to relocate, such a shard waits for the plain relocation-with-shutdown timeout.
     public static final Setting<Boolean> OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING = Setting.boolSetting(
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_share_slots_with_shutting_down_nodes",
         false,

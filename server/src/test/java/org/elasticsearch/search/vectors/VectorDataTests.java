@@ -36,8 +36,25 @@ import static org.hamcrest.Matchers.containsString;
 
 public class VectorDataTests extends ESTestCase {
     private static final ToXContent.Params BASE64_PARAMS = new ToXContent.MapParams(
-        Map.of(VectorData.TOXCONTENT_WRITE_FLOAT_VECTOR_AS_BASE64, "true")
+        Map.of(VectorData.TOXCONTENT_FLOAT_VECTOR_FORMAT, "base64")
     );
+
+    private static final ToXContent.Params ELIDED_PARAMS = new ToXContent.MapParams(
+        Map.of(VectorData.TOXCONTENT_FLOAT_VECTOR_FORMAT, "elided")
+    );
+
+    public void testFloatVectorFormats() throws IOException {
+        VectorData vector = VectorData.fromFloats(new float[] { 1f, -1.5f });
+        assertEquals("[1.0,-1.5]", vectorAsString(vector, ToXContent.EMPTY_PARAMS));
+        assertEquals(
+            "[1.0,-1.5]",
+            vectorAsString(vector, new ToXContent.MapParams(Map.of(VectorData.TOXCONTENT_FLOAT_VECTOR_FORMAT, "array")))
+        );
+        assertEquals("\"" + encodeToBase64(new float[] { 1f, -1.5f }) + "\"", vectorAsString(vector, BASE64_PARAMS));
+        assertEquals("[]", vectorAsString(vector, ELIDED_PARAMS));
+        // only float vectors are affected
+        assertEquals("\"01ff\"", vectorAsString(VectorData.fromBytes(new byte[] { 1, -1 }), ELIDED_PARAMS));
+    }
 
     private static final float DELTA = 1e-5f;
 

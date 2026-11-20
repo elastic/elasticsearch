@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -119,7 +120,10 @@ public class SqlLoggingIT extends AbstractSqlBlockingIntegTestCase {
         var sqlMessage = getMessageData(appender.events.get(1));
         assertMessageSuccess(sqlMessage, SqlCaptureContext.TYPE, query);
         assertThat(sqlMessage.get(QUERY_FIELD_RESULT_COUNT), equalTo("2"));
-        assertThat(sqlMessage.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
+        assertThat(
+            sqlMessage.get(QUERY_FIELD_FILTER),
+            equalTo(QueryCaptureContext.filterToLogString(filter, ToXContent.EMPTY_PARAMS).get())
+        );
     }
 
     @SuppressWarnings("unchecked")

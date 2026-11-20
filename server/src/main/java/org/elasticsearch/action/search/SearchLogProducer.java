@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
 import java.util.Optional;
@@ -28,13 +29,17 @@ public class SearchLogProducer implements ActivityLogProducer<SearchCaptureConte
     public static final String QUERY_FIELD_SEARCH_HITS_GTE = ES_QUERY_FIELDS_PREFIX + "dsl.total_count_partial";
 
     @Override
-    public Optional<ESLogMessage> produce(SearchCaptureContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(
+        SearchCaptureContext context,
+        ActionLoggingFields additionalFields,
+        ToXContent.Params formatParams
+    ) {
         if (Arrays.equals(NEVER_MATCH, context.getIndexNames())) {
             // Exclude no-match pattern searches, there's not much use in them
             return Optional.empty();
         }
         ESLogMessage msg = produceCommon(context, ES_QUERY_FIELDS_PREFIX, additionalFields);
-        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery());
+        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery(formatParams));
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         msg.field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
         if (context.hasAggregations()) {

@@ -12,7 +12,6 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -33,10 +32,6 @@ import java.util.stream.Collectors;
  * extended by specific contexts for each search action.
  */
 public abstract class QueryCaptureContext {
-    // Base64 encode float vectors
-    protected static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(
-        Map.of("pretty", "false", VectorData.TOXCONTENT_WRITE_FLOAT_VECTOR_AS_BASE64, "true")
-    );
 
     private final long tookInNanos;
     private final String type;
@@ -119,7 +114,7 @@ public abstract class QueryCaptureContext {
     /**
      * Get query text.
      */
-    public abstract String getQuery();
+    public abstract String getQuery(ToXContent.Params params);
 
     /**
      * Number of results.
@@ -158,16 +153,16 @@ public abstract class QueryCaptureContext {
         return null;
     }
 
-    public Optional<String> getFilter() {
-        return filterToLogString(queryFilter());
+    public Optional<String> getFilter(ToXContent.Params params) {
+        return filterToLogString(queryFilter(), params);
     }
 
-    public static Optional<String> filterToLogString(QueryBuilder filter) {
+    public static Optional<String> filterToLogString(QueryBuilder filter, ToXContent.Params params) {
         if (filter == null) {
             return Optional.empty();
         }
         try {
-            return Optional.of(XContentHelper.toXContent(filter, XContentType.JSON, FORMAT_PARAMS, true).utf8ToString());
+            return Optional.of(XContentHelper.toXContent(filter, XContentType.JSON, params, true).utf8ToString());
         } catch (IOException e) {
             return Optional.empty();
         }

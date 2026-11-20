@@ -19,6 +19,7 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.junit.Before;
 
 import java.util.List;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -79,7 +81,7 @@ public class QueryLoggerTests extends ESTestCase {
 
         ESLogMessage randomMessage = randomMessage();
 
-        when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
+        when(producer.produce(eq(context), eq(loggingFields), any())).thenReturn(Optional.of(randomMessage));
 
         interceptor.notifySinks(context);
 
@@ -101,7 +103,7 @@ public class QueryLoggerTests extends ESTestCase {
         TestContext context = new TestContext(TimeValue.timeValueMillis(150).nanos());
         ESLogMessage randomMessage = randomMessage();
 
-        when(producer.produce(context, loggingFields)).thenReturn(Optional.of(randomMessage));
+        when(producer.produce(eq(context), eq(loggingFields), any())).thenReturn(Optional.of(randomMessage));
 
         interceptor.notifySinks(context);
 
@@ -142,7 +144,7 @@ public class QueryLoggerTests extends ESTestCase {
         }
 
         @Override
-        public String getQuery() {
+        public String getQuery(ToXContent.Params params) {
             return "";
         }
 

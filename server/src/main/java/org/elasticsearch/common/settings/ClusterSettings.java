@@ -729,6 +729,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         QueryLogger.QUERY_LOGGER_LEVEL,
         QueryLogger.QUERY_LOGGER_INCLUDE_USER,
         QueryLogger.QUERY_LOGGER_LOG_SYSTEM,
+        QueryLogger.QUERY_LOGGER_VECTOR_FORMAT,
         SynonymsManagementAPIService.MAX_SYNONYM_RULES_SETTING,
         SystemIndices.NUMBER_OF_REPLICAS_SETTING,
         SystemIndices.AUTO_EXPAND_REPLICAS_SETTING

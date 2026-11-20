@@ -11,6 +11,7 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +61,7 @@ public class QuerySinkTests extends ESTestCase {
         }
 
         @Override
-        public String getQuery() {
+        public String getQuery(ToXContent.Params params) {
             return "";
         }
 

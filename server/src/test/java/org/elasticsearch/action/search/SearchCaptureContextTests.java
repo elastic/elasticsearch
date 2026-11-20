@@ -20,9 +20,11 @@ import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.search.vectors.VectorData.FloatFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 public class SearchCaptureContextTests extends ESTestCase {
+
+    private static final ToXContent.Params BASE64_PARAMS = new ToXContent.MapParams(
+        Map.of(VectorData.TOXCONTENT_FLOAT_VECTOR_FORMAT, FloatFormat.BASE64.paramValue())
+    );
 
     private static final float[] VECTOR = new float[] { 0.1f, -1.5f, 3.25f, 42.125f };
 
@@ -48,52 +54,52 @@ public class SearchCaptureContextTests extends ESTestCase {
 
     public void testTopLevelKnnQueryVectorIsBase64Encoded() {
         var source = new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("field", VECTOR, 5, 10, null, null, null)));
-        assertBase64Vector(captureContext(source).getQuery());
+        assertBase64Vector(captureContext(source).getQuery(BASE64_PARAMS));
     }
 
     public void testKnnQueryVectorIsBase64Encoded() {
         var source = new SearchSourceBuilder().query(new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null));
-        assertBase64Vector(captureContext(source).getQuery());
+        assertBase64Vector(captureContext(source).getQuery(BASE64_PARAMS));
     }
 
     public void testKnnRetrieverQueryVectorIsBase64Encoded() {
         var source = new SearchSourceBuilder().retriever(new KnnRetrieverBuilder("field", VECTOR, null, 5, 10, null, null, null));
-        assertBase64Vector(captureContext(source).getQuery());
+        assertBase64Vector(captureContext(source).getQuery(BASE64_PARAMS));
     }
 
     public void testKnnInFilterAggregationIsBase64Encoded() {
         var knn = new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null);
         var source = new SearchSourceBuilder().aggregation(AggregationBuilders.filter("agg", knn));
-        assertBase64Vector(captureContext(source).getQuery());
+        assertBase64Vector(captureContext(source).getQuery(BASE64_PARAMS));
     }
 
     public void testStandardRetrieverKnnQueryIsBase64Encoded() {
         var knn = new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null);
         var source = new SearchSourceBuilder().retriever(new StandardRetrieverBuilder(knn));
-        assertBase64Vector(captureContext(source).getQuery());
+        assertBase64Vector(captureContext(source).getQuery(BASE64_PARAMS));
     }
 
     public void testRetrieverPreFilterKnnQueryIsBase64Encoded() {
         var knn = new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null);
         var retriever = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
         retriever.getPreFilterQueryBuilders().add(knn);
-        assertBase64Vector(captureContext(new SearchSourceBuilder().retriever(retriever)).getQuery());
+        assertBase64Vector(captureContext(new SearchSourceBuilder().retriever(retriever)).getQuery(BASE64_PARAMS));
     }
 
     public void testHighlightQueryKnnIsBase64Encoded() {
         var knn = new KnnVectorQueryBuilder("field", VECTOR, 5, 10, null, null, null);
         var source = new SearchSourceBuilder().highlighter(new HighlightBuilder().field("f").highlightQuery(knn));
-        assertBase64Vector(captureContext(source).getQuery());
+        assertBase64Vector(captureContext(source).getQuery(BASE64_PARAMS));
     }
 
     public void testNonVectorQueryIsUnaffected() {
         var source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
-        assertThat(captureContext(source).getQuery(), containsString("match_all"));
+        assertThat(captureContext(source).getQuery(BASE64_PARAMS), containsString("match_all"));
     }
 
     public void testByteVectorIsStillHexEncoded() {
         var vector = VectorData.fromBytes(new byte[] { 1, 2, 3 });
         var source = new SearchSourceBuilder().knnSearch(List.of(new KnnSearchBuilder("field", vector, 5, 10, null, null, null)));
-        assertThat(captureContext(source).getQuery(), containsString("\"010203\""));
+        assertThat(captureContext(source).getQuery(BASE64_PARAMS), containsString("\"010203\""));
     }
 }

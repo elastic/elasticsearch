@@ -24,9 +24,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 
 /** REST coverage for PromQL vector matching. */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -131,14 +135,6 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
         );
     }
 
-    public void testOrWithOnIsRejected() throws IOException {
-        requirePromqlUnion();
-        assertPromqlError(
-            "PROMQL index=k8s step=10m " + "sum by (cluster) (network.eth0.tx) or on (cluster) sum by (cluster) (network.eth0.rx)",
-            "set operator [or] with on/ignoring is not supported at this time"
-        );
-    }
-
     /**
      * Several series sharing a match key on a "one" side fail the query, as in Prometheus: two on the right of a
      * one-to-one match or of {@code group_left}, and two on the left matching one right series one-to-one.
@@ -173,6 +169,32 @@ public class PromqlVectorMatchingIT extends RestEsqlTestCase {
             "PROMQL index=k8s step=10m result=(sum(network.eth0.tx) + ignoring (pod) network.eth0.tx)",
             "found a duplicate row"
         );
+    }
+
+    /**
+     * {@code or on(cluster)} keeps every left series and adds the right series of the clusters the left one lacks: the same
+     * rows as a default {@code or} whose right operand leaves out the left one's clusters.
+     */
+    public void testOrWithOnKeepsUnmatchedRightSeries() throws IOException {
+        requirePromqlUnion();
+        assumeTrue(
+            "PromQL set operator matching is required",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.PROMQL_SET_OPERATOR_MATCHING.capabilityName()))
+        );
+        String keep = " | KEEP result, cluster, step | SORT cluster, step";
+        String orOn = "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx{cluster=\"prod\"}) "
+            + "or on (cluster) sum by (cluster) (network.eth0.rx))"
+            + keep;
+        List<List<Object>> matched = values(orOn);
+        List<List<Object>> disjoint = values(
+            "PROMQL index=k8s step=10m result=(sum by (cluster) (network.eth0.tx{cluster=\"prod\"}) "
+                + "or sum by (cluster) (network.eth0.rx{cluster!=\"prod\"}))"
+                + keep
+        );
+        assertThat(matched, equalTo(disjoint));
+        Set<Object> clusters = matched.stream().map(row -> row.get(1)).collect(Collectors.toSet());
+        assertThat(clusters, hasItem("prod"));
+        assertThat(clusters.size(), greaterThan(1));
     }
 
     private void requirePromqlUnion() {

@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings.IncomingRecoveryLimits;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
@@ -60,19 +59,16 @@ public class RelocationOtherNodeShutdownTimeouts {
     /// share every time would add up to the whole time left.
     ///
     /// The plain relocation-with-shutdown timeout applies when everything fits in the slots, and when
-    /// [SearchRecoveryTimeoutCalculationService#OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING] is disabled or the data nodes
-    /// do not throttle the relocations.
+    /// [SearchRecoveryTimeoutCalculationService#OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING] is disabled or a
+    /// shutting-down node still holds shards that have not begun to relocate, as then the relocations to the target are not all known.
     public SearchRecoveryTimeout timeout(ClusterState state, String targetNodeId, @Nullable SearchRecoveryTimeout previousPlan) {
-        // The slots can be shared only when the data nodes throttle the relocations. While the master does, the relocations of the
-        // shutting-down nodes to this target are not all visible in the cluster state yet.
-        if (shareSlotsWithShuttingDownNodes == false || targetRelocationSlotsEstimator.dataNodeRecoveryThrottlingEnabled() == false) {
+        if (shareSlotsWithShuttingDownNodes == false || SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state)) {
             return fallbackTimeout();
         }
         // This shard is itself an initializing relocation on the target from a non-shutting-down node, so the count includes it: it is
         // added to the competing shards (+1) below, and left out of the "other" relocations here.
         final int otherRelocationsToTarget = Math.max(0, SearchShardRelocations.countFromNodesNotShuttingDownTo(state, targetNodeId) - 1);
         final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
-        assert slots < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries();
         final long now = threadPool.absoluteTimeInMillis();
 
         // the latest deadline and the shards competing before each deadline rely on the order
@@ -144,17 +140,10 @@ public class RelocationOtherNodeShutdownTimeouts {
             .map(
                 shutdown -> new ShuttingDownNodeShards(
                     shutdownWarmingDeadline.deadlineMillis(shutdown),
-                    countShardsPotentiallyRelocatingToTarget(state, shutdown.getNodeId(), targetNodeId)
+                    SearchShardRelocations.countBetween(state, shutdown.getNodeId(), targetNodeId)
                 )
             )
             .filter(nodeShards -> nodeShards.shards() > 0);
-    }
-
-    /// Counts the search shards of `nodeId` that may relocate to `targetNodeId`: already relocating to it and not relocating yet.
-    private static long countShardsPotentiallyRelocatingToTarget(ClusterState state, String nodeId, String targetNodeId) {
-        final int relocating = SearchShardRelocations.countBetween(state, nodeId, targetNodeId);
-        final int pending = SearchShardRelocations.countPendingRelocationsOn(state, nodeId);
-        return relocating + pending;
     }
 
     /// The share of the target's `slots` that the `shardsCompetingForTarget` shards get, when `otherRelocationsToTarget`
@@ -167,8 +156,8 @@ public class RelocationOtherNodeShutdownTimeouts {
         );
     }
 
-    /// The `shards` of a shutting-down node that may need the target, i.e. already relocating to it or not relocating yet, which have to
-    /// be through before the node's `graceDeadlineMillis`.
+    /// The `shards` of a shutting-down node that are relocating to the target, which have to be through before the node's
+    /// `graceDeadlineMillis`.
     private record ShuttingDownNodeShards(long graceDeadlineMillis, long shards) {}
 
     /// What one grace deadline leaves to the shards competing for the target: the time left until it, the shards competing for the target

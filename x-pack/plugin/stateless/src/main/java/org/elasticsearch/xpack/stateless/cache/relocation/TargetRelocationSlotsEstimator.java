@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -64,23 +62,18 @@ public class TargetRelocationSlotsEstimator {
     /// The settings are the ones of this node, and during a rolling upgrade they may be ahead of the master's, which still throttles and
     /// leaves the shards it has not got to waiting in the cluster state, whereas with data node recovery throttling the master starts all
     /// the relocations of a shutting-down node at once. So the settings are trusted only when the cluster state agrees, see
-    /// [#allSearchShardsOnShuttingDownNodesRelocating].
+    /// [SearchShardRelocations#hasPendingRelocationsOnShuttingDownNodes].
     public int knownAvailableSlots(final ClusterState state, final int relocationsInFlight) {
         final int maxRecoveries = maxConcurrentNonCriticalRecoveries;
-        return dataNodeRecoveryThrottlingEnabled(maxRecoveries) && allSearchShardsOnShuttingDownNodesRelocating(state)
-            ? maxRecoveries
-            : Math.min(maxRecoveries, relocationsInFlight);
+        return dataNodeRecoveryThrottlingEnabled(maxRecoveries)
+            && SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state) == false
+                ? maxRecoveries
+                : Math.min(maxRecoveries, relocationsInFlight);
     }
 
-    /// The data node limit on the incoming non-critical recoveries of a target. It bounds the relocations to the target only while the
-    /// data nodes throttle them, see [#dataNodeRecoveryThrottlingEnabled()].
+    /// The data node limit on the incoming non-critical recoveries of a target
     public int maxConcurrentRelocations() {
         return maxConcurrentNonCriticalRecoveries;
-    }
-
-    /// Whether the data nodes throttle the relocations, and not the master, see [#dataNodeRecoveryThrottlingEnabled(int)].
-    public boolean dataNodeRecoveryThrottlingEnabled() {
-        return dataNodeRecoveryThrottlingEnabled(maxConcurrentNonCriticalRecoveries);
     }
 
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not
@@ -89,26 +82,6 @@ public class TargetRelocationSlotsEstimator {
     // TODO: move to DataNodeRecoveryThrottlingSettings (elastic/elasticsearch-team#5653)
     private boolean dataNodeRecoveryThrottlingEnabled(int maxRecoveries) {
         return maxRecoveries < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries() && masterThrottlingDisabled;
-    }
-
-    /// Whether every search shard on the search nodes marked for removal has already started to relocate. Shards that are not started
-    /// yet (initializing) cannot relocate, so they do not count.
-    private static boolean allSearchShardsOnShuttingDownNodesRelocating(final ClusterState state) {
-        final var nodeShutdowns = state.metadata().nodeShutdowns();
-        for (String nodeId : nodeShutdowns.getAllNodeIds()) {
-            final var discoveryNode = state.nodes().get(nodeId);
-            if (nodeShutdowns.isNodeMarkedForRemoval(nodeId) == false
-                || discoveryNode == null
-                || discoveryNode.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) == false) {
-                continue;
-            }
-            final var routingNode = state.getRoutingNodes().node(nodeId);
-            // a search node only holds search shards, as a promotable shard is only allowed on an index node
-            if (routingNode != null && routingNode.numberOfShardsWithState(ShardRoutingState.STARTED) > 0) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static boolean masterThrottlingDisabled(final Function<Setting<Integer>, Integer> currentValue) {

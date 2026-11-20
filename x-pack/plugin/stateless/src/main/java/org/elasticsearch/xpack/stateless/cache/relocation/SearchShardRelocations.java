@@ -44,6 +44,18 @@ final class SearchShardRelocations {
         return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(ShardRoutingState.STARTED)).orElse(0);
     }
 
+    /// Whether a search node marked for removal still holds shards that have not begun to relocate. The master holds them back while it
+    /// throttles, so the relocations to a target that the cluster state shows may be only some of the ones the target will get.
+    static boolean hasPendingRelocationsOnShuttingDownNodes(ClusterState state) {
+        final var nodeShutdowns = state.metadata().nodeShutdowns();
+        for (final String nodeId : nodeShutdowns.getAllNodeIds()) {
+            if (nodeShutdowns.isNodeMarkedForRemoval(nodeId) && countPendingRelocationsOn(state, nodeId) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// The relocations to `targetNodeId` from the nodes that match `sourceNodeFilter`.
     private static int countRelocationsToTarget(ClusterState state, String targetNodeId, Predicate<String> sourceNodeFilter) {
         return searchRoutingNode(state, targetNodeId).map(node -> countInitializingRelocations(node, sourceNodeFilter)).orElse(0);

@@ -170,6 +170,33 @@ public class SearchShardRelocationsTests extends ESTestCase {
         assertThat(SearchShardRelocations.countPendingRelocationsOn(state, "no-such-node"), equalTo(0));
     }
 
+    public void testHasPendingRelocationsOnlyWhileANodeMarkedForRemovalHoldsStartedSearchShards() {
+        final var removalType = randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.SIGTERM);
+        final var relocatingOnly = clusterState(List.of(new Relocation(SOURCE_A, TARGET)), List.of(), Map.of(SOURCE_A, removalType));
+        assertThat(SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(relocatingOnly), equalTo(false));
+
+        final var startedOnNodeMarkedForRemoval = clusterState(
+            List.of(new Relocation(SOURCE_A, TARGET)),
+            List.of(),
+            Map.of(SOURCE_A, removalType),
+            List.of(SOURCE_A)
+        );
+        assertThat(SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(startedOnNodeMarkedForRemoval), equalTo(true));
+
+        // a restarting node is not marked for removal, and a node that is not shutting down is not waited for
+        final var startedOnOtherNodes = clusterState(
+            List.of(),
+            List.of(),
+            Map.of(SOURCE_B, SingleNodeShutdownMetadata.Type.RESTART),
+            List.of(SOURCE_B, SOURCE_C)
+        );
+        assertThat(SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(startedOnOtherNodes), equalTo(false));
+
+        // stale shutdown metadata of a node that has left the cluster
+        final var staleShutdown = clusterState(List.of(), List.of(), Map.of("gone-node", removalType), List.of(SOURCE_C));
+        assertThat(SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(staleShutdown), equalTo(false));
+    }
+
     private static DiscoveryNode searchNode(String nodeId) {
         return DiscoveryNodeUtils.builder(nodeId).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
     }

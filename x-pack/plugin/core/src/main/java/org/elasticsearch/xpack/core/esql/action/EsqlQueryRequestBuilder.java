@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.esql.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 
@@ -53,17 +52,6 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
      * earlier on this builder.
      */
     public abstract EsqlQueryRequestBuilder<Request, Response> executionMetadata(ExecutionMetadata mode);
-
-    /**
-     * Sets an ES|QL query setting by name, with the names and values the REST API accepts under {@code settings} in the request
-     * body, for example {@code setting("time_zone", "Europe/Paris")}. The value is what that JSON body would carry: a
-     * {@link String}, {@link Number}, {@link Boolean}, or a {@link java.util.Map} or {@link List} of these. {@code null} removes
-     * the setting.
-     *
-     * @throws IllegalArgumentException if no such setting exists, the setting is not accepted in the request body, or the value
-     *         does not parse
-     */
-    public abstract EsqlQueryRequestBuilder<Request, Response> setting(String name, @Nullable Object value);
 
     public abstract EsqlQueryRequestBuilder<Request, Response> params(List<EsqlQueryParam> params);
 

@@ -1019,11 +1019,6 @@ public class EsqlDataExtractorTests extends ESTestCase {
         }
 
         @Override
-        public EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> setting(String name, Object value) {
-            return this;
-        }
-
-        @Override
         public EsqlQueryRequestBuilder<EsqlQueryRequest, EsqlQueryResponse> params(List<EsqlQueryParam> params) {
             return this;
         }

@@ -20,10 +20,9 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Pins the {@code _clusters} metadata and the time zone as seen by in-process clients of the x-pack core ES|QL API, across real
+ * Pins the {@code _clusters} metadata as seen by in-process clients of the x-pack core ES|QL API, across real
  * clusters. Every query here goes through {@link EsqlQueryRequestBuilder} from x-pack core, not the ES|QL plugin's own request class.
  */
 public class CrossClusterCoreClientApiIT extends AbstractCrossClusterTestCase {
@@ -63,16 +62,6 @@ public class CrossClusterCoreClientApiIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testTimeZoneApplies() {
-        String query = "ROW t = TO_DATETIME(\"2024-01-01T00:00:00Z\") | EVAL h = DATE_EXTRACT(\"hour_of_day\", t) | KEEP h";
-        try (var response = run(query, b -> b.setting("time_zone", "Europe/Paris"))) {
-            assertThat(singleValue(response), equalTo(1L));
-        }
-        try (var response = run(query, b -> {})) {
-            assertThat(singleValue(response), equalTo(0L));
-        }
-    }
-
     private EsqlQueryResponse run(
         String query,
         Consumer<EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse>> configure
@@ -81,17 +70,6 @@ public class CrossClusterCoreClientApiIT extends AbstractCrossClusterTestCase {
         builder.query(query);
         configure.accept(builder);
         return builder.execute().actionGet(30, TimeUnit.SECONDS);
-    }
-
-    private static Object singleValue(EsqlQueryResponse response) {
-        var rows = response.response().rows().iterator();
-        assertTrue(rows.hasNext());
-        var values = rows.next().iterator();
-        assertTrue(values.hasNext());
-        Object value = values.next();
-        assertFalse(values.hasNext());
-        assertFalse(rows.hasNext());
-        return value;
     }
 
     private static void assertBothClustersSuccessful(List<EsqlClusterInfo> clusters) {

@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.common.FrequencyCappedActionTestUtils;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -39,6 +40,8 @@ public class BlobStoreRepositorySlowMetadataWarningTests extends ESTestCase {
 
     @Before
     public void createRepository() {
+        // the hot threads cap is shared by the whole JVM, so make sure it's open at the start of each test
+        FrequencyCappedActionTestUtils.reset(BlobStoreRepository.SLOW_METADATA_HOT_THREADS_CAP);
         repository = (BlobStoreRepository) TestUtils.createRepository(randomProjectIdOrDefault(), createTempDir(), xContentRegistry());
         // The repository's ThreadPool is a mock, which cannot schedule, so delegate scheduling to the deterministic task queue
         // so that tests can advance time without waiting.
@@ -53,7 +56,7 @@ public class BlobStoreRepositorySlowMetadataWarningTests extends ESTestCase {
         repository.close();
     }
 
-    public void testWarnsWithHotThreadsWhenMetadataReadIsSlow() {
+    public void testWarnsWhenMetadataReadIsSlow() {
         try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -61,14 +64,6 @@ public class BlobStoreRepositorySlowMetadataWarningTests extends ESTestCase {
                     BlobStoreRepository.class.getCanonicalName(),
                     Level.WARN,
                     "[" + shardId + "][" + snapshotId + "] still reading file metadata after [2m]"
-                )
-            );
-            mockLog.addExpectation(
-                new MockLog.PatternSeenEventExpectation(
-                    "hot threads",
-                    BlobStoreRepository.class.getCanonicalName(),
-                    Level.WARN,
-                    Pattern.quote("hot threads while reading file metadata for shard snapshot [" + shardId + "][" + snapshotId + "]") + ".*"
                 )
             );
 
@@ -80,6 +75,31 @@ public class BlobStoreRepositorySlowMetadataWarningTests extends ESTestCase {
 
                 deterministicTaskQueue.runAllTasks();
                 assertThat(deterministicTaskQueue.getCurrentTimeMillis(), equalTo(TimeValue.timeValueMinutes(2).millis()));
+            }
+
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testHotThreadsAreRateLimited() {
+        runSlowMetadataRead(true);
+        runSlowMetadataRead(false);
+    }
+
+    private void runSlowMetadataRead(boolean expectHotThreads) {
+        try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
+            final String loggerName = BlobStoreRepository.class.getCanonicalName();
+            final String hotThreadsPattern = Pattern.quote(
+                "hot threads while reading file metadata for shard snapshot [" + shardId + "][" + snapshotId + "]"
+            ) + ".*";
+            mockLog.addExpectation(
+                expectHotThreads
+                    ? new MockLog.PatternSeenEventExpectation("hot threads", loggerName, Level.WARN, hotThreadsPattern)
+                    : new MockLog.PatternNotSeenEventExpectation("no hot threads", loggerName, Level.WARN, hotThreadsPattern)
+            );
+
+            try (Releasable ignored = repository.warnIfReadingMetadataIsSlow(shardId, snapshotId)) {
+                deterministicTaskQueue.runAllTasks();
             }
 
             mockLog.assertAllExpectationsMatched();

@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
@@ -205,6 +206,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Reading file metadata before a shard snapshot normally takes seconds at most, so anything longer is worth surfacing.
      */
     private static final TimeValue SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD = TimeValue.timeValueMinutes(2);
+
+    /**
+     * Hot threads dumps are large and cover the whole node, so when several shards (or repositories) are slow at once only log one per
+     * interval. Static so that the limit is shared by all repositories on the node.
+     */
+    // package-private for testing
+    static final FrequencyCappedAction SLOW_METADATA_HOT_THREADS_CAP = new FrequencyCappedAction(
+        System::currentTimeMillis,
+        TimeValue.ZERO,
+        TimeValue.timeValueMinutes(5)
+    );
 
     private class ShutdownLogger {
         // Creating a separate logger so that the log-level can be manipulated separately from the parent class.
@@ -3565,11 +3577,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return; // could not schedule the timeout, e.g. because the node is shutting down
             }
             logger.warn("[{}][{}] still reading file metadata after [{}]", shardId, snapshotId, SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD);
-            HotThreads.logLocalHotThreads(
-                logger,
-                Level.WARN,
-                "hot threads while reading file metadata for shard snapshot [" + shardId + "][" + snapshotId + "]",
-                ReferenceDocs.LOGGING
+            SLOW_METADATA_HOT_THREADS_CAP.maybeExecute(
+                () -> HotThreads.logLocalHotThreads(
+                    logger,
+                    Level.WARN,
+                    "hot threads while reading file metadata for shard snapshot [" + shardId + "][" + snapshotId + "]",
+                    ReferenceDocs.LOGGING
+                )
             );
         }));
         return () -> readFinished.onResponse(null);

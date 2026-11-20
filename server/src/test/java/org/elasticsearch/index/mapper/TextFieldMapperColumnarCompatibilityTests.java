@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -386,7 +387,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         );
         Mapper mapper = ms.mappingLookup().getMapper(FIELD);
         assertThat(mapper, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testIndexPrefixesFallsBack() throws IOException {
@@ -397,7 +398,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         }));
         Mapper mapper = ms.mappingLookup().getMapper(FIELD);
         assertThat(mapper, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testMultiFieldWithNonColumnarMultiFieldFallsBack() throws IOException {
@@ -410,7 +411,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         }));
         Mapper mapper = ms.mappingLookup().getMapper(FIELD);
         assertThat(mapper, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testCopyToFallsBack() {
@@ -428,7 +429,7 @@ public class TextFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
         );
         Mapper mapper = ms.mappingLookup().getMapper(FIELD);
         assertThat(mapper, instanceOf(TextFieldMapper.class));
-        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings()));
+        assertFalse(((TextFieldMapper) mapper).supportsColumnarParse(ms.getIndexSettings(), Set.of()));
     }
 
     public void testMultiValueFalseBailsOutOnMultipleValues() throws IOException {

@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.Set;
 
 public class NestedPathFieldMapper extends MetadataFieldMapper {
 
@@ -87,7 +88,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // No preParse/postParse override — nothing to port for the columnar path either.
         return true;
     }

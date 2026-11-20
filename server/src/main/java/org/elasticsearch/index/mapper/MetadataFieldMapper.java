@@ -265,7 +265,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     /**
      * Called once per batch, before any columnar field mapping, on the columnar bulk batch-mapping
-     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings, Set)}
      * returns {@code true}; mirrors the role of {@link #preParse} in the row-major path, but reads
      * per-document values off {@link BatchMappingContext} and attaches a Lucene column spanning the
      * whole batch via {@link BatchMappingContext#addColumn} rather than adding a per-document
@@ -277,7 +277,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     /**
      * Called once per batch, after all columnar field mapping, on the columnar bulk batch-mapping
-     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings)}
+     * path (see {@code ShardBatchMapper}). Only invoked when {@link #supportsColumnarParse(IndexSettings, Set)}
      * returns {@code true}; mirrors the role of {@link #postParse} in the row-major path. Defaults
      * to a no-op.
      */
@@ -291,7 +291,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     public boolean supportsColumnarMetadataParse(IndexSettings indexSettings) {
         // This allows some metadata mappers to not block columnar indexing but still force a fall back
         // if we do not supportsColumnarParse on specific fields
-        return supportsColumnarParse(indexSettings);
+        return supportsColumnarParse(indexSettings, Set.of());
     }
 
     @Override

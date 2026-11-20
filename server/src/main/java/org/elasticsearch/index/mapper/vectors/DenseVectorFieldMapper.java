@@ -4432,7 +4432,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * and mappings still waiting for their dimensions.
      */
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         final DenseVectorFieldType ft = fieldType();
         final ElementType elementType = ft.element.elementType();
         return ft.indexed && ft.dims != null && (elementType == ElementType.FLOAT || elementType == ElementType.BFLOAT16);

@@ -22,6 +22,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.Set;
 
 public class SizeFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_size";
@@ -110,7 +111,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // postParse is a no-op when disabled (the common case). The enabled case needs the raw
         // request source size as a column; revisit alongside SourceFieldMapper when we add stored source
         // support.

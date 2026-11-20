@@ -28,6 +28,7 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -232,7 +233,7 @@ public class MetadataMapperColumnarCompatibilityTests extends AbstractColumnarMa
             mapperService.mappingLookup()
                 .getMapping()
                 .getMetadataMapperByName(SourceFieldMapper.NAME)
-                .supportsColumnarParse(mapperService.getIndexSettings())
+                .supportsColumnarParse(mapperService.getIndexSettings(), Set.of())
         );
     }
 

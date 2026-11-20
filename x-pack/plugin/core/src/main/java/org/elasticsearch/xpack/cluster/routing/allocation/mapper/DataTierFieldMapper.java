@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.Set;
 
 public class DataTierFieldMapper extends MetadataFieldMapper {
 
@@ -104,7 +105,7 @@ public class DataTierFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // No preParse/postParse override — nothing to port for the columnar path.
         return true;
     }

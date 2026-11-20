@@ -1264,7 +1264,7 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // ignore_malformed is not enforced by mapColumnBatch — it falls back per document at parse time.
         return docValuesParameters.enabled();
     }

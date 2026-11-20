@@ -29,6 +29,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 public class IndexModeFieldMapper extends MetadataFieldMapper {
 
@@ -118,7 +119,7 @@ public class IndexModeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
+    protected boolean doSupportsColumnarParse(IndexSettings indexSettings, Set<String> relativeKeys) {
         // No preParse/postParse override — nothing to port for the columnar path either.
         return true;
     }

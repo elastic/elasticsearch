@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Parity tests for {@link GeoPointFieldMapper#mapColumnGroupBatch} against the row path.
@@ -181,7 +182,7 @@ public class GeoPointFieldMapperColumnarCompatibilityTests extends AbstractColum
         final var mapper = (GeoPointFieldMapper) ms.mappingLookup().getMapper(FIELD);
         assertFalse(
             "geo_point must not take the columnar path outside strict-columnar and TSDB index modes",
-            mapper.supportsColumnarParse(ms.getIndexSettings())
+            mapper.supportsColumnarParse(ms.getIndexSettings(), Set.of())
         );
     }
 }

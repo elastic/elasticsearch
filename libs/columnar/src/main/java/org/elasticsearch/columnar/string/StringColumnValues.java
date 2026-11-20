@@ -116,9 +116,10 @@ public abstract class StringColumnValues extends DocIdSetIterator {
     }
 
     /**
-     * Whether the value the cursor is on is known to equal the value it was on before. False when unknown, which stores
-     * the repeat again. A writer that captures bounds does not call {@link #value} for a slot reported as a repeat when
-     * {@link #streamsValues} is true, so a cursor never reports a repeat for a null slot.
+     * Whether the value the cursor is on is known to equal the value it was on before, which may belong to an earlier
+     * document or chunk. False when unknown, which stores the repeat again. A writer that captures bounds does not call
+     * {@link #value} for a slot reported as a repeat when {@link #streamsValues} is true, so a report that is wrong
+     * writes a wrong value, and a cursor never reports a repeat for a null slot.
      */
     public boolean repeatsPrevious() throws IOException {
         return false;

@@ -4765,7 +4765,6 @@ c:long | unmapped_message:keyword
 // on a field that is unmapped (pushed on its own, best effort, as a filter). The documents of ids 1 and 2 have tag "t", the one of 3 none.
 loadOrAcrossFieldsAndEqualityOnUnmappedField
 required_capability: optional_fields_v5
-required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 
 SET unmapped_fields="load"\;
 FROM unmapped_compound_outputs
@@ -4779,7 +4778,6 @@ id:keyword | tag:keyword
 
 loadOrAcrossFieldsAndEqualityOnUnmappedFieldKeepsTheMatchingRow
 required_capability: optional_fields_v5
-required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 
 SET unmapped_fields="load"\;
 FROM unmapped_compound_outputs
@@ -4794,7 +4792,6 @@ id:keyword | tag:keyword
 
 loadOrAcrossFieldsAndIsNullOnUnmappedField
 required_capability: optional_fields_v5
-required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 
 SET unmapped_fields="load"\;
 FROM unmapped_compound_outputs
@@ -4809,7 +4806,6 @@ id:keyword | tag:keyword
 // The query of #165754: the IS NOT NULL on the unmapped field drops out of the OR when the field is known to be null.
 loadOrWithIsNotNullAndIsNullOnTheSameUnmappedField
 required_capability: optional_fields_v5
-required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 
 SET unmapped_fields="load"\;
 FROM unmapped_compound_outputs

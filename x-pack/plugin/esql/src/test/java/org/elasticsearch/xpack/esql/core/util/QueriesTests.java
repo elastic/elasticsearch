@@ -115,8 +115,7 @@ public class QueriesTests extends ESTestCase {
             && (clause == Queries.Clause.FILTER || clause == Queries.Clause.MUST)
             && bool.should().isEmpty() == false
             && bool.must().isEmpty()
-            && bool.filter().isEmpty()
-            && bool.minimumShouldMatch() == null;
+            && bool.filter().isEmpty();
     }
 
     private void assertBoolQueryMerge(QueryBuilder[] queries, BoolQueryBuilder bool, Queries.Clause clause) {
@@ -161,16 +160,26 @@ public class QueriesTests extends ESTestCase {
         }
     }
 
+    /** A should-only bool stays a clause of its own whatever its minimum_should_match, a zero one makes the should clauses optional. */
+    public void testCombineKeepsAShouldOnlyBoolWithAMinimumShouldMatchNested() {
+        var other = QueryBuilders.termQuery("c", 3);
+        for (String minimum : asList("0", "1", "50%", "-100%")) {
+            var or = QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery("a", 1))
+                .should(QueryBuilders.termQuery("b", 2))
+                .minimumShouldMatch(minimum);
+            var combination = (BoolQueryBuilder) Queries.combine(Queries.Clause.FILTER, asList(or, other));
+            assertThat(combination.filter(), equalTo(asList(or, other)));
+            assertThat(combination.should(), empty());
+        }
+    }
+
     /** Adding a clause to the first bool is still fine when it does not change what that bool matches. */
     public void testCombineStillReusesTheFirstBoolWhenItsMeaningIsKept() {
         var other = QueryBuilders.termQuery("c", 3);
         var withFilter = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("a", 1)).should(QueryBuilders.termQuery("b", 2));
-        var withMinimum = QueryBuilders.boolQuery()
-            .should(QueryBuilders.termQuery("a", 1))
-            .should(QueryBuilders.termQuery("b", 2))
-            .minimumShouldMatch(1);
         var onlyFilter = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("a", 1));
-        for (var first : asList(withFilter, withMinimum, onlyFilter)) {
+        for (var first : asList(withFilter, onlyFilter)) {
             var combination = (BoolQueryBuilder) Queries.combine(Queries.Clause.FILTER, asList(first, other));
             assertThat(combination.should(), equalTo(first.should()));
             assertThat(combination.filter(), hasItem(other));

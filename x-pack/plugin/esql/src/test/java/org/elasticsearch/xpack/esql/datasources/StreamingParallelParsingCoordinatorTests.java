@@ -1710,7 +1710,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                         StripeStatsHarvester harvester = new StripeStatsHarvester(
                             context.statsStripeSize(),
                             context.statsFileFinal(),
-                            context.statsStripeSink()
+                            context.statsStripeSink(),
+                            context.statsMaxExtremumBytes()
                         );
                         harvester.getOrCreate(harvester.ordinalOf(context.statsBaseOffset())).rows = rows;
                         harvester.emit(path, context.statsBaseOffset(), chunkBytes, MTIME, "cfg", "read", true, SCHEMA);

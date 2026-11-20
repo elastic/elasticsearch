@@ -660,6 +660,42 @@ public class StripeStatsStagingTests extends ESTestCase {
         assertNull("and must offer no extremum", SourceStatisticsSerializer.extractColumnMin(record, "k"));
     }
 
+    /**
+     * The width reaches the staging arm, which is the one a chunk-parallel read of a large file takes. A stripe
+     * whose grid cell its pieces cover is handed to {@link StripeStatsStaging#contribute}, never recorded
+     * directly, so a width that stopped at the direct arm would leave the staging area holding the very value
+     * a published record withholds -- and publish it when the stripe folds.
+     */
+    public void testTheWidthReachesTheStagingArm() {
+        assertEquals(
+            "the default stages a five-byte extremum",
+            new BytesRef("alpha"),
+            stagedMin(FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES)
+        );
+        assertNull("four bytes withholds it on the same arm", stagedMin(4));
+    }
+
+    /** Stages one stripe through a harvester built at {@code maxExtremumBytes} and returns the minimum it carries. */
+    @Nullable
+    private Object stagedMin(int maxExtremumBytes) {
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        StripeStatsHarvester harvester = new StripeStatsHarvester(1024, true, new StripeStatsStaging(sink), maxExtremumBytes);
+        StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(0));
+        accum.rows++;
+        accum.cols = ColumnStatsAccumulator.forProjectedAttributes(SCHEMA.toArray(new Attribute[0]));
+        accum.cols.acceptLongAt(0, 1L);
+        accum.cols.acceptBytesRefAt(1, new BytesRef("alpha"));
+        harvester.emit(PATH, 0, 1024, MTIME, FINGERPRINT, READ_CONFIG, true, SCHEMA);
+
+        Map<String, Object> record = staged(sink).get(0);
+        assertEquals(
+            "the stripe must stage whatever the width does to its extremum",
+            (Long) 1L,
+            SourceStatisticsSerializer.extractColumnValueCount(record, "n")
+        );
+        return SourceStatisticsSerializer.extractColumnMin(record, "k");
+    }
+
     /** A chunk that summarises only the first schema column, leaving the second unmeasured for its stripe. */
     private void narrowChunk(StripeStatsStaging staging, long stripeSize, boolean fileFinal, long start, long end, long number) {
         StripeStatsHarvester harvester = new StripeStatsHarvester(stripeSize, fileFinal, staging);

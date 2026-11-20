@@ -191,23 +191,15 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
-     * G2 (elastic/elasticsearch#150920): a {@code rowLimit} slice truncates a page after the decoder recorded its
-     * full record count, which would desync the per-record offset array from the sliced page and trip
-     * {@code forEachRun}'s {@code recordCount == positionCount} assert on a legitimate truncation. So stripe
-     * tracking must be disabled under a rowLimit ({@code statsStripeSize -> -1}) — a recordAligned context WITH a
-     * rowLimit must publish no stripe stats (safe-miss), never harvest and risk the assert. Proven to harvest
-     * (non-null publish) without the {@code rowLimit == NO_LIMIT} conjunct.
-     */
-    /**
      * The stripe rail's own hop: the width reaches {@code StripeStatsHarvester} through the page iterator, not
-     * only the whole-file publish. The same five-byte extremum is harvested at the default and withheld at four.
+     * only the whole-file publish. The same two-byte extremum is harvested at the default and withheld at one.
      */
     public void testTheWidthSettingReachesTheStripeHarvest() throws Exception {
         byte[] bytes = ndjsonKeyword(6);
 
         Map<String, Object> atDefault = stripeMetadata(bytes, FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES);
         assertEquals(
-            "a five-byte extremum is harvested under the default",
+            "a two-byte extremum is harvested under the default",
             new BytesRef("k0"),
             SourceStatisticsSerializer.extractColumnMin(atDefault, "k")
         );
@@ -256,6 +248,14 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
         return new ReferenceAttribute(Source.EMPTY, null, name, DataType.KEYWORD, Nullability.TRUE, null, false);
     }
 
+    /**
+     * G2 (elastic/elasticsearch#150920): a {@code rowLimit} slice truncates a page after the decoder recorded its
+     * full record count, which would desync the per-record offset array from the sliced page and trip
+     * {@code forEachRun}'s {@code recordCount == positionCount} assert on a legitimate truncation. So stripe
+     * tracking must be disabled under a rowLimit ({@code statsStripeSize -> -1}) — a recordAligned context WITH a
+     * rowLimit must publish no stripe stats (safe-miss), never harvest and risk the assert. Proven to harvest
+     * (non-null publish) without the {@code rowLimit == NO_LIMIT} conjunct.
+     */
     public void testRowLimitDisablesStripeCapture() throws Exception {
         byte[] bytes = ndjson(0, 20);
         StorageObject o = memoryObject(bytes);

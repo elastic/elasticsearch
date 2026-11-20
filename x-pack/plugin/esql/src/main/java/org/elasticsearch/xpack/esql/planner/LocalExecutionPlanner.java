@@ -3009,7 +3009,10 @@ public class LocalExecutionPlanner {
             context.plannerSettings,
             configuration
         );
-        return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
+        return source.with(
+            new NestedExpandOperator.Factory(docChannel, children, expand.path(), context.pageSize(expand, expand.estimatedRowSize())),
+            layout.build()
+        );
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {

@@ -12,8 +12,10 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
@@ -46,8 +48,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
-import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
 /**
@@ -56,8 +56,7 @@ import java.util.stream.IntStream;
  * operator, so each driver needs its own instance.
  */
 public final class NestedChildren implements Releasable {
-    /** Children per page, so a parent with many objects does not need them all in memory at once. */
-    static final int PAGE_SIZE = 1024;
+    static final String BREAKER_LABEL = "nested_children";
 
     /**
      * One shard's filters selecting parents and the children of this nested field, both {@code null} where it is not mapped.
@@ -68,9 +67,10 @@ public final class NestedChildren implements Releasable {
     public record Factory(IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator.Factory reader) {
         public NestedChildren get(DriverContext context) {
             if (reader == null) {
-                return new NestedChildren(context, shards, null, 0);
+                return new NestedChildren(context, shards, null, new ElementType[0]);
             }
-            return new NestedChildren(context, shards, (ValuesSourceReaderOperator) reader.get(context), reader.fields().size());
+            ElementType[] types = reader.fields().stream().map(ValuesSourceReaderOperator.FieldInfo::type).toArray(ElementType[]::new);
+            return new NestedChildren(context, shards, (ValuesSourceReaderOperator) reader.get(context), types);
         }
     }
 
@@ -173,7 +173,8 @@ public final class NestedChildren implements Releasable {
         );
         return new Factory(
             shards,
-            // A page of PAGE_SIZE children can still hold more bytes than a page may, so the reader splits it like any other
+            // The reader splits the children of a chunk that hold more bytes than a page may when they are in one segment and their
+            // docs do not decrease. Otherwise it loads the chunk in one page, which still has at most as many rows as the chunk.
             new ValuesSourceReaderOperator.Factory(
                 settings.valuesLoadingJumboSize(),
                 infos,
@@ -218,135 +219,354 @@ public final class NestedChildren implements Releasable {
     private final IndexedByShardId<Shard> shards;
     @Nullable
     private final ValuesSourceReaderOperator reader;
-    /** Block 0 of each loaded page is the parent positions and the child fields follow it. */
-    private final int[] projection;
+    private final ElementType[] types;
+    /** Block 0 of each page the reader gives is the child documents and the child fields follow it. */
+    private final int[] fieldsProjection;
+    @Nullable
+    private Buffers buffers;
+    private boolean expanding;
 
-    private NestedChildren(DriverContext context, IndexedByShardId<Shard> shards, @Nullable ValuesSourceReaderOperator reader, int fields) {
+    private NestedChildren(
+        DriverContext context,
+        IndexedByShardId<Shard> shards,
+        @Nullable ValuesSourceReaderOperator reader,
+        ElementType[] types
+    ) {
         this.context = context;
         this.shards = shards;
         this.reader = reader;
-        this.projection = IntStream.range(1, 2 + fields).toArray();
+        this.types = types;
+        this.fieldsProjection = IntStream.range(1, 1 + types.length).toArray();
     }
 
     /**
-     * Reads the children of the parents at the positions of {@code parents} that are {@code included} and hands them, in
-     * parent order, to {@code consumer} in pages of at most {@link #PAGE_SIZE} children. Block 0 of each page is an
-     * {@link IntVector} of each child's parent position, and the child fields follow it. Each page is released once
-     * {@code consumer} returns.
+     * A page of rows {@link Expansion#next} gives: row {@code i} of the page belongs to the parent at position
+     * {@code positions[offset + i]}. {@code fields} holds a block of {@code count} rows for each child field and is owned
+     * by the caller. {@code positions} is only valid until the next call to {@link Expansion#next}.
      */
-    void read(DocVector parents, IntPredicate included, Consumer<Page> consumer) {
+    record Rows(int[] positions, int offset, int count, Block[] fields) {}
+
+    /**
+     * Expands the parents of {@code parents} into at most {@code maxRows} rows per call, one row per child in parent order,
+     * and one row of nulls for a parent without children. It keeps its place in the parents, so a parent with more
+     * children than {@code maxRows} is read over several calls. Only one expansion is open at a time, and its buffers are
+     * reused by the next one.
+     */
+    Expansion expand(DocVector parents, int maxRows) {
         parents.ensureAttached("NESTED");
-        int[] shardIds = new int[PAGE_SIZE];
-        int[] segments = new int[PAGE_SIZE];
-        int[] docs = new int[PAGE_SIZE];
-        int[] positions = new int[PAGE_SIZE];
-        int count = 0;
-        try {
-            for (int p = 0; p < parents.getPositionCount(); p++) {
-                if (included.test(p) == false) {
-                    continue;
-                }
-                int shardId = parents.shards().getInt(p);
-                Shard shard = shards.get(shardId);
-                int segment = parents.segments().getInt(p);
-                int parent = parents.docs().getInt(p);
-                if (shard.children() == null || parent == 0) {
-                    continue;
-                }
-                LeafReaderContext leaf = shard.reader().leaves().get(segment);
-                BitSet children = shard.children().getBitSet(leaf);
-                if (children == null) {
-                    continue;
-                }
-                int first = shard.parents().getBitSet(leaf).prevSetBit(parent - 1) + 1;
-                for (int child = children.nextSetBit(first); child < parent; child = children.nextSetBit(child + 1)) {
-                    shardIds[count] = shardId;
-                    segments[count] = segment;
-                    docs[count] = child;
-                    positions[count] = p;
-                    if (++count == PAGE_SIZE) {
-                        emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
-                        count = 0;
+        if (maxRows < 1) {
+            throw new IllegalArgumentException("maxRows must be positive but was [" + maxRows + "]");
+        }
+        if (expanding) {
+            throw new IllegalStateException("the previous expansion is still open");
+        }
+        if (buffers == null || buffers.rows < maxRows) {
+            Releasables.close(buffers);
+            buffers = null;
+            buffers = new Buffers(maxRows);
+        }
+        expanding = true;
+        return new Expansion(parents, maxRows, buffers);
+    }
+
+    /** The arrays an {@link Expansion} fills, reserved on the breaker until this is closed. */
+    private final class Buffers implements Releasable {
+        private static final int ARRAYS = 5;
+
+        private final int rows;
+        private final long reserved;
+        /** Parent position of each row of the batch. */
+        private final int[] rowParents;
+        /** Index in {@link #docs} of the child each row of the batch holds, or -1 for the row of a parent without children. */
+        private final int[] rowChildren;
+        private final int[] childShards;
+        private final int[] childSegments;
+        private final int[] docs;
+
+        private Buffers(int rows) {
+            this.rows = rows;
+            this.reserved = (long) ARRAYS * rows * Integer.BYTES;
+            context.breaker().addEstimateBytesAndMaybeBreak(reserved, BREAKER_LABEL);
+            this.rowParents = new int[rows];
+            this.rowChildren = new int[rows];
+            this.childShards = new int[rows];
+            this.childSegments = new int[rows];
+            this.docs = new int[rows];
+        }
+
+        @Override
+        public void close() {
+            context.breaker().addWithoutBreaking(-reserved);
+        }
+    }
+
+    final class Expansion implements Releasable {
+        private final DocVector parents;
+        private final int maxRows;
+        private final int[] rowParents;
+        private final int[] rowChildren;
+        private final int[] childShards;
+        private final int[] childSegments;
+        private final int[] docs;
+        private int rows;
+        private int children;
+        private int nextRow;
+        private int pendingChildren;
+        private boolean closed;
+
+        private int parent;
+        private boolean entered;
+        @Nullable
+        private BitSet siblings;
+        private int parentDoc;
+        private int nextChild;
+        private int shardId;
+        private int segment;
+
+        private Expansion(DocVector parents, int maxRows, Buffers buffers) {
+            this.parents = parents;
+            this.maxRows = maxRows;
+            this.rowParents = buffers.rowParents;
+            this.rowChildren = buffers.rowChildren;
+            this.childShards = buffers.childShards;
+            this.childSegments = buffers.childSegments;
+            this.docs = buffers.docs;
+        }
+
+        boolean hasNext() {
+            return nextRow < rows || parent < parents.getPositionCount();
+        }
+
+        /**
+         * The next rows, at most {@code maxRows} of them, fewer when the reader splits the children it loaded into several pages.
+         */
+        Rows next() {
+            context.checkForEarlyTermination();
+            if (nextRow == rows) {
+                fill();
+            }
+            int start = nextRow;
+            if (reader == null) {
+                nextRow = rows;
+                return new Rows(rowParents, start, rows - start, new Block[0]);
+            }
+            if (pendingChildren == 0) {
+                nextRow = rows;
+                return new Rows(rowParents, start, rows - start, nulls(rows - start));
+            }
+            Page loaded = loadNext();
+            try {
+                int available = loaded.getPositionCount();
+                int end = start;
+                for (int taken = 0; end < rows && (rowChildren[end] < 0 || taken < available); end++) {
+                    if (rowChildren[end] >= 0) {
+                        taken++;
                     }
                 }
-            }
-            if (count > 0) {
-                emit(shardIds, segments, docs, positions, count, parents.mayContainDuplicates(), consumer);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private void emit(
-        int[] shardIds,
-        int[] segments,
-        int[] docs,
-        int[] positions,
-        int count,
-        boolean mayContainDuplicates,
-        Consumer<Page> consumer
-    ) {
-        context.checkForEarlyTermination();
-        BlockFactory blockFactory = context.blockFactory();
-        IntVector shardVector = null;
-        IntVector segmentVector = null;
-        IntVector docVector = null;
-        IntVector positionVector = null;
-        DocVector children = null;
-        try {
-            shardVector = blockFactory.newIntArrayVector(Arrays.copyOf(shardIds, count), count);
-            segmentVector = blockFactory.newIntArrayVector(Arrays.copyOf(segments, count), count);
-            docVector = blockFactory.newIntArrayVector(Arrays.copyOf(docs, count), count);
-            positionVector = blockFactory.newIntArrayVector(Arrays.copyOf(positions, count), count);
-            // The parent page holds the shards while its children are read. A parent repeated by a join or an expansion
-            // repeats its children.
-            children = new DocVector(
-                AlwaysReferencedIndexedByShardId.INSTANCE,
-                shardVector,
-                segmentVector,
-                docVector,
-                DocVector.config().mayContainDuplicates(mayContainDuplicates)
-            );
-            shardVector = segmentVector = docVector = null;
-            Page input = new Page(children.asBlock(), positionVector.asBlock());
-            children = null;
-            positionVector = null;
-            if (reader == null) {
-                Page counted;
-                try {
-                    counted = input.projectBlocks(projection);
-                } finally {
-                    input.releaseBlocks();
+                pendingChildren -= available;
+                nextRow = end;
+                Block[] fields = fields(loaded, start, end);
+                loaded = null;
+                return new Rows(rowParents, start, end - start, fields);
+            } finally {
+                if (loaded != null) {
+                    loaded.releaseBlocks();
                 }
-                accept(counted, consumer);
+            }
+        }
+
+        private Block[] nulls(int count) {
+            Block[] nulls = new Block[types.length];
+            try {
+                for (int f = 0; f < nulls.length; f++) {
+                    nulls[f] = context.blockFactory().newConstantNullBlock(count);
+                }
+                Block[] result = nulls;
+                nulls = null;
+                return result;
+            } finally {
+                if (nulls != null) {
+                    Releasables.closeExpectNoException(nulls);
+                }
+            }
+        }
+
+        /** The fields of rows {@code start} to {@code end}, which take their children from {@code loaded} in order. */
+        private Block[] fields(Page loaded, int start, int end) {
+            int count = end - start;
+            if (count == loaded.getPositionCount()) {
+                Block[] blocks = new Block[types.length];
+                for (int f = 0; f < blocks.length; f++) {
+                    blocks[f] = loaded.getBlock(f);
+                    blocks[f].incRef();
+                }
+                loaded.releaseBlocks();
+                return blocks;
+            }
+            Block.Builder[] builders = new Block.Builder[types.length];
+            Block[] blocks = new Block[types.length];
+            try {
+                for (int f = 0; f < builders.length; f++) {
+                    builders[f] = types[f].newBlockBuilder(count, context.blockFactory());
+                }
+                int from = 0;
+                for (int row = start; row < end;) {
+                    if (rowChildren[row] < 0) {
+                        for (Block.Builder builder : builders) {
+                            builder.appendNull();
+                        }
+                        row++;
+                        continue;
+                    }
+                    int run = row;
+                    while (row < end && rowChildren[row] >= 0) {
+                        row++;
+                    }
+                    for (int f = 0; f < builders.length; f++) {
+                        builders[f].copyFrom(loaded.getBlock(f), from, from + row - run);
+                    }
+                    from += row - run;
+                }
+                for (int f = 0; f < blocks.length; f++) {
+                    blocks[f] = builders[f].build();
+                }
+                loaded.releaseBlocks();
+                Block[] result = blocks;
+                blocks = null;
+                return result;
+            } finally {
+                Releasables.closeExpectNoException(builders);
+                if (blocks != null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+        }
+
+        private Page loadNext() {
+            Page out = reader.getOutput();
+            if (out == null) {
+                throw new IllegalStateException("the reader gave fewer children than were asked for");
+            }
+            try {
+                return out.projectBlocks(fieldsProjection);
+            } finally {
+                out.releaseBlocks();
+            }
+        }
+
+        /** Takes the rows of the next {@code maxRows} children and parents without children, and hands the children to the reader. */
+        private void fill() {
+            rows = 0;
+            children = 0;
+            nextRow = 0;
+            try {
+                while (rows < maxRows && parent < parents.getPositionCount()) {
+                    if (entered == false) {
+                        enter();
+                    }
+                    rowParents[rows] = parent;
+                    if (siblings == null) {
+                        rowChildren[rows++] = -1;
+                        parent++;
+                        entered = false;
+                        continue;
+                    }
+                    rowChildren[rows++] = children;
+                    childShards[children] = shardId;
+                    childSegments[children] = segment;
+                    docs[children++] = nextChild;
+                    nextChild = siblings.nextSetBit(nextChild + 1);
+                    if (nextChild >= parentDoc) {
+                        parent++;
+                        entered = false;
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            pendingChildren = children;
+            if (reader != null && children > 0) {
+                feed();
+            }
+        }
+
+        /** Finds the first child of the parent at {@link #parent}, if it has one. */
+        private void enter() throws IOException {
+            entered = true;
+            siblings = null;
+            shardId = parents.shards().getInt(parent);
+            segment = parents.segments().getInt(parent);
+            parentDoc = parents.docs().getInt(parent);
+            Shard shard = shards.get(shardId);
+            if (shard.children() == null || parentDoc == 0) {
                 return;
             }
-            reader.addInput(input);
-            for (Page out = reader.getOutput(); out != null; out = reader.getOutput()) {
-                Page loaded;
-                try {
-                    loaded = out.projectBlocks(projection);
-                } finally {
-                    out.releaseBlocks();
-                }
-                accept(loaded, consumer);
+            LeafReaderContext leaf = shard.reader().leaves().get(segment);
+            BitSet bits = shard.children().getBitSet(leaf);
+            if (bits == null) {
+                return;
             }
-        } finally {
-            Releasables.closeExpectNoException(shardVector, segmentVector, docVector, positionVector, children);
+            int first = shard.parents().getBitSet(leaf).prevSetBit(parentDoc - 1) + 1;
+            int child = bits.nextSetBit(first);
+            if (child < parentDoc) {
+                siblings = bits;
+                nextChild = child;
+            }
         }
-    }
 
-    private static void accept(Page page, Consumer<Page> consumer) {
-        try {
-            consumer.accept(page);
-        } finally {
-            page.releaseBlocks();
+        private void feed() {
+            BlockFactory blockFactory = context.blockFactory();
+            IntVector shardVector = null;
+            IntVector segmentVector = null;
+            IntVector docVector = null;
+            DocVector childDocs = null;
+            try {
+                shardVector = sameOrArray(childShards);
+                segmentVector = sameOrArray(childSegments);
+                docVector = blockFactory.newIntArrayVector(Arrays.copyOf(docs, children), children);
+                // The parent page holds the shards while its children are read. A parent repeated by a join or an expansion
+                // repeats its children.
+                childDocs = new DocVector(
+                    AlwaysReferencedIndexedByShardId.INSTANCE,
+                    shardVector,
+                    segmentVector,
+                    docVector,
+                    DocVector.config().mayContainDuplicates(parents.mayContainDuplicates())
+                );
+                shardVector = segmentVector = docVector = null;
+                Page input = new Page(childDocs.asBlock());
+                childDocs = null;
+                reader.addInput(input);
+            } finally {
+                Releasables.closeExpectNoException(shardVector, segmentVector, docVector, childDocs);
+            }
+        }
+
+        /**
+         * The first {@link #children} of {@code values}, as a constant vector when they are all the same. The reader only
+         * splits the children it loads into pages of bounded bytes when their shards and segments are constant and their
+         * docs do not decrease.
+         */
+        private IntVector sameOrArray(int[] values) {
+            for (int i = 1; i < children; i++) {
+                if (values[i] != values[0]) {
+                    return context.blockFactory().newIntArrayVector(Arrays.copyOf(values, children), children);
+                }
+            }
+            return context.blockFactory().newConstantIntVector(values[0], children);
+        }
+
+        @Override
+        public void close() {
+            if (closed == false) {
+                closed = true;
+                expanding = false;
+            }
         }
     }
 
     @Override
     public void close() {
-        Releasables.close(reader);
+        Releasables.close(buffers, reader);
     }
 }

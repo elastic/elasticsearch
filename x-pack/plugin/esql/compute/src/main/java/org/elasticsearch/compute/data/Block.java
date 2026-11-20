@@ -273,20 +273,10 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
 
     /**
      * @return the number of positions that are null. Note that this counts positions, not values: a null position has no values.
+     * Implementations should use the cheapest way to compute this; {@link BlockUtils#nullValuesCount(Block)} is the fallback
+     * when there is no specialized one.
      */
-    default int nullValuesCount() {
-        if (mayHaveNulls() == false) {
-            return 0;
-        }
-        int positions = getPositionCount();
-        int count = 0;
-        for (int i = 0; i < positions; i++) {
-            if (isNull(i)) {
-                count++;
-            }
-        }
-        return count;
-    }
+    int nullValuesCount();
 
     /**
      * Can this block have multivalued fields? Blocks that return {@code false}

@@ -89,6 +89,8 @@ public final class TDigestArrayBlock extends AbstractDelegatingCompoundBlock<TDi
 
     @Override
     protected List<Block> getSubBlocks() {
+        // The first sub-block determines the nullity of this block, so it must be null exactly when the digest is null.
+        // That excludes minima, maxima and sums, which are also null for empty digests.
         return List.of(encodedDigests, minima, maxima, sums, valueCounts);
     }
 

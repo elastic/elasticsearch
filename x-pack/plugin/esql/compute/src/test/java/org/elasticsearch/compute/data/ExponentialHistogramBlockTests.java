@@ -315,6 +315,21 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
+    public void testNullValuesCount() {
+        ExponentialHistogramBlock block = randomBlockWithNulls(true);
+        try {
+            int expected = 0;
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    expected++;
+                }
+            }
+            assertThat(block.nullValuesCount(), equalTo(expected));
+        } finally {
+            Releasables.close(block);
+        }
+    }
+
     private ExponentialHistogramBlock randomBlockWithNulls(boolean allowMultiValues) {
         boolean multiValued = randomBoolean() && allowMultiValues;
         int elementCount = randomIntBetween(0, 100);

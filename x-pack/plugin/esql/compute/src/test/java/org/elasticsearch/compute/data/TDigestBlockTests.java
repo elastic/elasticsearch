@@ -149,6 +149,24 @@ public class TDigestBlockTests extends ComputeTestCase {
         Releasables.close(block);
     }
 
+    public void testNullValuesCount() {
+        TDigestBlock block = randomBlockWithNulls(true);
+        try {
+            int expected = 0;
+            for (int p = 0; p < block.getPositionCount(); p++) {
+                if (block.isNull(p)) {
+                    expected++;
+                }
+            }
+            assertThat(block.nullValuesCount(), equalTo(expected));
+        } finally {
+            Releasables.close(block);
+        }
+        try (Block nulls = blockFactory().newConstantNullBlock(7)) {
+            assertThat(nulls.nullValuesCount(), equalTo(7));
+        }
+    }
+
     public void testEncodedTDigest() {
         TDigestBlock block = randomBlockWithNulls(true);
         try {

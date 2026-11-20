@@ -166,7 +166,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
                 requestBreaker,
-                "update_by_query_bulk_batch"
+                "update_by_query_bulk_batch",
+                "update_by_query_search_hits"
             );
         }
 

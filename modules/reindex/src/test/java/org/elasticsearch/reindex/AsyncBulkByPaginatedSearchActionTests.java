@@ -52,6 +52,8 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -334,7 +336,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             ExceptionsHelper::reThrowIfNotNull,
             new ParentTaskAssigningClient(client, localNode, testTask),
             testRequest.getSearchRequest(),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
         paginatedHitSource.setScrollId(scrollId());
         paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -363,7 +368,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             ExceptionsHelper::reThrowIfNotNull,
             new ParentTaskAssigningClient(client, localNode, testTask),
             testRequest.getSearchRequest(),
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
         paginatedHitSource.setSearchAfterValues(new Object[] { "search_after" });
         paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -396,7 +404,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                 validingOnFail,
                 new ParentTaskAssigningClient(client, localNode, testTask),
                 testRequest.getSearchRequest(),
-                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+                new NoopCircuitBreaker("test"),
+                "test_search_hits",
+                () -> 0L
             );
             paginatedHitSource.setScrollId(scrollId());
             paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -426,7 +437,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                 validingOnFail,
                 new ParentTaskAssigningClient(client, localNode, testTask),
                 testRequest.getSearchRequest(),
-                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+                new NoopCircuitBreaker("test"),
+                "test_search_hits",
+                () -> 0L
             );
             paginatedHitSource.setSearchAfterValues(new Object[] { "search_after" });
             paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -764,6 +778,56 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(ExceptionsHelper.unwrap(e, CircuitBreakingException.class), notNullValue());
         assertThat("buildBulk must pass the action-specific label to the circuit breaker", capturedLabel.get(), equalTo(actionLabel));
+    }
+
+    /**
+     * A local page that does not fit in the REQUEST breaker fails the task when it arrives, before any bulk is built from it, and
+     * its hits are released.
+     */
+    public void testPageThatDoesNotFitFailsTask() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        AtomicReference<String> chargedLabel = new AtomicReference<>();
+        CircuitBreaker breaker = new LimitedBreaker("test", ByteSizeValue.ofKb(1)) {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                chargedLabel.set(label);
+                super.addEstimateBytesAndMaybeBreak(bytes, label);
+            }
+        };
+        DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction(
+            testTask,
+            TimeValue.ZERO,
+            breaker,
+            "test_bulk_batch"
+        );
+        action.start();
+        assertBusy(() -> assertNotNull(client.lastSearch.get()));
+
+        // Two ~600kb sources, so the page reaches the default memory_accounting_threshold
+        SearchHit[] hitArray = IntStream.range(0, 2).mapToObj(i -> {
+            SearchHit h = new SearchHit(i, "id").sourceRef(new BytesArray("{\"f\":\"" + "x".repeat(600_000) + "\"}"));
+            h.sortValues(new Object[] { 0L, "id" }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+            return h;
+        }).toArray(SearchHit[]::new);
+        // Kept apart from the response, which nulls out its hits array when released, to check the hits are released below
+        List<SearchHit> searchHits = List.of(hitArray);
+        SearchHits hits = new SearchHits(hitArray, new TotalHits(hitArray.length, TotalHits.Relation.EQUAL_TO), 0);
+        var response = SearchResponseUtils.response(hits).shards(5, 5, 0);
+        SearchResponse searchResponse = (usePit ? response.pointInTimeId(TEST_PIT_ID) : response.scrollId(scrollId())).build();
+        hits.decRef(); // transfer ownership to searchResponse
+        try {
+            client.lastSearch.get().listener.onResponse(searchResponse);
+            ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
+            assertThat(ExceptionsHelper.unwrap(e, CircuitBreakingException.class), notNullValue());
+        } finally {
+            searchResponse.decRef();
+        }
+        assertThat(chargedLabel.get(), equalTo("test_search_hits"));
+        assertEquals(0, client.bulksAttempts.get());
+        assertEquals(0, breaker.getUsed());
+        for (SearchHit hit : searchHits) {
+            assertFalse(hit.hasReferences());
+        }
     }
 
     /**
@@ -1742,7 +1806,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             capturedFailure::set,
             new ParentTaskAssigningClient(client, localNode, testTask),
             preparedSearchRequest,
-            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+            new NoopCircuitBreaker("test"),
+            "test_search_hits",
+            () -> 0L
         );
         paginatedHitSource.start();
         assertNull("paginatedHitSource start should not fail", capturedFailure.get());
@@ -1860,7 +1927,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                     this::finishHim,
                     new ParentTaskAssigningClient(client, localNode, testTask),
                     searchRequest,
-                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+                    new NoopCircuitBreaker("test"),
+                    "test_search_hits",
+                    () -> 0L
                 ) {
                     @Override
                     protected void cleanup(Runnable onCompletion) {
@@ -1924,7 +1994,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                     this::finishHim,
                     new ParentTaskAssigningClient(client, localNode, testTask),
                     searchRequest,
-                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis),
+                    new NoopCircuitBreaker("test"),
+                    "test_search_hits",
+                    () -> 0L
                 ) {
                     @Override
                     protected void cleanup(Runnable onCompletion) {
@@ -2365,7 +2438,7 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
             BulkByPaginatedSearchTask task,
             TimeValue maxTaskShutdownGracePeriod,
             CircuitBreaker circuitBreaker,
-            String breakerLabel
+            String bulkBreakerLabel
         ) {
             super(
                 task,
@@ -2385,7 +2458,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                 maxTaskShutdownGracePeriod,
                 new ReindexSettings(),
                 circuitBreaker,
-                breakerLabel
+                bulkBreakerLabel,
+                "test_search_hits"
             );
         }
 

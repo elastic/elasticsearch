@@ -251,8 +251,8 @@ public abstract class PaginatedHitSource {
         }
 
         /**
-         * Nullable releasable for the circuit breaker reservation covering the remote HTTP response body
-         * bytes that back this batch's hits. Set only for remote reindex responses; null for local searches.
+         * Nullable releasable for the circuit breaker reservation covering the bytes that back this batch's hits.
+         * Set by the remote hit sources for the parsed HTTP response body, and by the local ones for the source bytes of the hits.
          * Wrapped in {@link Releasables#releaseOnce} so it is safe to call {@link #closeBodyReleasable()}
          * from both the normal-path cleanup and the early-exit (hit release) paths.
          */
@@ -260,7 +260,7 @@ public abstract class PaginatedHitSource {
         private Releasable bodyReleasable;
 
         /**
-         * Attaches a circuit-breaker {@link Releasable} for the remote HTTP response body.
+         * Attaches a circuit-breaker {@link Releasable} for the bytes backing this batch's hits.
          * Must be called at most once; asserts that no releasable is already set.
          */
         public void setBodyReleasable(Releasable releasable) {

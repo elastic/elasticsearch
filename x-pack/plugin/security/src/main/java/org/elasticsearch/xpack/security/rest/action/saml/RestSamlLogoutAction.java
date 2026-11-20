@@ -59,6 +59,12 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final SamlLogoutRequest logoutRequest = PARSER.parse(parser, null);

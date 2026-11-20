@@ -1,0 +1,4 @@
+id:keyword,items,events
+1,[{"sku":"a"\,"qty":1},{"sku":"b"\,"qty":2}],[{"start":10}]
+2,,
+3,[{"sku":"c"\,"qty":5}],[{"start":30},{"start":31}]

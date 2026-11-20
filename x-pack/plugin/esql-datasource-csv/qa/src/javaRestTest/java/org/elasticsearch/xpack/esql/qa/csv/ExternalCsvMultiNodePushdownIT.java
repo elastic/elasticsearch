@@ -29,10 +29,15 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -58,6 +63,29 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
 
     private static final String LOCAL_DATA_SOURCE = "local_csv_ds";
     private static final String DATASET = "employees_local";
+    private static final String CHUNKED_DATASET = "chunked_stripes_local";
+    /** The default {@code esql.external.cache.stripe.size}; the fixture spans several of these. */
+    private static final long STRIPE_BYTES = 8L * 1024 * 1024;
+    /**
+     * The generated chunked fixture, deliberately NOT ending in {@code .csv}. It must live in the
+     * {@code iceberg-fixtures} resource directory, the only path the cluster will read ({@code Clusters} pins
+     * {@code path.repo} and {@code esql.external.local_allowed_paths} to it), and two fixture loaders walk that
+     * directory whole: {@code FixtureUtils.writeCompressedVariantsToFixturesPath} matches text extensions
+     * anywhere beneath it and writes five compressed copies with no size limit, which this name defeats, while
+     * {@code forEachFixtureEntryFromFilesystem} reads every uncompressed file into memory but skips anything
+     * over 10 MB, which this fixture's size defeats. Deleting it after the test is what actually settles both;
+     * these two are the belt for a run that dies first. The dataset declares its format explicitly, since the
+     * name no longer says what the bytes are.
+     */
+    private static final String CHUNKED_FIXTURE = "standalone/chunked_stripes.data";
+    /**
+     * Parse threads the chunked read is pinned to, as a pragma fragment. {@code external_parsing_parallelism}
+     * defaults to {@code EsExecutors.allocatedProcessors}, and at 1 the read takes the non-parallel path, which
+     * publishes one whole-file summary and no stripe-addressed contribution -- so the stripe-count assertion
+     * would be deciding on the runner's core count. 8 over the ~24mb fixture asks for ~3mb segments against the
+     * 8mb stripe grid, so every stripe is stitched from more than one chunk, which is the geometry under test.
+     */
+    private static final String PARSING_PARALLELISM = ",\"external_parsing_parallelism\":\"8\"";
 
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
@@ -166,12 +194,126 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
         assertEquals("warm run must short-circuit via the cross-node return-flow (zero docs scanned)", 0L, documentsFound(warm));
     }
 
+    /**
+     * The only test that puts a stripe record across a real transport.
+     * <p>
+     * {@link #testCountStarColdThenWarmShortCircuitsAcrossNodes} proves the return flow, but its hundred-row
+     * fixture is a whole-file read: it publishes one authoritative summary and never a stripe-addressed
+     * contribution, so the staging, the compact form and the coordinator's fold of a stripe record arriving as
+     * a generic map are all on the other path -- and in a single JVM none of them crosses a wire.
+     * <p>
+     * This fixture is large enough to be cut into many chunks of roughly 3mb against the 8mb grid (see
+     * {@link #PARSING_PARALLELISM}), so the data node publishes stripe records and nothing else, holds them
+     * compact, serializes each as it writes the response, and the coordinator in the other JVM rebuilds and
+     * folds them. A warm {@code documents_found == 0} is reachable only if every step of that worked.
+     */
+    public void testStripeRecordsCrossTheWireAndFoldOnTheCoordinator() throws Exception {
+        assumeTrue("LOCAL fixtures unavailable (packaged in a JAR)", localFixturesPath != null);
+
+        Path chunked = localFixturesPath.resolve(CHUNKED_FIXTURE);
+        // Inside the try, not before it: the writer creates the file and then fills it over 600k rows, so a
+        // throw part way through leaves ~24mb of padding behind on exactly the path the finally below is for.
+        try {
+            long rows = writeChunkedFixture(chunked);
+            DatasetRegistry.ensureDataSource(client(), LOCAL_DATA_SOURCE, "local", Map.of());
+            // The format is declared rather than inferred: the fixture's name carries no format extension, so that
+            // the extension-keyed fixture walks over this shared directory do not pick a multi-megabyte generated
+            // file up. An explicit format wins over the name on every path that resolves one.
+            DatasetRegistry.ensureDataset(
+                client(),
+                CHUNKED_DATASET,
+                LOCAL_DATA_SOURCE,
+                chunked.toUri().toString(),
+                "{ \"format\": \"csv\" }"
+            );
+            String query = "FROM " + CHUNKED_DATASET + " | STATS c = COUNT(*)";
+
+            Map<String, Object> cold = runEsql(query, PARSING_PARALLELISM);
+            assertEquals("cold COUNT(*) must be exact", rows, count(cold));
+            assertThat("cold run must scan rows", documentsFound(cold), greaterThan(0L));
+            assertEquals("the external scan must run on the data node, not the coordinator", "data-node", scanNodeName(cold));
+            // Counted on the COORDINATOR, by walking each record after it was rebuilt from its generic form, so the
+            // figure alone establishes both halves of the path: written through size()/entrySet() on the data node,
+            // and read back here. Pinned to the stripe count rather than to positivity — one record would mean every
+            // stripe collapsed into one, and one per chunk would mean the pieces never joined, and ">0" passes both.
+            long expectedStripes = (Files.size(chunked) + STRIPE_BYTES - 1) / STRIPE_BYTES;
+            assertThat(
+                "the data node must stage one record per stripe of the file, not one per chunk and not one in total",
+                stripesCommitted(cold),
+                equalTo(expectedStripes)
+            );
+
+            Map<String, Object> warm = runEsql(query, PARSING_PARALLELISM);
+            assertEquals("warm COUNT(*) must stay exact", rows, count(warm));
+            assertEquals(
+                "the warm serve proves the coordinator rebuilt and folded stripe records that reached it as generic maps",
+                0L,
+                documentsFound(warm)
+            );
+        } finally {
+            // In a finally rather than an @AfterClass: the file is a regenerable ~24mb of padding, there is nothing
+            // in it to inspect after a failure, and leaving it behind on the failing path is exactly how it would
+            // accumulate in the shared fixtures directory.
+            Files.deleteIfExists(chunked);
+        }
+    }
+
+    /**
+     * Writes a CSV well past the parallel-parse threshold, so the read is cut into many chunks and the default
+     * 8mb stripe grid spans several of them. Generated here rather than checked in: the point is its size.
+     *
+     * @return the data row count the queries must agree with
+     */
+    private static long writeChunkedFixture(Path file) throws IOException {
+        long rows = 0;
+        try (BufferedWriter out = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+            out.write("id,value,label\n");
+            // ~40 bytes a row over 600k rows is ~24mb: several 8mb stripes, each stitched from several chunks.
+            for (int i = 0; i < 600_000; i++) {
+                out.write(Integer.toString(i));
+                out.write(',');
+                out.write(Integer.toString(i * 7));
+                out.write(",row-padding-to-widen-the-line\n");
+                rows++;
+            }
+        }
+        return rows;
+    }
+
+    /** Stripe-addressed contributions the cold scan staged, summed over the external-source operators. */
+    @SuppressWarnings("unchecked")
+    private static long stripesCommitted(Map<String, Object> response) {
+        Map<String, Object> profile = (Map<String, Object>) response.get("profile");
+        List<Map<String, Object>> drivers = (List<Map<String, Object>>) profile.get("drivers");
+        long committed = 0;
+        for (Map<String, Object> driver : drivers) {
+            for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
+                Object status = operator.get("status");
+                if (status instanceof Map<?, ?> fields && fields.get("stripes_committed") instanceof Number n) {
+                    committed += n.longValue();
+                }
+            }
+        }
+        return committed;
+    }
+
     private Map<String, Object> runEsql(String query) throws Exception {
+        return runEsql(query, "");
+    }
+
+    /**
+     * Runs {@code query} against the coordinator with profiling on.
+     *
+     * @param extraPragmas additional pragma entries, each a leading {@code ,"key":value} fragment, or empty
+     */
+    private Map<String, Object> runEsql(String query, String extraPragmas) throws Exception {
         Request request = new Request("POST", "/_query");
         String escaped = query.replace("\\", "\\\\").replace("\"", "\\\"");
         // external_distribution=round_robin forces the scan onto a data node (the adaptive default
         // would run a single small split locally on the coordinator, defeating the cross-JVM intent).
-        request.setJsonEntity("{\"query\":\"" + escaped + "\",\"profile\":true,\"pragma\":{\"external_distribution\":\"round_robin\"}}");
+        request.setJsonEntity(
+            "{\"query\":\"" + escaped + "\",\"profile\":true,\"pragma\":{\"external_distribution\":\"round_robin\"" + extraPragmas + "}}"
+        );
         // ES|QL warns "No limit defined" for a bare aggregate; that's expected here, not a failure.
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         Response response = client().performRequest(request);

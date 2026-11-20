@@ -72,6 +72,10 @@ public class BlockFactory {
     private final BigArrays bigArrays;
     private final long maxPrimitiveArrayBytes;
     private final BlockFactory parent;
+    /**
+     * The factory whose Arrow allocator this root factory uses. Set on the factories of {@link #newQueryFactory}.
+     */
+    private final BlockFactory arrowAllocatorOwner;
     private final long bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
     private final LocalArrayPool localPool;
@@ -86,6 +90,11 @@ public class BlockFactory {
     }
 
     protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
+        this(builder, parent, null);
+    }
+
+    protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent, BlockFactory arrowAllocatorOwner) {
+        this.arrowAllocatorOwner = arrowAllocatorOwner;
         this.bigArrays = builder.bigArrays;
         this.breaker = builder.breaker == null ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST) : builder.breaker;
         this.maxPrimitiveArrayBytes = builder.maxPrimitiveArraySize;
@@ -125,7 +134,7 @@ public class BlockFactory {
         if (arrowAllocator == null) {
             synchronized (this) {
                 if (arrowAllocator == null) {
-                    if (this.parent == null) {
+                    if (this.parent == null && arrowAllocatorOwner == null) {
                         // Root block factory
                         var listener = new CircuitBreakerAllocationListener(breaker);
                         var allocator = new RootAllocator(listener, Long.MAX_VALUE, EXACT_FIT_ROUNDING_POLICY);
@@ -149,7 +158,7 @@ public class BlockFactory {
     protected BufferAllocator childFactoryAllocator() {
         // Store it locally to avoid crawling the parent chain every time we need it.
         // Overridden in tests
-        return parent.arrowAllocator();
+        return parent != null ? parent.arrowAllocator() : arrowAllocatorOwner.arrowAllocator();
     }
 
     // For testing
@@ -178,6 +187,22 @@ public class BlockFactory {
 
     public double bytesRefRamOverestimateFactor() {
         return bytesRefRamOverestimateFactor;
+    }
+
+    /**
+     * A root factory for the blocks of one query. It allocates through {@code breaker} and {@code bigArrays}. Arrow
+     * buffers still come from this factory's allocator.
+     */
+    public BlockFactory newQueryFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+        return new BlockFactory(
+            BlockFactory.builder(bigArrays)
+                .breaker(breaker)
+                .maxPrimitiveArraySize(maxPrimitiveArrayBytes)
+                .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold)
+                .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor),
+            null,
+            this
+        );
     }
 
     public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {

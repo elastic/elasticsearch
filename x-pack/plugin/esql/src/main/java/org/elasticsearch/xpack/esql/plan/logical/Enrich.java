@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,7 +67,7 @@ public class Enrich extends UnaryPlan
     private final Map<String, String> concreteIndices; // cluster -> enrich indices
     // This could be simplified by just always using an Alias.
     private final List<NamedExpression> enrichFields;
-    private List<Attribute> output;
+    private volatile List<Attribute> output;
 
     private final Mode mode;
 
@@ -277,21 +278,48 @@ public class Enrich extends UnaryPlan
      * retaining the originating cluster and restructuring pages for routing, which might be complicated.
      */
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
-        this.forEachDown(LogicalPlan.class, u -> {
-            if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
-                // Name the actual limitation for federated sources (which always execute on the coordinator) rather than
-                // leaving it as a bare positional statement - the generic message otherwise reads like an ordering quirk.
-                String reason = u instanceof ExternalRelation
-                    ? "; federated data sources execute entirely on the coordinating node and are incompatible with remote ENRICH"
-                    : "";
-                failures.add(
-                    fail(
-                        this,
-                        "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source() + reason
-                    )
-                );
+        checkForRemoteEnrichBlockers(child(), failures);
+    }
+
+    private void checkForRemoteEnrichBlockers(LogicalPlan plan, Failures failures) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            checkForRemoteEnrichBlockers(subqueryJoin.left(), failures);
+            return;
+        }
+        if (plan instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
+            failures.add(fail(this, remoteEnrichBlockedBy(plan)));
+        }
+        for (LogicalPlan child : plan.children()) {
+            checkForRemoteEnrichBlockers(child, failures);
+        }
+    }
+
+    public static String remoteEnrichAfterEqlError(LogicalPlan plan) {
+        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+            return remoteEnrichAfterEqlError(subqueryJoin.left());
+        }
+        if (plan instanceof EqlRelation) {
+            return remoteEnrichBlockedBy(plan);
+        }
+        for (LogicalPlan child : plan.children()) {
+            String error = remoteEnrichAfterEqlError(child);
+            if (error != null) {
+                return error;
             }
-        });
+        }
+        return null;
+    }
+
+    private static String remoteEnrichBlockedBy(LogicalPlan blocker) {
+        // Name the actual limitation for federated sources (which always execute on the coordinator) rather than
+        // leaving it as a bare positional statement - the generic message otherwise reads like an ordering quirk.
+        String reason = "";
+        if (blocker instanceof ExternalRelation) {
+            reason = "; federated data sources execute entirely on the coordinating node and are incompatible with remote ENRICH";
+        } else if (blocker instanceof EqlRelation) {
+            reason = "; the EQL source command returns its events to the coordinating node and is incompatible with remote ENRICH";
+        }
+        return "ENRICH with remote policy can't be executed after [" + blocker.source().text() + "]" + blocker.source().source() + reason;
     }
 
     @Override

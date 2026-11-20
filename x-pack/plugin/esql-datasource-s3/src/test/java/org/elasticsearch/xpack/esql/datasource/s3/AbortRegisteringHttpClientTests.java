@@ -50,7 +50,9 @@ public class AbortRegisteringHttpClientTests extends ESTestCase {
         SdkHttpClient delegate = mock(SdkHttpClient.class);
         when(delegate.prepareRequest(any(HttpExecuteRequest.class))).thenReturn(inner);
 
+        Set<Abortable> executes = ConcurrentHashMap.newKeySet();
         S3StorageObject.HTTP_ABORT_SINK.set(sink);
+        S3StorageObject.HTTP_ABORT_EXECUTES.set(executes);
         try {
             AbortRegisteringHttpClient client = new AbortRegisteringHttpClient(delegate);
             ExecutableHttpRequest wrapped = client.prepareRequest(executeRequest());
@@ -58,9 +60,13 @@ public class AbortRegisteringHttpClientTests extends ESTestCase {
             wrapped.call();
             assertTrue("execute must be on the sink while Apache is blocked in call()", registeredDuringCall.get());
             assertTrue(aborted.get());
-            assertTrue("successful call must drop the execute handle; wrapLiveGet owns the body", sink.isEmpty());
+            assertEquals("execute stays abortable until getObject returns, including error-body reads", 1, sink.size());
+            assertEquals(1, executes.size());
+            sink.removeAll(executes);
+            assertTrue("trackedSyncGet finally drops the execute handle after getObject returns", sink.isEmpty());
         } finally {
             S3StorageObject.HTTP_ABORT_SINK.remove();
+            S3StorageObject.HTTP_ABORT_EXECUTES.remove();
         }
     }
 
@@ -94,7 +100,7 @@ public class AbortRegisteringHttpClientTests extends ESTestCase {
         }
     }
 
-    public void testFailedCallUnregistersAbort() throws IOException {
+    public void testFailedCallKeepsAbortHandle() throws IOException {
         ExecutableHttpRequest inner = new ExecutableHttpRequest() {
             @Override
             public HttpExecuteResponse call() throws IOException {
@@ -113,7 +119,7 @@ public class AbortRegisteringHttpClientTests extends ESTestCase {
             AbortRegisteringHttpClient client = new AbortRegisteringHttpClient(delegate);
             ExecutableHttpRequest wrapped = client.prepareRequest(executeRequest());
             expectThrows(IOException.class, wrapped::call);
-            assertTrue(sink.isEmpty());
+            assertEquals("failed call keeps the handle so close() can abort an error-body stall", 1, sink.size());
         } finally {
             S3StorageObject.HTTP_ABORT_SINK.remove();
         }

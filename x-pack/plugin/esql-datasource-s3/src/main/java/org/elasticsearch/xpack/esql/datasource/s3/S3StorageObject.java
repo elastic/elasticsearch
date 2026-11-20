@@ -126,9 +126,18 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
      */
     static final ThreadLocal<Set<Abortable>> HTTP_ABORT_SINK = new ThreadLocal<>();
     static final ThreadLocal<AtomicBoolean> HTTP_ABORT_CLOSED = new ThreadLocal<>();
+    /**
+     * Executes registered by this thread's {@code getObject}. {@link #trackedSyncGet} removes them
+     * after the SDK returns so they cover error-body reads without leaking past {@link #wrapLiveGet}.
+     */
+    static final ThreadLocal<Set<Abortable>> HTTP_ABORT_EXECUTES = new ThreadLocal<>();
 
     static Set<Abortable> httpAbortSink() {
         return HTTP_ABORT_SINK.get();
+    }
+
+    static Set<Abortable> httpAbortExecutes() {
+        return HTTP_ABORT_EXECUTES.get();
     }
 
     static boolean httpAbortClosed() {
@@ -277,11 +286,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             // Wrap so a transient fault DURING the read surfaces as a typed ExternalUnavailableException the
             // resume loop can act on; the SDK throws a raw (unchecked) S3Exception/SdkException mid-body.
             // contentLength of this response body (or -1 if unknown) so close() can abort a large leftover.
-            // Metered publishes delivered-to-caller. Async close cancels a small leftover, so it is not
-            // a second APM bytes event. Abort skips leftover.
+            // Metered publishes delivered-to-caller. Apache close() of a small leftover drains and
+            // credits those bytes; abort skips leftover.
             long expectedLength = contentLengthOrUnknown(metadata);
-            TransientTypingInputStream typed = new TransientTypingInputStream(response, path, expectedLength);
-            return metered(typed);
+            return metered(typingStream(response, expectedLength));
         } catch (Exception e) {
             throw throwReadFailure("Failed to read object from", e);
         } finally {
@@ -678,8 +686,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         Thread waiter = Thread.currentThread();
         Abortable unpark = () -> LockSupport.unpark(waiter);
         inFlightAborts.add(unpark);
+        Set<Abortable> executes = ConcurrentHashMap.newKeySet();
         HTTP_ABORT_SINK.set(inFlightAborts);
         HTTP_ABORT_CLOSED.set(closed);
+        HTTP_ABORT_EXECUTES.set(executes);
         try {
             if (isOpenCancelled()) {
                 throw new CancellationException("read cancelled");
@@ -691,9 +701,11 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             return wrapLiveGet(in);
         } finally {
+            inFlightAborts.removeAll(executes);
             inFlightAborts.remove(unpark);
             HTTP_ABORT_SINK.remove();
             HTTP_ABORT_CLOSED.remove();
+            HTTP_ABORT_EXECUTES.remove();
         }
     }
 
@@ -717,11 +729,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         FilterInputStream tracking = new FilterInputStream(in) {
             @Override
             public void close() throws IOException {
-                if (dropped.compareAndSet(false, true) == false) {
+                if (dropped.get()) {
                     return;
                 }
-                inFlightAborts.remove(drop);
-                in.close();
+                try {
+                    in.close();
+                } finally {
+                    if (dropped.compareAndSet(false, true)) {
+                        inFlightAborts.remove(drop);
+                    }
+                }
             }
         };
         return new ResponseInputStream<>(in.response(), AbortableInputStream.create(tracking, drop));
@@ -821,6 +838,14 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         return metadata.contentLength() != null ? metadata.contentLength() : -1L;
     }
 
+    private TransientTypingInputStream typingStream(InputStream response, long expectedLength) {
+        return new TransientTypingInputStream(response, path, expectedLength, leftover -> {
+            if (leftover > 0) {
+                counters.publishDrainedBytes(leftover);
+            }
+        });
+    }
+
     @Override
     public InputStream newStream(long position, long length) throws IOException {
         if (position < 0) {
@@ -841,10 +866,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             GetObjectResponse metadata = response.response();
             observeResponse(metadata, position, toEnd == false);
             // contentLength of this response body (the range size), or -1 if unknown.
-            // Metered publishes delivered-to-caller. Async close cancels leftover; no drain APM.
+            // Metered publishes delivered-to-caller. Apache close() of a small leftover drains
+            // and credits those bytes; abort skips leftover.
             long expectedLength = contentLengthOrUnknown(metadata);
-            TransientTypingInputStream typed = new TransientTypingInputStream(response, path, expectedLength);
-            return metered(typed);
+            return metered(typingStream(response, expectedLength));
         } catch (Exception e) {
             if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI

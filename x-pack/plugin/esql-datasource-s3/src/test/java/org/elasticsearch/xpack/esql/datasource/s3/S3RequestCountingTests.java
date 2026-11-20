@@ -404,8 +404,8 @@ public class S3RequestCountingTests extends ESTestCase {
 
     /**
      * newStream(pos, length) increments {@link StorageObjectMetrics} request counters. Close with
-     * leftover at or below {@link TransientTypingInputStream#MAX_TRAILING_DRAIN_BYTES} closes
-     * without crediting cancelled unread bytes.
+     * leftover at or below {@link TransientTypingInputStream#MAX_TRAILING_DRAIN_BYTES} drains
+     * and credits those Apache leftover bytes.
      */
     public void testRangeNewStreamIncrementsMetrics() throws IOException {
         long rangeBytes = 1024L;
@@ -426,8 +426,8 @@ public class S3RequestCountingTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertEquals(0L, metrics.bytesRead());
-        assertEquals("async close cancels leftover; APM is delivered-to-caller only", 0L, apmBytesReadTotal(registry));
+        assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals("Apache close drains leftover; APM matches drained bytes", rangeBytes, apmBytesReadTotal(registry));
         assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
         assertEquals(0L, metrics.retryCount());
     }
@@ -452,8 +452,8 @@ public class S3RequestCountingTests extends ESTestCase {
 
         StorageObjectMetrics metrics = obj.metrics();
         assertEquals(1L, metrics.requestCount());
-        assertEquals(drained, metrics.bytesRead());
-        assertEquals("abort skips leftover; APM matches drained bytes", drained, apmBytesReadTotal(registry));
+        assertEquals(rangeBytes, metrics.bytesRead());
+        assertEquals("Apache close drains leftover ≤64KiB; APM matches the full body", rangeBytes, apmBytesReadTotal(registry));
     }
 
     /**

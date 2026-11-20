@@ -179,7 +179,8 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Production constructor. {@code maxConnections} sizes the async client's Netty connection pool
+     * Production constructor. {@code maxConnections} sizes both HTTP pools: Apache for blocking
+     * {@code newStream} GETs and Netty for {@code readBytesAsync}
      * ({@link ExternalSourceSettings#sdkConnectionPoolSize(Settings)} from {@code esql.external.max_concurrent_requests}).
      */
     @SuppressWarnings("this-escape")
@@ -222,7 +223,7 @@ public class S3StorageProvider implements StorageProvider {
                 case MANAGED_IDENTITY -> buildManagedIdentityCredentialsProvider();
             };
             this.credentials = resolvedCredentials;
-            s3 = buildS3Client(config, resolvedCredentials);
+            s3 = buildS3Client(config, resolvedCredentials, maxConnections);
             this.stsAsyncClient = sts;
             this.s3Client = s3;
             this.s3AsyncClient = buildS3AsyncClient(config, resolvedCredentials, maxConnections);
@@ -325,7 +326,7 @@ public class S3StorageProvider implements StorageProvider {
     S3Client buildRetryClient(String region) {
         S3ClientBuilder builder = S3Client.builder();
         configureCommon(builder, config, credentials, standardRetryStrategy(), region);
-        return builder.httpClientBuilder(new AbortRegisteringHttpClient.Builder()).build();
+        return builder.httpClientBuilder(apacheHttpClientBuilder(maxConnections)).build();
     }
 
     /**
@@ -448,10 +449,18 @@ public class S3StorageProvider implements StorageProvider {
             .build();
     }
 
-    private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
+    private static AbortRegisteringHttpClient.Builder apacheHttpClientBuilder(int maxConnections) {
+        return new AbortRegisteringHttpClient.Builder(maxConnections, CONNECTION_ACQUISITION_TIMEOUT);
+    }
+
+    private static S3Client buildS3Client(
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        int maxConnections
+    ) {
         S3ClientBuilder builder = S3Client.builder();
         configureCommon(builder, config, credentials, standardRetryStrategy(), null);
-        return builder.httpClientBuilder(new AbortRegisteringHttpClient.Builder()).build();
+        return builder.httpClientBuilder(apacheHttpClientBuilder(maxConnections)).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(

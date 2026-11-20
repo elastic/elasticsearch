@@ -17,13 +17,14 @@ import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.utils.AttributeMap;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Set;
 
 /**
  * Apache {@link SdkHttpClient} that registers each in-flight execute with
  * {@link S3StorageObject}'s abort sink so {@link S3StorageObject#close()} can drop the socket
- * while {@code S3Client.getObject} is still blocked on headers. Apache {@code HttpRequestBase.abort()}
- * is safe from another thread; the AWS Netty adapter is not.
+ * while {@code S3Client.getObject} is still blocked on headers or reading an error body. Apache
+ * {@code HttpRequestBase.abort()} is safe from another thread; the AWS Netty adapter is not.
  */
 final class AbortRegisteringHttpClient implements SdkHttpClient {
 
@@ -34,9 +35,22 @@ final class AbortRegisteringHttpClient implements SdkHttpClient {
     }
 
     static final class Builder implements SdkHttpClient.Builder<Builder> {
+        private final int maxConnections;
+        private final Duration connectionAcquisitionTimeout;
+
+        Builder(int maxConnections, Duration connectionAcquisitionTimeout) {
+            this.maxConnections = maxConnections;
+            this.connectionAcquisitionTimeout = connectionAcquisitionTimeout;
+        }
+
         @Override
         public SdkHttpClient buildWithDefaults(AttributeMap serviceDefaults) {
-            return new AbortRegisteringHttpClient(ApacheHttpClient.builder().buildWithDefaults(serviceDefaults));
+            return new AbortRegisteringHttpClient(
+                ApacheHttpClient.builder()
+                    .maxConnections(maxConnections)
+                    .connectionAcquisitionTimeout(connectionAcquisitionTimeout)
+                    .buildWithDefaults(serviceDefaults)
+            );
         }
     }
 
@@ -51,22 +65,21 @@ final class AbortRegisteringHttpClient implements SdkHttpClient {
                     throw AbortedException.create("read cancelled");
                 }
                 Set<Abortable> sink = S3StorageObject.httpAbortSink();
+                Set<Abortable> executes = S3StorageObject.httpAbortExecutes();
                 if (sink != null) {
                     sink.add(this);
                 }
-                try {
-                    if (S3StorageObject.httpAbortClosed()) {
-                        inner.abort();
-                        throw AbortedException.create("read cancelled");
-                    }
-                    return inner.call();
-                } finally {
-                    // Headers are in; wrapLiveGet owns abort of the body. Leaving this handle
-                    // in the sink would leak every successful GET until StorageObject.close().
-                    if (sink != null) {
-                        sink.remove(this);
-                    }
+                if (executes != null) {
+                    executes.add(this);
                 }
+                if (S3StorageObject.httpAbortClosed()) {
+                    inner.abort();
+                    throw AbortedException.create("read cancelled");
+                }
+                // Stay on the sink until trackedSyncGet finishes. Apache execute() returns after
+                // headers; S3Client.getObject still reads an error XML body after that, and close()
+                // must be able to abort that stall.
+                return inner.call();
             }
 
             @Override

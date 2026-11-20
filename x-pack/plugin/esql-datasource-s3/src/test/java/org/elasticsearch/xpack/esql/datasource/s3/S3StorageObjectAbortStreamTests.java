@@ -42,6 +42,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -166,7 +167,7 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         assertFalse("close() must not be called when abort() is available — close would drain", closeCalled.get());
     }
 
-    public void testCloseDoesNotCountCancelledRemainderAtOrBelow64KiB() throws IOException {
+    public void testCloseCreditsDrainedRemainderAtOrBelow64KiB() throws IOException {
         int leftover = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES;
         int read = 8;
         byte[] payload = new byte[read + leftover];
@@ -174,12 +175,21 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
         StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
         counters.attach(metrics, "s3");
-        TransientTypingInputStream typed = new TransientTypingInputStream(new ByteArrayInputStream(payload), PATH, payload.length);
+        TransientTypingInputStream typed = new TransientTypingInputStream(
+            new ByteArrayInputStream(payload),
+            PATH,
+            payload.length,
+            leftoverBytes -> {
+                if (leftoverBytes > 0) {
+                    counters.publishDrainedBytes(leftoverBytes);
+                }
+            }
+        );
         MeteredInputStream metered = new MeteredInputStream(typed, counters);
         assertEquals(read, metered.read(new byte[read]));
         metered.close();
-        assertEquals(read, counters.snapshot().bytesRead());
-        assertEquals("async close cancels leftover; APM is delivered-to-caller only", read, apmBytesReadTotal(registry));
+        assertEquals(read + leftover, counters.snapshot().bytesRead());
+        assertEquals("Apache close drains leftover; APM matches drained bytes", read + leftover, apmBytesReadTotal(registry));
     }
 
     public void testCloseAbortsRemainderAbove64KiB() throws IOException {
@@ -250,6 +260,53 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         obj.newStream();
         obj.close();
         assertTrue("StorageObject.close() must abort a live Apache GET", abortCalled.get());
+    }
+
+    public void testObjectCloseAbortsInProgressApacheDrain() throws Exception {
+        CountDownLatch draining = new CountDownLatch(1);
+        AtomicBoolean abortCalled = new AtomicBoolean();
+        AtomicReference<Thread> drainThread = new AtomicReference<>();
+        class ParkingAbortable extends FilterInputStream implements Abortable {
+            ParkingAbortable() {
+                super(new ByteArrayInputStream(new byte[8]));
+            }
+
+            @Override
+            public void abort() {
+                abortCalled.set(true);
+                Thread t = drainThread.get();
+                if (t != null) {
+                    LockSupport.unpark(t);
+                }
+            }
+
+            @Override
+            public void close() {
+                drainThread.set(Thread.currentThread());
+                draining.countDown();
+                LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(30));
+            }
+        }
+        ParkingAbortable inner = new ParkingAbortable();
+        GetObjectResponse resp = GetObjectResponse.builder().contentLength(8L).build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, software.amazon.awssdk.http.AbortableInputStream.create(inner, inner))
+        );
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        InputStream stream = obj.newStream();
+        Thread closer = new Thread(() -> {
+            try {
+                stream.close();
+            } catch (IOException ignored) {
+                // drain interrupted by abort
+            }
+        });
+        closer.start();
+        assertTrue(draining.await(5, TimeUnit.SECONDS));
+        obj.close();
+        closer.join(TimeUnit.SECONDS.toMillis(5));
+        assertFalse(closer.isAlive());
+        assertTrue("StorageObject.close() must abort an in-progress Apache drain", abortCalled.get());
     }
 
     /**

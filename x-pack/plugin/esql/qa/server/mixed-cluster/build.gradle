@@ -119,17 +119,21 @@ tasks.named("yamlRestTest") {
 }
 
 // bcUpgradeTest is a same-version detached-main cluster: every node reports the current
-// version, so MixedClusterExternalSourceIT cannot select distinct old and current coordinators.
+// version, so MixedClusterExternalSourceIT and FetchPhaseMixedClusterIT cannot select distinct
+// old and current coordinators, or move the master to a node of the current build.
 tasks.named("bcUpgradeTest") {
   filter {
     excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.FetchPhaseMixedClusterIT'
   }
 }
 
 // Serverless BWC re-enables this unversioned task against an overlay Clusters that does not
-// configure federation. Dedicated v*#javaRestTest tasks remain the coverage path.
+// configure federation, and whose old and current nodes report the same version, which
+// FetchPhaseMixedClusterIT tells apart by. Dedicated v*#javaRestTest tasks remain the coverage path.
 tasks.named("javaRestTest") {
   filter {
     excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.MixedClusterExternalSourceIT'
+    excludeTestsMatching 'org.elasticsearch.xpack.esql.qa.mixed.FetchPhaseMixedClusterIT'
   }
 }

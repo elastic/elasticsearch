@@ -167,9 +167,8 @@ class Netty4HttpClient implements Closeable {
                 fail(
                     String.format(
                         Locale.ROOT,
-                        "Failed to get all expected responses: sent [%d] requests, [%d] responses still pending, received responses %s",
+                        "Failed to get all expected responses: sent [%d] requests, received responses %s",
                         requests.size(),
-                        latch.getCount(),
                         responsesByStatus
                     )
                 );

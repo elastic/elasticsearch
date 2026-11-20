@@ -94,14 +94,6 @@ public final class LuceneForks {
 
     public static final List<Fork> ALL = List.of(
         workaround(
-            "org.elasticsearch.index.store.FsDirectoryFactory",
-            "apache/lucene#16970",
-            10,
-            6,
-            1,
-            "Remove FsDirectoryFactory.HybridDirectory#confineTempStoredFieldsIndex and its test."
-        ),
-        workaround(
             "org.elasticsearch.index.search.QueryTokenCacheAccountingFilter",
             "apache/lucene#17020",
             11,

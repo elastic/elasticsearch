@@ -151,6 +151,30 @@ setup:
             dynamic: false
             properties:
               id: { type: keyword }
+  - do:
+      indices.create:
+        index: lenient_lookup
+        body:
+          settings:
+            index.mode: lookup
+          mappings:
+            properties:
+              ip_key: { type: ip }
+              label: { type: keyword }
+  - do:
+      indices.create:
+        index: lenient_mv_ip
+        body:
+          mappings:
+            properties:
+              f: { type: ip }
+  - do:
+      indices.create:
+        index: lenient_mv_long
+        body:
+          mappings:
+            properties:
+              f: { type: long }
 
   - do:
       bulk:
@@ -188,6 +212,12 @@ setup:
           - { "v": 5 }
           - { "index": { "_index": "lenient_punk_unmapped" } }
           - { "id": "u", "v": "10.0.0.1" }
+          - { "index": { "_index": "lenient_lookup" } }
+          - { "ip_key": "10.0.0.8", "label": "eight" }
+          - { "index": { "_index": "lenient_mv_ip" } }
+          - { "f": ["10.0.0.1", "10.0.0.2"] }
+          - { "index": { "_index": "lenient_mv_long" } }
+          - { "f": [1, 2] }
 
 ---
 "object and text cast to keyword returns the text, and null without a warning for the object":
@@ -825,3 +855,175 @@ setup:
         body:
           query: 'FROM lenient_long | STATS c = COUNT(*) | EVAL x = c::ip | WHERE x IS NULL'
   - match: { values.0: [1, null] }
+
+---
+"cast of a union field in FORK branches":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast, fork_v9]
+      reason: "Lenient casts over FORK"
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[f\\] of type \\[long\\] in \\[lenient_long\\] cannot be converted to \\[IP\\] and will be null in those indices."
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_ip | FORK (EVAL x = f::ip | KEEP id, x) (EVAL x = f::ip | WHERE x IS NOT NULL | KEEP id, x) | SORT _fork, id'
+  - length: { values: 3 }
+  - match: { values.0: [4, null, "fork1"] }
+  - match: { values.1: [8, "10.0.0.8", "fork1"] }
+  - match: { values.2: [8, "10.0.0.8", "fork2"] }
+
+---
+"cast of a union field before and after FORK":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast, fork_v9]
+      reason: "Lenient casts over FORK"
+  - do:
+      allowed_warnings_regex:
+        - "Field \\[f\\] of type \\[long\\] in \\[lenient_long\\] cannot be converted to \\[IP\\] and will be null in those indices."
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_ip | EVAL x = f::ip | KEEP id, x | FORK (WHERE id == 4) (WHERE id == 8) | SORT id'
+  - length: { values: 2 }
+  - match: { values.0: [4, null, "fork1"] }
+  - match: { values.1: [8, "10.0.0.8", "fork2"] }
+
+---
+"cast of a union field as the key of LOOKUP JOIN":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast, join_lookup_v12]
+      reason: "Lenient casts feeding LOOKUP JOIN"
+  - do:
+      warnings:
+        - "Field [f] of type [long] in [lenient_long] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_ip | EVAL ip_key = f::ip | LOOKUP JOIN lenient_lookup ON ip_key | KEEP id, ip_key, label | SORT id'
+  - length: { values: 2 }
+  - match: { values.0: [4, null, null] }
+  - match: { values.1: [8, "10.0.0.8", "eight"] }
+
+---
+"cast of a union field expanded by MV_EXPAND":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast]
+      reason: "Lenient casts over MV_EXPAND"
+  - do:
+      warnings:
+        - "Field [f] of type [long] in [lenient_mv_long] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_mv_ip,lenient_mv_long | EVAL x = f::ip | MV_EXPAND x | KEEP x | SORT x'
+  - length: { values: 3 }
+  - match: { values.0: ["10.0.0.1"] }
+  - match: { values.1: ["10.0.0.2"] }
+  - match: { values.2: [null] }
+
+---
+"DEDUP with a union field still in the output, with or without a cast":
+  # DEDUP groups by every column except the unsupported ones, and a union-typed field is one of those, so keeping it does not fail.
+  # The cast before or after DEDUP only adds the column x.
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast, dedup_command]
+      reason: "Lenient casts and DEDUP"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_ip | DEDUP | SORT id'
+  - length: { values: 2 }
+  - match: { columns.0.type: "unsupported" }
+  - match: { values.0: [null, 4] }
+  - match: { values.1: [null, 8] }
+  - do:
+      warnings:
+        - "Field [f] of type [long] in [lenient_long] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_ip | EVAL x = f::ip | DEDUP | SORT id'
+  - length: { values: 2 }
+  - match: { values.0: [null, 4, null] }
+  - match: { values.1: [null, 8, "10.0.0.8"] }
+  - do:
+      warnings:
+        - "Field [f] of type [long] in [lenient_long] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_ip | DEDUP | EVAL x = f::ip | SORT id'
+  - length: { values: 2 }
+  - match: { values.0: [null, 4, null] }
+  - match: { values.1: [null, 8, "10.0.0.8"] }
+
+---
+"DEDUP over a cast union field once the field is not a column":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lenient_cast, dedup_command]
+      reason: "Lenient casts and DEDUP"
+  - do:
+      warnings:
+        - "Field [f] of type [boolean] in [lenient_bool], [long] in [lenient_long] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_bool,lenient_ip | EVAL x = f::ip | KEEP x | DEDUP | SORT x'
+  - length: { values: 2 }
+  - match: { columns.0.type: "ip" }
+  - match: { values.0: ["10.0.0.8"] }
+  - match: { values.1: [null] }
+  - do:
+      warnings:
+        - "Field [f] of type [long] in [lenient_long] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_long,lenient_ip | EVAL x = f::ip | DROP f | DEDUP | SORT id'
+  - length: { values: 2 }
+  - match: { values.0: [4, null] }
+  - match: { values.1: [8, "10.0.0.8"] }
+  - do:
+      warnings:
+        - "Field [f] of type [rank_feature] in [lenient_rank] cannot be converted to [IP] and will be null in those indices."
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM lenient_rank,lenient_ip | EVAL x = f::ip | KEEP x | DEDUP | SORT x'
+  - length: { values: 2 }
+  - match: { values.0: ["10.0.0.8"] }
+  - match: { values.1: [null] }

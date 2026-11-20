@@ -386,6 +386,22 @@ public class BytesRefBlockTests extends BlockTestCase<BytesRefBlock, BytesRefBlo
     }
 
     /**
+     * The breaker is asked for the copy before any of it is made. When it refuses, nothing has been read
+     * from the cursor and nothing stays reserved.
+     */
+    public void testConstantVectorFromCursorReservesBeforeCopying() {
+        byte[] data = randomByteArrayOfLength(between(200_000, 300_000));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(data.length / 2))
+            .withCircuitBreaking();
+        BlockFactory limited = BlockFactory.builder(bigArrays).build();
+        PagedBytesCursor cursor = new PagedBytesCursor();
+        cursor.init(data, 0, data.length);
+        expectThrows(CircuitBreakingException.class, () -> limited.newConstantBytesRefVector(cursor, 1));
+        assertThat(cursor.remaining(), equalTo(data.length));
+        assertThat(limited.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
      * Parts that are sometimes empty and sometimes long enough for the concatenated value to span several pages.
      */
     private static byte[][] randomParts() {

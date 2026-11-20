@@ -219,7 +219,7 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
             /*
              * The factory reserves the copy with the breaker before making it, so a value
              * too big to copy trips the breaker instead of being allocated first. If it
-             * does trip, the builder is still open and closing it returns its memory.
+             * does trip, build closes the builder, which returns its memory.
              */
             theBlock = blockFactory.newConstantBytesRefVector(values.get(0, new PagedBytesCursor()), 1).asBlock();
             blockFactory.adjustBreaker(-estimatedBytes);

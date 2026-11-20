@@ -49,6 +49,21 @@ public class FeatureFlag {
     }
 
     /**
+     * Creates a feature flag that is permanently enabled, regardless of the build type or system properties.
+     * <p>
+     * Use this when graduating a feature to "always on" while retaining a trivial revert path — changing
+     * back to {@code new FeatureFlag(name)} re-gates the feature to snapshot builds only.
+     */
+    public static FeatureFlag enabled(String name) {
+        return new FeatureFlag(name, true);
+    }
+
+    private FeatureFlag(String name, boolean permanentlyEnabled) {
+        this.name = name;
+        this.enabled = permanentlyEnabled;
+    }
+
+    /**
      * This method exists to register feature flags that use the old {@code {name}_feature_flag_registered} naming for their system
      * property, instead of the preferred {@code {name}_feature_flag_enabled} name.
      * It exists so that old style feature flag implementations can be converted to use this utility class without changing the name of

@@ -605,6 +605,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_partial_mapping_loads_event_duration", List.of(EsqlCapabilities.Cap.SET_IN_VIEW_DEFINITIONS)),
         new ViewConfig("nested_partial_mapping_view"),
         new ViewConfig("view_flattened_paths_mapped"),
+        new ViewConfig("view_flattened_renamed"),
         new ViewConfig("view_partially_unmapped_sample_data"),
         new ViewConfig("view_partially_unmapped_conflicting_sample_data"),
         new ViewConfig("view_languages"),

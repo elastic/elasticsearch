@@ -416,6 +416,7 @@ public class IndexModuleTests extends ESTestCase {
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             MergeMetrics.NOOP,
+            FlushMetrics.NOOP,
             StoreMetrics.NOOP_HOLDER
         );
         module.setDirectoryWrapper(new TestDirectoryWrapper());

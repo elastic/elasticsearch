@@ -97,8 +97,8 @@ public class AnyParamParserTests extends ESTestCase {
     }
 
     public void testMarkersInGroupingAndFunctionArguments() {
-        assertThat(onlyMarker("FROM t | STATS c = COUNT(*) BY ??g", params(paramAsConstant("g", ANY))).field(), equalTo(true));
-        assertThat(onlyMarker("FROM t | STATS c = COUNT(*) BY ?g", params(paramAsIdentifier("g", ANY))).field(), equalTo(true));
+        assertThat(onlyMarker("FROM t | STATS BY ??g", params(paramAsConstant("g", ANY))).field(), equalTo(true));
+        assertThat(onlyMarker("FROM t | STATS BY ?g", params(paramAsIdentifier("g", ANY))).field(), equalTo(true));
         assertThat(onlyMarker("FROM t | EVAL y = TO_UPPER(?x)", params(paramAsConstant("x", ANY))).field(), equalTo(false));
         assertThat(onlyMarker("FROM t | WHERE a IN (1, ?x)", params(paramAsConstant("x", ANY))).field(), equalTo(false));
     }
@@ -152,8 +152,7 @@ public class AnyParamParserTests extends ESTestCase {
 
     public void testSetChangesTheReservedValue() {
         QueryParams params = params(paramAsConstant("x", "*"), paramAsConstant("y", ANY));
-        LogicalPlan plan = TEST_PARSER.createStatement("SET param_any_value = \"*\"; FROM t | WHERE a == ?x AND b == ?y", params)
-            .plan();
+        LogicalPlan plan = TEST_PARSER.createStatement("SET param_any_value = \"*\"; FROM t | WHERE a == ?x AND b == ?y", params).plan();
         List<AnyParam> markers = markers(plan);
         assertThat(markers, hasSize(1));
         assertThat(markers.getFirst().parameterText(), equalTo("?x"));

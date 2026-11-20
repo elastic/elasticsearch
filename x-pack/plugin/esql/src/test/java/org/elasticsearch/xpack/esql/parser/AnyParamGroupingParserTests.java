@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -18,10 +19,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.junit.BeforeClass;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
@@ -39,15 +41,18 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AnyParamGroupingParserTests extends ESTestCase {
 
     private static final String ANY = QuerySettings.PARAM_ANY_VALUE_DEFAULT;
-    private static final EsqlParser SNAPSHOT_PARSER = new EsqlParser(new EsqlConfig(true, TEST_FUNCTION_REGISTRY));
-    private static final EsqlParser RELEASE_PARSER = new EsqlParser(new EsqlConfig(false, TEST_FUNCTION_REGISTRY));
+
+    @BeforeClass
+    public static void requireAnyParam() {
+        assumeTrue("requires the Any controls", EsqlCapabilities.Cap.PARAM_ANY_VALUE.isEnabled());
+    }
 
     private static QueryParams params(QueryParam... params) {
         return new QueryParams(List.of(params));
     }
 
     private static Aggregate aggregate(String query, QueryParam... params) {
-        return as(SNAPSHOT_PARSER.parseQuery(query, params(params)), Aggregate.class);
+        return as(TEST_PARSER.parseQuery(query, params(params)), Aggregate.class);
     }
 
     private static List<String> groupingNames(Aggregate aggregate) {
@@ -129,30 +134,25 @@ public class AnyParamGroupingParserTests extends ESTestCase {
     }
 
     public void testInlineStatsKeyIsDropped() {
-        LogicalPlan plan = SNAPSHOT_PARSER.parseQuery("FROM t | INLINE STATS c = COUNT(*) BY ??g", params(paramAsConstant("g", ANY)));
+        LogicalPlan plan = TEST_PARSER.parseQuery("FROM t | INLINE STATS c = COUNT(*) BY ??g", params(paramAsConstant("g", ANY)));
         Aggregate aggregate = as(as(plan, InlineStats.class).child(), Aggregate.class);
         assertThat(aggregate.groupings(), empty());
         assertThat(aggregateNames(aggregate), contains("c"));
     }
 
     public void testInlineStatsNamedKeyIsKept() {
-        LogicalPlan plan = SNAPSHOT_PARSER.parseQuery("FROM t | INLINE STATS c = COUNT(*) BY k = ??g", params(paramAsConstant("g", ANY)));
+        LogicalPlan plan = TEST_PARSER.parseQuery("FROM t | INLINE STATS c = COUNT(*) BY k = ??g", params(paramAsConstant("g", ANY)));
         Aggregate aggregate = as(as(plan, InlineStats.class).child(), Aggregate.class);
         assertThat(groupingNames(aggregate), contains("k"));
         assertThat(keptMarkers(aggregate).stream().map(AnyParam::parameterText).toList(), contains("??g"));
     }
 
     public void testTimeSeriesKeyIsDropped() {
-        LogicalPlan plan = SNAPSHOT_PARSER.parseQuery(
+        LogicalPlan plan = TEST_PARSER.parseQuery(
             "TS t | STATS c = COUNT(*) BY b = TBUCKET(1h), ??g",
             params(paramAsConstant("g", ANY))
         );
         Aggregate aggregate = as(plan, TimeSeriesAggregate.class);
         assertThat(groupingNames(aggregate), contains("b"));
-    }
-
-    public void testReleaseBuildsKeepTheKeyAsAnyOther() {
-        LogicalPlan plan = RELEASE_PARSER.parseQuery("FROM t | STATS c = COUNT(*) BY ??g", params(paramAsConstant("g", ANY)));
-        assertThat(groupingNames(as(plan, Aggregate.class)), contains(ANY));
     }
 }

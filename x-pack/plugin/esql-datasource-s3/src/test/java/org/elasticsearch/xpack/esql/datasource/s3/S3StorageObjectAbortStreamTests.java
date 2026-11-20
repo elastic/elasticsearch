@@ -29,6 +29,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -42,6 +43,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 
@@ -190,6 +192,33 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         metered.close();
         assertEquals(read + leftover, counters.snapshot().bytesRead());
         assertEquals("Apache close drains leftover; APM matches drained bytes", read + leftover, apmBytesReadTotal(registry));
+    }
+
+    public void testCloseAfterReadFaultDoesNotCreditLeftover() throws IOException {
+        int leftover = 64;
+        int delivered = 8;
+        AtomicLong credited = new AtomicLong();
+        InputStream inner = new FilterInputStream(new ByteArrayInputStream(new byte[delivered + leftover])) {
+            int seen;
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                if (seen >= delivered) {
+                    throw new IOException("reset");
+                }
+                int got = super.read(b, off, Math.min(len, delivered - seen));
+                if (got > 0) {
+                    seen += got;
+                }
+                return got;
+            }
+        };
+        TransientTypingInputStream typed = new TransientTypingInputStream(inner, PATH, delivered + leftover, credited::addAndGet);
+        MeteredInputStream metered = new MeteredInputStream(typed, new StorageObjectMetricsCounters());
+        assertEquals(delivered, metered.read(new byte[delivered]));
+        expectThrows(ExternalUnavailableException.class, () -> metered.read(new byte[1]));
+        metered.close();
+        assertEquals("failed-stream drain must not credit leftover the resume path will fetch", 0L, credited.get());
     }
 
     public void testCloseAbortsRemainderAbove64KiB() throws IOException {

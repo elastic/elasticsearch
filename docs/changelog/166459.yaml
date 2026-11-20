@@ -1,0 +1,5 @@
+area: Ingest Node
+issues: []
+pr: 166459
+summary: Deduplicate identical enrich lookups per batch
+type: enhancement

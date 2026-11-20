@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -188,6 +189,36 @@ public class RolloverRequestTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testSerializeExpectedSourceIndex() throws IOException {
+        RolloverRequest originalRequest = new RolloverRequest("alias-index", null);
+        originalRequest.setExpectedSourceIndex(randomAlphaOfLength(10));
+
+        RolloverRequest copy = copyWriteable(originalRequest, writeableRegistry, RolloverRequest::new);
+
+        assertThat(copy.getExpectedSourceIndex(), equalTo(originalRequest.getExpectedSourceIndex()));
+        assertThat(copy, equalTo(originalRequest));
+        assertThat(copy.hashCode(), equalTo(originalRequest.hashCode()));
+    }
+
+    public void testEqualsConsidersExpectedSourceIndex() {
+        RolloverRequest request = new RolloverRequest("alias-index", null);
+        RolloverRequest requestWithExpectedSourceIndex = new RolloverRequest("alias-index", null);
+        requestWithExpectedSourceIndex.setExpectedSourceIndex("index-000001");
+
+        assertNotEquals(request, requestWithExpectedSourceIndex);
+    }
+
+    public void testValidationRejectsExpectedSourceIndexWithLazyRollover() {
+        RolloverRequest rolloverRequest = new RolloverRequest("alias-index", null);
+        rolloverRequest.setExpectedSourceIndex("index-000001");
+        rolloverRequest.lazy(true);
+
+        ActionRequestValidationException validationException = rolloverRequest.validate();
+
+        assertNotNull(validationException);
+        assertEquals(List.of("an expected source index cannot be used with a lazy rollover"), validationException.validationErrors());
     }
 
     public void testUnknownFields() throws IOException {

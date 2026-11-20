@@ -2385,7 +2385,10 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                 maxTaskShutdownGracePeriod,
                 new ReindexSettings(),
                 circuitBreaker,
-                breakerLabel
+                breakerLabel,
+                null,
+                null,
+                null
             );
         }
 

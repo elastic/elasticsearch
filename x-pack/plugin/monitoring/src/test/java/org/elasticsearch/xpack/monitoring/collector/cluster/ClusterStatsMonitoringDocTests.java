@@ -756,7 +756,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "replica_rejections": 0,
                         "primary_document_rejections": 0,
                         "large_operation_rejections": 0,
-                        "ingest_expansion_rejections": 0
+                        "ingest_expansion_rejections": 0,
+                        "reindex_page_reserve_rejections": 0,
+                        "reindex_page_bytes_below_estimate_in_bytes": 0,
+                        "reindex_page_bytes_above_estimate_in_bytes": 0,
+                        "reindex_page_exceeds_limit": 0
                       },
                       "limit_in_bytes": 0
                     }

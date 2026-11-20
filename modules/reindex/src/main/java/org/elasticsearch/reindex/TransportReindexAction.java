@@ -23,10 +23,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
@@ -36,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Objects;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByPaginatedSearchResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.stringListSetting(
@@ -72,7 +75,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices
     ) {
         this(
             ReindexAction.NAME,
@@ -93,7 +98,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             reindexSettings,
             featureService,
             taskResultsService,
-            circuitBreakerService
+            circuitBreakerService,
+            indexingPressure,
+            systemIndices
         );
     }
 
@@ -116,9 +123,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexSettings reindexSettings,
         FeatureService featureService,
         TaskResultsService taskResultsService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        Objects.requireNonNull(indexingPressure, "indexingPressure must not be null");
+        Objects.requireNonNull(systemIndices, "systemIndices must not be null");
         this.client = client;
         this.reindexValidator = new ReindexValidator(
             settings,
@@ -141,7 +152,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             relocationNodePicker,
             featureService,
             taskResultsService,
-            circuitBreakerService
+            circuitBreakerService,
+            indexingPressure,
+            systemIndices
         );
     }
 

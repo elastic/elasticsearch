@@ -115,7 +115,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
         );
-        long[] expectedStats = new long[18];
+        long[] expectedStats = new long[22];
         for (NodeStats nodeStat : nodeStats) {
             IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
             if (indexingPressureStats != null) {
@@ -139,6 +139,10 @@ public class ClusterStatsNodesTests extends ESTestCase {
                 expectedStats[14] += indexingPressureStats.getCurrentIngestExpansionBytes();
                 expectedStats[15] += indexingPressureStats.getTotalIngestExpansionBytes();
                 expectedStats[16] += indexingPressureStats.getIngestExpansionRejections();
+                expectedStats[17] += indexingPressureStats.getReindexPageReserveRejections();
+                expectedStats[18] += indexingPressureStats.getReindexPageBytesBelowEstimate();
+                expectedStats[19] += indexingPressureStats.getReindexPageBytesAboveEstimate();
+                expectedStats[20] += indexingPressureStats.getReindexPageExceedsLimit();
             }
         }
 
@@ -203,6 +207,18 @@ public class ClusterStatsNodesTests extends ESTestCase {
                     + ","
                     + "\"ingest_expansion_rejections\":"
                     + expectedStats[16]
+                    + ","
+                    + "\"reindex_page_reserve_rejections\":"
+                    + expectedStats[17]
+                    + ","
+                    + "\"reindex_page_bytes_below_estimate_in_bytes\":"
+                    + expectedStats[18]
+                    + ","
+                    + "\"reindex_page_bytes_above_estimate_in_bytes\":"
+                    + expectedStats[19]
+                    + ","
+                    + "\"reindex_page_exceeds_limit\":"
+                    + expectedStats[20]
                     + "},"
                     + "\"limit_in_bytes\":"
                     + expectedStats[13]

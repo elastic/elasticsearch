@@ -8,11 +8,18 @@
 package org.elasticsearch.xpack.esql.generator;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
 public class GenerativeFunctionCatalogTests extends ESTestCase {
@@ -63,5 +70,44 @@ public class GenerativeFunctionCatalogTests extends ESTestCase {
             .flatMap(fn -> catalog.satisfiableSignatures(fn, columnTypes).stream())
             .count();
         assertThat("expected at least one satisfiable signature for datetime columns", satisfiable, not(equalTo(0L)));
+    }
+
+    /** Each catalog function has an {@code fn_<name>} capability. */
+    public void testEveryFunctionHasClusterCapability() {
+        Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), true).capabilities();
+        for (GenerativeFunctionDefinition fn : GenerativeFunctionCatalog.all()) {
+            assertThat(fn.name(), capabilities, hasItem(GenerativeFunctionCatalog.capabilityName(fn)));
+        }
+    }
+
+    /** A directory load keeps that directory's scalar signatures. */
+    public void testLoadFromDefinitionsDir() throws IOException {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("to_range.json"), """
+            {"name": "to_range", "type": "scalar", "signatures": [
+              {"params": [{"name": "from", "type": "date", "optional": false}, {"name": "to", "type": "date", "optional": false}],
+               "returnType": "date_range", "variadic": false}]}""");
+        Files.writeString(dir.resolve("match.json"), """
+            {"name": "match", "type": "scalar", "signatures": [
+              {"params": [{"name": "field", "type": "keyword", "optional": false}], "returnType": "boolean", "variadic": false}]}""");
+        Files.writeString(dir.resolve("count.json"), """
+            {"name": "count", "type": "agg", "signatures": [
+              {"params": [{"name": "field", "type": "keyword", "optional": false}], "returnType": "long", "variadic": false}]}""");
+
+        List<GenerativeFunctionDefinition> loaded = GenerativeFunctionCatalog.loadFromDefinitionsDir(dir.toString());
+
+        assertThat(loaded.stream().map(GenerativeFunctionDefinition::name).toList(), equalTo(List.of("to_range")));
+        List<GenerativeFunctionSignature> signatures = loaded.getFirst().signatures();
+        assertThat(signatures.size(), equalTo(1));
+        assertThat(signatures.getFirst().params().stream().map(GenerativeFunctionParam::type).toList(), equalTo(List.of("date", "date")));
+        assertThat(signatures.getFirst().returnType(), equalTo("date_range"));
+    }
+
+    /** An empty or missing directory fails. */
+    public void testLoadFromDefinitionsDirWithoutDefinitions() {
+        Path empty = createTempDir();
+        expectThrows(IllegalStateException.class, () -> GenerativeFunctionCatalog.loadFromDefinitionsDir(empty.toString()));
+        String missing = empty.resolve("missing").toString();
+        expectThrows(IllegalStateException.class, () -> GenerativeFunctionCatalog.loadFromDefinitionsDir(missing));
     }
 }

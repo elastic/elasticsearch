@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
@@ -56,7 +57,7 @@ public class ChangePointGenerator implements CommandGenerator {
             .filter(x -> x.type().equals("null") == false)
             .collect(Collectors.toList());
 
-        if (randomBoolean()) {
+        if (randomBoolean() && context.clusterSupports(EsqlCapabilities.Cap.CHANGE_POINT_BY)) {
             var col = EsqlQueryGenerator.randomGroupableName(nonNull);
             if (col != null) {
                 cmd.append(" BY ").append(col);

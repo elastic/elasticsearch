@@ -117,19 +117,17 @@ tasks.named('javaRestTest') {
   }
 }
 
-// Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes this by name.
-tasks.register('generativeTests', StandaloneRestIntegTestTask) {
-  dependsOn generateParquetFixtures
-  usesDefaultDistribution("to be triaged")
-
-  systemProperty 'tests.rest.client_timeout', '60'
-  systemProperty 'tests.rest.socket_timeout', '60'
-  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
-  classpath = sourceSets.javaRestTest.runtimeClasspath
-  filter {
+ext.generativeTestsConfig = { StandaloneRestIntegTestTask task ->
+  task.dependsOn generateParquetFixtures
+  task.systemProperty 'tests.rest.client_timeout', '60'
+  task.systemProperty 'tests.rest.socket_timeout', '60'
+  task.testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  task.classpath = sourceSets.javaRestTest.runtimeClasspath
+  task.filter {
     includeTestsMatching 'org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT'
   }
 }
+apply from: serverProject.file('generative-tests.gradle')
 
 def csvSpecTests = tasks.register('csvSpecTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")

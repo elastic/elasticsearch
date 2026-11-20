@@ -77,7 +77,7 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
             // generate the aggregation
             String expression = randomBoolean()
                 ? EsqlQueryGenerator.metricsAgg(acceptableFields)
-                : EsqlQueryGenerator.agg(acceptableFields);
+                : EsqlQueryGenerator.agg(acceptableFields, null, context);
             if (i > 0) {
                 cmd.append(",");
             }

@@ -331,6 +331,46 @@ public class RelocationOtherNodeShutdownTimeoutsTests extends ESTestCase {
         }
     }
 
+    /// The slots of the target are shared by all its recoveries, also the ones that are not due by the deadline, so the plan budgets the
+    /// time per recovery. When those recoveries finish, the time saved is seen, though the shards due by the deadline are still the same.
+    /// With 2 slots, this shard, 1 shard of the shutting-down node and 4 other recoveries, the first plan waits `600s * 2 / 6 = 200s`
+    /// and budgets `600s / 6 = 100s` per recovery.
+    public void testExtendsWhenRecoveriesThatAreNotDueByTheDeadlineFinish() {
+        try (var threadPool = new FakeTimeThreadPool(getTestName(), randomNonNegativeLong() / 2)) {
+            final var timeouts = newRelocationOtherNodeShutdownTimeouts(threadPool, withGraceCap("10m"));
+            final long shutdownStartedAtMillis = randomLongBetween(1, 100_000);
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis);
+            final long shutdownStartedAt = threadPool.absoluteTimeInMillis();
+            final var index = new Index("idx", randomUUID());
+            final var shuttingDownNodes = List.of(new ShuttingDownNode("shutting-node", 1, shutdownStartedAt));
+            final var firstPlan = timeouts.timeout(
+                relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 4),
+                RELOCATION_TARGET_NODE,
+                null
+            );
+            assertThat(firstPlan.timeout(), equalTo(TimeValue.timeValueSeconds(200)));
+            assertThat(firstPlan.perShardShareMs(), closeTo(100_000.0, 1e-6));
+
+            threadPool.setCurrentTimeInMillis(shutdownStartedAtMillis + 200_000);
+            // 2 of the 4 other recoveries finished: 400s / 4 = 100s per recovery, as budgeted
+            final var asPlanned = timeouts.timeout(
+                relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 2),
+                RELOCATION_TARGET_NODE,
+                firstPlan
+            );
+            assertThat(asPlanned.timeout().millis(), equalTo(0L));
+
+            // 3 of them finished: 400s / 3 = 133.3s per recovery, and this shard and the other one get 2 slots of the 3 recoveries
+            final var saved = timeouts.timeout(
+                relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 1),
+                RELOCATION_TARGET_NODE,
+                firstPlan
+            );
+            assertThat(saved.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE));
+            assertThat(saved.timeout().millis(), equalTo(Math.round((400_000 / 3.0 - 100_000) * 2)));
+        }
+    }
+
     /// While a shutting-down node still holds shards that the master has not begun to relocate, as when it throttles the relocations, the
     /// relocations to the target that the cluster state shows are not all the target will get, so the shard waits for the plain
     /// relocation-with-shutdown timeout. The shards that already relocate are enough to share the slots otherwise.

@@ -81,22 +81,22 @@ public class RelocationOtherNodeShutdownTimeouts {
 
         // Use the deadline with the smallest equal share, so that no deadline is missed.
         final var tightestDeadline = Collections.min(deadlineShares, comparingDouble(DeadlineShare::equalShareMs));
-        final double timePerShardMs = tightestDeadline.timePerShardMs();
+        final double timePerRecoveryMs = tightestDeadline.timePerRecoveryMs();
         final double waitMs;
         if (previousPlan != null && previousPlan.isEqualSharePlan() && previousPlan.perShardShareMs() > 0) {
-            waitMs = Math.max(0.0, timePerShardMs - previousPlan.perShardShareMs()) * tightestDeadline.slotShare();
+            waitMs = tightestDeadline.waitForTimeSavedSince(previousPlan.perShardShareMs());
         } else {
             waitMs = tightestDeadline.equalShareMs();
         }
         return new SearchRecoveryTimeout(
             TimeValue.timeValueMillis(Math.round(waitMs)),
             TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE,
-            timePerShardMs
+            timePerRecoveryMs
         );
     }
 
-    /// What each grace deadline leaves to the shards competing for the target, from the earliest deadline to the latest. A deadline that has
-    /// passed leaves nothing: the warming cap does not free a slot, so its shards may still be queued for one.
+    /// What each grace deadline leaves to the shards competing for the target, from the earliest deadline to the latest.
+    /// A deadline that has passed leaves nothing: the warming cap does not free a slot, so its shards may still be queued for one.
     private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
         // All the non-critical recoveries on the target share its slots, also the ones of the shutting-down nodes with a later deadline, as
         // the recoveries are not scheduled by the deadline. The critical recoveries take a part of the overall limit first.
@@ -119,6 +119,7 @@ public class RelocationOtherNodeShutdownTimeouts {
                 new DeadlineShare(
                     remainingMs,
                     shardsCompetingForTarget,
+                    recoveriesOnTarget,
                     slotShareOfCompetingShards(slots, shardsCompetingForTarget, recoveriesOnTarget)
                 )
             );
@@ -145,8 +146,8 @@ public class RelocationOtherNodeShutdownTimeouts {
     }
 
     /// The slots of the target are shared equally by all the non-critical recoveries on it. This is the part of them that the
-    /// `shardsCompetingForTarget` shards get: `min(N, slots * N / recoveries)`. It can be fractional. A cluster state that does not show all
-    /// the competing shards yet gives fewer recoveries than shards, so the recoveries are taken to be at least the competing shards.
+    /// `shardsCompetingForTarget` shards get: `min(N, slots * N / recoveries)`. It can be fractional. A cluster state that does not show
+    /// all the competing shards yet gives fewer recoveries than shards, so the recoveries are taken to be at least the competing shards.
     private static double slotShareOfCompetingShards(int slots, long shardsCompetingForTarget, int recoveriesOnTarget) {
         return Math.min(
             shardsCompetingForTarget,
@@ -159,15 +160,25 @@ public class RelocationOtherNodeShutdownTimeouts {
     private record ShuttingDownNodeShards(long graceDeadlineMillis, long shards) {}
 
     /// What one grace deadline leaves to the shards competing for the target: the time left until it, the shards competing for the target
-    /// before it, and their share of the target's relocation limit.
-    private record DeadlineShare(long remainingMs, long shardsCompetingForTarget, double slotShare) {
+    /// before it, all the recoveries on the target, and the share of the target's relocation limit of the competing shards.
+    private record DeadlineShare(long remainingMs, long shardsCompetingForTarget, long recoveriesOnTarget, double slotShare) {
 
-        double timePerShardMs() {
-            return remainingMs / (double) shardsCompetingForTarget;
+        /// The time left per recovery that shares the target's slots with the competing shards. It is what a plan budgets, so that the
+        /// recoveries of the shards with later deadlines that finish are taken into account.
+        double timePerRecoveryMs() {
+            return remainingMs / (double) Math.max(shardsCompetingForTarget, recoveriesOnTarget);
         }
 
         double equalShareMs() {
-            return timePerShardMs() * slotShare;
+            return remainingMs / (double) shardsCompetingForTarget * slotShare;
+        }
+
+        /// The extension for the time that finished recoveries saved: the per-recovery share above the one the previous plan budgeted,
+        /// scaled to the slots of the competing shards.
+        double waitForTimeSavedSince(double budgetedTimePerRecoveryMs) {
+            final double recoveriesPerCompetingShard = Math.max(shardsCompetingForTarget, recoveriesOnTarget)
+                / (double) shardsCompetingForTarget;
+            return Math.max(0.0, timePerRecoveryMs() - budgetedTimePerRecoveryMs) * slotShare * recoveriesPerCompetingShard;
         }
 
         /// Whether the shards competing before this deadline get a slot each, so nobody queues behind anybody.

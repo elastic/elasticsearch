@@ -8,12 +8,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.TestDriverRunner;
@@ -54,7 +53,7 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
 
     private NestedExpandOperator.Factory factory(int pageSize, PlannerSettings settings) {
         NestedChildren.Factory children = NestedChildren.factory(
-            new IndexedByShardIdFromSingleton<>(shard),
+            shards(),
             "items",
             List.of("price", "note"),
             List.of(DataType.LONG, DataType.TEXT),
@@ -125,7 +124,7 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
     public void testEnumeratesChildrenWithoutColumns() {
         var context = driverContext();
         NestedChildren.Factory children = NestedChildren.factory(
-            new IndexedByShardIdFromSingleton<>(shard),
+            shards(),
             "items",
             List.of(),
             List.of(),
@@ -212,6 +211,74 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
         }
     }
 
+    public void testRepeatedParentRepeatsItsChildren() {
+        int[] parents = { 3, 2, 3, 3, 4, 7, 1, 2 };
+        for (int size : new int[] { 1, 2, 4, 64 }) {
+            var context = driverContext();
+            List<Page> results = new TestDriverRunner().builder(context)
+                .input(List.of(parentsAt(context.blockFactory(), parents)))
+                .run(factory(size).get(context));
+            for (Page page : results) {
+                assertThat(page.getPositionCount(), lessThanOrEqualTo(size));
+            }
+            assertThat(rows(results), equalTo(expectedRows(Arrays.stream(parents).boxed().toList())));
+            releaseAll(results);
+            assertThat(context.breaker().getUsed(), equalTo(0L));
+        }
+    }
+
+    public void testBuffersAreReservedOncePerOperator() {
+        long small = breakerUsedWhileOperatorIdle(10);
+        long large = breakerUsedWhileOperatorIdle(50);
+        assertThat(large - small, equalTo(5L * Integer.BYTES * 40));
+    }
+
+    /** The bytes the breaker holds once the operator has given back every row of three input pages, which it still holds. */
+    private long breakerUsedWhileOperatorIdle(int size) {
+        var context = driverContext();
+        long[] used = new long[3];
+        try (Operator operator = factory(size).get(context)) {
+            int[][] ranges = { { 0, 6 }, { 6, 10 }, { 10, 11 } };
+            for (int r = 0; r < ranges.length; r++) {
+                operator.addInput(parents(context.blockFactory(), ranges[r][0], ranges[r][1] - ranges[r][0]));
+                List<Page> results = new ArrayList<>();
+                while (operator.canProduceMoreDataWithoutExtraInput()) {
+                    results.add(operator.getOutput());
+                }
+                releaseAll(results);
+                used[r] = context.breaker().getUsed();
+            }
+        }
+        assertThat(context.breaker().getUsed(), equalTo(0L));
+        assertThat(used[1], equalTo(used[0]));
+        assertThat(used[2], equalTo(used[0]));
+        return used[0];
+    }
+
+    public void testExpansionsOpenOneAtATimeAndBuffersGrowForLargerPages() {
+        var context = driverContext();
+        Page page = parents(context.blockFactory(), 0, 4);
+        DocVector docs = page.<DocBlock>getBlock(0).asVector();
+        try (NestedChildren children = factory(2).children().get(context)) {
+            long before = context.breaker().getUsed();
+            try (NestedChildren.Expansion first = children.expand(docs, 2)) {
+                expectThrows(IllegalStateException.class, () -> children.expand(docs, 2));
+                assertThat(first.hasNext(), is(true));
+                assertThat(context.breaker().getUsed() - before, equalTo(5L * Integer.BYTES * 2));
+            }
+            try (NestedChildren.Expansion second = children.expand(docs, 2)) {
+                assertThat(second.hasNext(), is(true));
+                assertThat(context.breaker().getUsed() - before, equalTo(5L * Integer.BYTES * 2));
+            }
+            try (NestedChildren.Expansion third = children.expand(docs, 8)) {
+                assertThat(third.hasNext(), is(true));
+                assertThat(context.breaker().getUsed() - before, equalTo(5L * Integer.BYTES * 8));
+            }
+        }
+        page.releaseBlocks();
+        assertThat(context.breaker().getUsed(), equalTo(0L));
+    }
+
     public void testEmptyInputPage() {
         var context = driverContext();
         List<Page> results = new TestDriverRunner().builder(context)
@@ -269,6 +336,7 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
      * was asked for. Closing the operator then must release them too.
      */
     public void testCloseWhileReaderHoldsChildrenReleasesEverything() {
+        assumeTrue("the reader only splits children of one segment of one shard", parentsPerSegment() >= 100 && shardCount() == 1);
         PlannerSettings oneChildPerReadPage = PlannerSettings.DEFAULTS.valuesLoadingJumboSize(ByteSizeValue.ofBytes(1));
         var context = driverContext();
         Operator operator = factory(64, oneChildPerReadPage).get(context);
@@ -292,16 +360,6 @@ public class NestedExpandOperatorTests extends NestedIndexOperatorTestCase {
     private static void releaseAll(List<Page> pages) {
         for (Page page : pages) {
             page.releaseBlocks();
-        }
-    }
-
-    /** One page of the parents at {@code indexes}, in that order. */
-    private Page parentsAt(BlockFactory blockFactory, int... indexes) {
-        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory, indexes.length)) {
-            for (int i : indexes) {
-                builder.appendShard(0).appendSegment(0).appendDoc(parentDoc(i));
-            }
-            return new Page(builder.build());
         }
     }
 }

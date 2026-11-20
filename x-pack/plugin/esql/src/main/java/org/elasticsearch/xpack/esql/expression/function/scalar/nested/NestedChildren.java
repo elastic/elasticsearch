@@ -222,6 +222,9 @@ public final class NestedChildren implements Releasable {
     private final ElementType[] types;
     /** Block 0 of each page the reader gives is the child documents and the child fields follow it. */
     private final int[] fieldsProjection;
+    @Nullable
+    private Buffers buffers;
+    private boolean expanding;
 
     private NestedChildren(
         DriverContext context,
@@ -246,22 +249,61 @@ public final class NestedChildren implements Releasable {
     /**
      * Expands the parents of {@code parents} into at most {@code maxRows} rows per call, one row per child in parent order,
      * and one row of nulls for a parent without children. It keeps its place in the parents, so a parent with more
-     * children than {@code maxRows} is read over several calls.
+     * children than {@code maxRows} is read over several calls. Only one expansion is open at a time, and its buffers are
+     * reused by the next one.
      */
     Expansion expand(DocVector parents, int maxRows) {
         parents.ensureAttached("NESTED");
-        return new Expansion(parents, maxRows);
+        if (maxRows < 1) {
+            throw new IllegalArgumentException("maxRows must be positive but was [" + maxRows + "]");
+        }
+        if (expanding) {
+            throw new IllegalStateException("the previous expansion is still open");
+        }
+        if (buffers == null || buffers.rows < maxRows) {
+            Releasables.close(buffers);
+            buffers = null;
+            buffers = new Buffers(maxRows);
+        }
+        expanding = true;
+        return new Expansion(parents, maxRows, buffers);
     }
 
-    final class Expansion implements Releasable {
+    /** The arrays an {@link Expansion} fills, reserved on the breaker until this is closed. */
+    private final class Buffers implements Releasable {
         private static final int ARRAYS = 5;
 
-        private final DocVector parents;
-        private final int maxRows;
+        private final int rows;
         private final long reserved;
         /** Parent position of each row of the batch. */
         private final int[] rowParents;
         /** Index in {@link #docs} of the child each row of the batch holds, or -1 for the row of a parent without children. */
+        private final int[] rowChildren;
+        private final int[] childShards;
+        private final int[] childSegments;
+        private final int[] docs;
+
+        private Buffers(int rows) {
+            this.rows = rows;
+            this.reserved = (long) ARRAYS * rows * Integer.BYTES;
+            context.breaker().addEstimateBytesAndMaybeBreak(reserved, BREAKER_LABEL);
+            this.rowParents = new int[rows];
+            this.rowChildren = new int[rows];
+            this.childShards = new int[rows];
+            this.childSegments = new int[rows];
+            this.docs = new int[rows];
+        }
+
+        @Override
+        public void close() {
+            context.breaker().addWithoutBreaking(-reserved);
+        }
+    }
+
+    final class Expansion implements Releasable {
+        private final DocVector parents;
+        private final int maxRows;
+        private final int[] rowParents;
         private final int[] rowChildren;
         private final int[] childShards;
         private final int[] childSegments;
@@ -281,19 +323,14 @@ public final class NestedChildren implements Releasable {
         private int shardId;
         private int segment;
 
-        private Expansion(DocVector parents, int maxRows) {
-            if (maxRows < 1) {
-                throw new IllegalArgumentException("maxRows must be positive but was [" + maxRows + "]");
-            }
+        private Expansion(DocVector parents, int maxRows, Buffers buffers) {
             this.parents = parents;
             this.maxRows = maxRows;
-            this.reserved = (long) ARRAYS * maxRows * Integer.BYTES;
-            context.breaker().addEstimateBytesAndMaybeBreak(reserved, BREAKER_LABEL);
-            this.rowParents = new int[maxRows];
-            this.rowChildren = new int[maxRows];
-            this.childShards = new int[maxRows];
-            this.childSegments = new int[maxRows];
-            this.docs = new int[maxRows];
+            this.rowParents = buffers.rowParents;
+            this.rowChildren = buffers.rowChildren;
+            this.childShards = buffers.childShards;
+            this.childSegments = buffers.childSegments;
+            this.docs = buffers.docs;
         }
 
         boolean hasNext() {
@@ -523,13 +560,13 @@ public final class NestedChildren implements Releasable {
         public void close() {
             if (closed == false) {
                 closed = true;
-                context.breaker().addWithoutBreaking(-reserved);
+                expanding = false;
             }
         }
     }
 
     @Override
     public void close() {
-        Releasables.close(reader);
+        Releasables.close(buffers, reader);
     }
 }

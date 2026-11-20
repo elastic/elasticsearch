@@ -34,9 +34,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Reads of SSE-KMS objects, with and without S3 Bucket Keys, return the same rows as the unencrypted copy.
@@ -116,6 +120,17 @@ public class S3SseKmsReadIT extends ESRestTestCase {
             "the reads of the KMS objects must have reached the fixture",
             s3HttpFixture.requestLog(),
             hasItems("GET /" + BUCKET + "/" + KMS_CSV, "GET /" + BUCKET + "/" + KMS_BUCKET_KEY_CSV)
+        );
+        assertThat(
+            "the fixture must have answered the KMS objects with SSE-KMS headers, and the plain one without",
+            s3HttpFixture.kmsResponses(),
+            allOf(
+                hasItems(
+                    "GET /" + BUCKET + "/" + KMS_CSV + " bucket-key=false",
+                    "GET /" + BUCKET + "/" + KMS_BUCKET_KEY_CSV + " bucket-key=true"
+                ),
+                not(hasItem(containsString(PLAIN_CSV)))
+            )
         );
         assertThat(
             "a read must not ask S3 for encryption; S3 decrypts SSE-KMS objects server-side",

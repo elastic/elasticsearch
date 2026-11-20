@@ -107,6 +107,9 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
     /** Every {@code x-amz-server-side-encryption*} request header received, as {@code "<METHOD> <path>: <header>"}. */
     private final List<String> serverSideEncryptionRequestHeaders = Collections.synchronizedList(new ArrayList<>());
 
+    /** Every response answered with SSE-KMS headers, as {@code "<METHOD> <path> bucket-key=<true|false>"}. */
+    private final List<String> kmsResponses = Collections.synchronizedList(new ArrayList<>());
+
     /**
      * Makes GET and HEAD of {@code key} answer the way S3 answers an SSE-KMS object whose reader may decrypt it: the bytes in
      * the clear, plus the {@code x-amz-server-side-encryption: aws:kms} response headers naming the key. S3 decrypts on the
@@ -117,6 +120,10 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
     }
 
     /** Every {@code x-amz-server-side-encryption*} request header received, as {@code "<METHOD> <path>: <header>"}, in arrival order. */
+    public List<String> kmsResponses() {
+        return List.copyOf(kmsResponses);
+    }
+
     public List<String> serverSideEncryptionRequestHeaders() {
         return List.copyOf(serverSideEncryptionRequestHeaders);
     }
@@ -188,6 +195,12 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
                         if (bucketKey) {
                             exchange.getResponseHeaders().add("x-amz-server-side-encryption-bucket-key-enabled", "true");
                         }
+                        kmsResponses.add(
+                            exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + " bucket-key=" + bucketKey
+                        );
+                    }
+                    if ("DELETE".equals(exchange.getRequestMethod())) {
+                        kmsObjects.remove(exchange.getRequestURI().getPath());
                     }
                     if (addressesAnotherBucket(exchange.getRequestURI().getPath())) {
                         // S3 answers a request for a bucket that does not exist with 404 NoSuchBucket;
@@ -222,6 +235,7 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         if (handler == null) {
             throw new IllegalStateException("S3 fixture has not been started yet; call seedBlob from @BeforeClass");
         }
+        kmsObjects.remove("/" + bucket + "/" + key);
         handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), storageClass));
     }
 

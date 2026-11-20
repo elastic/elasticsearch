@@ -119,11 +119,12 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         kmsObjects.put("/" + bucket + "/" + key, bucketKeyEnabled);
     }
 
-    /** Every {@code x-amz-server-side-encryption*} request header received, as {@code "<METHOD> <path>: <header>"}, in arrival order. */
+    /** Every response answered with SSE-KMS headers, as {@code "<METHOD> <path> bucket-key=<true|false>"}, in arrival order. */
     public List<String> kmsResponses() {
         return List.copyOf(kmsResponses);
     }
 
+    /** Every {@code x-amz-server-side-encryption*} request header received, as {@code "<METHOD> <path>: <header>"}, in arrival order. */
     public List<String> serverSideEncryptionRequestHeaders() {
         return List.copyOf(serverSideEncryptionRequestHeaders);
     }

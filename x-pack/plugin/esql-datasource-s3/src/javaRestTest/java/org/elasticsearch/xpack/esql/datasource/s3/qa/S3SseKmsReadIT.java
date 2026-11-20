@@ -117,11 +117,6 @@ public class S3SseKmsReadIT extends ESRestTestCase {
         assertThat(query("kms_bucket_key_rows").get("values"), equalTo(expected));
 
         assertThat(
-            "the reads of the KMS objects must have reached the fixture",
-            s3HttpFixture.requestLog(),
-            hasItems("GET /" + BUCKET + "/" + KMS_CSV, "GET /" + BUCKET + "/" + KMS_BUCKET_KEY_CSV)
-        );
-        assertThat(
             "the fixture must have answered the KMS objects with SSE-KMS headers, and the plain one without",
             s3HttpFixture.kmsResponses(),
             allOf(

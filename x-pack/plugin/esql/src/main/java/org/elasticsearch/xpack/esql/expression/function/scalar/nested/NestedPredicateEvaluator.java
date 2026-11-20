@@ -21,28 +21,19 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Evaluates a {@link NestedPredicate} for each parent of a page by reading the parent's child documents through
- * {@link NestedChildren}, running the body over each child, and ORing the results per parent. Each outer expression is
- * evaluated once on the parent page and its value is repeated for every child of that parent. A parent stops being read once
+ * {@link NestedChildren}, running the body over each child, and ORing the results per parent. A parent stops being read once
  * a page of its children has matched it.
  */
 final class NestedPredicateEvaluator implements ExpressionEvaluator {
     private final DriverContext context;
     private final NestedChildren children;
     private final ExpressionEvaluator predicate;
-    private final ExpressionEvaluator[] outers;
     private final int[] fieldChannels;
 
-    NestedPredicateEvaluator(
-        DriverContext context,
-        NestedChildren children,
-        ExpressionEvaluator predicate,
-        ExpressionEvaluator[] outers,
-        int[] fieldChannels
-    ) {
+    NestedPredicateEvaluator(DriverContext context, NestedChildren children, ExpressionEvaluator predicate, int[] fieldChannels) {
         this.context = context;
         this.children = children;
         this.predicate = predicate;
-        this.outers = outers;
         this.fieldChannels = fieldChannels;
     }
 
@@ -50,15 +41,7 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
     public Block eval(Page page) {
         DocVector docs = docs(page);
         boolean[] matched = new boolean[docs.getPositionCount()];
-        Block[] outerBlocks = new Block[outers.length];
-        try {
-            for (int i = 0; i < outers.length; i++) {
-                outerBlocks[i] = outers[i].eval(page);
-            }
-            children.read(docs, position -> true, position -> matched[position] == false, loaded -> accept(loaded, matched, outerBlocks));
-        } finally {
-            Releasables.closeWhileHandlingException(outerBlocks);
-        }
+        children.read(docs, position -> true, position -> matched[position] == false, loaded -> accept(loaded, matched));
         BooleanBlock.Builder builder = context.blockFactory().newBooleanBlockBuilder(matched.length);
         Block result = null;
         try {
@@ -74,12 +57,12 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
         }
     }
 
-    private void accept(Page loaded, boolean[] matched, Block[] outerBlocks) {
+    private void accept(Page loaded, boolean[] matched) {
         IntVector parents = loaded.<IntBlock>getBlock(0).asVector();
         if (parents == null) {
             throw new IllegalStateException("NESTED_ANY expected one parent position per child");
         }
-        if (fieldChannels.length == 0 && outerBlocks.length == 0) {
+        if (fieldChannels.length == 0) {
             Block constant = predicate.eval(new Page(1));
             try {
                 boolean childMatched = Boolean.TRUE.equals(BlockUtils.toJavaObject(constant, 0));
@@ -91,10 +74,10 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
             }
             return;
         }
-        Page inputs = bodyInput(loaded, parents, outerBlocks);
+        Page fields = loaded.projectBlocks(fieldChannels);
         Block values = null;
         try {
-            values = predicate.eval(inputs);
+            values = predicate.eval(fields);
             for (int c = 0; c < values.getPositionCount(); c++) {
                 // As for a WHERE, a null or multivalued result is like false
                 if (values.getValueCount(c) != 1) {
@@ -107,33 +90,7 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
             if (values != null) {
                 values.close();
             }
-            inputs.releaseBlocks();
-        }
-    }
-
-    /** The child fields of {@code loaded}, then each outer value repeated for every child of its parent. */
-    private Page bodyInput(Page loaded, IntVector parents, Block[] outerBlocks) {
-        int[] parentPositions = new int[parents.getPositionCount()];
-        for (int c = 0; c < parentPositions.length; c++) {
-            parentPositions[c] = parents.getInt(c);
-        }
-        Block[] blocks = new Block[fieldChannels.length + outerBlocks.length];
-        boolean built = false;
-        try {
-            for (int i = 0; i < fieldChannels.length; i++) {
-                blocks[i] = loaded.getBlock(fieldChannels[i]);
-                blocks[i].incRef();
-            }
-            for (int i = 0; i < outerBlocks.length; i++) {
-                blocks[fieldChannels.length + i] = outerBlocks[i].filter(true, parentPositions);
-            }
-            Page page = new Page(loaded.getPositionCount(), blocks);
-            built = true;
-            return page;
-        } finally {
-            if (built == false) {
-                Releasables.closeWhileHandlingException(blocks);
-            }
+            fields.releaseBlocks();
         }
     }
 
@@ -153,6 +110,6 @@ final class NestedPredicateEvaluator implements ExpressionEvaluator {
 
     @Override
     public void close() {
-        Releasables.close(predicate, children, Releasables.wrap(outers));
+        Releasables.close(predicate, children);
     }
 }

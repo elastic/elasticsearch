@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
-import java.util.List;
-
 /** Evaluates the predicate by reading each parent's children. */
 public class NestedPredicateOperatorTests extends NestedPredicateOperatorTestCase {
     @Override
     NestedPredicate predicate() {
-        return nested(priceAboveThreshold(), List.of(), List.of(), null);
+        return nested(priceAboveThreshold(), null);
     }
 
     @Override

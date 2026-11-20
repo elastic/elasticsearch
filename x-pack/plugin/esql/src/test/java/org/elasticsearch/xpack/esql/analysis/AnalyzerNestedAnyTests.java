@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.NestedScopeField;
@@ -185,107 +184,68 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
-    public void testOuterReferenceToAParentFieldIsEvaluatedPerParent() {
-        NestedPredicate predicate = predicate(nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.sku == id) | LIMIT 10"));
-        assertThat(describe(predicate.outers()), equalTo(List.of("id")));
-        assertThat(names(predicate.inputs()), equalTo(List.of("items.sku")));
-        assertThat(predicate.references().stream().map(Attribute::name).toList(), equalTo(List.of("id")));
+    public void testParentFieldInTheBodyIsRejected() {
+        nestedAnalyzer().error("FROM ne | WHERE NESTED_ANY(items.sku == id)", containsString("Field [id] is outside the nested scope"));
     }
 
-    public void testOuterReferenceToAnEvalColumn() {
-        NestedPredicate predicate = predicate(
-            nestedAnalyzer().query("FROM ne | EVAL k = \"a\" | WHERE NESTED_ANY(items.sku == k) | LIMIT 10")
+    public void testEvalColumnInTheBodyIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | EVAL k = \"a\" | WHERE NESTED_ANY(items.sku == k)",
+            containsString("Field [k] is outside the nested scope")
         );
-        assertThat(describe(predicate.outers()), equalTo(List.of("k")));
     }
 
-    public void testOuterReferenceToARenamedColumn() {
-        NestedPredicate predicate = predicate(
-            nestedAnalyzer().query("FROM ne | RENAME id AS pid | WHERE NESTED_ANY(items.sku == pid) | LIMIT 10")
+    public void testRenamedColumnInTheBodyIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | RENAME id AS pid | WHERE NESTED_ANY(items.sku == pid)",
+            containsString("Field [pid] is outside the nested scope")
         );
-        assertThat(describe(predicate.outers()), equalTo(List.of("pid")));
     }
 
-    public void testOuterReferenceInTheCollectionForm() {
-        NestedPredicate predicate = predicate(nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items, items.sku == id) | LIMIT 10"));
-        assertThat(describe(predicate.outers()), equalTo(List.of("id")));
-        assertThat(predicate.path(), equalTo("items"));
-    }
-
-    public void testOuterReferenceBesideAChildFieldIsHoistedWhole() {
-        NestedPredicate predicate = predicate(
-            nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.sku == \"a\" AND id == \"1\") | LIMIT 10")
+    public void testParentFieldInTheCollectionFormIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | WHERE NESTED_ANY(items, items.sku == id)",
+            containsString("Field [id] is outside the nested scope")
         );
-        assertThat(predicate.outers().stream().map(Expression::sourceText).toList(), equalTo(List.of("id == \"1\"")));
-        assertThat(names(predicate.inputs()), equalTo(List.of("items.sku")));
     }
 
-    public void testOnlyTheOuterPartOfAnExpressionIsHoisted() {
-        NestedPredicate predicate = predicate(
-            nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(CONCAT(items.sku, id) == \"a1\") | LIMIT 10")
+    public void testParentFieldBesideAChildFieldIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | WHERE NESTED_ANY(items.sku == \"a\" AND id == \"1\")",
+            containsString("Field [id] is outside the nested scope")
         );
-        assertThat(describe(predicate.outers()), equalTo(List.of("id")));
     }
 
-    public void testAnOuterExpressionIsHoistedAsOne() {
-        NestedPredicate predicate = predicate(
-            nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.sku == CONCAT(id, \"x\")) | LIMIT 10")
+    public void testParentFieldThroughAFunctionIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | WHERE NESTED_ANY(CONCAT(items.sku, id) == \"a1\")",
+            containsString("Field [id] is outside the nested scope")
         );
-        assertThat(predicate.outers().stream().map(Expression::sourceText).toList(), equalTo(List.of("CONCAT(id, \"x\")")));
     }
 
-    public void testTheSameOuterExpressionIsEvaluatedOnce() {
-        NestedPredicate predicate = predicate(
-            nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.sku == id OR items.sku == CONCAT(id, \"\")) | LIMIT 10")
+    public void testParentFieldInEvalIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne | EVAL h = NESTED_ANY(items.sku == id) | KEEP id, h",
+            containsString("Field [id] is outside the nested scope")
         );
-        assertThat(predicate.outers(), hasSize(2));
-        NestedPredicate repeated = predicate(
-            nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.sku == id OR items.sku != id) | LIMIT 10")
-        );
-        assertThat(repeated.outers(), hasSize(1));
     }
 
-    public void testAConstantStaysInTheBody() {
-        NestedPredicate predicate = predicate(
-            nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items.sku == CONCAT(\"a\", \"b\")) | LIMIT 10")
-        );
-        assertThat(predicate.outers(), is(empty()));
+    public void testParentFieldAloneLeavesNoNestedFieldToBind() {
+        nestedAnalyzer().error("FROM ne | WHERE NESTED_ANY(id == \"1\")", containsString("Field [id] is outside the nested scope"));
     }
 
-    public void testOuterReferenceInEval() {
-        NestedPredicate predicate = predicate(
-            nestedAnalyzer().query("FROM ne | EVAL h = NESTED_ANY(items.sku == id) | KEEP id, h | LIMIT 10")
-        );
-        assertThat(describe(predicate.outers()), equalTo(List.of("id")));
-    }
-
-    public void testOuterReferenceAloneLeavesNoNestedFieldToBind() {
-        nestedAnalyzer().error("FROM ne | WHERE NESTED_ANY(id == \"1\")", containsString("NESTED_ANY requires a mapped nested field"));
-    }
-
-    public void testOuterReferenceWithTheCollectionNamedReadsNoChildField() {
-        NestedPredicate predicate = predicate(nestedAnalyzer().query("FROM ne | WHERE NESTED_ANY(items, id == \"1\") | LIMIT 10"));
-        assertThat(predicate.inputs(), is(empty()));
-        assertThat(predicate.outers(), hasSize(1));
-    }
-
-    public void testNameUnderTheNestedPathIsNeverAnOuterReference() {
+    public void testNameUnderTheNestedPathIsNotAChild() {
         nestedAnalyzer().error(
             "FROM ne | WHERE NESTED_ANY(items.sku == \"a\" AND items.undeclared == \"x\")",
             containsString("Unknown column [items.undeclared]")
         );
     }
 
-    public void testParentColumnBesideTheCallIsNotAnOuterReference() {
+    public void testParentColumnBesideTheCallIsNotInTheBody() {
         NestedPredicate predicate = predicate(
             nestedAnalyzer().query("FROM ne | WHERE id == \"1\" AND NESTED_ANY(items.sku == \"a\") | LIMIT 10")
         );
         assertThat(predicate.inputs(), hasSize(1));
-        assertThat(predicate.outers(), is(empty()));
-    }
-
-    private static List<String> describe(List<? extends Expression> expressions) {
-        return expressions.stream().map(e -> e instanceof Attribute attribute ? attribute.name() : e.sourceText()).toList();
     }
 
     public void testSpatialChildIsReadLikeAnyOtherColumn() {

@@ -62,11 +62,6 @@ public class NestedPredicateLuceneTests extends ESTestCase {
         assertThat(PushNestedPredicateToSource.translate(predicate("items.sku == \"a\""), CHILDREN, stats(Set.of())), is(nullValue()));
     }
 
-    public void testAPredicateWithAnOuterValueDoesNotTranslate() {
-        NestedPredicate predicate = predicate("items.sku == CONCAT(id, \"x\")");
-        assertThat(PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(Set.of("items.sku"))), is(nullValue()));
-    }
-
     public void testAnUntranslatablePredicateDoesNotTranslate() {
         NestedPredicate predicate = predicate("items.qty + 1 > 2");
         assertThat(PushNestedPredicateToSource.translate(predicate, CHILDREN, stats(Set.of("items.qty"))), is(nullValue()));

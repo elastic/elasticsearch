@@ -13,8 +13,8 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -54,30 +54,13 @@ abstract class NestedPredicateOperatorTestCase extends NestedIndexOperatorTestCa
         return priceAbove(new Literal(Source.EMPTY, THRESHOLD, DataType.LONG));
     }
 
-    static NestedPredicate nested(
-        Expression body,
-        List<Attribute> outerInputs,
-        List<Expression> outers,
-        org.elasticsearch.index.query.QueryBuilder query
-    ) {
-        return new NestedPredicate(
-            Source.EMPTY,
-            "items",
-            body,
-            List.of(PRICE),
-            List.of("price"),
-            outerInputs,
-            outers,
-            query,
-            EsqlTestUtils.TEST_CFG
-        );
+    static NestedPredicate nested(Expression body, QueryBuilder query) {
+        return new NestedPredicate(Source.EMPTY, "items", body, List.of(PRICE), List.of("price"), query, EsqlTestUtils.TEST_CFG);
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        Layout layout = new Layout.Builder().append(new ReferenceAttribute(Source.EMPTY, "_doc", DataType.DOC_DATA_TYPE))
-            .append(extraParentColumns())
-            .build();
+        Layout layout = new Layout.Builder().append(new ReferenceAttribute(Source.EMPTY, "_doc", DataType.DOC_DATA_TYPE)).build();
         ExpressionEvaluator.Factory evaluator = EvalMapper.toEvaluator(
             FoldContext.small(),
             predicate(),
@@ -86,11 +69,6 @@ abstract class NestedPredicateOperatorTestCase extends NestedIndexOperatorTestCa
             null
         );
         return new EvalOperator.EvalOperatorFactory(evaluator);
-    }
-
-    /** The attributes of the parent page after its document block, in channel order, which start at channel 1. */
-    List<Attribute> extraParentColumns() {
-        return List.of();
     }
 
     @Override

@@ -11,15 +11,13 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 
-import java.util.List;
-
 /** Evaluates the same predicate through the nested query that is exactly equivalent to it. */
 public class NestedPredicateLuceneOperatorTests extends NestedPredicateOperatorTestCase {
     @Override
     NestedPredicate predicate() {
         NestedQueryBuilder query = new NestedQueryBuilder("items", QueryBuilders.rangeQuery("items.price").gt(THRESHOLD), ScoreMode.None)
             .ignoreUnmapped(true);
-        return nested(priceAboveThreshold(), List.of(), List.of(), query);
+        return nested(priceAboveThreshold(), query);
     }
 
     @Override

@@ -143,49 +143,6 @@ orders:long | has:boolean
 2           | true
 ;
 
-outerValueFromAParentColumn
-required_capability: fn_nested_any
-
-FROM nested_orders
-| EVAL k = TO_LONG(id)
-| WHERE NESTED_ANY(items.qty == k)
-| KEEP id
-;
-
-id:keyword
-1
-;
-
-outerValueOrderedAgainstAChild
-required_capability: fn_nested_any
-
-FROM nested_orders
-| EVAL k = TO_LONG(id)
-| WHERE NESTED_ANY(items.qty > k)
-| KEEP id
-| SORT id
-;
-
-id:keyword
-1
-3
-;
-
-outerExpressionInEval
-required_capability: fn_nested_any
-
-FROM nested_orders
-| EVAL has = NESTED_ANY(items.qty == TO_LONG(id) + 1)
-| KEEP id, has
-| SORT id
-;
-
-id:keyword | has:boolean
-1          | true
-2          | false
-3          | false
-;
-
 constantsAreFolded
 required_capability: fn_nested_any
 

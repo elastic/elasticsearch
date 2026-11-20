@@ -26,7 +26,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.ne
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -35,15 +34,12 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
     @Override
     protected NestedPredicate createTestInstance() {
         int size = between(0, 3);
-        int outer = between(0, 2);
         return new NestedPredicate(
             randomSource(),
             randomPath(),
             randomChild(),
             randomInputs(size),
             randomRelativePaths(size),
-            randomInputs(outer),
-            randomOuters(outer),
             null,
             configuration()
         );
@@ -55,35 +51,19 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         Expression body = instance.body();
         List<Attribute> inputs = instance.inputs();
         List<String> relativePaths = instance.relativePaths();
-        List<Attribute> outerInputs = instance.outerInputs();
-        List<Expression> outers = instance.outers();
         int size = inputs.size();
-        switch (between(0, size == 0 ? 3 : 5)) {
+        switch (between(0, size == 0 ? 2 : 4)) {
             case 0 -> path = randomValueOtherThan(path, NestedPredicateSerializationTests::randomPath);
             case 1 -> body = randomValueOtherThan(body, AbstractExpressionSerializationTests::randomChild);
             case 2 -> {
                 inputs = randomInputs(size + 1);
                 relativePaths = randomRelativePaths(size + 1);
             }
-            case 3 -> {
-                outerInputs = randomInputs(outers.size() + 1);
-                outers = randomOuters(outers.size() + 1);
-            }
-            case 4 -> inputs = randomValueOtherThan(inputs, () -> randomInputs(size));
-            case 5 -> relativePaths = randomValueOtherThan(relativePaths, () -> randomRelativePaths(size));
+            case 3 -> inputs = randomValueOtherThan(inputs, () -> randomInputs(size));
+            case 4 -> relativePaths = randomValueOtherThan(relativePaths, () -> randomRelativePaths(size));
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedPredicate(
-            instance.source(),
-            path,
-            body,
-            inputs,
-            relativePaths,
-            outerInputs,
-            outers,
-            null,
-            instance.configuration()
-        );
+        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, null, instance.configuration());
     }
 
     public void testWriteToRefusesNodesWithoutNestedPredicates() throws IOException {
@@ -100,12 +80,6 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         );
     }
 
-    public void testRoundTripsAPredicateWithAnOuterExpression() throws IOException {
-        NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == CONCAT(id, \"x\")) | LIMIT 10");
-        assertThat(predicate.outers(), hasSize(1));
-        SerializationTestUtils.assertSerialization(predicate);
-    }
-
     public void testAQueryBuilderOfTheNodeThatPlansItIsNotSerialized() throws IOException {
         NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == \"a\") | LIMIT 10").withQueryBuilder(
             QueryBuilders.matchAllQuery()
@@ -120,15 +94,6 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         assertThat(copy.path(), equalTo(predicate.path()));
         assertThat(copy.inputs().size(), equalTo(predicate.inputs().size()));
         assertThat(copy.relativePaths(), equalTo(predicate.relativePaths()));
-    }
-
-    public void testWriteToRefusesNodesWithoutNestedPredicatesForAPredicateWithOuters() throws IOException {
-        NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == CONCAT(id, \"x\")) | LIMIT 10");
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersionUtils.randomVersionNotSupporting(NestedPredicate.VERSION));
-            IOException e = expectThrows(IOException.class, () -> predicate.writeTo(out));
-            assertThat(e.getMessage(), containsString("NESTED_ANY requires nested predicate transport support"));
-        }
     }
 
     public void testRoundTripsAPredicateOverTheCollection() throws IOException {
@@ -153,14 +118,6 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             inputs.add(randomReferenceAttribute(false));
         }
         return inputs;
-    }
-
-    private static List<Expression> randomOuters(int size) {
-        List<Expression> outers = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            outers.add(randomChild());
-        }
-        return outers;
     }
 
     private static List<String> randomRelativePaths(int size) {

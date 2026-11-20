@@ -94,22 +94,8 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             throw error(nested, "NESTED_ANY supports one nesting level");
         }
         Inputs inputs = inputs(nested, input, reads, schema);
-        Map<Expression, ReferenceAttribute> outers = new LinkedHashMap<>();
-        Expression bound = hoistOuter(body, reads.children().keySet(), outers).transformUp(
-            Attribute.class,
-            attribute -> inputs.replacement().getOrDefault(attribute.id(), attribute)
-        );
-        return new NestedPredicate(
-            nested.source(),
-            reads.path(),
-            bound,
-            inputs.channels(),
-            inputs.relativePaths(),
-            List.copyOf(outers.values()),
-            List.copyOf(outers.keySet()),
-            null,
-            configuration
-        );
+        Expression bound = body.transformUp(Attribute.class, attribute -> inputs.replacement().getOrDefault(attribute.id(), attribute));
+        return new NestedPredicate(nested.source(), reads.path(), bound, inputs.channels(), inputs.relativePaths(), null, configuration);
     }
 
     /** The private nested schema in the plan's output, by name, and the paths of the nested objects it describes. */
@@ -125,18 +111,14 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             }
             return new Schema(byName, paths);
         }
-
-        boolean underNestedPath(String name) {
-            return paths.stream().anyMatch(path -> name.equals(path) || name.startsWith(path + "."));
-        }
     }
 
     /** The nested path the predicate reads and the attributes of its body that read a child of it. */
     private record Reads(String path, Map<NameId, Attribute> children) {}
 
     /**
-     * Finds the attributes of {@code body} that read children of one nested object. Any other attribute is a parent column,
-     * unless its name is under a nested path: an unmapped name there keeps its meaning as a parent field, so it is not a child.
+     * Finds the attributes of {@code body} that read children of one nested object. The body holds only those: any other
+     * attribute is a parent column, or an unmapped name under a nested path, which keeps its meaning as a parent field.
      */
     private static Reads readChildren(NestedAny nested, Expression body, String collection, Schema schema) {
         Map<NameId, Attribute> attributes = new LinkedHashMap<>();
@@ -158,7 +140,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 }
                 path = scope.path();
                 children.put(attribute.id(), attribute);
-            } else if (schema.underNestedPath(attribute.name())) {
+            } else {
                 throw error(nested, "Field [" + attribute.name() + "] is outside the nested scope");
             }
         }
@@ -200,33 +182,6 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             }
         }
         return new Inputs(channels, relativePaths, replacement);
-    }
-
-    /**
-     * Replaces each maximal part of {@code expression} that reads parent columns and no child field with an attribute, and
-     * records the part. The predicate evaluates each part once per parent and gives every child that value.
-     */
-    private static Expression hoistOuter(Expression expression, Set<NameId> childIds, Map<Expression, ReferenceAttribute> outers) {
-        if (expression instanceof Attribute attribute && childIds.contains(attribute.id())) {
-            return expression;
-        }
-        if (expression.references().isEmpty() == false && expression.references().stream().noneMatch(a -> childIds.contains(a.id()))) {
-            ReferenceAttribute existing = outers.get(expression);
-            if (existing != null) {
-                return existing;
-            }
-            ReferenceAttribute outer = new ReferenceAttribute(
-                expression.source(),
-                "$$nested_any_outer$" + outers.size(),
-                expression.dataType()
-            );
-            outers.put(expression, outer);
-            return outer;
-        }
-        if (expression.children().isEmpty()) {
-            return expression;
-        }
-        return expression.replaceChildren(expression.children().stream().map(child -> hoistOuter(child, childIds, outers)).toList());
     }
 
     /** The named collection, or {@code null} when the predicate's fields name the path. */

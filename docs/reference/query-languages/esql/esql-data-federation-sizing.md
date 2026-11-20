@@ -36,7 +36,7 @@ What differs is the work of reading data that lives outside the cluster. A few s
 
 * **Schema inference.** Text files carry no description of their own columns, so {{es}} establishes one by [sampling rows](esql-data-federation-schema.md) from the dataset's files. This happens on the coordinating node at planning time, before any data is read, unless the dataset [specifies a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) with [`dynamic`](esql-data-federation-schema.md#mapping-properties) set to `false`. Its cost follows the number of columns rather than the size of the dataset, and because it falls on the coordinating node alone, adding data nodes does not divide it.
 * **Split distribution.** The files a query reads are divided into units of work called splits, sized by [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size), and those splits are distributed across the data nodes. How many a node reads at once follows its core count.
-* **Staging and decompression buffers.** {{es}} allocates memory to hold the data fetched from the object store, and further memory to decompress it and to parse it into the columnar form the query engine works on. A compressed split expands in memory before it can be read, so data that compresses well costs *more* heap per reader rather than less.
+* **Staging and decompression buffers.** {{es}} allocates memory to hold the data fetched from object storage, and further memory to decompress it and to parse it into the columnar form the query engine works on. A compressed split expands in memory before it can be read, so data that compresses well costs *more* heap per reader rather than less.
 
 The formats then diverge. Parquet carries its schema in the file footers, so no sampling is needed. It is read chunk by chunk: a reader takes one row group at a time and, within that group, fetches and decodes only the columns the query asks for. Both the bytes read and the work done therefore follow your projection rather than the width of the file, which means that narrowing a query with [`KEEP`](/reference/query-languages/esql/commands/keep.md) genuinely reads less.
 
@@ -97,7 +97,7 @@ CSV, TSV and NDJSON files do not describe their own columns, so {{es}} works the
 
 ### Increase read concurrency for more parallelism [read-concurrency]
 
-[`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) sets how many requests to the object store a node has outstanding at any moment. Its default is worked out from the node's core count.
+[`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) sets how many requests to object storage a node has outstanding at any moment. Its default is worked out from the node's core count.
 
 Raising it gives you more read parallelism. Raise the heap at the same time: every request in flight is holding data that is being staged and decompressed, so a node given more read concurrency and no more memory will trip a [circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). This is a [static setting](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), so the node has to be restarted before a change takes effect.
 
@@ -162,7 +162,7 @@ Because the figures on this page are starting points, the configuration you end 
 
 ### `circuit_breaking_exception` with `Data too large` [breaker]
 
-A circuit breaker has rejected the query because there is insufficient memory for the workload. Give the instance more memory, and raise the heap with it. If you add cores at the same time, scale the heap with those too, at 1 GB to 2 GB per core.
+A circuit breaker has rejected the query because there is insufficient memory for the workload. Give the node more memory, and raise the heap with it. If you add cores at the same time, scale the heap with those too, at 1 GB to 2 GB per core.
 
 On a text dataset, the usual cause is schema inference at planning time. [Specify a mapping](#declare-schema) with `dynamic` set to `false` first, which removes that cost instead of paying for it.
 

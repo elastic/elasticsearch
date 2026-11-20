@@ -843,13 +843,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
     public void testSettingsBlockUnmappedFields() throws IOException {
         for (UnmappedResolution resolution : UnmappedResolution.values()) {
-            EsqlQueryRequest request = parseEsqlQueryRequestSync("""
+            EsqlQueryRequest request = parseEsqlQueryRequestSync(Strings.format("""
                 {
                     "query": "FROM idx",
                     "settings": {
                         "unmapped_fields": "%s"
                     }
-                }""".formatted(resolution.settingValue()));
+                }""", resolution.settingValue()));
             assertEquals(resolution, request.get(QuerySettings.UNMAPPED_FIELDS));
         }
     }

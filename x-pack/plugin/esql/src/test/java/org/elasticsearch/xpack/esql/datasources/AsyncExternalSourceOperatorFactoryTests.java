@@ -6267,6 +6267,123 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
+    /**
+     * The three rails the width ITs never take. {@code FormatReadContext.Builder} defaults the width to
+     * {@link FormatReadContext#DEFAULT_MAX_EXTREMUM_BYTES}, so dropping a {@code .statsMaxExtremumBytes(…)} call
+     * reverts silently to a kilobyte rather than failing to compile, and every other test in this file passes
+     * that same default. Both integration tests register a glob, which routes through the multi-file rail; these
+     * cover the slice-queue leaf and the two split-less whole-file reads.
+     */
+    public void testTheConfiguredExtremumWidthReachesTheSliceQueueLeaf() throws Exception {
+        WidthCapturingReader reader = new WidthCapturingReader(false);
+        FileSplit split = new FileSplit("test", StoragePath.of("s3://bucket/whole.ndjson"), 0, 1024, "ndjson", Map.of(), Map.of());
+
+        AsyncExternalSourceOperatorFactory factory = widthFactory(reader, StoragePath.of("s3://bucket/whole.ndjson")).sliceQueue(
+            new ExternalSliceQueue(List.of(split))
+        ).build();
+
+        drainWidthFactory(factory);
+
+        assertEquals(1, reader.contexts.size());
+        assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    public void testTheConfiguredExtremumWidthReachesTheNativeAsyncWholeFileRead() throws Exception {
+        WidthCapturingReader reader = new WidthCapturingReader(true);
+
+        drainWidthFactory(widthFactory(reader, StoragePath.of("s3://bucket/whole.test")).build());
+
+        assertEquals(1, reader.contexts.size());
+        assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    public void testTheConfiguredExtremumWidthReachesTheSyncWrapperWholeFileRead() throws Exception {
+        WidthCapturingReader reader = new WidthCapturingReader(false);
+
+        drainWidthFactory(widthFactory(reader, StoragePath.of("s3://bucket/whole.test")).build());
+
+        assertEquals(1, reader.contexts.size());
+        assertEquals(NARROW_EXTREMUM_WIDTH, reader.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    /** Nothing like the 1 KB default, so a dropped forward cannot pass for a wired one. */
+    private static final int NARROW_EXTREMUM_WIDTH = 64;
+
+    private static AsyncExternalSourceOperatorFactory.Builder widthFactory(FormatReader reader, StoragePath path) {
+        return AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            reader,
+            path,
+            List.of(attr("value", DataType.INTEGER)),
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).statsMaxExtremumBytes(NARROW_EXTREMUM_WIDTH);
+    }
+
+    private static void drainWidthFactory(AsyncExternalSourceOperatorFactory factory) throws Exception {
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        SourceOperator operator = factory.get(driverContext);
+        try {
+            while (operator.isFinished() == false) {
+                Page page = operator.getOutput();
+                if (page != null) {
+                    page.releaseBlocks();
+                }
+            }
+        } finally {
+            operator.close();
+        }
+    }
+
+    /** Records every {@link FormatReadContext} a rail hands it, and reports the native-async mode that rail needs. */
+    private static class WidthCapturingReader implements NoConfigFormatReader {
+        private final List<FormatReadContext> contexts = new ArrayList<>();
+        private final boolean nativeAsync;
+
+        WidthCapturingReader(boolean nativeAsync) {
+            this.nativeAsync = nativeAsync;
+        }
+
+        @Override
+        public RowPositionStrategy rowPositionStrategy() {
+            return PassThroughRowPositionStrategy.INSTANCE;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            contexts.add(context);
+            return emptyIterator();
+        }
+
+        @Override
+        public boolean supportsNativeAsync() {
+            return nativeAsync;
+        }
+
+        @Override
+        public String formatName() {
+            return "test-width";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".test");
+        }
+
+        @Override
+        public void close() {}
+    }
+
     private static class LatchedPageReader implements NoConfigFormatReader {
         private final AtomicInteger readCount;
         private final CountDownLatch entered;

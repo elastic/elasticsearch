@@ -679,13 +679,7 @@ public class StripeStatsStagingTests extends ESTestCase {
     @Nullable
     private Object stagedMin(int maxExtremumBytes) {
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
-        StripeStatsHarvester harvester = new StripeStatsHarvester(1024, true, new StripeStatsStaging(sink), maxExtremumBytes);
-        StripeStatsHarvester.StripeAccum accum = harvester.getOrCreate(harvester.ordinalOf(0));
-        accum.rows++;
-        accum.cols = ColumnStatsAccumulator.forProjectedAttributes(SCHEMA.toArray(new Attribute[0]));
-        accum.cols.acceptLongAt(0, 1L);
-        accum.cols.acceptBytesRefAt(1, new BytesRef("alpha"));
-        harvester.emit(PATH, 0, 1024, MTIME, FINGERPRINT, READ_CONFIG, true, SCHEMA);
+        piece(new StripeStatsStaging(sink), maxExtremumBytes, true, 0, 1024, new BytesRef("alpha"));
 
         Map<String, Object> record = staged(sink).get(0);
         assertEquals(

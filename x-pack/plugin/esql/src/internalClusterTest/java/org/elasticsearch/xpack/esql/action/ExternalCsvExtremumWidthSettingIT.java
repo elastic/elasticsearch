@@ -145,6 +145,7 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
             )
         ) {
             List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
             assertThat(rows.get(0).get(0), equalTo(0));
             assertThat("a numeric extremum is served warm, so the record is cached", response.documentsFound(), equalTo(0L));
         }
@@ -156,6 +157,7 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
             )
         ) {
             List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
             assertThat("the answer is still correct, by scanning", rows.get(0).get(0), equalTo(expectedTagMin));
             assertThat("the answer is still correct, by scanning", rows.get(0).get(1), equalTo(expectedTagMax));
             assertThat(

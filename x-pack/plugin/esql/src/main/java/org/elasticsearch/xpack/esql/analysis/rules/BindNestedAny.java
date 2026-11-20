@@ -169,12 +169,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 throw error(nested, "NESTED_ANY requires a predicate over nested fields, not [" + publicName(read) + "]");
             }
             if (NestedRowChecks.fromLookupIndex(input, read.id())) {
-                throw error(
-                    nested,
-                    "NESTED_ANY cannot read ["
-                        + publicName(read)
-                        + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
-                );
+                throw lookupError(nested, publicName(read));
             }
             relativePaths.add(read.name().substring(NestedScopeField.PREFIX.length() + reads.path().length() + 1));
             if (field.field() instanceof UnionTypeEsField) {
@@ -198,10 +193,13 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
             && field.field() instanceof NestedScopeField scope
             && scope.kind() == NestedScopeField.Kind.COLLECTION) {
             if (scope.conflict() != null) {
-                throw error(nested, "NESTED_ANY cannot read [" + publicName(field) + "]: " + scope.conflict());
+                throw error(nested, "NESTED_ANY cannot read [" + scope.path() + "]: " + scope.conflict());
             }
             if (replacedByColumn(input.output(), scope.path())) {
                 throw error(nested, "NESTED_ANY cannot use [" + scope.path() + "]: a column of that name replaces it here");
+            }
+            if (NestedRowChecks.fromLookupIndex(input, field.id())) {
+                throw lookupError(nested, scope.path());
             }
             return scope.path();
         }
@@ -279,6 +277,13 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
 
     private static String publicName(FieldAttribute field) {
         return field.name().substring(NestedScopeField.PREFIX.length());
+    }
+
+    private static VerificationException lookupError(NestedAny nested, String name) {
+        return error(
+            nested,
+            "NESTED_ANY cannot read [" + name + "] from a LOOKUP JOIN index; that index's documents are not the rows being read"
+        );
     }
 
     private static VerificationException error(Expression expression, String message) {

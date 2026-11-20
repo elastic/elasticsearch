@@ -320,6 +320,13 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
+    public void testNamedCollectionOfALookupIndexIsRejected() {
+        nestedAnalyzer().error(
+            "FROM ne_orders | LOOKUP JOIN ne_lookup ON id | WHERE NESTED_ANY(items, true)",
+            containsString("NESTED_ANY cannot read [items] from a LOOKUP JOIN index")
+        );
+    }
+
     public void testCollectionOfTheDrivingIndexAfterALookupJoin() {
         LogicalPlan plan = nestedAnalyzer().query("FROM ne | LOOKUP JOIN ne_lookup_note ON id | WHERE NESTED_ANY(items.sku == \"a\")");
         assertThat(predicate(plan).path(), equalTo("items"));

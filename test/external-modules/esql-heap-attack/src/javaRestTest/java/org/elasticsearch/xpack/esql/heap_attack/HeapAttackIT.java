@@ -609,9 +609,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyBigFields() throws IOException {
-        initManyBigFieldsIndex(500, "keyword", false, 1000);
-        // 500 docs is plenty to circuit break on most nodes
-        assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
+        // 500 docs is plenty to circuit break on a 512mb heap
+        int docs = scaleToHeap(500);
+        initManyBigFieldsIndex(docs, "keyword", false, 1000);
+        assertCircuitBreaks(attempt -> fetchManyBigFields(docs));
     }
 
     /**

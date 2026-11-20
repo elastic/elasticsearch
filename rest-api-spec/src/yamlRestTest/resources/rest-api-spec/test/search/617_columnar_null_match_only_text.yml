@@ -215,6 +215,10 @@ exists matches only documents with a non-null value on a match_only_text field a
 
 ---
 exists hits, size 0 total and count agree on a match_only_text field after a deletion:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      reason: "the exists total takes the term count and is lower than the hits when the deleted document does not keep the segment from the count shortcut"
+
   - do:
       delete:
         index: test

@@ -197,7 +197,7 @@ public final class ExternalSourceCacheSettings {
      * <p>
      * This is a <em>working-set</em> LRU, not a function of
      * {@link org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings#MAX_DISCOVERED_FILES}
-     * (heap-derived default, up to 1M allowed). The
+     * (heap-derived default, up to 10M allowed). The
      * weigher is {@code byte[].length} only — a few KiB of uncounted object overhead per entry at
      * capacity is fine; do not size this so the cache would admit on the order of a million
      * entries. 0.5% of an 8 GB heap is ~41 MiB, enough for a typical working set of tiny-file

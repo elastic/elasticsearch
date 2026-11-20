@@ -367,23 +367,16 @@ public final class ExternalSourceSettings {
     static final int MIN_DISCOVERED_FILES_DEFAULT = 25_000;
 
     /**
-     * Ceiling of the heap-derived default. Below the setting max so a large-heap node still refuses a
-     * degenerate glob before a million LIST pages and a million shipped splits. Operators can raise the
-     * setting up to {@link #MAX_DISCOVERED_FILES_LIMIT}.
+     * Ceiling of the heap-derived default and the setting's max. Degenerate globs that visit more keys
+     * than they keep still hit {@link #MAX_LISTED_OBJECTS} first (default 1,000,000). This bound is the
+     * kept-file / planning cap.
      */
-    static final int MAX_DISCOVERED_FILES_DEFAULT = 200_000;
-
-    /**
-     * Max of the setting. An explicit override may go here; the derived default stops at
-     * {@link #MAX_DISCOVERED_FILES_DEFAULT}.
-     */
-    static final int MAX_DISCOVERED_FILES_LIMIT = 1_000_000;
+    static final int MAX_DISCOVERED_FILES_LIMIT = 10_000_000;
 
     /**
      * Share of max heap one query's discovered-file planning may occupy when the operator has not set
-     * {@link #MAX_DISCOVERED_FILES}. 15% of heap is 25% of the default request breaker (60%). The
-     * {@link #MAX_DISCOVERED_FILES_DEFAULT} ceiling binds first on heaps above about 1.5 GiB, so prod
-     * nodes stay at 200k rather than spending 15% of a large heap on one listing.
+     * {@link #MAX_DISCOVERED_FILES}. 15% of heap is 25% of the default request breaker (60%), so a listing
+     * at the derived cap stays under the breaker and a second cap-sized query can still run.
      */
     static final int DISCOVERED_FILES_HEAP_PERCENT = 15;
 
@@ -394,8 +387,7 @@ public final class ExternalSourceSettings {
      * {@link Phase2Reservation#VIEW_BYTES} when both map layers are live (~0.7 KiB extra at one
      * per-file key), so a Hive listing at the cap sits closer to 25% of heap than 15%. Compact
      * listings weigh less live; the breaker keeps this floor, so the file-count 400 fires before a
-     * mid-planning circuit break. The derived-default ceiling bounds LIST pages and shipped splits
-     * the breaker does not.
+     * mid-planning circuit break.
      */
     static final long PLANNING_BYTES_PER_DISCOVERED_FILE = FileList.LISTING_BYTES_PER_ENTRY
         + ExternalSourceResolver.SCHEMA_MAP_BYTES_PER_FILE + Phase2Reservation.SHELL_BYTES;
@@ -403,7 +395,7 @@ public final class ExternalSourceSettings {
     /**
      * Default {@link #MAX_DISCOVERED_FILES} from max heap: 15% of heap divided by
      * {@link #PLANNING_BYTES_PER_DISCOVERED_FILE}, clamped to
-     * [{@value #MIN_DISCOVERED_FILES_DEFAULT}, {@value #MAX_DISCOVERED_FILES_DEFAULT}].
+     * [{@value #MIN_DISCOVERED_FILES_DEFAULT}, {@value #MAX_DISCOVERED_FILES_LIMIT}].
      * Heap {@code <= 0} (tests, misreported JVM) yields the floor.
      */
     public static int defaultMaxDiscoveredFiles(long heapBytes) {
@@ -414,8 +406,8 @@ public final class ExternalSourceSettings {
         if (raw < MIN_DISCOVERED_FILES_DEFAULT) {
             return MIN_DISCOVERED_FILES_DEFAULT;
         }
-        if (raw > MAX_DISCOVERED_FILES_DEFAULT) {
-            return MAX_DISCOVERED_FILES_DEFAULT;
+        if (raw > MAX_DISCOVERED_FILES_LIMIT) {
+            return MAX_DISCOVERED_FILES_LIMIT;
         }
         return (int) raw;
     }
@@ -427,11 +419,10 @@ public final class ExternalSourceSettings {
      * The default is {@link #defaultMaxDiscoveredFiles(long)} rather than a fixed literal:
      * {@value #DISCOVERED_FILES_HEAP_PERCENT}% of the node's max heap divided by the per-file planning
      * charge (listing floor + schema-map + phase-2 shell), clamped to
-     * [{@value #MIN_DISCOVERED_FILES_DEFAULT}, {@value #MAX_DISCOVERED_FILES_DEFAULT}].
-     * An explicit value overrides the formula and is not clipped by heap, up to
-     * {@value #MAX_DISCOVERED_FILES_LIMIT}; planning memory for the kept files is charged to the
-     * request breaker, so a cap the node cannot hold fails with a circuit-breaking exception instead
-     * of exhausting the heap.
+     * [{@value #MIN_DISCOVERED_FILES_DEFAULT}, {@value #MAX_DISCOVERED_FILES_LIMIT}].
+     * An explicit value overrides the formula and is not clipped by heap; planning memory for the kept
+     * files is charged to the request breaker, so a cap the node cannot hold fails with a
+     * circuit-breaking exception instead of exhausting the heap.
      */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
         "esql.external.max_discovered_files",

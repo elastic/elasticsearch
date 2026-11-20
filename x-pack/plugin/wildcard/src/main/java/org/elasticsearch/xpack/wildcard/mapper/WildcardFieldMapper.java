@@ -552,7 +552,7 @@ public class WildcardFieldMapper extends FieldMapper {
             RegExp ngramRegex = new RegExp(addLineEndChars(value), syntaxFlags, matchFlags);
             QueryNgrams ngrams = (matchFlags & CASE_INSENSITIVE_MATCH_FLAGS) != 0 ? caseInsensitiveNgrams : caseSensitiveNgrams;
 
-            Query approxBooleanQuery = toApproximationQuery(ngramRegex, ngrams.caseInsensitive());
+            Query approxBooleanQuery = toApproximationQuery(ngramRegex, ngrams);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery, ngrams);
 
             // We can accelerate execution with the ngram query
@@ -578,27 +578,26 @@ public class WildcardFieldMapper extends FieldMapper {
         // * If an expression resolves to a RegExpQuery eg ?? then only the verification
         // query is run.
         // * Anything else is a concrete query that should be run on the ngram index.
-        // A case-insensitive expression keeps its leaf text as written, because lowercasing it here would lose case variants
-        // that only become visible once the text is broken into ngrams by rewriteBoolToNgramQuery.
-        private static Query toApproximationQuery(RegExp r, boolean caseInsensitive) throws IllegalArgumentException {
+        // Literal text is normalized by the given ngrams, so that equivalent alternatives merge and adjacent text can be joined.
+        private static Query toApproximationQuery(RegExp r, QueryNgrams ngrams) throws IllegalArgumentException {
             Query result = null;
             switch (r.kind) {
                 case REGEXP_CHAR_CLASS:
-                    result = createCharacterClassQuery(r, caseInsensitive);
+                    result = createCharacterClassQuery(r, ngrams);
                     break;
                 case REGEXP_UNION:
-                    result = createUnionQuery(r, caseInsensitive);
+                    result = createUnionQuery(r, ngrams);
                     break;
                 case REGEXP_CONCATENATION:
-                    result = createConcatenationQuery(r, caseInsensitive);
+                    result = createConcatenationQuery(r, ngrams);
                     break;
                 case REGEXP_STRING:
-                    String normalizedString = caseInsensitive ? r.s : toLowerCase(r.s);
+                    String normalizedString = ngrams.normalizeLeaf(r.s);
                     result = new TermQuery(new Term("", normalizedString));
                     break;
                 case REGEXP_CHAR:
                     String cs = Character.toString(r.c);
-                    String normalizedChar = caseInsensitive ? cs : toLowerCase(cs);
+                    String normalizedChar = ngrams.normalizeLeaf(cs);
                     result = new TermQuery(new Term("", normalizedChar));
                     break;
                 case REGEXP_REPEAT:
@@ -608,7 +607,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_REPEAT_MIN:
                 case REGEXP_REPEAT_MINMAX:
                     if (r.min > 0) {
-                        result = toApproximationQuery(r.exp1, caseInsensitive);
+                        result = toApproximationQuery(r.exp1, ngrams);
                         if (result instanceof TermQuery) {
                             // Wrap the repeating expression so that it is not concatenated by a parent which concatenates
                             // plain TermQuery objects together. Boolean queries are interpreted as a black box and not
@@ -644,11 +643,11 @@ public class WildcardFieldMapper extends FieldMapper {
             return result;
         }
 
-        private static Query createConcatenationQuery(RegExp r, boolean caseInsensitive) {
+        private static Query createConcatenationQuery(RegExp r, QueryNgrams ngrams) {
             // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
             ArrayList<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, caseInsensitive, queries);
-            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, caseInsensitive, queries);
+            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, ngrams, queries);
+            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, ngrams, queries);
             BooleanQuery.Builder bAnd = new BooleanQuery.Builder();
             StringBuilder sequence = new StringBuilder();
             for (Query query : queries) {
@@ -674,50 +673,34 @@ public class WildcardFieldMapper extends FieldMapper {
 
         }
 
-        private static Query createCharacterClassQuery(RegExp r, boolean caseInsensitive) {
+        private static Query createCharacterClassQuery(RegExp r, QueryNgrams ngrams) {
             // TODO: consider expanding this to allow for character ranges as well (need additional tests and performance eval)
             List<Query> queries = new ArrayList<>();
-            if (caseInsensitive && isCaseVariantsOfFirst(r)) {
-                // Case-insensitive parsing turns a character into a class of its case variants, e.g. [Pp], listing each variant once
-                // per character written, so check this before the size limit. Reduce it back to the character so it can be
-                // concatenated with its neighbours; its variants are restored when it is broken into ngrams.
-                return new TermQuery(new Term("", Character.toString(r.from[0])));
-            }
-            if (r.from.length > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                return Queries.ALL_DOCS_INSTANCE;
-            }
             for (int i = 0; i < r.from.length; i++) {
                 // only handle character classes for now not ranges
                 if (r.from[i] == r.to[i]) {
                     String cs = Character.toString(r.from[i]);
-                    String normalizedChar = caseInsensitive ? cs : toLowerCase(cs);
+                    String normalizedChar = ngrams.normalizeLeaf(cs);
                     queries.add(new TermQuery(new Term("", normalizedChar)));
                 } else {
                     // immediately exit because we can't currently optimize a combination of range and classes
                     return Queries.ALL_DOCS_INSTANCE;
                 }
             }
+            // Case-insensitive parsing lists every case variant of each character written, e.g. [Pp] as [PpPp], so count the
+            // distinct characters they normalize to. Case-sensitive classes keep counting the characters as written.
+            int classSize = ngrams.caseInsensitive() ? new HashSet<>(queries).size() : r.from.length;
+            if (classSize > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                return Queries.ALL_DOCS_INSTANCE;
+            }
             return formQuery(queries);
         }
 
-        private static boolean isCaseVariantsOfFirst(RegExp charClass) {
-            if (charClass.from.length == 0) {
-                return false;
-            }
-            CharacterRunAutomaton variants = new CharacterRunAutomaton(Automata.makeCaseInsensitiveChar(charClass.from[0]));
-            for (int i = 0; i < charClass.from.length; i++) {
-                if (charClass.from[i] != charClass.to[i] || variants.run(Character.toString(charClass.from[i])) == false) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private static Query createUnionQuery(RegExp r, boolean caseInsensitive) {
+        private static Query createUnionQuery(RegExp r, QueryNgrams ngrams) {
             // Create an OR of clauses
             List<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, caseInsensitive, queries);
-            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, caseInsensitive, queries);
+            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, ngrams, queries);
+            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, ngrams, queries);
             return formQuery(queries);
         }
 
@@ -747,14 +730,14 @@ public class WildcardFieldMapper extends FieldMapper {
         private static void findLeaves(
             RegExp exp,
             org.apache.lucene.util.automaton.RegExp.Kind kind,
-            boolean caseInsensitive,
+            QueryNgrams ngrams,
             List<Query> queries
         ) {
             if (exp.kind == kind) {
-                findLeaves(exp.exp1, kind, caseInsensitive, queries);
-                findLeaves(exp.exp2, kind, caseInsensitive, queries);
+                findLeaves(exp.exp1, kind, ngrams, queries);
+                findLeaves(exp.exp2, kind, ngrams, queries);
             } else {
-                queries.add(toApproximationQuery(exp, caseInsensitive));
+                queries.add(toApproximationQuery(exp, ngrams));
             }
         }
 
@@ -858,6 +841,12 @@ public class WildcardFieldMapper extends FieldMapper {
         interface QueryNgrams {
             void addTokens(Set<Set<String>> tokens, String fragment);
 
+            /**
+             * Normalizes literal text of a regular expression before it is assembled into an approximation, so that alternatives
+             * matching the same ngrams merge into one and adjacent literals can be joined into longer text.
+             */
+            String normalizeLeaf(String text);
+
             boolean caseInsensitive();
         }
 
@@ -873,6 +862,11 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             @Override
+            public String normalizeLeaf(String text) {
+                return toLowerCase(text);
+            }
+
+            @Override
             public boolean caseInsensitive() {
                 return false;
             }
@@ -884,11 +878,20 @@ public class WildcardFieldMapper extends FieldMapper {
          */
         Set<String> caseVariantForms(int codePoint) {
             Set<String> forms = new LinkedHashSet<>();
-            FiniteStringsIterator variants = new FiniteStringsIterator(Automata.makeCaseInsensitiveChar(codePoint));
-            for (IntsRef variant = variants.next(); variant != null; variant = variants.next()) {
-                forms.add(normalizeFragment(new String(variant.ints, variant.offset, variant.length)));
+            for (int variant : caseVariants(codePoint)) {
+                forms.add(normalizeFragment(Character.toString(variant)));
             }
             return forms;
+        }
+
+        /** Every character Lucene matches with the given one case-insensitively, including itself. */
+        static List<Integer> caseVariants(int codePoint) {
+            List<Integer> variants = new ArrayList<>();
+            FiniteStringsIterator iterator = new FiniteStringsIterator(Automata.makeCaseInsensitiveChar(codePoint));
+            for (IntsRef variant = iterator.next(); variant != null; variant = iterator.next()) {
+                variants.add(variant.ints[variant.offset]);
+            }
+            return variants;
         }
 
         /**
@@ -909,6 +912,39 @@ public class WildcardFieldMapper extends FieldMapper {
             @Override
             public boolean caseInsensitive() {
                 return true;
+            }
+
+            /**
+             * Replaces each character with a canonical one, so that text differing only in case, like {@code Foo} and
+             * {@code foo}, becomes identical. Expanding the canonical text gives the same ngram forms as the original.
+             */
+            @Override
+            public String normalizeLeaf(String text) {
+                StringBuilder canonical = new StringBuilder(text.length());
+                text.codePoints().forEach(codePoint -> canonical.appendCodePoint(canonicalCodePoint(codePoint)));
+                return canonical.toString();
+            }
+
+            /**
+             * The lowest character reachable from the given one through case variants that all have its forms. Lucene's case
+             * variants are not symmetric, e.g. {@code i} matches {@code I} and {@code İ} matches {@code i} but {@code i} does not
+             * match {@code İ}, so following them transitively is what gives every such character the same canonical one.
+             */
+            private int canonicalCodePoint(int codePoint) {
+                Set<String> forms = caseVariantForms(codePoint);
+                Set<Integer> reached = new HashSet<>(List.of(codePoint));
+                List<Integer> toVisit = new ArrayList<>(List.of(codePoint));
+                int canonical = codePoint;
+                while (toVisit.isEmpty() == false) {
+                    for (int variant : caseVariants(toVisit.removeLast())) {
+                        if (reached.contains(variant) == false && caseVariantForms(variant).equals(forms)) {
+                            reached.add(variant);
+                            toVisit.add(variant);
+                            canonical = Math.min(canonical, variant);
+                        }
+                    }
+                }
+                return canonical;
             }
 
             /**

@@ -50,11 +50,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.apache.lucene.util.automaton.FiniteStringsIterator;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.action.index.IndexRequest;
@@ -722,23 +719,48 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
     /**
      * A case-insensitive query looks each ngram up with a single clause however many forms it has, so it must not count more
-     * clauses towards the boolean clause limit than the same query run case-sensitively. A long regexp literal is the worst
-     * case, as nothing caps how many ngrams it is broken into.
+     * clauses towards the boolean clause limit than the same query run case-sensitively. Long regexp literals are one worst case,
+     * as nothing caps how many ngrams a literal is broken into. A union of alternatives that differ only in case is another, as
+     * nothing caps how many alternatives a union keeps either: lowercasing merges them when case-sensitive, so case-insensitive
+     * approximation must merge them too rather than keep a branch for each.
      */
     public void testCaseInsensitiveQueryDoesNotAddClauses() {
         List<Integer> alphabet = new ArrayList<>(List.of((int) 'a', (int) 'b', (int) 's', (int) 'S', (int) ' '));
         for (int codePoint : randomSubsetOf(3, CaseVariantCodePoints.LOWERCASE_DIFFERENTLY)) {
             alphabet.addAll(caseVariants(codePoint));
         }
-        String literal = randomString(alphabet, 200);
-        String regexp = ".*\"" + literal + "\".*";
+        assertCaseInsensitiveDoesNotAddClauses(".*\"" + randomString(alphabet, 200) + "\".*");
+
+        // Dotted capital I and the Kelvin sign lowercase like i and k, but are case variants of them in one direction only
+        List<Integer> unionAlphabet = List.of((int) 'a', (int) 'b', (int) 's', (int) 'i', 0x0130, (int) 'k', 0x212A, (int) ' ');
+        String word = randomString(unionAlphabet, 30);
+        List<String> alternatives = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            alternatives.add("\"" + randomVariantLowercasingTheSame(word) + "\"");
+        }
+        assertCaseInsensitiveDoesNotAddClauses("(" + String.join("|", alternatives) + ")");
+    }
+
+    /** Replaces characters with case variants that lowercase to the same character, e.g. {@code i} with {@code I} or {@code İ}. */
+    private static String randomVariantLowercasingTheSame(String text) {
+        StringBuilder variant = new StringBuilder();
+        text.codePoints().forEach(codePoint -> {
+            List<Integer> sameLowercase = caseVariants(codePoint).stream()
+                .filter(v -> Character.toLowerCase(v) == Character.toLowerCase(codePoint))
+                .toList();
+            variant.appendCodePoint(randomFrom(sameLowercase));
+        });
+        return variant.toString();
+    }
+
+    private void assertCaseInsensitiveDoesNotAddClauses(String regexp) {
         MappedFieldType wc = wildcardFieldType.fieldType();
         Query caseSensitive = wc.regexpQuery(regexp, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
         Query caseInsensitive = wc.regexpQuery(regexp, RegExp.ALL, RegExp.CASE_INSENSITIVE, 20000, null, MOCK_CONTEXT);
         int caseSensitiveClauses = countClauses(((BinaryDvConfirmedQuery) caseSensitive).getApproximationQuery());
         int caseInsensitiveClauses = countClauses(((BinaryDvConfirmedQuery) caseInsensitive).getApproximationQuery());
-        assertThat(caseSensitiveClauses, greaterThan(0));
-        assertThat(caseInsensitiveClauses, lessThanOrEqualTo(caseSensitiveClauses));
+        assertThat(regexp, caseSensitiveClauses, greaterThan(0));
+        assertThat(regexp, caseInsensitiveClauses, lessThanOrEqualTo(caseSensitiveClauses));
     }
 
     /** Counts clauses the way the boolean clause limit does, see {@code MaxClauseCountQueryVisitor}. */
@@ -831,18 +853,24 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Appends a character to a regexp in one of the forms Lucene parses differently: quoted, bare, or as a single-character class,
-     * which case-insensitive parsing expands into a class of the character's case variants.
+     * Appends a character to a regexp in one of the forms Lucene parses differently: quoted, bare, as a single-character class,
+     * which case-insensitive parsing expands into a class of the character's case variants, or as a union with one of its case
+     * variants.
      */
     private static void appendRegexpLiteral(StringBuilder regexp, int codePoint) {
         if (Character.isLetterOrDigit(codePoint) == false) {
             regexp.append('"').appendCodePoint(codePoint).append('"');
             return;
         }
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> regexp.append('"').appendCodePoint(codePoint).append('"');
             case 1 -> regexp.appendCodePoint(codePoint);
             case 2 -> regexp.append('[').appendCodePoint(codePoint).append(']');
+            case 3 -> regexp.append("(\"")
+                .appendCodePoint(codePoint)
+                .append("\"|\"")
+                .appendCodePoint(randomFrom(caseVariants(codePoint)))
+                .append("\")");
             default -> throw new AssertionError();
         }
     }
@@ -912,14 +940,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
     }
 
-    /** The characters Lucene matches case-insensitively for the given one, including itself. */
     private static List<Integer> caseVariants(int codePoint) {
-        List<Integer> variants = new ArrayList<>();
-        FiniteStringsIterator iterator = new FiniteStringsIterator(Automata.makeCaseInsensitiveChar(codePoint));
-        for (IntsRef variant = iterator.next(); variant != null; variant = iterator.next()) {
-            variants.add(variant.ints[variant.offset]);
-        }
-        return variants;
+        return WildcardFieldMapper.WildcardFieldType.caseVariants(codePoint);
     }
 
     private static String randomCaseVariant(String text) {
@@ -1061,6 +1083,28 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         // Case-insensitive parsing expands each class of case variants, so make sure they still join into contiguous ngrams:
         // case-insensitively, [Pp][Oo][Ww][Ee][Rr] should be accelerated just like the case-sensitive power
+        // Likewise alternatives that differ only in case should merge and join their neighbours, as they do case-sensitively
+        String caseVariantAlternatives = "(Foo|foo)bar";
+        testExpectedAccelerationQuery(
+            caseVariantAlternatives,
+            wildcardFieldType.fieldType()
+                .regexpQuery(caseVariantAlternatives, RegExp.ALL, RegExp.CASE_INSENSITIVE, 20000, null, MOCK_CONTEXT),
+            getSimplifiedApproximationQuery(
+                ((BinaryDvConfirmedQuery) wildcardFieldType.fieldType().regexpQuery("foobar", RegExp.ALL, 0, 20000, null, MOCK_CONTEXT))
+                    .getApproximationQuery()
+            )
+        );
+        // Case-insensitive parsing lists every case variant of each character in a class, here 16 entries for 4 characters that
+        // are all variants of each other, so the class must not count as too large to represent
+        MappedFieldType wc = wildcardFieldType.fieldType();
+        testExpectedAccelerationQuery(
+            "[\u03B8\u0398\u03D1\u03F4]ower",
+            wc.regexpQuery("[\u03B8\u0398\u03D1\u03F4]ower", RegExp.ALL, RegExp.CASE_INSENSITIVE, 20000, null, MOCK_CONTEXT),
+            getSimplifiedApproximationQuery(
+                ((BinaryDvConfirmedQuery) wc.regexpQuery("\u03B8ower", RegExp.ALL, RegExp.CASE_INSENSITIVE, 20000, null, MOCK_CONTEXT))
+                    .getApproximationQuery()
+            )
+        );
         String caseVariantClasses = "[Pp][Oo][Ww][Ee][Rr]";
         testExpectedAccelerationQuery(
             caseVariantClasses,

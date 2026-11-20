@@ -18,6 +18,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -67,10 +68,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -223,15 +226,15 @@ public class WildcardCaseInsensitiveQueryBenchmark {
         long totalTerms = 0;
         long totalHits = 0;
         for (int i = 0; i < queries.size(); i++) {
-            int expected = searcher.count(keywordQueries.get(i));
-            int actual = searcher.count(queries.get(i));
-            if (expected != actual) {
+            Set<Integer> expected = matchingDocs(keywordQueries.get(i));
+            Set<Integer> actual = matchingDocs(queries.get(i));
+            if (expected.equals(actual) == false) {
                 throw new AssertionError(
-                    "[" + queryTexts.get(i) + "] found [" + actual + "] documents on the wildcard field but [" + expected + "] on keyword"
+                    "[" + queryTexts.get(i) + "] found documents " + actual + " on the wildcard field but " + expected + " on keyword"
                 );
             }
             totalTerms += countTerms(queries.get(i));
-            totalHits += actual;
+            totalHits += actual.size();
         }
         System.out.printf(
             Locale.ROOT,
@@ -242,6 +245,14 @@ public class WildcardCaseInsensitiveQueryBenchmark {
             (double) totalTerms / queries.size(),
             (double) totalHits / queries.size()
         );
+    }
+
+    private Set<Integer> matchingDocs(Query query) throws IOException {
+        Set<Integer> docs = new HashSet<>();
+        for (ScoreDoc hit : searcher.search(query, NUM_DOCS).scoreDocs) {
+            docs.add(hit.doc);
+        }
+        return docs;
     }
 
     private static long countTerms(Query query) {

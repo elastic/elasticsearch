@@ -127,6 +127,7 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         final List<String> events = new ArrayList<>();
         private final boolean failToBuildReporter;
         private final boolean failToStartReporter;
+        boolean failOnClose;
 
         RecordingPlugin(boolean failToBuildReporter, boolean failToStartReporter) {
             this.failToBuildReporter = failToBuildReporter;
@@ -144,6 +145,9 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                 @Override
                 public void close() {
                     events.add("publisher closed");
+                    if (failOnClose) {
+                        throw new IllegalStateException("publisher close failed");
+                    }
                 }
             };
         }
@@ -173,6 +177,9 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
                 @Override
                 public void close() {
                     events.add("reporter closed");
+                    if (failOnClose) {
+                        throw new IllegalStateException("reporter close failed");
+                    }
                 }
             };
         }
@@ -200,6 +207,18 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         createComponents(plugin, complete().build());
         assertThat(plugin.events, equalTo(List.of()));
         plugin.close();
+        assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
+    }
+
+    /** The failure of the final flush must stay visible when closing the publisher fails too. */
+    public void testCloseKeepsTheReporterFailureAndAttachesThePublisherFailure() throws Exception {
+        RecordingPlugin plugin = new RecordingPlugin(false, false);
+        createComponents(plugin, complete().build());
+        plugin.failOnClose = true;
+        Exception e = expectThrows(Exception.class, plugin::close);
+        assertThat(e.getMessage(), equalTo("reporter close failed"));
+        assertThat(e.getSuppressed().length, equalTo(1));
+        assertThat(e.getSuppressed()[0].getMessage(), equalTo("publisher close failed"));
         assertThat(plugin.events, equalTo(List.of("reporter closed", "publisher closed")));
     }
 

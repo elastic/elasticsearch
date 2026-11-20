@@ -160,7 +160,7 @@ public record UsageReportingSettings(
 
     /** An empty value counts as unset, as the SSL loader treats it. */
     private static boolean isSet(Settings settings, String key) {
-        return settings.get(key, "").isBlank() == false;
+        return settings.get(key, "").isEmpty() == false;
     }
 
     private static void addIfBlank(List<String> missing, Setting<String> setting, String value) {

@@ -148,6 +148,11 @@ public class UsageReportingSettingsTests extends ESTestCase {
             .put(UsageReportingSettings.SSL_PREFIX + ".key", "")
             .build();
         assertThat(UsageReportingSettings.of(emptyPair).problems(), hasSize(1));
+        // The loader treats a value with only whitespace as a file path, so it is set.
+        Settings whitespace = complete().put(UsageReportingSettings.SSL_PREFIX + ".certificate", " ")
+            .put(UsageReportingSettings.SSL_PREFIX + ".key", " ")
+            .build();
+        assertThat(UsageReportingSettings.of(whitespace).problems(), empty());
     }
 
     public void testUsableUrlsHaveNoProblem() {

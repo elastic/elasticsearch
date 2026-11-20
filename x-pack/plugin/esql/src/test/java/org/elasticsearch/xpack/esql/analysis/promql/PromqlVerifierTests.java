@@ -111,7 +111,7 @@ public class PromqlVerifierTests extends ESTestCase {
 
     public void testPromqlIllegalNameLabelMatcher() {
         tsdb.error(
-            "PROMQL index=test step=5m (avg({__name__=~\"*.foo.*\"}))",
+            "PROMQL index=test step=5m (avg({__name__=~\".*foo.*\"}))",
             containsString("regex label selectors on __name__ are not supported at this time")
         );
     }

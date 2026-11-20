@@ -132,7 +132,10 @@ public class LabelMatchers implements NodeStringRenderable {
             if (exact != null) {
                 condition = new Equals(source, field, Literal.keyword(source, exact));
             } else {
-                var fragments = AutomatonUtils.extractFragments(matcher.getFirstValue());
+                // the value of = and != is a literal, not a regex
+                var fragments = matcher.matcher().isRegex()
+                    ? AutomatonUtils.extractFragments(matcher.getFirstValue())
+                    : List.of(new AutomatonUtils.PatternFragment(AutomatonUtils.PatternFragment.Type.EXACT, matcher.getFirstValue()));
                 condition = fragments != null && fragments.isEmpty() == false
                     ? operatorFn(source, field, fragments)
                     // fallback: an RE2 regex match over the full pattern, anchored per PromQL semantics

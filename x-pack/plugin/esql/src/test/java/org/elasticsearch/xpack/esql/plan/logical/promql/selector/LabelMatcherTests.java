@@ -10,9 +10,16 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 import org.apache.lucene.tests.util.automaton.AutomatonTestUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2Like;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher.Matcher;
 
 import java.util.List;
@@ -221,6 +228,18 @@ public class LabelMatcherTests extends ESTestCase {
             InvalidArgumentException e = expectThrows(InvalidArgumentException.class, matcher::automaton);
             assertThat(e.getMessage(), startsWith("Invalid regular expression [" + regex + "]"));
         }
+    }
+
+    /** The value of {@code !=} is a literal, so regex metacharacters in it, as in {@code le!="+Inf"}, match themselves. */
+    public void testNegatedLiteralIsNotARegex() {
+        String value = randomFrom("+Inf", "*", "a(b", "[x", "a|b");
+        Expression condition = LabelMatchers.condition(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "le", DataType.KEYWORD),
+            new LabelMatcher("le", value, Matcher.NEQ)
+        );
+        assertFalse(condition.anyMatch(e -> e instanceof Re2Like));
+        assertTrue(condition.anyMatch(e -> e instanceof Literal literal && value.equals(BytesRefs.toString(literal.value()))));
     }
 
     public void testIsNegation() {

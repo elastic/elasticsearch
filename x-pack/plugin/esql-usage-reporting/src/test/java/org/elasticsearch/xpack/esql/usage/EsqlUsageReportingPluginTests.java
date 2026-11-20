@@ -266,6 +266,19 @@ public class EsqlUsageReportingPluginTests extends ESTestCase {
         }
     }
 
+    /** Every step of the release is attempted, an Error from the reporter's close included, which still propagates. */
+    public void testAnErrorClosingTheReporterAfterAFailedStartDoesNotSkipTheRest() throws Exception {
+        RecordingPlugin plugin = new RecordingPlugin(false, true);
+        LifecycleComponent component = lifecycleOf(
+            createComponents(plugin, complete().put(UsageReportingSettings.REPORT_EXEMPT.getKey(), true).build())
+        );
+        plugin.reporterCloseError = true;
+        expectThrows(AssertionError.class, component::start);
+        assertThat(plugin.events, equalTo(List.of("reporter started", "reporter closed", "publisher closed")));
+        assertThat(plugin.reportExempt(), is(false));
+        assertThat(plugin.accumulator(), sameInstance(NoopUsageAccumulator.INSTANCE));
+    }
+
     /** Whatever is thrown, an Error included, nothing owns the publisher yet, so it is closed. */
     public void testAnErrorWhileBuildingTheReporterClosesThePublisher() throws Exception {
         RecordingPlugin plugin = new RecordingPlugin(false, false);

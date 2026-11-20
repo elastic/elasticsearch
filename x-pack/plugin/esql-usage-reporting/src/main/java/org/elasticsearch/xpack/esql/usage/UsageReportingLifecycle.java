@@ -44,18 +44,31 @@ final class UsageReportingLifecycle extends AbstractLifecycleComponent {
             reporter.start();
         } catch (Exception e) {
             logger.error("usage reporting failed to start: it stays inactive and nothing is reported", e);
-            // Release at once: the node keeps serving, and nothing else would stop a partly started reporter before the shutdown.
+            releaseAfterFailedStart();
+        }
+    }
+
+    /**
+     * Release at once: the node keeps serving, and nothing else would stop a partly started reporter before the shutdown. Each step
+     * is attempted even if the one before it throws, an Error included, which still propagates.
+     */
+    private void releaseAfterFailedStart() {
+        try {
+            closeLoggingFailure(this::closeReporter, "reporter");
+        } finally {
             try {
-                closeReporter();
-            } catch (Exception closeFailure) {
-                logger.warn("failed to close the usage reporter after it failed to start", closeFailure);
+                closeLoggingFailure(this::closePublisher, "publisher");
+            } finally {
+                onStartFailure.run();
             }
-            try {
-                closePublisher();
-            } catch (Exception closeFailure) {
-                logger.warn("failed to close the usage publisher after the reporter failed to start", closeFailure);
-            }
-            onStartFailure.run();
+        }
+    }
+
+    private static void closeLoggingFailure(Runnable close, String what) {
+        try {
+            close.run();
+        } catch (Exception e) {
+            logger.warn("failed to close the usage {} after the reporter failed to start", what, e);
         }
     }
 

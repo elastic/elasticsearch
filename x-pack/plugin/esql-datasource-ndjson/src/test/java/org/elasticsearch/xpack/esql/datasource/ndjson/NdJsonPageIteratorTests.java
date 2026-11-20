@@ -549,6 +549,64 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * The discard warning this stream emits names the object, and the whole string is pinned rather than a
+     * fragment of it: {@code InformationalWarningBudget} deduplicates by exact string, so without the clause two
+     * objects in one glob that each lose an oversized line report it once between them and the second is silently
+     * dropped. A {@code containsString} on the byte count would pass with the clause gone again, which is the
+     * regression the clause exists to prevent.
+     */
+    public void testTheDiscardWarningNamesTheObject() throws IOException {
+        int maxRecordBytes = 8;
+        List<String> warnings = new ArrayList<>();
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream("aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8)),
+                4,
+                ErrorPolicy.LENIENT,
+                "input.ndjson",
+                new NdJsonRecordSplitter(maxRecordBytes),
+                warnings::add
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        assertThat(
+            warnings,
+            Matchers.contains(
+                "Line in [input.ndjson] exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; skipping it",
+                "about [10] bytes skipped in [input.ndjson]"
+            )
+        );
+    }
+
+    /**
+     * The same read with no object name available. The clause is rendered by
+     * {@code RowLocation.objectClause}, which drops the preposition with the name, so the message must read as a
+     * sentence rather than trail an " in" or an empty "[]" — the reason the lead-in travels with the name instead
+     * of being concatenated at each site.
+     */
+    public void testTheDiscardWarningOmitsTheClauseWithNoObjectName() throws IOException {
+        int maxRecordBytes = 8;
+        List<String> warnings = new ArrayList<>();
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream("aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8)),
+                4,
+                ErrorPolicy.LENIENT,
+                null,
+                new NdJsonRecordSplitter(maxRecordBytes),
+                warnings::add
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+        assertThat(
+            warnings,
+            Matchers.contains("Line exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; skipping it", "about [10] bytes skipped")
+        );
+    }
+
     public void testTrimLastPartialLineLenientDiscardsOversizedTailThroughDelimiter() throws IOException {
         byte[] payload = "ok\naaaaaaaaa\nnext\npartial".getBytes(StandardCharsets.UTF_8);
         try (

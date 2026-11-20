@@ -828,15 +828,15 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             // split says "within a split" over an ordinal that is in fact the file's: a weaker statement than
             // the truth, never a wrong one.
             //
-            // The two readers therefore disagree in one further cell, firstSplit=false with splitStartByte==0,
-            // where this prints no clause although skipFirstLine has discarded a leading record -- a wrong
-            // statement rather than a weak one. It is unreachable through FileSplitProvider.isFirstInFile,
-            // whose body is ("true".equals(config.get(FIRST_SPLIT_KEY)) || split.offset() == 0), so a split that
-            // is not first has a non-zero offset; that is an invariant of the producer, not of this reader, and
-            // the parallel-parsing coordinators were not re-verified against it. Closing it properly means
-            // giving NdJsonPageIterator the same long messageStartByte CsvBatchIterator takes instead of this
-            // boolean, which changes that constructor's contract and is sized with the rest of the row-ordinal
-            // work rather than carried here.
+            // The other cell they disagree in is firstSplit=false with splitStartByte==0, where CsvFormatReader
+            // withholds and this does not. The byte printed there is splitStartByte plus whatever skipFirstLine
+            // discarded, which the iterator folds into the decoder's message offset -- the file-global start of
+            // the first full record, so it is accurate, and sharper than CSV's, because a split beginning at
+            // byte zero IS the file's own start. The divergence therefore costs a weaker message in one cell and
+            // buys a stronger one in the other, and neither reader states a byte it does not mean. Unifying the
+            // two means giving NdJsonPageIterator the same long messageStartByte CsvBatchIterator takes instead
+            // of this boolean, which changes that constructor's contract; it is sized with the rest of the
+            // row-ordinal work rather than carried here, since no message is wrong without it.
             context.recordAligned() == false && context.splitStartByte() != 0L,
             context.readCounters() instanceof NdJsonReaderCounters c ? c : null,
             context.splitStartByte(),

@@ -209,10 +209,12 @@ public final class RowLocation {
      * are escaped, so the rule is "a bracket in a name is never a bracket in the message" rather than a rule about
      * which one happened to matter.
      * <p>
-     * Escaping is one-way, and the backslash is deliberately not escaped: escaping it would make this method's own
-     * output hold an escapable character, and {@link #of} applies this a second time over an already-reduced name
-     * — the idempotence {@code RowLocationTests} pins, so adding to the escaped set fails a test rather than
-     * silently double-escaping every bracketed name.
+     * Escaping is one-way, which is the limit of what this buys: a name literally holding the six characters of a
+     * bracket's escape renders exactly as one holding the bracket, so two names can still collapse to one token
+     * and one of their warnings can still be deduplicated away. Escaping the backslash as well would close that,
+     * and is declined, because this method's own output would then hold an escapable character while {@link #of}
+     * applies it a second time over an already-reduced name — the idempotence {@code RowLocationTests} pins, so
+     * adding to the escaped set fails a test rather than silently double-escaping every bracketed name.
      * <p>
      * Applied before the cap, so {@link #MAX_OBJECT_NAME_CHARS} bounds what is actually emitted: an escape is six
      * characters where the original was one, and capping first would let a name of them expand past the bound.

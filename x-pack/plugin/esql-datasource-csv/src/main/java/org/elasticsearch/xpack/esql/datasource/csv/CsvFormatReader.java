@@ -1958,9 +1958,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Infers a schema for a headerless sample, naming columns from {@code prefix}: counts the widest
      * sample row, synthesizes the names, and runs type inference. Pure on its inputs — does not touch
-     * the circuit breaker. Both call sites must guarantee {@code sampleRows} is non-empty and surface
-     * the user-facing "&lt;format&gt; file [object] has no data rows" {@link IOException} themselves;
-     * the assertion here is only a programmer-error guard.
+     * the circuit breaker. Both call sites must guarantee {@code sampleRows} is non-empty, and they
+     * answer an empty sample differently rather than sharing one contract: metadata inference throws
+     * the user-facing "&lt;format&gt; file [object] has no data rows" {@link IOException}, while the
+     * read path releases the sample and returns {@code null}, which ends the batch with no error
+     * because an empty split is not one. The assertion here is only a programmer-error guard.
      */
     static List<Attribute> inferSyntheticSchema(
         List<String[]> sampleRows,

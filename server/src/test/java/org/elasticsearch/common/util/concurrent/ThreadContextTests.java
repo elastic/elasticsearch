@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -856,6 +857,30 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testSerializeWritesCrossClusterAccessCredentialsFirst() throws IOException {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        ThreadContext threadContext = new ThreadContext(build);
+        final Map<String, String> expectedHeaders = new HashMap<>();
+        expectedHeaders.put("default", "1");
+        for (int i = 0; i < randomIntBetween(1, 20); i++) {
+            final String key = randomAlphaOfLength(10) + i;
+            final String value = randomAlphaOfLength(10);
+            threadContext.putHeader(key, value);
+            expectedHeaders.put(key, value);
+        }
+        threadContext.putHeader(ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER, "ApiKey abc");
+        expectedHeaders.put(ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER, "ApiKey abc");
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        threadContext.writeTo(out);
+        try (StreamInput in = out.bytes().streamInput()) {
+            assertEquals(expectedHeaders.size(), in.readVInt());
+            assertEquals(ThreadContext.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER, in.readString());
+            assertEquals("ApiKey abc", in.readString());
+        }
+        assertEquals(expectedHeaders, ThreadContext.readHeadersFromStream(out.bytes().streamInput()).v1());
     }
 
     public void testSerializeInDifferentContext() throws IOException {

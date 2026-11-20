@@ -680,6 +680,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         RemoteClusterPortSettings.TCP_REUSE_ADDRESS,
         RemoteClusterPortSettings.TCP_SEND_BUFFER_SIZE,
         RemoteClusterPortSettings.MAX_REQUEST_HEADER_SIZE,
+        RemoteClusterPortSettings.MAX_AUTHENTICATED_REQUEST_HEADER_SIZE,
         HealthPeriodicLogger.POLL_INTERVAL_SETTING,
         HealthPeriodicLogger.ENABLED_SETTING,
         HealthPeriodicLogger.OUTPUT_MODE_SETTING,

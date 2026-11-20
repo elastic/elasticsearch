@@ -79,6 +79,13 @@ import static org.elasticsearch.tasks.Task.HEADERS_TO_COPY;
 public final class ThreadContext implements Writeable {
 
     public static final String PREFIX = "request.headers";
+
+    /**
+     * The request header that {@link #writeTo} serializes before all others when present. The fulfilling cluster of a cross-cluster
+     * request reads it from the start of a transport header that exceeds {@code remote_cluster.max_request_header_size}, so it can
+     * authenticate the sender before accepting the rest of the header.
+     */
+    public static final String CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER = "_cross_cluster_access_credentials";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
 
     public enum HeadersFor {
@@ -1150,7 +1157,21 @@ public final class ThreadContext implements Writeable {
                 requestHeaders.putAll(this.requestHeaders);
             }
 
-            out.writeMap(requestHeaders, StreamOutput::writeString);
+            final String credentials = requestHeaders.get(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER);
+            if (credentials == null) {
+                out.writeMap(requestHeaders, StreamOutput::writeString);
+            } else {
+                // same wire format as writeMap, with the credentials as the first entry
+                out.writeVInt(requestHeaders.size());
+                out.writeString(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER);
+                out.writeString(credentials);
+                for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
+                    if (CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER.equals(entry.getKey()) == false) {
+                        out.writeString(entry.getKey());
+                        out.writeString(entry.getValue());
+                    }
+                }
+            }
             out.writeMap(responseHeaders, StreamOutput::writeStringCollection);
         }
     }

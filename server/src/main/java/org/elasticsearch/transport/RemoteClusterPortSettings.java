@@ -144,6 +144,17 @@ public class RemoteClusterPortSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The largest request header accepted on the remote cluster port from a sender whose cross-cluster credentials authenticate.
+     * A header larger than {@link #MAX_REQUEST_HEADER_SIZE} is only accepted if its first request header carries the credentials, and
+     * the rest of it is only read after they authenticate. Has no effect unless larger than {@link #MAX_REQUEST_HEADER_SIZE}.
+     */
+    public static final Setting<ByteSizeValue> MAX_AUTHENTICATED_REQUEST_HEADER_SIZE = Setting.byteSizeSetting(
+        REMOTE_CLUSTER_PREFIX + "max_authenticated_request_header_size",
+        MAX_REQUEST_HEADER_SIZE,
+        Setting.Property.NodeScope
+    );
+
     static void validateRemoteAccessSettings(Settings settings) {
         if (REMOTE_CLUSTER_SERVER_ENABLED.get(settings)
             && settings.getGroups("transport.profiles.", true).containsKey(REMOTE_CLUSTER_PROFILE)) {

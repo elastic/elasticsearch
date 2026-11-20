@@ -74,6 +74,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -255,7 +256,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
         int numShards = randomIntBetween(1, 4);
-        SearchPhaseController controller = reducingController();
+        SearchPhaseController controller = reducingController(() -> {});
 
         SearchResponse response = SearchResponseUtils.emptyWithTotalHits(null, 1, 1, 0, 0, List.of(), SearchResponse.Clusters.EMPTY);
         long estimate;
@@ -354,11 +355,20 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
     }
 
     private QueryPhaseResultConsumer newReducingConsumer(SearchRequest searchRequest, CircuitBreaker circuitBreaker, int numShards) {
+        return newReducingConsumer(searchRequest, circuitBreaker, numShards, () -> {});
+    }
+
+    private QueryPhaseResultConsumer newReducingConsumer(
+        SearchRequest searchRequest,
+        CircuitBreaker circuitBreaker,
+        int numShards,
+        Runnable beforeFinalReduction
+    ) {
         return new QueryPhaseResultConsumer(
             searchRequest,
             executor,
             circuitBreaker,
-            reducingController(),
+            reducingController(beforeFinalReduction),
             () -> false,
             SearchProgressListener.NOOP,
             numShards,
@@ -378,9 +388,9 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     /**
      * A controller that reduces with the request's aggregation builders, unlike the one of the other tests, so the reduced aggregations
-     * are real.
+     * are real. {@code beforeFinalReduction} runs when the final reduction starts, after the reduce charged its estimate.
      */
-    private static SearchPhaseController reducingController() {
+    private static SearchPhaseController reducingController(Runnable beforeFinalReduction) {
         return new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
@@ -389,6 +399,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
             @Override
             public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
+                beforeFinalReduction.run();
                 return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
             }
         });
@@ -911,38 +922,23 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     /**
      * After partial merges on the coordinating node, the final reduce must only add its 0.5x estimate on top of what is
-     * already charged: the partial merge result is charged once, when it replaces the estimate of the merge.
+     * already charged: the partial merge result is charged once, when it replaces the estimate of the merge. The charge is
+     * read when the final aggregation reduce starts, so it doesn't depend on how the reduced result is charged afterwards.
      */
     public void testFinalReduceDoesNotChargePartialMergeResultTwice() throws Exception {
-        SearchPhaseController controller = new SearchPhaseController((t, agg) -> new AggregationReduceContext.Builder() {
-            @Override
-            public AggregationReduceContext forPartialReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
-            }
-
-            @Override
-            public AggregationReduceContext forFinalReduction(@Nullable Collection<SearchHits> topHitsToRelease) {
-                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, t, agg, b -> {}, topHitsToRelease);
-            }
-        });
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        AtomicLong chargedAtFinalReduce = new AtomicLong(-1);
         int numShards = randomIntBetween(3, 10);
         SearchRequest request = new SearchRequest("index");
         request.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
         request.setBatchedReduceSize(2);
-        PeakTrackingBreaker breaker = new PeakTrackingBreaker();
 
         try (
-            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+            QueryPhaseResultConsumer consumer = newReducingConsumer(
                 request,
-                executor,
                 breaker,
-                controller,
-                () -> false,
-                SearchProgressListener.NOOP,
                 numShards,
-                e -> {
-                    throw new AssertionError("unexpected partial merge failure", e);
-                }
+                () -> chargedAtFinalReduce.set(breaker.getUsed())
             )
         ) {
             CountDownLatch latch = new CountDownLatch(numShards);
@@ -955,45 +951,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             assertThat("partial merges must have run", consumer.getNumReducePhases(), greaterThan(0));
 
             long chargedBeforeReduce = breaker.getUsed();
-            breaker.resetPeak();
             consumer.reduce();
-            assertEquals(chargedBeforeReduce + Math.round(0.5d * chargedBeforeReduce), breaker.peak());
-        }
-    }
-
-    /**
-     * A breaker that never trips and remembers the highest amount charged, to check what a reduce asks for at its peak.
-     */
-    private static class PeakTrackingBreaker extends NoopCircuitBreaker {
-        private long used;
-        private long peak;
-
-        PeakTrackingBreaker() {
-            super(CircuitBreaker.REQUEST);
-        }
-
-        @Override
-        public synchronized void addEstimateBytesAndMaybeBreak(long bytes, String label) {
-            addWithoutBreaking(bytes);
-        }
-
-        @Override
-        public synchronized void addWithoutBreaking(long bytes) {
-            used += bytes;
-            peak = Math.max(peak, used);
-        }
-
-        @Override
-        public synchronized long getUsed() {
-            return used;
-        }
-
-        synchronized void resetPeak() {
-            peak = used;
-        }
-
-        synchronized long peak() {
-            return peak;
+            assertEquals(chargedBeforeReduce + Math.round(0.5d * chargedBeforeReduce), chargedAtFinalReduce.get());
         }
     }
 

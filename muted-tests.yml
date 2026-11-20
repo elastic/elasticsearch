@@ -854,3 +854,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: testLimitNotOnTheWire
   issue: https://github.com/elastic/elasticsearch/issues/166968
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testOnPageFetchedSeesEveryArrivingPage
+  issue: https://github.com/elastic/elasticsearch/issues/166977

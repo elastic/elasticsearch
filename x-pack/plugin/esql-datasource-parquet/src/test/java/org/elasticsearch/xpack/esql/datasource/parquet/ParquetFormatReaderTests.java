@@ -12011,6 +12011,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
         assertEquals(Optional.empty(), cols.get("zeros").minValue());
         assertEquals(Optional.empty(), cols.get("zeros").maxValue());
+        assertEquals(Optional.of(0.0), cols.get("zeros_total_order").minValue());
         assertEquals(Optional.of(0.0), cols.get("zeros_total_order").maxValue());
         assertEquals(Optional.of(1.0), cols.get("mixed").minValue());
         assertEquals(Optional.of(2.0), cols.get("mixed").maxValue());
@@ -12042,5 +12043,120 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
         PrimitiveType longType = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("x");
         assertFalse(ParquetFormatReader.isUnservableFloatingBound(0L, longType));
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnWithAllNaNRowGroupAreNotServedUnderDefaultOrder() throws Exception {
+        assertAllNaNRowGroupColumnHasNoFileBounds(ColumnOrder.typeDefined());
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnWithAllNaNRowGroupAreNotServedUnderTotalOrder() throws Exception {
+        assertAllNaNRowGroupColumnHasNoFileBounds(ColumnOrder.ieee754TotalOrder());
+    }
+
+    public void testFileBoundsSkipNaNWhenEveryRowGroupHoldsAFiniteValue() throws Exception {
+        double[] values = new double[2400];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i % 2 == 0 ? Double.NaN : i;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(1.0), d.minValue());
+        assertEquals(Optional.of(2399.0), d.maxValue());
+    }
+
+    public void testFileBoundsOfFloatColumnWithNaNAreNotServedWhenEveryValueIsNaN() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).columnOrder(ColumnOrder.typeDefined()).named("f"))
+            .named("test");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("f", Float.NaN);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        SourceStatistics.ColumnStatistics f = metadata.statistics().get().columnStatistics().get().get("f");
+
+        assertEquals(Optional.empty(), f.minValue());
+        assertEquals(Optional.empty(), f.maxValue());
+    }
+
+    private void assertAllNaNRowGroupColumnHasNoFileBounds(ColumnOrder order) throws Exception {
+        int phase = 1200;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(order, values);
+
+        long start = 0;
+        boolean sawAllNaNRowGroup = false;
+        boolean sawFiniteRowGroup = false;
+        for (long rows : rowGroupRowCounts(parquetData)) {
+            sawAllNaNRowGroup |= start >= phase && start + rows <= 2 * phase;
+            sawFiniteRowGroup |= start + rows <= phase || start >= 2 * phase;
+            start += rows;
+        }
+        assertTrue("the fixture must hold a row group of only NaN", sawAllNaNRowGroup);
+        assertTrue("the fixture must hold a row group of only finite values", sawFiniteRowGroup);
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    private SourceStatistics.ColumnStatistics fileColumnStatistics(byte[] parquetData) throws IOException {
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        return metadata.statistics().get().columnStatistics().get().get("d");
+    }
+
+    private List<Long> rowGroupRowCounts(byte[] parquetData) throws IOException {
+        try (
+            ParquetFileReader pfr = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createStorageObject(parquetData), footerByteCache, blockFactory.breaker()),
+                ParquetReadOptions.builder(new PlainParquetConfiguration()).build()
+            )
+        ) {
+            List<Long> counts = new ArrayList<>();
+            for (BlockMetaData rowGroup : pfr.getRowGroups()) {
+                counts.add(rowGroup.getRowCount());
+            }
+            return counts;
+        }
+    }
+
+    private byte[] createDoubleColumnFile(ColumnOrder order, double[] values) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).columnOrder(order).named("d"))
+            .named("test");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(1024L)
+                .withMinRowCountForPageSizeCheck(1)
+                .withMaxRowCountForPageSizeCheck(1)
+                .build()
+        ) {
+            for (double value : values) {
+                Group group = groupFactory.newGroup();
+                group.add("d", value);
+                writer.write(group);
+            }
+        }
+        return outputStream.toByteArray();
     }
 }

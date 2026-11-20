@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
@@ -126,7 +127,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  *     String Template generators that we use for things like {@link Block} and {@link Vector}.
  * </p>
  */
-public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware, NullMisuseSuggestion {
+public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware, NullMisuseSuggestion, Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
     private static final Logger logger = LogManager.getLogger(In.class);
 

@@ -239,6 +239,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
                 if (supportFallbackLogsdbRouting.get() == false || licenseService.allowLogsdbRoutingOnSortField(isTemplateValidation)) {
                     String sortExpression = settings.get(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "");
+                    // Like @timestamp, computed keys are left out: routing is on the values of fields
                     List<String> sortFields = new ArrayList<>(
                         sortExpression.isEmpty()
                             ? settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())

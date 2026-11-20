@@ -34,6 +34,9 @@ dependencies {
   implementation project(':modules:mapper-extras')
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // ES|QL parses the index.sort expression
+  testImplementation project(xpackModule('esql'))
+  testImplementation project(xpackModule('esql-core'))
   javaRestTestImplementation("commons-io:commons-io:2.15.1")
   javaRestTestImplementation(testArtifact(project(xpackModule('spatial'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))

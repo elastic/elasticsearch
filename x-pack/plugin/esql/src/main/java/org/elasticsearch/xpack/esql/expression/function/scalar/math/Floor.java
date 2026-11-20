@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNum
  *     an integer ala {@link Math#floor}.
  * </p>
  */
-public class Floor extends UnaryScalarFunction implements AnyNullIsNull, UnitAware.PreservesUnit {
+public class Floor extends UnaryScalarFunction implements AnyNullIsNull, UnitAware.PreservesUnit, Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Floor", Floor::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Floor.class).unary(Floor::new).name("floor");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()

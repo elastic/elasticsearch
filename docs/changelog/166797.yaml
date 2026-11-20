@@ -1,0 +1,5 @@
+pr: 166797
+summary: Sort indices on keys computed by ES|QL expressions
+area: Columnar
+type: enhancement
+issues: []

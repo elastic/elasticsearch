@@ -16,6 +16,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.Reproducible;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
  * Function returning the first non-null value. {@code COALESCE} runs as though
  * it were lazily evaluating each position in each incoming {@link Block}.
  */
-public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
+public class Coalesce extends EsqlScalarFunction implements OptionalArgument, Reproducible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Coalesce.class)
         .unaryVariadic(Coalesce::new)

@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexSortParser;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -35,6 +36,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.index.EsqlIndexSortParser;
 import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -89,6 +91,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     @BeforeClass
     public static void setupClass() throws Exception {
+        IndexSortParser.init(new EsqlIndexSortParser());
         sharedLicenseState = MockLicenseState.createMock();
         when(sharedLicenseState.isAllowed(any())).thenReturn(true);
         sharedLicenseService = mock(LicenseService.class);
@@ -1012,6 +1015,15 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .build();
         Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
         assertThat(e.getMessage(), containsString("[index.routing_path:[host, message, foo]], [index.sort:[host, message]]"));
+    }
+
+    public void testRoutingPathOnSortExpressionWithComputedKey() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_SETTING.getKey(), "host, DATE_TRUNC(1 hour, @timestamp) DESC, message DESC")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
     }
 
     public void testRoutingPathOnSortFieldsDisabledInOldNode() throws Exception {

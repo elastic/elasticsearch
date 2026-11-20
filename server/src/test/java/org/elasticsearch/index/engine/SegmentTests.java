@@ -18,6 +18,7 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.ComputedKeySortField;
 import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
@@ -125,6 +126,23 @@ public class SegmentTests extends ESTestCase {
 
         Segment deserialized = new Segment(columnarOutput.bytes().streamInput());
         assertEquals(new Sort(sortedNumeric), deserialized.segmentSort);
+    }
+
+    /** A computed index sort key reads back as a long sort on its text. */
+    public void testSerializationOfComputedKeySortField() throws IOException {
+        Segment segment = randomSegment();
+        boolean reverse = randomBoolean();
+        ComputedKeySortField sortField = new ComputedKeySortField("DATE_TRUNC(1 hour, @timestamp)", reverse, randomBoolean());
+        segment.segmentSort = new Sort(sortField);
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        segment.writeTo(output);
+        Segment deserialized = new Segment(output.bytes().streamInput());
+
+        SortField field = deserialized.segmentSort.getSort()[0];
+        assertEquals("DATE_TRUNC(1 hour, @timestamp)", field.getField());
+        assertEquals(reverse, field.getReverse());
+        assertEquals(sortField.getMissingValue(), field.getMissingValue());
     }
 
     public void testSerializationWithAutoCalibration() throws IOException {

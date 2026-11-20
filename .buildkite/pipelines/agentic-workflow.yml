@@ -23,6 +23,11 @@
 #                             The lucene_snapshot schedule still uses the old merge.
 #                             Clean + compile-green: push to the snapshot branch.
 #                             Agent edits: open a PR.
+#   lucene-snapshot-pr-ci-fix        — one pass after umbrella PR CI is red (needs PR_URL)
+#                             GitHub Action trigger-lucene-snapshot-pr-fix.yml starts this
+#                             for elasticsearchmachine lucene_snapshot_* work-branch
+#                             PRs. Same-branch push. Needs TARGET_BRANCH for
+#                             concurrency with merge/snapshot-update.
 #
 # Trigger from the UI (fill the input step) or via the Buildkite API with the
 # vars pre-set so the input step is skipped, e.g.:
@@ -62,7 +67,7 @@ steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────
   - label: ":robot_face: Archimedes — :workflow:"
     key: archimedes-run
-    if: build.env("WORKFLOW") != "lucene-merge-conflicts"
+    if: build.env("WORKFLOW") != "lucene-merge-conflicts" && build.env("WORKFLOW") != "lucene-snapshot-pr-ci-fix"
     timeout_in_minutes: 60
     env:
       USE_ARCHIMEDES: "true"
@@ -103,7 +108,36 @@ steps:
     if: build.env("WORKFLOW") == "lucene-merge-conflicts"
     timeout_in_minutes: 150
     concurrency: 1
-    concurrency_group: "archimedes-lucene-merge/${TARGET_BRANCH}"
+    concurrency_group: "archimedes-lucene/${TARGET_BRANCH}"
+    env:
+      USE_ARCHIMEDES: "true"
+      ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"
+    agents:
+      provider:       gcp
+      image:          "${ARCHIMEDES_AGENT_IMAGE}"
+      machineType:    "${ARCHIMEDES_LUCENE_MERGE_MACHINE_TYPE}"
+      diskType:       "${ARCHIMEDES_AGENT_DISK_TYPE}"
+      buildDirectory: /dev/shm/bk
+    retry:
+      automatic:
+        - exit_status: "-1"
+          signal_reason: none
+          limit: 1
+        - signal_reason: agent_stop
+          limit: 1
+    command: archimedes ci
+
+  # lucene-snapshot-pr-ci-fix re-checks out the existing work-branch PR after umbrella
+  # elasticsearch-ci is red. It may compile / run the failed Gradle task, so it
+  # uses the same 16-cpu default and 150-minute budget as merge. concurrency_group
+  # serializes with merge (and snapshot-update) for the same lucene_snapshot_*
+  # branch. Retry is agent loss only.
+  - label: ":robot_face: Archimedes — lucene-snapshot-pr-ci-fix"
+    key: archimedes-lucene-snapshot-pr-ci-fix
+    if: build.env("WORKFLOW") == "lucene-snapshot-pr-ci-fix"
+    timeout_in_minutes: 150
+    concurrency: 1
+    concurrency_group: "archimedes-lucene/${TARGET_BRANCH}"
     env:
       USE_ARCHIMEDES: "true"
       ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"

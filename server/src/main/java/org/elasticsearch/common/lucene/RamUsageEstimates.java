@@ -19,6 +19,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -29,8 +30,8 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Assert-guarded helpers for {@link RamUsageEstimator} at {@link Accountable#ramBytesUsed()} call sites. Assertions fire only when
- * assertions are enabled.
+ * Assert-guarded helpers for {@link RamUsageEstimator} at {@link Accountable#ramBytesUsed()} call sites, plus shared sizes of JDK
+ * collection internals.
  */
 public final class RamUsageEstimates {
 
@@ -49,7 +50,44 @@ public final class RamUsageEstimates {
     /** Shallow instance size of an empty {@link TreeMap}. */
     public static final long TREE_MAP_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TreeMap.class);
 
+    /** Shallow size of the view {@link Collections#unmodifiableMap} returns: the wrapped map and the lazy keySet, entrySet and values. */
+    public static final long UNMODIFIABLE_MAP_SHALLOW_SIZE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 4L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    );
+
+    /** Shallow size of the view {@link Collections#unmodifiableList} returns: the wrapped list, held as both collection and list. */
+    public static final long UNMODIFIABLE_LIST_SHALLOW_SIZE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    );
+
+    /** Shallow size of one {@link HashMap} entry: hash, key, value and next. */
+    public static final long HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    );
+
+    /** Shallow size of one {@link LinkedHashMap} entry: a {@link HashMap} entry plus its before and after links. */
+    public static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    );
+
+    /** Shallow size of one {@link TreeMap} entry: key, value, left, right, parent and the color flag. */
+    public static final long TREE_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF + 1
+    );
+
+    public static final long BOOLEAN_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Boolean.class);
+    public static final long INTEGER_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Integer.class);
+    public static final long LONG_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Long.class);
+    public static final long FLOAT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Float.class);
+    public static final long DOUBLE_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Double.class);
+
     private RamUsageEstimates() {}
+
+    /** Slots in the table {@link HashMap#newHashMap} allocates for {@code entries}: the smallest power of two at or above n / 0.75. */
+    public static long hashTableSlots(int entries) {
+        long minSlots = (long) Math.ceil(entries / 0.75);
+        return minSlots <= 1 ? 1 : Long.highestOneBit(minSlots - 1) << 1;
+    }
 
     /**
      * Returns {@link RamUsageEstimator#shallowSizeOf(Object)} after asserting that every non-static instance field on {@code o}'s class

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 163024
+pr: 164486
+summary: Reject counters in groupings by type
+type: bug

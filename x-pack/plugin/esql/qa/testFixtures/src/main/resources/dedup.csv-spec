@@ -495,3 +495,22 @@ FROM employees, employees_incompatible
 c:long
 100
 ;
+
+dedupOverCounterConvertedFirst
+required_capability: dedup_command
+
+// DEDUP rejects counter columns, even renamed ones, so convert the counter first.
+FROM k8s
+| RENAME network.total_bytes_in AS bytes
+| EVAL bytes = TO_LONG(bytes)
+| KEEP cluster, bytes
+| DEDUP
+| STATS c = COUNT(*) BY cluster
+| SORT cluster
+;
+
+c:long | cluster:keyword
+60     | prod
+82     | qa
+57     | staging
+;

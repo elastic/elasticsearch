@@ -369,7 +369,15 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             StringBuilder responseBuilder = new StringBuilder("[");
             if (inputStream.isPresent()) {
                 try (BufferedReader buffer = new BufferedReader(new InputStreamReader(inputStream.get(), StandardCharsets.UTF_8))) {
-                    responseBuilder.append(buffer.lines().collect(Collectors.joining(" ")).replace("} {", "},{"));
+                    // The ES|QL extractor writes one object per line and the generator prefixes later lines with a space;
+                    // strip each line so the join yields exactly "} {" and not "} {".
+                    responseBuilder.append(
+                        buffer.lines()
+                            .map(String::strip)
+                            .filter(line -> line.isEmpty() == false)
+                            .collect(Collectors.joining(" "))
+                            .replace("} {", "},{")
+                    );
                 }
             }
             responseBuilder.append("]");

@@ -19,8 +19,9 @@ import java.util.Map;
 /// Metrics describing the requests sent by search nodes to indexing nodes to read a chunk of a virtual batched compound commit
 /// (see [TransportGetVirtualBatchedCompoundCommitChunkAction]). Two views are provided, both tagged with the [#OUTCOME_ATTRIBUTE]:
 ///
-/// - per request, i.e. per attempt ([#REQUESTS_TOTAL_METRIC], [#REQUESTS_DURATION_HISTOGRAM_METRIC]): time between sending a request to the indexing node
-///   and receiving its response (or failure), measured before the response is used. Each retry is measured separately;
+/// - per request, i.e. per attempt ([#REQUESTS_TOTAL_METRIC], [#REQUESTS_DURATION_HISTOGRAM_METRIC]): time between sending a request to
+///   the indexing node and receiving its response (or failure), measured before the response is used. Each retry is measured
+///   separately;
 /// - per operation, i.e. per action execution ([#OPERATIONS_TOTAL_METRIC], [#OPERATIONS_DURATION_HISTOGRAM_METRIC]): time between the
 ///   start of the action on the search node and the completion of its listener, including all the retries and backoff delays.
 public record GetVirtualBatchedCompoundCommitChunkMetrics(
@@ -39,12 +40,12 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
 
     /// The indexing node responded with the chunk.
     public static final String OUTCOME_SUCCESS = "success";
-    /// The request failed with a [ResourceNotFoundException]. When the indexing node replies with it, the virtual batched compound commit has
-    /// been uploaded and must be read from the blob store instead: this is an expected outcome, not an error. This is exact for the
-    /// per attempt metrics. For the per operation metrics, which see the failure the action completes with, it is an approximation: the
-    /// action also produces a [ResourceNotFoundException] locally, as a signal to fall back to the blob store, in cases where the VBCC may
-    /// not have been uploaded: when the node it prefers is not in the cluster state, and when a request fails with a `NodeClosedException`
-    /// (the indexing node is shutting down) while the primary shard is still assigned.
+    /// The request failed with a [ResourceNotFoundException]. When the indexing node replies with it, the virtual batched compound
+    /// commit has been uploaded and must be read from the blob store instead: this is an expected outcome, not an error. This is
+    /// exact for the per attempt metrics. For the per operation metrics, which see the failure the action completes with, it is an
+    /// approximation: the action also produces a [ResourceNotFoundException] locally, as a signal to fall back to the blob store, in
+    /// cases where the VBCC may not have been uploaded: when the node it prefers is not in the cluster state, and when a request
+    /// fails with a `NodeClosedException` (the indexing node is shutting down) while the primary shard is still assigned.
     public static final String OUTCOME_UPLOADED = "uploaded";
     /// The request failed for any other reason.
     public static final String OUTCOME_FAILURE = "failure";

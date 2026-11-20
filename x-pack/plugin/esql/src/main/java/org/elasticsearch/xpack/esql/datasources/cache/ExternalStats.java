@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Map;
 import java.util.OptionalLong;
 
@@ -62,8 +64,26 @@ public final class ExternalStats {
      * Absent means "no licence": the row count is treated as read-config-scoped like every other statistic. Under
      * {@code skip_row} or {@code null_field} rows can be dropped, so the count is a survivor count for that read
      * rather than the file's physical record count, and may not be shared.
+     * <p>
+     * The licence's VALUE is {@link #ROW_COUNT_LICENCE}, the decode-semantics revision the count was harvested
+     * under, because "the same number for every way of reading the file" holds only within one revision: what a
+     * reader makes of the same bytes is code, and a revision bump records that the rows themselves changed. A
+     * producer from before the value carried a revision wrote {@code Boolean.TRUE}, which equals no revision, so
+     * its count is refused rather than served to a read whose rule it never ran -- which is the rolling-upgrade
+     * window {@code DECODE_SEMANTICS_REVISION} exists for, and the one place the fingerprint alone cannot close.
      */
     public static final String ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY = "_stats.row_count_read_config_independent";
+
+    /** The value a producer writes with {@link #ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}: the revision it read under. */
+    public static final Integer ROW_COUNT_LICENCE = ReadConfigFingerprint.DECODE_SEMANTICS_REVISION;
+
+    /**
+     * Whether {@code stats} carries a count licence this node may honour: one granted under the decode semantics
+     * this node itself reads by. A licence from another revision is no licence here.
+     */
+    public static boolean rowCountCrossesReadConfigs(@Nullable Map<String, Object> stats) {
+        return stats != null && ROW_COUNT_LICENCE.equals(stats.get(ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+    }
 
     /**
      * Set on per-chunk/per-segment contributions to mark them as a partial cover of the file (as

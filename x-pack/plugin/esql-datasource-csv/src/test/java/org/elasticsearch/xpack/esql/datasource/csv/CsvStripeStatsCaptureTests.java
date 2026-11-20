@@ -1107,7 +1107,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         assertFalse("fail_fast must publish something to license", licensed.isEmpty());
         assertTrue(
             "fail_fast licenses the count: nothing is dropped, so it is the file's physical record count",
-            licensed.stream().anyMatch(f -> Boolean.TRUE.equals(f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)))
+            licensed.stream().anyMatch(ExternalStats::rowCountCrossesReadConfigs)
         );
 
         for (ErrorPolicy.Mode lenient : List.of(ErrorPolicy.Mode.SKIP_ROW, ErrorPolicy.Mode.NULL_FIELD)) {
@@ -1116,7 +1116,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             assertFalse(lenient + " must publish something to check", fragments.isEmpty());
             assertTrue(
                 lenient + " must NOT license the count - a survivor count is not the file's physical count",
-                fragments.stream().noneMatch(f -> Boolean.TRUE.equals(f.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY)))
+                fragments.stream().noneMatch(ExternalStats::rowCountCrossesReadConfigs)
             );
         }
     }

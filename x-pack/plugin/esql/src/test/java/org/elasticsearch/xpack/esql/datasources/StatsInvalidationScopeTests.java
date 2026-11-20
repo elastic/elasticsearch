@@ -230,9 +230,10 @@ public class StatsInvalidationScopeTests extends ESTestCase {
                     assertNotEquals(key + " must not present a disagreeing fold as either input's value", "b", disagreeing.get(key));
                 }
                 case AND -> {
-                    Map<String, Object> both = mergeTwo(Map.of(key, Boolean.TRUE), Map.of(key, Boolean.TRUE));
-                    assertEquals(key + " holds for the fold when it held for every input", Boolean.TRUE, both.get(key));
-                    Map<String, Object> one = mergeTwo(Map.of(key, Boolean.TRUE), Map.of());
+                    Object held = heldValueFor(key);
+                    Map<String, Object> both = mergeTwo(Map.of(key, held), Map.of(key, held));
+                    assertEquals(key + " holds for the fold when it held for every input", held, both.get(key));
+                    Map<String, Object> one = mergeTwo(Map.of(key, held), Map.of());
                     assertFalse(key + " must not survive an input that did not carry it", one.containsKey(key));
                 }
                 // Deliberately unchecked here: the merge is not their author. CALLER_REATTACHED keys are written by
@@ -241,6 +242,15 @@ public class StatsInvalidationScopeTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * What "this holds" looks like for an AND-folded key. Most are a plain flag; the row-count licence's value is
+     * the decode revision it was granted under, since the premise it records holds only within one revision, and a
+     * fold of inputs carrying any other value must not present itself as licensed here.
+     */
+    private static Object heldValueFor(String key) {
+        return key.equals(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY) ? ExternalStats.ROW_COUNT_LICENCE : Boolean.TRUE;
     }
 
     private static Map<String, Object> mergeTwo(Map<String, Object> first, Map<String, Object> second) {

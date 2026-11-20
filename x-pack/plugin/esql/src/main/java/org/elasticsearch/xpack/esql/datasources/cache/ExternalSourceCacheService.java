@@ -883,7 +883,7 @@ public class ExternalSourceCacheService implements Closeable {
             // fold branch. Losing it would leave a chunked FAIL_FAST read unable to license the crossing an
             // unchunked one can — a safe-miss, but one with no reason behind it.
             if (rowCountReadConfigIndependent) {
-                whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+                whole.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
             }
         }
         return whole;
@@ -921,7 +921,7 @@ public class ExternalSourceCacheService implements Closeable {
             String expectedReadConfig = pending.pathToReadConfig().get(expected.getKey());
             if (expectedReadConfig != null) {
                 Object contributionReadConfig = stats.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY);
-                boolean licensed = Boolean.TRUE.equals(stats.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+                boolean licensed = ExternalStats.rowCountCrossesReadConfigs(stats);
                 if (Objects.equals(contributionReadConfig, expectedReadConfig) == false && licensed == false) {
                     return null;
                 }
@@ -1056,6 +1056,8 @@ public class ExternalSourceCacheService implements Closeable {
      * {@link ExternalStats#ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY}) because a committed count there is the same number for
      * every way of reading the file. That licence is what keeps the strict warm {@code COUNT(*)} rail alive across
      * differently-declared datasets, and for a file every declaration can read to completion it is exactly right.
+     * It is honoured only where the licence was granted under the decode semantics this node reads by, since what a
+     * reader makes of the same bytes is code rather than configuration.
      * <p>
      * It carries one known exception, pre-existing and deliberately preserved: "the same number for every way of
      * reading the file" assumes every way of reading it SUCCEEDS. Both bindings carry a row-width tripwire, but they
@@ -1082,7 +1084,7 @@ public class ExternalSourceCacheService implements Closeable {
         if (Objects.equals(entryReadConfig, contributionReadConfig)) {
             return contribution;
         }
-        if (Boolean.TRUE.equals(contribution.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY))
+        if (ExternalStats.rowCountCrossesReadConfigs(contribution)
             && contribution.get(SourceStatisticsSerializer.STATS_ROW_COUNT) instanceof Number rowCount) {
             return Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, rowCount);
         }
@@ -1143,7 +1145,7 @@ public class ExternalSourceCacheService implements Closeable {
             base.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, readConfig);
         }
         if (rowCountReadConfigIndependent) {
-            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         }
         return stats == null ? base : SourceStatisticsSerializer.embedStatistics(base, stats);
     }

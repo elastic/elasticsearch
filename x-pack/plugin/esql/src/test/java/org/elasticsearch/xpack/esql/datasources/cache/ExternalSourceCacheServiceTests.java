@@ -1886,7 +1886,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             licensed.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             licensed.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
             licensed.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "config-declared");
-            licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            licensed.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
             licensed.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             licensed.put(SourceStatisticsSerializer.columnMinKey("id"), 7L);
             service.reconcileSourceStatsFromContributions(Map.of(path, List.of(licensed)));
@@ -4230,7 +4230,7 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             harvest.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             harvest.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
             harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, "read-anchor");
-            harvest.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, true);
+            harvest.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
             harvest.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
             harvest.put(SourceStatisticsSerializer.STATS_COL_PREFIX + "a.max", 7L);
             service.reconcileSourceStats(Map.of(path, harvest));

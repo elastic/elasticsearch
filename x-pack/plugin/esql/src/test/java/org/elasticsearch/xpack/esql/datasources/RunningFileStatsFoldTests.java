@@ -237,7 +237,7 @@ public class RunningFileStatsFoldTests extends ESTestCase {
         SourceMetadata b = withIdentity(file("file:///b.parquet", DataType.LONG, 3L, 4L, 2L), "fp-1", true);
         Map<String, Object> folded = foldReconciliation(List.of(a, b), true, identity(2));
         assertEquals("fp-1", folded.get(ExternalStats.READ_CONFIG_FINGERPRINT_KEY));
-        assertEquals(Boolean.TRUE, folded.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
+        assertEquals(ExternalStats.ROW_COUNT_LICENCE, folded.get(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY));
 
         SourceMetadata mixed = withIdentity(file("file:///c.parquet", DataType.LONG, 5L, 6L, 2L), "fp-2", false);
         Map<String, Object> disagreed = foldReconciliation(List.of(a, mixed), true, identity(2));
@@ -390,7 +390,7 @@ public class RunningFileStatsFoldTests extends ESTestCase {
         Map<String, Object> harvest = new HashMap<>(meta.sourceMetadata());
         harvest.put(ExternalStats.READ_CONFIG_FINGERPRINT_KEY, fingerprint);
         if (licensed) {
-            harvest.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+            harvest.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
         }
         return new SimpleSourceMetadata(meta.schema(), meta.sourceType(), meta.location(), null, null, harvest, null);
     }

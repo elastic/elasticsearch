@@ -5095,7 +5095,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // so a committed count is the physical record count for every declaration. Under the lenient policies dropped rows make a
             // committed count a survivor count for this read, not the file's physical record count.
             if (errorPolicy.isStrict()) {
-                base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, Boolean.TRUE);
+                base.put(ExternalStats.ROW_COUNT_READ_CONFIG_INDEPENDENT_KEY, ExternalStats.ROW_COUNT_LICENCE);
             }
             if (chunkMode) {
                 base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);

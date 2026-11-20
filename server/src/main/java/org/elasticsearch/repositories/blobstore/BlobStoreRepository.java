@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
@@ -106,6 +107,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.internal.ShardGenerationSizeListener;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
@@ -135,6 +137,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -197,6 +200,11 @@ import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
+
+    /**
+     * Reading file metadata before a shard snapshot normally takes seconds at most, so anything longer is worth surfacing.
+     */
+    private static final TimeValue SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD = TimeValue.timeValueMinutes(2);
 
     private class ShutdownLogger {
         // Creating a separate logger so that the log-level can be manipulated separately from the parent class.
@@ -3543,6 +3551,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * Logs a warning and the hot threads if the returned {@link Releasable} is not closed within
+     * {@link #SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD}, so that a shard snapshot stuck reading file metadata is visible while it is stuck.
+     */
+    private Releasable warnIfReadingMetadataIsSlow(ShardId shardId, SnapshotId snapshotId) {
+        final Scheduler.Cancellable warning = threadPool.schedule(() -> {
+            logger.warn("[{}][{}] still reading file metadata after [{}]", shardId, snapshotId, SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD);
+            HotThreads.logLocalHotThreads(
+                logger,
+                Level.WARN,
+                "hot threads while reading file metadata for shard snapshot [" + shardId + "][" + snapshotId + "]",
+                ReferenceDocs.LOGGING
+            );
+        },
+            SLOW_METADATA_SNAPSHOT_WARN_THRESHOLD,
+            // hot threads samples for a while, so don't run it on the scheduler thread
+            threadPool.generic()
+        );
+        return warning::cancel;
+    }
+
     private void doSnapshotShard(SnapshotShardContext context) {
         blobStoreSnapshotMetrics.shardSnapshotStarted(context.status(), threadPool.absoluteTimeInMillis());
         context.addListener(ActionListener.running(() -> blobStoreSnapshotMetrics.shardSnapshotCompleted(context.status())));
@@ -3620,8 +3649,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                metadataFromStore = context.metadataSnapshot();
+                snapshotStatus.updateStatusDescription("snapshot task runner: reading file metadata");
+                final long metadataStartMillis = threadPool.absoluteTimeInMillis();
+                try (var ignored = warnIfReadingMetadataIsSlow(shardId, snapshotId)) {
+                    metadataFromStore = context.metadataSnapshot();
+                }
                 fileNames = context.fileNames();
+                blobStoreSnapshotMetrics.recordShardMetadataDuration(threadPool.absoluteTimeInMillis() - metadataStartMillis);
                 for (String fileName : fileNames) {
                     ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 

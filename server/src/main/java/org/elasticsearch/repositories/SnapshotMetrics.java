@@ -44,6 +44,7 @@ public class SnapshotMetrics extends AbstractLifecycleComponent {
     public static final String SNAPSHOT_SHARDS_BY_STATE = "es.repositories.snapshots.shards.by_state.current";
     public static final String SNAPSHOT_SHARDS_DURATION = "es.repositories.snapshots.shards.duration.histogram";
     public static final String SNAPSHOT_SHARDS_QUEUE_TIME = "es.repositories.snapshots.shards.queue_time.histogram";
+    public static final String SNAPSHOT_SHARDS_METADATA_DURATION = "es.repositories.snapshots.shards.metadata.duration.histogram";
     public static final String SNAPSHOT_SHARDS_UNSUCCESSFUL = "es.repositories.snapshots.shards.unsuccessful.total";
     public static final String SNAPSHOT_SHARDS_UNSUCCESSFUL_HISTOGRAM = "es.repositories.snapshots.shards.unsuccessful.histogram";
     public static final String SNAPSHOT_BLOBS_UPLOADED = "es.repositories.snapshots.blobs.uploaded.total";
@@ -61,6 +62,7 @@ public class SnapshotMetrics extends AbstractLifecycleComponent {
     private final LongCounter shardsCompletedCounter;
     private final DoubleHistogram shardsDurationHistogram;
     private final DoubleHistogram shardsQueueTimeHistogram;
+    private final DoubleHistogram shardsMetadataDurationHistogram;
     private final LongCounter shardsUnsuccessfulCounter;
     private final LongHistogram shardsUnsuccessfulHistogram;
     private final LongCounter blobsUploadedCounter;
@@ -114,6 +116,11 @@ public class SnapshotMetrics extends AbstractLifecycleComponent {
         this.shardsQueueTimeHistogram = meterRegistry.registerDoubleHistogram(
             SNAPSHOT_SHARDS_QUEUE_TIME,
             "shard snapshots queue time",
+            "s"
+        );
+        this.shardsMetadataDurationHistogram = meterRegistry.registerDoubleHistogram(
+            SNAPSHOT_SHARDS_METADATA_DURATION,
+            "shard snapshots time spent reading file metadata before upload",
             "s"
         );
         this.shardsUnsuccessfulCounter = meterRegistry.registerLongCounter(
@@ -186,6 +193,10 @@ public class SnapshotMetrics extends AbstractLifecycleComponent {
 
     public DoubleHistogram shardsQueueTimeHistogram() {
         return shardsQueueTimeHistogram;
+    }
+
+    public DoubleHistogram shardsMetadataDurationHistogram() {
+        return shardsMetadataDurationHistogram;
     }
 
     public LongCounter shardsUnsuccessfulCounter() {

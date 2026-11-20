@@ -1494,6 +1494,96 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
+    /** A point range matching enough docs in one segment is {@code DOC}, so several drivers read it; fewer stays {@code SEGMENT}. */
+    public void testAutoPartitioningPointRange() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        String query = fromIndex() + " | WHERE value >= 100 AND value < 900 | STATS AVG(value)";
+        // 800 matches against a bar of about 100 docs.
+        Map<String, Object> result = runWithLuceneSourceProfile(query, 10);
+        assertResultMap(
+            result,
+            getResultMatcher(result).entry("profile", getProfileMatcher()),
+            matchesList().item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+            equalTo(List.of(List.of(499.5d)))
+        );
+        assertLuceneSourceStrategy(result, "DOC");
+        // A bar of about 2,000 docs, more than the index has.
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 200), "SEGMENT");
+    }
+
+    /** A wildcard next to a point range does not stop the range from taking {@code DOC}: only the range is counted. */
+    public void testAutoPartitioningPointRangeWithWildcard() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        String query = fromIndex() + " | WHERE value >= 100 AND value < 900 AND test.keyword LIKE \"value*\" | STATS AVG(value)";
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 10), "DOC");
+        // The same query with a bar above the index.
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(query, 200), "SEGMENT");
+        // The wildcard alone has no point clause to say where the matches are.
+        String wildcardOnly = fromIndex() + " | WHERE test.keyword LIKE \"value*\" | STATS AVG(value)";
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(wildcardOnly, 10), "SEGMENT");
+    }
+
+    /**
+     * Wide rows (many fields and {@code EVAL}s before the aggregation) keep {@code SEGMENT}, because {@code DOC} costs them
+     * several times the CPU. The query setting {@code doc_partitioning_for_wide_rows} is off by default. When it is on,
+     * wide rows take {@code DOC} whatever the match count.
+     */
+    public void testAutoPartitioningWideRowsOption() throws IOException {
+        indexTimestampData(1);
+        assumeTrue("require pragmas", Build.current().isSnapshot());
+        int fields = 14; // about 50 estimated bytes each
+        StringBuilder evals = new StringBuilder();
+        StringBuilder aggs = new StringBuilder();
+        for (int i = 0; i < fields; i++) {
+            evals.append(i == 0 ? "" : ", ").append("k").append(i).append(" = TO_STRING(value + ").append(i).append(")");
+            aggs.append(i == 0 ? "" : ", ").append("m").append(i).append(" = MIN(k").append(i).append(")");
+        }
+        // With a bar of about 100 docs the point range would take DOC, but wide rows keep SEGMENT unless opted in.
+        String wide = fromIndex() + " | WHERE value >= 100 AND value < 900 | EVAL " + evals + " | STATS " + aggs;
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(wide, 10), "SEGMENT");
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile("SET doc_partitioning_for_wide_rows = true; " + wide, 10), "DOC");
+        // Narrow rows take DOC by the point range rule, with or without the option.
+        String narrow = fromIndex() + " | WHERE value >= 100 AND value < 900 | STATS m = MIN(value)";
+        assertLuceneSourceStrategy(runWithLuceneSourceProfile(narrow, 10), "DOC");
+    }
+
+    private Map<String, Object> runWithLuceneSourceProfile(String query, int minDocsPerSlice) throws IOException {
+        RequestObjectBuilder builder = requestObjectBuilder().query(query);
+        builder.profile(true);
+        builder.pragmas(
+            Settings.builder()
+                .put("data_partitioning", "auto")
+                .put("esql.docs_threshold_auto_partitioning", 20)
+                .put("min_docs_per_slice", minDocsPerSlice)
+                .build()
+        );
+        return runEsql(builder);
+    }
+
+    private static void assertLuceneSourceStrategy(Map<String, Object> result, String expectedStrategy) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
+        int sources = 0;
+        for (Map<String, Object> p : profiles) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
+            for (Map<String, Object> o : operators) {
+                String name = signature(o);
+                if (name.equals("LuceneSourceOperator")) {
+                    sources++;
+                    MapMatcher status = matchesMap().entry(
+                        "partitioning_strategies",
+                        matchesMap().entry("rest-esql-test:0", expectedStrategy)
+                    ).extraOk();
+                    assertMap(o, matchesMap().entry("operator", startsWith(name)).entry("status", status).extraOk());
+                }
+            }
+        }
+        assertThat("query should read with a LuceneSourceOperator", sources, greaterThan(0));
+    }
+
     private Map<String, Object> findSingleReaderProfile(String driverDescription, Map<String, Object> result) {
         Map<String, Object> reader = null;
         @SuppressWarnings("unchecked")

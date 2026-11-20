@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -50,10 +51,12 @@ import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.apache.lucene.search.ScoreMode.COMPLETE;
@@ -194,7 +197,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * The {@link DataPartitioning.AutoStrategy#DEFAULT default} strategy, without a cost threshold: a no-limit scan
          * parallelizes with {@link PartitioningStrategy#DOC} unless costly, a limited scan keeps the low-overhead
-         * {@link PartitioningStrategy#SHARD}. The production non-time-series source uses {@link #autoStrategy(long)}
+         * {@link PartitioningStrategy#SHARD}. The production non-time-series source uses {@link #autoStrategy(long, boolean, boolean)}
          * instead, which also folds cheap no-limit scans onto {@link PartitioningStrategy#SEGMENT}.
          */
         public static BiFunction<ShardContext, Query, PartitioningStrategy> autoStrategy(int limit) {
@@ -204,7 +207,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         /**
          * Cost-aware {@link DataPartitioning#AUTO} strategy for the unsorted source. A no-limit scan (e.g. {@code STATS})
          * visits every matching doc, so it shares the {@link #autoPartitioning} rule with count and TopN: costly →
-         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC.
+         * SEGMENT, cheap ({@code cost < minCostForDoc}) → SEGMENT, else DOC. Exception: see
+         * {@link #unlimitedScanAutoStrategy}.
          * <p>
          * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
          * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
@@ -217,10 +221,96 @@ public class LuceneSourceOperator extends LuceneOperator {
          * doc-values-only field with no BKD index) is promoted to {@link PartitioningStrategy#DOC}, because those scans
          * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
          */
-        public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc) {
+        public static DataPartitioning.AutoStrategy autoStrategy(long minCostForDoc, boolean narrowRows, boolean wideRowsOptIn) {
             return limit -> limit == NO_LIMIT
-                ? (ctx, query) -> autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT)
+                ? (ctx, query) -> unlimitedScanAutoStrategy(ctx, query, minCostForDoc, narrowRows, wideRowsOptIn)
                 : (ctx, query) -> limitedScanAutoStrategy(ctx, query, minCostForDoc);
+        }
+
+        /**
+         * Estimated bytes per row (loaded fields and {@code EVAL}s before the first aggregation) from which a scan has wide
+         * rows. About ten keyword fields. Every DOC slice sets up its readers for each of those fields, so DOC costs several
+         * times the CPU for wide rows and stops paying once SEGMENT has a few big segments to run.
+         */
+        public static final int WIDE_ROW_ESTIMATED_BYTES = 512;
+
+        /**
+         * A filter with point clauses goes to {@link PartitioningStrategy#DOC} when one segment alone is estimated to
+         * match this many minimum-size slices ({@code minCostForDoc} docs each). Fixed, so it does not depend on the core
+         * count.
+         */
+        public static final int POINT_RANGE_MIN_SLICES = 10;
+
+        /**
+         * The no-limit branch of {@link #autoStrategy(long, boolean, boolean)}. A costly clause sends
+         * {@link #autoPartitioning} to SEGMENT, which sizes slices by segment docs, not matching docs, so matches in few
+         * segments land on one driver. DOC splits finer but rebuilds a segment's scorer in every slice, so it is used only
+         * when the rows are narrow and {@link #pointClausesFillSegment}, or when {@code wideRowsOptIn} is set: the caller
+         * then knows each match is expensive enough to outweigh the extra CPU.
+         */
+        private static PartitioningStrategy unlimitedScanAutoStrategy(
+            ShardContext ctx,
+            Query query,
+            long minCostForDoc,
+            boolean narrowRows,
+            boolean wideRowsOptIn
+        ) {
+            if (containsCostlyClause(query)
+                && (wideRowsOptIn || (narrowRows && pointClausesFillSegment(ctx, query, minCostForDoc * POINT_RANGE_MIN_SLICES)))) {
+                return DOC;
+            }
+            return autoPartitioning(ctx, query, DOC, minCostForDoc, SEGMENT);
+        }
+
+        /**
+         * {@code true} if the query has a point clause (a range on a date or number, a point set) and one segment alone is
+         * estimated to match {@code bar} docs for its required clauses, like a time window in the newest segment. Costly
+         * multi-term clauses (a terms filter, wildcard) are left out of the estimate, as probing them enumerates the terms of
+         * every segment. Clauses that are not required, such as {@code SHOULD} and {@code MUST_NOT}, are ignored.
+         */
+        private static boolean pointClausesFillSegment(ShardContext ctx, Query query, long bar) {
+            List<Query> required = new ArrayList<>();
+            boolean[] hasPointClause = { false };
+            query.visit(new QueryVisitor() {
+                @Override
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                    return occur == BooleanClause.Occur.MUST || occur == BooleanClause.Occur.FILTER ? this : QueryVisitor.EMPTY_VISITOR;
+                }
+
+                @Override
+                public void consumeTerms(Query q, Term... terms) {
+                    add(q);
+                }
+
+                @Override
+                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                    add(q);
+                }
+
+                @Override
+                public void visitLeaf(Query q) {
+                    add(q);
+                }
+
+                private void add(Query q) {
+                    if (CostlyMultiTermQueries.isCostlyMultiTermQuery(q) == false) {
+                        required.add(q);
+                        hasPointClause[0] |= q instanceof PointRangeQuery || q instanceof PointInSetQuery;
+                    }
+                }
+            });
+            if (hasPointClause[0] == false) {
+                return false;
+            }
+            BooleanQuery.Builder probe = new BooleanQuery.Builder();
+            for (Query q : required) {
+                probe.add(q, BooleanClause.Occur.FILTER);
+            }
+            try {
+                return anyLeafCostAtLeast(ctx, ctx.searcher().rewrite(probe.build()), bar);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         private static PartitioningStrategy limitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc) {
@@ -315,10 +405,7 @@ public class LuceneSourceOperator extends LuceneOperator {
          * query — a doc-values-only filter reports ~{@code maxDoc} — from a cheap indexed lookup that skips to its matches.
          */
         static long queryCost(ShardContext ctx, Query query, long ceiling) throws IOException {
-            // Use an uncached weight so this cost probe doesn't count the query against the caching policy.
-            // Query#createWeight requires a rewritten query (the slice queue rewrites before picking).
-            assert query == ctx.searcher().rewrite(query) : "query must be rewritten before createWeight: " + query;
-            Weight weight = query.createWeight(ctx.searcher(), COMPLETE_NO_SCORES, 1f);
+            Weight weight = costProbeWeight(ctx, query);
             long cost = 0;
             for (LeafReaderContext leaf : ctx.searcher().getIndexReader().leaves()) {
                 var scorerSupplier = weight.scorerSupplier(leaf);
@@ -333,6 +420,28 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         /**
+         * {@code true} if a single segment is estimated to match at least {@code threshold} docs. {@link #queryCost}
+         * sums over segments instead.
+         */
+        static boolean anyLeafCostAtLeast(ShardContext ctx, Query query, long threshold) throws IOException {
+            Weight weight = costProbeWeight(ctx, query);
+            for (LeafReaderContext leaf : ctx.searcher().getIndexReader().leaves()) {
+                var scorerSupplier = weight.scorerSupplier(leaf);
+                if (scorerSupplier != null && scorerSupplier.cost() >= threshold) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static Weight costProbeWeight(ShardContext ctx, Query query) throws IOException {
+            // Use an uncached weight so this cost probe doesn't count the query against the caching policy.
+            // Query#createWeight requires a rewritten query (the slice queue rewrites before picking).
+            assert query == ctx.searcher().rewrite(query) : "query must be rewritten before createWeight: " + query;
+            return query.createWeight(ctx.searcher(), COMPLETE_NO_SCORES, 1f);
+        }
+
+        /**
          * Walk the full query tree and return {@code true} if any sub-query is costly to build a
          * scorer for. Uses a {@link QueryVisitor}, so this handles arbitrary nesting:
          * {@code BooleanQuery} (incl. {@code MUST_NOT} clauses), {@code IndexOrDocValuesQuery},
@@ -340,32 +449,37 @@ public class LuceneSourceOperator extends LuceneOperator {
          * walk via {@link Query#visit}.
          */
         static boolean containsCostlyClause(Query query) {
+            return containsClause(query, Factory::isCostlyToBuildScorer);
+        }
+
+        /** {@code true} if {@code predicate} matches any sub-query, including under {@code MUST_NOT}. */
+        private static boolean containsClause(Query query, Predicate<Query> predicate) {
             boolean[] found = { false };
             query.visit(new QueryVisitor() {
                 @Override
                 public void consumeTerms(Query q, Term... terms) {
-                    if (isCostlyToBuildScorer(q)) {
+                    if (predicate.test(q)) {
                         found[0] = true;
                     }
                 }
 
                 @Override
                 public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
-                    if (isCostlyToBuildScorer(q)) {
+                    if (predicate.test(q)) {
                         found[0] = true;
                     }
                 }
 
                 @Override
                 public void visitLeaf(Query q) {
-                    if (isCostlyToBuildScorer(q)) {
+                    if (predicate.test(q)) {
                         found[0] = true;
                     }
                 }
 
                 @Override
                 public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                    if (isCostlyToBuildScorer(parent)) {
+                    if (predicate.test(parent)) {
                         found[0] = true;
                     }
                     // Visit every branch including MUST_NOT — a costly negated clause still has to be
@@ -390,38 +504,7 @@ public class LuceneSourceOperator extends LuceneOperator {
          * doc-values query).
          */
         static boolean containsIndexedSpatialQuery(Query query) {
-            boolean[] found = { false };
-            query.visit(new QueryVisitor() {
-                @Override
-                public void consumeTerms(Query q, Term... terms) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public void visitLeaf(Query q) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                    if (isIndexedSpatialQuery(parent)) {
-                        found[0] = true;
-                    }
-                    return this;
-                }
-            });
-            return found[0];
+            return containsClause(query, Factory::isIndexedSpatialQuery);
         }
 
         /**

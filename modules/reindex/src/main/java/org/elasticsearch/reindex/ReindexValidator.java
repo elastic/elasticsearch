@@ -70,6 +70,24 @@ public class ReindexValidator {
         this.autoCreateIndex = autoCreateIndex;
     }
 
+    /**
+     * Reading a slice-enabled source without a slice reads every slice and keeps each document in the slice it was read from, as when
+     * the source names a slice. Marks such a source as read that way, see {@link SliceSourceMode}. Remote sources cannot be resolved
+     * against the local cluster state and are left unchanged.
+     * <p>
+     * This is separate from {@link #initialValidation} so that a {@link TransportReindexAction} that replaces its validation cannot skip
+     * it. Call it before validating, which relies on the result.
+     */
+    public void markSliceModeOfSource(ReindexRequest request) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && request.getRemoteInfo() == null) {
+            SliceSourceMode.markIfSliceEnabled(
+                request.getSearchRequest(),
+                indexResolver,
+                projectResolver.getProjectMetadata(clusterService.state())
+            );
+        }
+    }
+
     public void initialValidation(ReindexRequest request) {
         checkAllowedRemote(allowedRemotes, remoteBlocklistSettingInUse, request.getRemoteInfo());
         ClusterState state = clusterService.state();
@@ -107,9 +125,6 @@ public class ReindexValidator {
         final String destinationIndex = destination.index();
         final boolean destinationSliceEnabled = isDestinationSliceEnabled(destination, destinationIndex, projectMetadata);
         final boolean destSliceProvided = destination.isRoutingFromSlice();
-        if (request.getRemoteInfo() == null) {
-            SliceSourceMode.markIfSliceEnabled(request.getSearchRequest(), indexResolver, projectMetadata);
-        }
         final boolean sourceSliceMode = request.getSearchRequest().isRoutingFromSlice();
 
         validateNoRequiredRoutingMixedWithSlices(

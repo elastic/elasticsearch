@@ -156,7 +156,7 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
         if (settingsToReset.isEmpty() == false) {
             for (DataStream ds : projectMetadata.dataStreams().values()) {
                 SystemDataStreamDescriptor dsDescriptor = systemIndices.findMatchingDataStreamDescriptor(ds.getName());
-                if (dsDescriptor == null) {
+                if (dsDescriptor == null || dsDescriptor.isAutomaticallyManaged() == false) {
                     continue;
                 }
                 Settings dsSettings = Settings.EMPTY;
@@ -228,7 +228,7 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
      * descriptor-level value exists, causing callers to fall back to the setting's generic default.
      */
     private Settings descriptorSettings(String indexName, Map<String, Settings> backingIndexToDescriptorSettings) {
-        // null means the index is not a backing index of any system data stream.
+        // null means the index is not a backing index of a managed system data stream.
         Settings backing = backingIndexToDescriptorSettings.get(indexName);
         if (backing != null) {
             return backing;

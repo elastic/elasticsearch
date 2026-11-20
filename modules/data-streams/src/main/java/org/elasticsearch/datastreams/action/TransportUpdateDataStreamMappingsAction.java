@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -139,7 +140,8 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
         ActionListener<UpdateDataStreamMappingsAction.DataStreamMappingsResponse> listener
     ) {
         logger.debug("updating mappings for {}", dataStreamName);
-        if (systemIndices.isSystemDataStream(dataStreamName)) {
+        SystemDataStreamDescriptor descriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
+        if (descriptor != null && descriptor.isAutomaticallyManaged()) {
             listener.onResponse(
                 new UpdateDataStreamMappingsAction.DataStreamMappingsResponse(
                     dataStreamName,
@@ -149,6 +151,12 @@ public class TransportUpdateDataStreamMappingsAction extends TransportMasterNode
                     Mapping.emptyCompressed()
                 )
             );
+            return;
+        }
+        try {
+            systemIndices.validateDataStreamAccess(dataStreamName, threadPool.getThreadContext());
+        } catch (IllegalArgumentException e) {
+            listener.onFailure(e);
             return;
         }
         metadataDataStreamsService.updateMappings(

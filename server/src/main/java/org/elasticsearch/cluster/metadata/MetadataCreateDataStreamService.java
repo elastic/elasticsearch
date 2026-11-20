@@ -289,7 +289,7 @@ public class MetadataCreateDataStreamService {
         }
 
         final boolean isSystem = systemDataStreamDescriptor != null;
-        final ComposableIndexTemplate template = isSystem
+        final ComposableIndexTemplate template = isSystem && systemDataStreamDescriptor.isAutomaticallyManaged()
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
             : lookupTemplateForDataStream(dataStreamName, currentProject);
         // The initial backing index and the initial failure store index will have the same initial generation.
@@ -583,7 +583,7 @@ public class MetadataCreateDataStreamService {
         ComposableIndexTemplate template,
         boolean isSystem
     ) {
-        DataStreamOptions.Builder builder = isSystem
+        DataStreamOptions.Builder builder = isSystem && systemDataStreamDescriptor.isAutomaticallyManaged()
             ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveDataStreamOptions(template, project.componentTemplates());
         return builder == null ? null : builder.build();
@@ -595,7 +595,7 @@ public class MetadataCreateDataStreamService {
         ComposableIndexTemplate template,
         boolean isSystem
     ) {
-        DataStreamLifecycle.Builder builder = isSystem
+        DataStreamLifecycle.Builder builder = isSystem && systemDataStreamDescriptor.isAutomaticallyManaged()
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveLifecycle(template, project.componentTemplates());
         return builder == null ? null : builder.build();

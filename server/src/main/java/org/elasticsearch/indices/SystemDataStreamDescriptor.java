@@ -40,8 +40,9 @@ import java.util.stream.Stream;
  * the system data stream. If external, the system feature will allow use of the data stream API, assuming the correct permissions
  * and product origin flag.
  *
- * <p>One interesting implementation detail is that the SystemDataStreamDescriptor manages its own templates for the data stream, so
- * although they have names, they are never listed in the index template or component template APIs.
+ * <p>One interesting implementation detail is that a managed SystemDataStreamDescriptor manages its own templates for the data stream,
+ * so although they have names, they are never listed in the index template or component template APIs. An unmanaged descriptor has no
+ * templates, the data stream uses the matching composable template from the cluster state instead.
  *
  * <p>The descriptor also provides names for the thread pools that Elasticsearch should use to read, search, or modify the descriptor’s
  * indices.
@@ -63,9 +64,9 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
      * @param description a brief description of what the data stream is used for. Must not be {@code null}
      * @param type the {@link Type} of the data stream which determines how the data stream can be accessed. Must not be {@code null}
      * @param composableIndexTemplate the {@link ComposableIndexTemplate} that contains the mappings and settings for the data stream.
-     *                                Must not be {@code null}
+     *                                Required for managed types, must be {@code null} for unmanaged types
      * @param componentTemplates a map that contains {@link ComponentTemplate} instances corresponding to those references in the
-     *                           {@link ComposableIndexTemplate}
+     *                           {@link ComposableIndexTemplate}. Must be empty for unmanaged types
      * @param allowedElasticProductOrigins a list of product origin values that are allowed to access this data stream if the
      *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
      * @param origin specifies the origin to use when creating or updating the data stream
@@ -90,13 +91,20 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
         }
         this.description = Objects.requireNonNull(description, "description must be specified");
         this.type = Objects.requireNonNull(type, "type must be specified");
-        this.composableIndexTemplate = Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");
+        if (type.isManaged()) {
+            Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");
+        } else {
+            assert composableIndexTemplate == null : "Unmanaged data stream descriptors should not have a composable index template";
+            assert componentTemplates == null || componentTemplates.isEmpty()
+                : "Unmanaged data stream descriptors should not have component templates";
+        }
+        this.composableIndexTemplate = composableIndexTemplate;
         this.componentTemplates = componentTemplates == null ? Map.of() : Map.copyOf(componentTemplates);
         this.allowedElasticProductOrigins = Objects.requireNonNull(
             allowedElasticProductOrigins,
             "allowedElasticProductOrigins must not be null"
         );
-        if (type == Type.EXTERNAL && allowedElasticProductOrigins.isEmpty()) {
+        if (type.isExternal() && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system data stream without allowed products is not a valid combination");
         }
         this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
@@ -140,6 +148,7 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
     }
 
     public ComposableIndexTemplate getComposableIndexTemplate() {
+        assert isAutomaticallyManaged() : "Do not request the template of unmanaged system data stream [" + dataStreamName + "]";
         return composableIndexTemplate;
     }
 
@@ -150,12 +159,12 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
 
     @Override
     public boolean isAutomaticallyManaged() {
-        return true;
+        return type.isManaged();
     }
 
     @Override
     public boolean isExternal() {
-        return type == Type.EXTERNAL;
+        return type.isExternal();
     }
 
     public String getBackingIndexPattern() {
@@ -172,6 +181,7 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
     }
 
     public Map<String, ComponentTemplate> getComponentTemplates() {
+        assert isAutomaticallyManaged() : "Do not request the templates of unmanaged system data stream [" + dataStreamName + "]";
         return componentTemplates;
     }
 
@@ -184,8 +194,30 @@ public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
         return this.executorNames;
     }
 
+    /**
+     * Internal data streams are only accessed through the owning feature's APIs, external ones through the data stream APIs with an
+     * allowed product origin. Managed data streams use the template defined by the descriptor, unmanaged ones resolve their template
+     * from the cluster state like any other data stream, so the owning product is responsible for installing it.
+     */
     public enum Type {
-        INTERNAL,
-        EXTERNAL
+        INTERNAL(false, true),
+        EXTERNAL(true, true),
+        EXTERNAL_UNMANAGED(true, false);
+
+        private final boolean external;
+        private final boolean managed;
+
+        Type(boolean external, boolean managed) {
+            this.external = external;
+            this.managed = managed;
+        }
+
+        public boolean isExternal() {
+            return external;
+        }
+
+        public boolean isManaged() {
+            return managed;
+        }
     }
 }

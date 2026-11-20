@@ -171,6 +171,8 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
             null,
             new ReindexSettings(),
             NoopCircuitBreaker.INSTANCE,
+            null,
+            null,
             null
         );
     }

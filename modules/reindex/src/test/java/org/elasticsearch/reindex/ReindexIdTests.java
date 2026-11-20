@@ -91,6 +91,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             null,
             new ReindexSettings(),
             NoopCircuitBreaker.INSTANCE,
+            null,
+            null,
             null
         );
         expectThrows(
@@ -130,6 +132,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             null,
             new ReindexSettings(),
             NoopCircuitBreaker.INSTANCE,
+            null,
+            null,
             null
         );
         expectThrows(
@@ -206,6 +210,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByPaginatedSearchActionTest
             null,
             new ReindexSettings(),
             NoopCircuitBreaker.INSTANCE,
+            null,
+            null,
             null
         );
     }

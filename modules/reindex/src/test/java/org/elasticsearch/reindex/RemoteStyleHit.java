@@ -13,11 +13,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A hit that behaves like one parsed from a remote cluster: the source is a final field, so {@link #release()} counts the call
- * and nothing else. Whoever still holds the hit still holds its source bytes, which is exactly why a finished page has to be
+ * A hit that behaves like one parsed from a remote cluster: the source is a final field, so {@link #release()} counts the first call
+ * and nothing else. A second call does nothing, as {@link PaginatedHitSource.Hit#release()} requires. Whoever still holds the hit still holds its source bytes, which is exactly why a finished page has to be
  * forgotten and not only released.
  */
 final class RemoteStyleHit implements PaginatedHitSource.Hit {
@@ -28,6 +29,7 @@ final class RemoteStyleHit implements PaginatedHitSource.Hit {
     @Nullable
     private final Object[] sortValues;
     private final AtomicInteger releases;
+    private final AtomicBoolean released = new AtomicBoolean();
 
     RemoteStyleHit(String index, String id, long version, BytesReference source, @Nullable Object[] sortValues, AtomicInteger releases) {
         this.index = index;
@@ -85,6 +87,8 @@ final class RemoteStyleHit implements PaginatedHitSource.Hit {
 
     @Override
     public void release() {
-        releases.incrementAndGet();
+        if (released.compareAndSet(false, true)) {
+            releases.incrementAndGet();
+        }
     }
 }

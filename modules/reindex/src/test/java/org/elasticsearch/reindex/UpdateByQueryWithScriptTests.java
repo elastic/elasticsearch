@@ -17,11 +17,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -77,7 +79,9 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSe
             null,
             new ReindexSettings(),
             circuitBreakerService,
-            new IndexingPressure(Settings.EMPTY)
+            new IndexingPressure(Settings.EMPTY),
+            // The transport action refuses a null here, as the node always gives it one.
+            new SystemIndices(List.of())
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
             task,
@@ -91,6 +95,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSe
             null,
             new ReindexSettings(),
             NoopCircuitBreaker.INSTANCE,
+            null,
+            null,
             null
         );
     }

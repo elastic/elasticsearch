@@ -1263,6 +1263,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -1561,6 +1562,7 @@ public class ReindexerTests extends ESTestCase {
                 featureService,
                 mock(TaskResultsService.class),
                 noopCircuitBreakerService(),
+                null,
                 null
             );
 
@@ -1630,6 +1632,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -1708,6 +1711,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -1782,6 +1786,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -1855,6 +1860,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -1930,6 +1936,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2008,6 +2015,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2082,6 +2090,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2156,6 +2165,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2261,6 +2271,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
                 reindexerRef.set(reindexer);
@@ -2445,6 +2456,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2518,6 +2530,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2591,6 +2604,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2665,6 +2679,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2787,6 +2802,7 @@ public class ReindexerTests extends ESTestCase {
                     featureService,
                     mock(TaskResultsService.class),
                     noopCircuitBreakerService(),
+                    null,
                     null
                 );
 
@@ -2897,6 +2913,7 @@ public class ReindexerTests extends ESTestCase {
             mock(FeatureService.class),
             mock(TaskResultsService.class),
             noopCircuitBreakerService(),
+            null,
             null
         );
         RestClient restClient = mock(RestClient.class);
@@ -3299,6 +3316,7 @@ public class ReindexerTests extends ESTestCase {
                 featureService,
                 mock(TaskResultsService.class),
                 noopCircuitBreakerService(),
+                null,
                 null
             );
 
@@ -3508,6 +3526,7 @@ public class ReindexerTests extends ESTestCase {
             mock(FeatureService.class),
             taskResultsService,
             noopCircuitBreakerService(),
+            null,
             null
         );
     }

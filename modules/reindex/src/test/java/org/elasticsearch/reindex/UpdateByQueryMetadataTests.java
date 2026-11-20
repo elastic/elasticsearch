@@ -49,6 +49,8 @@ public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByPaginatedSear
                 null,
                 new ReindexSettings(),
                 NoopCircuitBreaker.INSTANCE,
+                null,
+                null,
                 null
             );
         }

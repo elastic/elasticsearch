@@ -2386,6 +2386,8 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
                 new ReindexSettings(),
                 circuitBreaker,
                 breakerLabel,
+                null,
+                null,
                 null
             );
         }

@@ -305,8 +305,8 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
     }
 
     /**
-     * Forgetting a page's hits is not a second release. Each hit is released once, by whoever finished with it, and dropping the page
-     * afterwards, or asking for the remaining hits to be released, must not release it again.
+     * Each hit is released once as far as the hit can tell, by whoever finished with it. Dropping the page afterwards, or asking for
+     * the remaining hits to be released again, leaves a hit that was already released alone, because a second release does nothing.
      */
     public void testDroppingAReleasedPageDoesNotReleaseItsHitsAgain() {
         AtomicInteger releases = new AtomicInteger();
@@ -319,6 +319,27 @@ public class PaginatedHitSourceDropHitsTests extends ESTestCase {
         page.dropHits();
         page.releaseRemainingHits();
 
+        assertThat(releases.get(), equalTo(hitCount));
+    }
+
+    /**
+     * Dropping the hits of a response whose hits were never released releases them, so a hit is never forgotten while it still holds
+     * ref-counted memory. Dropping again changes nothing.
+     */
+    public void testDroppingHitsReleasesTheHitsThatWereNotReleasedYet() {
+        AtomicInteger releases = new AtomicInteger();
+        int hitCount = between(1, 10);
+        List<PaginatedHitSource.Hit> hits = new ArrayList<>();
+        for (int i = 0; i < hitCount; i++) {
+            hits.add(new RemoteStyleHit("index", "id-" + i, 1L, new BytesArray(randomByteArrayOfLength(8)), null, releases));
+        }
+        PaginatedHitSource.Response response = new PaginatedHitSource.Response(false, List.of(), hitCount, hits, null, null, null);
+
+        response.dropHits();
+        assertThat(releases.get(), equalTo(hitCount));
+        assertThat(response.getHits(), empty());
+
+        response.dropHits();
         assertThat(releases.get(), equalTo(hitCount));
     }
 }

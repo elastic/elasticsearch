@@ -141,11 +141,11 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
             });
             assertFalse(admitted.isDone());
 
-            long rejectionsBefore = pressure.stats().getCoordinatingRejections();
+            long rejectionsBefore = pressure.stats().getReindexPageReserveRejections();
             ActionFuture<BulkByPaginatedSearchResponse> waiting = client().execute(UpdateByQueryAction.INSTANCE, batchRequest("docs-b"));
             assertBusy(() -> {
                 assertFalse(waiting.isDone());
-                assertThat(pressure.stats().getCoordinatingRejections(), greaterThan(rejectionsBefore));
+                assertThat(pressure.stats().getReindexPageReserveRejections(), greaterThan(rejectionsBefore));
             });
 
             long held = pressure.stats().getCurrentCoordinatingBytes() - baseline;
@@ -190,7 +190,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
 
         IndexingPressure pressure = internalCluster().getInstance(IndexingPressure.class, node);
         long baseline = pressure.stats().getCurrentCoordinatingBytes();
-        long rejectionsBefore = pressure.stats().getCoordinatingRejections();
+        long rejectionsBefore = pressure.stats().getReindexPageReserveRejections();
         CountDownLatch inWrite = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         releaseWrite.set(release);
@@ -208,7 +208,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
             safeAwait(inWrite);
             assertBusy(() -> {
                 assertFalse(running.isDone());
-                assertThat(pressure.stats().getCoordinatingRejections(), greaterThan(rejectionsBefore));
+                assertThat(pressure.stats().getReindexPageReserveRejections(), greaterThan(rejectionsBefore));
                 assertThat(pressure.stats().getCurrentCoordinatingBytes() - baseline, greaterThan((long) docChars));
             });
 
@@ -282,16 +282,19 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
 
         IndexingPressure pressure = internalCluster().getInstance(IndexingPressure.class, replicaName);
         long baseline = pressure.stats().getCurrentCoordinatingBytes();
-        long rejectionsBefore = pressure.stats().getCoordinatingRejections();
+        long rejectionsBefore = pressure.stats().getReindexPageReserveRejections();
         long fill = pressure.stats().getMemoryLimit() - 128;
         Releasable pinned = pressure.markReplicaOperationStarted(1, fill, false);
         try {
-            ActionFuture<BulkByPaginatedSearchResponse> running = new ReindexRequestBuilder(internalCluster().client(replicaName)).source(
-                index
-            ).destination("dest").execute();
+            // One document a page keeps the estimate under the limit. An estimate cut down to the limit is admitted beside replica bytes,
+            // and this test is about an estimate that is not, which has to wait.
+            ReindexRequestBuilder builder = new ReindexRequestBuilder(internalCluster().client(replicaName)).source(index)
+                .destination("dest");
+            builder.source().setSize(1);
+            ActionFuture<BulkByPaginatedSearchResponse> running = builder.execute();
             assertBusy(() -> {
                 assertFalse(running.isDone());
-                assertThat(pressure.stats().getCoordinatingRejections(), greaterThan(rejectionsBefore));
+                assertThat(pressure.stats().getReindexPageReserveRejections(), greaterThan(rejectionsBefore));
             });
             assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(baseline));
 

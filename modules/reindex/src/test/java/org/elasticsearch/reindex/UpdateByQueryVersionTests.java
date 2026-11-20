@@ -61,6 +61,8 @@ public class UpdateByQueryVersionTests extends AbstractAsyncBulkByPaginatedSearc
                 null,
                 new ReindexSettings(),
                 NoopCircuitBreaker.INSTANCE,
+                null,
+                null,
                 null
             );
         }

@@ -64,7 +64,7 @@ public class MergeBlobTests extends AbstractWireSerializingTestCase<MergeBlob> {
     public void testStartsWithPrefix() {
         assertTrue(MergeBlob.startsWithPrefix(MergeBlob.PREFIX));
         assertTrue(MergeBlob.startsWithPrefix(MergeBlob.blobName(randomSegmentId())));
-        assertFalse(MergeBlob.startsWithPrefix(BatchedCompoundCommit.blobNameFromGeneration(randomNonZeroPositiveLong())));
+        assertFalse(MergeBlob.startsWithPrefix(BccBlob.blobNameFromGeneration(randomNonZeroPositiveLong())));
         assertFalse(MergeBlob.startsWithPrefix("foo_" + randomNonNegativeInt()));
         assertFalse(MergeBlob.startsWithPrefix(""));
     }
@@ -72,7 +72,7 @@ public class MergeBlobTests extends AbstractWireSerializingTestCase<MergeBlob> {
     public void testRejectsNameWithoutPrefix() {
         var exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new MergeBlob(BatchedCompoundCommit.blobNameFromGeneration(randomNonZeroPositiveLong()), randomNonNegativeLong())
+            () -> new MergeBlob(BccBlob.blobNameFromGeneration(randomNonZeroPositiveLong()), randomNonNegativeLong())
         );
         assertThat(exception.getMessage(), containsString("not a merge blob name"));
     }
@@ -111,7 +111,7 @@ public class MergeBlobTests extends AbstractWireSerializingTestCase<MergeBlob> {
 
     /// Reading a [BccBlob] where a [MergeBlob] is expected must fail cleanly. The opposite case is tested in [BccBlobTests].
     public void testReadRejectsBccBlobFileName() {
-        var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(randomNonZeroPositiveLong()), randomNonNegativeLong());
+        var blobFile = new BccBlob(BccBlob.blobNameFromGeneration(randomNonZeroPositiveLong()), randomNonNegativeLong());
         Writeable.Reader<Writeable> reader = in -> Blob.reader(MergeBlob.class).read(in);
         var exception = expectThrows(
             IOException.class,

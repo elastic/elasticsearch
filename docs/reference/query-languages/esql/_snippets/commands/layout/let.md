@@ -22,7 +22,8 @@ come before the `LET` directives.
 `name`
 :   The subquery name. It must be a lowercase, unquoted identifier, and each name can
     be declared only once in a query. Because a named subquery is read through `FROM`, its
-    name can't start with `_` and can't be `metadata` or `with`.
+    name follows the same rules as an index name: it can't start with `_`, can't be
+    `metadata` or `with`, and can't be longer than 255 bytes.
 
 `<query>`
 :   The subquery body: a complete {{esql}} query in parentheses, starting with a

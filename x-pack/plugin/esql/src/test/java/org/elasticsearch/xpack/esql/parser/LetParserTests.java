@@ -409,6 +409,16 @@ public class LetParserTests extends AbstractStatementParserTests {
         );
     }
 
+    public void testBindingNameTooLong() {
+        String longest = "a".repeat(255);
+        assertThat(statement("LET " + longest + " = (ROW x = 1); FROM " + longest).letBindings(), hasSize(1));
+        String tooLong = "a".repeat(256);
+        expectValidationError(
+            "LET " + tooLong + " = (ROW x = 1); FROM " + tooLong,
+            "LET subquery name [" + tooLong + "] index name is too long, (256 > 255)"
+        );
+    }
+
     public void testBindingNameIsFromKeyword() {
         for (String keyword : List.of("metadata", "with")) {
             expectValidationError(

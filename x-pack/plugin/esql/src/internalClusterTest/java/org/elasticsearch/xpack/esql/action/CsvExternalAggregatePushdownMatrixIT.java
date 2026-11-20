@@ -73,6 +73,11 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
         assertFilteredCountsOverNaNRowMatchAScan("nan_filter_csv", true);
     }
 
+    /**
+     * Two whole-file splits, one holding {@code 1.0} and one holding {@code NaN}. The unfiltered {@code MIN}/{@code MAX}
+     * is served from the harvested statistics, but the filtered counts scan both files because text splits carry no
+     * statistics into the filter decision. The test guards the counts, not the split classification.
+     */
     public void testFilteredCountsOverNaNRowInAnotherFileMatchAScanAfterTheStatisticsAreHarvested() throws Exception {
         Path dir = createTempDir();
         Files.writeString(dir.resolve("a.csv"), "emp_no:long,d:double\n0,1.0\n");

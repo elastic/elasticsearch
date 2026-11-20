@@ -54,7 +54,12 @@ public class NdjsonExternalAggregatePushdownMatrixIT extends AbstractExternalAgg
         return StoragePath.fileUri(file);
     }
 
-    public void testFilteredCountsOverNaNRowMatchAScanAfterTheStatisticsAreHarvested() throws Exception {
+    /**
+     * Filtered counts over a declared {@code double} column holding {@code NaN} equal a scan. A declared type poisons the
+     * column's extrema, so no bounds are harvested or served here and the filters run against a plain scan; the test pins
+     * the counts of such a column, not the use of statistics.
+     */
+    public void testFilteredCountsOverDeclaredDoubleNaNRowMatchAScan() throws Exception {
         Path file = createTempDir().resolve("nan_filter.ndjson");
         Files.writeString(file, "{\"emp_no\":0,\"d\":1.0}\n{\"emp_no\":1,\"d\":\"NaN\"}\n");
         LinkedHashMap<String, DatasetFieldMapping> declared = new LinkedHashMap<>();

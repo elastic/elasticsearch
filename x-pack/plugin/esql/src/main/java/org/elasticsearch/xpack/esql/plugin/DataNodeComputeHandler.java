@@ -84,10 +84,12 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.fetch.FetchContextTracker;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -182,10 +184,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        // Non-null when documents leave the data nodes: each data node keeps the fetch contexts of the rows that left it
+        @Nullable FetchContextTracker fetchContexts,
         Runnable runOnTaskFailure,
         Consumer<DriverCompletionInfo> onFailureUsage,
         ActionListener<ComputeResponse> outListener
     ) {
+        // the keep-alive of _search, like a scroll
+        final TimeValue readerContextKeepAlive = fetchContexts == null
+            ? null
+            : TimeValue.timeValueMillis(searchService.getDefaultKeepAliveInMillis());
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
 
         new DataNodeRequestSender(
@@ -215,6 +223,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
 
                 final AtomicLong pagesFetched = new AtomicLong();
+                // TODO: once FROM supports INTO, do not retry requests whose writer has already sent a bulk
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
                 try {
@@ -274,7 +283,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
+                                List.of(),
+                                0L,
+                                readerContextKeepAlive
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
@@ -294,10 +306,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     searchExecutor
                                 )
                             );
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
-                                configuration.allowPartialResults() == false,
-                                pagesFetched::incrementAndGet,
+                            exchangeSource.addRemoteSink(remoteSink, configuration.allowPartialResults() == false, page -> {
+                                pagesFetched.incrementAndGet();
+                                if (fetchContexts != null) {
+                                    // before the exchange buffers the page, so the execution learns of the contexts it names
+                                    fetchContexts.track(page);
+                                }
+                            },
                                 queryPragmas.concurrentExchangeClients(),
                                 ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)
                             );
@@ -675,6 +690,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * fetched from this walk cannot be replayed, so a failure after the first page is terminal.
      */
     static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker) {
+        // TODO: once FROM supports INTO, do not reroute external workers whose writer has already sent a bulk
         return hasNextWorker && pagesFetched == 0 && isRetryableExternalWorkerFailure(failure);
     }
 
@@ -1241,6 +1257,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
+                    // TODO: once FROM supports INTO, fail fast if a writer in this batch has already sent a bulk
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);
@@ -1289,7 +1306,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> exchangeSink(pagesProduced::incrementAndGet),
                         singleNodeOptimizations,
                         sortBound,
-                        null
+                        null,
+                        FetchOperatorProvider.UNSUPPORTED
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1435,6 +1453,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (externalSink == null) {
             return;
         }
+        if (fetchContexts != null) {
+            // the coordinator never hears of the contexts of the pages the sink discards on stop, cancellation or failure
+            externalSink.setOnPageDiscarded(fetchContexts::discarded);
+        }
         // Shared by the batches of shards, and released once all of them are done
         final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
         final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
@@ -1501,7 +1523,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> leavingTheNode(externalSink.createExchangeSink(() -> {}), searchContexts, fetchContexts),
                         request.singleNodeOptimizations(),
                         null,
-                        reduceLoad(request.shards(), searchContexts)
+                        reduceLoad(request.shards(), searchContexts),
+                        FetchOperatorProvider.UNSUPPORTED
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,
@@ -1795,7 +1818,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     /**
      * The sink of the pages that leave this node. A query with a fetch phase sends {@code _doc} to the coordinator, which
      * loads the other columns of the winners later, so the documents get the origin of their shard. Asking for the origin
-     * marks the reader context as one the node keeps after the request.
+     * makes the node keep the reader context after the request, unless the sink discards the page.
      */
     private static ExchangeSink leavingTheNode(
         ExchangeSink sink,

@@ -10,11 +10,19 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -30,8 +38,10 @@ import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 
@@ -39,7 +49,8 @@ import java.util.function.BinaryOperator;
  * Links the columns of a plan back to the {@link FieldSemantics} of the mapped fields they read.
  * <p>
  * A column keeps its semantics when it passes through unchanged or is renamed. Computed columns
- * have none. Columns read from a dataset are linked to their dataset column instead.
+ * have none, except that the buckets of a time column hold time. Columns read from a dataset are
+ * linked to their dataset column instead.
  */
 public final class ColumnSemantics {
 
@@ -90,6 +101,73 @@ public final class ColumnSemantics {
         });
         followAliases(plan, columns, (a, b) -> a.equals(b) ? a : null);
         return columns;
+    }
+
+    /**
+     * Returns the ids of the columns of {@code plan} that hold time but read no mapped field: the {@code @timestamp}
+     * column of a dataset, and a time column rounded ({@code BUCKET}, {@code TBUCKET}, {@code TSTEP}, {@code DATE_TRUNC},
+     * {@code ROUND_TO}) or converted ({@code TO_DATETIME}, {@code TO_DATE_NANOS}), nested or not. Renames keep it, and
+     * so do merges whose branches all hold time.
+     */
+    public static Set<NameId> timeColumns(LogicalPlan plan, Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns) {
+        Set<NameId> time = new HashSet<>();
+        datasetColumns.forEach((id, column) -> {
+            if (MetadataAttribute.TIMESTAMP_FIELD.equals(column.name()) && column.dataType().isDate()) {
+                time.add(id);
+            }
+        });
+        plan.forEachUp(node -> {
+            node.forEachExpression(Alias.class, alias -> {
+                Expression source = alias.child();
+                while (source != null && (source instanceof Attribute) == false) {
+                    source = timeOf(source);
+                }
+                if (source instanceof Attribute attribute && isTime(attribute.id(), semantics, time)) {
+                    time.add(alias.id());
+                }
+            });
+            if (node instanceof MergePlan merge) {
+                forEachMergedColumn(merge, (column, sources) -> {
+                    if (sources.isEmpty() == false && sources.stream().allMatch(id -> isTime(id, semantics, time))) {
+                        time.add(column.id());
+                    }
+                });
+            }
+        });
+        return time;
+    }
+
+    private static boolean isTime(NameId id, Map<NameId, FieldSemantics> semantics, Set<NameId> time) {
+        FieldSemantics field = semantics.get(id);
+        return time.contains(id) || (field != null && field.role() == FieldSemantics.Role.TIME);
+    }
+
+    /**
+     * The expression whose time {@code e} keeps: what it rounds or converts, or null for any other expression.
+     */
+    private static Expression timeOf(Expression e) {
+        if (e instanceof Bucket bucket) {
+            return bucket.field();
+        }
+        if (e instanceof TBucket tbucket) {
+            return tbucket.timestamp();
+        }
+        if (e instanceof TStep tstep) {
+            return tstep.timestamp();
+        }
+        if (e instanceof DateTrunc dateTrunc) {
+            return dateTrunc.field();
+        }
+        if (e instanceof RoundTo roundTo) {
+            return roundTo.field();
+        }
+        if (e instanceof ToDatetime toDatetime) {
+            return toDatetime.field();
+        }
+        if (e instanceof ToDateNanos toDateNanos) {
+            return toDateNanos.field();
+        }
+        return null;
     }
 
     /**

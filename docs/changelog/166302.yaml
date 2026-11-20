@@ -1,0 +1,6 @@
+area: ILM
+issues:
+ - 153993
+pr: 166302
+summary: "ILM `searchable_snapshot` action now supports setting `total_shards_per_node` to unbounded"
+type: bug

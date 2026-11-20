@@ -82,6 +82,9 @@ emp_no:integer
 // A row that stops before the file's width is a row error, not a row of nulls: ragged_short_rows.csv holds
 // `2,bob` against a three-column header, and under error_mode: skip_row it is dropped with a warning naming
 // the row and both widths. The default fail_fast fails the query outright, which a csv-spec cannot assert.
+// The warnings below CONSTRAIN what may be returned rather than requiring it -- warningRegex selects
+// AllowedRegexes, which checks the warnings received and so passes on none at all. That the notices actually
+// reach a client is pinned by ExternalCsvShortRowWarningsIT, which fails when they are absent.
 shortRowDroppedUnderSkipRow
 required_capability: dataset_in_from_command
 required_capability: external_dataset_messages

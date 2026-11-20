@@ -1839,6 +1839,41 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
+    /** Whether a row short of the file's header width is dropped rather than kept, which is when its vote is withheld. */
+    private boolean dropsShortRows(ErrorPolicy policy) {
+        return options.headerRow() && options.padShortRows() == false && policy.mode() != ErrorPolicy.Mode.FAIL_FAST;
+    }
+
+    /**
+     * The sampled rows type inference may read: the ones the reader goes on to keep. A row narrower than the file's
+     * header is not a row of that file (see {@link CsvBatchIterator#fileStatedRowWidth}), so where the policy drops
+     * such a row its values must not decide a column's type -- one short row would otherwise widen a numeric column
+     * to {@code keyword} and fail an aggregation over a file in which no surviving value is text.
+     *
+     * <p>Only the VOTE is withheld, never the row: the sample is replayed as data unchanged, so a dropped row is
+     * still reported and still charged to the error budget. Padding keeps such rows, so under it they keep their
+     * vote; so does {@code fail_fast}, which fails on the row rather than reading past it, leaving no result for a
+     * type to be wrong in. A file whose every sampled row is short leaves nothing else to type from, so the sample
+     * stands as it is rather than inferring from no evidence.
+     */
+    private static List<String[]> typeInferenceRows(List<String[]> rows, int fileWidth, boolean dropsShortRows) {
+        if (dropsShortRows == false) {
+            return rows;
+        }
+        List<String[]> kept = null;
+        for (int i = 0; i < rows.size(); i++) {
+            String[] row = rows.get(i);
+            if (row.length < fileWidth) {
+                if (kept == null) {
+                    kept = new ArrayList<>(rows.subList(0, i));
+                }
+            } else if (kept != null) {
+                kept.add(row);
+            }
+        }
+        return kept == null || kept.isEmpty() ? rows : kept;
+    }
+
     private InferredSchema inferSchemaFromSample(
         String headerLine,
         CsvLogicalRecordReader recordReader,
@@ -1871,7 +1906,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
-                sample.rows(),
+                typeInferenceRows(sample.rows(), columnNames.length, dropsShortRows(effectivePolicy)),
                 options.datetimeFormatter(),
                 sawUndecodableTemporal,
                 widenings
@@ -2818,6 +2853,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             context.batchSize(),
             effectiveSchema,
             headerBinding,
+            readSchema != null,
             effective,
             object.path().toString(),
             object.path(),
@@ -4312,6 +4348,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private final List<String> projectedColumns;
         private final int batchSize;
         private final List<Attribute> preResolvedSchema;
+        /**
+         * Whether the schema was pinned by the plan rather than read off this file's own header. It is what a
+         * missing binding means: with no pinned schema the schema IS that header, so its size states this file's
+         * width; with one, a split that bound nothing was never told this file's width. See
+         * {@link #fileStatedRowWidth}.
+         */
+        private final boolean pinnedSchema;
         private final ErrorPolicy errorPolicy;
         private final int modeOrdinal;
         private final boolean logErrors;
@@ -4657,6 +4700,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int batchSize,
             List<Attribute> preResolvedSchema,
             @Nullable HeaderBinding headerBinding,
+            boolean pinnedSchema,
             ErrorPolicy errorPolicy,
             String sourceLocation,
             StoragePath objectPath,
@@ -4682,6 +4726,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.preResolvedSchema = preResolvedSchema;
             this.schemaFieldIndex = headerBinding == null ? null : headerBinding.fieldIndex();
             this.bindingMaxRowWidth = headerBinding == null ? HeaderBinding.NO_FILE_WIDTH : headerBinding.maxRowWidth();
+            this.pinnedSchema = pinnedSchema;
             this.errorPolicy = errorPolicy;
             this.modeOrdinal = errorPolicy.mode().ordinal();
             this.logErrors = errorPolicy.logErrors();
@@ -5432,7 +5477,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<CsvSchemaInferrer.Widening> widenings = new ArrayList<>();
             List<Attribute> schema = CsvSchemaInferrer.inferSchema(
                 columnNames,
-                sample.rows(),
+                typeInferenceRows(sample.rows(), columnNames.length, dropsShortRows(errorPolicy)),
                 options.datetimeFormatter(),
                 sawUndecodableTemporal,
                 widenings
@@ -5565,9 +5610,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH) {
                 return bindingMaxRowWidth;
             }
-            // No binding was made at all, so there is no pinned schema and the schema was inferred from THIS file's
-            // header -- its size is that header's width. A headerless file reaches here with no width to state.
-            return schemaFieldIndex == null && options.headerRow() ? schemaSize : NO_ROW_WIDTH_FLOOR;
+            // Nothing bound. With no pinned schema the schema IS this file's header, read off it by this very read,
+            // so its size is that header's width. With one, this split was told neither the file's header nor its
+            // width: the width-only branch builds no binding where a later split arrives without the file's header
+            // columns, and the pinned schema's size is then a SIBLING's width under cross-file resolution, which no
+            // row of this file has to fill. So that file states no width here, and its rows keep the null-filling
+            // they had before this rule -- rather than being measured against a number that is not the file's and
+            // told it is the header's. A headerless file states none either way.
+            return pinnedSchema == false && schemaFieldIndex == null && options.headerRow() ? schemaSize : NO_ROW_WIDTH_FLOOR;
         }
 
         private void initProjection() {
@@ -5576,11 +5626,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             rowWidthLimit = schemaFieldIndex == null ? schemaSize : bindingMaxRowWidth;
             // Where that number came from, which is what a width message names it after. Where names bound it is the
             // binding's file width. Where they did not it is the schema's own size, which is this file's header only
-            // when the schema was inferred from that header -- that is, when no binding was made at all. A width-only
-            // binding is the case this separates: its floor is the file's header while its limit is a pinned schema's.
+            // when the schema was read off that header -- that is, when nothing bound AND nothing was pinned. A
+            // width-only binding is the case this separates: its floor is the file's header while its limit is a
+            // pinned schema's.
             rowWidthLimitIsFileStated = schemaFieldIndex != null
                 ? bindingMaxRowWidth != HeaderBinding.NO_FILE_WIDTH
-                : bindingMaxRowWidth == HeaderBinding.NO_FILE_WIDTH && options.headerRow();
+                : bindingMaxRowWidth == HeaderBinding.NO_FILE_WIDTH && options.headerRow() && pinnedSchema == false;
             rowWidthFloor = fileStatedRowWidth(schemaSize);
             // Schema position per projected slot, tracked alongside projectedIdx because by-name binding makes the
             // two diverge: projectedIdx is the RAW FIELD INDEX to read out of the record, schemaPos names the
@@ -6677,6 +6728,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         /**
+         * Whether anything goes on to read a row error's MESSAGE: the {@code FAIL_FAST} throw, the per-row line
+         * {@code log_errors} writes, or a warning the collector is still taking details for
+         * ({@link SkipWarnings#acceptsDetail()}). False past all three, where {@link #onRowErrorImpl} hands the
+         * message to an {@code add} that discards its argument -- so a caller that BUILDS one per row can skip the
+         * formatting, as {@link #excerptIsRead} already lets it skip the excerpt. It answers about the message and
+         * never about the row: the row is still refused, still counted and still charged to the error budget.
+         *
+         * <p>It earns its place on the width path because a short row is the ordinary row of a ragged file rather
+         * than the rarity a wide row is, and {@code max_error_ratio} admits a budget that covers every row of it.
+         */
+        private boolean messageIsRead() {
+            return modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal() || logErrors || skipWarnings.acceptsDetail();
+        }
+
+        /**
          * The record text for a row error on the direct path, or {@code null} where nothing reads one.
          *
          * <p>The consumers above already decline to summarize an unread excerpt; this declines to BUILD one. The
@@ -6706,12 +6772,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private RowWidthFault rowWidthError(int actualFields) {
             pendingPadNotice = null;
             if (actualFields > rowWidthLimit) {
-                return new RowWidthFault(rowWidthClause(actualFields, rowWidthLimit, rowWidthLimitIsFileStated), RowFault.STRUCTURAL);
+                return new RowWidthFault(
+                    messageIsRead() ? rowWidthClause(actualFields, rowWidthLimit, rowWidthLimitIsFileStated) : "",
+                    RowFault.STRUCTURAL
+                );
             }
             if (actualFields < rowWidthFloor) {
                 if (padShortRows == false) {
+                    // Composed only while something still reads it, like the pad notice below and for the same
+                    // reason -- the difference being that the rejection spends the error budget, so what this
+                    // bounds is a ratio limit wide enough to carry a whole ragged file rather than an unbounded run.
                     return new RowWidthFault(
-                        MISSING_TRAILING_FIELDS + ": " + rowWidthClause(actualFields, rowWidthFloor, true) + cutQuotedValueClause(),
+                        messageIsRead()
+                            ? MISSING_TRAILING_FIELDS + ": " + rowWidthClause(actualFields, rowWidthFloor, true) + cutQuotedValueClause()
+                            : "",
                         RowFault.SHORT_ROW
                     );
                 }
@@ -6720,16 +6794,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // are, long after the warning cap is gone -- and every one of those notices would be built to be
                 // dropped. It is the formatting that is skipped, not the padding, which is unconditional.
                 if (padWarnings.acceptsDetail()) {
+                    // Padding does not change what the row might be, only what happens to it: a split that begins
+                    // inside a quoted value reaches the same fragment here, and padding it hides the cut behind a
+                    // row of nulls rather than refusing it. So the reading that would have carried the hint is the
+                    // one that most needs it, and it is the same clause on the same terms.
                     pendingPadNotice = "row ["
                         + totalRowCount
                         + "]: "
                         + MISSING_TRAILING_FIELDS
                         + ", read as null: "
-                        + rowWidthClause(actualFields, rowWidthFloor, true);
+                        + rowWidthClause(actualFields, rowWidthFloor, true)
+                        + cutQuotedValueClause();
                 }
-            } else {
-                // A record of the width the file states: this split is on a real record boundary, so whatever cut
-                // its start is behind it and no later short row can be a quoted value's tail. See cutQuotedValueClause.
+            } else if (pastCutTail == false) {
+                // A record of the width the file states, taken as evidence that whatever cut this split's start is
+                // behind it -- evidence rather than proof, since an inner line of a cut value can carry that many
+                // delimiters itself. What it costs either way is weighed in cutQuotedValueClause.
                 pastCutTail = true;
             }
             return null;

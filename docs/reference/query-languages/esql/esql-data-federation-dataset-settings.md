@@ -184,7 +184,7 @@ $$$error-mode$$$
     :::{dropdown} When `null_field` drops rows
     `null_field` keeps a row only when the failure can be attributed to a single value. This applies to every format, including Parquet. When a failure affects the row's structure, `null_field` drops the row, as `skip_row` does. For example, an NDJSON line that isn't valid JSON is dropped, and so is a CSV row that can't be split into fields, or one whose number of fields isn't the file's header width.
 
-    {applies_to}`stack: preview 9.7+` A CSV row with fewer fields than the file's width can be read instead, with its missing fields as `null`, by setting [`pad_short_rows`](#csv-pad-short-rows).
+    {applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview` A CSV row with fewer fields than the file's width can be read instead, with its missing fields as `null`, by setting [`pad_short_rows`](#csv-pad-short-rows).
 
     :::
 
@@ -464,7 +464,7 @@ $$$csv-trim-spaces$$$
 
 $$$csv-pad-short-rows$$$
 
-`pad_short_rows` {applies_to}`stack: preview 9.7+`
+`pad_short_rows` {applies_to}`stack: preview 9.7+` {applies_to}`serverless: preview`
 :   Whether a row with fewer fields than the file's width is read with its missing trailing fields as `null`.
 
     - **Default:** `false`

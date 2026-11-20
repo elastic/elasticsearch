@@ -12756,6 +12756,41 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testSplitBoundsOfAnAllNaNRowGroupDoNotPoisonTheFiniteSplitsUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int phase = 2 * rowsPerGroup;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the phases", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        List<RangeAwareFormatReader.SplitRange> ranges = new ParquetFormatReader(blockFactory).discoverSplitRanges(
+            createStorageObject(parquetData)
+        );
+
+        int nanSplits = 0;
+        int finiteSplits = 0;
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            Object min = stats.get("_stats.columns.d.min");
+            Object max = stats.get("_stats.columns.d.max");
+            assertNotNull(stats.get("_stats.columns.d.null_count"));
+            if (min == null && max == null) {
+                nanSplits++;
+                continue;
+            }
+            finiteSplits++;
+            assertThat(min, instanceOf(Double.class));
+            assertThat(max, instanceOf(Double.class));
+            assertFalse("a published minimum is never NaN", ((Double) min).isNaN());
+            assertFalse("a published maximum is never NaN", ((Double) max).isNaN());
+        }
+        assertThat("an all-NaN row group publishes no bounds", nanSplits, greaterThan(0));
+        assertThat("finite row groups keep their bounds", finiteSplits, greaterThan(0));
+    }
+
     public void testFileBoundsServeTheMaximumWhenOnlyTheMinimumIsAZero() throws Exception {
         byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { 0.0, 5.0, 100.0 });
 

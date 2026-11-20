@@ -122,6 +122,52 @@ public class SplitStatsTests extends ESTestCase {
         assertEquals(-0.0, SplitStats.mergedMin(SplitStats.mergedMin(Double.NaN, 0.0f), -0.0));
     }
 
+    public void testFoldOfAnAllNaNSplitKeepsTheFiniteBoundsOfItsSiblings() {
+        SplitStats finiteLow = splitWithBounds(5, 1.0, 5.0);
+        SplitStats allNaN = splitWithBounds(5, Double.NaN, Double.NaN);
+        SplitStats finiteHigh = splitWithBounds(5, 10.0, 20.0);
+
+        SplitStats folded = SplitStats.fold(List.of(finiteLow, allNaN, finiteHigh), false);
+
+        assertEquals(1.0, folded.columnMin("d"));
+        assertEquals(20.0, folded.columnMax("d"));
+        assertEquals(15L, folded.rowCount());
+    }
+
+    public void testFoldOfOnlyAllNaNSplitsKeepsNaNAsTheAnswer() {
+        SplitStats folded = SplitStats.fold(
+            List.of(splitWithBounds(5, Double.NaN, Double.NaN), splitWithBounds(5, Double.NaN, Double.NaN)),
+            false
+        );
+
+        assertEquals(Double.NaN, folded.columnMin("d"));
+        assertEquals(Double.NaN, folded.columnMax("d"));
+    }
+
+    public void testFoldOfASplitWithoutPublishedBoundsNeverYieldsNaN() {
+        SplitStats.Builder noBounds = new SplitStats.Builder().rowCount(5);
+        int d = noBounds.addColumn("d");
+        noBounds.nullCount(d, 0L);
+        noBounds.valueCount(d, 5L);
+
+        SplitStats folded = SplitStats.fold(List.of(splitWithBounds(5, 1.0, 5.0), noBounds.build(), splitWithBounds(5, 10.0, 20.0)), false);
+
+        Object min = folded.columnMin("d");
+        Object max = folded.columnMax("d");
+        assertFalse("a fold never publishes a NaN minimum", min instanceof Double m && m.isNaN());
+        assertFalse("a fold never publishes a NaN maximum", max instanceof Double m && m.isNaN());
+    }
+
+    private static SplitStats splitWithBounds(long rows, double min, double max) {
+        SplitStats.Builder builder = new SplitStats.Builder().rowCount(rows);
+        int d = builder.addColumn("d");
+        builder.nullCount(d, 0L);
+        builder.valueCount(d, rows);
+        builder.min(d, min);
+        builder.max(d, max);
+        return builder.build();
+    }
+
     public void testValueCountWireGatedByTransportVersion() throws IOException {
         // valueCount is gated on a transport version. A peer at an older version (that still serializes
         // SplitStats, e.g. ESQL_SPLIT_STATS_COMPACT) must not see the field; it defaults to -1 so COUNT(col)

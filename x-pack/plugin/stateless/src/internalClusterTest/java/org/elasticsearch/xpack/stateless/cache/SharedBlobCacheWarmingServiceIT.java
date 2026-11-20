@@ -900,18 +900,18 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         final var evaluations = warmingServiceOnTargetNode.searchRecoveryTimeoutEvaluations();
         assertThat(evaluations, hasSize(numberOfShards));
-        final long sourceBytesToWarm = evaluations.getFirst().sourceShardWarmingInfo().sourceBytesToWarm();
         long totalShardBytesToWarm = 0L;
+        final List<Long> sourceBytesToWarmPerShard = new ArrayList<>(evaluations.size());
         for (var evaluation : evaluations) {
             final var warmingInfo = evaluation.sourceShardWarmingInfo();
             assertNotNull("no source shard warming info for " + evaluation.shardId(), warmingInfo);
             assertThat(warmingInfo.shardBytesToWarm(), greaterThan(0L));
-            assertThat(warmingInfo.sourceBytesToWarm(), equalTo(sourceBytesToWarm));
             assertThat(warmingInfo.sourceBytesToWarm(), greaterThan(warmingInfo.shardBytesToWarm()));
-            totalShardBytesToWarm += warmingInfo.shardBytesToWarm();
             assertThat(evaluation.plan().timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_SHUTTING_DOWN_WARM_AMOUNT));
+            totalShardBytesToWarm += warmingInfo.shardBytesToWarm();
+            sourceBytesToWarmPerShard.add(warmingInfo.sourceBytesToWarm());
         }
-        assertThat(sourceBytesToWarm, equalTo(totalShardBytesToWarm));
+        assertThat(sourceBytesToWarmPerShard, everyItem(equalTo(totalShardBytesToWarm)));
     }
 
     /// How many times [SearchRecoveryTimeoutCalculationService#searchRecoveryTimeout] has been called for each shard recovering on a node.

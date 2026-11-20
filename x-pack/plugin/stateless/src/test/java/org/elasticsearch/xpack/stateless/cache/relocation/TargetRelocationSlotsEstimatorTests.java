@@ -45,7 +45,6 @@ import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 /// The slots are only trusted to come from the data nodes when the settings of this node say so and the cluster state agrees. The tests
 /// use real settings and cluster states, and the `RELOCATING` and `STARTED` shards on a shutting-down search node stand for a master that
@@ -159,7 +158,9 @@ public class TargetRelocationSlotsEstimatorTests extends ESTestCase {
     public void testSlotsForNonCriticalRecoveriesAreVeryLargeWhenTheDataNodeLimitIsNotRegistered() {
         final var estimator = newEstimator(newClusterSettings(Settings.EMPTY, false), Settings.EMPTY);
 
-        assertThat(estimator.slotsForNonCriticalRecoveries(randomIntBetween(0, 100)), greaterThan(Integer.MAX_VALUE - 100));
+        // both limits are unbounded, so the critical recoveries only take their own number of slots out of the overall one
+        final int criticalRecoveries = randomIntBetween(0, 100);
+        assertThat(estimator.slotsForNonCriticalRecoveries(criticalRecoveries), equalTo(Integer.MAX_VALUE - criticalRecoveries));
     }
 
     private static TargetRelocationSlotsEstimator newEstimator(ClusterSettings clusterSettings, Settings nodeSettings) {

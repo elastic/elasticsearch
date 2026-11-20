@@ -1,0 +1,16 @@
+area: ES|QL
+breaking:
+  area: ES|QL
+  details: >-
+    `DEDUP` now fails when a column in scope has different types in the indices, views or subqueries it reads (a union type). Previously
+    such a column was returned as `null` and left out of the comparison, so rows that differed only in that column were merged into one.
+  impact: >-
+    Queries such as `FROM logs-* | DEDUP` fail if any column in scope is a union type. Before `DEDUP`, convert each such column to a single
+    type, for example `EVAL x = x::long`, or remove it with `DROP x`.
+  notable: false
+  title: "[Dedup] Reject union-type columns"
+issues:
+ - 164588
+pr: 164589
+summary: "[Dedup] Reject union-type columns"
+type: breaking

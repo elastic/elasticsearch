@@ -25,10 +25,7 @@ subprojects {
   }
 
   // log4j is a hack, and not really a full elasticsearch built jar.
-  // native-libraries is not a Java project: it only gathers the native binaries (published, or
-  // built from source by their owning projects) and exposes the extracted tree through its named
-  // `nativeLibs` configuration. See libs/native/libraries/build.gradle.
-  def nonBuildLibs = ['log4j', 'native-libraries']
+  def nonBuildLibs = ['log4j']
   if (false == nonBuildLibs.contains(project.name)) {
 
     /*

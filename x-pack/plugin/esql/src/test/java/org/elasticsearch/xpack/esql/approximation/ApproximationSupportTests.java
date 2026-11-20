@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -78,15 +82,18 @@ import org.elasticsearch.xpack.esql.plan.logical.Fetch;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
@@ -106,6 +113,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
+import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFraction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.HistogramQuantile;
@@ -142,6 +150,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -174,6 +183,7 @@ public class ApproximationSupportTests extends ESTestCase {
         PromqlFunctionCall.class,
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
+        CountValuesAggregate.class,
         AcrossSeriesReduction.class,
         HistogramFunctionCall.class,
         HistogramFraction.class,
@@ -196,6 +206,9 @@ public class ApproximationSupportTests extends ESTestCase {
         Fuse.class,
         FuseScoreEval.class,
 
+        // NESTED_EXPAND is snapshot-only and its expanded columns have no confidence-interval buckets yet.
+        NestedExpand.class,
+
         // These source commands makes no sense for approximation.
         Explain.class,
         ShowInfo.class,
@@ -215,6 +228,9 @@ public class ApproximationSupportTests extends ESTestCase {
         CompoundOutputEval.class,
         AbstractSubqueryJoin.class,
         MergePlan.class,
+
+        // INTO writes rows; approximating what it writes makes no sense.
+        Into.class,
 
         // These plans don't occur in a correct analyzed/optimzed query.
         AntiJoin.class,
@@ -349,6 +365,24 @@ public class ApproximationSupportTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testIntoQueryIsRejectedByApproximationVerifier() {
+        assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
+        Row row = new Row(Source.EMPTY, List.of());
+        // Wrap with Aggregate so the "must have STATS" check passes, then Into triggers the INTO-specific rejection.
+        org.elasticsearch.xpack.esql.plan.logical.Aggregate agg = new org.elasticsearch.xpack.esql.plan.logical.Aggregate(
+            Source.EMPTY,
+            row,
+            List.of(),
+            List.of()
+        );
+        Into into = new Into(Source.EMPTY, agg, "dst");
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> ApproximationVerifier.verifyPlanOrThrow(into, TransportVersion.current())
+        );
+        assertThat(e.getMessage(), containsString("cannot be approximated"));
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {

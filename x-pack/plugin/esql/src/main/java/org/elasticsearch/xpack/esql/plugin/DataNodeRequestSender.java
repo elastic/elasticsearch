@@ -62,6 +62,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 import static java.util.HashMap.newHashMap;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
@@ -139,7 +140,16 @@ abstract class DataNodeRequestSender {
         );
     }
 
-    final void startComputeOnDataNodes(Set<String> concreteIndices, Runnable runOnTaskFailure, ActionListener<ComputeResponse> listener) {
+    /**
+     * @param onFailureUsage told what the requests that succeeded, and the ones that failed saying what they did, used when the compute
+     *                       fails, which the failure cannot carry; see {@link ComputeListener}
+     */
+    final void startComputeOnDataNodes(
+        Set<String> concreteIndices,
+        Runnable runOnTaskFailure,
+        Consumer<DriverCompletionInfo> onFailureUsage,
+        ActionListener<ComputeResponse> listener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
@@ -163,7 +173,7 @@ abstract class DataNodeRequestSender {
                     failedShards,
                     selectFailures()
                 );
-            }))) {
+            }), onFailureUsage)) {
                 pendingShardIds.addAll(order(targetShards));
                 trySendingRequestsForPendingShards(targetShards, computeListener);
             }

@@ -12,6 +12,8 @@ package org.elasticsearch.gradle.internal.nativelibs
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
+import groovy.io.FileType
+import groovy.json.JsonSlurper
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.api.Plugin
 import org.gradle.testkit.runner.TaskOutcome
@@ -346,40 +348,103 @@ class NativeLibraryBuildPluginFuncTest extends AbstractGradleInternalPluginFuncT
         then:
         result.task(":buildNativeLibrary").outcome == TaskOutcome.SUCCESS
         result.task(":consumer:consume").outcome == TaskOutcome.SUCCESS
-        consumedLibrary().exists()
+        consumedFiles() == ["${PLATFORM}/libtest.so".toString()]
+    }
+
+    def "the runtime classpath of a project depending on this one contains the jar, not the native library directory"() {
+        given:
+        addConsumingProject()
+
+        when:
+        gradleRunner(":consumer:copyClasspath").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        def copied = file("consumer/build/classpath").list() as Set
+        copied == ["hello-world.jar", "plain.jar", "plain-external-1.0.jar"] as Set
+    }
+
+    def "the published java component does not include the native library directory"() {
+        given:
+        buildFile << """
+        apply plugin: 'java-library'
+        apply plugin: 'maven-publish'
+        group = 'org.example'
+        version = '1.0'
+        publishing {
+          publications {
+            library(MavenPublication) {
+              from components.java
+            }
+          }
+        }
+        """
+
+        when:
+        gradleRunner("generateMetadataFileForLibraryPublication").withEnvironment(["TEST_NATIVE_BUILD": "host"]).build()
+
+        then:
+        def variants = new JsonSlurper().parse(file("build/publications/library/module.json")).variants
+        variants*.name.contains("runtimeElements")
+        variants.every { it.attributes["org.gradle.libraryelements"] != NativeLibraries.LIBRARY_ELEMENTS }
     }
 
     /**
-     * Adds a second project that consumes this library. How a consumer reaches the library is the part
-     * expected to change — today a named configuration, later carried along by depending on the owning
-     * project — so it is wired in one place, leaving the tests above about behaviour only.
+     * Adds a project, {@code consumer}, that depends on this one as a Java library and selects the native
+     * library directory from its runtime classpath. {@code consumer} also depends on a project and on an
+     * external module that build no native library, so the tests check that the selection skips them.
      */
     private void addConsumingProject() {
+        buildFile << """
+        apply plugin: 'java-library'
+        """
         settingsFile << """
         include 'consumer'
+        include 'plain'
+        """
+        file("plain/build.gradle") << """
+        apply plugin: 'java-library'
+        """
+        file("repo/org/example/plain-external/1.0/plain-external-1.0.jar") << "not really a jar"
+        file("repo/org/example/plain-external/1.0/plain-external-1.0.pom") << """<?xml version="1.0" encoding="UTF-8"?>
+        <project xmlns="http://maven.apache.org/POM/4.0.0">
+          <modelVersion>4.0.0</modelVersion>
+          <groupId>org.example</groupId>
+          <artifactId>plain-external</artifactId>
+          <version>1.0</version>
+        </project>
         """
         file("consumer/build.gradle") << """
-        import org.gradle.api.artifacts.type.ArtifactTypeDefinition
+        import ${NativeLibraryPathExtension.name}
 
-        // Gradle 9 rejects a configuration that both declares dependencies and is resolved.
-        configurations.dependencyScope('nativeLibsDeclared')
-        configurations.resolvable('nativeLibs') {
-          extendsFrom(configurations.nativeLibsDeclared)
-          attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+        apply plugin: 'java'
+        repositories {
+          maven { url = file('../repo') }
         }
         dependencies {
-          nativeLibsDeclared project(path: ':', configuration: '${NativeLibraryBuildPlugin.ELEMENTS_CONFIGURATION}')
+          implementation project(':')
+          implementation project(':plain')
+          implementation 'org.example:plain-external:1.0'
         }
         tasks.register('consume', Copy) {
-          from configurations.nativeLibs
+          from NativeLibraryPathExtension.of(project).libraryDirectoriesOf(configurations.runtimeClasspath)
           into layout.buildDirectory.dir('consumed')
+        }
+        tasks.register('copyClasspath', Copy) {
+          from configurations.runtimeClasspath
+          into layout.buildDirectory.dir('classpath')
         }
         """
     }
 
-    /** Where {@link #addConsumingProject} leaves the library it consumed. */
-    private File consumedLibrary() {
-        file("consumer/build/consumed/${PLATFORM}/libtest.so")
+    /**
+     * The paths of all the files the {@code consume} task of {@link #addConsumingProject} copied, relative to its
+     * destination directory and separated by {@code /}.
+     */
+    private List<String> consumedFiles() {
+        def destination = file("consumer/build/consumed").toPath()
+        def files = []
+        destination.toFile().eachFileRecurse(FileType.FILES) { files << destination.relativize(it.toPath()).toString().replace(File.separator, "/") }
+        return files
     }
 
     /**

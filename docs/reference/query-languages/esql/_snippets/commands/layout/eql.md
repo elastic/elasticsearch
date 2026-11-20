@@ -71,33 +71,35 @@ named `_id` alongside `METADATA _id`), for the same reason.
 Unlike `FROM`, an `EQL` source is not distributed to data nodes. The command issues an EQL search from
 the coordinating node and materializes the whole response into a single table there, and the {{esql}}
 pipeline attached to it runs on the coordinator too, without data-node parallelism. Coordinator memory and
-CPU therefore bound the query, sized by the EQL result set. Keep that result set small with `LIMIT` or
+CPU therefore bound the query, sized by the EQL result set. Keep that result set small with
 `WITH { "size": … }` (see below).
 
 ### Limiting the number of results
 
-`LIMIT` and the `size` option bound different things:
+`size` and `LIMIT` are independent:
 
-* A `LIMIT n` that reaches the command becomes the EQL request size in **every mode**. That is a `LIMIT`
-  placed directly after the command, or one that {{esql}} moves down to it past commands that keep every row,
-  such as `KEEP`, `DROP`, `RENAME`, `EVAL`, `DISSECT` and `GROK`. A `LIMIT` after `MV_EXPAND` or `LOOKUP JOIN`
-  also reaches the command, because {{esql}} copies it below them, and so does the default `LIMIT` {{esql}} adds
-  to a query that has none. For an event query the command then returns
-  exactly what the EQL search returns for that size: by default the `n` most recent events, or the `n` oldest
-  with `result_position: head`. The exception is an EQL query with its own explicit `head`/`tail` pipe: the
-  query's own limit then decides, and the `LIMIT` simply trims the result. `LIMIT` bounds **rows**: for a
-  `sequence` or `sample` query, whose rows are unnested per event, it fetches `n` matches and can return a
-  partial match (some events of a match without the rest).
-* `WITH { "size": n }` bounds whole **matches** — events, sequences or samples — and takes precedence over
-  `LIMIT`. Use it when you want complete matches rather than a row count.
-* If neither a `LIMIT` that reaches the command nor `WITH { "size": … }` sets the size, the request falls back
-  to the {{esql}} result-truncation limit, and the command warns that the results may be incomplete only if the
-  response actually fills that limit. This includes a `LIMIT` behind a command that can drop or reorder rows,
-  such as `WHERE`, `SORT` or `STATS`: for example in `| WHERE … | LIMIT n`, the command first fetches up to the
-  truncation limit of matches (by default the most recent ones, returned in ascending time order), and the
-  `WHERE` and `LIMIT` then run on those rows, so without a `SORT` the `LIMIT` keeps the oldest of them. Matches
-  outside the fetched set are never considered, even if they would pass the `WHERE`. Set `WITH { "size": … }`
-  to control how many matches are fetched.
+* `WITH { "size": n }` bounds how many matches the EQL engine returns: events for an event query, whole
+  sequences or samples otherwise. It defaults to `10`, the same as a standalone EQL search, and `LIMIT` never
+  raises it. The default size also bounds an EQL `head` or `tail` pipe, so `| head 12` returns at most 10 events
+  unless you raise `size`.
+* `LIMIT`, whether you write it or {{esql}} adds the default one, only trims rows from the matches that were
+  fetched. For a `sequence` or `sample` query, whose rows are unnested per event, it can cut a match part-way.
+
+Tune `size`, `LIMIT`, or both, depending on what you need. Two consequences are worth knowing:
+
+* For event and sequence queries, the default `result_position: tail` makes `| LIMIT n` return the first `n`
+  rows of the last `size` matches, not the `n` most recent events. Use `result_position: head` to read from the
+  oldest matches, or lower `size` to fetch fewer matches.
+* Downstream commands only see the fetched matches. `| STATS COUNT(*)` counts the rows of at most `size`
+  matches, and a `WHERE` never considers a match beyond `size`, even if it would pass. Raise `size` to include
+  more.
+
+As an optimization that returns the same rows, a `LIMIT` directly after the command, or one {{esql}} moves down to
+it past commands such as `KEEP` and `EVAL`, can lower the request `size` of an event query that sets
+`result_position: head` and has no `head` or `tail` pipe of its own. This includes the default `LIMIT` {{esql}} adds.
+
+When the request size is set neither by `WITH { "size": … }` nor by a `LIMIT` of `10` or less that reaches the
+command as described above, the command uses the default size and the query returns a warning saying so.
 
 ### Partial results
 
@@ -136,6 +138,7 @@ wrong-typed value, is rejected when the query is parsed.
 
 `size`
 :   The maximum number of events (event queries) or whole matches (`sequence`/`sample` queries) to return.
+    Defaults to `10`.
     See [Limiting the number of results](#limiting-the-number-of-results) for how it interacts with `LIMIT`.
 
 `fetch_size`
@@ -178,30 +181,29 @@ Combine it with `_fork` — `… BY _fork, _sequence` — to identify a match ac
 
 ## Examples
 
-Count the process events matching an event query:
+Count the process events matching an event query, up to the 1,000 most recent (`size` caps the matches that are counted):
 
 ```esql
-EQL logs-endpoint "process where process.name == \"cmd.exe\""
+EQL logs-endpoint "process where process.name == \"cmd.exe\"" WITH { "size": 1000 }
 | STATS count = COUNT(*)
 ```
 
-Return matching events as typed columns and keep just a few:
+Return up to the 100 most recent matching events as typed columns and keep just a few:
 
 ```esql
-EQL logs-endpoint "network where destination.port == 443"
+EQL logs-endpoint "network where destination.port == 443" WITH { "size": 100 }
 | KEEP @timestamp, process.name, destination.port
 | SORT @timestamp
-| LIMIT 100
 ```
 
-Run a `sequence` query and count the events and the distinct matches:
+Run a `sequence` query and count the events and the distinct matches among the 1,000 most recent sequences:
 
 ```esql
-EQL logs-endpoint "sequence by process.pid [process where true] [network where true]"
+EQL logs-endpoint "sequence by process.pid [process where true] [network where true]" WITH { "size": 1000 }
 | STATS events = COUNT(*), matches = COUNT_DISTINCT(_sequence)
 ```
 
-Inspect the events of each matched sequence, ordered by stage:
+Inspect the events of each matched sequence, ordered by stage (the default size returns the 10 most recent sequences):
 
 ```esql
 EQL logs-endpoint "sequence by process.pid [process where true] [network where true]"
@@ -209,34 +211,34 @@ EQL logs-endpoint "sequence by process.pid [process where true] [network where t
 | SORT _sequence, _sequence_stage
 ```
 
-Add the source index and document id with `METADATA`:
+Add the source index and document id with `METADATA` (the default size returns the 10 most recent events):
 
 ```esql
 EQL logs-endpoint "process where process.name == \"regsvr32.exe\"" METADATA _index, _id
 | KEEP _index, _id, process.name
 ```
 
-Use an `EQL` source inside a subquery and feed a value set to `IN`:
+Use an `EQL` source inside a subquery and feed a value set to `IN`, taken from the 1,000 most recent matches:
 
 ```esql
 FROM logs-endpoint
-| WHERE process.pid IN (EQL logs-endpoint "process where process.name == \"cmd.exe\"" | KEEP process.pid)
+| WHERE process.pid IN (EQL logs-endpoint "process where process.name == \"cmd.exe\"" WITH { "size": 1000 } | KEEP process.pid)
 | STATS count = COUNT(*)
 ```
 
-Split an event query into two branches with `FORK`:
+Split an event query into two branches with `FORK`, using up to the 1,000 most recent events:
 
 ```esql
-EQL logs-endpoint "process where true"
+EQL logs-endpoint "process where true" WITH { "size": 1000 }
 | FORK ( WHERE process.pid == 100 ) ( WHERE process.pid == 200 )
 | KEEP process.name, process.pid, _fork
 | SORT process.pid
 ```
 
-Query a remote cluster by prefixing the leading pattern with the cluster name:
+Query a remote cluster by prefixing the leading pattern with the cluster name, here counting up to the 1,000 most recent matches:
 
 ```esql
-EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\""
+EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\"" WITH { "size": 1000 }
 | STATS count = COUNT(*)
 ```
 
@@ -244,15 +246,28 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\""
 
 * **Coordinator-bound compute.** The EQL source and everything downstream of it run on the coordinating
   node (see [Coordinator-only execution](#coordinator-only-execution)); there is no data-node parallelism.
-  Bound the result set with `LIMIT` or `WITH { "size": … }`.
+  Bound the result set with `WITH { "size": … }`.
+* **No remote `ENRICH` after the command.** The EQL events arrive on the coordinating node even when the
+  pattern targets a remote cluster, so `ENRICH _remote:` after an `EQL` source is rejected. `LOOKUP JOIN`
+  and the other `ENRICH` modes use the lookup index or enrich policy of the coordinating cluster.
 * **Compute derived columns after the command, not inside it.** The EQL predicate matches against the index
   mapping; there is no way to define an {{esql}}-computed field for use inside it. Compute derived columns
   *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md).
-* **The request `filter` is rejected.** A query that combines an enclosing {{esql}} request `filter` with an
-  EQL source is rejected rather than silently ignoring the filter, because it is not yet bridged into the EQL
-  source. Any filter is rejected, even one {{esql}} could apply in full, and also when the EQL command is reached
-  through a subquery or a view: there is no partial mode that applies some filter clauses and skips the rest.
-  Narrow the events with the EQL predicate itself, or filter the rows with a downstream `WHERE`.
+* **The request `filter` narrows the EQL search, not the columns.** An enclosing {{esql}} request `filter` is
+  passed to the EQL search, which applies it to every search it runs, as `_eql/search` does with its `filter`.
+  The index pattern is resolved without the filter, so a field mapped only in indices the filter excludes is
+  still a column, `null` on every row. Each EQL search resolves relative dates such as `now-15m` itself, so the
+  EQL searches of one query (one per `FORK` branch, for example) can resolve them slightly apart.
+* **A view applies the request `filter` to its output.** When the EQL command is in the body of a view,
+  {{esql}} does not pass the filter to the EQL search. The search then returns up to `size` matches (10 by
+  default: the most recent events or sequences, or the first samples) before the filter applies, so a time range
+  that excludes them can return fewer rows than expected, or none. Raise `size` in the view body to keep more. A
+  `sequence` or `sample` view can return partial matches, keeping the events that pass the filter and dropping
+  the rest.
+* **With older nodes, the request `filter` goes to an EQL search inside a view.** During a rolling
+  upgrade, or when a remote cluster in a cross-cluster search runs an earlier version, a node can be too old
+  to filter a view's output. No view then applies the filter to its output: it is passed to the EQL search
+  instead, as it is to the view's other sources.
 * **A view is not a valid EQL target.** The leading pattern must be indices, data streams or aliases. A
   view whose *body* is an EQL command is supported and read with `FROM <view>`, but a view name in the
   leading pattern is not expanded.

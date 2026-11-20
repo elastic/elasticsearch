@@ -3,7 +3,7 @@ navigation_title: "Resource patterns"
 description: "Reference for ES|QL Data Federation resource pattern syntax, including wildcards, character classes, alternation, numeric ranges, and file exclusions."
 applies_to:
   stack: preview 9.6+
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -11,9 +11,6 @@ products:
 # Resource pattern syntax for {{esql}} Data Federation
 
 A dataset's `resource` uses a glob pattern to select objects in external storage. This syntax reference explains how resource patterns are split and matched, which pattern constructs are available, and which patterns are rejected. The [`file_exclusions` setting](#exclude-non-data-objects) uses the same syntax.
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 ## How resource patterns are resolved
 

@@ -7,12 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -23,6 +30,8 @@ import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.empty;
@@ -98,5 +107,42 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         Alias bucketAlias = as(stepEval.fields().getFirst(), Alias.class);
         assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
         assertThat(bucketAlias.id(), equalTo(step.id()));
+    }
+
+    /**
+     * Plans against the layout of {@code metrics-prometheus@template}: {@code labels} and {@code metrics} are passthrough
+     * objects, so each sub-field is also exposed under its bare name, and {@code labels.__name__} is a dimension.
+     */
+    protected LogicalPlan planPrometheusLayout(String promql) {
+        EsField name = dimension("__name__");
+        EsField instance = dimension("instance");
+        EsField job = dimension("job");
+        EsField available = metric("node_memory_MemAvailable_bytes", DataType.DOUBLE);
+        EsField total = metric("node_memory_MemTotal_bytes", DataType.DOUBLE);
+        EsField cpu = metric("node_cpu_seconds_total", DataType.COUNTER_DOUBLE);
+        Map<String, EsField> labels = Map.of(name.getName(), name, instance.getName(), instance, job.getName(), job);
+        Map<String, EsField> metrics = Map.of(available.getName(), available, total.getName(), total, cpu.getName(), cpu);
+        Map<String, EsField> mapping = new HashMap<>(labels);
+        mapping.putAll(metrics);
+        mapping.put("@timestamp", DateEsField.dateEsField("@timestamp", Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("labels", new EsField("labels", DataType.OBJECT, labels, false, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metrics, false, EsField.TimeSeriesFieldType.NONE));
+        var index = new EsIndex(
+            "metrics-node.prometheus-default",
+            mapping,
+            Map.of("metrics-node.prometheus-default", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var analyzed = tsAnalyzer().addIndex(index).query("PROMQL index=metrics-node.prometheus-default step=1m result=(" + promql + ")");
+        return logicalOptimizerWithLatestVersion.optimize(analyzed);
+    }
+
+    protected static EsField dimension(String name) {
+        return new KeywordEsField(name, Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION);
+    }
+
+    protected static EsField metric(String name, DataType type) {
+        return new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.METRIC);
     }
 }

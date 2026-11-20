@@ -22,6 +22,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -135,7 +137,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
             0,
             new IllegalArgumentException("couldn't merge")
         );
-        Mockito.when(forceMergeResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[] { cause });
+        Mockito.when(forceMergeResponse.getShardFailures()).thenReturn(List.of(cause));
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();

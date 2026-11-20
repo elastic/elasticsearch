@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165449
+summary: Fix `DECAY` scoring and reject invalid `scale`, `offset` and `decay` values
+type: bug

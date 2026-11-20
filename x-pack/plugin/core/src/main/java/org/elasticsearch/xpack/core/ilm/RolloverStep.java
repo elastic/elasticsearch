@@ -125,17 +125,31 @@ public class RolloverStep extends AsyncActionStep {
         if (targetFailureStore) {
             rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(rolloverTarget, IndexComponentSelector.FAILURES));
         }
+        // ...unless the managed index is no longer the write index by the time the rollover executes. This guards against rolling over
+        // twice if the request is retried, e.g. on a new master after a master failover.
+        rolloverRequest.setExpectedSourceIndex(indexName);
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
         rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
         getClient(currentState.projectId()).admin()
             .indices()
             .rolloverIndex(rolloverRequest, listener.delegateFailureAndWrap((l, response) -> {
-                assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
                 if (response.isRolledOver()) {
                     l.onResponse(null);
+                } else if (indexName.equals(response.getOldIndex()) == false) {
+                    logger.info(
+                        "index [{}] was already rolled over for [{}], current write index is [{}], not attempting to roll over again",
+                        indexName,
+                        rolloverRequest.getRolloverTarget(),
+                        response.getOldIndex()
+                    );
+                    l.onResponse(null);
                 } else {
-                    l.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
+                    l.onFailure(
+                        new IllegalStateException(
+                            Strings.format("unexpected response on unconditional rollover of index [%s]: not rolled over", indexName)
+                        )
+                    );
                 }
             }));
     }

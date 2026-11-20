@@ -280,6 +280,38 @@ public class AsyncOperatorTests extends ESTestCase {
     }
 
     /**
+     * A result that arrives while the driver asks whether to block still wakes it: either the driver sees the result, or
+     * the result completes the future the driver waits on. The window between the two is narrow, so they race many times.
+     */
+    public void testAResultThatArrivesWhileTheDriverBlocksWakesIt() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        for (int round = 0; round < 20_000; round++) {
+            TestOp operator = new TestOp(driverContext, 1);
+            Page input = new Page(driverContext.blockFactory().newConstantNullBlock(1));
+            operator.addInput(input);
+            operator.finish();
+            ActionListener<Page> handler = operator.handlers.remove(input);
+            Page result = new Page(driverContext.blockFactory().newConstantNullBlock(2));
+            CyclicBarrier start = new CyclicBarrier(2);
+            PlainActionFuture<Void> responded = new PlainActionFuture<>();
+            threadPool.generic().execute(ActionRunnable.run(responded, () -> {
+                safeAwait(start);
+                handler.onResponse(result);
+            }));
+            safeAwait(start);
+            SubscribableListener<Void> blocked = operator.isBlocked().listener();
+            // a lost wake-up leaves the future pending forever
+            safeAwait(blocked, TimeValue.timeValueSeconds(10));
+            responded.actionGet(10, TimeUnit.SECONDS);
+            input.releaseBlocks();
+            assertThat("round " + round, operator.getOutput(), equalTo(result));
+            result.releaseBlocks();
+            operator.close();
+        }
+    }
+
+    /**
      * A failed request unblocks the operator while an earlier request is still in flight, so the failure surfaces at once.
      * The result that arrives later is released.
      */

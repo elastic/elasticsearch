@@ -1148,7 +1148,8 @@ public final class GlobExpander {
                 maxDiscoveredFiles,
                 glob,
                 folderRange,
-                fileHints.isEmpty() ? null : fileHints::matches
+                fileHints.isEmpty() ? null : fileHints::matches,
+                maxListedObjects
             );
             // An all-pruned walk keeps one inference-anchor file from a pruned folder. The row filter still
             // yields zero matching rows; the resolver needs the file to infer schema. A probe miss falls
@@ -1165,8 +1166,22 @@ public final class GlobExpander {
                     if (walkPruningProven(walk.prunedColumns(), walkedMetadata) && walkTypesConsistent(walk, walkedMetadata)) {
                         throwIfCancelled(cancelled);
                         reserveRetained(memory, walked.size(), 0, true);
+                        if (walk.excludedCount() > 0) {
+                            logger.debug(
+                                "{}",
+                                exclusionNotice(
+                                    walk.excludedCount(),
+                                    walk.globKeptCount(),
+                                    prefix.toString(),
+                                    walk.excludedExample(),
+                                    walk.excludedExampleEntry()
+                                )
+                            );
+                        }
                         return new GenericFileList(walked, pattern, walkedMetadata, walkNotices);
                     }
+                    // Walk pruning was not trusted. Do not re-apply the partition hint on the flat retry.
+                    suppressValueFilter = true;
                 } else if (fileOrder.equals(FileOrderConfig.DEFAULT) && walk.prunedColumns().isEmpty() == false && maxDiscoveredFiles > 0) {
                     StorageEntry anchor = findAnchor(
                         provider,
@@ -1198,27 +1213,16 @@ public final class GlobExpander {
                 }
             } else if (walk != null) {
                 List<StorageEntry> walked = walk.matched();
-                if (fileHints.isEmpty() == false) {
-                    List<StorageEntry> filtered = new ArrayList<>();
-                    StorageEntry fileHintAnchor = null;
-                    for (StorageEntry entry : walked) {
-                        fileHintAnchor = addOrStashAnchor(entry, fileHints, filtered, fileHintAnchor, maxDiscoveredFiles);
-                    }
-                    if (filtered.isEmpty() && fileHintAnchor != null && maxDiscoveredFiles > 0) {
-                        filtered.add(fileHintAnchor);
-                    }
-                    walked = filtered;
-                }
                 fileOrder.apply(walked);
                 List<String> walkNotices = new ArrayList<>();
                 PartitionMetadata walkedMetadata = detectPartitions(walked, partitionConfig, walkNotices::add);
                 if (walkPruningProven(walk.prunedColumns(), walkedMetadata)) {
                     if (walkTypesConsistent(walk, walkedMetadata)) {
-                        // Walk collector already applied _file.* before the cap, matching the flat path.
+                        // globKeptCount is glob matches after exclusion, before _file.*, matching the flat path.
                         if (walk.excludedCount() > 0) {
                             String exclusionNotice = exclusionNotice(
                                 walk.excludedCount(),
-                                walk.matched().size(),
+                                walk.globKeptCount(),
                                 prefix.toString(),
                                 walk.excludedExample(),
                                 walk.excludedExampleEntry()
@@ -2835,7 +2839,7 @@ public final class GlobExpander {
         }
     }
 
-    private static void checkListedObjectsLimit(int listedCount, int maxListedObjects) {
+    static void checkListedObjectsLimit(int listedCount, int maxListedObjects) {
         if (listedCount > maxListedObjects) {
             throw new ListedObjectsLimitException(listedCount, maxListedObjects);
         }

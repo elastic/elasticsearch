@@ -177,7 +177,8 @@ final class PartitionPruningWalk {
         String excludedExampleEntry,
         Map<String, DataType> columnFullTypes,
         List<StoragePath> prunedDirs,
-        @Nullable StorageEntry fileKeepStash
+        @Nullable StorageEntry fileKeepStash,
+        int globKeptCount
     ) {}
 
     /**
@@ -207,7 +208,7 @@ final class PartitionPruningWalk {
         String glob,
         @Nullable FolderRangePredicate folderRange
     ) {
-        return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, folderRange, null);
+        return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, folderRange, null, Integer.MAX_VALUE);
     }
 
     static WalkResult tryWalk(
@@ -221,8 +222,34 @@ final class PartitionPruningWalk {
         @Nullable FolderRangePredicate folderRange,
         @Nullable Predicate<StorageEntry> fileKeep
     ) {
+        return tryWalk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, glob, folderRange, fileKeep, Integer.MAX_VALUE);
+    }
+
+    static WalkResult tryWalk(
+        StorageProvider provider,
+        StoragePath prefix,
+        GlobMatcher matcher,
+        ExclusionConfig.NameFilter nameFilter,
+        List<PartitionFilterHint> hints,
+        int maxDiscoveredFiles,
+        String glob,
+        @Nullable FolderRangePredicate folderRange,
+        @Nullable Predicate<StorageEntry> fileKeep,
+        int maxListedObjects
+    ) {
         try {
-            return walk(provider, prefix, matcher, nameFilter, hints, maxDiscoveredFiles, keyedGlobKeys(glob), folderRange, fileKeep);
+            return walk(
+                provider,
+                prefix,
+                matcher,
+                nameFilter,
+                hints,
+                maxDiscoveredFiles,
+                keyedGlobKeys(glob),
+                folderRange,
+                fileKeep,
+                maxListedObjects
+            );
         } catch (IOException | ExternalUnavailableException e) {
             logger.debug(() -> "Partition-pruning walk of [" + prefix + "] failed; falling back to a flat listing", e);
             return null;
@@ -257,9 +284,10 @@ final class PartitionPruningWalk {
         int maxDiscoveredFiles,
         Set<String> keyedGlobKeys,
         @Nullable FolderRangePredicate folderRange,
-        @Nullable Predicate<StorageEntry> fileKeep
+        @Nullable Predicate<StorageEntry> fileKeep,
+        int maxListedObjects
     ) throws IOException {
-        Collector collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles, fileKeep);
+        Collector collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles, fileKeep, maxListedObjects);
         Set<String> pending = new HashSet<>();
         for (PartitionFilterHint hint : hints) {
             pending.add(hint.columnName());
@@ -620,7 +648,8 @@ final class PartitionPruningWalk {
     /**
      * Accumulates the files the walk keeps, applying exactly the flat listing's per-object rules: relative path,
      * placeholder skipping, glob matcher, exclusion filter (with the warning's count-and-example tally),
-     * {@code _file.*} keep (including {@code LIKE}), then the discovery cap.
+     * {@code _file.*} keep (including {@code LIKE}), then the discovery cap. Visited objects count toward
+     * {@code max_listed_objects} before a LIKE miss, matching the flat listing.
      */
     private static final class Collector {
         private final String prefixStr;
@@ -629,10 +658,13 @@ final class PartitionPruningWalk {
         private final int maxDiscoveredFiles;
         @Nullable
         private final Predicate<StorageEntry> fileKeep;
+        private final int maxListedObjects;
         private final List<StorageEntry> matched = new ArrayList<>();
         @Nullable
         private StorageEntry fileKeepStash;
         private int excludedCount = 0;
+        private int globKeptCount = 0;
+        private int listed = 0;
         private String excludedExample = null;
         private String excludedExampleEntry = null;
 
@@ -641,13 +673,15 @@ final class PartitionPruningWalk {
             GlobMatcher matcher,
             ExclusionConfig.NameFilter nameFilter,
             int maxDiscoveredFiles,
-            @Nullable Predicate<StorageEntry> fileKeep
+            @Nullable Predicate<StorageEntry> fileKeep,
+            int maxListedObjects
         ) {
             this.prefixStr = prefixStr;
             this.matcher = matcher;
             this.nameFilter = nameFilter;
             this.maxDiscoveredFiles = maxDiscoveredFiles;
             this.fileKeep = fileKeep;
+            this.maxListedObjects = maxListedObjects;
         }
 
         void add(StorageEntry entry) {
@@ -656,6 +690,8 @@ final class PartitionPruningWalk {
             if (relativePath.isEmpty() || relativePath.endsWith("/")) {
                 return; // directory placeholder key, skipped as in the flat listing
             }
+            listed++;
+            GlobExpander.checkListedObjectsLimit(listed, maxListedObjects);
             if (matcher.matches(relativePath) == false) {
                 return;
             }
@@ -668,6 +704,7 @@ final class PartitionPruningWalk {
                 }
                 return;
             }
+            globKeptCount++;
             if (fileKeep != null && fileKeep.test(entry) == false) {
                 if (fileKeepStash == null) {
                     fileKeepStash = entry;
@@ -695,7 +732,8 @@ final class PartitionPruningWalk {
                 excludedExampleEntry,
                 columnFullTypes,
                 List.copyOf(prunedDirs),
-                fileKeepStash
+                fileKeepStash,
+                globKeptCount
             );
         }
     }

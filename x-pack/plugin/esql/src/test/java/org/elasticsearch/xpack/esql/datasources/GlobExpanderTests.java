@@ -1709,6 +1709,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     public void testGlobstarFileNameLikeBeatsDiscoveredFilesCap() throws IOException {
         List<StorageEntry> tree = new ArrayList<>();
+        tree.add(entry("s3://bucket/data/year=2024/old.parquet", 100));
         for (int i = 0; i < 15; i++) {
             String hour = i >= 12 ? "14" : "15";
             tree.add(entry("s3://bucket/data/year=2025/acct_fl_20261118T" + hour + "05Z_" + i + ".log.gz", 100));
@@ -1717,12 +1718,35 @@ public class GlobExpanderTests extends ESTestCase {
             hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025),
             hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*")
         );
-        FileList result = GlobExpander.expand("s3://bucket/data/**", new TreeStubProvider(tree), hints, HIVE_ON, 10, MAX);
+        TreeStubProvider provider = new TreeStubProvider(tree);
+        FileList result = GlobExpander.expand("s3://bucket/data/**", provider, hints, HIVE_ON, 10, MAX);
         assertTrue(result.isResolved());
         assertEquals(3, result.fileCount());
         for (int i = 0; i < result.fileCount(); i++) {
             assertThat(result.path(i).objectName(), containsString("_20261118T14"));
         }
+        for (String enumerated : provider.enumeratedFiles) {
+            assertTrue("walk must not list the pruned year: " + enumerated, enumerated.contains("/year=2025/"));
+        }
+    }
+
+    public void testGlobstarFileNameLikeStillHonorsMaxListedObjects() {
+        List<StorageEntry> tree = new ArrayList<>();
+        tree.add(entry("s3://bucket/data/year=2024/old.parquet", 100));
+        for (int i = 0; i < 15; i++) {
+            String hour = i >= 12 ? "14" : "15";
+            tree.add(entry("s3://bucket/data/year=2025/acct_fl_20261118T" + hour + "05Z_" + i + ".log.gz", 100));
+        }
+        var hints = List.of(
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2025),
+            hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.LIKE, "*_20261118T14*")
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> GlobExpander.expand("s3://bucket/data/**", new TreeStubProvider(tree), hints, HIVE_ON, 100, MAX, 10)
+        );
+        assertThat(e.getMessage(), containsString("esql.external.max_listed_objects"));
+        assertThat(e.getMessage(), not(containsString("esql.external.max_discovered_files")));
     }
 
     public void testGlobstarFileNameLikeAllMissKeepsSurvivingFolderStash() throws IOException {

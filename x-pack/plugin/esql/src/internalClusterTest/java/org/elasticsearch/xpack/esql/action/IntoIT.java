@@ -8,8 +8,13 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -61,15 +66,29 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class),
+            CollectionUtils.appendToCopy(
+                CollectionUtils.appendToCopy(super.nodePlugins(), IngestCommonPlugin.class),
+                MockTransportService.TestPlugin.class
+            ),
             FailingFieldPlugin.class
         );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            // The setting is rejected while the feature flag is off, which would fail the cluster before the tests can be skipped.
+            settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
+        }
+        return settings.build();
     }
 
     @Before
     public void createDestination() {
         assumeTrue("INTO is only enabled in snapshot builds", EsqlCapabilities.Cap.INTO_COMMAND.isEnabled());
-        assertAcked(indicesAdmin().prepareCreate(DESTINATION).setMapping(MAPPING));
+        assumeTrue("INTO writes through batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        assertAcked(indicesAdmin().prepareCreate(DESTINATION).setSettings(batchIndexingSettings()).setMapping(MAPPING));
     }
 
     public void testTypes() {
@@ -90,19 +109,23 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             "SET time_zone = \"Europe/Paris\"; ROW k = \"only_k\", l = null::long, dt = TO_DATETIME(\"2026-01-15T12:34:56.789Z\")",
             1
         );
-        refresh(DESTINATION);
-        assertResponse(
-            prepareSearch(DESTINATION),
-            response -> assertThat(
-                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(),
-                equalTo(List.of(Map.of("k", "only_k", "dt", "2026-01-15T12:34:56.789Z")))
-            )
-        );
+        assertSources(DESTINATION, List.of(Map.of("k", "only_k", "dt", "2026-01-15T12:34:56.789Z")));
     }
 
     public void testInlineStats() {
         assertInto("ROW k = [\"a\", \"b\"] | MV_EXPAND k | INLINE STATS l = COUNT(*)", 2);
         assertReadBack("KEEP k, l | SORT k", List.of(List.of("a", 2L), List.of("b", 2L)));
+    }
+
+    public void testDateMathDestination() {
+        String dateMathDest = "<dest-into-{now/d}>";
+        String resolvedDest = IndexNameExpressionResolver.resolveDateMathExpression(dateMathDest);
+        assertAcked(
+            indicesAdmin().prepareCreate(resolvedDest)
+                .setSettings(batchIndexingSettings())
+                .setMapping("{\"properties\":{\"k\":{\"type\":\"keyword\"}}}")
+        );
+        assertIntoTarget("ROW k = \"x\"", dateMathDest, 1);
     }
 
     public void testZeroRows() {
@@ -143,6 +166,37 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
                 List.of(true, 3.5, "2026-01-17T12:34:56.789Z", "192.168.1.3", "c", 3L)
             )
         );
+    }
+
+    /**
+     * A destination with an ingest pipeline cannot be written as a pre-built batch, so the query fails.
+     */
+    public void testIngestPipelineIsRejected() {
+        String pipeline = "into-add-field-pipeline";
+        String pipelineDest = "dest-into-with-pipeline";
+
+        IngestPipelineTestUtils.putJsonPipeline(client(), pipeline, """
+            {"processors": [{"set": {"field": "pipeline_ran", "value": true}}]}""");
+
+        assertAcked(
+            indicesAdmin().prepareCreate(pipelineDest)
+                .setSettings(batchIndexingSettings().put("index.default_pipeline", pipeline))
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "k":            { "type": "keyword" },
+                        "pipeline_ran": { "type": "boolean" }
+                      }
+                    }""")
+        );
+
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> run("ROW k = \"pipelined\" | INTO " + pipelineDest).close()
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("ingest pipelines"));
     }
 
     public void testFromWithCommandsBeforeInto() {
@@ -274,8 +328,24 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    private void assertSources(String index, List<Map<String, Object>> expected) {
+        refresh(index);
+        assertResponse(
+            prepareSearch(index),
+            r -> assertThat(Arrays.stream(r.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(), equalTo(expected))
+        );
+    }
+
+    private static Settings.Builder batchIndexingSettings() {
+        return Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), true);
+    }
+
     private void assertInto(String producer, long rows) {
-        try (EsqlQueryResponse response = run(producer + " | INTO " + DESTINATION)) {
+        assertIntoTarget(producer, DESTINATION, rows);
+    }
+
+    private void assertIntoTarget(String producer, String target, long rows) {
+        try (EsqlQueryResponse response = run(producer + " | INTO " + target)) {
             assertColumnNames(response.columns(), List.of("total", "created"));
             assertColumnTypes(response.columns(), List.of("long", "long"));
             assertThat(getValuesList(response), equalTo(List.of(List.of(rows, rows))));

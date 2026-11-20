@@ -60,6 +60,10 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContextV2.IntermediateResult.Kind;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperatorV2;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
@@ -123,6 +127,10 @@ public record TranslationContextV2(
             case MetadataManipulationFunction relabel -> MetadataManipulationFunctionV2.translate(relabel, this);
             case SortFunction sort -> SortFunctionV2.translate(sort, this);
             case SortByLabelFunction sort -> SortFunctionV2.translate(sort, this);
+            case VectorBinaryOperator operator when operator instanceof VectorBinarySet == false -> VectorBinaryOperatorV2.translate(
+                operator,
+                this
+            );
             default -> throw new QlIllegalArgumentException("PromQL plan node [{}] does not translate in V2 yet", node.nodeName());
         };
     }
@@ -593,6 +601,14 @@ public record TranslationContextV2(
      * off the result's label container.
      */
     public LogicalPlan translateFinal() {
+        // Arithmetic and comparison operators with `on`, `ignoring` or `group_*` join their operands as independent pipelines.
+        if (cmd.promqlPlan() instanceof VectorBinaryOperator op && (op instanceof VectorBinarySet) == false) {
+            VectorMatch match = op.match();
+            if (match.filter() != VectorMatch.Filter.NONE || match.grouping() != VectorMatch.Joining.NONE) {
+                IntermediateResult joined = VectorBinaryOperatorV2.translateAsLeftJoin(op, this);
+                return finish(emitFinalProjection(joined.plan(), joined.labels(), false), false);
+            }
+        }
         IntermediateResult result = translateIntermediate(cmd.promqlPlan(), cmd.stepId(), cmd.valueId());
         boolean constant = result.kind().constant;
         return finish(emitFinalProjection(result.plan(), result.labels(), constant), constant);

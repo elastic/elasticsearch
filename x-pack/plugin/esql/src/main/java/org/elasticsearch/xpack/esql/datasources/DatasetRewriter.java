@@ -414,7 +414,22 @@ public final class DatasetRewriter {
             throw new VerificationException("Unknown index [" + resolution.explicitUnauthorized().iterator().next() + "]");
         }
 
-        List<String> datasetNames = new ArrayList<>(resolution.resolvedExternalDatasets());
+        // A dataset whose data source is closed is refused when the FROM names it, and silently skipped when only a wildcard
+        // reaches it, as a closed index is. The refusal is not a cluster block, so it is not the error a closed index gives.
+        Set<String> namedInRelation = exactNames(patternsOf(relation));
+        List<String> datasetNames = new ArrayList<>();
+        for (String name : resolution.resolvedExternalDatasets()) {
+            if (datasets.get(name) == null) {
+                // Resolved from the cluster state at resolution time, but created after this query took its snapshot: not part of
+                // this query, as if it had been created a moment later.
+                continue;
+            }
+            if (isClosed(name, datasets, dataSources) == false) {
+                datasetNames.add(name);
+            } else if (namedInRelation.contains(name)) {
+                throw new DatasetClosedException(name);
+            }
+        }
 
         if (datasetNames.isEmpty()) {
             // Nothing resolved here: the relation flows through to index resolution unchanged. Note this
@@ -617,6 +632,19 @@ public final class DatasetRewriter {
             }
         }
         return hasPositiveWildcard ? preserved : List.of();
+    }
+
+    /**
+     * Whether an admin closed the data source of {@code name}. A dataset whose data source is not registered is not closed:
+     * {@link #buildDatasetBranch} reports that state.
+     */
+    static boolean isClosed(String name, DatasetMetadata datasets, DataSourceMetadata dataSources) {
+        Dataset dataset = datasets.get(name);
+        if (dataset == null) {
+            return false;
+        }
+        DataSource parent = dataSources.get(dataset.dataSource().getName());
+        return parent != null && parent.enabled() == false;
     }
 
     private static LogicalPlan buildDatasetBranch(

@@ -87,6 +87,8 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Create or update](#create-or-update-a-data-source) | `PUT /_query/data_source/{name}` | [Create or update an ES\|QL data source]({{es-apis}}operation/operation-esql-put-data-source) |
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
+| [Open](#close-or-open-a-data-source) {applies_to}`stack: preview 9.7+` | `POST /_query/data_source/{name}/_open` | Open an ES\|QL data source |
+| [Close](#close-or-open-a-data-source) {applies_to}`stack: preview 9.7+` | `POST /_query/data_source/{name}/_close` | Close an ES\|QL data source |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources]({{es-apis}}operation/operation-esql-delete-data-source) |
 
 This section is a quick reference for each operation. For the complete request and response details, follow the API reference links in the table.
@@ -203,6 +205,27 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/data_source" \
 :::
 
 ::::
+
+### Close or open a data source [close-or-open-a-data-source]
+
+{applies_to}`stack: preview 9.7+` Close a data source to stop queries from reading any of its datasets, for example to control cost, then open it again after investigation. Requires `global.data_source` `manage` (or cluster `manage`). GET responses include a `state` field, `open` or `closed`. Creating a data source opens it, and replacing one keeps its current state, so use these endpoints to change it. Closing a closed data source, or opening an open one, succeeds and changes nothing.
+
+A closed data source behaves as follows:
+
+* Its datasets are closed too: a query that names one fails with a `400` error, and a `FROM` wildcard skips it silently, as it skips a closed index. A wildcard only reaches datasets when the `wildcards_match_datasets` query setting is on. The error names the dataset, not the data source.
+* You cannot create a dataset on it, or move an existing dataset onto it. Replacing a dataset that is already on it works.
+* A query that is already running may finish, or fail if the node that reads one of the datasets starts after you close the data source.
+* You can still get, list, and replace the data source.
+
+Closing and opening are refused until every node in the cluster supports them, for example during a rolling upgrade. Both actions are recorded in the [audit log](esql-data-federation-sources.md#audit-logging).
+
+```console
+POST /_query/data_source/prod_s3_logs/_close
+```
+
+```console
+POST /_query/data_source/prod_s3_logs/_open
+```
 
 ### Delete a data source [delete-a-data-source]
 

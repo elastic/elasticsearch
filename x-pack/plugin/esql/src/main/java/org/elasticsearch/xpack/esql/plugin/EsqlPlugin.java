@@ -132,18 +132,24 @@ import org.elasticsearch.xpack.esql.datasources.dataset.RestPutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportDeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportGetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.TransportPutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.CloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DataSourceService;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.GetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.OpenDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestCloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestGetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.RestOpenDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestPutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.RestTestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceNodeAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportCloseDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TransportOpenDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportTestDataSourceConnectionAction;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
@@ -832,6 +838,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class),
             new ActionHandler(TestDataSourceConnectionAction.INSTANCE, TransportTestDataSourceConnectionAction.class),
             new ActionHandler(TestDataSourceNodeAction.TYPE, TestDataSourceNodeAction.TransportAction.class),
+            new ActionHandler(OpenDataSourceAction.INSTANCE, TransportOpenDataSourceAction.class),
+            new ActionHandler(CloseDataSourceAction.INSTANCE, TransportCloseDataSourceAction.class),
             new ActionHandler(PutDatasetAction.INSTANCE, TransportPutDatasetAction.class),
             new ActionHandler(GetDatasetAction.INSTANCE, TransportGetDatasetAction.class),
             new ActionHandler(DeleteDatasetAction.INSTANCE, TransportDeleteDatasetAction.class)
@@ -907,6 +915,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             if (RestTestDataSourceConnectionAction.ESQL_DATA_SOURCE_TEST_CONNECTION_FEATURE_FLAG.isEnabled()) {
                 handlers.add(new RestTestDataSourceConnectionAction(dataSourceSecretSettingNames));
             }
+            handlers.add(new RestOpenDataSourceAction());
+            handlers.add(new RestCloseDataSourceAction());
             handlers.add(new RestPutDatasetAction(dataSourceSecretSettingNames));
             handlers.add(new RestGetDatasetAction());
             handlers.add(new RestDeleteDatasetAction());

@@ -47,10 +47,11 @@ public final class DataSourceCounters {
         // ---- unattributed counters ----
         counters.inc("datasources.storage.retries.total", acc.storageRetries());
         for (int i = 0; i < DataSourceUsageAccumulator.ERROR_TYPE_COUNT; i++) {
-            counters.inc(
-                "datasources.storage.errors.by_error_type." + DataSourceUsageAccumulator.ERROR_TYPE_NAMES.get(i),
-                acc.storageErrorsByErrorType(i)
-            );
+            String errorType = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.get(i);
+            if (DataSourceUsageAccumulator.ERROR_TYPE_CLOSED.equals(errorType)) {
+                continue; // only a query is refused for a closed data source: storage never fails that way
+            }
+            counters.inc("datasources.storage.errors.by_error_type." + errorType, acc.storageErrorsByErrorType(i));
         }
         // datasources.queries.cancelled.total mirrors the APM QUERIES_CANCELLED_TOTAL instrument (a dedicated
         // cancelled counter). datasources.queries.by_outcome.cancelled (populated below) mirrors QUERIES_TOTAL
@@ -69,7 +70,9 @@ public final class DataSourceCounters {
         for (int i = 0; i < DataSourceUsageAccumulator.ERROR_TYPE_COUNT; i++) {
             String errorType = DataSourceUsageAccumulator.ERROR_TYPE_NAMES.get(i);
             counters.inc("datasources.queries.failures.by_error_type." + errorType, acc.queryFailures(i));
-            counters.inc("datasources.discovery.failures.by_error_type." + errorType, acc.discoveryFailures(i));
+            if (DataSourceUsageAccumulator.ERROR_TYPE_CLOSED.equals(errorType) == false) {
+                counters.inc("datasources.discovery.failures.by_error_type." + errorType, acc.discoveryFailures(i));
+            }
         }
 
         // ---- config-change counters (kind × op, kind × type, and rejected kind × reason) ----

@@ -47,11 +47,41 @@ public class DatasourcePrivilegesTests extends AbstractNamedWriteableTestCase<Co
             permission.check(EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME, put, AuthenticationTestHelper.builder().build()),
             is(true)
         );
+        TransportRequest close = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME, "abc1");
+        assertThat(
+            permission.check(
+                EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
+                close,
+                AuthenticationTestHelper.builder().build()
+            ),
+            is(true)
+        );
+        TransportRequest open = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, "abc1");
+        assertThat(
+            permission.check(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, open, AuthenticationTestHelper.builder().build()),
+            is(true)
+        );
         TransportRequest putDenied = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME, "zzz");
         assertThat(
             permission.check(
                 EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
                 putDenied,
+                AuthenticationTestHelper.builder().build()
+            ),
+            is(false)
+        );
+        assertThat(
+            permission.check(
+                EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
+                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME, "zzz"),
+                AuthenticationTestHelper.builder().build()
+            ),
+            is(false)
+        );
+        assertThat(
+            permission.check(
+                EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME,
+                new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME, "zzz"),
                 AuthenticationTestHelper.builder().build()
             ),
             is(false)
@@ -160,6 +190,30 @@ public class DatasourcePrivilegesTests extends AbstractNamedWriteableTestCase<Co
         assertThat(permission.check(EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME, get, auth), is(true));
         TransportRequest delete = new MockDataSourceRequest(EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME, "myds");
         assertThat(permission.check(EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME, delete, auth), is(false));
+    }
+
+    /** Closing and opening a data source needs {@code manage}: no other privilege, on a matching name, grants it. */
+    public void testOnlyManageClosesAndOpens() {
+        var auth = AuthenticationTestHelper.builder().build();
+        for (String privilegeName : new String[] {
+            DatasourcePrivileges.PRIVILEGE_CREATE,
+            DatasourcePrivileges.PRIVILEGE_DELETE,
+            DatasourcePrivileges.PRIVILEGE_READ,
+            DatasourcePrivileges.PRIVILEGE_READ_METADATA }) {
+            DatasourcePrivileges privilege = new DatasourcePrivileges(
+                List.of(new DatasourcePermissionGroup(new String[] { "myds" }, new String[] { privilegeName }))
+            );
+            ClusterPermission permission = privilege.buildPermission(ClusterPermission.builder()).build();
+            for (String action : new String[] {
+                EsqlDataSourceActionNames.ESQL_CLOSE_DATA_SOURCE_ACTION_NAME,
+                EsqlDataSourceActionNames.ESQL_OPEN_DATA_SOURCE_ACTION_NAME }) {
+                assertThat(
+                    "[" + privilegeName + "] must not allow [" + action + "]",
+                    permission.check(action, new MockDataSourceRequest(action, "myds"), auth),
+                    is(false)
+                );
+            }
+        }
     }
 
     /**

@@ -68,5 +68,13 @@ public final class EsqlDataSourcesCapabilities {
      */
     public static final String DATA_SOURCE_DESCRIPTION_LENGTH_LIMIT = "data_source_description_length_limit";
 
+    /**
+     * Signals that this node exposes open/close endpoints for data sources
+     * ({@code POST /_query/data_source/{name}/_open|_close}). The same change adds a {@code state} field to GET responses for
+     * data sources; that field has no capability of its own, so a client that reads it should check this one on the open or
+     * close endpoint.
+     */
+    public static final String DATA_SOURCE_OPEN_CLOSE = "data_source_open_close";
+
     private EsqlDataSourcesCapabilities() {}
 }

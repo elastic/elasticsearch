@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DatasetClosedException;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
@@ -2001,20 +2002,35 @@ public class EsqlSession {
             indexViewOrigins,
             configuration.pragmas(),
             flags,
-            planningCpu.meteredCpu(logicalPlanListener.delegateFailureAndWrap((delegate, rewritten) -> {
-                datasetResolutionProfile.stop();
-                analyzedPlanAfterDatasetResolution(
-                    scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
-                    unmappedResolution,
-                    viewSettings,
-                    configuration,
-                    executionInfo,
-                    requestFilter,
-                    indexViewOrigins,
-                    delegate
-                );
-            }))
+            planningCpu.meteredCpu(
+                markExternalSourceOnClosedRefusal(logicalPlanListener, executionInfo).delegateFailureAndWrap((delegate, rewritten) -> {
+                    datasetResolutionProfile.stop();
+                    analyzedPlanAfterDatasetResolution(
+                        scopeIndexPatternsInViews(rewritten, unmappedResolution, viewSettings),
+                        unmappedResolution,
+                        viewSettings,
+                        configuration,
+                        executionInfo,
+                        requestFilter,
+                        indexViewOrigins,
+                        delegate
+                    );
+                })
+            )
         );
+    }
+
+    /**
+     * A query refused because the dataset it names is closed fails in dataset resolution, before the analyzed plan could flag it as
+     * an external-source query. Flag it here, or its failure would be recorded nowhere, not even under the {@code closed} category.
+     */
+    private static <T> ActionListener<T> markExternalSourceOnClosedRefusal(ActionListener<T> listener, EsqlExecutionInfo executionInfo) {
+        return ActionListener.wrap(listener::onResponse, e -> {
+            if (DatasetClosedException.isClosedRefusal(e)) {
+                executionInfo.markExternalSource();
+            }
+            listener.onFailure(e);
+        });
     }
 
     private void analyzedPlanAfterDatasetResolution(

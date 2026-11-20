@@ -3653,6 +3653,29 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertOK(client().performRequest(delete));
     }
 
+    public void testCloseDataSourceRequiresManagePrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request forbidden = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_close");
+        setUser(forbidden, "ds_read_metadata_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(forbidden));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/close"));
+
+        Request forbiddenEnable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_open");
+        setUser(forbiddenEnable, "ds_read_metadata_datasource");
+        ResponseException enableEx = expectThrows(ResponseException.class, () -> client().performRequest(forbiddenEnable));
+        assertThat(enableEx.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(enableEx.getMessage(), containsString("cluster:admin/esql/data_source/open"));
+
+        Request allowed = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_close");
+        setUser(allowed, "ds_manage_datasource");
+        assertOK(client().performRequest(allowed));
+        Request reenable = new Request("POST", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE + "/_open");
+        setUser(reenable, "ds_manage_datasource");
+        assertOK(client().performRequest(reenable));
+    }
+
     public void testPutDatasetForbiddenWithoutCreateDatasetPrivilege() throws IOException {
         assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         ensureSecurityItDatasourcesForTests();

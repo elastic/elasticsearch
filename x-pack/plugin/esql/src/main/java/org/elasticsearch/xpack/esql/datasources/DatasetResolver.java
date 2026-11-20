@@ -24,6 +24,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.esql.action.EsqlResolveDatasetAction;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
 import org.elasticsearch.xpack.esql.datasources.DatasetRewriter.DatasetResolution;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -222,7 +223,7 @@ public class DatasetResolver {
         }
         Map<WildcardsStop, Set<String>> stoppedMatches = new LinkedHashMap<>();
         for (StoppedRelation stopped : stoppedRelations) {
-            chain = chain.andThen((l, ignored) -> probeStoppedWildcards(stopped, stoppedMatches, l));
+            chain = chain.andThen((l, ignored) -> probeStoppedWildcards(stopped, projectMetadata, stoppedMatches, l));
         }
         // A dataset on another cluster is invisible rather than detected (see EsqlResolveFieldsAction). This resolver
         // only does the LOCAL rewrite + read-authz; under CPS it additionally preserves the remote half of a matched
@@ -258,6 +259,7 @@ public class DatasetResolver {
      */
     private void probeStoppedWildcards(
         StoppedRelation stopped,
+        ProjectMetadata projectMetadata,
         Map<WildcardsStop, Set<String>> stoppedMatches,
         ActionListener<Void> listener
     ) {
@@ -268,8 +270,12 @@ public class DatasetResolver {
             request,
             new ThreadedActionListener<>(executor, PlanningCpuTracker.inheritMeteredCpu(ActionListener.wrap(response -> {
                 Set<String> named = DatasetRewriter.exactNames(patterns);
+                DatasetMetadata datasets = DatasetMetadata.get(projectMetadata);
+                DataSourceMetadata dataSources = DataSourceMetadata.get(projectMetadata);
                 for (String dataset : response.datasets()) {
-                    if (named.contains(dataset) == false) {
+                    // A dataset of a closed data source is not readable whatever the view says, so the advice to change the view
+                    // would not help: leave it out of the warning, as the query itself leaves it out.
+                    if (named.contains(dataset) == false && DatasetRewriter.isClosed(dataset, datasets, dataSources) == false) {
                         stoppedMatches.computeIfAbsent(stopped.stop(), k -> new TreeSet<>()).add(dataset);
                     }
                 }

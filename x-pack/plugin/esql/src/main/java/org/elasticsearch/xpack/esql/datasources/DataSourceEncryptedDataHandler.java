@@ -68,7 +68,7 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
             DataSourceSetting setting = entry.getValue();
             rebuilt.put(entry.getKey(), setting.secret() ? new DataSourceSetting(null, true) : setting);
         }
-        return new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuilt);
+        return new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuilt, dataSource.enabled());
     }
 
     @Override
@@ -100,7 +100,7 @@ public final class DataSourceEncryptedDataHandler implements EncryptedDataHandle
         if (changed == false) {
             return dataSource;
         }
-        return new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuilt);
+        return new DataSource(dataSource.name(), dataSource.type(), dataSource.description(), rebuilt, dataSource.enabled());
     }
 
     private static DataSourceSetting reEncrypt(DataSourceSetting setting, UnaryOperator<EncryptedData> rewrapper) {

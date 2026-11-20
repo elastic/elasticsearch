@@ -444,6 +444,47 @@ public class DataSourceCrudRestIT extends ESRestTestCase {
         deleteDataSource(parent);
     }
 
+    public void testCloseOpenRoundTrip() throws IOException {
+        final String parent = "toggle_parent";
+        final String dataset = "toggle_child";
+        putDataSource(parent, "s3", Map.of("region", "us-east-1", "auth", "anonymous"));
+        putDataset(dataset, parent, "s3://x/*.parquet", Map.of());
+
+        Map<String, Object> got = getDataSource(parent);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> dsHits = (List<Map<String, Object>>) got.get("data_sources");
+        assertThat(dsHits.get(0).get("state"), equalTo("open"));
+
+        assertThat(
+            client().performRequest(new Request("POST", "/_query/data_source/" + parent + "/_close")).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+        got = getDataSource(parent);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> closedHits = (List<Map<String, Object>>) got.get("data_sources");
+        assertThat(closedHits.get(0).get("state"), equalTo("closed"));
+
+        ResponseException createEx = expectThrows(
+            ResponseException.class,
+            () -> putDataset("new_against_closed", parent, "s3://y/*.parquet", Map.of())
+        );
+        assertThat(createEx.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(EntityUtils.toString(createEx.getResponse().getEntity()), containsString("closed data source"));
+
+        assertThat(
+            client().performRequest(new Request("POST", "/_query/data_source/" + parent + "/_open")).getStatusLine().getStatusCode(),
+            equalTo(200)
+        );
+
+        got = getDataSource(parent);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> reopenedHits = (List<Map<String, Object>>) got.get("data_sources");
+        assertThat(reopenedHits.get(0).get("state"), equalTo("open"));
+
+        deleteDataset(dataset);
+        deleteDataSource(parent);
+    }
+
     public void testValidatorRejectsUnknownType() throws IOException {
         ResponseException ex = expectThrows(
             ResponseException.class,

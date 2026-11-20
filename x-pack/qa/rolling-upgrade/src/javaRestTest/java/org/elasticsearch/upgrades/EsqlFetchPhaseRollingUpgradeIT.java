@@ -31,6 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
  * phase. The rows stay the same throughout. While an older node is in the cluster nothing is fetched: an older coordinator
  * doesn't know the fetch phase, and an upgraded one plans eagerly because the older nodes can't read its plans. Once every
  * node is upgraded and has the fetch phase, both queries fetch.
+ * <p>
+ * A cluster upgraded from a detached build of main checks only the rows until every node reports the fetch phase. Its old
+ * nodes report the current version, and whether they read fetch requests depends on their commit.
  */
 public class EsqlFetchPhaseRollingUpgradeIT extends AbstractXpackRollingUpgradeTestCase {
     private static final String INDEX = "esql_fetch_phase_upgrade";
@@ -61,15 +64,32 @@ public class EsqlFetchPhaseRollingUpgradeIT extends AbstractXpackRollingUpgradeT
         if (isOldCluster()) {
             createIndex();
         }
-        int expectedFetchOperators = everyNodeHasTheFetchPhase() ? 1 : 0;
+        Integer expectedFetchOperators = expectedFetchOperators();
 
         Map<String, Object> withThePragma = query(QUERY, true);
         assertThat(withThePragma.get("values"), equalTo(expectedRows()));
-        assertThat("the fetch operators of the query with the pragma", fetchOperators(withThePragma), equalTo(expectedFetchOperators));
+        if (expectedFetchOperators != null) {
+            assertThat("the fetch operators of the query with the pragma", fetchOperators(withThePragma), equalTo(expectedFetchOperators));
+        }
 
         Map<String, Object> byDefault = query(SOURCE_QUERY, null);
         assertThat(byDefault.get("values"), equalTo(expectedSourceRows()));
-        assertThat("the fetch operators of the query without the pragma", fetchOperators(byDefault), equalTo(expectedFetchOperators));
+        if (expectedFetchOperators != null) {
+            assertThat("the fetch operators of the query without the pragma", fetchOperators(byDefault), equalTo(expectedFetchOperators));
+        }
+    }
+
+    /**
+     * The fetch operators each query plans, or {@code null} when the test can't tell. Both queries fetch once every node
+     * has the fetch phase. Neither does while a node of an older version is in the cluster, since it can't read fetch
+     * requests. The old nodes of a detached build may read them before they report the fetch phase.
+     */
+    @Nullable
+    private static Integer expectedFetchOperators() throws IOException {
+        if (everyNodeHasTheFetchPhase()) {
+            return 1;
+        }
+        return isOldClusterDetachedVersion() ? null : 0;
     }
 
     private void createIndex() throws IOException {

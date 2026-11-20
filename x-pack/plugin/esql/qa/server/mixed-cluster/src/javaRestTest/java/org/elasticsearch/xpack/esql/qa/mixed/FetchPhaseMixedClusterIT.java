@@ -23,7 +23,6 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.qa.rest.EsqlDataSourceMixedClusterTestSupport;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -33,20 +32,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
 /**
- * The fetch phase in a cluster where some nodes have an older version, which can't read its plans. A current coordinator
- * plans eagerly with the pragma, and with the cluster setting, which is on by default in a build with the fetch phase. So
- * the rows match a query without the fetch phase and nothing is fetched. An older coordinator doesn't know the fetch
- * phase. Once every node is current, the same queries fetch.
+ * The fetch phase in a cluster where some nodes lack it. A coordinator with the fetch phase plans eagerly, with the pragma
+ * and with the cluster setting, which is on by default in a build with the fetch phase, while a node that can't read fetch
+ * requests is in the cluster. So the rows match a query without the fetch phase and nothing is fetched. A coordinator of
+ * an older version doesn't know the fetch phase. Once every node has the fetch phase, the same queries fetch.
  * <p>
- * The cluster accepts the setting only through a current master, which knows it. The tests of the setting move the master
- * where they need it with voting exclusions.
+ * Each node is asked whether it has the fetch phase itself, so the test also runs in a cluster whose old nodes report the
+ * current version, like a cluster upgraded from a detached build of main. Whether such an old node reads fetch requests
+ * depends on its commit, so the test checks only the rows there until every node has the fetch phase.
+ * <p>
+ * The cluster accepts the setting only through a master that knows it, one with the fetch phase. The tests of the setting
+ * move the master where they need it with voting exclusions.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FetchPhaseMixedClusterIT extends ESRestTestCase {
@@ -63,6 +65,15 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
+
+    /**
+     * One node of the cluster.
+     *
+     * @param olderVersion   whether it reports a version before the current one
+     * @param masterEligible whether it can be the master
+     * @param hasFetchPhase  whether it has the fetch phase itself
+     */
+    private record ClusterNode(String name, String httpAddress, boolean olderVersion, boolean masterEligible, boolean hasFetchPhase) {}
 
     @Override
     protected String getTestRestCluster() {
@@ -96,36 +107,38 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
         assertThat(ObjectPath.createFromResponse(client().performRequest(request)).evaluate("errors"), equalTo(false));
     }
 
-    public void testACurrentCoordinatorWithThePragmaFetchesOnlyWhenEveryNodeCan() throws IOException {
-        try (RestClient coordinator = clientFor(false)) {
-            assumeTrue("the current nodes have the fetch phase", coordinatorHasTheFetchPhase(coordinator));
+    public void testACoordinatorWithTheFetchPhaseAndThePragmaFetchesOnlyWhenEveryNodeCan() throws IOException {
+        List<ClusterNode> nodes = nodes();
+        try (RestClient coordinator = clientOf(randomFrom(withTheFetchPhase(nodes)))) {
             Map<String, Object> withoutTheFetch = query(coordinator, QUERY, false);
             Map<String, Object> withThePragma = query(coordinator, QUERY, true);
             assertThat(withThePragma.get("values"), equalTo(withoutTheFetch.get("values")));
-            assertFetchedOnlyWhenEveryNodeCan(withThePragma);
+            assertFetchedOnlyWhenEveryNodeCan(nodes, withThePragma);
         }
     }
 
     /**
-     * The setting is on by default in a build with the fetch phase, so a current coordinator plans the fetch for a query
-     * that sets neither the pragma nor the setting. It fetches only once every node can.
+     * The setting is on by default in a build with the fetch phase, so a coordinator with the fetch phase plans the fetch
+     * for a query that sets neither the pragma nor the setting. It fetches only once every node can.
      */
-    public void testACurrentCoordinatorFetchesByDefaultOnlyWhenEveryNodeCan() throws IOException {
-        try (RestClient coordinator = clientFor(false)) {
-            assumeTrue("the current nodes have the fetch phase", coordinatorHasTheFetchPhase(coordinator));
+    public void testACoordinatorWithTheFetchPhaseFetchesByDefaultOnlyWhenEveryNodeCan() throws IOException {
+        List<ClusterNode> nodes = nodes();
+        try (RestClient coordinator = clientOf(randomFrom(withTheFetchPhase(nodes)))) {
             Map<String, Object> withoutTheFetch = query(coordinator, SOURCE_QUERY, false);
             Map<String, Object> byDefault = query(coordinator, SOURCE_QUERY, null);
             assertThat(byDefault.get("values"), equalTo(withoutTheFetch.get("values")));
-            assertFetchedOnlyWhenEveryNodeCan(byDefault);
+            assertFetchedOnlyWhenEveryNodeCan(nodes, byDefault);
         }
     }
 
     /**
-     * An older coordinator ignores the pragma it doesn't know, and loads every column before the cut.
+     * A coordinator of an older version ignores the pragma it doesn't know, and loads every column before the cut. An old
+     * node of a detached build may know the pragma, so it doesn't count here.
      */
     public void testAnOlderCoordinatorWithThePragmaLoadsEagerly() throws IOException {
-        assumeTrue("an older node coordinates", hasOlderNodes());
-        try (RestClient coordinator = clientFor(true)) {
+        List<ClusterNode> olderVersion = nodes().stream().filter(ClusterNode::olderVersion).toList();
+        assumeFalse("a node of an older version coordinates", olderVersion.isEmpty());
+        try (RestClient coordinator = clientOf(randomFrom(olderVersion))) {
             Map<String, Object> withoutTheFetch = query(coordinator, QUERY, null);
             Map<String, Object> withThePragma = query(coordinator, QUERY, true);
             assertThat(withThePragma.get("values"), equalTo(withoutTheFetch.get("values")));
@@ -134,12 +147,16 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
     }
 
     /**
-     * An older master doesn't know the setting and rejects any value, so a cluster can change the setting only once the
-     * master runs a current version.
+     * A master without the fetch phase doesn't know the setting and rejects any value, so a cluster can change the setting
+     * only once the master has the fetch phase.
      */
-    public void testAnOlderMasterRejectsTheSetting() throws Exception {
-        assumeTrue("an older node can be the master", hasOlderNodes());
-        try (Closeable ignored = masterAmong(true)) {
+    public void testAMasterWithoutTheFetchPhaseRejectsTheSetting() throws Exception {
+        List<ClusterNode> nodes = nodes();
+        // without the feature flag no node reports the fetch phase, although the current ones know the setting
+        assumeTrue("a node has the fetch phase", nodes.stream().anyMatch(ClusterNode::hasFetchPhase));
+        List<ClusterNode> without = nodes.stream().filter(node -> node.hasFetchPhase() == false && node.masterEligible()).toList();
+        assumeFalse("a node without the fetch phase can be the master", without.isEmpty());
+        try (Closeable ignored = masterAmong(nodes, without)) {
             String value = randomFrom("true", "false");
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(setting(value)));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
@@ -148,22 +165,28 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
     }
 
     /**
-     * A current master accepts the setting. Turning it off keeps the current coordinators eager, also once every node can
-     * fetch, and the older nodes go on with the setting in the cluster state.
+     * A master with the fetch phase accepts the setting. Turning it off keeps the coordinators with the fetch phase eager,
+     * also once every node can fetch, and the nodes without it go on with the setting in the cluster state.
      */
-    public void testACurrentMasterAcceptsTheSetting() throws Exception {
-        try (Closeable ignored = masterAmong(false)) {
+    public void testAMasterWithTheFetchPhaseAcceptsTheSetting() throws Exception {
+        List<ClusterNode> nodes = nodes();
+        List<ClusterNode> with = withTheFetchPhase(nodes);
+        List<ClusterNode> masters = with.stream().filter(ClusterNode::masterEligible).toList();
+        assumeFalse("a node with the fetch phase can be the master", masters.isEmpty());
+        try (Closeable ignored = masterAmong(nodes, masters)) {
             client().performRequest(setting("false"));
-            try (RestClient coordinator = clientFor(false)) {
-                assumeTrue("the current nodes have the fetch phase", coordinatorHasTheFetchPhase(coordinator));
+            try (RestClient coordinator = clientOf(randomFrom(with))) {
                 Map<String, Object> withTheSettingOff = query(coordinator, SOURCE_QUERY, null);
                 assertThat(fetchOperators(withTheSettingOff), equalTo(0));
                 assertThat(driverDescriptions(withTheSettingOff), not(hasItem("fetch")));
-                if (hasOlderNodes()) {
-                    try (RestClient olderCoordinator = clientFor(true)) {
-                        Map<String, Object> fromAnOlderCoordinator = query(olderCoordinator, SOURCE_QUERY, null);
-                        assertThat(fromAnOlderCoordinator.get("values"), equalTo(withTheSettingOff.get("values")));
-                        assertThat(fetchOperators(fromAnOlderCoordinator), equalTo(0));
+                for (ClusterNode without : nodes) {
+                    if (without.hasFetchPhase()) {
+                        continue;
+                    }
+                    try (RestClient otherCoordinator = clientOf(without)) {
+                        Map<String, Object> fromANodeWithout = query(otherCoordinator, SOURCE_QUERY, null);
+                        assertThat(fromANodeWithout.get("values"), equalTo(withTheSettingOff.get("values")));
+                        assertThat(fetchOperators(fromANodeWithout), equalTo(0));
                     }
                 }
             } finally {
@@ -179,24 +202,22 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
     }
 
     /**
-     * Moves the master to one of the older nodes, or of the current ones, by excluding the others from voting until the
+     * Moves the master to one of {@code candidates}, by excluding the other master-eligible nodes from voting until the
      * returned {@link Closeable} closes.
      */
-    private Closeable masterAmong(boolean olderNodes) throws Exception {
-        List<String> others = new ArrayList<>();
-        ObjectPath nodes = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
-        Map<String, Object> all = nodes.evaluate("nodes");
-        for (String id : all.keySet()) {
-            if (isOlder(nodes.evaluate("nodes." + id + ".version")) != olderNodes) {
-                others.add(nodes.evaluate("nodes." + id + ".name"));
-            }
-        }
+    private Closeable masterAmong(List<ClusterNode> nodes, List<ClusterNode> candidates) throws Exception {
+        List<String> names = candidates.stream().map(ClusterNode::name).toList();
+        List<String> others = nodes.stream()
+            .filter(ClusterNode::masterEligible)
+            .map(ClusterNode::name)
+            .filter(name -> names.contains(name) == false)
+            .toList();
         if (others.isEmpty() == false) {
             Request exclude = new Request("POST", "/_cluster/voting_config_exclusions");
             exclude.addParameter("node_names", String.join(",", others));
             client().performRequest(exclude);
         }
-        assertBusy(() -> assertThat("the master is among the older nodes", masterIsOlder(), equalTo(olderNodes)));
+        assertBusy(() -> assertThat("the master is among " + names, names, hasItem(masterName())));
         return () -> {
             Request clear = new Request("DELETE", "/_cluster/voting_config_exclusions");
             clear.addParameter("wait_for_removal", "false");
@@ -205,15 +226,32 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
     }
 
     /**
-     * With an older node in the cluster nothing is fetched. With every node current the query fetches.
+     * With a node that can't read fetch requests in the cluster nothing is fetched. With every node having the fetch phase
+     * the query fetches.
      */
-    private void assertFetchedOnlyWhenEveryNodeCan(Map<String, Object> response) throws IOException {
-        if (hasCapabilities(adminClient(), List.of(FETCH_PHASE))) {
-            assertThat("every node is current, so the query fetches", fetchOperators(response), equalTo(1));
-        } else {
-            assertThat("an older node can't read the plan, so the coordinator plans eagerly", fetchOperators(response), equalTo(0));
+    private void assertFetchedOnlyWhenEveryNodeCan(List<ClusterNode> nodes, Map<String, Object> response) {
+        Integer expected = expectedFetchOperators(nodes);
+        if (expected == null) {
+            return;
+        }
+        assertThat(fetchOperators(response), equalTo(expected));
+        if (expected == 0) {
             assertThat(driverDescriptions(response), not(hasItem("fetch")));
         }
+    }
+
+    /**
+     * The fetch operators of a query that a coordinator with the fetch phase plans with it, or {@code null} when the test
+     * can't tell. One once every node has the fetch phase. None while a node of an older version is in the cluster, since
+     * it can't read fetch requests. The test can't tell when every node reports the current version but some lack the
+     * fetch phase: those run a detached build of main, which may read fetch requests before it reports the fetch phase.
+     */
+    @Nullable
+    private static Integer expectedFetchOperators(List<ClusterNode> nodes) {
+        if (nodes.stream().allMatch(ClusterNode::hasFetchPhase)) {
+            return 1;
+        }
+        return nodes.stream().anyMatch(ClusterNode::olderVersion) ? 0 : null;
     }
 
     /**
@@ -257,42 +295,64 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
     }
 
     /**
-     * Whether {@code coordinator} has the fetch phase itself, whatever the other nodes have.
+     * The nodes of the cluster, each asked whether it has the fetch phase itself.
      */
-    private static boolean coordinatorHasTheFetchPhase(RestClient coordinator) throws IOException {
+    private List<ClusterNode> nodes() throws IOException {
+        ObjectPath info = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
+        Map<String, Object> all = info.evaluate("nodes");
+        List<ClusterNode> nodes = new ArrayList<>();
+        for (String id : all.keySet()) {
+            String name = info.evaluate("nodes." + id + ".name");
+            String httpAddress = info.evaluate("nodes." + id + ".http.publish_address");
+            boolean olderVersion = isOlder(info.evaluate("nodes." + id + ".version"));
+            List<String> roles = info.evaluate("nodes." + id + ".roles");
+            nodes.add(new ClusterNode(name, httpAddress, olderVersion, roles.contains("master"), hasTheFetchPhase(httpAddress)));
+        }
+        return nodes;
+    }
+
+    /**
+     * The nodes with the fetch phase. Skips the test without one, as in a build without the feature flag.
+     */
+    private static List<ClusterNode> withTheFetchPhase(List<ClusterNode> nodes) {
+        List<ClusterNode> with = nodes.stream().filter(ClusterNode::hasFetchPhase).toList();
+        assumeFalse("a node has the fetch phase", with.isEmpty());
+        return with;
+    }
+
+    /**
+     * Whether the node at {@code httpAddress} has the fetch phase itself, whatever the other nodes have. A node too old to
+     * know {@code local_only} answers 4xx, and has no fetch phase either.
+     */
+    private boolean hasTheFetchPhase(String httpAddress) throws IOException {
         Request request = new Request("GET", "_capabilities");
         request.addParameter("method", "POST");
         request.addParameter("path", "/_query");
         request.addParameter("capabilities", FETCH_PHASE);
         request.addParameter("local_only", "true");
-        return Boolean.TRUE.equals(entityAsMap(coordinator.performRequest(request)).get("supported"));
-    }
-
-    /**
-     * A client of the older nodes, or of the current ones.
-     */
-    private RestClient clientFor(boolean olderNodes) throws IOException {
-        ObjectPath nodes = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
-        String addresses = EsqlDataSourceMixedClusterTestSupport.httpAddressesForCoordinator(nodes, olderNodes);
-        return buildClient(restClientSettings(), parseClusterHosts(addresses).toArray(HttpHost[]::new));
-    }
-
-    private boolean hasOlderNodes() throws IOException {
-        ObjectPath nodes = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
-        Map<String, Object> all = nodes.evaluate("nodes");
-        for (String id : all.keySet()) {
-            if (isOlder(nodes.evaluate("nodes." + id + ".version"))) {
-                return true;
+        try (RestClient node = clientOf(httpAddress)) {
+            return Boolean.TRUE.equals(entityAsMap(node.performRequest(request)).get("supported"));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
+                return false;
             }
+            throw e;
         }
-        return false;
     }
 
-    private boolean masterIsOlder() throws IOException {
+    private RestClient clientOf(ClusterNode node) throws IOException {
+        return clientOf(node.httpAddress());
+    }
+
+    private RestClient clientOf(String httpAddress) throws IOException {
+        return buildClient(restClientSettings(), parseClusterHosts(httpAddress).toArray(HttpHost[]::new));
+    }
+
+    private String masterName() throws IOException {
         ObjectPath master = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes/_master")));
         Map<String, Object> nodes = master.evaluate("nodes");
         assertThat(nodes.size(), equalTo(1));
-        return isOlder(master.evaluate("nodes." + nodes.keySet().iterator().next() + ".version"));
+        return master.evaluate("nodes." + nodes.keySet().iterator().next() + ".name");
     }
 
     private static boolean isOlder(String nodeVersion) {

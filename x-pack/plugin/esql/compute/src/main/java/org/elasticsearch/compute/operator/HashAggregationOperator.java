@@ -436,7 +436,7 @@ public class HashAggregationOperator implements Operator {
             this.supportPartitioning = parallelConfig != null
                 && blockHash instanceof PartitionedBlockHash
                 && PartitionedBlockHash.supportPartitioning()
-                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning());
+                && aggregators.stream().allMatch(a -> a.aggregatorFunction().supportPartitioning(a.mode()));
             this.partitionedPartialOutput = this.supportPartitioning && allowPartitionedOutput && aggregatorMode.isOutputPartial();
             success = true;
         } finally {
@@ -538,7 +538,7 @@ public class HashAggregationOperator implements Operator {
             maybeReinitializeAfterPeriodicallyEmitted();
             List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
             class AddInput implements GroupingAggregatorFunction.AddInput {
-                long hashStart = System.nanoTime();
+                long hashStart;
                 long aggStart;
 
                 @Override
@@ -585,14 +585,17 @@ public class HashAggregationOperator implements Operator {
                 }
             }
             try (AddInput add = new AddInput()) {
+                final long aggsPrepareStart = System.nanoTime();
                 for (GroupingAggregator aggregator : aggregators) {
                     GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
                     if (p != null) {
                         prepared.add(p);
                     }
                 }
-
                 // TODO we can skip the page *entirely* if we know we don't need "empty" results.
+                add.hashStart = System.nanoTime();
+                // Count aggregation preparation time toward aggregation time
+                aggregationNanos += add.hashStart - aggsPrepareStart;
                 blockHash.add(page, add);
                 hashNanos += System.nanoTime() - add.hashStart;
             }

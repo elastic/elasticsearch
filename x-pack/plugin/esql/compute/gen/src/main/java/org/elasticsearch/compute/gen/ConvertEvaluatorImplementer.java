@@ -28,7 +28,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.EvaluatorImplementer.baseRamBytesUsed;
-import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
+import static org.elasticsearch.compute.gen.Methods.buildResultFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_CONVERT_FUNCTION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
@@ -43,6 +43,7 @@ import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.builderType;
+import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class ConvertEvaluatorImplementer {
@@ -184,11 +185,29 @@ public class ConvertEvaluatorImplementer {
         }
         builder.endControlFlow();
 
+        if (warnExceptions.isEmpty() && processFunction.returnType().isPrimitive()) {
+            // nothing can turn a value into null, so the result is a vector
+            TypeName fixedBuilderType = vectorFixedBuilderType(processFunction.returnType());
+            builder.beginControlFlow(
+                "try ($T builder = driverContext.blockFactory().$L)",
+                fixedBuilderType,
+                buildResultFromFactory(fixedBuilderType, true)
+            );
+            {
+                builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
+                builder.addStatement("builder.$L(p, $N)", processFunction.appendMethod(), evalValueCall("vector", "p", scratchPadName));
+                builder.endControlFlow();
+                builder.addStatement("return builder.build().asBlock()");
+            }
+            builder.endControlFlow();
+            return builder.build();
+        }
+
         ClassName resultBuilderType = builderType(processFunction.resultDataType(true));
         builder.beginControlFlow(
-            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            "try ($T builder = driverContext.blockFactory().$L)",
             resultBuilderType,
-            buildFromFactory(resultBuilderType)
+            buildResultFromFactory(resultBuilderType, true)
         );
         {
             builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
@@ -236,9 +255,9 @@ public class ConvertEvaluatorImplementer {
         builder.addStatement("int positionCount = block.getPositionCount()");
         TypeName resultBuilderType = builderType(processFunction.resultDataType(true));
         builder.beginControlFlow(
-            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            "try ($T builder = driverContext.blockFactory().$L)",
             resultBuilderType,
-            buildFromFactory(resultBuilderType)
+            buildResultFromFactory(resultBuilderType, true)
         );
         String scratchPadName = argument.scratchType() != null ? "scratchPad" : null;
         if (scratchPadName != null) {

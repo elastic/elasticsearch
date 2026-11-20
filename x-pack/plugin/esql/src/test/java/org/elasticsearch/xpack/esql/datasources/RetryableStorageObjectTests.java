@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -19,11 +24,14 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.esql.datasources.QueryFailureTelemetry.Failure;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalCredentialsExpiredException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException.Condition;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -36,6 +44,7 @@ import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
@@ -44,11 +53,13 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -815,6 +826,8 @@ public class RetryableStorageObjectTests extends ESTestCase {
         RetryScheduler capturing = (command, delayMillis, executor) -> pending.add(command);
         ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(inner, limiter);
         RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), capturing);
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
         AtomicReference<Exception> failure = new AtomicReference<>();
         obj.readBytesAsync(
@@ -830,9 +843,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         assertNull(result.get());
         assertTrue(pending.isEmpty());
         assertThat(failure.get(), instanceOf(ExternalUnavailableException.class));
+        assertEquals(Condition.LOCAL_CAPACITY, ((ExternalUnavailableException) failure.get()).condition());
         assertThat(failure.get().getMessage(), containsString("No concurrency permit available"));
         assertEquals("admission timeout must not issue another storage GET", 1, ioAttempts.get());
         assertEquals("admission timeout must not count a storage retry", 1L, obj.metrics().retryCount());
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL), hasSize(0));
         limiter.release();
     }
 
@@ -1254,6 +1269,205 @@ public class RetryableStorageObjectTests extends ESTestCase {
             measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL),
             hasSize(0)
         );
+    }
+
+    /**
+     * A retry scheduler refusal is why retrying stopped (429 {@code resource_limit}); the typed store fault is
+     * what was failing ({@code storage.errors}). Classify keeps the store fault as suppressed. Query telemetry
+     * walks cause, not suppressed, so it stays on the refusal.
+     */
+    public void testSchedulerRefusalSurfaces429AndRecordsTypedStoreFault() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+        ExternalUnavailableException store = new ExternalUnavailableException(
+            Condition.STORE_UNAVAILABLE,
+            StoragePath.NONE,
+            "HTTP 503",
+            "",
+            false,
+            0L
+        );
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(StoragePath.of("s3://bucket/key"), store);
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 5, 50), refusingScheduler());
+        obj.attachMetrics(metrics, "s3");
+
+        AtomicInteger completions = new AtomicInteger();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(r -> fail("the read must not succeed"), e -> {
+                assertEquals("the listener completes exactly once", 1, completions.incrementAndGet());
+                failure.set(e);
+            })
+        );
+
+        assertRefusal(failure.get(), ExternalUnavailableException.class, true);
+        Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(error.getLong(), equalTo(1L));
+        assertThat(error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_unavailable"));
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+    }
+
+    public void testSchedulerRefusalRecordsThrottleAsStorageErrorAndThrottled() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+        ExternalUnavailableException store = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            StoragePath.NONE,
+            "HTTP 429 SlowDown",
+            "",
+            true,
+            0L
+        );
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(StoragePath.of("s3://bucket/key"), store);
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 5, 50), refusingScheduler());
+        obj.attachMetrics(metrics, "s3");
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(r -> fail("the read must not succeed"), failure::set)
+        );
+
+        assertRefusal(failure.get(), ExternalUnavailableException.class, true);
+        Measurement error = single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL);
+        assertThat(error.getLong(), equalTo(1L));
+        assertThat(error.attributes().get(ExternalSourceMetrics.ERROR_TYPE_ATTRIBUTE), equalTo("storage_throttled"));
+        assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL).getLong(), equalTo(1L));
+    }
+
+    /**
+     * A raw {@link IOException} at refusal time is recorded as a storage error. Classify drops it (URI stripping);
+     * do not copy it onto the wire.
+     */
+    public void testSchedulerRefusalWithRawIoExceptionDoesNotCopyIoOntoTheWire() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new SocketTimeoutException("read timed out")
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, new RetryPolicy(3, 5, 50), refusingScheduler());
+        obj.attachMetrics(metrics, "s3");
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(r -> fail("the read must not succeed"), failure::set)
+        );
+
+        assertRefusal(failure.get(), SocketTimeoutException.class, false);
+        assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL).getLong(), equalTo(1L));
+    }
+
+    /**
+     * An {@link UncheckedIOException} wrapping a {@link SocketTimeoutException} is retried (cause walk) and then
+     * counted as a storage error, same as a top-level timeout.
+     */
+    public void testWrappedSocketTimeoutGiveUpCountsAsStorageError() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+        AlwaysFailingStorageObject delegate = new AlwaysFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new UncheckedIOException(new SocketTimeoutException("read timed out"))
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, RetryPolicy.NONE);
+        obj.attachMetrics(metrics, "s3");
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(r -> fail("the read must not succeed"), failure::set)
+        );
+
+        assertThat(failure.get(), instanceOf(UncheckedIOException.class));
+        assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL).getLong(), equalTo(1L));
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+    }
+
+    /**
+     * Admission-wait refusal: client still sees 429. The permit miss is typed as {@code LOCAL_CAPACITY} and
+     * suppressed. It is not a storage error.
+     */
+    public void testAdmissionSchedulerRefusalSurfaces429AndDoesNotCountStorageError() throws Exception {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 30_000L);
+        FailOnceAsyncStorageObject inner = new FailOnceAsyncStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)
+        );
+        List<Runnable> pending = new ArrayList<>();
+        AtomicInteger schedules = new AtomicInteger();
+        RetryScheduler secondHopRefuses = (command, delayMillis, executor) -> {
+            if (schedules.getAndIncrement() == 0) {
+                pending.add(command);
+            } else {
+                throw new EsRejectedExecutionException("admission hop rejected", true);
+            }
+        };
+        ConcurrencyLimitedStorageObject limited = new ConcurrencyLimitedStorageObject(inner, limiter);
+        RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), secondHopRefuses);
+        obj.attachMetrics(metrics, "s3");
+
+        AtomicInteger completions = new AtomicInteger();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        obj.readBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(r -> fail("the read must not succeed"), e -> {
+                assertEquals("the listener completes exactly once", 1, completions.incrementAndGet());
+                failure.set(e);
+            })
+        );
+        assertEquals("first I/O failure must schedule one retry", 1, pending.size());
+        limiter.acquire();
+        try {
+            pending.remove(0).run();
+        } finally {
+            limiter.release();
+        }
+
+        assertRefusal(failure.get(), ExternalUnavailableException.class, true);
+        ExternalUnavailableException suppressed = (ExternalUnavailableException) ExternalFailures.classify(failure.get())
+            .getSuppressed()[0];
+        assertEquals(Condition.LOCAL_CAPACITY, suppressed.condition());
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL), hasSize(0));
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_THROTTLED_TOTAL), hasSize(0));
+    }
+
+    private static RetryScheduler refusingScheduler() {
+        return (command, delayMillis, executor) -> { throw new EsRejectedExecutionException("retry start rejected", true); };
+    }
+
+    private static void assertRefusal(Exception failure, Class<? extends Throwable> recordedType, boolean recordedSurvivesClassify) {
+        assertThat(failure, instanceOf(EsRejectedExecutionException.class));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(failure));
+        assertThat(QueryFailureTelemetry.classify(failure), equalTo(new Failure("resource_limit", "429")));
+        RuntimeException classified = ExternalFailures.classify(failure);
+        assertThat(classified, instanceOf(EsRejectedExecutionException.class));
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(classified));
+        assertThat(QueryFailureTelemetry.classify(classified), equalTo(new Failure("resource_limit", "429")));
+        if (recordedSurvivesClassify) {
+            assertEquals(1, classified.getSuppressed().length);
+            assertThat(classified.getSuppressed()[0], instanceOf(recordedType));
+        } else {
+            assertEquals(0, classified.getSuppressed().length);
+        }
     }
 
     /**
@@ -1738,6 +1952,88 @@ public class RetryableStorageObjectTests extends ESTestCase {
         long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
         assertEquals("cancellation aborted the resume before re-opening the range", 1, delegate.openCount());
         assertThat("a cancel during the backoff must abort, not wait out the full delay", elapsedMs, lessThan(5_000L));
+    }
+
+    /**
+     * {@code abortStream} during mid-read throttle backoff must wake the sleep without a cancel
+     * ThreadLocal. Production close aborts the ResumingInputStream from another thread; without
+     * polling {@code aborted}, this sleeps the full 30s hop. Exposes the leftover of abort-before-wait.
+     */
+    public void testMidReadResumeAbortsBackoffWhenStreamAborted() throws Exception {
+        RetryPolicy policy = new RetryPolicy(0, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        byte[] payload = new byte[500];
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            0,
+            new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L),
+            true
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        InputStream in = obj.newStream(0, payload.length);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread reader = new Thread(() -> {
+            try {
+                in.readAllBytes();
+            } catch (Exception e) {
+                error.set(e);
+            }
+        }, "retryable-abort-during-backoff");
+        reader.start();
+        try {
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, reader.getState()));
+            long startNanos = System.nanoTime();
+            obj.abortStream(in);
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            assertFalse("abortStream must wake throttle backoff, not sleep the 30s hop", reader.isAlive());
+            assertThat(elapsedMs, lessThan(5_000L));
+            assertEquals("abort must not re-open the range", 1, delegate.openCount());
+            assertThat(error.get(), instanceOf(IOException.class));
+            assertThat(error.get().getMessage(), containsString("read aborted"));
+        } finally {
+            reader.interrupt();
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            in.close();
+        }
+    }
+
+    /**
+     * Resume re-open retries through {@code RetryPolicy.execute}, whose sleep also ignored {@code aborted}.
+     * First mid-read fault is non-throttle (zero delay); the resume GET throws a throttle so execute
+     * takes the 30s hop. {@code abortStream} must cut that sleep.
+     */
+    public void testResumeOpenExecuteBackoffAbortsWhenStreamAborted() throws Exception {
+        RetryPolicy policy = new RetryPolicy(3, 0, 0, 10, 30_000, 30_000, RetryPolicy.NO_BUDGET, null);
+        FailOpenOnResumeStorageObject delegate = new FailOpenOnResumeStorageObject(StoragePath.of("s3://bucket/key"));
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        InputStream in = obj.newStream(0, 100);
+        AtomicReference<Exception> error = new AtomicReference<>();
+        Thread reader = new Thread(() -> {
+            try {
+                in.readAllBytes();
+            } catch (Exception e) {
+                error.set(e);
+            }
+        }, "retryable-abort-during-resume-open");
+        reader.start();
+        try {
+            assertTrue("resume GET must start", delegate.awaitResumeOpen(5, TimeUnit.SECONDS));
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, reader.getState()));
+            long startNanos = System.nanoTime();
+            obj.abortStream(in);
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            assertFalse("abortStream must wake execute backoff, not sleep the 30s hop", reader.isAlive());
+            assertThat(elapsedMs, lessThan(5_000L));
+            assertEquals("initial open plus one failed resume GET", 2, delegate.openCount());
+            assertThat(error.get(), instanceOf(IOException.class));
+            assertThat(error.get().getMessage(), containsString("read aborted"));
+        } finally {
+            reader.interrupt();
+            reader.join(TimeUnit.SECONDS.toMillis(5));
+            in.close();
+        }
     }
 
     /**
@@ -2433,13 +2729,14 @@ public class RetryableStorageObjectTests extends ESTestCase {
         try (InputStream in = obj.newStream(0, payload.length)) {
             ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, in::readAllBytes);
             assertThat(e.getMessage(), containsString("No concurrency permit available"));
+            assertEquals(Condition.LOCAL_CAPACITY, e.condition());
         } finally {
             limiter.release();
         }
         assertEquals("resume miss must not issue a second GET", 1, opens.get());
         assertTrue("resume must barge, tryAcquire calls=" + tryAcquireCalls.get(), tryAcquireCalls.get() >= 1);
         assertEquals("admission timeout must not count a storage retry", 0L, obj.metrics().retryCount());
-        assertThat(single(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL).getLong(), equalTo(1L));
+        assertThat(measurements(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_ERRORS_TOTAL), hasSize(0));
     }
 
     /**
@@ -2718,6 +3015,83 @@ public class RetryableStorageObjectTests extends ESTestCase {
         @Override
         public int readBytes(long position, ByteBuffer target) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            listener.onFailure(failure);
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(0, 0, 0, 0);
+        }
+    }
+
+    private static final class FailOnceAsyncStorageObject extends AbstractTestStorageObject {
+        private final StoragePath path;
+        private final Exception firstFailure;
+        private final AtomicInteger attempts = new AtomicInteger();
+
+        FailOnceAsyncStorageObject(StoragePath path, Exception firstFailure) {
+            this.path = path;
+            this.firstFailure = firstFailure;
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
+            if (attempts.getAndIncrement() == 0) {
+                listener.onFailure(firstFailure);
+            } else {
+                listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+            }
         }
 
         @Override
@@ -3168,6 +3542,72 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * First open fails immediately with a non-throttle transient (resume delay 0). Each resume GET
+     * throws a throttle so {@code RetryPolicy.execute} sleeps the long hop.
+     */
+    private static final class FailOpenOnResumeStorageObject extends AbstractTestStorageObject {
+        private final StoragePath path;
+        private final CountDownLatch resumeOpen = new CountDownLatch(1);
+        private int opens;
+
+        FailOpenOnResumeStorageObject(StoragePath path) {
+            this.path = path;
+        }
+
+        int openCount() {
+            return opens;
+        }
+
+        boolean awaitResumeOpen(long timeout, TimeUnit unit) throws InterruptedException {
+            return resumeOpen.await(timeout, unit);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) throws IOException {
+            opens++;
+            if (opens == 1) {
+                return new FailingAfterNStream(
+                    new byte[100],
+                    0,
+                    new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)
+                );
+            }
+            resumeOpen.countDown();
+            throw new ExternalUnavailableException(Condition.STORE_THROTTLED, StoragePath.NONE, "", "", true, 0L);
+        }
+
+        @Override
+        public InputStream newStream() throws IOException {
+            return newStream(0, 100);
+        }
+
+        @Override
+        public long length() {
+            return 100L;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
      * Parks the first {@code read} until {@link #abortStream} releases it, then throws a transient
      * {@link ExternalUnavailableException} so resume would fire unless the abort flag holds.
      */
@@ -3339,7 +3779,11 @@ public class RetryableStorageObjectTests extends ESTestCase {
         @Override
         public void abortStream(InputStream stream) {
             lastAborted = stream;
-            release.countDown();
+            // Discarding the faulted first GET must not unpark the resume open. Only an abort
+            // after the resume newStream has started (opens >= 2) releases the park.
+            if (opens >= 2) {
+                release.countDown();
+            }
         }
 
         @Override
@@ -3406,4 +3850,407 @@ public class RetryableStorageObjectTests extends ESTestCase {
             return n;
         }
     }
+
+    private static final String CONTEXT_HEADER = AuthenticationField.AUTHENTICATION_KEY;
+    private static final String STALE_RESPONSE_HEADER = "X-Stale-Response";
+
+    /**
+     * Async-read stub that completes on a separate thread with an empty {@link ThreadContext}, as a storage SDK callback
+     * thread does. The first {@code failuresBeforeSuccess} attempts fail with a retryable error. Real classes are not
+     * usable here because the point is to control the completing thread.
+     */
+    private static StorageObject sdkThreadObject(ExecutorService sdkThread, ThreadContext threadContext, int failuresBeforeSuccess) {
+        return sdkThreadObject(sdkThread, threadContext, failuresBeforeSuccess, null);
+    }
+
+    private static StorageObject sdkThreadObject(
+        ExecutorService sdkThread,
+        ThreadContext threadContext,
+        int failuresBeforeSuccess,
+        String staleIdentity
+    ) {
+        return sdkThreadObject(sdkThread, threadContext, failuresBeforeSuccess, staleIdentity, null);
+    }
+
+    private static StorageObject sdkThreadObject(
+        ExecutorService sdkThread,
+        ThreadContext threadContext,
+        int failuresBeforeSuccess,
+        String staleIdentity,
+        List<String> identityByAttempt
+    ) {
+        AtomicInteger attempts = new AtomicInteger();
+        return new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("s3://bucket/key");
+            }
+
+            @Override
+            public int readBytes(long position, ByteBuffer target) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
+                boolean fail = attempts.getAndIncrement() < failuresBeforeSuccess;
+                if (identityByAttempt != null) {
+                    identityByAttempt.add(threadContext.getHeader(CONTEXT_HEADER));
+                }
+                sdkThread.execute(() -> {
+                    try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        if (staleIdentity != null) {
+                            threadContext.putHeader(CONTEXT_HEADER, staleIdentity);
+                            threadContext.addResponseHeader(STALE_RESPONSE_HEADER, "stale-response");
+                        }
+                        if (fail) {
+                            listener.onFailure(
+                                new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "", "", false, 0L)
+                            );
+                        } else {
+                            listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(4), () -> {}));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public StorageObjectMetrics metrics() {
+                return new StorageObjectMetrics(0, 0, 0, 0);
+            }
+        };
+    }
+
+    /** Issues an async read and returns the header the listener sees; a failure fails the test unless {@code expectFailure}. */
+    private String readAndObserveHeader(RetryableStorageObject obj, ThreadContext threadContext, boolean expectFailure) throws Exception {
+        threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
+        PlainActionFuture<String> observed = new PlainActionFuture<>();
+        obj.startReadBytesAsync(
+            0,
+            4,
+            len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+            Runnable::run,
+            ActionListener.wrap(buffer -> {
+                if (expectFailure) {
+                    observed.onFailure(new IllegalStateException("expected the read to fail"));
+                } else {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                }
+            }, e -> {
+                if (expectFailure) {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                } else {
+                    observed.onFailure(e);
+                }
+            })
+        );
+        return observed.get(10, TimeUnit.SECONDS);
+    }
+
+    public void testAsyncReadCompletionRestoresIssuingThreadContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadFailureRestoresIssuingThreadContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, Integer.MAX_VALUE),
+                RetryPolicy.NONE,
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, true), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadAfterRetryRestoresIssuingThreadContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryScheduler onSdkThread = (command, delayMillis, executor) -> sdkThread.execute(() -> {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    command.run();
+                }
+            });
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 1),
+                new RetryPolicy(3, 1, 10),
+                onSdkThread,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testByteBufferAsyncReadCompletionRestoresIssuingThreadContext() throws Exception {
+        assertThat(readByteBufferAndObserveHeader(false), equalTo("issuing-user"));
+    }
+
+    public void testByteBufferAsyncReadFailureRestoresIssuingThreadContext() throws Exception {
+        assertThat(readByteBufferAndObserveHeader(true), equalTo("issuing-user"));
+    }
+
+    /** Reads through the ByteBuffer overload on an empty-context worker and returns the header the listener sees. */
+    private String readByteBufferAndObserveHeader(boolean failStream) throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            // A real object cannot be used: the test must control the completing thread, which runs with an empty ThreadContext.
+            StorageObject inner = new AbstractTestStorageObject() {
+                @Override
+                public InputStream newStream() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public InputStream newStream(long position, long length) throws IOException {
+                    if (failStream) {
+                        throw new IOException("stream failure");
+                    }
+                    return new ByteArrayInputStream(new byte[(int) length]);
+                }
+
+                @Override
+                public long length() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Instant lastModified() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean exists() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public StoragePath path() {
+                    return StoragePath.of("s3://bucket/key");
+                }
+
+                @Override
+                public int readBytes(long position, ByteBuffer target) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void readBytesAsync(
+                    long position,
+                    long length,
+                    DirectBufferFactory factory,
+                    Executor executor,
+                    ActionListener<DirectReadBuffer> listener
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public StorageObjectMetrics metrics() {
+                    return new StorageObjectMetrics(0, 0, 0, 0);
+                }
+            };
+            RetryableStorageObject obj = new RetryableStorageObject(inner, new RetryPolicy(3, 1, 10), RetryScheduler.DIRECT, threadContext);
+            threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
+            PlainActionFuture<String> observed = new PlainActionFuture<>();
+            Executor sdkExecutor = command -> sdkThread.execute(() -> {
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    command.run();
+                }
+            });
+            obj.readBytesAsync(0, ByteBuffer.allocate(4), sdkExecutor, ActionListener.wrap(n -> {
+                if (failStream) {
+                    observed.onFailure(new IllegalStateException("expected the read to fail"));
+                } else {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                }
+            }, e -> {
+                if (failStream) {
+                    observed.onResponse(threadContext.getHeader(CONTEXT_HEADER));
+                } else {
+                    observed.onFailure(e);
+                }
+            }));
+            return observed.get(10, TimeUnit.SECONDS);
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadWithoutThreadContextDoesNotRestore() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT
+            );
+            assertNull(readAndObserveHeader(obj, threadContext, false));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadReplacesStaleIdentityOnCompletingThread() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0, "another-querys-user"),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadRetryAttemptsRunUnderIssuingContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryScheduler onSdkThread = (command, delayMillis, executor) -> sdkThread.execute(() -> {
+                try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+                    command.run();
+                }
+            });
+            List<String> identityByAttempt = new CopyOnWriteArrayList<>();
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 1, null, identityByAttempt),
+                new RetryPolicy(3, 1, 10),
+                onSdkThread,
+                threadContext
+            );
+            assertThat(readAndObserveHeader(obj, threadContext, false), equalTo("issuing-user"));
+            assertThat(identityByAttempt, equalTo(List.of("issuing-user", "issuing-user")));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    public void testAsyncReadAdmissionRetryRunsUnderIssuingContext() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 30_000L);
+            List<String> identityByAttempt = new CopyOnWriteArrayList<>();
+            BlockingQueue<Runnable> pending = new LinkedBlockingQueue<>();
+            RetryScheduler capturing = (command, delayMillis, executor) -> pending.add(command);
+            StorageObject limited = new ConcurrencyLimitedStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 1, null, identityByAttempt),
+                limiter
+            );
+            RetryableStorageObject obj = new RetryableStorageObject(limited, new RetryPolicy(3, 5, 50), capturing, threadContext);
+            threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
+            PlainActionFuture<String> observed = new PlainActionFuture<>();
+            obj.startReadBytesAsync(
+                0,
+                4,
+                len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+                Runnable::run,
+                ActionListener.wrap(buffer -> observed.onResponse(threadContext.getHeader(CONTEXT_HEADER)), observed::onFailure)
+            );
+            Runnable storageRetry = pending.poll(10, TimeUnit.SECONDS);
+            assertNotNull(storageRetry);
+            limiter.acquire();
+            sdkThread.submit(() -> runOnEmptyContext(threadContext, storageRetry)).get(10, TimeUnit.SECONDS);
+            Runnable admissionRetry = pending.poll(10, TimeUnit.SECONDS);
+            assertNotNull("barge miss must schedule an admission retry", admissionRetry);
+            assertThat("the permit miss must not reach the delegate", identityByAttempt, equalTo(List.of("issuing-user")));
+            limiter.release();
+            sdkThread.submit(() -> runOnEmptyContext(threadContext, admissionRetry)).get(10, TimeUnit.SECONDS);
+            assertThat(observed.get(10, TimeUnit.SECONDS), equalTo("issuing-user"));
+            assertThat(identityByAttempt, equalTo(List.of("issuing-user", "issuing-user")));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
+    private static void runOnEmptyContext(ThreadContext threadContext, Runnable command) {
+        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+            command.run();
+        }
+    }
+
+    public void testAsyncReadDoesNotLeakCompletingThreadResponseHeaders() throws Exception {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ExecutorService sdkThread = Executors.newSingleThreadExecutor();
+        try {
+            RetryableStorageObject obj = new RetryableStorageObject(
+                sdkThreadObject(sdkThread, threadContext, 0, "another-querys-user"),
+                new RetryPolicy(3, 1, 10),
+                RetryScheduler.DIRECT,
+                threadContext
+            );
+            threadContext.putHeader(CONTEXT_HEADER, "issuing-user");
+            PlainActionFuture<List<String>> observed = new PlainActionFuture<>();
+            obj.startReadBytesAsync(
+                0,
+                4,
+                len -> new DirectReadBuffer(ByteBuffer.allocate(len), () -> {}),
+                Runnable::run,
+                ActionListener.wrap(
+                    buffer -> observed.onResponse(threadContext.getResponseHeaders().get(STALE_RESPONSE_HEADER)),
+                    observed::onFailure
+                )
+            );
+            assertNull(observed.get(10, TimeUnit.SECONDS));
+        } finally {
+            terminate(sdkThread);
+        }
+    }
+
 }

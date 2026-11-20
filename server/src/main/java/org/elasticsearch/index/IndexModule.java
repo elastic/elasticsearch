@@ -44,6 +44,7 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -198,6 +199,7 @@ public final class IndexModule {
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final FlushMetrics flushMetrics;
     private final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder;
 
     /**
@@ -209,6 +211,7 @@ public final class IndexModule {
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
      * @param mergeMetrics
+     * @param flushMetrics
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -224,6 +227,7 @@ public final class IndexModule {
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
         final MergeMetrics mergeMetrics,
+        final FlushMetrics flushMetrics,
         final PluggableDirectoryMetricsHolder<StoreMetrics> metricHolder
     ) {
         this.indexSettings = indexSettings;
@@ -241,6 +245,7 @@ public final class IndexModule {
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.flushMetrics = flushMetrics;
         this.metricHolder = metricHolder;
     }
 
@@ -587,6 +592,7 @@ public final class IndexModule {
                 indexingStatsSettings,
                 searchStatsSettings,
                 mergeMetrics,
+                flushMetrics,
                 metricHolder
             );
             success = true;

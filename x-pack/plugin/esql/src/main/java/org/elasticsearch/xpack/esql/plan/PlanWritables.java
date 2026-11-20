@@ -18,12 +18,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -64,12 +66,14 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
@@ -122,6 +126,7 @@ public class PlanWritables {
             LimitBy.ENTRY,
             Lookup.ENTRY,
             MvExpand.ENTRY,
+            NestedExpand.ENTRY,
             OrderBy.ENTRY,
             ParameterizedQuery.ENTRY,
             Project.ENTRY,
@@ -140,7 +145,8 @@ public class PlanWritables {
             MetricsInfo.ENTRY,
             RegisteredDomain.ENTRY,
             TsInfo.ENTRY,
-            UserAgent.ENTRY
+            UserAgent.ENTRY,
+            Into.ENTRY
         );
     }
 
@@ -168,6 +174,7 @@ public class PlanWritables {
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,
+            NestedExpandExec.ENTRY,
             ProjectExec.ENTRY,
             RerankExec.ENTRY,
             SampleExec.ENTRY,
@@ -184,7 +191,8 @@ public class PlanWritables {
             MetricsInfoExec.ENTRY,
             RegisteredDomainExec.ENTRY,
             TsInfoExec.ENTRY,
-            UserAgentExec.ENTRY
+            UserAgentExec.ENTRY,
+            IntoExec.ENTRY
         );
     }
 

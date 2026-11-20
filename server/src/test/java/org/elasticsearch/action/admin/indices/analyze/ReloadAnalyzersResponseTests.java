@@ -45,7 +45,7 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
                 response.getTotalShards(),
                 response.getSuccessfulShards(),
                 response.getFailedShards(),
-                Arrays.asList(response.getShardFailures()),
+                response.getShardFailures(),
                 reloadedNodeIds
             );
         }

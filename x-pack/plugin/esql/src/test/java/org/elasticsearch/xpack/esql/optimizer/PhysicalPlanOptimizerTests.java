@@ -7567,9 +7567,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var source = source(fieldExtract.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
-        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
-        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected the pushed conjunction and disjunction as FILTER clauses", bool.filter().size(), equalTo(2));
+        var conjunction = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of two MUST clauses", conjunction.must().size(), equalTo(2));
+        var boolDisjuntive = as(bool.filter().get(1), BoolQueryBuilder.class);
         var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
         for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
@@ -7657,9 +7658,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var fieldExtract2 = as(evalExec.child(), FieldExtractExec.class);
         var source = source(fieldExtract2.child());
         var bool = as(source.query(), BoolQueryBuilder.class);
-        assertThat("Expected boolean query of three MUST clauses", bool.must().size(), equalTo(2));
-        assertThat("Expected boolean query of one FILTER clause", bool.filter().size(), equalTo(1));
-        var boolDisjuntive = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected the pushed conjunction and disjunction as FILTER clauses", bool.filter().size(), equalTo(2));
+        var conjunction = as(bool.filter().get(0), BoolQueryBuilder.class);
+        assertThat("Expected boolean query of two MUST clauses", conjunction.must().size(), equalTo(2));
+        var boolDisjuntive = as(bool.filter().get(1), BoolQueryBuilder.class);
         var disjuntiveQueryBuilders = boolDisjuntive.should().stream().filter(p -> p instanceof BoolQueryBuilder).toList();
         assertThat("Expected two disjunctive query builders", disjuntiveQueryBuilders.size(), equalTo(2));
         for (int i = 0; i < disjuntiveQueryBuilders.size(); i++) {
@@ -10269,7 +10271,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         var flags = new EsqlFlags(true);
         plan = PlannerUtils.localPlan(PlannerSettings.DEFAULTS, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS, null);
-        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
+        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
             "",
@@ -10302,7 +10304,10 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             0,     // esqlWorkerPoolSize - not needed for these tests
             MatcherWatchdog.noop(),
             TransportVersion.current(),
-            null   // client - not needed for these tests
+            null,  // client - not needed for these tests
+            LocalExecutionPlanner.ExternalComputeContext.NONE,
+            null,  // escfBulkService - not needed for these tests
+            () -> false
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());

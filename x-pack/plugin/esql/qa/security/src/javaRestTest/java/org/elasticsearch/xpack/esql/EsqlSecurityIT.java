@@ -980,12 +980,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         refresh("eql-events");
 
         // DLS lets eql_dls_user see only the process events, and the delegated EQL search honors that filter.
-        Response process = runESQLCommand("eql_dls_user", "EQL eql-events \"process where true\" | KEEP message | SORT message");
+        Response process = runESQLCommand(
+            "eql_dls_user",
+            "EQL eql-events \"process where true\" WITH {\"size\": 100} | KEEP message | SORT message"
+        );
         assertOK(process);
         assertThat(entityAsMap(process).get("values"), equalTo(List.of(List.of("a"), List.of("b"))));
 
         // The network event exists but is hidden by DLS, so querying for it returns nothing rather than leaking the row.
-        Response network = runESQLCommand("eql_dls_user", "EQL eql-events \"network where true\" | KEEP message");
+        Response network = runESQLCommand("eql_dls_user", "EQL eql-events \"network where true\" WITH {\"size\": 100} | KEEP message");
         assertOK(network);
         assertThat(entityAsMap(network).get("values"), equalTo(List.of()));
 
@@ -1023,7 +1026,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         // The delegated EQL search fetches _source, which security filters, so the hidden message field must be absent
         // from every converted row while the granted fields remain.
-        Response resp = runESQLCommand("eql_fls_user", "EQL eql-events-fls \"process where true\" METADATA _source | KEEP _source");
+        Response resp = runESQLCommand(
+            "eql_fls_user",
+            "EQL eql-events-fls \"process where true\" METADATA _source WITH {\"size\": 100} | KEEP _source"
+        );
         assertOK(resp);
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) entityAsMap(resp).get("values");
@@ -2356,12 +2362,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, String>> columns = (List<Map<String, String>>) respMap.get("columns");
             // Verify we have the expected columns
-            assertThat(columns.size(), equalTo(5));
+            assertThat(columns.size(), equalTo(6));
             assertThat(columns.get(0).get("name"), equalTo("cluster"));
             assertThat(columns.get(1).get("name"), equalTo("node"));
             assertThat(columns.get(2).get("name"), equalTo("role"));
             assertThat(columns.get(3).get("name"), equalTo("type"));
             assertThat(columns.get(4).get("name"), equalTo("plan"));
+            assertThat(columns.get(5).get("name"), equalTo("plan_json"));
 
             @SuppressWarnings("unchecked")
             List<List<Object>> values = (List<List<Object>>) respMap.get("values");

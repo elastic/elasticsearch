@@ -49,6 +49,7 @@ import static org.elasticsearch.compute.gen.Methods.requireStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireType;
 import static org.elasticsearch.compute.gen.Methods.requireVoidType;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
+import static org.elasticsearch.compute.gen.Types.AGGREGATOR_MODE;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
@@ -929,6 +930,7 @@ public class GroupingAggregatorImplementer {
         return MethodSpec.methodBuilder("supportPartitioning")
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
+            .addParameter(AGGREGATOR_MODE, "mode")
             .returns(TypeName.BOOLEAN)
             .addStatement("return true")
             .build();

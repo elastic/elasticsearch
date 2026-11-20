@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.antlr.PostProcessAntlrSourcesTask
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
@@ -84,31 +85,17 @@ tasks.register("regenParser", JavaExec) {
     "${file(grammarPath)}/EqlBase.g4"
 }
 
-tasks.register("regen") {
+tasks.register("regen", PostProcessAntlrSourcesTask) {
   dependsOn "regenParser"
-  doLast {
-    // moves token files to grammar directory for use with IDE's
-    ant.move(file: "${outputPath}/EqlBase.tokens", toDir: grammarPath)
-    ant.move(file: "${outputPath}/EqlBaseLexer.tokens", toDir: grammarPath)
-    // make the generated classes package private
-    ant.replaceregexp(match: 'public ((interface|class) \\QEqlBase\\E\\w+)',
-      replace: '\\1',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'EqlBase*.java')
-    }
-    // nuke timestamps/filenames in generated files
-    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
-      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
-      encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'EqlBase*.java')
-    }
-    // remove tabs in antlr generated files
-    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
-      fileset(dir: outputPath, includes: 'EqlBase*.java')
-    }
-    // fix line endings
-    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
-      patternset(includes: 'EqlBase*.java')
-    }
-  }
+  generatedSourcesDir = file(outputPath)
+  // moves token files to grammar directory for use with IDE's
+  tokensDir = file(grammarPath)
+  tokenFiles = ["EqlBase.tokens", "EqlBaseLexer.tokens"]
+  // make the generated classes package private
+  replaceFirst('EqlBase*.java', 'public ((interface|class) \\QEqlBase\\E\\w+)', '$1')
+  // nuke timestamps/filenames in generated files
+  replaceFirst('EqlBase*.java', '\\Q// Generated from \\E.*', '// ANTLR GENERATED CODE: DO NOT EDIT')
+  // remove tabs in antlr generated files
+  replaceAll('EqlBase*.java', '\t', '  ')
+  fixLineEndings('EqlBase*.java')
 }

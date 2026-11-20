@@ -198,8 +198,8 @@ public final class IntoPageWriter {
         }
 
         /**
-         * Fails the query when {@code target} cannot be written as a pre-built ESCF batch.
-         * Checked once on the coordinator.
+         * Fails the query when {@code target} cannot be written as a pre-built ESCF batch. Checked on the coordinator before the
+         * query is dispatched, and again where a node plans the write, since the destination can change in between.
          */
         public static void requireBatchDestination(boolean batchIndexingSupported, ProjectMetadata project, String target) {
             // TODO: authorize write access to the destination before reporting destination-specific errors below, which would

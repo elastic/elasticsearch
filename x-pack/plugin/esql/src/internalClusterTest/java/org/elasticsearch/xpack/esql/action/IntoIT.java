@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -21,15 +24,18 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -40,7 +46,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class IntoIT extends AbstractEsqlIntegTestCase {
@@ -172,24 +180,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
      * A destination with an ingest pipeline cannot be written as a pre-built batch, so the query fails.
      */
     public void testIngestPipelineIsRejected() {
-        String pipeline = "into-add-field-pipeline";
-        String pipelineDest = "dest-into-with-pipeline";
-
-        IngestPipelineTestUtils.putJsonPipeline(client(), pipeline, """
-            {"processors": [{"set": {"field": "pipeline_ran", "value": true}}]}""");
-
-        assertAcked(
-            indicesAdmin().prepareCreate(pipelineDest)
-                .setSettings(batchIndexingSettings().put("index.default_pipeline", pipeline))
-                .setMapping("""
-                    {
-                      "dynamic": "strict",
-                      "properties": {
-                        "k":            { "type": "keyword" },
-                        "pipeline_ran": { "type": "boolean" }
-                      }
-                    }""")
-        );
+        String pipelineDest = createDestinationWithPipeline();
 
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
@@ -197,6 +188,29 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         );
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), containsString("ingest pipelines"));
+    }
+
+    public void testFromIngestPipelineIsRejectedBeforeDispatch() {
+        createSource();
+        String pipelineDest = createDestinationWithPipeline();
+
+        int dataNodeRequests = countDataNodeRequests(() -> {
+            ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> run("FROM " + SOURCE + " | INTO " + pipelineDest).close()
+            );
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.getMessage(), containsString("ingest pipelines"));
+        });
+        assertThat(dataNodeRequests, equalTo(0));
+    }
+
+    public void testAllowPartialResultsRequestedForIntoIsIgnoredWithAWarning() {
+        Matcher<Iterable<? super String>> warned = hasItem(containsString("allow_partial_results"));
+
+        assertThat(warningsOf(syncEsqlQueryRequest("ROW k = \"a\" | INTO " + DESTINATION).allowPartialResults(true)), warned);
+        assertThat(warningsOf(syncEsqlQueryRequest("ROW k = \"b\" | INTO " + DESTINATION)), not(warned));
+        assertThat(warningsOf(syncEsqlQueryRequest("ROW k = \"c\" | INTO " + DESTINATION).allowPartialResults(false)), not(warned));
     }
 
     public void testDescribeOutputIsWritten() {
@@ -259,7 +273,29 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             true,
             IntStream.range(0, 2000).mapToObj(i -> client().prepareIndex(SOURCE).setSource("k", wide + i)).collect(Collectors.toList())
         );
-        assertInto("FROM " + SOURCE + " | KEEP k", 2000);
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + SOURCE + " | KEEP k | INTO " + DESTINATION);
+        request.profile(true);
+        // Several slices per shard and several drivers, instead of whatever the randomized pragmas pick
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 4)
+                    .put(QueryPragmas.DATA_PARTITIONING.getKey(), "doc")
+                    .put(QueryPragmas.MIN_DOCS_PER_SLICE.getKey(), 100)
+                    .build()
+            )
+        );
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse response = run(request)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of(2000L, 2000L))));
+            long writers = response.profile()
+                .drivers()
+                .stream()
+                .filter(driver -> driver.description().equals(ComputeService.DATA_DESCRIPTION))
+                .filter(driver -> driver.operators().stream().anyMatch(op -> op.operator().contains("IntoOperator")))
+                .count();
+            assertThat(writers, greaterThan(1L));
+        }
         assertReadBack("STATS c = COUNT(*) BY k | STATS groups = COUNT(*), rows = SUM(c)", List.of(List.of(2000L, 2000L)));
     }
 
@@ -381,6 +417,45 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             prepareSearch(index),
             r -> assertThat(Arrays.stream(r.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(), equalTo(expected))
         );
+    }
+
+    private String createDestinationWithPipeline() {
+        String pipeline = "into-add-field-pipeline";
+        String pipelineDest = "dest-into-with-pipeline";
+
+        IngestPipelineTestUtils.putJsonPipeline(client(), pipeline, """
+            {"processors": [{"set": {"field": "pipeline_ran", "value": true}}]}""");
+
+        assertAcked(
+            indicesAdmin().prepareCreate(pipelineDest)
+                .setSettings(batchIndexingSettings().put("index.default_pipeline", pipeline))
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "k":            { "type": "keyword" },
+                        "pipeline_ran": { "type": "boolean" }
+                      }
+                    }""")
+        );
+        return pipelineDest;
+    }
+
+    private List<String> warningsOf(EsqlQueryRequest request) {
+        ThreadPool threadPool = client().threadPool();
+        PlainActionFuture<List<String>> warnings = new PlainActionFuture<>();
+        // The framework releases the response after the listener returns, so it is not closed here
+        client().execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
+            warnings.onResponse(
+                threadPool.getThreadContext()
+                    .getResponseHeaders()
+                    .getOrDefault("Warning", List.of())
+                    .stream()
+                    .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
+                    .toList()
+            );
+        }, warnings::onFailure));
+        return warnings.actionGet(30, TimeUnit.SECONDS);
     }
 
     private static Settings.Builder batchIndexingSettings() {

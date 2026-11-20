@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -23,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
@@ -120,6 +123,7 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
@@ -680,8 +684,12 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
+        boolean hasInto = viewResolution.plan().anyMatch(Into.class::isInstance);
+        if (hasInto && request.allowPartialResultsRequested()) {
+            HeaderWarning.addWarning("INTO does not return partial results, so [allow_partial_results] is ignored");
+        }
         // A partial INTO would still have written the rows of the shards that succeeded
-        boolean allowPartialResults = request.allowPartialResults() && viewResolution.plan().anyMatch(Into.class::isInstance) == false;
+        boolean allowPartialResults = request.allowPartialResults() && hasInto == false;
         Configuration configuration = new Configuration(
             Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
@@ -3669,6 +3677,10 @@ public class EsqlSession {
         plan.setAnalyzed();
         if (plan instanceof Into into) {
             rejectDestinationThatIsRead(into);
+            if (configuration.explainOnly() == false) {
+                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+                IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported(), projectMetadata, target);
+            }
         }
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
         // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
@@ -3697,6 +3709,13 @@ public class EsqlSession {
                 throw new VerificationException(List.of(Failure.fail(into, message, into.destination(), source.indexPattern())));
             }
         }
+    }
+
+    // The same conditions as ShardBatchIndexer#isBatchIndexingSupported, which needs a BatchIndexingEnabled that watches the settings
+    private boolean batchIndexingSupported() {
+        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled()
+            && clusterService.getClusterSettings().get(BatchIndexingEnabled.BATCH_INDEXING)
+            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_ESCF_BATCH);
     }
 
     private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {

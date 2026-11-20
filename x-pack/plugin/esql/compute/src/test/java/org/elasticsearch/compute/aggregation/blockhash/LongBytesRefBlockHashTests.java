@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -21,6 +22,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -44,6 +47,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
 
     public void testAdd() {
         try (LongBytesRefBlockHash hash = newHash()) {
+            Set<BytesRef> rowBytes = new HashSet<>();
             int numPages = between(1, 5);
             for (int i = 0; i < numPages; i++) {
                 int positionCount = between(1, 100);
@@ -55,8 +59,17 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                 }
                 try (bytes; LongBlock longs = randomLongs(positionCount)) {
                     addAndAssertGroupIds(hash, longs, bytes);
+                    for (int p = 0; p < positionCount; p++) {
+                        for (Key key : keysAt(longs, bytes, p)) {
+                            if (key.bytes() != null) {
+                                rowBytes.add(key.bytes());
+                            }
+                        }
+                    }
                 }
             }
+            // dictionary entries no row references never enter the hash
+            assertThat(hash.bytesHashSize(), equalTo((long) rowBytes.size()));
         }
     }
 
@@ -76,7 +89,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                 }
             }
             final int numKeys = hash.numKeys();
-            final Map<Key, Integer> groups = groupsByKey(hash);
+            final long bytesHashSize = hash.bytesHashSize();
             int numLookups = between(1, 10);
             for (int i = 0; i < numLookups; i++) {
                 int positionCount = between(1, 20);
@@ -87,31 +100,150 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                     bytes = randomBytes(positionCount);
                 }
                 try (bytes; LongBlock longs = randomLongs(positionCount)) {
-                    long lookupsBefore = hash.ordinalLookups();
-                    int position = 0;
-                    try (ReleasableIterator<IntBlock> it = hash.lookup(new Page(longs, bytes), ByteSizeValue.ofKb(between(1, 16)))) {
-                        while (it.hasNext()) {
-                            try (IntBlock ords = it.next()) {
-                                for (int p = 0; p < ords.getPositionCount(); p++, position++) {
-                                    // unknown combinations are simply absent; a position with none of them known is null
-                                    Set<Integer> expected = new HashSet<>();
-                                    for (Key key : keysAt(longs, bytes, position)) {
-                                        Integer groupId = groups.get(key);
-                                        if (groupId != null) {
-                                            expected.add(groupId);
-                                        }
-                                    }
-                                    assertThat("position " + position, groupIdsAt(ords, p), equalTo(expected));
-                                }
-                            }
-                        }
-                    }
-                    assertThat(position, equalTo(positionCount));
-                    long expectedLookups = hasDenseOrdinals(bytes) ? lookupsBefore + 1 : lookupsBefore;
-                    assertThat(hash.ordinalLookups(), equalTo(expectedLookups));
+                    lookupAndAssertGroupIds(hash, longs, bytes);
                 }
             }
             assertThat(hash.numKeys(), equalTo(numKeys));
+            assertThat(hash.bytesHashSize(), equalTo(bytesHashSize));
+        }
+    }
+
+    /**
+     * A dense page whose dictionary has entries no position references, including ordinal 0: only the referenced
+     * entries are hashed on add, and a lookup through the same dictionary adds nothing.
+     */
+    public void testDenseOrdinalsHashOnlyReferencedEntries() {
+        List<String> dictionary = List.of("unused-0", "a", "b", "unused-3");
+        int positionCount = 12;
+        assertTrue(OrdinalBytesRefBlock.isDense(positionCount, dictionary.size()));
+        try (LongBytesRefBlockHash hash = newHash()) {
+            try (
+                BytesRefBlock bytes = ordinalVector(positionCount, p -> 1 + p % 2, dictionary);
+                LongBlock longs = blockFactory.newConstantLongBlockWith(7, positionCount)
+            ) {
+                addAndAssertGroupIds(hash, longs, bytes);
+            }
+            assertThat(hash.bytesHashSize(), equalTo(2L));
+            assertThat(hash.numKeys(), equalTo(2));
+            // a is known, unused-3 is not
+            try (
+                BytesRefBlock bytes = ordinalVector(positionCount, p -> p % 2 == 0 ? 1 : 3, dictionary);
+                LongBlock longs = blockFactory.newConstantLongBlockWith(7, positionCount)
+            ) {
+                lookupAndAssertGroupIds(hash, longs, bytes);
+            }
+            assertThat(hash.ordinalLookups(), equalTo(1L));
+            assertThat(hash.bytesHashSize(), equalTo(2L));
+        }
+    }
+
+    /**
+     * {@link OrdinalBytesRefBlock#keepMask} keeps the whole dictionary; a value dropped by the mask must not be hashed.
+     */
+    public void testMaskedDenseOrdinalsHashOnlyKeptEntries() {
+        int positionCount = 12;
+        try (
+            LongBytesRefBlockHash hash = newHash();
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(positionCount);
+            BooleanVector.Builder mask = blockFactory.newBooleanVectorFixedBuilder(positionCount)
+        ) {
+            // the dropped entry is ordinal 0, so a masked position read as its raw value slot would hash it
+            for (int p = 0; p < positionCount; p++) {
+                boolean keep = p != 3 && p != 7;
+                ords.appendInt(keep ? 1 + p % 2 : 0);
+                mask.appendBoolean(keep);
+            }
+            try (
+                OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), dictVector(List.of("dropped", "a", "b")));
+                BooleanVector maskVector = mask.build();
+                BytesRefBlock bytes = block.keepMask(maskVector);
+                LongBlock longs = blockFactory.newConstantLongBlockWith(7, positionCount)
+            ) {
+                assertNotNull(bytes.asOrdinals());
+                assertTrue(bytes.asOrdinals().isDense());
+                addAndAssertGroupIds(hash, longs, bytes);
+            }
+            assertThat(hash.bytesHashSize(), equalTo(2L));
+        }
+    }
+
+    /**
+     * A page that is not dense but repeats a few entries, as a row group clustered by the key, hashes each of them once
+     * and leaves the rest of the dictionary out.
+     */
+    public void testRepeatedSparseOrdinalsHashOnlyReferencedEntries() {
+        List<String> dictionary = IntStream.range(0, 100).mapToObj(i -> "d-" + i).toList();
+        int[] used = { 50, 0, 99, 3 };
+        int positionCount = 40;
+        assertFalse(OrdinalBytesRefBlock.isDense(positionCount, dictionary.size()));
+        try (LongBytesRefBlockHash hash = newHash()) {
+            final BytesRefBlock bytes;
+            if (randomBoolean()) {
+                bytes = ordinalVector(positionCount, p -> used[p % used.length], dictionary);
+            } else {
+                try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(positionCount)) {
+                    for (int p = 0; p < positionCount; p++) {
+                        if (p % 5 == 4) {
+                            ords.appendNull();
+                        } else {
+                            ords.appendInt(used[p % used.length]);
+                        }
+                    }
+                    bytes = new OrdinalBytesRefBlock(ords.build(), dictVector(dictionary));
+                }
+            }
+            try (bytes; LongBlock longs = randomLongs(positionCount)) {
+                assertTrue(takesOrdinalAddPath(bytes));
+                addAndAssertGroupIds(hash, longs, bytes);
+            }
+            assertThat(hash.bytesHashSize(), equalTo((long) used.length));
+        }
+    }
+
+    /**
+     * Ordinal pages added to a hash past the prefetch threshold: a repeated, not dense page and a dense, partly
+     * referenced page both hash their entries through the prefetching path, and only the entries they reference.
+     */
+    public void testOrdinalsOnPrefetchingHash() {
+        BytesRefSwissHash.PREFETCH_THRESHOLD = between(1, 1024);
+        int seeded = between(2_000, 4_000); // exceeds the small-core capacity so a big core (and the prefetch path) forms
+        int added = between(1, 100);
+        int unused = between(1, 100);
+        List<String> dictionary = new ArrayList<>();
+        IntStream.range(0, seeded).forEach(i -> dictionary.add("v" + i));
+        IntStream.range(0, added).forEach(i -> dictionary.add("new-" + i));
+        IntStream.range(0, unused).forEach(i -> dictionary.add("unused-" + i));
+        try (LongBytesRefBlockHash hash = newHash()) {
+            try (
+                BytesRefBlock bytes = dictVector(dictionary.subList(0, seeded)).asBlock();
+                LongBlock longs = blockFactory.newConstantLongBlockWith(7, seeded)
+            ) {
+                addAndAssertGroupIds(hash, longs, bytes);
+            }
+            assertThat(hash.bytesHashSize(), equalTo((long) seeded));
+
+            int referencedCount = between(1, DictionaryOrdinals.EARLY_CHECK_VALUES / DictionaryOrdinals.MIN_AVERAGE_REPEATS);
+            int stride = seeded / referencedCount;
+            int sparsePositions = Math.max(DictionaryOrdinals.MIN_VALUES, referencedCount * between(4, 8));
+            try (
+                BytesRefBlock bytes = ordinalVector(sparsePositions, p -> (p % referencedCount) * stride, dictionary);
+                LongBlock longs = blockFactory.newConstantLongBlockWith(7, sparsePositions)
+            ) {
+                assertFalse(bytes.asOrdinals().isDense());
+                assertTrue(takesOrdinalAddPath(bytes));
+                addAndAssertGroupIds(hash, longs, bytes);
+            }
+            assertThat(hash.bytesHashSize(), equalTo((long) seeded));
+
+            int densePositions = 2 * dictionary.size();
+            try (
+                BytesRefBlock bytes = ordinalVector(densePositions, p -> p % (seeded + added), dictionary);
+                LongBlock longs = blockFactory.newConstantLongBlockWith(7, densePositions)
+            ) {
+                assertTrue(bytes.asOrdinals().isDense());
+                addAndAssertGroupIds(hash, longs, bytes);
+            }
+            assertThat(hash.bytesHashSize(), equalTo((long) seeded + added));
         }
     }
 
@@ -143,6 +275,44 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
     private static boolean hasDenseOrdinals(BytesRefBlock bytes) {
         OrdinalBytesRefBlock ordinals = bytes.asOrdinals();
         return ordinals != null && ordinals.isDense();
+    }
+
+    /**
+     * Whether adding {@code bytes} goes through the dictionary: dense pages always, other pages if they repeat their
+     * values enough.
+     */
+    private static boolean takesOrdinalAddPath(BytesRefBlock bytes) {
+        OrdinalBytesRefBlock ordinals = bytes.asOrdinals();
+        return ordinals != null && (ordinals.isDense() || DictionaryOrdinals.distinct(ordinals.getOrdinalsBlock()) != null);
+    }
+
+    /**
+     * Looks the page up and checks that every position resolves to exactly the groups of its known key combinations.
+     */
+    private static void lookupAndAssertGroupIds(LongBytesRefBlockHash hash, LongBlock longs, BytesRefBlock bytes) {
+        final Map<Key, Integer> groups = groupsByKey(hash);
+        long lookupsBefore = hash.ordinalLookups();
+        int position = 0;
+        try (ReleasableIterator<IntBlock> it = hash.lookup(new Page(longs, bytes), ByteSizeValue.ofKb(between(1, 16)))) {
+            while (it.hasNext()) {
+                try (IntBlock ords = it.next()) {
+                    for (int p = 0; p < ords.getPositionCount(); p++, position++) {
+                        // unknown combinations are simply absent; a position with none of them known is null
+                        Set<Integer> expected = new HashSet<>();
+                        for (Key key : keysAt(longs, bytes, position)) {
+                            Integer groupId = groups.get(key);
+                            if (groupId != null) {
+                                expected.add(groupId);
+                            }
+                        }
+                        assertThat("position " + position, groupIdsAt(ords, p), equalTo(expected));
+                    }
+                }
+            }
+        }
+        assertThat(position, equalTo(longs.getPositionCount()));
+        long expectedLookups = hasDenseOrdinals(bytes) ? lookupsBefore + 1 : lookupsBefore;
+        assertThat(hash.ordinalLookups(), equalTo(expectedLookups));
     }
 
     private static void add(LongBytesRefBlockHash hash, boolean expectOrdinals, Consumer<OrdsAndKeys> callback, Block... values) {
@@ -227,7 +397,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
     private static int addAndAssertGroupIds(LongBytesRefBlockHash hash, LongBlock longs, BytesRefBlock bytes) {
         Map<Integer, Set<Integer>> emitted = new HashMap<>();
         int[] chunks = new int[1];
-        add(hash, hasDenseOrdinals(bytes), ordsAndKeys -> {
+        add(hash, takesOrdinalAddPath(bytes), ordsAndKeys -> {
             // only collect here: this chunk may end partway through a position
             chunks[0]++;
             IntBlock ords = ordsAndKeys.ords();
@@ -337,6 +507,19 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
         }
     }
 
+    private BytesRefBlock ordinalVector(int positionCount, IntUnaryOperator ordAt, List<String> dictionary) {
+        try (IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+            for (int p = 0; p < positionCount; p++) {
+                ords.appendInt(ordAt.applyAsInt(p));
+            }
+            return new OrdinalBytesRefVector(ords.build(), dictVector(dictionary)).asBlock();
+        }
+    }
+
+    /**
+     * Random ordinal bytes. The dictionary may hold entries no position references, before and after the referenced
+     * ones (as with a shared Parquet row-group dictionary), sometimes enough of them that the page is not dense.
+     */
     private OrdinalBytesRefBlock randomOrdinalBytes(int positionCount) {
         if (randomBoolean()) {
             // constant ordinals; point at a random entry so the dictionary ord and the hash ord can differ
@@ -345,6 +528,9 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
             return new OrdinalBytesRefVector(ords, dictVector(dict)).asBlock();
         }
         Map<String, Integer> dict = new LinkedHashMap<>();
+        for (int i = randomBoolean() ? 0 : between(1, 3); i > 0; i--) {
+            dict.put("unused-leading-" + i, dict.size());
+        }
         Supplier<Integer> dictOrd = () -> {
             String term = randomFrom(TERMS);
             int idx = dict.getOrDefault(term, -1);
@@ -354,12 +540,25 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
             }
             return idx;
         };
+        Supplier<Collection<String>> dictWithTrailing = () -> {
+            int trailing = switch (between(0, 2)) {
+                case 0 -> 0;
+                case 1 -> between(1, 3);
+                case 2 -> between(positionCount, 3 * positionCount);
+                default -> throw new AssertionError("unexpected");
+            };
+            List<String> entries = new ArrayList<>(dict.keySet());
+            for (int i = 0; i < trailing; i++) {
+                entries.add("unused-trailing-" + i);
+            }
+            return entries;
+        };
         if (randomBoolean()) {
             try (var ords = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     ords.appendInt(p, dictOrd.get());
                 }
-                return new OrdinalBytesRefVector(ords.build(), dictVector(dict.keySet())).asBlock();
+                return new OrdinalBytesRefVector(ords.build(), dictVector(dictWithTrailing.get())).asBlock();
             }
         }
         try (var ords = blockFactory.newIntBlockBuilder(positionCount)) {
@@ -377,7 +576,7 @@ public class LongBytesRefBlockHashTests extends BlockHashTestCase {
                     }
                 }
             }
-            return new OrdinalBytesRefBlock(ords.build(), dictVector(dict.keySet()));
+            return new OrdinalBytesRefBlock(ords.build(), dictVector(dictWithTrailing.get()));
         }
     }
 }

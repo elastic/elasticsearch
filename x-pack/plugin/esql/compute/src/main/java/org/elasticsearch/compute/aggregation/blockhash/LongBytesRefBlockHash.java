@@ -42,6 +42,12 @@ import java.util.List;
  * A specialized {@link BlockHash} for the two-key {@code (LONG, BYTES_REF)} (or {@code (BYTES_REF, LONG)})
  */
 public final class LongBytesRefBlockHash extends PartitionedBlockHash {
+    /**
+     * Marks a dictionary entry the page does not reference. {@code bytesHash} ordinals start at 0 and a lookup miss is
+     * {@code -1}, so neither can serve.
+     */
+    private static final int UNREFERENCED = Integer.MIN_VALUE;
+
     private final int longChannel;
     private final int bytesChannel;
     private boolean seenNulls;
@@ -97,12 +103,26 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     private IntVector addBytesVector(BytesRefVector bytesVector) {
         OrdinalBytesRefVector ordinals = bytesVector.asOrdinals();
-        if (ordinals != null && ordinals.isDense()) {
-            ordinalAdds++;
-            try (var dictHashOrds = addBytesVector(ordinals.getDictionaryVector())) {
-                return mapOrdinalsVector(dictHashOrds, ordinals.getOrdinalsVector());
+        if (ordinals != null) {
+            if (ordinals.isDense()) {
+                ordinalAdds++;
+                try (var dictHashOrds = addDictionary(ordinals.getDictionaryVector(), ordinals.getOrdinalsVector())) {
+                    return mapOrdinalsVector(dictHashOrds, ordinals.getOrdinalsVector());
+                }
+            }
+            IntVector bytesOrds = addRepeatedOrdinalsVector(ordinals);
+            if (bytesOrds != null) {
+                ordinalAdds++;
+                return bytesOrds;
             }
         }
+        return addBytesValues(bytesVector);
+    }
+
+    /**
+     * Adds the vector values one by one, without looking for ordinals.
+     */
+    private IntVector addBytesValues(BytesRefVector bytesVector) {
         if (bytesHash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
             if (addBytesBatchWork == null) {
                 addBytesBatchWork = new AddBytesBatchWork(blockFactory);
@@ -122,10 +142,17 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     private IntBlock addBytesBlock(BytesRefBlock bytesBlock) {
         OrdinalBytesRefBlock ordinals = bytesBlock.asOrdinals();
-        if (ordinals != null && ordinals.isDense()) {
-            ordinalAdds++;
-            try (var dictHashOrds = addBytesVector(ordinals.getDictionaryVector())) {
-                return mapOrdinalsBlock(dictHashOrds, ordinals.getOrdinalsBlock());
+        if (ordinals != null) {
+            if (ordinals.isDense()) {
+                ordinalAdds++;
+                try (var dictHashOrds = addDictionary(ordinals.getDictionaryVector(), ordinals.getOrdinalsBlock())) {
+                    return mapOrdinalsBlock(dictHashOrds, ordinals.getOrdinalsBlock());
+                }
+            }
+            IntBlock bytesOrds = addRepeatedOrdinalsBlock(ordinals);
+            if (bytesOrds != null) {
+                ordinalAdds++;
+                return bytesOrds;
             }
         }
         final int positionCount = bytesBlock.getPositionCount();
@@ -156,13 +183,110 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         }
     }
 
+    /**
+     * Hashes the dictionary entries {@code ords} references and returns their {@code bytesHash} ordinals, indexed by
+     * dictionary ordinal. Entries no position references stay out of the hash: the dictionary can be shared with other
+     * pages (a slice, a Parquet row-group dictionary), and its other entries would be hashed and kept for nothing.
+     */
+    private IntVector addDictionary(BytesRefVector dictionary, IntVector ords) {
+        boolean[] referenced = new boolean[dictionary.getPositionCount()];
+        return addDictionary(dictionary, referenced, DictionaryOrdinals.markReferenced(ords, referenced));
+    }
+
+    private IntVector addDictionary(BytesRefVector dictionary, IntBlock ords) {
+        boolean[] referenced = new boolean[dictionary.getPositionCount()];
+        return addDictionary(dictionary, referenced, DictionaryOrdinals.markReferenced(ords, referenced));
+    }
+
+    private IntVector addDictionary(BytesRefVector dictionary, boolean[] referenced, int referencedCount) {
+        if (referencedCount == referenced.length) {
+            // Nothing to leave out, so hash the dictionary as a plain vector and keep its prefetching.
+            return addBytesValues(dictionary);
+        }
+        try (
+            BytesRefVector values = DictionaryOrdinals.referencedValues(blockFactory, dictionary, referenced, referencedCount);
+            IntVector valueOrds = addBytesValues(values)
+        ) {
+            int[] bytesOrds = new int[referenced.length];
+            int v = 0;
+            for (int ord = 0; ord < referenced.length; ord++) {
+                bytesOrds[ord] = referenced[ord] ? valueOrds.getInt(v++) : UNREFERENCED;
+            }
+            return blockFactory.newIntArrayVector(bytesOrds, bytesOrds.length);
+        }
+    }
+
+    /**
+     * Adds an ordinals vector that is not dense but repeats its values, hashing each distinct value once.
+     *
+     * @return the {@code bytesHash} ordinals, or {@code null} if the vector should be hashed value by value
+     */
+    private IntVector addRepeatedOrdinalsVector(OrdinalBytesRefVector ordinals) {
+        DictionaryOrdinals.Distinct distinct = DictionaryOrdinals.distinct(ordinals.getOrdinalsVector());
+        if (distinct == null) {
+            return null;
+        }
+        try (
+            BytesRefVector values = distinct.values(blockFactory, ordinals.getDictionaryVector());
+            IntVector bytesOrds = addBytesValues(values)
+        ) {
+            return distinct.mapLocalIds(blockFactory, bytesOrds);
+        }
+    }
+
+    /**
+     * Adds an ordinals block that is not dense but repeats its values, like {@link #addRepeatedOrdinalsVector}.
+     *
+     * @return the {@code bytesHash} ordinals, or {@code null} if the block should be hashed value by value
+     */
+    private IntBlock addRepeatedOrdinalsBlock(OrdinalBytesRefBlock ordinals) {
+        IntBlock ords = ordinals.getOrdinalsBlock();
+        DictionaryOrdinals.Distinct distinct = DictionaryOrdinals.distinct(ords);
+        if (distinct == null) {
+            return null;
+        }
+        final int positionCount = ords.getPositionCount();
+        try (
+            BytesRefVector values = distinct.values(blockFactory, ordinals.getDictionaryVector());
+            IntVector bytesOrds = addBytesValues(values);
+            var builder = blockFactory.newIntBlockBuilder(positionCount)
+        ) {
+            for (int p = 0; p < positionCount; p++) {
+                int start = ords.getFirstValueIndex(p);
+                int valueCount = ords.getValueCount(p);
+                switch (valueCount) {
+                    case 0 -> builder.appendNull();
+                    case 1 -> builder.appendInt(bytesOrds.getInt(distinct.localId(p, ords.getInt(start))));
+                    default -> {
+                        int end = start + valueCount;
+                        builder.beginPositionEntry();
+                        for (int v = start; v < end; v++) {
+                            builder.appendInt(bytesOrds.getInt(distinct.localId(p, ords.getInt(v))));
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * The {@code bytesHash} ordinal {@link #addDictionary} or {@link #lookupDictionary} found for a dictionary ordinal.
+     */
+    private static int bytesOrd(IntVector dictHashOrds, int dictOrd) {
+        int bytesOrd = dictHashOrds.getInt(dictOrd);
+        assert bytesOrd != UNREFERENCED : "dictionary ordinal [" + dictOrd + "] was not hashed";
+        return bytesOrd;
+    }
+
     private IntVector mapOrdinalsVector(IntVector dictHashOrds, IntVector ordinals) {
         if (ordinals.getPositionCount() > 0 && (dictHashOrds.isConstant() || ordinals.isConstant())) {
-            return blockFactory.newConstantIntVector(dictHashOrds.getInt(ordinals.getInt(0)), ordinals.getPositionCount());
+            return blockFactory.newConstantIntVector(bytesOrd(dictHashOrds, ordinals.getInt(0)), ordinals.getPositionCount());
         }
         try (var builder = blockFactory.newIntVectorFixedBuilder(ordinals.getPositionCount())) {
             for (int p = 0; p < ordinals.getPositionCount(); p++) {
-                int ord = dictHashOrds.getInt(ordinals.getInt(p));
+                int ord = bytesOrd(dictHashOrds, ordinals.getInt(p));
                 builder.appendInt(p, ord);
             }
             return builder.build();
@@ -178,11 +302,11 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
                 int end = start + valueCount;
                 switch (valueCount) {
                     case 0 -> builder.appendNull();
-                    case 1 -> builder.appendInt(dictHashOrds.getInt(ordinals.getInt(start)));
+                    case 1 -> builder.appendInt(bytesOrd(dictHashOrds, ordinals.getInt(start)));
                     default -> {
                         builder.beginPositionEntry();
                         for (int v = start; v < end; v++) {
-                            builder.appendInt(dictHashOrds.getInt(ordinals.getInt(v)));
+                            builder.appendInt(bytesOrd(dictHashOrds, ordinals.getInt(v)));
                         }
                         builder.endPositionEntry();
                     }
@@ -211,7 +335,10 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         final OrdinalBytesRefBlock ordinals = bytes.asOrdinals();
         if (ordinals != null && ordinals.isDense()) {
             ordinalLookups++;
-            try (var dictHashOrds = lookupBytesVector(ordinals.getDictionaryVector())) {
+            BytesRefVector dictionary = ordinals.getDictionaryVector();
+            boolean[] referenced = new boolean[dictionary.getPositionCount()];
+            DictionaryOrdinals.markReferenced(ordinals.getOrdinalsBlock(), referenced);
+            try (var dictHashOrds = lookupDictionary(dictionary, referenced)) {
                 return mapOrdinalsBlock(dictHashOrds, ordinals.getOrdinalsBlock());
             }
         }
@@ -247,7 +374,10 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
         OrdinalBytesRefVector ordinals = bytes.asOrdinals();
         if (ordinals != null && ordinals.isDense()) {
             ordinalLookups++;
-            try (var dictHashOrds = lookupBytesVector(ordinals.getDictionaryVector())) {
+            BytesRefVector dictionary = ordinals.getDictionaryVector();
+            boolean[] referenced = new boolean[dictionary.getPositionCount()];
+            DictionaryOrdinals.markReferenced(ordinals.getOrdinalsVector(), referenced);
+            try (var dictHashOrds = lookupDictionary(dictionary, referenced)) {
                 return mapOrdinalsVector(dictHashOrds, ordinals.getOrdinalsVector());
             }
         }
@@ -260,6 +390,19 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Probes the {@code referenced} dictionary entries and returns what {@code bytesHash} found for each, {@code -1} if
+     * absent, indexed by dictionary ordinal. Entries no position references are not probed.
+     */
+    private IntVector lookupDictionary(BytesRefVector dictionary, boolean[] referenced) {
+        int[] bytesOrds = new int[referenced.length];
+        BytesRef scratch = new BytesRef();
+        for (int ord = 0; ord < referenced.length; ord++) {
+            bytesOrds[ord] = referenced[ord] ? Math.toIntExact(bytesHash.find(dictionary.getBytesRef(ord, scratch))) : UNREFERENCED;
+        }
+        return blockFactory.newIntArrayVector(bytesOrds, bytesOrds.length);
     }
 
     @Override
@@ -421,6 +564,10 @@ public final class LongBytesRefBlockHash extends PartitionedBlockHash {
 
     long ordinalLookups() {
         return ordinalLookups;
+    }
+
+    long bytesHashSize() {
+        return bytesHash == null ? 0 : bytesHash.size();
     }
 
     @Override

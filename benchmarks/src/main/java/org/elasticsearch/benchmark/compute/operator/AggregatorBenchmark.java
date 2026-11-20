@@ -64,6 +64,8 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.util.BitSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntFunction;
+import java.util.function.IntUnaryOperator;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -96,11 +98,28 @@ public class AggregatorBenchmark {
     private static final String BOOLEANS = "booleans";
     private static final String BYTES_REFS = "bytes_refs";
     private static final String ORDINALS = "ordinals";
+    /**
+     * Dense ordinals over a dictionary a quarter the size of the page, of which only {@link #GROUPS} entries are referenced.
+     */
+    private static final String PADDED_ORDINALS = "padded_" + ORDINALS;
+    /**
+     * Ordinals referencing {@link #GROUPS} entries of a dictionary four times the size of the page, so the page isn't dense.
+     */
+    private static final String SPARSE_ORDINALS = "sparse_" + ORDINALS;
+    /**
+     * Each row references its own entry of a dictionary four times the size of the page. Models high-cardinality
+     * pages, where nearly every row is a new value.
+     */
+    private static final String UNIQUE_ORDINALS = "unique_" + ORDINALS;
     private static final String NULLS_AS_LONGS = "nulls_as_longs";
     private static final String TWO_LONGS = "two_" + LONGS;
     private static final String TWO_BYTES_REFS = "two_" + BYTES_REFS;
     private static final String TWO_ORDINALS = "two_" + ORDINALS;
     private static final String LONGS_AND_BYTES_REFS = LONGS + "_and_" + BYTES_REFS;
+    private static final String LONGS_AND_ORDINALS = LONGS + "_and_" + ORDINALS;
+    private static final String LONGS_AND_PADDED_ORDINALS = LONGS + "_and_" + PADDED_ORDINALS;
+    private static final String LONGS_AND_SPARSE_ORDINALS = LONGS + "_and_" + SPARSE_ORDINALS;
+    private static final String LONGS_AND_UNIQUE_ORDINALS = LONGS + "_and_" + UNIQUE_ORDINALS;
     private static final String TWO_LONGS_AND_BYTES_REFS = "two_" + LONGS + "_and_" + BYTES_REFS;
     private static final String TOP_N_LONGS = "top_n_" + LONGS;
 
@@ -154,11 +173,18 @@ public class AggregatorBenchmark {
             BOOLEANS,
             BYTES_REFS,
             ORDINALS,
+            PADDED_ORDINALS,
+            SPARSE_ORDINALS,
+            UNIQUE_ORDINALS,
             NULLS_AS_LONGS,
             TWO_LONGS,
             TWO_BYTES_REFS,
             TWO_ORDINALS,
             LONGS_AND_BYTES_REFS,
+            LONGS_AND_ORDINALS,
+            LONGS_AND_PADDED_ORDINALS,
+            LONGS_AND_SPARSE_ORDINALS,
+            LONGS_AND_UNIQUE_ORDINALS,
             TWO_LONGS_AND_BYTES_REFS,
             TOP_N_LONGS }
     )
@@ -194,16 +220,19 @@ public class AggregatorBenchmark {
             case INTS -> List.of(new BlockHash.GroupSpec(0, ElementType.INT));
             case DOUBLES -> List.of(new BlockHash.GroupSpec(0, ElementType.DOUBLE));
             case BOOLEANS -> List.of(new BlockHash.GroupSpec(0, ElementType.BOOLEAN));
-            case BYTES_REFS, ORDINALS -> List.of(new BlockHash.GroupSpec(0, ElementType.BYTES_REF));
+            case BYTES_REFS, ORDINALS, PADDED_ORDINALS, SPARSE_ORDINALS, UNIQUE_ORDINALS -> List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF)
+            );
             case TWO_LONGS -> List.of(new BlockHash.GroupSpec(0, ElementType.LONG), new BlockHash.GroupSpec(1, ElementType.LONG));
             case TWO_BYTES_REFS, TWO_ORDINALS -> List.of(
                 new BlockHash.GroupSpec(0, ElementType.BYTES_REF),
                 new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
             );
-            case LONGS_AND_BYTES_REFS -> List.of(
-                new BlockHash.GroupSpec(0, ElementType.LONG),
-                new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
-            );
+            case LONGS_AND_BYTES_REFS, LONGS_AND_ORDINALS, LONGS_AND_PADDED_ORDINALS, LONGS_AND_SPARSE_ORDINALS,
+                LONGS_AND_UNIQUE_ORDINALS -> List.of(
+                    new BlockHash.GroupSpec(0, ElementType.LONG),
+                    new BlockHash.GroupSpec(1, ElementType.BYTES_REF)
+                );
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
                 new BlockHash.GroupSpec(0, ElementType.LONG),
                 new BlockHash.GroupSpec(1, ElementType.LONG),
@@ -292,7 +321,8 @@ public class AggregatorBenchmark {
                 checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(0));
                 checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
             }
-            case LONGS_AND_BYTES_REFS -> {
+            case LONGS_AND_BYTES_REFS, LONGS_AND_ORDINALS, LONGS_AND_PADDED_ORDINALS, LONGS_AND_SPARSE_ORDINALS,
+                LONGS_AND_UNIQUE_ORDINALS -> {
                 checkGroupingBlock(prefix, LONGS, page.getBlock(0));
                 checkGroupingBlock(prefix, BYTES_REFS, page.getBlock(1));
             }
@@ -491,7 +521,7 @@ public class AggregatorBenchmark {
                     throw new AssertionError(prefix + "bad group expected [true] but was [" + groups.getBoolean(1) + "]");
                 }
             }
-            case BYTES_REFS, ORDINALS -> {
+            case BYTES_REFS, ORDINALS, PADDED_ORDINALS, SPARSE_ORDINALS, UNIQUE_ORDINALS -> {
                 BytesRefBlock groups = (BytesRefBlock) block;
                 for (int g = 0; g < GROUPS; g++) {
                     if (false == groups.getBytesRef(g, new BytesRef()).equals(bytesGroup(g))) {
@@ -672,6 +702,10 @@ public class AggregatorBenchmark {
             case TWO_BYTES_REFS -> List.of(groupingBlock(BYTES_REFS, blockType), groupingBlock(BYTES_REFS, blockType));
             case TWO_ORDINALS -> List.of(groupingBlock(ORDINALS, blockType), groupingBlock(ORDINALS, blockType));
             case LONGS_AND_BYTES_REFS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(BYTES_REFS, blockType));
+            case LONGS_AND_ORDINALS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(ORDINALS, blockType));
+            case LONGS_AND_PADDED_ORDINALS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(PADDED_ORDINALS, blockType));
+            case LONGS_AND_SPARSE_ORDINALS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(SPARSE_ORDINALS, blockType));
+            case LONGS_AND_UNIQUE_ORDINALS -> List.of(groupingBlock(LONGS, blockType), groupingBlock(UNIQUE_ORDINALS, blockType));
             case TWO_LONGS_AND_BYTES_REFS -> List.of(
                 groupingBlock(LONGS, blockType),
                 groupingBlock(LONGS, blockType),
@@ -746,6 +780,17 @@ public class AggregatorBenchmark {
                 }
                 yield new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock();
             }
+            case PADDED_ORDINALS -> spreadOrdinals(valuesPerGroup, BLOCK_LENGTH * valuesPerGroup / 4);
+            case SPARSE_ORDINALS -> spreadOrdinals(valuesPerGroup, BLOCK_LENGTH * valuesPerGroup * 4);
+            case UNIQUE_ORDINALS -> {
+                int positions = BLOCK_LENGTH * valuesPerGroup;
+                yield ordinals(
+                    positions,
+                    p -> p,
+                    positions * 4,
+                    k -> k < positions ? bytesGroup((k / valuesPerGroup) % GROUPS) : fillerEntry(k)
+                );
+            }
             case NULLS_AS_LONGS -> blockFactory.newConstantNullBlock(BLOCK_LENGTH * valuesPerGroup);
             default -> throw new UnsupportedOperationException("unsupported grouping [" + grouping + "]");
         };
@@ -760,6 +805,39 @@ public class AggregatorBenchmark {
             case 4 -> "cow";
             default -> throw new UnsupportedOperationException("can't handle [" + group + "]");
         });
+    }
+
+    private static BytesRef fillerEntry(int ord) {
+        return new BytesRef("filler-" + ord);
+    }
+
+    /**
+     * Ordinals referencing only {@link #GROUPS} entries, spread in increasing order over a dictionary of
+     * {@code dictionarySize} otherwise unreferenced entries.
+     */
+    private static Block spreadOrdinals(int valuesPerGroup, int dictionarySize) {
+        int step = dictionarySize / GROUPS;
+        return ordinals(
+            BLOCK_LENGTH * valuesPerGroup,
+            p -> ((p / valuesPerGroup) % GROUPS) * step,
+            dictionarySize,
+            k -> k % step == 0 && k / step < GROUPS ? bytesGroup(k / step) : fillerEntry(k)
+        );
+    }
+
+    private static Block ordinals(int positions, IntUnaryOperator ordinal, int dictionarySize, IntFunction<BytesRef> entry) {
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorBuilder(positions);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionarySize)
+        ) {
+            for (int p = 0; p < positions; p++) {
+                ords.appendInt(ordinal.applyAsInt(p));
+            }
+            for (int k = 0; k < dictionarySize; k++) {
+                bytes.appendBytesRef(entry.apply(k));
+            }
+            return new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock();
+        }
     }
 
     private static AggregatorFunctionSupplier filtered(AggregatorFunctionSupplier agg, String filter) {

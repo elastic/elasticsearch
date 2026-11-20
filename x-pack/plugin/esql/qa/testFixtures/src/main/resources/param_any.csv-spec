@@ -101,7 +101,7 @@ c:long | a:keyword
 ;
 
 anyConditionsMatchEverythingIncludingMissingValues
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: n = "__ANY__"
 FROM employees
 | WHERE first_name == ?n
@@ -113,7 +113,7 @@ total:long | withName:long
 ;
 
 everySupportedConditionMatchesEverything
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: n = "__ANY__"
 FROM employees
 | STATS
@@ -130,7 +130,7 @@ equals:long | reversed:long | inList:long | contains:long | intersects:long | is
 ;
 
 anyIdentifierParametersMatchEverything
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: f = "__ANY__"
 param: i = {"identifier": "__ANY__"}
 FROM employees
@@ -143,7 +143,7 @@ c:long
 ;
 
 anyConditionNextToOthersKeepsTheOthers
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: n = "__ANY__"
 FROM employees
 | WHERE first_name == ?n AND emp_no < 10003 AND languages IN (?n)
@@ -157,7 +157,7 @@ emp_no:integer
 ;
 
 anyConditionInAnEvalAndAGroupingIsTrue
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: n = "__ANY__"
 FROM employees
 | WHERE emp_no < 10003
@@ -170,7 +170,7 @@ c:long | matches:boolean | all:boolean
 ;
 
 theOldGuardMatchesEverythingOrTheValue
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: job = "__ANY__"
 FROM employees
 | WHERE ?job IS NULL OR MV_INTERSECTS(job_positions, ?job)
@@ -182,7 +182,7 @@ c:long
 ;
 
 theOldGuardWithAValue
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: job = "Accountant"
 FROM employees
 | WHERE ?job IS NULL OR MV_INTERSECTS(job_positions, ?job)
@@ -194,7 +194,7 @@ c:long
 ;
 
 anyMatchesMissingFields
-required_capability: param_any_value_v3
+required_capability: param_any_value
 required_capability: optional_fields_nullify_tech_preview
 param: n = "__ANY__"
 
@@ -209,7 +209,7 @@ c:long
 ;
 
 aLiteralWithTheReservedValueIsNotAny
-required_capability: param_any_value_v3
+required_capability: param_any_value
 FROM employees
 | WHERE first_name == "__ANY__" OR first_name IN ("__ANY__")
 | STATS c = COUNT(*)
@@ -220,7 +220,7 @@ c:long
 ;
 
 aCustomReservedValueIsAny
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: n = "ALL"
 
 SET param_any_value="ALL"\;
@@ -234,7 +234,7 @@ c:long
 ;
 
 theDefaultReservedValueIsAnOrdinaryValueWithACustomOne
-required_capability: param_any_value_v3
+required_capability: param_any_value
 param: n = "__ANY__"
 
 SET param_any_value="ALL"\;

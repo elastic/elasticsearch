@@ -22,7 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -166,7 +166,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         final var response = responseFuture.actionGet();
         assertThat(
             response.cancelledInQueue(),
-            equalTo(Set.of(new ShardAllocationKey(shardId1, allocationId1), new ShardAllocationKey(shardId2, allocationId2)))
+            equalTo(Set.of(new ShardAllocationId(shardId1, allocationId1), new ShardAllocationId(shardId2, allocationId2)))
         );
         assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }
@@ -272,7 +272,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertThat(response.cancelledInQueue(), equalTo(Set.of(new ShardAllocationKey(shardId1, allocationId1))));
+        assertThat(response.cancelledInQueue(), equalTo(Set.of(new ShardAllocationId(shardId1, allocationId1))));
         indexShard0.ensureRecoveryNotCancelled();
     }
 
@@ -413,7 +413,7 @@ public class TransportCancelRecoveriesActionTests extends ESTestCase {
         );
         action.execute(mock(Task.class), request, responseFuture);
         final var response = responseFuture.actionGet();
-        assertThat(response.cancelledInQueue(), equalTo(Set.of(new ShardAllocationKey(shardId2, allocationId2))));
+        assertThat(response.cancelledInQueue(), equalTo(Set.of(new ShardAllocationId(shardId2, allocationId2))));
 
         assertThrows((RecoveryCancelledException.class), indexShard0::ensureRecoveryNotCancelled);
     }

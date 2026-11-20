@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -2988,13 +2988,13 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
 
         final var otherShard = new ShardId(indexName, "_na_", 1);
         final var otherIndexShard = new ShardId(randomAlphaOfLength(8), "_na_", 0);
-        final Map<ShardAllocationKey, Integer> otherRecoveries = new HashMap<>();
+        final Map<ShardAllocationId, Integer> otherRecoveries = new HashMap<>();
         for (var primary : primaryShardsOfIndex(clusterState, indexName)) {
             final var allocationId = primary.allocationId().getId();
-            otherRecoveries.put(new ShardAllocationKey(otherShard, allocationId), randomIntBetween(1, 10));
-            otherRecoveries.put(new ShardAllocationKey(otherIndexShard, allocationId), randomIntBetween(1, 10));
+            otherRecoveries.put(new ShardAllocationId(otherShard, allocationId), randomIntBetween(1, 10));
+            otherRecoveries.put(new ShardAllocationId(otherIndexShard, allocationId), randomIntBetween(1, 10));
             // Same shard on the same node, but an earlier allocation (e.g. one which the master has since cancelled):
-            otherRecoveries.put(new ShardAllocationKey(primary.shardId(), randomUUID()), randomIntBetween(1, 10));
+            otherRecoveries.put(new ShardAllocationId(primary.shardId(), randomUUID()), randomIntBetween(1, 10));
         }
         final var retries = Map.of(
             randomNodeId(),
@@ -3020,7 +3020,7 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
             healthInfoWithLocalRecoveryRetries(
                 Map.of(
                     randomNodeId(),
-                    new LocalRecoveryRetriesHealthInfo(Map.of(new ShardAllocationKey(shardId(indexName), randomUUID()), 1))
+                    new LocalRecoveryRetriesHealthInfo(Map.of(new ShardAllocationId(shardId(indexName), randomUUID()), 1))
                 )
             )
         );
@@ -3111,8 +3111,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceTests extends ESTes
     }
 
     /// The recoveries of the primary shards of the given index in the cluster state, all with the given number of local retries.
-    private static Map<ShardAllocationKey, Integer> recoveriesOfPrimaries(ClusterState clusterState, String indexName, int retries) {
-        return primaryShardsOfIndex(clusterState, indexName).stream().collect(toMap(ShardAllocationKey::fromRouting, unused -> retries));
+    private static Map<ShardAllocationId, Integer> recoveriesOfPrimaries(ClusterState clusterState, String indexName, int retries) {
+        return primaryShardsOfIndex(clusterState, indexName).stream().collect(toMap(ShardAllocationId::fromRouting, unused -> retries));
     }
 
     /// Health info reporting that the given node has retried locally the recoveries of the primary shards of the given index in the

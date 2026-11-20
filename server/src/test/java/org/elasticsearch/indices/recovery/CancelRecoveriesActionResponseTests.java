@@ -9,7 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,12 +36,12 @@ public class CancelRecoveriesActionResponseTests extends AbstractWireSerializing
         return new CancelRecoveriesAction.Response(randomValueOtherThan(instance.cancelledInQueue(), this::randomCancelledInQueue));
     }
 
-    private Set<ShardAllocationKey> randomCancelledInQueue() {
+    private Set<ShardAllocationId> randomCancelledInQueue() {
         final int size = randomIntBetween(0, 5);
-        final var cancelledInQueue = new HashSet<ShardAllocationKey>(size);
+        final var cancelledInQueue = new HashSet<ShardAllocationId>(size);
         for (int i = 0; i < size; i++) {
             cancelledInQueue.add(
-                new ShardAllocationKey(new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), i), UUIDs.randomBase64UUID())
+                new ShardAllocationId(new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), i), UUIDs.randomBase64UUID())
             );
         }
         return cancelledInQueue;

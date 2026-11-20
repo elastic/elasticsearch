@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -236,11 +236,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     /// allocation id (e.g. a primary reassigned with the same allocation id after a recovery failed, or a
     /// restore from snapshot that reused allocation id).
     // Visible for tests
-    final ConcurrentMap<ShardAllocationKey, PendingAllocationState> pendingAllocationStates = ConcurrentCollections.newConcurrentMap();
+    final ConcurrentMap<ShardAllocationId, PendingAllocationState> pendingAllocationStates = ConcurrentCollections.newConcurrentMap();
 
     /// Whether this shard has any pending allocation state (a recovery attempt in flight, awaiting local
     /// retry, or a reported failure). Used by tests outside this package, which cannot see
-    /// [pendingAllocationStates] or the package-private [ShardAllocationKey].
+    /// [pendingAllocationStates] or the package-private [ShardAllocationId].
     public boolean hasPendingAllocationState(ShardId shardId) {
         return pendingAllocationStates.keySet().stream().anyMatch(key -> key.shardId().equals(shardId));
     }
@@ -519,7 +519,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         DiscoveryNode masterNode = state.nodes().getMasterNode();
 
         for (final var entry : pendingAllocationStates.entrySet()) {
-            final ShardAllocationKey key = entry.getKey();
+            final ShardAllocationId key = entry.getKey();
             final ShardRouting currentRouting = localRoutingNode.getByShardId(key.shardId());
             switch (entry.getValue()) {
                 case PendingAllocationState.InFlight ticket -> evictIfAttemptStale(key, ticket, currentRouting, state);
@@ -530,7 +530,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private void evictIfAttemptStale(
-        ShardAllocationKey key,
+        ShardAllocationId key,
         PendingAllocationState ticket,
         @Nullable ShardRouting currentRouting,
         ClusterState state
@@ -569,7 +569,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private void evictOrResendFailure(
-        ShardAllocationKey key,
+        ShardAllocationId key,
         PendingAllocationState.FailureReported ticket,
         @Nullable ShardRouting currentRouting,
         ClusterState state,
@@ -611,7 +611,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     @Nullable
-    private static ShardRouting getCurrentRouting(ShardAllocationKey key, ClusterState state) {
+    private static ShardRouting getCurrentRouting(ShardAllocationId key, ClusterState state) {
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         return localRoutingNode == null ? null : localRoutingNode.getByShardId(key.shardId());
     }
@@ -959,10 +959,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final Map<Index, List<ShardRouting>> indicesToCreate = new HashMap<>();
         for (ShardRouting shardRouting : localRoutingNode) {
             ShardId shardId = shardRouting.shardId();
-            ShardAllocationKey shardAllocationKey = ShardAllocationKey.fromRouting(shardRouting);
+            ShardAllocationId shardAllocationId = ShardAllocationId.fromRouting(shardRouting);
 
-            if (pendingAllocationStates.get(shardAllocationKey) instanceof PendingAllocationState.FailureReported) {
-                logger.debug("{} not creating/updating shard: failure already reported to master", shardAllocationKey);
+            if (pendingAllocationStates.get(shardAllocationId) instanceof PendingAllocationState.FailureReported) {
+                logger.debug("{} not creating/updating shard: failure already reported to master", shardAllocationId);
                 continue;
             }
 
@@ -1094,7 +1094,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     if (localRoutingNode != null) {
                         for (final ShardRouting shardRouting : localRoutingNode) {
                             boolean thisIndex = shardRouting.index().equals(index);
-                            final var key = ShardAllocationKey.fromRouting(shardRouting);
+                            final var key = ShardAllocationId.fromRouting(shardRouting);
                             boolean alreadyFailed = pendingAllocationStates.get(key) instanceof PendingAllocationState.FailureReported;
                             if (thisIndex && alreadyFailed == false) {
                                 sendFailShard(
@@ -1120,7 +1120,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final IndexMetadata indexMetadata = project.index(shardId.getIndex());
         assert indexMetadata != null : "null index metadata but non-null shard routing " + shardRouting;
         final var primaryTerm = indexMetadata.primaryTerm(shardRouting.id());
-        final ShardAllocationKey key = ShardAllocationKey.fromRouting(shardRouting);
+        final ShardAllocationId key = ShardAllocationId.fromRouting(shardRouting);
 
         try {
             final DiscoveryNode sourceNode = findSourceNode(state, project, shardRouting);
@@ -1207,7 +1207,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     /// Claims ownership of creating shard identified by `key`. Refuses (and returns empty) if an attempt is
     /// already creating the shard, or if master already knows this allocation failed. Carries the retry count
     /// forward from whatever [PendingAllocationState.AwaitingRecoveryRetry] (or absent) state preceded it.
-    private Optional<PendingAllocationState.InFlight> tryClaimInFlightTicket(ShardAllocationKey key, long primaryTerm) {
+    private Optional<PendingAllocationState.InFlight> tryClaimInFlightTicket(ShardAllocationId key, long primaryTerm) {
         assert Thread.holdsLock(this);
         PendingAllocationState current = pendingAllocationStates.get(key);
         assert current == null || current.primaryTerm() == primaryTerm
@@ -1226,7 +1226,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ClusterState state,
         @Nullable DiscoveryNode sourceNode,
         long primaryTerm,
-        ShardAllocationKey key,
+        ShardAllocationId key,
         PendingAllocationState.InFlight inFlightTicket,
         int iteration,
         long delayMillis,
@@ -1425,7 +1425,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         final IndexShardState state = shard.state();
         final boolean recoveryStillInFlight = pendingAllocationStates.get(
-            ShardAllocationKey.fromRouting(shardRouting)
+            ShardAllocationId.fromRouting(shardRouting)
         ) instanceof PendingAllocationState.InFlight;
         if (shardRouting.initializing()
             && (state == IndexShardState.STARTED || state == IndexShardState.POST_RECOVERY)
@@ -1598,7 +1598,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ShardLongFieldRange timestampMillisFieldRange,
             ShardLongFieldRange eventIngestedMillisFieldRange
         ) {
-            final var key = ShardAllocationKey.fromRouting(shardRouting);
+            final var key = ShardAllocationId.fromRouting(shardRouting);
             // Relies on InFlight#equals using reference-identity rather than value-equality
             pendingAllocationStates.remove(key, inFlightTicket);
             shardStateAction.shardStarted(
@@ -1617,7 +1617,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // We don't need to notify master of anything here because recovery abortion is a
                 // symptom of a shard that is closing and this is communicated to master through other
                 // means (or the master already knows because the master initiated it, e.g. by moving the shard).
-                final var key = ShardAllocationKey.fromRouting(shardRouting);
+                final var key = ShardAllocationId.fromRouting(shardRouting);
                 if (pendingAllocationStates.remove(key, inFlightTicket)) {
                     logger.trace("{} recovery aborted; cleared InFlight ticket", key);
                 } else {
@@ -1647,7 +1647,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         Exception failure,
         PendingAllocationState.InFlight inFlightTicket
     ) {
-        final ShardAllocationKey key = ShardAllocationKey.fromRouting(shardRouting);
+        final ShardAllocationId key = ShardAllocationId.fromRouting(shardRouting);
         if (pendingAllocationStates.get(key) != inFlightTicket) {
             // If our inFlightTicket has been removed it means that the shard has been removed as well.
             // One case that might not be obvious: updatePendingAllocationTracker evicts the InFlight ticket when the primary
@@ -1780,7 +1780,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ShardRouting shardRouting,
         long primaryTerm,
         ClusterState currentState,
-        ShardAllocationKey key,
+        ShardAllocationId key,
         PendingAllocationState.AwaitingRecoveryRetry myRetryTicket
     ) {
         try {
@@ -1885,7 +1885,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
             }
             // Failed-to-master always wins; unconditionally overwrites whatever state preceded it.
-            final ShardAllocationKey key = ShardAllocationKey.fromRouting(shardRouting);
+            final ShardAllocationId key = ShardAllocationId.fromRouting(shardRouting);
             pendingAllocationStates.put(key, new PendingAllocationState.FailureReported(shardRouting, primaryTerm, failureType));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {

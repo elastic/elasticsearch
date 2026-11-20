@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -96,7 +96,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/// Unit tests for the unified pending-allocation-state bookkeeping ([ShardAllocationKey],
+/// Unit tests for the unified pending-allocation-state bookkeeping ([ShardAllocationId],
 /// [IndicesClusterStateService.PendingAllocationState]) and the ticket lifecycle built on top of it: claiming
 /// ownership of a shard-creation attempt, holding it through the whole recovery (not just construction), the
 /// cluster-state sweep that evicts stale tickets, the shard-lock-retry continuation re-resolving routing and
@@ -1373,8 +1373,8 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         return shardRouting;
     }
 
-    private static ShardAllocationKey allocationKey(ShardRouting routing) {
-        return ShardAllocationKey.fromRouting(routing);
+    private static ShardAllocationId allocationKey(ShardRouting routing) {
+        return ShardAllocationId.fromRouting(routing);
     }
 
     private IndicesClusterStateService.PendingAllocationState.InFlight currentInFlight(ShardRouting routing) {

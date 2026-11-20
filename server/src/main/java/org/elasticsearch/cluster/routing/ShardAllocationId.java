@@ -20,16 +20,16 @@ import java.io.IOException;
 /// [ShardRouting#allocationId()]). Keying bookkeeping by this pair, rather than by [ShardId] alone, keeps a
 /// later allocation of the same shard (e.g. after a reroute, or a cancelled-then-retried allocation) from
 /// being confused with an earlier one.
-public record ShardAllocationKey(ShardId shardId, String allocationId) implements Writeable {
+public record ShardAllocationId(ShardId shardId, String allocationId) implements Writeable {
 
-    public ShardAllocationKey(StreamInput in) throws IOException {
+    public ShardAllocationId(StreamInput in) throws IOException {
         this(new ShardId(in), in.readString());
     }
 
     /// Returns the key for the given routing entry's current allocation, which must be assigned to a node.
-    public static ShardAllocationKey fromRouting(ShardRouting routing) {
+    public static ShardAllocationId fromRouting(ShardRouting routing) {
         assert routing.allocationId() != null : "no allocation ID for unassigned shard: " + routing;
-        return new ShardAllocationKey(routing.shardId(), routing.allocationId().getId());
+        return new ShardAllocationId(routing.shardId(), routing.allocationId().getId());
     }
 
     @Override

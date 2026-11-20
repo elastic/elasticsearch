@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
@@ -536,7 +536,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
 
     private void failShardsCancelledInQueue(DiscoveryNode node, CancelRecoveriesAction.Response response) {
         final var state = clusterService.state();
-        for (ShardAllocationKey cancelled : response.cancelledInQueue()) {
+        for (ShardAllocationId cancelled : response.cancelledInQueue()) {
             final ShardId shardId = cancelled.shardId();
             final IndexMetadata indexMetadata = state.metadata().findIndex(shardId.getIndex()).orElse(null);
             if (indexMetadata == null) {

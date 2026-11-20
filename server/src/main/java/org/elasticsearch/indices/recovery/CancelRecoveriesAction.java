@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.UntypedActionRequest;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -107,14 +107,14 @@ public class CancelRecoveriesAction {
     /// The master can use this information to immediately update cluster state without waiting for a separate
     /// `ShardStateAction.shardFailed` notification from the data node.
     public static class Response extends ActionResponse {
-        private final Set<ShardAllocationKey> cancelledInQueue;
+        private final Set<ShardAllocationId> cancelledInQueue;
 
-        public Response(Set<ShardAllocationKey> cancelledInQueue) {
+        public Response(Set<ShardAllocationId> cancelledInQueue) {
             this.cancelledInQueue = Set.copyOf(cancelledInQueue);
         }
 
         public Response(StreamInput in) throws IOException {
-            this.cancelledInQueue = in.readCollectionAsImmutableSet(ShardAllocationKey::new);
+            this.cancelledInQueue = in.readCollectionAsImmutableSet(ShardAllocationId::new);
         }
 
         @Override
@@ -123,7 +123,7 @@ public class CancelRecoveriesAction {
         }
 
         /// Returns the recoveries that were cancelled from the throttling queue.
-        public Set<ShardAllocationKey> cancelledInQueue() {
+        public Set<ShardAllocationId> cancelledInQueue() {
             return cancelledInQueue;
         }
 

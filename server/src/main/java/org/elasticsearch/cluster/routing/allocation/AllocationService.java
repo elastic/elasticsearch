@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -235,7 +235,7 @@ public class AllocationService {
     public ClusterState applyFailedShards(
         final ClusterState clusterState,
         final List<FailedShard> failedShards,
-        final List<ShardAllocationKey> staleShards
+        final List<ShardAllocationId> staleShards
     ) {
         assert assertInitialized();
         if (staleShards.isEmpty() && failedShards.isEmpty()) {

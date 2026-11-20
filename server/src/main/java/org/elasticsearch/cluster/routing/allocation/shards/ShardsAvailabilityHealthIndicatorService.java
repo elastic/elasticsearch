@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
@@ -534,7 +534,7 @@ public abstract class ShardsAvailabilityHealthIndicatorService implements Health
         }
         return localRecoveryRetriesHealthInfoByNode.getOrDefault(routing.currentNodeId(), LocalRecoveryRetriesHealthInfo.EMPTY)
             .localRetries()
-            .getOrDefault(ShardAllocationKey.fromRouting(routing), 0);
+            .getOrDefault(ShardAllocationId.fromRouting(routing), 0);
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {

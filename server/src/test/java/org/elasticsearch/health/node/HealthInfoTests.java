@@ -11,7 +11,7 @@ package org.elasticsearch.health.node;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
@@ -260,11 +260,11 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
     }
 
     public static LocalRecoveryRetriesHealthInfo randomLocalRecoveryRetriesHealthInfo() {
-        return new LocalRecoveryRetriesHealthInfo(randomMap(0, 5, () -> tuple(randomShardAllocationKey(), randomIntBetween(1, 10))));
+        return new LocalRecoveryRetriesHealthInfo(randomMap(0, 5, () -> tuple(randomShardAllocationId(), randomIntBetween(1, 10))));
     }
 
-    public static ShardAllocationKey randomShardAllocationKey() {
-        return new ShardAllocationKey(new ShardId(randomAlphaOfLength(8), randomUUID(), randomIntBetween(0, 5)), randomUUID());
+    public static ShardAllocationId randomShardAllocationId() {
+        return new ShardAllocationId(new ShardId(randomAlphaOfLength(8), randomUUID(), randomIntBetween(0, 5)), randomUUID());
     }
 
     public static DlmFrozenTransitionsHealthInfo randomDlmFrozenTransitionsHealthInfo() {

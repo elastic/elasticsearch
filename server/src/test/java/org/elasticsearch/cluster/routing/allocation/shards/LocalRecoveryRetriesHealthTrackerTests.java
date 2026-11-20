@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.shards;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -64,9 +64,9 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
             health.localRetries(),
             equalTo(
                 Map.of(
-                    ShardAllocationKey.fromRouting(shard1.routingEntry()),
+                    ShardAllocationId.fromRouting(shard1.routingEntry()),
                     shard1.recoveryState().getLocalRetries(),
-                    ShardAllocationKey.fromRouting(shard2.routingEntry()),
+                    ShardAllocationId.fromRouting(shard2.routingEntry()),
                     shard2.recoveryState().getLocalRetries()
                 )
             )
@@ -88,7 +88,7 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
 
         assertThat(
             health.localRetries(),
-            equalTo(Map.of(ShardAllocationKey.fromRouting(inactive.routingEntry()), inactive.recoveryState().getLocalRetries()))
+            equalTo(Map.of(ShardAllocationId.fromRouting(inactive.routingEntry()), inactive.recoveryState().getLocalRetries()))
         );
     }
 
@@ -101,7 +101,7 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
 
         assertThat(
             health.localRetries(),
-            equalTo(Map.of(ShardAllocationKey.fromRouting(shard.routingEntry()), shard.recoveryState().getLocalRetries()))
+            equalTo(Map.of(ShardAllocationId.fromRouting(shard.routingEntry()), shard.recoveryState().getLocalRetries()))
         );
     }
 
@@ -126,9 +126,9 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
             health.localRetries(),
             equalTo(
                 Map.of(
-                    ShardAllocationKey.fromRouting(shard1.routingEntry()),
+                    ShardAllocationId.fromRouting(shard1.routingEntry()),
                     shard1.recoveryState().getLocalRetries(),
-                    ShardAllocationKey.fromRouting(shard2.routingEntry()),
+                    ShardAllocationId.fromRouting(shard2.routingEntry()),
                     shard2.recoveryState().getLocalRetries()
                 )
             )
@@ -138,7 +138,7 @@ public class LocalRecoveryRetriesHealthTrackerTests extends ESTestCase {
     public void testSetBuilder() {
         var tracker = new LocalRecoveryRetriesHealthTracker(indicesService(List.of()));
         var builder = mock(UpdateHealthInfoCacheAction.Request.Builder.class);
-        var health = new LocalRecoveryRetriesHealthInfo(Map.of(HealthInfoTests.randomShardAllocationKey(), randomIntBetween(1, 10)));
+        var health = new LocalRecoveryRetriesHealthInfo(Map.of(HealthInfoTests.randomShardAllocationId(), randomIntBetween(1, 10)));
 
         tracker.addToRequestBuilder(builder, health);
 

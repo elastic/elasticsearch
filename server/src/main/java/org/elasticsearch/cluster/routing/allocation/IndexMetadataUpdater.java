@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardAllocationKey;
+import org.elasticsearch.cluster.routing.ShardAllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.util.Maps;
@@ -289,7 +289,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
      */
     public static ClusterState removeStaleIdsWithoutRoutings(
         ClusterState clusterState,
-        List<ShardAllocationKey> staleShards,
+        List<ShardAllocationId> staleShards,
         Logger logger
     ) {
         final Metadata oldMetadata = clusterState.metadata();
@@ -306,15 +306,15 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 final IndexMetadata oldIndexMetadata = oldProject.getIndexSafe(index);
                 IndexMetadata.Builder indexMetadataBuilder = null;
                 // group staleShards entries by shard id
-                for (Map.Entry<ShardId, List<ShardAllocationKey>> shardEntry : staleShardsByIndex.get(index)
+                for (Map.Entry<ShardId, List<ShardAllocationId>> shardEntry : staleShardsByIndex.get(index)
                     .stream()
-                    .collect(Collectors.groupingBy(ShardAllocationKey::shardId))
+                    .collect(Collectors.groupingBy(ShardAllocationId::shardId))
                     .entrySet()) {
                     int shardNumber = shardEntry.getKey().getId();
                     Set<String> oldInSyncAllocations = oldIndexMetadata.inSyncAllocationIds(shardNumber);
                     Set<String> idsToRemove = shardEntry.getValue()
                         .stream()
-                        .map(ShardAllocationKey::allocationId)
+                        .map(ShardAllocationId::allocationId)
                         .collect(Collectors.toSet());
                     assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null)
                         : "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable;

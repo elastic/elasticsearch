@@ -8931,6 +8931,39 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat(short_.getMessage(), containsString("missing trailing fields: [1] columns, the header has [2]"));
     }
 
+    /**
+     * The other direction of the same mismatch: a file whose header is WIDER than the pinned schema, where
+     * {@code first_file_wins} took the schema from a narrower sibling. Its two bounds then cross -- the floor is the
+     * file's three, the limit the schema's two -- so no row of it passes. That is not new for a row of the file's own
+     * width, which exceeded the pinned schema and was a structural row error before this rule as well; what the floor
+     * adds is the other half, so the file is refused uniformly instead of yielding only its ragged rows. Each message
+     * still names the bound it broke after that bound's own source.
+     */
+    public void testAFileWiderThanThePinnedSchemaRefusesBothWays() throws Exception {
+        // Pinned two columns wide, over a file whose own header is three.
+        List<Attribute> narrowSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withHeaderBindingByProvenance(true);
+
+        Exception full = expectThrows(
+            Exception.class,
+            () -> drainAllPages(widthOnlyBoundRead(reader, "id,name,extra\n1,alice,x\n", narrowSchema))
+        );
+        assertThat(
+            "a row of the file's own width was refused before this rule too",
+            full.getMessage(),
+            containsString("[3] columns, the schema has [2]")
+        );
+
+        Exception short_ = expectThrows(
+            Exception.class,
+            () -> drainAllPages(widthOnlyBoundRead(reader, "id,name,extra\n1,alice\n", narrowSchema))
+        );
+        assertThat(short_.getMessage(), containsString("missing trailing fields: [2] columns, the header has [3]"));
+    }
+
     /** A first split that binds only the file's header width: an inferred schema over a headered file, gate on. */
     private CloseableIterator<Page> widthOnlyBoundRead(CsvFormatReader reader, String csv, List<Attribute> readSchema) throws IOException {
         return reader.read(

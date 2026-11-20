@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
+import org.elasticsearch.xpack.esql.expression.AnyParam;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -77,6 +78,11 @@ public final class TranslateTimeSeriesWithout extends AnalyzerRules.Parameterize
 
         for (Expression grouping : aggregate.groupings()) {
             if (Alias.unwrap(grouping) instanceof TimeSeriesWithout fn) {
+                if (fn.children().stream().anyMatch(AnyParam.class::isInstance)) {
+                    // Lowering would turn the marker into the name of an excluded field. Leave it in the plan so the verifier reports it.
+                    newGroupings.add(grouping);
+                    continue;
+                }
                 // Replace the semantic WITHOUT node with the concrete _timeseries field attribute,
                 // collecting the excluded dimension names from the function's children.
                 var excludedFields = new LinkedHashSet<String>(fn.children().size());

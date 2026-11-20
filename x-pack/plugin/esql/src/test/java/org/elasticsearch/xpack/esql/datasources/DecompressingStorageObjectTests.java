@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
@@ -358,6 +359,43 @@ public class DecompressingStorageObjectTests extends ESTestCase {
             tracking.bytesConsumed.get(),
             Matchers.lessThan((long) compressed.length / 2)
         );
+    }
+
+    /**
+     * Parse close must abort the raw GET without closing the decoder.
+     * {@link DecompressingStorageObject#abortStream} still closes the decoder; {@code abortTransport}
+     * does not claim that CAS so a later close on the owner thread still runs.
+     */
+    public void testAbortTransportAbortsRawWithoutClosingDecoder() throws IOException {
+        byte[] original = "id,name\n1,a\n2,b\n".getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = gzip(original);
+        AtomicInteger decoderCloses = new AtomicInteger();
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        DecompressionCodec codec = new GzipDecompressionCodec() {
+            @Override
+            public InputStream decompress(InputStream raw, CircuitBreaker breaker) throws IOException {
+                return new FilterInputStream(super.decompress(raw, breaker)) {
+                    @Override
+                    public void close() throws IOException {
+                        decoderCloses.incrementAndGet();
+                        super.close();
+                    }
+                };
+            }
+        };
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(
+            DrainSimulatingStorageObject.create(compressed, tracking),
+            codec
+        );
+        InputStream stream = decompressing.newStream();
+        int n = stream.read(new byte[8]);
+        assertThat(n, Matchers.greaterThan(0));
+        decompressing.abortTransport(stream);
+        assertEquals("abortTransport must abort the raw GET", 1, tracking.abortCalls.get());
+        assertEquals("abortTransport must not close the decoder", 0, decoderCloses.get());
+        decompressing.abortStream(stream);
+        assertEquals("owner-thread abortStream must close the decoder", 1, decoderCloses.get());
+        assertThat(tracking.abortCalls.get(), Matchers.greaterThanOrEqualTo(1));
     }
 
     /**

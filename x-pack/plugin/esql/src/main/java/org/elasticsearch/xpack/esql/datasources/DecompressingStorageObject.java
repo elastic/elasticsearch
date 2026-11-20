@@ -226,6 +226,36 @@ final class DecompressingStorageObject implements StorageObject {
     }
 
     /**
+     * Aborts the raw GET without closing the decoder. Parse close runs on a different thread
+     * than the segmentator {@code read()}; closing gzip/zstd from that thread is a use-after-free.
+     * The segmentator's {@code close()}/{@link #abortStream} then releases the decoder on the
+     * thread that owns it. Does not claim {@link DecompressedStream}'s closed CAS.
+     */
+    void abortTransport(InputStream stream) throws IOException {
+        if (isDecompressedStream(stream)) {
+            abortRawTransport(stream);
+            return;
+        }
+        abortStream(stream);
+    }
+
+    /** True when {@code stream} is this class's decoder wrapper. Parse close must not {@code close()} it. */
+    static boolean isDecompressedStream(InputStream stream) {
+        return stream instanceof DecompressedStream;
+    }
+
+    /**
+     * Abort the raw GET of a {@link DecompressedStream} without closing the decoder. No-op when
+     * {@code stream} is not that wrapper. Safe when parse close has no {@link StorageObject}: the
+     * wrapper still owns the raw stream.
+     */
+    static void abortRawTransport(InputStream stream) throws IOException {
+        if (stream instanceof DecompressedStream ds) {
+            ds.abortRawOnly();
+        }
+    }
+
+    /**
      * Bundles the decompressed stream with the raw delegate stream it was built from so
      * {@link #abortStream(InputStream)} can route the abort to the raw stream — which is where
      * providers like S3 perform the connection-discard via {@code Abortable.abort()}.
@@ -294,6 +324,14 @@ final class DecompressingStorageObject implements StorageObject {
         @Override
         public void close() throws IOException {
             releaseRaw(rawOwner);
+        }
+
+        /**
+         * Aborts the raw GET without closing the decoder or claiming {@link #closed}. Safe to
+         * call from parse close while the segmentator is still in {@code in.read()}.
+         */
+        void abortRawOnly() throws IOException {
+            rawOwner.abortStream(raw);
         }
 
         /**

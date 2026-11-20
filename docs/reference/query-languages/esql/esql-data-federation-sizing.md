@@ -71,7 +71,7 @@ Start with:
 * **4 GB of heap** for compressed text
 * **A further 2 GB to 4 GB** for a text dataset whose schema is inferred
 
-Then allocate 1 GB to 2 GB of heap per core. Compressed text sits at the top of that range, and its per-core requirement climbs further as a node widens.
+Then allocate 1 GB to 2 GB of heap per core, on at least 2 cores per node.
 
 ### Sizing for concurrency [concurrency]
 
@@ -111,15 +111,15 @@ The [TLC trip record data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-da
 
 Parquet, so the initial heap is 2 GB. At 1 core per 8 to 10 concurrent queries, 10 concurrent queries need 2 cores. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB.
 
-Start with 1 node of 2 cores and 4 GB of heap.
+Start with 1 node, with 2 cores and 4 GB of heap on it.
 
 ### Backblaze drive stats, gzipped CSV [example-backblaze]
 
 [Backblaze drive stats](https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data) is published as 1 gzipped CSV file per day, with a wide schema of SMART attributes.
 
-Compressed text, so the initial heap is 4 GB. At 1 core per 3 to 4 concurrent queries, 10 concurrent queries need 3 to 4 cores. At 1 GB to 2 GB of heap per core, 4 cores need 4 GB to 8 GB. Compressed text serves fewer concurrent queries as a node widens, so those cores belong on separate nodes.
+Compressed text, so the initial heap is 4 GB. At 1 core per 3 to 4 concurrent queries, 10 concurrent queries need 3 to 4 cores. Compressed text serves fewer concurrent queries as a node widens, so those cores belong on separate nodes: 2 nodes of 2 cores each. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB, so the initial 4 GB governs.
 
-Start with 2 nodes of 2 cores and 8 GB of heap each.
+Start with 2 nodes, each with 2 cores and 4 GB of heap.
 
 With the schema inferred, add 2 GB to 4 GB of heap on the coordinating node.
 

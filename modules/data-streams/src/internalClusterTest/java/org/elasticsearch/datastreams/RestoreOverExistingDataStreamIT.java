@@ -67,6 +67,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -276,6 +277,84 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         ensureGreen(renamed);
         assertThat(currentDataStream(renamed), notNullValue());
         assertThat("what exists is untouched", currentDataStream().getIndices().get(0), equalTo(originalBackingIndex));
+    }
+
+    /**
+     * A restore of the global state replaces the templates of the project with the ones of the snapshot, so the templates of the
+     * snapshot are the ones that count: a data stream that only the snapshot has a template for is restored.
+     */
+    public void testRestoreWithGlobalStateRequiringTemplatesUsesTheTemplatesOfTheSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        assertAcked(
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME))
+                .get()
+        );
+        assertAcked(
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_ID)
+            ).get()
+        );
+        assertThat("the cluster has no template", currentTemplates().keySet(), not(hasItem(TEMPLATE_ID)));
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> future = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .includeGlobalState(true),
+            UUIDs.randomBase64UUID(),
+            /* reportShardRestoring = */ false,
+            /* requireDataStreamTemplates = */ true,
+            future,
+            (state, builder) -> {}
+        );
+        future.actionGet(TEST_REQUEST_TIMEOUT);
+        assertBusy(() -> assertThat(restoresInProgress(), equalTo(false)));
+        ensureGreen(DATA_STREAM_NAME);
+        assertThat(currentDataStream(), notNullValue());
+        assertThat("the template of the snapshot is restored", currentTemplates(), hasKey(TEMPLATE_ID));
+    }
+
+    /**
+     * A template of the cluster does not count for a restore of the global state, because the restore replaces it with the templates
+     * of the snapshot: a data stream that only a template of the cluster matches is rejected, and the restore does not start.
+     */
+    public void testRestoreWithGlobalStateRequiringTemplatesIgnoresTheTemplatesThatItReplaces() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepositoryAndSnapshottedDataStream();
+        final String renamed = "renamed-" + DATA_STREAM_NAME;
+        // the snapshot does not have this template, and the restore would remove it
+        putDataStreamTemplate("renamed-template", renamed);
+
+        final PlainActionFuture<RestoreService.RestoreCompletionResponse> rejected = new PlainActionFuture<>();
+        restoreService().restoreSnapshot(
+            ProjectId.DEFAULT,
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, REPOSITORY_NAME, SNAPSHOT_NAME).indices(DATA_STREAM_NAME)
+                .renamePattern("(.+)")
+                .renameReplacement("renamed-$1")
+                .includeGlobalState(true),
+            UUIDs.randomBase64UUID(),
+            /* reportShardRestoring = */ false,
+            /* requireDataStreamTemplates = */ true,
+            rejected,
+            (state, builder) -> {}
+        );
+        final RestoreService.MissingDataStreamTemplateException e = expectThrows(
+            RestoreService.MissingDataStreamTemplateException.class,
+            () -> rejected.actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(e.dataStream(), equalTo(renamed));
+        assertThat("nothing is restored", currentDataStream(renamed), nullValue());
+        assertThat(restoresInProgress(), equalTo(false));
+        assertThat("the global state is not restored", currentTemplates(), hasKey("renamed-template"));
+    }
+
+    private Map<String, ComposableIndexTemplate> currentTemplates() {
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        return state.metadata().getProject(ProjectId.DEFAULT).templatesV2();
     }
 
     private void putDataStreamTemplate(String templateId, String indexPattern) throws Exception {

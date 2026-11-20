@@ -542,9 +542,14 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
-        // A restore that requires the templates fails when it starts, instead of warning about a data stream that has none
+        // A restore that requires the templates fails instead of warning about a data stream that has none
         if (requireDataStreamTemplates == false) {
             validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
+        } else if (request.includeGlobalState()) {
+            // Restoring the global state replaces the templates of the project with those of the snapshot, which do not change,
+            // so they can be checked before the restore cluster state update task starts.
+            // Otherwise, the restore checks the templates that exist when it runs, see RestoreSnapshotStateTask#execute
+            ensureDataStreamTemplatesExist(dataStreamsToRestore.values(), request, globalMetadata.getProject(projectId));
         }
         ensureNoDataStreamMatchesSystemIndexPattern(dataStreamsToRestore.values(), request, systemIndices, snapshot);
 
@@ -1047,6 +1052,30 @@ public final class RestoreService implements ClusterStateApplier {
                 Map.of()
             )
         );
+    }
+
+    /**
+     * Fails if the name that a data stream is restored to, after the renaming of the restore, has no matching index template with a data
+     * stream configuration in {@code project}, which is what creating the data stream needs too. System data streams are not checked,
+     * they have no templates.
+     *
+     * @throws MissingDataStreamTemplateException for the first data stream that has no template
+     */
+    private static void ensureDataStreamTemplatesExist(
+        Collection<DataStream> dataStreams,
+        RestoreSnapshotRequest request,
+        ProjectMetadata project
+    ) {
+        for (DataStream dataStream : dataStreams) {
+            if (dataStream.isSystem() == false) {
+                final String destination = renameDataStream(dataStream.getName(), request);
+                try {
+                    MetadataCreateDataStreamService.lookupTemplateForDataStream(destination, project);
+                } catch (IllegalArgumentException e) {
+                    throw new MissingDataStreamTemplateException(destination, e);
+                }
+            }
+        }
     }
 
     private void validateDataStreamTemplatesExistAndWarnIfMissing(
@@ -2345,18 +2374,10 @@ public final class RestoreService implements ClusterStateApplier {
             // Check if the snapshot to restore is currently being deleted
             ensureSnapshotNotDeleted(currentState);
 
-            if (requireDataStreamTemplates) {
-                final ProjectMetadata projectWithTemplates = currentState.metadata().getProject(projectId);
-                for (DataStream dataStream : dataStreamsToRestore) {
-                    if (dataStream.isSystem() == false) {
-                        final String destination = renameDataStream(dataStream.getName(), request);
-                        try {
-                            MetadataCreateDataStreamService.lookupTemplateForDataStream(destination, projectWithTemplates);
-                        } catch (IllegalArgumentException e) {
-                            throw new MissingDataStreamTemplateException(destination, e);
-                        }
-                    }
-                }
+            // With the global state the templates of the snapshot replace the current state's,
+            // and were checked before this task was submitted
+            if (requireDataStreamTemplates && request.includeGlobalState() == false) {
+                ensureDataStreamTemplatesExist(dataStreamsToRestore, request, currentState.metadata().getProject(projectId));
             }
 
             // Deleting a data stream removes it from its aliases, so the aliases that the data streams that are restored over are in have

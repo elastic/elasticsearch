@@ -123,7 +123,8 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
         buf.setByte(byteIndex, buf.getByte(byteIndex) | (1 << (position % 8)));
     }
 
-    private int nullCount() {
+    @Override
+    public int nullValuesCount() {
         if (validityBuffer == null) {
             return 0;
         }
@@ -199,24 +200,6 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
             }
         }
         return true;
-    }
-
-    @Override
-    public int nullValuesCount() {
-        if (validityBuffer == null) {
-            return 0;
-        }
-        // Count the valid bits, ignoring the unset padding bits of the last word
-        int valid = 0;
-        for (int i = 0; i < valueCount / 64; i++) {
-            valid += Long.bitCount(validityBuffer.getLong(i * Long.BYTES));
-        }
-        int remaining = valueCount % 64;
-        if (remaining != 0) {
-            long mask = (1L << remaining) - 1;
-            valid += Long.bitCount(validityBuffer.getLong((valueCount / 64) * Long.BYTES) & mask);
-        }
-        return valueCount - valid;
     }
 
     @Override
@@ -568,7 +551,7 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
     @Override
     public int getTotalValueCount() {
         if (offsetBuffer == null) {
-            return valueCount - nullCount();
+            return valueCount - nullValuesCount();
         }
         int total = 0;
         for (int p = 0; p < valueCount; p++) {

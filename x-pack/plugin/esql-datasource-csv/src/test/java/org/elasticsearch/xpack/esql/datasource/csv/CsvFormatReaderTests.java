@@ -6630,20 +6630,20 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * Naming the object put a user-chosen string into these messages, and one legal filename is a storage host.
-     * {@code ExternalFailures.containsStoragePath} tests the WHOLE message for a bare {@code amazonaws.com}, so
-     * a refusal raised as a plain {@link IllegalArgumentException} reaches the resolver's
-     * {@code forwardableDetail}, matches, and loses its sentence — the remedy with it — for an object the user
-     * is entitled to call {@code logs.amazonaws.com.csv}. Raised as an {@link ExternalClientException} it is
-     * returned whole instead, which is what this pins.
+     * Naming the object put a user-chosen string into these messages, and one legal filename is a storage host:
+     * {@code logs.amazonaws.com.csv}. {@link CsvFormatReader#sampleLimitError} carries the whole reasoning; this
+     * pins the two halves of it observable from here, both against the same message.
      * <p>
-     * That is the resolve path only, and the type is NOT what decides it everywhere. The same predicate is also
-     * an assertion inside {@code ExternalFailures.classify}, which walks the chain and tests every message
-     * including the one {@code setDetail} appends — so on the read path such a name is a fatal
-     * {@link AssertionError} under {@code -ea} rather than the 400 this refusal is. That is pinned below
-     * because it is the live boundary, not because it is wanted: a shipped distribution runs without
-     * {@code -ea} and gets the 400. It stops being true when the guard learns which span of a message is the
-     * permitted object name, and this test is then inverted rather than deleted.
+     * Forwarding — the sentence raised as a plain {@link IllegalArgumentException} is what
+     * {@code ExternalFailures.forwardableDetail} withholds, remedy and all, which is why the refusal is typed.
+     * <p>
+     * Classification — the type is not what decides it everywhere. The same predicate is also an assertion inside
+     * {@code ExternalFailures.classify}, which walks the chain and tests every message including the one
+     * {@code setDetail} appends, so on the read path such a name is a fatal {@link AssertionError} under
+     * {@code -ea} rather than the 400 this refusal is. Pinned because it is the live boundary, not because it is
+     * wanted: a shipped distribution runs without {@code -ea} and gets the 400. It stops being true when the
+     * guard learns which span of a message is the permitted object name, and this test is then inverted rather
+     * than deleted.
      */
     public void testASchemaRefusalSurvivesAnObjectNamedLikeAStorageHost() {
         CsvFormatReader narrowSample = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
@@ -6653,6 +6653,12 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("of [logs.amazonaws.com.csv]"));
         assertThat("the remedy is the part a withheld message loses", e.getMessage(), containsString("declare a schema"));
+
+        // The forwarding half, exercised rather than described: untyped, this exact sentence is withheld whole.
+        assertNull(
+            "an object the user is entitled to name this way must not cost them the message",
+            ExternalFailures.forwardableDetail(new IllegalArgumentException(e.getMessage()))
+        );
 
         assumeTrue("the read-path boundary below is only observable under -ea", getClass().desiredAssertionStatus());
         AssertionError onTheReadPath = expectThrows(AssertionError.class, () -> ExternalFailures.classify(e));
@@ -7776,7 +7782,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             e.getMessage().contains("CSV schema sampling of [test.csv]: [")
                 && e.getMessage().contains("over [max_errors] of [5]; first errors: ")
         );
-        assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
 
     /**
@@ -7815,7 +7821,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected zero-rows message, got: " + e.getMessage(), e.getMessage().contains("schema inference failed"));
         // The fourth schema-path message, pinned to the object like the other three.
         assertThat(e.getMessage(), containsString("schema inference failed for [test.csv]"));
-        assertEquals(org.elasticsearch.rest.RestStatus.BAD_REQUEST, e.status());
+        assertEquals(RestStatus.BAD_REQUEST, e.status());
     }
 
     /**
@@ -12441,6 +12447,38 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(detail, equalTo("row [1] of [test.csv] counted within a split: cannot read [bad_id] as [long]"));
         assertThat("a byte on the wrong axis must not be printed", detail, not(containsString("counted from byte")));
+    }
+
+    /**
+     * The first macro-split of a block-aligned compressed object is the one cell where
+     * {@code firstSplit()} and {@code splitStartByte() == 0} disagree: the split begins at the first
+     * block boundary, so its offset is non-zero, and it is still the file's own start — nothing was
+     * read before it and {@code skipLeadingPartialRecord} is not run, so the ordinal IS the file's and
+     * needs no qualifier. Keying the decision on the offset instead printed
+     * {@code counted within a split} here, qualifying an ordinal that was never relative.
+     * This is the only cell in which the two predicates differ, so it is the only test that fails if
+     * the condition is put back.
+     */
+    public void testTheFirstSplitOfABlockAlignedObjectNeedsNoWindowClause() throws IOException {
+        List<Attribute> schema = splitSchema();
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(10)
+            .errorPolicy(new ErrorPolicy(100, true))
+            .firstSplit(true)
+            // Not the last split: with lastSplit(true) this would be the whole-file read, a different cell.
+            .lastSplit(false)
+            .recordAligned(false)
+            .splitStartByte(9999L)
+            .readSchema(schema)
+            .build();
+        // firstSplit() consumes the leading line as this object's own header, so the bad row is row 1.
+        String detail = soleDetailWarning(
+            new CsvFormatReader(blockFactory).withSchema(schema),
+            createStorageObject("id,name\nbad_id,Carol\n4,Dan\n"),
+            ctx
+        );
+        assertThat(detail, equalTo("row [1] of [test.csv]: cannot read [bad_id] as [long]"));
+        assertThat("the file's own first row takes no window clause", detail, not(containsString("counted")));
     }
 
     /**

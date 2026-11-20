@@ -49,6 +49,13 @@ final class TrimLastPartialLineInputStream extends InputStream {
     private final SkipWarnings skipWarnings;
     private final NdJsonRecordSplitter recordSplitter;
 
+    /**
+     * The bracketed object part of every message this stream emits, rendered once by
+     * {@link RowLocation#objectClause(String, String)} so the summary and the per-discard detail
+     * cannot drift apart. Empty when no object name was supplied.
+     */
+    private final String objectClause;
+
     /** Bytes after the last {@code '\n'} observed across all chunks read so far; discarded at EOF. */
     private byte[] carry;
 
@@ -126,13 +133,10 @@ final class TrimLastPartialLineInputStream extends InputStream {
         this.errorPolicy = errorPolicy;
         Check.isTrue(recordSplitter != null, "recordSplitter must not be null");
         this.recordSplitter = recordSplitter;
+        this.objectClause = RowLocation.objectClause(" in", sourceLocation);
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
-            "Line"
-                + RowLocation.objectClause(" in", sourceLocation)
-                + " exceeds ["
-                + ByteSizeValue.ofBytes(recordSplitter.maxRecordBytes())
-                + "]; skipping it",
+            "Line" + objectClause + " exceeds [" + ByteSizeValue.ofBytes(recordSplitter.maxRecordBytes()) + "]; skipping it",
             warningSink
         );
     }
@@ -269,7 +273,7 @@ final class TrimLastPartialLineInputStream extends InputStream {
 
     /** Same level choice as {@link NdJsonPageDecoder#onNdjsonLineParseError}. */
     private void logDiscardedOversizedPartial(long discardedBytes, String kind) {
-        skipWarnings.add("about [" + discardedBytes + "] bytes skipped");
+        skipWarnings.add("about [" + discardedBytes + "] bytes skipped" + objectClause);
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
             LoggerMessageFormat.format(

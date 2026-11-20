@@ -821,11 +821,22 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             chunkMode,
             // From context.recordAligned(), not chunkMode: the latter is demoted above when the object has no
             // last-modified time, which is about cache participation and not about the byte axis.
-            // Deliberately keyed on the offset rather than on firstSplit(): a first macro-split of a
-            // block-aligned compressed object has a non-zero start on the COMPRESSED axis, and the flag below
-            // is binary -- not withholding would print that offset rather than print no clause, which is the
-            // cross-axis byte this whole clause exists to avoid. So such a split says "within a split" over an
-            // ordinal that is in fact the file's: a weaker statement than the truth, never a wrong one.
+            // Deliberately keyed on the offset rather than on firstSplit(), which is what CsvFormatReader keys
+            // on: a first macro-split of a block-aligned compressed object has a non-zero start on the
+            // COMPRESSED axis, and the flag below is binary -- not withholding would print that offset rather
+            // than print no clause, which is the cross-axis byte this whole clause exists to avoid. So such a
+            // split says "within a split" over an ordinal that is in fact the file's: a weaker statement than
+            // the truth, never a wrong one.
+            //
+            // The two readers therefore disagree in one further cell, firstSplit=false with splitStartByte==0,
+            // where this prints no clause although skipFirstLine has discarded a leading record -- a wrong
+            // statement rather than a weak one. It is unreachable through FileSplitProvider.isFirstInFile,
+            // whose body is ("true".equals(config.get(FIRST_SPLIT_KEY)) || split.offset() == 0), so a split that
+            // is not first has a non-zero offset; that is an invariant of the producer, not of this reader, and
+            // the parallel-parsing coordinators were not re-verified against it. Closing it properly means
+            // giving NdJsonPageIterator the same long messageStartByte CsvBatchIterator takes instead of this
+            // boolean, which changes that constructor's contract and is sized with the rest of the row-ordinal
+            // work rather than carried here.
             context.recordAligned() == false && context.splitStartByte() != 0L,
             context.readCounters() instanceof NdJsonReaderCounters c ? c : null,
             context.splitStartByte(),

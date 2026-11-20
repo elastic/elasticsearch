@@ -991,10 +991,10 @@ public class NdJsonPageDecoder implements Closeable {
             // Same window clause the per-row details take, from the same field, so the aggregate cannot imply a
             // file-global count the split-relative totalRowCount is not. CsvFormatReader.checkBudget matches.
             throw new ParsingException(
-                "[{}] errors in [{}] rows of [{}]{}; {}",
+                "[{}] errors in [{}] rows{}{}; {}",
                 errorCount,
                 totalRowCount,
-                sourceLocation,
+                RowLocation.objectClause(" of", sourceLocation),
                 RowLocation.countedIn(messageOffsetBase),
                 errorPolicy.trippedLimit(errorCount)
             );

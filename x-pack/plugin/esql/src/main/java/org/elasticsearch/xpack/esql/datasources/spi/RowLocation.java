@@ -43,8 +43,10 @@ public final class RowLocation {
 
     /**
      * Marks where an over-long name was cut. ASCII on purpose, unlike {@link ErrorExcerpts}'s {@code \u2026}:
-     * this clause travels as a {@code Warning} response header, and {@code HeaderWarning.escapeAndEncode}
-     * percent-encodes anything outside ASCII, so a single-character ellipsis is transmitted as {@code %E2%80%A6}.
+     * this clause travels as a {@code Warning} response header, and {@code HeaderWarning}'s
+     * {@code doesNotNeedEncoding} set leaves out every character above {@code U+00FF} (its BitSet is
+     * {@code 1 + 0xFF} wide), so a single-character ellipsis is transmitted as {@code %E2%80%A6}.
+     * It is only the Latin-1 range that rides along unencoded, which is why the marker is plain ASCII.
      * Whether a given client renders that or decodes it back is the client's business, which is the reason to
      * stay inside ASCII rather than rely on it. Observed in a warning drained from a read.
      */
@@ -119,22 +121,16 @@ public final class RowLocation {
      * Both readers' error-budget failures say how many rows they read before giving up, and that count is
      * split-relative for the same reason a row ordinal is — the reader counts its own input. Without this clause
      * {@code [N] errors in [M] rows of [object]} reads as a statement about the whole object, which on a later
-     * split it is not, so the aggregate reproduced exactly the mis-location this class removes from the per-row
-     * text. Sharing the rendering keeps the two kinds of message agreeing about the window: a detail line that
-     * says {@code counted from byte [B]} and a summary that quietly implied byte zero would be a worse pair than
-     * either message alone.
+     * split it is not. Sharing the rendering also keeps the two kinds of message agreeing about the window: a
+     * detail saying {@code counted from byte [B]} beside a summary quietly implying byte zero is a worse pair
+     * than either message alone. Empty for a read from the start of the file, whose counts ARE the file's.
      * <p>
-     * Returns the empty string for a read from the start of the file, whose counts ARE the file's and need no
-     * qualification.
-     * <p>
-     * The byte names its own axis because on a stream-compressed object it is not an offset anyone can seek to
-     * in the stored object. A gzip or zstd read is segmented and each segment's start is a cumulative offset
-     * into the DECOMPRESSED stream, which is the axis the records sit on and the only one the reader is given;
-     * printed bare beside the stored object's name it exceeds that object's length, so a user following it
-     * seeks past the end of the {@code .gz}. Naming the axis is accurate for a plain file too, whose decoded
-     * stream is its stored bytes, which is why it is said unconditionally rather than only where the reader
-     * suspects compression -- it is not told. Placing the byte in the stored object for a compressed read needs
-     * a compression signal the read context does not carry.
+     * The byte names its own axis because on a stream-compressed object it is not an offset anyone can seek to in
+     * the stored object: a gzip or zstd read is segmented and each segment's start is a cumulative offset into the
+     * DECOMPRESSED stream, so printed bare beside the stored object's name it exceeds that object's length and a
+     * user following it seeks past the end of the {@code .gz}. Said unconditionally because the axis claim is true
+     * of a plain file too, whose decoded stream is its stored bytes, and the read context carries no compression
+     * signal to branch on.
      */
     public static String countedIn(long readStartByte) {
         if (readStartByte > 0L) {
@@ -190,42 +186,36 @@ public final class RowLocation {
     }
 
     /**
-     * Replaces, with a backslash-u escape of its code point — six ASCII characters where the original was one,
-     * the last four naming the code point in hex, so a newline is escaped as 000A — every character in an
-     * object name that the name could otherwise use to impersonate the text around it. Two such characters, for
-     * two different channels. The escape is spelled out in words here rather than written: a backslash followed
-     * by {@code u} is a unicode escape ANYWHERE in a Java source file, comments included, so writing one would
-     * have the compiler substitute the character it names before anyone could read about it.
+     * Replaces — with a backslash-u escape of its code point, six ASCII characters where the original was one —
+     * every character in an object name that the name could otherwise use to impersonate the text around it. The
+     * escape is spelled out in words rather than written: a backslash followed by {@code u} is a unicode escape
+     * ANYWHERE in a Java source file, comments included, so writing one here would have the compiler substitute
+     * the character it names before anyone could read about it. Two such characters, for two different channels.
      * <p>
-     * A control character, because this clause is
-     * the one piece of an object's name that reaches the node log: the readers pass the whole rendered location
-     * to {@code logger.warn} alongside the client warning, so that the operator reading the log and the user
-     * reading the response see the same row of the same object. A name is store-supplied text — an S3 key may
-     * hold any UTF-8, newline included, and this class's parser keeps the last path segment verbatim — and the
-     * console and legacy log layouts write a message as it stands, so an embedded newline would let a key
-     * counterfeit a second log line. The response channel is already safe and stays so:
+     * A control character, because this clause is the one piece of a name that reaches the node log: the readers
+     * hand the whole rendered location to {@code logger.warn} beside the client warning, so the operator reading
+     * the log and the user reading the response see the same row of the same object. A name is store-supplied
+     * text — an S3 key may hold any UTF-8, newline included, and this class's parser keeps the last path segment
+     * verbatim — and the console and legacy log layouts write a message as it stands, so an embedded newline
+     * would let a key counterfeit a second log line. The response channel is already safe and stays so:
      * {@code HeaderWarning.encode} leaves the C0 range out of its unencoded set, so a newline travels as
      * {@code %0A} with or without this.
      * <p>
      * A square bracket, because the name is printed inside one and the clause is built by concatenation, so a name
      * is free to close its own bracket and open the next field: an object actually called
-     * {@code v.csv] counted from byte [12} renders {@code row [1] of [v.csv] counted from byte [12]}, which is
-     * character-for-character what a byte-12 read of {@code v.csv} renders. That is worse than a merely confusing
-     * name, because {@code InformationalWarningBudget} deduplicates by exact string: the forged detail and the
-     * real one collapse into one warning and the user is told about one failing row where there were two. Escaping
-     * either bracket is enough to break the forgery; both are escaped so the rule is "a bracket in a name is never
-     * a bracket in the message" rather than a rule about which one happened to matter.
+     * {@code v.csv] counted from byte [12} renders character-for-character what a byte-12 read of {@code v.csv}
+     * renders. {@code InformationalWarningBudget} deduplicates by exact string, so the forged detail and the real
+     * one collapse into one warning and the user is told about one failing row where there were two. Both brackets
+     * are escaped, so the rule is "a bracket in a name is never a bracket in the message" rather than a rule about
+     * which one happened to matter.
      * <p>
-     * Escaping is one-way: a name literally holding the six characters of a bracket's escape renders exactly
-     * as one holding the bracket, so two names can still reach one token. Escaping the backslash as well would
-     * close that, and is declined, because the escape's own output would then hold an escapable character —
-     * and {@link #of} applies this a second time over an already-reduced name, the idempotence that stops a
-     * reader which forgot to reduce its own name from emitting an unescaped one. {@code RowLocationTests} pins
-     * that, so adding to the escaped set fails a test rather than silently double-escaping every bracketed name.
+     * Escaping is one-way, and the backslash is deliberately not escaped: escaping it would make this method's own
+     * output hold an escapable character, and {@link #of} applies this a second time over an already-reduced name
+     * — the idempotence {@code RowLocationTests} pins, so adding to the escaped set fails a test rather than
+     * silently double-escaping every bracketed name.
      * <p>
-     * Applied before the cap, so {@link #MAX_OBJECT_NAME_CHARS} bounds what is actually emitted — an escape is
-     * six characters where the original was one, and capping first would let a name of them expand past the
-     * bound afterwards.
+     * Applied before the cap, so {@link #MAX_OBJECT_NAME_CHARS} bounds what is actually emitted: an escape is six
+     * characters where the original was one, and capping first would let a name of them expand past the bound.
      */
     private static String escapeImpersonatingCharacters(String objectName) {
         int firstEscapable = -1;

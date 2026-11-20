@@ -1923,9 +1923,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             + (r + 1)
                             + "], column ["
                             + (c + 1)
-                            + "] of ["
-                            + sourceLocation
-                            + "] is read as text; "
+                            + "]"
+                            + RowLocation.objectClause(" of", sourceLocation)
+                            + " is read as text; "
                             + (options.escaping() ? "remove [quote]" : "set [mode] to [escaped]")
                             + " to read it as null"
                     );
@@ -1940,13 +1940,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return cell != null && cell.length() == 2 && cell.charAt(0) == '\\' && cell.charAt(1) == 'N';
     }
 
-    /**
-     * Build a schema for a headerless CSV: count the widest sample row, synthesize names from
-     * {@code prefix}, and run type inference. Pure on its inputs — does not touch the circuit
-     * breaker. Both call sites must guarantee {@code sampleRows} is non-empty (and surface the
-     * user-facing "&lt;format&gt; file [object] has no data rows" {@link IOException} themselves); the
-     * assertion is just a programmer-error guard.
-     */
     /**
      * A headerless sample has as many columns as its widest row, not as its first — rows are copied at
      * their native width, so a ragged file has both. Anything sized per column must use this, or it is
@@ -1963,8 +1956,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Infers a schema for a headerless sample, naming columns from {@code prefix}. Both call sites must
-     * guarantee {@code sampleRows} is non-empty.
+     * Infers a schema for a headerless sample, naming columns from {@code prefix}: counts the widest
+     * sample row, synthesizes the names, and runs type inference. Pure on its inputs — does not touch
+     * the circuit breaker. Both call sites must guarantee {@code sampleRows} is non-empty and surface
+     * the user-facing "&lt;format&gt; file [object] has no data rows" {@link IOException} themselves;
+     * the assertion here is only a programmer-error guard.
      */
     static List<Attribute> inferSyntheticSchema(
         List<String[]> sampleRows,
@@ -7935,9 +7931,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         + errorCount
                         + "] errors in ["
                         + totalRowCount
-                        + "] rows of ["
-                        + messageLocation
-                        + "]"
+                        + "] rows"
+                        + RowLocation.objectClause(" of", messageLocation)
                         + RowLocation.countedIn(messageStartByte)
                         + "; "
                         + errorPolicy.trippedLimit(errorCount)

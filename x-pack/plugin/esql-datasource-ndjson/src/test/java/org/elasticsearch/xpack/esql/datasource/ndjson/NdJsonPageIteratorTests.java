@@ -3581,11 +3581,19 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // through NdJsonPageDecoder.truncatedAtByte().
         // Located like every other skip warning: without the object this read as the same string for every
         // object in a glob, and the warning budget deduplicates by exact string, so only one survived.
+        // One equalTo rather than two hasItems: two independent hasItems over one list are satisfied by two
+        // DIFFERENT warnings, so they both passed on "row [2]: record exceeds [...]" with the object dropped,
+        // and on "row [1] ..." with the ordinal off by one. This is the only test over that sink.
         assertThat(
             warnings,
-            Matchers.hasItem(Matchers.endsWith(": record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial"))
+            Matchers.hasItem(
+                Matchers.equalTo(
+                    "row [2] of [stream-cap-lenient.ndjson]: record exceeds ["
+                        + ByteSizeValue.ofBytes(maxRecordBytes)
+                        + "]; results are partial"
+                )
+            )
         );
-        assertThat(warnings, Matchers.hasItem(Matchers.startsWith("row [")));
     }
 
     /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */

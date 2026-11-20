@@ -191,25 +191,27 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> outerListener
     ) {
         assert discoveryNode != null : request;
-        // Measure the time between sending the request and receiving its response, before the response is used by the caller
-        final var listener = metricsListener(outerListener, false);
+        // Measure the time between sending the request and receiving its response, before the response is used by the caller. The metrics
+        // listener is placed below the NodeClosedException conversion so that it sees the failure as returned by the transport: a
+        // ResourceNotFoundException at this point is a response of the indexing node, which means that the VBCC has been uploaded.
+        final var listener = metricsListener(outerListener.delegateResponse((l, e) -> {
+            var cause = ExceptionsHelper.unwrapCause(e);
+            // We don't want to retry on this exception, but still want to convert it to recoverable ResourceNotFoundException
+            var currentState = clusterService.state();
+            if (cause instanceof NodeClosedException && shouldRetryReadingFromTheBlobStore(currentState, request.getShardId())) {
+                l.onFailure(new ResourceNotFoundException("Unable to get virtual batched compound commit chunk", e));
+            } else {
+                l.onFailure(e);
+            }
+        }), false);
         transportService.sendRequest(
             discoveryNode,
             transportPrimaryAction,
             request,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                var cause = ExceptionsHelper.unwrapCause(e);
-                // We don't want to retry on this exception, but still want to convert it to recoverable ResourceNotFoundException
-                var currentState = clusterService.state();
-                if (cause instanceof NodeClosedException && shouldRetryReadingFromTheBlobStore(currentState, request.getShardId())) {
-                    l.onFailure(new ResourceNotFoundException("Unable to get virtual batched compound commit chunk", e));
-                } else {
-                    l.onFailure(e);
-                }
-            }).delegateFailure((l, r) -> {
+            new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
                 assert ThreadPool.assertCurrentThreadPool(TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX);
-                listener.onResponse(r);
+                l.onResponse(r);
             }), GetVirtualBatchedCompoundCommitChunkResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
@@ -295,13 +297,13 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         return new ActionListener<>() {
             @Override
             public void onResponse(GetVirtualBatchedCompoundCommitChunkResponse response) {
-                metrics.record(includeRetries, true, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
+                metrics.record(includeRetries, null, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
                 listener.onResponse(response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                metrics.record(includeRetries, false, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
+                metrics.record(includeRetries, e, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
                 listener.onFailure(e);
             }
         };

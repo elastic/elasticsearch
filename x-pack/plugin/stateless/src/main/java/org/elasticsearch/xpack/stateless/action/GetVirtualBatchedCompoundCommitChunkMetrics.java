@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.stateless.action;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -33,9 +36,17 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
     public static final String REQUEST_WITH_RETRIES_DURATION_HISTOGRAM_METRIC =
         "es.stateless.search.vbcc_chunk.requests_including_retries.duration.histogram";
 
-    /// Whether the request completed with a response or with a failure.
     public static final String OUTCOME_ATTRIBUTE = "es_vbcc_chunk_outcome";
+
+    /// The indexing node responded with the chunk.
     public static final String OUTCOME_SUCCESS = "success";
+    /// The request failed with a [ResourceNotFoundException]. When the indexing node replies with it, the virtual batched compound commit has
+    /// been uploaded and must be read from the blob store instead: this is an expected outcome, not an error. This is exact for the
+    /// per attempt metrics. For the per action execution metrics, which see the failure the action completes with, it is an approximation:
+    /// the action also fails with a [ResourceNotFoundException] without having reached an indexing node when the node it prefers is not in
+    /// the cluster state, in which case the VBCC may not have been uploaded.
+    public static final String OUTCOME_UPLOADED = "uploaded";
+    /// The request failed for any other reason.
     public static final String OUTCOME_FAILURE = "failure";
 
     public static final GetVirtualBatchedCompoundCommitChunkMetrics NOOP = new GetVirtualBatchedCompoundCommitChunkMetrics(
@@ -74,10 +85,10 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
     ///
     /// @param includeRetries `false` to record a single attempt, i.e. one request sent to the indexing node; `true` to record a whole
     /// action execution, including the retries
-    /// @param success whether the request completed with a response
+    /// @param failure the failure the request completed with, or `null` if it completed with a response
     /// @param durationInMillis the duration of the request in milliseconds
-    public void record(boolean includeRetries, boolean success, long durationInMillis) {
-        final var attributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, success ? OUTCOME_SUCCESS : OUTCOME_FAILURE);
+    public void record(boolean includeRetries, @Nullable Exception failure, long durationInMillis) {
+        final var attributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, outcome(failure));
         if (includeRetries) {
             requestWithRetriesCounter.incrementBy(1L, attributes);
             requestWithRetriesDurationHistogram.record(durationInMillis, attributes);
@@ -85,5 +96,12 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
             requestCounter.incrementBy(1L, attributes);
             requestDurationHistogram.record(durationInMillis, attributes);
         }
+    }
+
+    private static String outcome(@Nullable Exception failure) {
+        if (failure == null) {
+            return OUTCOME_SUCCESS;
+        }
+        return ExceptionsHelper.unwrap(failure, ResourceNotFoundException.class) != null ? OUTCOME_UPLOADED : OUTCOME_FAILURE;
     }
 }

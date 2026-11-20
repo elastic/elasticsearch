@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
@@ -758,7 +759,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // new mtime with old data.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        boolean cacheable = wholeFileRead || chunkMode;
+        // Under NONE this read harvests nothing, so it takes no cacheable identity: that skips the mtime probe
+        // below, which is a cache-only metadata read (a HEAD on a store carrying no Last-Modified header), and
+        // leaves cacheableObject null, which is what every publish and every accumulator downstream keys off.
+        boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {
             try {

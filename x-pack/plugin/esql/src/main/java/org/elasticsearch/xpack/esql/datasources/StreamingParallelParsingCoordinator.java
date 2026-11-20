@@ -2484,8 +2484,11 @@ public final class StreamingParallelParsingCoordinator {
             // the chunk under a fabricated mtime — risking a stale warm hit if the file later changes. A null
             // mtime leaves pinnedMtimeMillis at -1, so the chunk's stats are uncacheable (safe-miss). A real
             // last-modified (including a genuine EPOCH) still flows through and stays cacheable.
+            // Only a read that captures statistics needs the stamp, and the probe is a round trip on a store
+            // that carries no last-modified header — so a read with no capture sink does not pay for it. This is
+            // the compressed/streaming rail's half of the same gate the two row readers apply.
             Instant mtime = null;
-            if (storageObject != null) {
+            if (storageObject != null && captureSink != null) {
                 try {
                     mtime = storageObject.lastModified();
                 } catch (IOException e) {

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StripeColumnScope;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -87,6 +88,21 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
         .build();
 
     public void testDeferredExtractionRegistersExtractorPerFileAndEncodesRowPosition() throws Exception {
+        assertDeferredExtractionEncodesRowPosition(StripeColumnScope.PROJECTED);
+    }
+
+    /**
+     * The same read with the external-source cache off. Under {@link StripeColumnScope#NONE} the factory builds no
+     * capture sink, so {@code StatsCapturingIterator.wrap} returns the reader's own iterator rather than a wrapper —
+     * and the deferred-extraction handshake asks whatever sits on top for {@code ColumnExtractorProducer}. Before the
+     * scope could be {@code NONE} that was always the stats wrapper, which declares the interface unconditionally, so
+     * this arm is what keeps the handshake honest about the chain the reader actually returns.
+     */
+    public void testDeferredExtractionEncodesRowPositionWithoutAStatisticsSink() throws Exception {
+        assertDeferredExtractionEncodesRowPosition(StripeColumnScope.NONE);
+    }
+
+    private void assertDeferredExtractionEncodesRowPosition(StripeColumnScope scope) throws Exception {
         // Three files, each emitting one page with three rows. The reader emits raw file-local
         // row positions (0, 1, 2) on the _rowPosition channel; the factory's encoder must rewrite
         // them to (extractor_id, local_pos) packed longs that decode to the correct id/pos.
@@ -121,7 +137,7 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
             100,
             10,
             (Runnable r) -> r.run()
-        ).fileList(fileList).deferredExtraction(true).build();
+        ).fileList(fileList).deferredExtraction(true).statsColumnScope(scope).build();
 
         // Sanity check on capability surface: factory must declare itself as deferred-extraction
         // capable (so LocalExecutionPlanner.planExternalFieldExtract can wire to it).

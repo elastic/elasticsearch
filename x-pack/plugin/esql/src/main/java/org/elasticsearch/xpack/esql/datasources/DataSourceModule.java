@@ -249,8 +249,9 @@ public final class DataSourceModule implements Closeable {
             localFileAccess,
             splitDiscoveryExecutor,
             listingService,
-            // Test wiring: read the setting directly, as the managed-identity test constructors do. Production
-            // passes the cache service's own live flag, which a dynamic toggle moves.
+            // Test wiring: read the setting directly, as the managed-identity test constructors of
+            // StorageProviderRegistry do. Production passes the cache service's own live flag, which a
+            // dynamic toggle moves.
             () -> ExternalSourceCacheSettings.CACHE_ENABLED.get(settings != null ? settings : Settings.EMPTY)
         );
     }

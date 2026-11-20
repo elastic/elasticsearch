@@ -60,13 +60,16 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Whether this node does external-source cache work at all: with it off the node neither serves from the
-     * cache nor measures for it, since a row-format read harvests statistics for this cache and nothing else.
+     * Whether this node serves row-format reads from the external-source cache: with it off a read neither
+     * reads from the cache nor harvests statistics for it, those statistics having no other consumer. The
+     * planning path still measures schema and file metadata, running its loader either way.
      * <p>
-     * Node-scoped, so set it cluster-wide unless an asymmetric configuration is wanted. Off at a data node and
-     * on at the coordinator, that node's reads measure nothing and the coordinator never warms for its files;
-     * the reverse still measures and the coordinator discards the result, which one decision shipped with the
-     * plan would close, at the price of a wire field.
+     * A read takes the flag once, when its operators are built, so a toggle governs the reads configured after
+     * each node sees it and leaves those already in flight on the scope they resolved.
+     * <p>
+     * Node-scoped, so set it cluster-wide unless an asymmetry is wanted: off at a data node and on at the
+     * coordinator, that node harvests nothing and the coordinator never warms for its files; the reverse
+     * harvests and the coordinator discards it.
      * <p>
      * It does not reach the footer caches, which have their own budgets ({@link #FOOTER_CACHE_SIZE},
      * {@link #FOOTER_PARSED_CACHE_SIZE}).

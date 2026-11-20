@@ -385,12 +385,25 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals("a read with no capture sink must not probe lastModified()", 0, uncaptured.get());
 
         // Control: the same read WITH a sink must probe, or this would also pass against a path that had
-        // stopped stamping chunks altogether. EXACTLY one: the probe is memoized per file, so this pins both
-        // halves at once -- zero would mean nothing is stamped, and more than one would mean the memo broke
-        // and every chunk is paying a HEAD again.
+        // stopped stamping chunks altogether. EXACTLY one, because the probe is memoized per file: more than
+        // one would mean the memo broke and every chunk is paying a HEAD again.
         AtomicInteger captured = new AtomicInteger();
-        streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), captured);
+        List<Instant> capturedStamps = streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), captured);
         assertThat("a capturing read probes once for the whole file", captured.get(), Matchers.equalTo(1));
+
+        // The count cannot tell the memo working from the chunks never asking, though: schema inference calls
+        // chunkStorageObject() before any parser runs, so one probe satisfies it either way. The stamps pin
+        // the other half -- that several chunks got one, and that it is the instant the probe returned.
+        assertThat(
+            "several chunks must be stamped, or the count above is satisfied by inference alone",
+            capturedStamps.size(),
+            Matchers.greaterThanOrEqualTo(2)
+        );
+        assertThat(
+            "every chunk of one file carries the probed instant",
+            capturedStamps,
+            Matchers.everyItem(Matchers.equalTo(MTIME_PROBE_INSTANT))
+        );
 
         // The control above always gets an answer, so on its own it also passes against a memo that caches
         // only successful lookups -- which would still pay a HEAD per chunk on exactly the stores the probe is
@@ -406,17 +419,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
     private static final String MTIME_PROBE_PATH = "mem://streaming-mtime-probe-test";
 
-    /** Drains a streaming parallel read whose storage object counts every {@code lastModified()} call. */
-    private static void streamingReadCountingMtimeProbes(
+    private static final Instant MTIME_PROBE_INSTANT = Instant.parse("2020-01-01T00:00:00Z");
+
+    /**
+     * Drains a streaming parallel read whose storage object counts every {@code lastModified()} call, and
+     * returns the mtime each chunk was stamped with, in the order the reader saw them.
+     */
+    private static List<Instant> streamingReadCountingMtimeProbes(
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
         AtomicInteger probes
     ) throws Exception {
-        StorageObject source = new TestFileStorageObject(MTIME_PROBE_PATH, Instant.parse("2020-01-01T00:00:00Z"));
-        streamingReadCountingMtimeProbes(sink, probes, source);
+        StorageObject source = new TestFileStorageObject(MTIME_PROBE_PATH, MTIME_PROBE_INSTANT);
+        return streamingReadCountingMtimeProbes(sink, probes, source);
     }
 
     /** As above, over a given source, so the probe's non-answering outcomes can be counted too. */
-    private static void streamingReadCountingMtimeProbes(
+    private static List<Instant> streamingReadCountingMtimeProbes(
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
         AtomicInteger probes,
         StorageObject source
@@ -425,7 +443,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         String content = buildContent(500);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
         StorageObject file = new CountingMtimeStorageObject(source, probes);
-        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, MTIME_PROBE_PATH);
+        List<Instant> chunkMtimes = Collections.synchronizedList(new ArrayList<>());
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, MTIME_PROBE_PATH, chunkMtimes);
 
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
@@ -454,6 +473,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+        return chunkMtimes;
     }
 
     /**
@@ -6065,14 +6085,22 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         private final LineFormatReader delegate;
         private final String path;
+        /** Every chunk object's mtime as the reader received it, so a test can see the stamp and not just the probe. */
+        @Nullable
+        private final List<Instant> chunkMtimes;
 
         StatsPublishingLineReader(long minSegment, String path) {
-            this(new LineFormatReader(minSegment), path);
+            this(new LineFormatReader(minSegment), path, null);
         }
 
-        private StatsPublishingLineReader(LineFormatReader delegate, String path) {
+        StatsPublishingLineReader(long minSegment, String path, @Nullable List<Instant> chunkMtimes) {
+            this(new LineFormatReader(minSegment), path, chunkMtimes);
+        }
+
+        private StatsPublishingLineReader(LineFormatReader delegate, String path, @Nullable List<Instant> chunkMtimes) {
             this.delegate = delegate;
             this.path = path;
+            this.chunkMtimes = chunkMtimes;
         }
 
         @Override
@@ -6095,11 +6123,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             // Streaming coordinator swaps `reader` for the result; keep the publishing wrapper so
             // post-inference chunk reads still record under `path`.
             LineFormatReader bound = (LineFormatReader) delegate.withSchema(schema);
-            return new StatsPublishingLineReader(bound, path);
+            return new StatsPublishingLineReader(bound, path, chunkMtimes);
         }
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            if (chunkMtimes != null) {
+                chunkMtimes.add(object.lastModified());
+            }
             return wrapPublishing(delegate.read(object, context), context);
         }
 

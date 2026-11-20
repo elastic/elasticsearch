@@ -12,8 +12,6 @@ package org.elasticsearch.repositories.gcs;
 import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.apache.v5.Apache5HttpTransport;
-import com.google.api.client.util.SecurityUtils;
-import com.google.api.client.util.SslUtils;
 import com.google.api.gax.retrying.ResultRetryAlgorithm;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
@@ -27,14 +25,13 @@ import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
 import org.apache.hc.client5.http.ssl.DefaultClientTlsStrategy;
-import org.apache.hc.client5.http.ssl.HttpsSupport;
 import org.apache.hc.client5.http.ssl.TlsSocketStrategy;
 import org.apache.hc.core5.http.ConnectionClosedException;
 import org.apache.hc.core5.http.ConnectionRequestTimeoutException;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.SocketConfig;
-import org.apache.hc.core5.reactor.ssl.SSLBufferMode;
+import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
@@ -70,7 +67,6 @@ import java.net.URI;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
-import java.security.KeyStore;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -204,67 +200,55 @@ public class GoogleCloudStorageService {
         }
     }
 
-    /**
-     * Builds the Apache HttpClient based transport that carries every request of a client: storage requests, resumable upload
-     * sessions and access token refreshes. It is configured to behave like the JDK {@code HttpURLConnection} based transport it
-     * replaced where that matters to us (pinned Google trust store, {@code https.protocols}/{@code https.cipherSuites} system
-     * properties, explicit or JVM-wide proxies, no transparent redirects or retries) and additionally bounds the number of
-     * concurrent connections with {@link GoogleCloudStorageClientSettings#MAX_CONNECTIONS_SETTING}.
-     */
     Apache5HttpTransport createHttpTransport(GoogleCloudStorageClientSettings gcsClientSettings) throws IOException,
         GeneralSecurityException {
-        // Pin the TLS trust certificates.
-        // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
-        // store format not compatible with FIPS mode.
-        final KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
-        try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
-            SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
-        }
-        // Same SSLContext construction as NetHttpTransport.Builder#trustCertificates
-        final SSLContext sslContext = SslUtils.initSslContext(
-            SslUtils.getTlsSslContext(),
-            certTrustStore,
-            SslUtils.getPkixTrustManagerFactory()
-        );
-        // HttpsURLConnection honours https.protocols and https.cipherSuites, keep doing so
-        final TlsSocketStrategy tlsSocketStrategy = new DefaultClientTlsStrategy(
-            sslContext,
-            HttpsSupport.getSystemProtocols(),
-            HttpsSupport.getSystemCipherSuits(),
-            SSLBufferMode.STATIC,
-            HttpsSupport.getDefaultHostnameVerifier()
-        );
+        /*
+         * Pin the TLS trust certificates.
+         * We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
+         * store format not compatible with FIPS mode.
+         * See https://github.com/apache/httpcomponents-client/blob/5.6.x/httpclient5/src/test/java/org/apache/hc/client5/http/examples/ClientCustomSSL.java
+        */
+        final SSLContext sslContext = SSLContexts.custom()
+            .setKeyStoreType("JKS")
+            .loadTrustMaterial(GoogleUtils.class.getResource("google.jks"), "notasecret".toCharArray())
+            .build();
+        final TlsSocketStrategy tlsSocketStrategy = new DefaultClientTlsStrategy(sslContext);
 
         final Proxy proxy = gcsClientSettings.getProxy();
+        // The default config (see `SocketConfig.DEFAULT`) is just `new Builder().build()` and `custom()` returns a new builder.
+        // So without proxy configuration this is equivalent to default.
         final SocketConfig.Builder socketConfig = SocketConfig.custom();
+
+        /*
+         * See
+         * https://github.com/apache/httpcomponents-client/blob/5.6.x/httpclient5/src/test/java/org/apache/hc/client5/http/examples/ClientExecuteSOCKS.java.
+         */
         if (proxy != null && proxy.type() == Proxy.Type.SOCKS) {
-            // SOCKS proxies are a socket level concern for HttpClient, there is no route planner for them
             socketConfig.setSocksProxyAddress(proxy.address());
         }
 
-        final int maxConnections = gcsClientSettings.getMaxConnections();
         final PoolingHttpClientConnectionManager connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
             .setTlsSocketStrategy(tlsSocketStrategy)
             .setDefaultSocketConfig(socketConfig.build())
-            // all requests of a client go to the same host, so the per-route limit is the effective one
-            .setMaxConnTotal(maxConnections)
-            .setMaxConnPerRoute(maxConnections)
             .build();
 
         final HttpClientBuilder httpClientBuilder = HttpClientBuilder.create()
             .setConnectionManager(connectionManager)
-            // the Google SDK follows redirects itself
+            /*
+             * Google client library specifically requests some options to be configured.
+             * See https://docs.cloud.google.com/java/docs/reference/google-http-client/latest/com.google.api.client.http.apache.v5.Apache5HttpTransport
+             */
+            // Disabled since the Google library code handles those as per above.
             .disableRedirectHandling()
-            // retries are driven by the Google SDK retry strategy and by RetryingInputStream, never by HttpClient
+            // Disabled since the Google library code handles those as per above.
             .disableAutomaticRetries()
-            // the Google SDK requests and decodes gzip itself; HttpClient's transparent decoding would strip the Content-Length header
-            // that both the SDK and GoogleCloudStorageRetryingInputStream rely on
-            .disableContentCompression()
-            .disableCookieManagement()
-            // closing a partially read response discards the connection instead of draining the body on the closing thread
-            .addExecInterceptorFirst(DiscardConnectionOnEarlyCloseExec.NAME, new DiscardConnectionOnEarlyCloseExec());
+            // Similarly, Google library manages this as well (it uses gzip for request and responses).
+            // We don't use gzip for actual file contents so this has no effect.
+            // See usage of `setReturnRawInputStream` in `GoogleCloudStorageRetryingInputStream`.
+            .disableContentCompression();
+
         if (proxy == null) {
-            // like URL#openConnection(), consult the JVM-wide proxy configuration (http.proxyHost, https.proxyHost, http.nonProxyHosts)
+            // This just replicates the defaults since we lose them by using `HttpClientBuilder.create()`.
             httpClientBuilder.setRoutePlanner(new SystemDefaultRoutePlanner(ProxySelector.getDefault()));
         } else {
             if (proxy.type() == Proxy.Type.HTTP) {
@@ -272,6 +256,7 @@ public class GoogleCloudStorageService {
             }
             notifyProxyIsSet(proxy);
         }
+
         return new Apache5HttpTransport(httpClientBuilder.build());
     }
 

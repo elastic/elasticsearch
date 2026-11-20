@@ -10,10 +10,16 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.protocol.HttpContext;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -24,7 +30,9 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPairGenerator;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -36,7 +44,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.GCS_TENACIOUS_RETRIES_ENABLED_SETTING;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_CONNECTIONS_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
@@ -78,7 +85,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             assertEquals(expectedClientSettings.getConnectTimeout(), actualClientSettings.getConnectTimeout());
             assertEquals(expectedClientSettings.getReadTimeout(), actualClientSettings.getReadTimeout());
             assertEquals(expectedClientSettings.getApplicationName(), actualClientSettings.getApplicationName());
-            assertEquals(expectedClientSettings.getMaxConnections(), actualClientSettings.getMaxConnections());
         }
 
         if (deprecationWarnings.isEmpty() == false) {
@@ -127,7 +133,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             new URI(""),
             null,
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
-            MAX_CONNECTIONS_SETTING.getDefault(Settings.EMPTY),
             MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
             GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY),
             OptionalInt.empty()
@@ -149,12 +154,57 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             new URI(""),
             proxy,
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
-            MAX_CONNECTIONS_SETTING.getDefault(Settings.EMPTY),
             MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
             GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY),
             OptionalInt.empty()
         );
         assertEquals(proxy, googleCloudStorageClientSettings.getProxy());
+    }
+
+    public void testRefreshCredentialsAccessTokenWithProxy() throws Exception {
+        String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        var secureSettings = new MockSecureSettings();
+        secureSettings.setFile(
+            CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            Strings.format(
+                """
+                    {
+                      "type": "service_account",
+                      "project_id": "project_id_%s",
+                      "private_key_id": "private_key_id_%s",
+                      "private_key": "-----BEGIN PRIVATE KEY-----\\n%s\\n-----END PRIVATE KEY-----\\n",
+                      "client_email": "%s",
+                      "client_id": "id_%s",
+                      "token_uri": "%s"
+                    }""",
+                clientName,
+                clientName,
+                Base64.getEncoder().encodeToString(KeyPairGenerator.getInstance("RSA").generateKeyPair().getPrivate().getEncoded()),
+                clientName,
+                clientName,
+                URI.create("http://oauth2.googleapis.com/oauth2/token")
+            ).getBytes(StandardCharsets.UTF_8)
+        );
+        var settings = Settings.builder().setSecureSettings(secureSettings).build();
+        var proxyServer = new MockHttpProxyServer() {
+            @Override
+            public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+                assertEquals("POST http://oauth2.googleapis.com/oauth2/token HTTP/1.1", request.getRequestLine().toString());
+                String body = """
+                    {
+                        "access_token": "proxy_access_token",
+                        "token_type": "bearer",
+                        "expires_in": 3600
+                    }
+                    """;
+                response.setEntity(new StringEntity(body, ContentType.TEXT_PLAIN));
+            }
+        };
+        try (proxyServer) {
+            ServiceAccountCredentials credentials = loadCredential(settings, clientName);
+            assertNotNull(credentials);
+            assertEquals("proxy_access_token", credentials.refreshAccessToken().getTokenValue());
+        }
     }
 
     public void testResumableWriteBufferSizeSetting() {
@@ -215,7 +265,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             original.getTokenUri(),
             original.getProxy(),
             original.getMaxRetries(),
-            original.getMaxConnections(),
             original.getMegabytesCopiedPerChunk(),
             original.getTenaciousRetriesEnabled(),
             original.getResumableWriteBufferSize()
@@ -232,11 +281,10 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         URI tokenUri = original.getTokenUri();
         Proxy proxy = original.getProxy();
         int maxRetries = original.getMaxRetries();
-        int maxConnections = original.getMaxConnections();
         long megabytesCopiedPerChunk = original.getMegabytesCopiedPerChunk();
         boolean tenaciousRetriesEnabled = original.getTenaciousRetriesEnabled();
         OptionalInt resumableWriteBufferSize = original.getResumableWriteBufferSize();
-        switch (randomIntBetween(0, 12)) {
+        switch (randomIntBetween(0, 11)) {
             case 0 -> credential = randomValueOtherThan(original.getCredential(), () -> {
                 try {
                     return randomCredential(clientName).v1();
@@ -266,7 +314,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             case 11 -> resumableWriteBufferSize = original.getResumableWriteBufferSize().isEmpty()
                 ? OptionalInt.of(randomIntBetween(256 * 1024, 100 * 1024 * 1024))
                 : OptionalInt.empty();
-            case 12 -> maxConnections = randomValueOtherThan(original.getMaxConnections(), () -> randomIntBetween(1, 500));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new GoogleCloudStorageClientSettings(
@@ -279,7 +326,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             tokenUri,
             proxy,
             maxRetries,
-            maxConnections,
             megabytesCopiedPerChunk,
             tenaciousRetriesEnabled,
             resumableWriteBufferSize
@@ -382,14 +428,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             maxRetries = MAX_RETRIES_SETTING.getDefault(Settings.EMPTY);
         }
 
-        int maxConnections;
-        if (randomBoolean()) {
-            maxConnections = randomIntBetween(1, 500);
-            settings.put(MAX_CONNECTIONS_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxConnections);
-        } else {
-            maxConnections = MAX_CONNECTIONS_SETTING.getDefault(Settings.EMPTY);
-        }
-
         long megabytesCopiedPerChunk = randomBoolean()
             ? randomIntBetween(5, 5000)
             : MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY);
@@ -406,7 +444,6 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             new URI(""),
             null,
             maxRetries,
-            maxConnections,
             megabytesCopiedPerChunk,
             tenaciousRetriesEnabled,
             OptionalInt.empty()

@@ -9,15 +9,12 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequestFactory;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.apache.v5.Apache5HttpTransport;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageRetryStrategy;
-import com.sun.net.httpserver.HttpServer;
 
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.HttpHostConnectException;
@@ -47,7 +44,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -55,23 +51,16 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.SSLException;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -89,7 +78,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             + randomIntBetween(1, 65535);
         final String projectIdName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final int maxRetries = randomIntBetween(0, 10);
-        final int maxConnections = randomIntBetween(1, 100);
         final Settings settings = Settings.builder()
             .put(
                 GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
@@ -109,10 +97,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             .put(GoogleCloudStorageClientSettings.PROXY_HOST_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "192.168.52.15")
             .put(GoogleCloudStorageClientSettings.PROXY_PORT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 8080)
             .put(GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING.getConcreteSettingForNamespace(clientName).getKey(), maxRetries)
-            .put(
-                GoogleCloudStorageClientSettings.MAX_CONNECTIONS_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-                maxConnections
-            )
             .build();
         SetOnce<Proxy> proxy = new SetOnce<>();
         final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
@@ -150,148 +134,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             .create();
         assertThat(transport, instanceOf(Apache5HttpTransport.class));
         assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
-        assertThat(service.clientSettings(projectIdForClusterClient(), clientName).getMaxConnections(), equalTo(maxConnections));
-    }
-
-    /**
-     * The transport bounds the number of concurrent connections with {@code max_connections} and a request that cannot get a pooled
-     * connection within the connect timeout fails with a {@link ConnectionRequestTimeoutException} rather than waiting forever.
-     */
-    public void testMaxConnectionsBoundsConnectionPool() throws Exception {
-        final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        final HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        final CountDownLatch firstRequestReceived = new CountDownLatch(1);
-        final CountDownLatch releaseFirstRequest = new CountDownLatch(1);
-        httpServer.createContext("/", exchange -> {
-            firstRequestReceived.countDown();
-            try {
-                releaseFirstRequest.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            exchange.sendResponseHeaders(200, -1);
-            exchange.close();
-        });
-        httpServer.start();
-        try {
-            final Settings settings = Settings.builder()
-                .put(GoogleCloudStorageClientSettings.MAX_CONNECTIONS_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 1)
-                .put(GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "1s")
-                .build();
-            final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
-            final GoogleCloudStorageService service = new GoogleCloudStorageService(
-                clusterService,
-                TestProjectResolvers.DEFAULT_PROJECT_ONLY
-            );
-            service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
-            final var storage = service.client(projectIdForClusterClient(), clientName, "repo", new GcsRepositoryStatsCollector());
-            final HttpRequestFactory requestFactory = ((HttpTransportOptions) storage.getOptions().getTransportOptions())
-                .getHttpTransportFactory()
-                .create()
-                .createRequestFactory();
-            final GenericUrl url = new GenericUrl(
-                "http://" + InetAddress.getLoopbackAddress().getHostAddress() + ":" + httpServer.getAddress().getPort() + "/"
-            );
-            final AtomicReference<Exception> firstRequestFailure = new AtomicReference<>();
-            final Thread firstRequest = new Thread(() -> {
-                try {
-                    requestFactory.buildGetRequest(url).setConnectTimeout(1000).setReadTimeout(30_000).execute().disconnect();
-                } catch (Exception e) {
-                    firstRequestFailure.set(e);
-                }
-            });
-            firstRequest.start();
-            try {
-                safeAwait(firstRequestReceived);
-                // the only pooled connection is busy with the first request
-                final IOException e = expectThrows(
-                    IOException.class,
-                    () -> requestFactory.buildGetRequest(url).setConnectTimeout(1000).setReadTimeout(30_000).execute()
-                );
-                assertThat(e, instanceOf(ConnectionRequestTimeoutException.class));
-                assertTrue(GoogleCloudStorageService.isRetryableHttpClientException(e));
-            } finally {
-                releaseFirstRequest.countDown();
-                firstRequest.join();
-            }
-            assertThat(firstRequestFailure.get(), nullValue());
-            // the connection is back in the pool
-            requestFactory.buildGetRequest(url).setConnectTimeout(1000).setReadTimeout(30_000).execute().disconnect();
-            storage.close();
-        } finally {
-            httpServer.stop(0);
-        }
-    }
-
-    /**
-     * Closing a fully read response returns its connection to the pool for reuse. Closing a partially read response discards the
-     * connection rather than draining the body, and closing a response whose read failed does not throw.
-     */
-    public void testClosingPartiallyReadResponseDiscardsConnection() throws Exception {
-        final String clientName = "default";
-        final byte[] body = randomByteArrayOfLength(between(64 * 1024, 256 * 1024));
-        final List<Integer> clientPorts = Collections.synchronizedList(new ArrayList<>());
-        final HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
-        httpServer.createContext("/blob", exchange -> {
-            clientPorts.add(exchange.getRemoteAddress().getPort());
-            exchange.sendResponseHeaders(200, body.length);
-            exchange.getResponseBody().write(body);
-            exchange.close();
-        });
-        httpServer.createContext("/truncated", exchange -> {
-            clientPorts.add(exchange.getRemoteAddress().getPort());
-            exchange.sendResponseHeaders(200, body.length);
-            exchange.getResponseBody().write(body, 0, 10);
-            exchange.getResponseBody().flush();
-            // closing the exchange with fewer bytes written than announced closes the connection
-            exchange.close();
-        });
-        httpServer.start();
-        try {
-            final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
-            final GoogleCloudStorageService service = new GoogleCloudStorageService(
-                clusterService,
-                TestProjectResolvers.DEFAULT_PROJECT_ONLY
-            );
-            service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(Settings.EMPTY));
-            final var storage = service.client(projectIdForClusterClient(), clientName, "repo", new GcsRepositoryStatsCollector());
-            final HttpRequestFactory requestFactory = ((HttpTransportOptions) storage.getOptions().getTransportOptions())
-                .getHttpTransportFactory()
-                .create()
-                .createRequestFactory();
-            final String baseUrl = "http://" + InetAddress.getLoopbackAddress().getHostAddress() + ":" + httpServer.getAddress().getPort();
-            final GenericUrl blobUrl = new GenericUrl(baseUrl + "/blob");
-
-            // fully read: the connection is reused by the next request
-            try (InputStream content = requestFactory.buildGetRequest(blobUrl).execute().getContent()) {
-                assertArrayEquals(body, content.readAllBytes());
-            }
-            try (InputStream content = requestFactory.buildGetRequest(blobUrl).execute().getContent()) {
-                assertArrayEquals(body, content.readAllBytes());
-            }
-            assertThat(clientPorts, hasSize(2));
-            assertEquals(clientPorts.get(0), clientPorts.get(1));
-
-            // partially read: the connection is discarded, the next request opens a new one
-            try (InputStream content = requestFactory.buildGetRequest(blobUrl).execute().getContent()) {
-                assertEquals(body[0], (byte) content.read());
-            }
-            try (InputStream content = requestFactory.buildGetRequest(blobUrl).execute().getContent()) {
-                assertArrayEquals(body, content.readAllBytes());
-            }
-            assertThat(clientPorts, hasSize(4));
-            assertEquals(clientPorts.get(1), clientPorts.get(2));
-            assertNotEquals(clientPorts.get(2), clientPorts.get(3));
-
-            // a read that failed because the server closed the connection: close() does not drain and does not throw
-            final InputStream truncated = requestFactory.buildGetRequest(new GenericUrl(baseUrl + "/truncated")).execute().getContent();
-            final IOException e = expectThrows(IOException.class, truncated::readAllBytes);
-            assertThat(e, instanceOf(ConnectionClosedException.class));
-            truncated.close();
-            storage.close();
-        } finally {
-            httpServer.stop(0);
-        }
     }
 
     /**

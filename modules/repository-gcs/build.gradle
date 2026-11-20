@@ -46,8 +46,7 @@ dependencies {
   implementation 'com.google.http-client:google-http-client-apache-v5:2.2.0'
   implementation "org.apache.httpcomponents.client5:httpclient5:${versions.httpclient5}"
   implementation "org.apache.httpcomponents.core5:httpcore5:${versions.httpcore5}"
-  // httpclient5 references the HTTP/2 version policy classes even for the classic (blocking) client
-  runtimeOnly "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
+  implementation "org.apache.httpcomponents.core5:httpcore5-h2:${versions.httpcore5}"
   // httpclient5 logs through slf4j (slf4j-api is already a dependency of the Google SDK); route it into log4j like repository-s3
   runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
   runtimeOnly 'com.google.http-client:google-http-client-gson:2.2.0'

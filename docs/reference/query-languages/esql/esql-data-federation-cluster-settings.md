@@ -235,7 +235,7 @@ $$$esql-external-cache-stats-max-extremum-size$$$
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The widest minimum or maximum a CSV, TSV or NDJSON read stores for a `keyword`, `text` or `ip` column. A wider value isn't stored, and `MIN` or `MAX` over that column reads the file instead.
 
     - **Default:** `1kb`
-    - **Valid values:** A byte size from `0b` to `1mb`. Unlike the other zeros on this page, `0b` is the strictest setting rather than no limit: it withholds every minimum and maximum carrying any bytes.
+    - **Valid values:** A byte size from `0b` to `1mb`. `0b` is the strictest setting rather than an unset one: it withholds every minimum and maximum carrying any bytes.
 
     A column whose extremum isn't stored keeps its row and null counts, and no other column's stored minimum or maximum is affected. One `STATS` asking for both a withheld extremum and a stored one still reads the file for both. A read also measures each part of a file separately, so a part's own minimum can exceed the limit even when the file's minimum fits under it.
 

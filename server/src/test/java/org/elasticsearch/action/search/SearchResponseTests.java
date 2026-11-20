@@ -344,24 +344,8 @@ public class SearchResponseTests extends ESTestCase {
             buildHit.accept(hits[i]);
         }
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
-        SearchResponse original = SearchResponseUtils.response(searchHits).build();
-        searchHits.decRef();
-        BytesReference serialized;
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            original.writeTo(out);
-            serialized = out.copyBytes();
-        } finally {
-            original.decRef();
-        }
-
-        ReleasableBytesReference buffer = ReleasableBytesReference.wrap(serialized);
-        SearchResponse read;
-        try (StreamInput in = new NamedWriteableAwareStreamInput(buffer.streamInput(), namedWriteableRegistry)) {
-            read = new SearchResponse(in);
-        } finally {
-            // As the transport does once the response is read. The sources keep their own references to it.
-            buffer.decRef();
-        }
+        BytesReference serialized = serializeResponse(searchHits);
+        SearchResponse read = readFromReleasableBuffer(serialized);
         try {
             long measured = RamUsageTester.ramUsed(read, WITHOUT_LEAK_TRACKING);
             CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
@@ -381,6 +365,71 @@ public class SearchResponseTests extends ESTestCase {
             }
         } finally {
             read.decRef();
+        }
+    }
+
+    /**
+     * Inner hit sources, at every level, are slices of the buffer the response was read from, like the outer source. So a larger
+     * source anywhere in the hit adds only its serialized bytes to the charge, and the rest of the charge stays the same.
+     */
+    public void testChargeReadResponseLeavesInnerHitSourcesToTheSerializedBytes() throws IOException {
+        long smallSources = chargeOverSerializedBytesOfHitWithTwoLevelsOfInnerHits(16);
+        long largeSources = chargeOverSerializedBytesOfHitWithTwoLevelsOfInnerHits(between(1024, 8192));
+        assertEquals(smallSources, largeSources);
+    }
+
+    /**
+     * Reads a response with one hit that has an inner hit with an inner hit of its own, each with a source of {@code sourceLength} chars,
+     * and returns its charge less the serialized bytes.
+     */
+    private long chargeOverSerializedBytesOfHitWithTwoLevelsOfInnerHits(int sourceLength) throws IOException {
+        String source = "{\"payload\":\"" + randomAlphaOfLength(sourceLength) + "\"}";
+        SearchHit secondLevel = new SearchHit(0, "second-level");
+        secondLevel.sourceRef(new BytesArray(source));
+        SearchHit firstLevel = new SearchHit(0, "first-level");
+        firstLevel.sourceRef(new BytesArray(source));
+        firstLevel.setInnerHits(
+            Map.of("second", new SearchHits(new SearchHit[] { secondLevel }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f))
+        );
+        SearchHit hit = new SearchHit(0, "outer");
+        hit.sourceRef(new BytesArray(source));
+        hit.setInnerHits(
+            Map.of("first", new SearchHits(new SearchHit[] { firstLevel }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f))
+        );
+        BytesReference serialized = serializeResponse(
+            new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f)
+        );
+
+        SearchResponse read = readFromReleasableBuffer(serialized);
+        try {
+            CircuitBreaker breaker = FetchSearchPhaseTests.requestBreaker("1gb");
+            read.chargeReadResponse(breaker, serialized.length(), "<read_response>");
+            return breaker.getUsed() - serialized.length();
+        } finally {
+            read.decRef();
+        }
+    }
+
+    /** Serializes a response that holds {@code searchHits}, and releases both. */
+    private static BytesReference serializeResponse(SearchHits searchHits) throws IOException {
+        SearchResponse original = SearchResponseUtils.response(searchHits).build();
+        searchHits.decRef();
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            original.writeTo(out);
+            return out.copyBytes();
+        } finally {
+            original.decRef();
+        }
+    }
+
+    /** Reads a response from a releasable buffer, as the transport does, so each source is a slice of the buffer. */
+    private SearchResponse readFromReleasableBuffer(BytesReference serialized) throws IOException {
+        ReleasableBytesReference buffer = ReleasableBytesReference.wrap(serialized);
+        try (StreamInput in = new NamedWriteableAwareStreamInput(buffer.streamInput(), namedWriteableRegistry)) {
+            return new SearchResponse(in);
+        } finally {
+            // As the transport does once the response is read. The sources keep their own references to it.
+            buffer.decRef();
         }
     }
 

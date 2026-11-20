@@ -37,6 +37,7 @@ import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -533,9 +534,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     /**
      * Charges this response, read from another node, to {@code circuitBreaker} until it is released. The charge is the
-     * {@code serializedBytes} it arrived with, plus the heap of each hit apart from its source, see {@link SearchHit#ramBytesUsed}. A
-     * source is a slice of the buffer the response was read from, which the serialized bytes already cover. Aggregations are charged by
-     * their serialized size only, as in {@link TransportMultiSearchAction#estimateActualBytes}.
+     * {@code serializedBytes} it arrived with, plus the heap of each hit apart from its source and the sources of its inner hits, see
+     * {@link SearchHitRamUsageEstimator#estimateWithoutSources}. A source is a slice of the buffer the response was read from, which the
+     * serialized bytes already cover. Aggregations are charged by their serialized size only, as in
+     * {@link TransportMultiSearchAction#estimateActualBytes}.
      * <p>
      * The charge is made after the response was read, so it bounds what the node holds, not the peak of reading it.
      *
@@ -545,7 +547,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         assert serializedBytes >= 0 : "bytes must be non-negative";
         long hitsBytes = 0;
         for (SearchHit hit : hits.getHits()) {
-            hitsBytes += hit.ramBytesUsed() - hit.rawSourceLength();
+            hitsBytes += SearchHitRamUsageEstimator.estimateWithoutSources(hit);
         }
         long bytes = serializedBytes + hitsBytes;
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);

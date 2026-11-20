@@ -10,8 +10,11 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.Text;
@@ -175,5 +178,22 @@ public class SearchHitRamUsageEstimatorTests extends ESTestCase {
         // The BytesRef's bytes, plus the String, which RamUsageEstimator.sizeOf bills at two bytes a char.
         assertThat(delta, greaterThanOrEqualTo(3L * value.length()));
         assertThat(delta, lessThanOrEqualTo(3L * value.length() + RamUsageEstimator.UNKNOWN_DEFAULT_RAM_BYTES_USED));
+    }
+
+    public void testEstimateWithoutSourcesLeavesOutTheSourcesOfInnerHits() {
+        SearchHit secondLevel = new SearchHit(2, "second-level");
+        secondLevel.sourceRef(new BytesArray(randomAlphaOfLength(between(1, 1000))));
+        SearchHit firstLevel = new SearchHit(1, "first-level");
+        firstLevel.sourceRef(new BytesArray(randomAlphaOfLength(between(1, 1000))));
+        firstLevel.setInnerHits(Map.of("second", new SearchHits(new SearchHit[] { secondLevel }, new TotalHits(1, Relation.EQUAL_TO), 1f)));
+        SearchHit hit = new SearchHit(0, "outer");
+        hit.sourceRef(new BytesArray(randomAlphaOfLength(between(1, 1000))));
+        hit.setInnerHits(Map.of("first", new SearchHits(new SearchHit[] { firstLevel }, new TotalHits(1, Relation.EQUAL_TO), 1f)));
+        try {
+            long sources = hit.rawSourceLength() + firstLevel.rawSourceLength() + secondLevel.rawSourceLength();
+            assertEquals(sources, SearchHitRamUsageEstimator.estimate(hit) - SearchHitRamUsageEstimator.estimateWithoutSources(hit));
+        } finally {
+            hit.decRef();
+        }
     }
 }

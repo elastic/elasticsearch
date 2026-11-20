@@ -81,7 +81,19 @@ public final class SearchHitRamUsageEstimator {
     }
 
     public static long estimate(SearchHit hit) {
-        long size = BASE_BYTES + hit.rawSourceLength();
+        return estimate(hit, true);
+    }
+
+    /**
+     * Like {@link #estimate}, but leaves out the source of {@code hit} and of its inner hits at every level, for a hit read from a
+     * buffer whose size the caller already charges.
+     */
+    public static long estimateWithoutSources(SearchHit hit) {
+        return estimate(hit, false);
+    }
+
+    private static long estimate(SearchHit hit, boolean withSources) {
+        long size = BASE_BYTES + (withSources ? hit.rawSourceLength() : 0);
         size += estimateSubPhaseOutput(hit);
         size += estimateSortValues(hit.getSortValues()) + estimateSortValues(hit.getRawSortValues());
         Map<String, SearchHits> innerHits = hit.getInnerHits();
@@ -94,7 +106,7 @@ public final class SearchHitRamUsageEstimator {
                 size += SEARCH_HITS_SHALLOW_SIZE + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) innerHitsArray.length
                     * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
                 for (SearchHit innerHit : innerHitsArray) {
-                    size += estimate(innerHit);
+                    size += estimate(innerHit, withSources);
                 }
             }
         }

@@ -426,7 +426,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             // metadata(), which the coordinator consults during planning), so there is no widenedColumns()
             // for schema_resolution: strict to read here — only the warning, so a user reading through
             // this path is told the same thing a cold metadata() resolve would have told them.
-            reportWidenings(widenings, ExternalFailures.redactHttpUrl(object.path().toString()), warningSink);
+            reportWidenings(
+                widenings,
+                RowLocation.displayObjectName(ExternalFailures.redactHttpUrl(object.path().toString())),
+                warningSink
+            );
             return sampled.schema();
         }
     }
@@ -654,7 +658,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count(), object);
             List<Attribute> schema = sampled.schema();
             String location = object.path().toString();
-            String sourceLocation = ExternalFailures.redactHttpUrl(location);
+            String sourceLocation = RowLocation.displayObjectName(ExternalFailures.redactHttpUrl(location));
             List<String> warnings = new ArrayList<>();
             List<WidenedColumn> widenedColumns = reportWidenings(widenings, sourceLocation, warnings::add);
             long mtimeMillis;

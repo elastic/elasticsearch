@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -12317,6 +12318,31 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat("the summary carries the cut token", warnings.get(0), containsString("[" + token + "]"));
         assertThat("and the detail carries the same one", warnings.get(1), containsString("[" + token + "]"));
         assertThat("neither may carry the uncut name", String.join(" ", warnings), not(containsString(longName)));
+    }
+
+    /**
+     * The test above drives {@code read(...)}, which pins {@code CsvBatchIterator}'s own location. The schema
+     * path is a different method with its own location string, and nothing held it: reverting
+     * {@code readSchema}'s {@link RowLocation#displayObjectName} call to the bare object name reddened no test
+     * in this module, because every other schema-path test here uses a short clean basename. A gate that
+     * passes by luck is not a gate, so this drives {@code metadata(...)} over a name that is both past the cap
+     * and able to close the bracket it prints inside. {@code NdJsonFormatReaderTests} holds the same contract
+     * for the other reader.
+     */
+    public void testSchemaWideningWarningCapsAndEscapesTheObjectName() throws IOException {
+        String hostileName = "a]b" + "p".repeat(RowLocation.MAX_OBJECT_NAME_CHARS * 3) + ".csv";
+        StorageObject object = createStorageObject("a\n1\n2\noops\n", hostileName);
+        SourceMetadata metadata = new CsvFormatReader(blockFactory).metadata(object);
+
+        String token = RowLocation.displayObjectName(hostileName);
+        assertThat("the name is reduced, or this test is not exercising the cap", token, not(equalTo(hostileName)));
+        assertThat("and the bracket is escaped, or it is not exercising the escape", token, containsString("\\u005D"));
+
+        String joined = String.join(" ", metadata.warnings());
+        assertFalse("a widening in the schema sample must be reported as a warning, got none", metadata.warnings().isEmpty());
+        assertThat("the widening warning carries the reduced name", joined, containsString("[" + token + "]"));
+        assertThat("and never the raw one", joined, not(containsString(hostileName)));
+        assertThat("so a name cannot close its own bracket", joined, not(containsString("a]b")));
     }
 
     /**

@@ -161,6 +161,13 @@ public final class RowLocation {
      * Cuts to {@link #MAX_OBJECT_NAME_CHARS}, keeping both ends. Same head/tail shape as
      * {@link ErrorExcerpts#summarize}, without its character count: the count tells a user how much of a VALUE
      * they cannot see, which is actionable, whereas the length of a key they chose is not.
+     * <p>
+     * Takes a whole source location as readily as one name, which is what the NDJSON schema-inference widening
+     * warnings hand it: both are store-supplied text printed inside a bracket, so both can forge the structure
+     * around them and both are unbounded in width. What a caller passes is left to the caller, and the two
+     * readers deliberately differ -- CSV names the object, NDJSON the redacted location -- because a folder of
+     * objects sharing a basename is the collision this cannot resolve, so dropping NDJSON's prefix to match CSV
+     * would spend real information to buy symmetry.
      */
     public static String displayObjectName(String objectName) {
         return objectName == null ? "" : shorten(objectName);
@@ -196,8 +203,10 @@ public final class RowLocation {
      * the character it names before anyone could read about it. Two such characters, for two different channels.
      * <p>
      * A control character, because this clause is the one piece of a name that reaches the node log: the readers
-     * hand the whole rendered location to {@code logger.warn} beside the client warning, so the operator reading
-     * the log and the user reading the response see the same row of the same object. A name is store-supplied
+     * hand the whole rendered location to the node log beside the client warning, so the operator reading the log
+     * and the user reading the response see the same row of the same object. They do not log it at the same level
+     * -- CSV at {@code warn}, NDJSON at {@code info} or {@code debug} by the error policy -- which changes who
+     * sees it by default but not that a name reaching a log layout can forge a line in it. A name is store-supplied
      * text — an S3 key may hold any UTF-8, newline included, and this class's parser keeps the last path segment
      * verbatim — and the console and legacy log layouts write a message as it stands, so an embedded newline
      * would let a key counterfeit a second log line. The response channel is already safe and stays so:

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -50,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -557,6 +559,33 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * The widening warning prints the source location inside a bracket, and schema inference takes that
+     * location straight from the store, so it is subject to the same two hazards as any other displayed
+     * name: unbounded width in a response header, and a bracket that closes its own field and renders as
+     * another object's clause, which {@code InformationalWarningBudget} then deduplicates away. CSV's
+     * schema path was routed through {@link RowLocation#displayObjectName} and this one was not, so the
+     * asymmetry is pinned on both readers rather than left to the next reader to notice. What the two
+     * readers still name differently -- CSV the object, this one the redacted location -- is deliberate and
+     * recorded on {@code displayObjectName}.
+     */
+    public void testSchemaWideningWarningCapsAndEscapesTheLocation() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        HostileNameBytesObject object = new HostileNameBytesObject(bytes);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(object);
+
+        String rawLocation = object.path().toString();
+        String token = RowLocation.displayObjectName(rawLocation);
+        assertThat("the location is reduced, or this test is not exercising the cap", token, not(equalTo(rawLocation)));
+        assertThat("and the bracket is escaped, or it is not exercising the escape", token, containsString("\\u005D"));
+
+        String joined = String.join(" ", metadata.warnings());
+        assertFalse("a field type disagreement must be reported as a warning", metadata.warnings().isEmpty());
+        assertThat("the widening warning carries the reduced location", joined, containsString("[" + token + "]"));
+        assertThat("and never the raw one", joined, not(containsString(rawLocation)));
+        assertThat("so a name cannot close its own bracket", joined, not(containsString("a]b")));
+    }
+
+    /**
      * The fold to KEYWORD must be blamed on the row that actually completed it, not on whichever
      * distinct type happened to be seen last. {@code boolean} (row 1) then {@code integer} (row 2)
      * already fold to KEYWORD at row 2 — {@code TypeWidening.join} has no edge between them below
@@ -864,6 +893,25 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://bucket/wide-first-line.ndjson");
+        }
+    }
+
+    /**
+     * A name that is both over the display cap and able to close the bracket it is printed inside. Schema
+     * inference hands the whole location to the widening warnings, so the hostile part has to survive
+     * {@link StoragePath} parsing as the last path segment, which is why it sits in the basename rather than
+     * in the bucket.
+     */
+    private static final class HostileNameBytesObject extends BytesObject {
+        static final String OBJECT_NAME = "a]b" + "p".repeat(RowLocation.MAX_OBJECT_NAME_CHARS * 3) + ".ndjson";
+
+        HostileNameBytesObject(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("mem://bucket/" + OBJECT_NAME);
         }
     }
 

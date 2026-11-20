@@ -139,6 +139,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -996,8 +997,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         // Blob names for the two files we will warm concurrently.
         final long generationA = 1L;
         final long generationB = 2L;
-        final String blobNameA = BatchedCompoundCommit.blobNameFromGeneration(generationA);
-        final String blobNameB = BatchedCompoundCommit.blobNameFromGeneration(generationB);
+        final String blobNameA = BccBlob.blobNameFromGeneration(generationA);
+        final String blobNameB = BccBlob.blobNameFromGeneration(generationB);
 
         // Track blob-store reads in arrival order (reads are serialised by the central throttle, so no lock needed,
         // but CopyOnWriteArrayList avoids any visibility concern with the assertion thread).
@@ -1194,10 +1195,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             }
         }) {
             long generation = randomLongBetween(3, 42);
-            var blobFile = new BccBlob(
-                BatchedCompoundCommit.blobNameFromGeneration(generation),
-                new PrimaryTermAndGeneration(primaryTerm, generation)
-            );
+            var blobFile = new BccBlob(BccBlob.blobNameFromGeneration(generation), new PrimaryTermAndGeneration(primaryTerm, generation));
             // A commit with a handful of files; no real blob data needed — tasks are intercepted before execution
             var commit = TestUtils.getCommitWithInternalFilesReplicatedRanges(
                 node.shardId,
@@ -1246,6 +1244,136 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 task.onResponse(() -> {});
             }
             safeGet(future);
+        }
+    }
+
+    public void testOfflineWarmingTasksSkippedOnCancellationOnlyWhileRecoveryAwaitsWarming() throws Exception {
+        final long primaryTerm = randomLongBetween(1, 10);
+        final boolean recoveryAwaitingWarming = randomBoolean();
+        final var capturedTasks = new ArrayList<ActionListener<Releasable>>();
+        final var readBlobCalls = new AtomicInteger();
+
+        try (var node = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(9))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE))
+                    .build();
+            }
+
+            @Override
+            protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                StatelessSharedBlobCacheService cacheService,
+                ThreadPool threadPool,
+                TelemetryProvider telemetryProvider,
+                ClusterSettings clusterSettings,
+                WarmingRatioProvider warmingRatioProvider,
+                SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService
+            ) {
+                return new SharedBlobCacheWarmingService(
+                    cacheService,
+                    threadPool,
+                    telemetryProvider,
+                    clusterSettings,
+                    searchRecoveryTimeoutCalculationService
+                ) {
+                    // Capture tasks instead of submitting them so we control when they run relative to the cancellation request.
+                    @Override
+                    protected void scheduleWarmingTask(AbstractWarmingTask task) {
+                        capturedTasks.add(task);
+                    }
+                };
+            }
+
+            @Override
+            protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                // Always use the object-store reader so that warming reads go through the (counting) blob container.
+                return new CacheBlobReaderService(
+                    nodeSettings,
+                    cacheService,
+                    client,
+                    threadPool,
+                    TestUtils.unmeteredFillCacheMemoryPressure(nodeSettings, threadPool)
+                ) {
+                    @Override
+                    public CacheBlobReader getCacheBlobReader(
+                        ShardId shardId,
+                        LongFunction<BlobContainer> blobContainer,
+                        BccBlob bccBlob,
+                        MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                        LongConsumer totalBytesReadFromObjectStore,
+                        LongConsumer totalBytesReadFromIndexing,
+                        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                        Executor objectStoreFetchExecutor,
+                        String fileName,
+                        boolean speculativeFill
+                    ) {
+                        return new ObjectStoreCacheBlobReader(
+                            blobContainer.apply(bccBlob.primaryTerm()),
+                            bccBlob.blobName(),
+                            cacheService.getRangeSize(),
+                            objectStoreFetchExecutor
+                        );
+                    }
+                };
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                // Serve synthetic bytes so that warming succeeds without a real blob, and count the reads so that we can tell whether
+                // any warming task actually ran.
+                return new FilterBlobContainer(FakeStatelessNode.syntheticBytesContainer(innerContainer)) {
+                    @Override
+                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                        readBlobCalls.incrementAndGet();
+                        return super.readBlob(purpose, blobName, position, length);
+                    }
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+                };
+            }
+        }) {
+            // The shard is mocked because a real IndexShard would need a full recovery in flight to accept a cancellation request.
+            final var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(node.searchStore);
+            when(indexShard.shardId()).thenReturn(node.shardId);
+            if (recoveryAwaitingWarming) {
+                node.warmingService.shardsAwaitingRecoveryWarming.add(indexShard);
+            }
+
+            final int numBlobs = randomIntBetween(1, 5);
+            final Map<BccBlob, SharedBlobCacheWarmingService.WarmTarget> warmTargets = new HashMap<>();
+            for (int i = 0; i < numBlobs; i++) {
+                final long gen = i + 1L;
+                warmTargets.put(
+                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                    SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(randomLongBetween(1, 1024), 1024)
+                );
+            }
+
+            final PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            node.warmingService.warmBlobOffsets(indexShard, node.searchDirectory, warmTargets, warmListener);
+            assertThat(capturedTasks, hasSize(numBlobs));
+            assertFalse("listener must not fire while tasks are pending", warmListener.isDone());
+
+            // The store stays open: only the shard's recovery cancellation flag is set.
+            when(indexShard.isRecoveryCancellationRequested()).thenReturn(true);
+            for (var task : capturedTasks) {
+                task.onResponse(() -> {});
+            }
+
+            safeGet(warmListener);
+            if (recoveryAwaitingWarming) {
+                assertThat("no blob should be read once cancelled while the recovery awaits warming", readBlobCalls.get(), equalTo(0));
+            } else {
+                assertThat("warming should carry on when the recovery is not awaiting it", readBlobCalls.get(), greaterThan(0));
+            }
         }
     }
 
@@ -1465,7 +1593,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         ) {
             final var primaryTermAndGeneration = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
             final var blobFile = new BccBlob(
-                BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()),
+                BccBlob.blobNameFromGeneration(primaryTermAndGeneration.generation()),
                 primaryTermAndGeneration
             );
 
@@ -1515,7 +1643,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long offset = randomLongBetween(stepSize * (i - 1), stepSize * i - fileLength) + rangeStart;
                 final long minimizedEnd = rangeStart + stepSize * i;
                 final var blobLocation = new BlobLocation(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                    new BccBlob(BccBlob.blobNameFromGeneration(termAndGen.generation()), termAndGen),
                     offset,
                     fileLength
                 );
@@ -1554,6 +1682,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     any(),
                     any(),
                     anyLong(),
+                    anyBoolean(),
                     anyActionListener()
                 );
 
@@ -1580,7 +1709,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             final long fileLength = randomLongBetween(1, rangeSize);
             final long offset = randomLongBetween(0, rangeSize - fileLength);
             final var blobLocation = new BlobLocation(
-                new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                new BccBlob(BccBlob.blobNameFromGeneration(termAndGen.generation()), termAndGen),
                 offset,
                 fileLength
             );
@@ -1619,6 +1748,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 any(),
                 any(),
                 anyLong(),
+                anyBoolean(),
                 anyActionListener()
             );
 
@@ -1633,6 +1763,73 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Only search warming asks the cache to wait for a range that another caller is already filling. Search shard recovery resumes when
+     * warming reports done, so reporting done for bytes that are still in flight resumes recovery against a partially warm cache. The
+     * other warming types are not a precondition for anything, so they stay fire-and-forget.
+     */
+    public void testOnlySearchWarmingAwaitsPendingFills() throws Exception {
+        final long rangeSize = ByteSizeValue.ofMb(between(1, 16)).getBytes();
+        final long stepSize = rangeSize / 4;
+        try (var node = createFakeNodeForMinimisingRange(rangeSize, stepSize)) {
+            final IndexShard indexShard = mockIndexShard(node);
+            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
+            for (Type type : List.of(SEARCH, randomValueOtherThan(SEARCH, () -> randomFrom(Type.values())))) {
+                Mockito.clearInvocations(node.sharedCacheService);
+                node.sharedCacheService.forceEvict(ignore -> true);
+                // keep the location out of region 0 so that every warming type schedules work for it
+                final int region = between(1, 10);
+                final long fileLength = randomLongBetween(1, 100);
+                final long offset = region * rangeSize + randomLongBetween(0, stepSize - fileLength);
+                final var commit = new StatelessCompoundCommit(
+                    node.shardId,
+                    termAndGen,
+                    1L,
+                    node.node.getEphemeralId(),
+                    Map.of(
+                        "file",
+                        new BlobLocation(
+                            new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                            offset,
+                            fileLength
+                        )
+                    ),
+                    0,
+                    Set.of(),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                );
+
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                node.warmingService.warmCache(
+                    type,
+                    indexShard,
+                    commit,
+                    node.indexingDirectory.getBlobStoreCacheDirectory(),
+                    mock(WarmingRatioProvider.class),
+                    Map.of(), // don't do any warming besides the regular shard recovery kind
+                    false,
+                    future
+                );
+                safeGet(future);
+
+                verify(node.sharedCacheService).maybeFetchRange(
+                    any(),
+                    eq(region),
+                    any(),
+                    anyLong(),
+                    any(),
+                    any(),
+                    anyLong(),
+                    eq(type == SEARCH),
+                    anyActionListener()
+                );
+            }
+        }
+    }
+
     public void testIdLookupPreWarming() throws Exception {
         final boolean preWarmEnabled = usually();
         final boolean preWarmRequested = usually();
@@ -1642,7 +1839,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         try (var node = createFakeNodeForPreWarming(ByteSizeValue.ofMb(4), regionSize, SharedBytes.PAGE_SIZE, preWarmEnabled)) {
             final IndexShard indexShard = mockIndexShard(node);
             final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
-            final var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen);
+            final var blobFile = new BccBlob(BccBlob.blobNameFromGeneration(termAndGen.generation()), termAndGen);
 
             final Map<String, BlobLocation> commitFiles = new HashMap<>();
             long currentOffset = regionSize;
@@ -2155,7 +2352,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long warmEndOffset = randomLongBetween(1, blobSize);
                 blobSpecs.add(
                     new WarmTarget(
-                        new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                        new BccBlob(BccBlob.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
                         warmEndOffset,
                         blobSize
                     )
@@ -2362,7 +2559,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 final long blobSize = randomLongBetween(1, 1024 * 1024);
                 final long endOffset = randomLongBetween(1, blobSize);
                 warmTargets.put(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                    new BccBlob(BccBlob.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
                     SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(endOffset, blobSize)
                 );
             }
@@ -2603,6 +2800,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         SharedBlobCacheService.RangeMissingHandler writer,
                         Executor fetchExecutor,
                         long timestampMillis,
+                        boolean awaitPendingFill,
                         ActionListener<Boolean> listener
                     ) {
                         // Capture the timestamp the ShardWarmer passes for this region and short-circuit, so no real region fill happens
@@ -3131,7 +3329,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             var segmentCommitInfo = new SegmentCommitInfo(segmentInfo, 0, 0, -1L, -1L, -1L, new byte[16]);
 
             int regionCount = randomIntBetween(2, 5);
-            var blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
+            var blobName = BccBlob.blobNameFromGeneration(1);
             var blobFile = new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
             var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
             var mergeWarmFuture = new PlainActionFuture<Void>();
@@ -3433,7 +3631,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             // merge warming schedules one task per region, so we end up with 5 merge tasks for warming regions
             int regionCount = 5;
-            var blobName = BatchedCompoundCommit.blobNameFromGeneration(1);
+            var blobName = BccBlob.blobNameFromGeneration(1);
             var blobFile = new BccBlob(blobName, new PrimaryTermAndGeneration(primaryTerm, 1));
             var blobLocation = new BlobLocation(blobFile, 0, (long) regionCount * fakeNode.sharedCacheService.getRegionSize());
             var mergeWarmFuture = new PlainActionFuture<Void>();

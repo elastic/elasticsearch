@@ -16,6 +16,7 @@ import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -566,7 +567,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         assertNullOnlyArraysHaveNoValue(IndexMode.VECTORDB_COLUMNAR);
     }
 
-    private record ExistsAndNorms(List<Integer> exists, List<Integer> withNorm) {}
+    private record ExistsAndNorms(List<Integer> exists, List<Integer> withDocValues, List<Integer> withNorm) {}
 
     private void assertNullOnlyArraysHaveNoValue(IndexMode indexMode) throws IOException {
         final MapperService mapperService = createMapperService(
@@ -602,6 +603,8 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
 
         assertEquals("documents that match exists, indexed one by one", List.of(0), oneByOne.exists());
         assertEquals("documents that match exists, indexed as a batch", List.of(0), batch.exists());
+        assertEquals("documents that have doc values, indexed one by one", List.of(0), oneByOne.withDocValues());
+        assertEquals("documents that have doc values, indexed as a batch", List.of(0), batch.withDocValues());
         assertThat("documents that have a norm, indexed one by one", oneByOne.withNorm(), everyItem(equalTo(0)));
         assertThat("documents that have a norm, indexed as a batch", batch.withNorm(), everyItem(equalTo(0)));
     }
@@ -612,8 +615,15 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
             .map(scoreDoc -> scoreDoc.doc)
             .sorted()
             .toList();
+        final List<Integer> withDocValues = new ArrayList<>();
         final List<Integer> withNorm = new ArrayList<>();
         for (LeafReaderContext leaf : reader.leaves()) {
+            final DocIdSetIterator docValues = docValuesIterator(leaf);
+            if (docValues != null) {
+                for (int doc = docValues.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docValues.nextDoc()) {
+                    withDocValues.add(leaf.docBase + doc);
+                }
+            }
             final NumericDocValues norms = leaf.reader().getNormValues(FIELD);
             if (norms != null) {
                 for (int doc = norms.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = norms.nextDoc()) {
@@ -621,7 +631,22 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                 }
             }
         }
-        return new ExistsAndNorms(matched, withNorm);
+        return new ExistsAndNorms(matched, withDocValues, withNorm);
+    }
+
+    private static DocIdSetIterator docValuesIterator(LeafReaderContext leaf) throws IOException {
+        final FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(FIELD);
+        if (fieldInfo == null) {
+            return null;
+        }
+        return switch (fieldInfo.getDocValuesType()) {
+            case NONE -> null;
+            case NUMERIC -> leaf.reader().getNumericDocValues(FIELD);
+            case BINARY -> leaf.reader().getBinaryDocValues(FIELD);
+            case SORTED -> leaf.reader().getSortedDocValues(FIELD);
+            case SORTED_NUMERIC -> leaf.reader().getSortedNumericDocValues(FIELD);
+            case SORTED_SET -> leaf.reader().getSortedSetDocValues(FIELD);
+        };
     }
 
     private static String timestamped(String field) {

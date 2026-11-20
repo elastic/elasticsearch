@@ -1352,7 +1352,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             for (int i = 0; i < numBlobs; i++) {
                 final long gen = i + 1L;
                 warmTargets.put(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
+                    new BccBlob(BccBlob.blobNameFromGeneration(gen), new PrimaryTermAndGeneration(primaryTerm, gen)),
                     SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(randomLongBetween(1, 1024), 1024)
                 );
             }
@@ -1789,7 +1789,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     Map.of(
                         "file",
                         new BlobLocation(
-                            new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                            new BccBlob(BccBlob.blobNameFromGeneration(termAndGen.generation()), termAndGen),
                             offset,
                             fileLength
                         )

@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -135,11 +134,8 @@ public class Into extends UnaryPlan
         };
     }
 
-    /** A {@link LocalRelation} is a ROW producer that analysis already materialized, for example {@code DESCRIBE}. */
-    public static boolean unsupportedSource(LogicalPlan child) {
-        return child.anyMatch(
-            p -> p instanceof MergePlan || (p instanceof LeafPlan && isSupportedSource(p) == false && p instanceof LocalRelation == false)
-        );
+    private static boolean unsupportedSource(LogicalPlan child) {
+        return child.anyMatch(p -> p instanceof MergePlan || (p instanceof LeafPlan && isSupportedSource(p) == false));
     }
 
     @Override

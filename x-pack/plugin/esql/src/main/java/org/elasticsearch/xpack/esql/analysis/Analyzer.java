@@ -414,7 +414,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         if (viewBoundaryWarning != null) {
             HeaderWarning.addWarning(viewBoundaryWarning);
         }
-        return verified;
+        return replaceDescribe(verified);
+    }
+
+    /**
+     * Replaces every {@code DESCRIBE} with the table that describes its input. The input stays in the plan
+     * until then, so verification checks it as it would without {@code DESCRIBE}.
+     */
+    private static LogicalPlan replaceDescribe(LogicalPlan plan) {
+        return plan.transformUp(Describe.class, describe -> describe.table() == null ? describe : describe.table());
     }
 
     /**
@@ -548,13 +556,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Replaces {@code DESCRIBE} with a table describing its resolved child. Runs once resolution is done,
-     * so the child's columns, renames and computed fields are final.
+     * Computes the table that describes the resolved child of {@code DESCRIBE}. Runs once resolution is done,
+     * so the child's columns, renames and computed fields are final. The table replaces {@code DESCRIBE} after
+     * verification, see {@link #replaceDescribe}.
      */
     private static class ResolveDescribe extends ParameterizedAnalyzerRule<Describe, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(Describe describe, AnalyzerContext context) {
-            if (describe.child().resolved() == false || describe.child().anyMatch(Into.class::isInstance)) {
+            if (describe.table() != null || describe.child().resolved() == false || describe.child().anyMatch(Into.class::isInstance)) {
                 return describe;
             }
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
@@ -562,12 +571,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
             Map<NameId, Attribute> datasetColumns = ColumnSemantics.datasetColumns(describe.child());
             Set<NameId> timeColumns = ColumnSemantics.timeColumns(describe.child(), semantics, datasetColumns);
-            return describe.describe(
-                semantics,
-                datasetColumns,
-                ColumnUnits.collect(describe.child(), semantics),
-                timeColumns,
-                ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
+            return describe.withTable(
+                describe.describe(
+                    semantics,
+                    datasetColumns,
+                    ColumnUnits.collect(describe.child(), semantics),
+                    timeColumns,
+                    ColumnIntervals.collect(describe.child(), context.configuration().newFoldContext())
+                )
             );
         }
 
@@ -1164,7 +1175,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *   <li>The index pattern's field-caps mapping — resolved through the SAME shared path {@code FROM} uses
      *       ({@code IndexResolver} / {@link Analyzer#mappingAsAttributes}), carried in {@link AnalyzerContext#indexResolution()}
      *       keyed by the pattern — becomes one typed column per mapped field. Mapped types the converter cannot extract
-     *       (anything outside {@link EqlPageConverter#CONVERTIBLE_TYPES}) surface as {@code unsupported}, same UX as
+     *       (anything outside {@link EqlRelation#CONVERTIBLE_TYPES}) surface as {@code unsupported}, same UX as
      *       {@code FROM}.</li>
      * </ul>
      * If the index pattern did not resolve, the node is rewritten unresolved with the resolution message (the verifier turns
@@ -1301,7 +1312,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (attr instanceof FieldAttribute fa && fa.hasTypeConflicts()) {
                 return fa.flagTypeConflicts();
             }
-            if (attr instanceof FieldAttribute fa && EqlPageConverter.CONVERTIBLE_TYPES.contains(fa.dataType()) == false) {
+            if (attr instanceof FieldAttribute fa && EqlRelation.CONVERTIBLE_TYPES.contains(fa.dataType()) == false) {
                 String typeName = fa.dataType().typeName();
                 UnsupportedEsField field = new UnsupportedEsField(fa.name(), List.of(typeName), null, Map.of());
                 return new UnsupportedAttribute(source, fa.name(), field, "EQL command does not yet support [" + typeName + "] fields");

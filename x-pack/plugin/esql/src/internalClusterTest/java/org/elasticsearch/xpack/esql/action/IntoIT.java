@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -25,6 +27,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -340,15 +344,12 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
     public void testShardFailureAfterBulkIsNotRetried() {
         // The destination's strict mapping refuses "extra", so the bulk writes "a" and fails on "b"
-        assertAcked(indicesAdmin().prepareCreate(RETRY_SOURCE).setSettings(indexSettings(1, 1)).setMapping("""
-            { "properties": { "k": { "type": "keyword" }, "extra": { "type": "keyword" } } }
-            """));
+        createRetrySource();
         indexRandom(
             true,
             client().prepareIndex(RETRY_SOURCE).setSource("k", "a"),
             client().prepareIndex(RETRY_SOURCE).setSource("k", "b", "extra", "boom")
         );
-        ensureGreen(RETRY_SOURCE);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> run("FROM " + RETRY_SOURCE + " | KEEP k, extra | INTO " + DESTINATION).close()
@@ -358,6 +359,48 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             equalTo("INTO [dest-into] failed: [0:0] mapping set to strict, dynamic introduction of [extra] within [_doc] is not allowed")
         );
         assertReadBack("KEEP k", List.of(List.of("a")));
+    }
+
+    /**
+     * A failure that is retryable for a read, here the shard copy going away, must not send the request to the other copy once its
+     * node has written, since that copy would write the same rows again.
+     */
+    public void testRetryableFailureAfterTheWriteIsNotRetried() {
+        createRetrySource();
+        indexRandom(true, client().prepareIndex(RETRY_SOURCE).setSource("k", "a"), client().prepareIndex(RETRY_SOURCE).setSource("k", "c"));
+        AtomicInteger dataNodeRequests = new AtomicInteger();
+        for (String node : internalCluster().getNodeNames()) {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+                    dataNodeRequests.incrementAndGet();
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            // The node has written its rows by now
+                            channel.sendResponse(new NoShardAvailableActionException(new ShardId(RETRY_SOURCE, "_na_", 0), "simulated"));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                });
+        }
+        try {
+            expectThrows(Exception.class, () -> run("FROM " + RETRY_SOURCE + " | KEEP k | INTO " + DESTINATION).close());
+            assertThat(dataNodeRequests.get(), equalTo(1));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService.getInstance(node).clearAllRules();
+            }
+        }
+        assertReadBack("KEEP k | SORT k", List.of(List.of("a"), List.of("c")));
     }
 
     public void testAllowPartialResultsDoesNotBypassRowFailure() {
@@ -417,6 +460,13 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
             prepareSearch(index),
             r -> assertThat(Arrays.stream(r.getHits().getHits()).map(SearchHit::getSourceAsMap).toList(), equalTo(expected))
         );
+    }
+
+    private void createRetrySource() {
+        assertAcked(indicesAdmin().prepareCreate(RETRY_SOURCE).setSettings(indexSettings(1, 1)).setMapping("""
+            { "properties": { "k": { "type": "keyword" }, "extra": { "type": "keyword" } } }
+            """));
+        ensureGreen(RETRY_SOURCE);
     }
 
     private String createDestinationWithPipeline() {

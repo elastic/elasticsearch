@@ -1055,9 +1055,9 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Fails if the name that a data stream is restored to, after the renaming of the restore, has no matching index template with a data
-     * stream configuration in {@code project}, which is what creating the data stream needs too. System data streams are not checked,
-     * they have no templates.
+     * Fails if the name that a data stream is restored to has no matching index template
+     * with a data stream configuration in {@code project}.
+     * System data streams are not checked, they have no templates.
      *
      * @throws MissingDataStreamTemplateException for the first data stream that has no template
      */
@@ -1489,8 +1489,11 @@ public final class RestoreService implements ClusterStateApplier {
      * {@link IllegalArgumentException} with the message of creating that data stream, so that it is the same bad request, which lets
      * the caller tell it apart from the other failures of a restore by its type and not by its message.
      * <p>
-     * The restore fails in a cluster state update that runs on the master node, which is also where the caller of the restore is, so this
-     * is not sent over the transport and, unlike an {@link org.elasticsearch.ElasticsearchException}, is not registered for that.
+     * The restore fails on the master node, either while it is prepared or in the cluster state update that starts it, and the master
+     * node is also where the caller of the restore is, so this is not sent over the transport and, unlike an
+     * {@link org.elasticsearch.ElasticsearchException}, is not registered for that. A caller that returns it from a transport action
+     * would send it as a plain {@link IllegalArgumentException} with the same message, so it must translate it before that, because
+     * the type and {@link #dataStream()} are lost.
      */
     public static final class MissingDataStreamTemplateException extends IllegalArgumentException {
 

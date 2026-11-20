@@ -670,11 +670,6 @@ tests:
   - :x-pack:plugin:downsample:internalClusterTest
   method: testConcurrentRequestsForDifferentTargets
   issue: https://github.com/elastic/elasticsearch/issues/165848
-- class: org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testSlowTranslogUploadIsHedged
-  issue: https://github.com/elastic/elasticsearch/issues/165850
 - class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
   tasks:
   - :x-pack:plugin:esql-datasource-parquet:test

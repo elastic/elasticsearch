@@ -13,7 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -74,23 +74,20 @@ public class FrequencyCappedActionTests extends ESTestCase {
         final int threads = between(2, 10);
         var executions = new AtomicLong(0);
         var currentTime = new AtomicLong();
-        var contend = new AtomicBoolean();
         var barrier = new CyclicBarrier(threads);
-        var minInterval = TimeValue.timeValueMinutes(1);
-        // Every caller reads the clock before any of them tries to claim the execution, so that they all see the same deadline
-        var action = new FrequencyCappedAction(() -> {
-            if (contend.get()) {
+        // The interval is only read once a caller has found the action to be due, so blocking here makes every caller pass the due
+        // check before any of them can claim the execution
+        var minInterval = new TimeValue(1, TimeUnit.MINUTES) {
+            @Override
+            public long millis() {
                 safeAwait(barrier);
+                return super.millis();
             }
-            return currentTime.get();
-        }, TimeValue.ZERO, minInterval);
-        contend.set(true);
+        };
+        var action = new FrequencyCappedAction(currentTime::get, TimeValue.ZERO, minInterval);
 
-        final int rounds = between(20, 100);
-        for (int round = 1; round <= rounds; round++) {
-            startInParallel(threads, i -> action.maybeExecute(executions::incrementAndGet));
-            assertThat(executions.get(), equalTo((long) round));
-            currentTime.addAndGet(minInterval.millis());
-        }
+        startInParallel(threads, i -> action.maybeExecute(executions::incrementAndGet));
+
+        assertThat(executions.get(), equalTo(1L));
     }
 }

@@ -318,6 +318,11 @@ public class LocalExecutionPlanner {
      */
     static final int MIN_PAGES_PER_LIMIT_DRIVER = ExternalLimitSplits.MIN_PAGES_PER_LIMIT_DRIVER;
 
+    /**
+     * Rows per page that {@link MvExpandOperator} emits. TODO estimate the row size and use the context's page size.
+     */
+    private static final int MV_EXPAND_BLOCK_SIZE = 5000;
+
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
     private final String sessionId;
@@ -1889,7 +1894,13 @@ public class LocalExecutionPlanner {
         }
 
         // Load the "positions" of each match
-        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+        if (join.repeatedKeys()) {
+            source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, true, join.source()), layout);
+            // A probe row gets one position for each build row it matches: give each match a row of its own before loading its values.
+            source = source.with(new MvExpandOperator.Factory(positionsChannel, MV_EXPAND_BLOCK_SIZE), layout);
+        } else {
+            source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
+        }
 
         // Load the "values" from each match
         int loadedFields = 0;
@@ -2995,11 +3006,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
-        int blockSize = 5000;// TODO estimate row size and use context.pageSize()
         Layout.Builder layout = source.layout.builder();
         layout.replace(mvExpandExec.target().id(), mvExpandExec.expanded().id());
         return source.with(
-            new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
+            new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), MV_EXPAND_BLOCK_SIZE),
             layout.build()
         );
     }

@@ -10,19 +10,26 @@ package org.elasticsearch.xpack.esql.planner.mapper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -30,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.planner.mapper.Mapper.JOIN_MARKER_PREFIX;
@@ -87,6 +95,67 @@ public class HashJoinMapperTests extends ESTestCase {
         // Left-outer: HashJoinExec directly under Project - no IsNotNull(marker) filter.
         HashJoinExec join = as(project.child(), HashJoinExec.class);
         assertThat(join.addedFields().stream().anyMatch(a -> a.name().startsWith(JOIN_MARKER_PREFIX)), equalTo(true));
+    }
+
+    public void testMapsRepeatedKeysToHashJoinExec() {
+        HashJoin template = hashJoin(false, JoinTypes.LEFT, new long[] { 10, 10 }, new long[] { 100, 200 });
+        assertThat(as(as(map(template), ProjectExec.class).child(), HashJoinExec.class).repeatedKeys(), equalTo(false));
+
+        HashJoin hashJoin = withLeft(template, template.left(), template.leftFields());
+        HashJoinExec join = as(as(map(hashJoin), ProjectExec.class).child(), HashJoinExec.class);
+        assertThat(join.repeatedKeys(), equalTo(true));
+        // Local data on the left needs no exchange.
+        as(join.left(), LocalSourceExec.class);
+    }
+
+    /**
+     * The join runs on the coordinator, so a left side that reads an index comes through an exchange, as for a coordinator
+     * {@code LOOKUP JOIN}. PromQL never needs one: its left side is always an aggregation.
+     */
+    public void testHashJoinOverIndexExchangesTheLeftSide() {
+        HashJoin template = hashJoin(false, JoinTypes.LEFT, new long[] { 10, 10 }, new long[] { 100, 200 });
+        FieldAttribute indexKey = new FieldAttribute(
+            Source.EMPTY,
+            "k",
+            new EsField("k", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        EsRelation index = new EsRelation(
+            Source.EMPTY,
+            "idx",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of("", List.of("idx")),
+            Map.of(),
+            List.of(indexKey)
+        );
+        HashJoin hashJoin = withLeft(template, index, List.of(indexKey));
+
+        HashJoinExec join = as(as(map(hashJoin), ProjectExec.class).child(), HashJoinExec.class);
+        ExchangeExec exchange = as(join.left(), ExchangeExec.class);
+        FragmentExec fragment = as(exchange.child(), FragmentExec.class);
+        assertThat(fragment.fragment(), sameInstance(index));
+        as(join.joinData(), LocalSourceExec.class);
+    }
+
+    private static PhysicalPlan map(HashJoin hashJoin) {
+        return new Mapper().map(new Versioned<>(hashJoin, TransportVersion.current()));
+    }
+
+    /**
+     * {@code template} with repeated keys and the given left side.
+     */
+    private static HashJoin withLeft(HashJoin template, LogicalPlan left, List<Attribute> leftFields) {
+        return new HashJoin(
+            Source.EMPTY,
+            left,
+            template.right(),
+            leftFields,
+            template.rightFields(),
+            template.addedFields(),
+            template.unique(),
+            template.config().type(),
+            true
+        );
     }
 
     private static HashJoin hashJoin(boolean unique) {

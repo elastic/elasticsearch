@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -70,6 +71,52 @@ public class HashJoinTests extends ESTestCase {
             JoinTypes.LEFT
         );
         assertThat(hashJoin.config().type(), sameInstance(JoinTypes.LEFT));
+    }
+
+    /**
+     * Repeated keys are off unless asked for, and survive replacing the right side with its materialized result.
+     */
+    public void testRepeatedKeys() {
+        FieldAttribute leftKey = getFieldAttribute("k", DataType.LONG);
+        FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
+        FieldAttribute value = getFieldAttribute("v", DataType.LONG);
+        HashJoin plain = hashJoin(leftKey, rightKey, value, false);
+        assertThat(plain.repeatedKeys(), is(false));
+
+        HashJoin repeated = new HashJoin(
+            Source.EMPTY,
+            plain.left(),
+            plain.right(),
+            plain.leftFields(),
+            plain.rightFields(),
+            plain.addedFields(),
+            false,
+            JoinTypes.LEFT,
+            true
+        );
+        assertThat(repeated.repeatedKeys(), is(true));
+        assertThat(
+            repeated,
+            not(
+                equalTo(
+                    new HashJoin(
+                        Source.EMPTY,
+                        plain.left(),
+                        plain.right(),
+                        plain.leftFields(),
+                        plain.rightFields(),
+                        plain.addedFields(),
+                        false,
+                        JoinTypes.LEFT
+                    )
+                )
+            )
+        );
+
+        HashJoin.LogicalPlanTuple tuple = HashJoin.firstSubPlan(repeated, new HashSet<>());
+        HashJoin rebuilt = as(HashJoin.newMainPlan(repeated, tuple, localRelation(List.of(rightKey, value))), HashJoin.class);
+        assertThat(rebuilt.repeatedKeys(), is(true));
+        assertThat(rebuilt.config().type(), sameInstance(JoinTypes.LEFT));
     }
 
     public void testNotSerialized() {

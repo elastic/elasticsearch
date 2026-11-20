@@ -2486,7 +2486,7 @@ public final class StreamingParallelParsingCoordinator {
             // last-modified (including a genuine EPOCH) still flows through and stays cacheable.
             // Only a read that captures statistics needs the stamp, and the probe is a round trip on a store
             // that carries no last-modified header — so a read with no capture sink does not pay for it. This is
-            // the compressed/streaming rail's half of the same gate the two row readers apply.
+            // the compressed/streaming path's half of the same gate the two row readers apply.
             Instant mtime = null;
             if (storageObject != null && captureSink != null) {
                 try {

@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -366,6 +367,68 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             partialCount,
             Matchers.greaterThanOrEqualTo(2L)
         );
+    }
+
+    /**
+     * The streaming path stamps every chunk with the object's last-modified so that chunk's statistics can be
+     * cached under a pinned mtime. Nothing but a capture ever reads that stamp, and the probe is a round trip
+     * against a store that may carry no last-modified header — so a read with no capture sink must not pay for
+     * it.
+     *
+     * <p>This is the compressed/streaming half of the gate the two row readers apply, and unlike theirs it
+     * repeats per chunk rather than once per file, which is why it is worth pinning separately.
+     */
+    public void testNoCaptureSinkDoesNotProbeTheChunkMtime() throws Exception {
+        AtomicInteger uncaptured = new AtomicInteger();
+        streamingReadCountingMtimeProbes(null, uncaptured);
+        assertEquals("a read with no capture sink must not probe lastModified()", 0, uncaptured.get());
+
+        // Control: the same read WITH a sink must probe, or this would also pass against a path that had
+        // stopped stamping chunks altogether.
+        AtomicInteger captured = new AtomicInteger();
+        streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), captured);
+        assertThat("a capturing read pins each chunk's mtime, so it must probe", captured.get(), Matchers.greaterThan(0));
+    }
+
+    /** Drains a streaming parallel read whose storage object counts every {@code lastModified()} call. */
+    private static void streamingReadCountingMtimeProbes(
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
+        AtomicInteger probes
+    ) throws Exception {
+        // > 2 chunk-buffers so the segmentator dispatches several chunks and the per-chunk probe repeats.
+        String content = buildContent(500);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-mtime-probe-test";
+        StorageObject file = new CountingMtimeStorageObject(path, Instant.parse("2020-01-01T00:00:00Z"), probes);
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                file,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                0L,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink,
+                -1L,
+                sink == null ? StripeColumnScope.NONE : StripeColumnScope.PROJECTED,
+                StreamingParallelParsingCoordinator.WarningSinks.NONE
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     /**
@@ -6440,6 +6503,50 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /** Path + mtime only — bytes come from the decompressed stream, not this object. */
+    /** A file object that records how many times its last-modified was asked for. */
+    private static final class CountingMtimeStorageObject extends AbstractTestStorageObject {
+        private final StoragePath path;
+        private final Instant mtime;
+        private final AtomicInteger probes;
+
+        CountingMtimeStorageObject(String path, Instant mtime, AtomicInteger probes) {
+            this.path = StoragePath.of(path);
+            this.mtime = mtime;
+            this.probes = probes;
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() {
+            probes.incrementAndGet();
+            return mtime;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+    }
+
     private static final class TestFileStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final Instant mtime;

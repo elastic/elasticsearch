@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>Reaching that marker takes care. A {@code LIMIT} pushed INTO the source does NOT reach it: a pushed limit
  * leaves {@code rowLimit != NO_LIMIT}, and {@code AsyncExternalSourceOperatorFactory.openWithParallelism} returns
- * null for that, so no coordinator is built and the serial rail writes no marker. The marker needs a read the
+ * null for that, so no coordinator is built and the single-threaded read writes no marker. The marker needs a read the
  * source runs uncapped that still stops short — a LIMIT behind a filter the planner cannot push, which installs a
  * downstream observed limiter instead. Hence the {@code EVAL}-derived predicate below, and the pinned parsing
  * parallelism, since a coordinator is only built above one.
@@ -140,7 +140,7 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
         assertEarlyCloseMarkerOnlyWhenEnabled("csv");
     }
 
-    /** The same on the streaming coordinator: a compressed object cannot be range-split, so it takes that rail. */
+    /** The same on the streaming coordinator, which a compressed object takes because it cannot be range-split. */
     public void testGzippedCsvEarlyCloseWritesNoPerFileMarkerWithTheCacheDisabled() throws Exception {
         assertEarlyCloseMarkerOnlyWhenEnabled("csv.gz");
     }

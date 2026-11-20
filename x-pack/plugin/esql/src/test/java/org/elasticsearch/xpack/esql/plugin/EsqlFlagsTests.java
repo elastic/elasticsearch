@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags.FetchPhaseMode;
 
 import java.util.HashSet;
@@ -43,9 +42,9 @@ public class EsqlFlagsTests extends ESTestCase {
     }
 
     public void testParserLimitsDefaults() {
-        assertThat(EsqlFlags.DEFAULTS.maxBinaryOperatorsPerExpression(), equalTo(EsqlParser.MAX_BINARY_OPERATORS));
+        assertThat(EsqlFlags.DEFAULTS.maxBinaryOperatorsPerExpression(), equalTo(1000));
         // the parentheses setting counts the opening and the closing ones, the parser uses half of it
-        assertThat(EsqlFlags.DEFAULTS.maxParenthesesCount(), equalTo(2 * EsqlParser.MAX_LEFT_PARENTHESES));
+        assertThat(EsqlFlags.DEFAULTS.maxParenthesesCount(), equalTo(1000));
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS));
         assertThat(new EsqlFlags(clusterSettings), equalTo(EsqlFlags.DEFAULTS));
     }

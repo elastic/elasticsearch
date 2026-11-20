@@ -10,14 +10,24 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Reindex test for routing.
@@ -25,6 +35,23 @@ import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActionMetadataTestCase<
     ReindexRequest,
     BulkByPaginatedSearchResponse> {
+    public void testConvertedSourceKeepsTheHitRouting() throws Exception {
+        TestAction action = action();
+        action.mainRequest().getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
+        SearchHit searchHit = new SearchHit(1, "id");
+        searchHit.sourceRef(new BytesArray("{\"a\":1}".getBytes(StandardCharsets.UTF_8)));
+        searchHit.setDocumentField(new DocumentField(RoutingFieldMapper.NAME, List.of("foo")));
+        ClientHit hit = new ClientHit(searchHit);
+        searchHit.decRef();
+
+        BulkRequest bulk = action.buildBulk(List.of(hit), new AtomicLong());
+
+        IndexRequest index = (IndexRequest) bulk.requests().get(0);
+        assertEquals("foo", index.routing());
+        assertEquals(XContentType.SMILE, index.getContentType());
+        assertFalse(searchHit.hasReferences());
+    }
+
     public void testRoutingCopiedByDefault() throws Exception {
         IndexRequest index = new IndexRequest();
         action().copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));

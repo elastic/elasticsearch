@@ -1218,9 +1218,6 @@ public class Reindexer {
                     parser.nextToken();
                     builder.copyCurrentStructure(parser);
                     index.source(BytesReference.bytes(builder), builder.contentType());
-                    // The request holds the converted copy, so the hit's source is no longer needed. Release is safe to repeat, so
-                    // the page cleanup releasing this hit again does no harm.
-                    doc.release();
                 } catch (IOException e) {
                     throw new UncheckedIOException(
                         "failed to convert hit ["
@@ -1263,6 +1260,15 @@ public class Reindexer {
             }
 
             return wrap(index);
+        }
+
+        @Override
+        protected void releaseHitAfterRequestBuilt(PaginatedHitSource.Hit doc) {
+            // The request holds its own copy of the source. Routing and a script have already read the hit.
+            final XContentType destType = mainRequest.getDestination().getContentType();
+            if (destType != null && doc.getXContentType() != destType) {
+                doc.release();
+            }
         }
 
         /**

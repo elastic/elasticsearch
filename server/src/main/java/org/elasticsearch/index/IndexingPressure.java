@@ -192,7 +192,8 @@ public class IndexingPressure implements IndexingPressureMonitor {
     }
 
     /**
-     * A built reindex page was this many bytes under the estimate it reserved.
+     * A page charge shrank by this many bytes after its estimate. The shrink is to the hits when the page arrives, or to the bulk
+     * when that is smaller. A page can shrink and later grow, and both are recorded.
      */
     public void addReindexPageBytesBelowEstimate(long bytes) {
         assert bytes > 0 : bytes;
@@ -200,7 +201,8 @@ public class IndexingPressure implements IndexingPressureMonitor {
     }
 
     /**
-     * A built reindex page was this many bytes over the estimate it reserved.
+     * A page charge grew by this many bytes after its estimate. The growth is from the hits up to the bulk, so a page that is still
+     * under its estimate can record it. Real bytes are the reserved total, minus the shrinks, plus the growths.
      */
     public void addReindexPageBytesAboveEstimate(long bytes) {
         assert bytes > 0 : bytes;
@@ -263,8 +265,8 @@ public class IndexingPressure implements IndexingPressureMonitor {
      * for one of them to be released. A page whose real size is between half the limit and the limit reserves half and grows when it
      * is resized. That growth is refused only when the reservation's own new size passes the limit.
      *
-     * @param systemOnly true when the page only reads or writes system indices. A system-only reserve skips the node total check, so
-     *                   it is never refused for what the node already holds, as a system-only bulk never was.
+     * @param systemOnly true when every index the page writes is a system index. The reserve then skips the node total check, so
+     *                   bytes the node already holds do not refuse it. A system-only bulk was never refused that way.
      * @throws EsRejectedExecutionException if the bytes do not fit, in which case nothing was reserved
      */
     public Coordinating reserveReindexPage(int operations, long bytes, boolean systemOnly) {

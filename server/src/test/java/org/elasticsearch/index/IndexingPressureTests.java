@@ -506,6 +506,17 @@ public class IndexingPressureTests extends ESTestCase {
         }
     }
 
+    public void testSystemOnlyReserveLargerThanTheLimitIsRefusedAndCountsNoCoordinatingRejection() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        long limit = indexingPressure.getCoordinatingLimitInBytes();
+        long before = indexingPressure.stats().getCurrentCoordinatingBytes();
+        expectThrows(EsRejectedExecutionException.class, () -> indexingPressure.reserveReindexPage(1, limit + 1, true));
+        assertEquals(before, indexingPressure.stats().getCurrentCoordinatingBytes());
+        assertEquals(0, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+        assertEquals(0, indexingPressure.stats().getCoordinatingRejections());
+        assertEquals(0, indexingPressure.stats().getReindexPageReserveRejections());
+    }
+
     /**
      * A system-only reserve is admitted beside replica bytes that would make a normal reserve of the same size wait.
      */

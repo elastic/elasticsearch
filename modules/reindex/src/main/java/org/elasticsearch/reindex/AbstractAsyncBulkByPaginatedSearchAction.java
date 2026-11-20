@@ -468,6 +468,12 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     protected abstract RequestWrapper<?> buildRequest(PaginatedHitSource.Hit doc);
 
     /**
+     * Drops a hit whose source was copied onto the request. The default keeps the hit, because the request shares its source.
+     * Called after routing and a script have read the hit.
+     */
+    protected void releaseHitAfterRequestBuilt(PaginatedHitSource.Hit doc) {}
+
+    /**
      * Copies the metadata from a hit to the request.
      */
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
@@ -505,6 +511,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         for (PaginatedHitSource.Hit doc : docs) {
             if (accept(doc)) {
                 RequestWrapper<?> request = scriptApplier.apply(copyMetadata(buildRequest(doc), doc), doc);
+                // Routing and a script read the hit while the request is built. A copied source can be dropped after that.
+                releaseHitAfterRequestBuilt(doc);
                 if (request != null) {
                     bulkRequest.add(request.self());
                     long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
@@ -1214,7 +1222,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             final IndexingPressure.Coordinating charge;
             try {
                 // The reserve is never forced, so a full coordinating budget refuses it instead of borrowing past the limit.
-                // A page that only touches system indices skips the node total check, as a system-only bulk is never refused there.
+                // A page that writes only system indices skips the node total check, as a system-only bulk is never refused there.
                 // The operation count is the page we asked for. The bytes are resized to the bulk once it exists.
                 charge = pressure.reserveReindexPage(pageDocCount(), estimatedPageBytes(pressure), writesOnlySystemIndices());
             } catch (EsRejectedExecutionException e) {

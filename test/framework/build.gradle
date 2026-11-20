@@ -90,7 +90,6 @@ tasks.named("thirdPartyAudit").configure {
           'net.bytebuddy.agent.Installer',
           'net.bytebuddy.agent.ByteBuddyAgent',
           'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
-          'org.opentest4j.AssertionFailedError',
 
           // not using JNA
          'com.sun.jna.FunctionMapper',

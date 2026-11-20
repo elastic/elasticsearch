@@ -7,6 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
@@ -30,9 +32,28 @@ dependencies {
   runtimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit}"
 }
 
-// the main files are actually test files, so use the appropriate forbidden api sigs
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures', 'es-all-signatures', 'es-test-signatures'
+// we don't depend on :server or lucene here
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}
+tasks.named("thirdPartyAudit").configure {
+  // junit platform launcher uses jdk.jfr.Event
+  ignoreViolations(
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener$DiscoveryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener$DiscoveryIssueEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener$EngineDiscoveryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener$LauncherDiscoveryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener',
+
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$ExecutionEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$FileEntryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$ReportEntryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$SkippedTestEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$TestEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$TestExecutionEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$TestPlanExecutionEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener',
+  )
 }
 
 // TODO: should we have licenses for our test deps?
@@ -43,3 +64,7 @@ tasks.named('splitPackagesAudit').configure {
   // for now we always run tests with the classpath, so we are ok with split packages for tests
   enabled = false
 }
+
+// Tests extend RandomizedTest directly rather than LuceneTestCase, which
+// is incompatible with the ES testing-conventions baseline
+tasks.named('testTestingConventions').configure { enabled = false }

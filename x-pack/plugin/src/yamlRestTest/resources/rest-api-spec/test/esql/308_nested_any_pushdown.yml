@@ -456,6 +456,7 @@ setup:
         allow_partial_results: false
         body:
           query: 'FROM na_runtime_mixed_* | WHERE NESTED_ANY(items.calculated == 5) | KEEP id | SORT id | LIMIT 10'
+  # Whether a node pushes the predicate is decided from the shards it holds, so how many documents are found depends on which
+  # nodes the two indices land on. Only the rows are the same everywhere.
   - match: { values: [["a1"], ["b1"]] }
-  - match: { documents_found: 4 }
 

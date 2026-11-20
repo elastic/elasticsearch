@@ -334,8 +334,20 @@ Because bulks finish in any order, a flush uploads only the local files whose ra
 shard, which means that every bulk with a lower range has finished (a failed bulk marks its range as processed too). A flush records the
 highest range that it uploaded and deletes every local file below it as a leftover, so a file of a higher range must never be uploaded
 while a lower range is still being written. The limit `index.parquet.max_local_size` is checked before a bulk writes, so bulks that are
-writing at that moment can take the local size a little past it. The client may retry. A flush that picked the local file up before
-the failure has put the rows in the table anyway, which is the at-least-once behaviour that a lost response also gives.
+writing at that moment can take the local size a little past it.
+
+**The staged upload is tried three times, and a flush never takes the file before it is uploaded.** A request to the repository can fail
+for a moment (a throttled request, a reset connection, a credential that is being renewed), and the upload is on the path that
+acknowledges the bulk. So the engine tries it three times, with waits of 250 ms and 1 s, under a new key each time, and it deletes the
+blob of a try that failed. If every try fails, the documents of the batch fail with a 503 whose message has the class and the message of
+the exception and of its causes (`...not acknowledged: [AccessDeniedException: ...]`), and the engine logs the exception at `WARN`. An
+earlier version had neither, and a run that failed with a 503 left no way to see why. With staged durability a range is marked
+processed only after its staged copy is uploaded (or the bulk is discarded), and a flush takes only files up to the processed
+checkpoint, so a flush cannot put the rows of a bulk in the table while its upload is still being tried. An earlier version marked the
+range right after the local write, and a flush could take the file and put its rows in the table before the upload failed: the client
+was told that the bulk failed, and it could send the bulk again and index the rows twice. Now a bulk that fails to stage is not in the
+table, and a client may send it again. The cost is that a slow upload holds back the flush of the files of the later bulks until it
+ends, which is at most the time of the three tries.
 
 A flush deletes the staged copies of the rows that it has put in the table: after the local files, and at its start for any copy at or
 below the high-water mark (a leftover of a crash, or of an upload that finished after the flush). A failed delete is only logged.

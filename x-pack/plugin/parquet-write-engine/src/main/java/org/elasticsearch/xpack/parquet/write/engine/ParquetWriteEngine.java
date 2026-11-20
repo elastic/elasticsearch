@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.parquet.write.file.LocalParquetFiles;
 import org.elasticsearch.xpack.parquet.write.file.MultiValuedFields;
 import org.elasticsearch.xpack.parquet.write.flush.ParquetFlusher;
 import org.elasticsearch.xpack.parquet.write.flush.ShardCommitData;
+import org.elasticsearch.xpack.parquet.write.staging.Retries;
 import org.elasticsearch.xpack.parquet.write.staging.StagedFileAdopter;
 import org.elasticsearch.xpack.parquet.write.table.ShardTable;
 
@@ -243,6 +244,9 @@ public class ParquetWriteEngine extends Engine {
                 stage(stagingTable, written, acceptedCount);
             } catch (ElasticsearchStatusException e) {
                 return failedBatch(operations, accepted, e);
+            } finally {
+                // the file is staged, or it is gone: a flush may take it now, or must not wait for it (see writeLocalFile)
+                markProcessed(firstSeqNo, acceptedCount);
             }
         }
         final List<IndexResult> results = new ArrayList<>(docCount);
@@ -305,7 +309,8 @@ public class ParquetWriteEngine extends Engine {
 
     /**
      * Writes the local file of a bulk for the sequence numbers {@code [firstSeqNo, firstSeqNo + count - 1]} that the caller reserved, and
-     * marks them processed, so that the flush may take the file. Bulks run this in parallel.
+     * marks them processed, so that the flush may take the file. Bulks run this in parallel. With staged durability the caller marks them
+     * processed when the staged copy is uploaded.
      *
      * <p>The range of a file becomes eligible for a flush only when every lower sequence number is processed too (see
      * {@link ParquetFlusher}), because the flush records the highest range it uploaded and deletes every file below it as a leftover. So
@@ -361,12 +366,13 @@ public class ParquetWriteEngine extends Engine {
             return file;
         } finally {
             try {
-                for (long seqNo = firstSeqNo; seqNo < firstSeqNo + count; seqNo++) {
-                    tracker.markSeqNoAsProcessed(seqNo);
-                    if (staged == false || file == null) {
-                        // with staged durability the rows are persisted when the staged copy is uploaded, unless there is no file
-                        tracker.markSeqNoAsPersisted(seqNo);
-                    }
+                // With staged durability the caller marks the range processed after the staged copy is uploaded. Until then a flush must
+                // not take the file: if the upload fails, the bulk is discarded and its client is told that it failed, and rows that a
+                // flush had put in the table by then would be indexed twice when the client sends the bulk again.
+                if (staged == false || file == null) {
+                    markProcessed(firstSeqNo, count);
+                    // the rows of a staged bulk are persisted when the staged copy is uploaded, unless there is no file
+                    markPersisted(firstSeqNo, count);
                 }
             } finally {
                 localFilesLock.readLock().unlock();
@@ -394,41 +400,92 @@ public class ParquetWriteEngine extends Engine {
         }
     }
 
+    /** How often a staged upload is tried before the bulk fails, and the wait after the first failure (it grows by four times). */
+    private static final int STAGE_ATTEMPTS = 3;
+    private static final long STAGE_FIRST_DELAY_MILLIS = 250;
+
     /**
      * Copies the local file of a bulk to the staging directory of the repository, and only then marks its sequence numbers persisted.
-     * A failure discards the bulk: the local file is deleted (its sequence numbers stay used, which is a gap that the engine tolerates,
-     * because the ranges are in the names of the files and the rows come from the footers), and the client gets an error and may retry.
-     * A flush can have picked the local file up already. Then its rows are in the table, and they are durable.
+     * A failure of the upload is tried again (see {@link Retries}), each time under a new key, and the blob of a failed try is deleted.
+     * If every try fails, the bulk is discarded: the local file is deleted (its sequence numbers stay used, which is a gap that the
+     * engine tolerates, because the ranges are in the names of the files and the rows come from the footers), and the client gets a
+     * 503 with the cause in its message. The file cannot be in the table by then, because a flush takes a file only after its range is
+     * processed, which the caller does after this returns, so the client can send the bulk again without indexing a row twice.
      */
     private void stage(ShardTable table, LocalParquetFiles.LocalFile file, int rows) {
-        final String attempt = ShardTable.newAttempt();
-        String stagedName = null;
+        final String[] lastBlob = new String[1];
         try {
-            try (IndexInput in = store.directory().openInput(file.name(), IOContext.DEFAULT)) {
-                stagedName = table.stageFile(
-                    file.fromSeqNo(),
-                    file.toSeqNo(),
-                    attempt,
-                    new BufferedInputStream(new InputStreamIndexInput(in, file.length())),
-                    file.length()
-                );
-            } catch (NoSuchFileException e) {
-                // flushed already: the rows are in the table
-            }
+            Retries.run(STAGE_ATTEMPTS, STAGE_FIRST_DELAY_MILLIS, attempt -> {
+                final String attemptId = ShardTable.newAttempt();
+                final String blob = ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo(), attemptId);
+                lastBlob[0] = blob;
+                try (IndexInput in = store.directory().openInput(file.name(), IOContext.DEFAULT)) {
+                    return table.stageFile(
+                        file.fromSeqNo(),
+                        file.toSeqNo(),
+                        attemptId,
+                        new BufferedInputStream(new InputStreamIndexInput(in, file.length())),
+                        file.length()
+                    );
+                } catch (NoSuchFileException e) {
+                    return null; // flushed already: the rows are in the table
+                } catch (IOException | RuntimeException e) {
+                    // the blob that this try may have written is not wanted, and the next try has a key of its own
+                    deleteStagedQuietly(table, blob);
+                    throw e;
+                }
+            }, Thread::sleep);
         } catch (IOException | RuntimeException | LinkageError e) {
-            discard(table, file, stagedName != null ? stagedName : ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo(), attempt));
+            logger.warn(
+                () -> Strings.format(
+                    "could not stage the bulk [%s] of shard [%s] in the repository after [%d] attempts, so it is not acknowledged",
+                    file.name(),
+                    shardId,
+                    STAGE_ATTEMPTS
+                ),
+                e
+            );
+            discard(table, file, lastBlob[0]);
             markPersisted(file.fromSeqNo(), rows);
             if (e instanceof LinkageError linkage) {
                 throw LinkageFailures.asException("stage a bulk", linkage);
             }
             throw new ElasticsearchStatusException(
-                "could not stage the bulk for shard [{}] in the repository, so it is not acknowledged",
+                "could not stage the bulk for shard [{}] in the repository, so it is not acknowledged: [{}]",
                 RestStatus.SERVICE_UNAVAILABLE,
                 e,
-                shardId
+                shardId,
+                describe(e)
             );
         }
         markPersisted(file.fromSeqNo(), rows);
+    }
+
+    private void deleteStagedQuietly(ShardTable table, String blob) {
+        try {
+            table.deleteStaged(List.of(blob));
+        } catch (IOException | RuntimeException e) {
+            logger.debug(() -> Strings.format("could not delete the staged file [%s] of a try that failed", blob), e);
+        }
+    }
+
+    /** The class and the message of an exception and of its causes, so that a client that sees only a message sees what failed. */
+    private static String describe(Throwable failure) {
+        final StringBuilder description = new StringBuilder();
+        int depth = 0;
+        for (Throwable t = failure; t != null && depth < 4; t = t.getCause() == t ? null : t.getCause(), depth++) {
+            if (depth > 0) {
+                description.append(" <- ");
+            }
+            description.append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
+        }
+        return description.toString();
+    }
+
+    private void markProcessed(long firstSeqNo, int rows) {
+        for (long seqNo = firstSeqNo; seqNo < firstSeqNo + rows; seqNo++) {
+            tracker.markSeqNoAsProcessed(seqNo);
+        }
     }
 
     private void markPersisted(long firstSeqNo, int rows) {

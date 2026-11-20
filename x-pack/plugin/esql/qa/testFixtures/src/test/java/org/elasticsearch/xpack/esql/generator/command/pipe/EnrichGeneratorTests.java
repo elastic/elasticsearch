@@ -18,13 +18,16 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
 
 public class EnrichGeneratorTests extends ESTestCase {
 
     private static final CommandDescription FROM = new CommandDescription("from", FromGenerator.INSTANCE, "from idx", Map.of());
-    private static final CommandDescription EQL = eql(false);
+    private static final CommandDescription EQL = new CommandDescription(
+        EqlGenerator.EQL,
+        EqlGenerator.INSTANCE,
+        "EQL idx \"any where true\"",
+        Map.of()
+    );
     private static final CommandDescription WHERE = new CommandDescription("where", WhereGenerator.INSTANCE, " | where true", Map.of());
 
     public void testNoModeAfterFrom() {
@@ -32,18 +35,9 @@ public class EnrichGeneratorTests extends ESTestCase {
         assertThat(prefixes(List.of(FROM, WHERE)), equalTo(Set.of("")));
     }
 
-    public void testEveryModeRightAfterAnEqlSource() {
-        assertThat(prefixes(List.of(EQL)), equalTo(Set.of("", "_any:", "_coordinator:", "_remote:")));
-    }
-
-    public void testNoRemoteModeLaterInAnEqlPipeline() {
-        Set<String> prefixes = prefixes(List.of(EQL, WHERE));
-        assertThat(prefixes, not(hasItem("_remote:")));
-        assertThat(prefixes, hasItem("_coordinator:"));
-    }
-
-    public void testNoRemoteModeAfterAnEqlUnion() {
-        assertThat(prefixes(List.of(eql(true))), not(hasItem("_remote:")));
+    public void testEveryModeButRemoteAfterAnEqlSource() {
+        assertThat(prefixes(List.of(EQL)), equalTo(Set.of("", "_any:", "_coordinator:")));
+        assertThat(prefixes(List.of(EQL, WHERE)), equalTo(Set.of("", "_any:", "_coordinator:")));
     }
 
     private static Set<String> prefixes(List<CommandDescription> previousCommands) {
@@ -52,14 +46,5 @@ public class EnrichGeneratorTests extends ESTestCase {
             prefixes.add(EnrichGenerator.modePrefix(previousCommands));
         }
         return prefixes;
-    }
-
-    private static CommandDescription eql(boolean union) {
-        return new CommandDescription(
-            EqlGenerator.EQL,
-            EqlGenerator.INSTANCE,
-            "EQL idx \"any where true\"",
-            Map.of(FromGenerator.HAS_UNION_ALL, union)
-        );
     }
 }

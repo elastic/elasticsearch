@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.EqlGenerator;
-import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,15 +51,12 @@ public class EnrichGenerator implements CommandGenerator {
         return new CommandDescription(ENRICH, this, cmdString, Map.of(ENRICH_FIELDS, enrichFields));
     }
 
-    // Coverage, keep after the fix: modes after an EQL source reach https://github.com/elastic/elasticsearch/issues/166178. _remote:
-    // only right after a non-union source; later placements hit remote-ENRICH ordering rules this generator does not model.
+    // Permanent design constraint: no _remote: mode, an EQL source runs on the coordinator so a remote ENRICH after it is rejected
     static String modePrefix(List<CommandDescription> previousCommands) {
         if (previousCommands.isEmpty() || EqlGenerator.EQL.equals(previousCommands.getFirst().commandName()) == false) {
             return "";
         }
-        boolean remoteAllowed = previousCommands.size() == 1
-            && Boolean.TRUE.equals(previousCommands.getFirst().context().get(FromGenerator.HAS_UNION_ALL)) == false;
-        return remoteAllowed ? randomFrom("", "_any:", "_coordinator:", "_remote:") : randomFrom("", "_any:", "_coordinator:");
+        return randomFrom("", "_any:", "_coordinator:");
     }
 
     static List<String> parseEnrichFields(String policyJson) {

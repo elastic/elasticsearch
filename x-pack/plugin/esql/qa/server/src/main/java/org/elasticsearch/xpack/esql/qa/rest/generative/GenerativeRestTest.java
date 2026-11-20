@@ -66,7 +66,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -674,11 +673,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isEvalInlineStatsProjectBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isFillNullUnmappedFieldsPatternBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRangeWithinNullRangeBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isUnionAllUnresolvedKeepWildcardBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isLookupJoinAfterEqlSourceBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isRemoteEnrichAfterEqlSourceBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isEnrichPolicyAsUnknownColumnBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isEqlTruncationCapSizeBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isUnionAllUnresolvedKeepWildcardBug(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
      * Returns extra error-message regex patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
@@ -1455,120 +1450,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return UNRESOLVED_OBJECT_PATTERN.matcher(errorMessage).matches() && KEEP_WILDCARD_COMMAND_PATTERN.matcher(query).find();
-    }
-
-    private static final Pattern EQL_SOURCE_PATTERN = Pattern.compile("(?i)^(?:SET\\s[^;]*;\\s*)*(?:EQL\\s|FROM\\s+\\(\\s*EQL\\s)");
-    private static final Pattern LOOKUP_JOIN_INDEX_PATTERN = Pattern.compile(
-        "(?i)\\|\\s*LOOKUP\\s+JOIN\\s+(?!_coordinator:)([^\\s|]+)\\s+ON\\b"
-    );
-    private static final Pattern UNKNOWN_INDEX_PROBLEM_PATTERN = Pattern.compile("Unknown index \\[([^\\]]*)\\]");
-    private static final Pattern REMOTE_ENRICH_POLICY_PATTERN = Pattern.compile("(?i)\\|\\s*ENRICH\\s+_remote:([^\\s|]+)\\s");
-    private static final Pattern UNRESOLVABLE_REMOTE_POLICY_PROBLEM_PATTERN = Pattern.compile(
-        "enrich policy \\[([^\\]]*)\\] cannot be resolved since remote clusters are unavailable"
-    );
-    private static final Pattern UNMAPPED_FIELDS_SETTING_PATTERN = Pattern.compile(
-        "(?i)^(?:SET\\s[^;]*;\\s*)*?SET\\s+unmapped_fields\\s*=\\s*\"(?:nullify|load|load_all)\"\\s*;"
-    );
-    private static final Pattern ENRICH_POLICY_PATTERN = Pattern.compile(
-        "(?i)\\|\\s*ENRICH\\s+(?:_(?:any|coordinator|remote):)?([^\\s|:]+)\\s"
-    );
-
-    private enum KnownProblem {
-        LOOKUP_JOIN_AFTER_EQL,
-        REMOTE_ENRICH_AFTER_EQL,
-        ENRICH_POLICY_AS_UNKNOWN_COLUMN
-    }
-
-    // LOOKUP JOIN after a bare or subquery-only EQL source gets no cluster scope, so its lookup index is reported unknown
-    // https://github.com/elastic/elasticsearch/issues/166162
-    static boolean isLookupJoinAfterEqlSourceBug(String errorMessage, String query) {
-        return onlyKnownProblems(errorMessage, query, KnownProblem.LOOKUP_JOIN_AFTER_EQL);
-    }
-
-    // ENRICH _remote: after a bare or subquery-only EQL source gets no cluster scope, so its policy is reported unresolvable
-    // https://github.com/elastic/elasticsearch/issues/166178
-    static boolean isRemoteEnrichAfterEqlSourceBug(String errorMessage, String query) {
-        return onlyKnownProblems(errorMessage, query, KnownProblem.REMOTE_ENRICH_AFTER_EQL);
-    }
-
-    // Under SET unmapped_fields, ResolveUnmapped clears an unresolvable ENRICH policy's error, so it is reported as an unknown column
-    // https://github.com/elastic/elasticsearch/issues/166195
-    static boolean isEnrichPolicyAsUnknownColumnBug(String errorMessage, String query) {
-        return onlyKnownProblems(errorMessage, query, KnownProblem.ENRICH_POLICY_AS_UNKNOWN_COLUMN);
-    }
-
-    // The three issues above can show up together in one query, so each detector also accepts the others' problems.
-    private static boolean onlyKnownProblems(String errorMessage, String query, KnownProblem required) {
-        if (errorMessage == null || query == null) {
-            return false;
-        }
-        boolean eqlSource = EQL_SOURCE_PATTERN.matcher(query).find();
-        boolean unmappedFields = UNMAPPED_FIELDS_SETTING_PATTERN.matcher(query).find();
-        if (eqlSource == false && unmappedFields == false) {
-            return false;
-        }
-        Set<String> lookupIndices = eqlSource ? capturedNames(LOOKUP_JOIN_INDEX_PATTERN, query) : Set.of();
-        Set<String> remotePolicies = eqlSource ? capturedNames(REMOTE_ENRICH_POLICY_PATTERN, query) : Set.of();
-        Set<String> unresolvablePolicies = new HashSet<>();
-        if (unmappedFields) {
-            unresolvablePolicies.addAll(capturedNames(ENRICH_POLICY_PATTERN, query));
-            for (CsvTestsDataLoader.EnrichConfig policy : ENRICH_POLICIES.values()) {
-                unresolvablePolicies.remove(policy.policyName());
-            }
-            unresolvablePolicies.addAll(remotePolicies);
-        }
-        Matcher problems = PROBLEM_LINE.matcher(errorMessage);
-        Matcher unknownIndex = UNKNOWN_INDEX_PROBLEM_PATTERN.matcher(errorMessage);
-        Matcher remotePolicy = UNRESOLVABLE_REMOTE_POLICY_PROBLEM_PATTERN.matcher(errorMessage);
-        Matcher unknownColumn = UNKNOWN_COLUMN_PROBLEM_PATTERN.matcher(errorMessage);
-        Set<KnownProblem> found = EnumSet.noneOf(KnownProblem.class);
-        while (problems.find()) {
-            int start = problems.end();
-            if (unknownIndex.region(start, errorMessage.length()).lookingAt() && lookupIndices.contains(unknownIndex.group(1))) {
-                found.add(KnownProblem.LOOKUP_JOIN_AFTER_EQL);
-            } else if (remotePolicy.region(start, errorMessage.length()).lookingAt() && remotePolicies.contains(remotePolicy.group(1))) {
-                found.add(KnownProblem.REMOTE_ENRICH_AFTER_EQL);
-            } else if (unknownColumn.region(start, errorMessage.length()).lookingAt()
-                && unresolvablePolicies.contains(unknownColumn.group(1))) {
-                    found.add(KnownProblem.ENRICH_POLICY_AS_UNKNOWN_COLUMN);
-                } else {
-                    return false;
-                }
-        }
-        return found.contains(required);
-    }
-
-    private static Set<String> capturedNames(Pattern pattern, String query) {
-        Set<String> names = new HashSet<>();
-        Matcher matcher = pattern.matcher(query);
-        while (matcher.find()) {
-            names.add(matcher.group(1));
-        }
-        return names;
-    }
-
-    private static final Pattern TOO_MANY_IDS_PATTERN = Pattern.compile(
-        ".*Too many ids specified, allowed max result window is \\[\\d+\\].*",
-        Pattern.DOTALL
-    );
-    private static final Pattern EQL_SEQUENCE_OR_SAMPLE_BRANCH_PATTERN = Pattern.compile(
-        "(?i)\\bEQL\\s+[^\\s\"]+\\s+\"((?:sequence|sample)\\b(?:[^\"\\\\]|\\\\.)*)\"([^|)]*+)(?!\\|\\s*limit\\b)"
-    );
-    private static final Pattern EQL_HEAD_OR_TAIL_PIPE_PATTERN = Pattern.compile("\\|\\s*(?:head|tail)\\b");
-
-    // An EQL sequence or sample without WITH size or a pushed LIMIT asks for the truncation cap of matches: too many ids for one fetch
-    // https://github.com/elastic/elasticsearch/issues/165563
-    static boolean isEqlTruncationCapSizeBug(String errorMessage, String query) {
-        if (errorMessage == null || query == null || TOO_MANY_IDS_PATTERN.matcher(errorMessage).matches() == false) {
-            return false;
-        }
-        Matcher branch = EQL_SEQUENCE_OR_SAMPLE_BRANCH_PATTERN.matcher(query);
-        while (branch.find()) {
-            if (EQL_HEAD_OR_TAIL_PIPE_PATTERN.matcher(branch.group(1)).find() == false && branch.group(2).contains("\"size\"") == false) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static final Pattern OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(

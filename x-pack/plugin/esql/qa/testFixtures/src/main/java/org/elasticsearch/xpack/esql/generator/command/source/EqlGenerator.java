@@ -47,6 +47,7 @@ public class EqlGenerator implements CommandGenerator {
     public static final EqlGenerator INSTANCE = new EqlGenerator();
 
     public static final String EQL = "eql";
+    public static final int DEFAULT_SIZE = 10;
 
     static final String BRANCH = "eqlBranch";
 
@@ -95,7 +96,7 @@ public class EqlGenerator implements CommandGenerator {
         "with"
     );
 
-    record Branch(Mode mode, int stages, Integer maxMatches, List<String> metadata) {}
+    record Branch(Mode mode, int stages, int maxMatches, List<String> metadata) {}
 
     private record IndexSample(
         String index,
@@ -435,11 +436,11 @@ public class EqlGenerator implements CommandGenerator {
                 yield sampleStages;
             }
         };
-        Integer maxMatches = size;
+        int maxMatches = size == null ? DEFAULT_SIZE : size;
         if (mode != Mode.SAMPLE && randomDouble() < 0.2) {
             int limit = randomIntBetween(1, 20);
             eql.append(" | ").append(randomFrom("head", "tail")).append(" ").append(limit);
-            maxMatches = maxMatches == null ? limit : Math.min(maxMatches, limit);
+            maxMatches = Math.min(maxMatches, limit);
         }
 
         List<String> metadata = EsqlCapabilities.Cap.EQL_COMMAND_METADATA.isEnabled() && randomDouble() < METADATA_PROBABILITY
@@ -611,7 +612,7 @@ public class EqlGenerator implements CommandGenerator {
                 return new ValidationResult(false, "EQL METADATA column [" + metadata + "] is missing from " + names);
             }
         }
-        if (branch.maxMatches() != null && output.size() > branch.maxMatches() * branch.stages()) {
+        if (output.size() > branch.maxMatches() * branch.stages()) {
             return new ValidationResult(
                 false,
                 "EQL returned ["

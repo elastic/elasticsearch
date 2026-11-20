@@ -310,7 +310,7 @@ public class EqlGeneratorTests extends ESTestCase {
     }
 
     public void testValidateOutputRejectsANegativeSequence() {
-        Branch branch = new Branch(Mode.SAMPLE, 2, null, List.of());
+        Branch branch = new Branch(Mode.SAMPLE, 2, EqlGenerator.DEFAULT_SIZE, List.of());
         List<List<Object>> output = List.of(row(-1, 0, "a"));
         ValidationResult result = validate(branch, false, columns("_sequence", "_sequence_stage", "join_keys"), output);
         assertFalse(result.success());
@@ -318,14 +318,14 @@ public class EqlGeneratorTests extends ESTestCase {
     }
 
     public void testValidateOutputRejectsMissingSyntheticColumns() {
-        Branch branch = new Branch(Mode.SAMPLE, 2, null, List.of());
+        Branch branch = new Branch(Mode.SAMPLE, 2, EqlGenerator.DEFAULT_SIZE, List.of());
         ValidationResult result = validate(branch, false, columns("_sequence", "host"), List.of());
         assertFalse(result.success());
         assertThat(result.errorMessage(), containsString("missing synthetic columns"));
     }
 
     public void testValidateOutputRejectsANonNumericSequence() {
-        Branch branch = new Branch(Mode.SEQUENCE, 2, null, List.of());
+        Branch branch = new Branch(Mode.SEQUENCE, 2, EqlGenerator.DEFAULT_SIZE, List.of());
         List<List<Object>> output = List.of(row("x", 0, "a"));
         ValidationResult result = validate(branch, false, columns("_sequence", "_sequence_stage", "join_keys"), output);
         assertFalse(result.success());
@@ -333,7 +333,7 @@ public class EqlGeneratorTests extends ESTestCase {
     }
 
     public void testValidateOutputRejectsStageOutsideTheQueryStages() {
-        Branch branch = new Branch(Mode.SEQUENCE, 2, null, List.of());
+        Branch branch = new Branch(Mode.SEQUENCE, 2, EqlGenerator.DEFAULT_SIZE, List.of());
         List<List<Object>> output = List.of(row(0, 2, "a"));
         ValidationResult result = validate(branch, false, columns("_sequence", "_sequence_stage", "join_keys"), output);
         assertFalse(result.success());
@@ -348,7 +348,7 @@ public class EqlGeneratorTests extends ESTestCase {
     }
 
     public void testValidateOutputRejectsMissingMetadata() {
-        Branch branch = new Branch(Mode.EVENT, 1, null, List.of("_index"));
+        Branch branch = new Branch(Mode.EVENT, 1, EqlGenerator.DEFAULT_SIZE, List.of("_index"));
         ValidationResult result = validate(branch, false, columns("host"), List.of());
         assertFalse(result.success());
         assertThat(result.errorMessage(), containsString("[_index] is missing"));
@@ -471,16 +471,12 @@ public class EqlGeneratorTests extends ESTestCase {
         return stages.split(" \\[", -1).length - 1;
     }
 
-    private static Integer expectedMaxMatches(String eql, String options) {
-        Integer maxMatches = null;
+    private static int expectedMaxMatches(String eql, String options) {
         Matcher size = SIZE.matcher(options == null ? "" : options);
-        if (size.find()) {
-            maxMatches = Integer.parseInt(size.group(1));
-        }
+        int maxMatches = size.find() ? Integer.parseInt(size.group(1)) : EqlGenerator.DEFAULT_SIZE;
         Matcher limit = HEAD_OR_TAIL.matcher(eql);
         if (limit.find()) {
-            int pipeLimit = Integer.parseInt(limit.group(1));
-            maxMatches = maxMatches == null ? pipeLimit : Math.min(maxMatches, pipeLimit);
+            maxMatches = Math.min(maxMatches, Integer.parseInt(limit.group(1)));
         }
         return maxMatches;
     }

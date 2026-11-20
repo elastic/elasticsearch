@@ -19,6 +19,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
@@ -1349,5 +1350,114 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         mapperServices.add(mapperService);
         return createSearchExecutionContext(mapperService);
+    }
+
+    /**
+     * The distinct values of a keyword are the terms of all segments of all shards, sorted. A shard that does not map the
+     * field has none.
+     */
+    public void testDistinctValues() throws IOException {
+        final MapperService mappedService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        final MapperService otherService = createMapperService("""
+            { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+        final MapperService unmappedService = createMapperService("""
+            { "doc": { "properties": { "other": { "type": "long" } } } }""");
+
+        final Directory mappedDir = newDirectory();
+        final Directory otherDir = newDirectory();
+        final Directory unmappedDir = newDirectory();
+        final DirectoryReader mappedReader;
+        final DirectoryReader otherReader;
+        final DirectoryReader unmappedReader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), mappedDir)) {
+            writer.addDocument(keywordDocument("kw", "b"));
+            writer.addDocument(keywordDocument("kw", "c", "a"));
+            writer.commit();
+            writer.addDocument(keywordDocument("kw", "b"));
+            writer.addDocument(keywordDocument("kw", ""));
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            mappedReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), otherDir)) {
+            writer.addDocument(keywordDocument("kw", "d"));
+            writer.addDocument(keywordDocument("kw", "a"));
+            otherReader = writer.getReader();
+        }
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), unmappedDir)) {
+            writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+            unmappedReader = writer.getReader();
+        }
+
+        try {
+            final SearchStats stats = SearchContextStats.from(
+                List.of(
+                    createSearchExecutionContext(mappedService, newSearcher(mappedReader)),
+                    createSearchExecutionContext(unmappedService, newSearcher(unmappedReader)),
+                    createSearchExecutionContext(otherService, newSearcher(otherReader))
+                )
+            );
+            FieldAttribute.FieldName field = new FieldAttribute.FieldName("kw");
+            List<BytesRef> values = List.of(new BytesRef(""), new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d"));
+            assertEquals(values, stats.distinctValues(field, between(5, 100)));
+            assertNull(stats.distinctValues(field, between(0, 4)));
+            // Not a keyword
+            assertNull(stats.distinctValues(new FieldAttribute.FieldName("other"), 100));
+            // Not mapped anywhere
+            assertEquals(List.of(), stats.distinctValues(new FieldAttribute.FieldName("missing"), 100));
+        } finally {
+            IOUtils.close(mappedReader, otherReader, unmappedReader, mappedService, otherService, unmappedService);
+            IOUtils.close(mappedDir, otherDir, unmappedDir);
+        }
+    }
+
+    /**
+     * The distinct values are not listed where the terms of the index are not the values that are read for every document.
+     */
+    public void testDistinctValuesNotListed() throws IOException {
+        for (String mapping : List.of(
+            "\"type\": \"keyword\", \"normalizer\": \"lowercase\"",
+            "\"type\": \"keyword\", \"ignore_above\": 10",
+            "\"type\": \"keyword\", \"index\": false",
+            "\"type\": \"keyword\", \"doc_values\": false",
+            "\"type\": \"text\"",
+            "\"type\": \"ip\""
+        )) {
+            final MapperService keywordService = createMapperService("""
+                { "doc": { "properties": { "kw": { "type": "keyword" } } } }""");
+            final MapperService otherService = createMapperService("{ \"doc\": { \"properties\": { \"kw\": { " + mapping + " } } } }");
+            final Directory keywordDir = newDirectory();
+            final Directory otherDir = newDirectory();
+            final DirectoryReader keywordReader;
+            final DirectoryReader otherReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), keywordDir)) {
+                writer.addDocument(keywordDocument("kw", "a"));
+                keywordReader = writer.getReader();
+            }
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), otherDir)) {
+                writer.addDocument(List.of(new LongField("other", 1L, Field.Store.NO)));
+                otherReader = writer.getReader();
+            }
+            try {
+                final SearchStats stats = SearchContextStats.from(
+                    List.of(
+                        createSearchExecutionContext(keywordService, newSearcher(keywordReader)),
+                        createSearchExecutionContext(otherService, newSearcher(otherReader))
+                    )
+                );
+                assertNull(mapping, stats.distinctValues(new FieldAttribute.FieldName("kw"), 100));
+            } finally {
+                IOUtils.close(keywordReader, otherReader, keywordService, otherService, keywordDir, otherDir);
+            }
+        }
+    }
+
+    private static List<IndexableField> keywordDocument(String field, String... values) {
+        List<IndexableField> document = new ArrayList<>();
+        for (String value : values) {
+            document.add(new StringField(field, value, Field.Store.NO));
+            document.add(new SortedSetDocValuesField(field, new BytesRef(value)));
+        }
+        return document;
     }
 }

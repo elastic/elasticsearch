@@ -18,6 +18,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -45,9 +46,11 @@ import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import static org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper.TimestampFieldType;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -364,6 +367,55 @@ public class SearchContextStats implements SearchStats {
             throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
         return count;
+    }
+
+    @Override
+    public List<BytesRef> distinctValues(FieldName field, int limit) {
+        String name = field.string();
+        TreeSet<BytesRef> values = new TreeSet<>();
+        try {
+            for (SearchExecutionContext context : contexts) {
+                MappedFieldType fieldType = context.getFieldType(name);
+                if (fieldType == null) {
+                    // No document of this shard holds a value
+                    continue;
+                }
+                // The terms of the index are the values that are read only for a plain keyword: a normalizer indexes other terms
+                // than the values, and the values that ignore_above skips are not indexed but may still be read.
+                if (isExtractableMappedField(context, name) == false
+                    || fieldType instanceof KeywordFieldType == false
+                    || isQueryable(context, name, DataType.KEYWORD, true) == false) {
+                    return null;
+                }
+                KeywordFieldType keyword = (KeywordFieldType) fieldType;
+                if (keyword.indexType().hasTerms() == false
+                    || keyword.hasDocValues() == false
+                    || keyword.ignoreAbove().valuesPotentiallyIgnored()) {
+                    return null;
+                }
+                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                    Terms terms = leafContext.reader().terms(name);
+                    if (terms == null) {
+                        continue;
+                    }
+                    if (terms.size() > limit) {
+                        return null;
+                    }
+                    TermsEnum termsEnum = terms.iterator();
+                    for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                        if (values.contains(term) == false) {
+                            if (values.size() == limit) {
+                                return null;
+                            }
+                            values.add(BytesRef.deepCopyOf(term));
+                        }
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+        }
+        return new ArrayList<>(values);
     }
 
     @Override

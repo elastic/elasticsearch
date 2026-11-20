@@ -19,8 +19,10 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
+import java.util.AbstractMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -86,6 +88,24 @@ class SystemPropertiesActions {
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void putAllWithUnlisted() {
         System.getProperties().putAll(Map.of(LISTED, "true", UNLISTED, "true"));
+    }
+
+    /**
+     * The map shows no keys to a check, but has an entry to write.
+     */
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void putAllWithHiddenEntry() {
+        System.getProperties().putAll(new AbstractMap<>() {
+            @Override
+            public Set<Object> keySet() {
+                return Set.of();
+            }
+
+            @Override
+            public Set<Entry<Object, Object>> entrySet() {
+                return Set.of(Map.entry(UNLISTED, "true"));
+            }
+        });
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

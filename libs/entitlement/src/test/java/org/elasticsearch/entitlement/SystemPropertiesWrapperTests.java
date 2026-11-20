@@ -21,10 +21,12 @@ import java.io.StringReader;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class SystemPropertiesWrapperTests extends ESTestCase {
@@ -40,7 +42,7 @@ public class SystemPropertiesWrapperTests extends ESTestCase {
         properties = new Properties();
         properties.setProperty(ALLOWED, "a");
         properties.setProperty(DENIED, "d");
-        wrapper = new SystemPropertiesWrapper(properties, new InstrumentationRegistry() {
+        wrapper = new SystemPropertiesWrapper(() -> properties, new InstrumentationRegistry() {
             @Override
             public void check$(String instrumentationId, Class<?> callingClass, Object... args) {
                 throw new AssertionError("not used by the wrapper");
@@ -188,5 +190,43 @@ public class SystemPropertiesWrapperTests extends ESTestCase {
         assertEquals(properties, clone);
         clone.setProperty(DENIED, "x");
         assertEquals("d", properties.getProperty(DENIED));
+    }
+
+    public void testPutAllReadsTheMapOnce() {
+        // a map that shows no keys to a check, but has an entry to write
+        Map<Object, Object> map = new AbstractMap<>() {
+            @Override
+            public Set<Object> keySet() {
+                return Set.of();
+            }
+
+            @Override
+            public Set<Entry<Object, Object>> entrySet() {
+                return Set.of(Map.entry(DENIED, "changed"));
+            }
+        };
+        expectThrows(NotEntitledException.class, () -> wrapper.putAll(map));
+        assertEquals("d", properties.getProperty(DENIED));
+    }
+
+    public void testClearNeedsEveryKey() {
+        expectThrows(NotEntitledException.class, () -> wrapper.clear());
+        assertEquals("a", properties.getProperty(ALLOWED));
+        assertEquals("d", properties.getProperty(DENIED));
+
+        properties.remove(DENIED);
+        wrapper.clear();
+        assertTrue(properties.isEmpty());
+    }
+
+    public void testFollowsReplacedProperties() {
+        Properties replacement = new Properties();
+        replacement.setProperty("new", "n");
+        properties = replacement;
+
+        assertEquals("n", wrapper.getProperty("new"));
+        assertNull(wrapper.getProperty(ALLOWED));
+        wrapper.setProperty(ALLOWED, "written");
+        assertEquals("written", replacement.getProperty(ALLOWED));
     }
 }

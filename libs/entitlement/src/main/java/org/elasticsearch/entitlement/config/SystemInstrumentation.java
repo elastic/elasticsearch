@@ -35,7 +35,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
-        Properties systemPropertiesWrapper = new SystemPropertiesWrapper(System.getProperties(), registry);
+        Properties systemPropertiesWrapper = new SystemPropertiesWrapper(System::getProperties, registry);
 
         builder.on(Runtime.class, rule -> {
             rule.callingVoid(Runtime::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();

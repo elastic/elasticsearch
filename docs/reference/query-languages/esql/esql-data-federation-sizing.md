@@ -26,7 +26,7 @@ For data held in {{es}} indices, refer to [size your shards](docs-content://depl
 * **Add about one core per three or four concurrent queries** on text, and about one per eight to ten on Parquet.
 * **Do not raise heap past 31 GB.** Scale horizontally across nodes instead.
 
-These figures are starting points, not targets. How a dataset behaves depends on characteristics of your own data — how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects — so a configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
+These figures are starting points, not targets. They assume cold reads, where every query fetches its data from object storage rather than from a cache. How a dataset behaves then depends on characteristics of your own data — how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects — so a configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
 
 ## Background [background]
 
@@ -103,33 +103,23 @@ If you want your queries to run faster, add cores and the heap that goes with th
 
 ## Example configurations [examples]
 
-Each of these is sized for **twelve concurrent queries**.
+Each of these sizes a node for **ten concurrent queries**.
 
 ### NYC TLC trip records, Parquet [example-taxi]
 
-The [TLC trip record data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) is published as one Parquet file per month, of roughly 50 MB to 110 MB. Five years is about 60 files.
+The [TLC trip record data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) is published as one Parquet file per month, of roughly 50 MB to 110 MB. Five years is about 60 files, which is fewer than this guide suggests. For Parquet that is fine, because a file divides on row groups, so the file count is a preference rather than a limit.
 
-| | |
-|---|---|
-| Starting heap | 2 GB |
-| Cores for twelve concurrent queries | 2, so use a 4-core node |
-| Heap at 4 cores | 4 GB to 8 GB |
-| Each further concurrent query | about 0.1 core, and little extra heap |
+Parquet starts at 2 GB of heap. Ten concurrent queries, at about one core per eight to ten, needs only one or two cores, so the smallest sensible node governs rather than the concurrency. At four cores, 1 GB to 2 GB of heap per core gives 4 GB to 8 GB.
 
-Twelve queries at one core per eight to ten needs only two cores, so the node's minimum size governs rather than the concurrency. Sixty files is fewer than this guide suggests, and for Parquet that is fine, because a Parquet file divides on row groups: the file count is a preference rather than a limit.
+**Use a 4-core node with 8 GB of heap.** Each further concurrent query costs about a tenth of a core and little extra heap, so this configuration has room to grow.
 
 ### GH Archive, gzipped NDJSON [example-gharchive]
 
-[GH Archive](https://www.gharchive.org/) publishes one gzipped NDJSON file per hour, so a year is roughly 8,800 files of a few tens of megabytes. That file layout suits this workload well.
+[GH Archive](https://www.gharchive.org/) publishes one gzipped NDJSON file per hour, so a year is roughly 8,800 files of a few tens of megabytes. That layout suits this workload well.
 
-| | |
-|---|---|
-| Starting heap | 4 GB, compressed text |
-| Cores for twelve concurrent queries | 3 to 4 |
-| Heap at 4 cores | 4 GB to 8 GB |
-| Each further concurrent query | about 0.3 core, and 1 GB to 2 GB of heap with it |
+Compressed text starts at 4 GB of heap. Ten concurrent queries, at about one core per three or four, needs three to four cores, and at 1 GB to 2 GB per core that is 4 GB to 8 GB of heap. Because this is compressed text, a wider node would serve fewer concurrent queries rather than more, so those cores belong on separate nodes.
 
-Because this is compressed text, spread those four cores over two or three nodes rather than buying one wider node: a wider node would serve fewer concurrent queries, not more.
+**Use two 2-core nodes with 8 GB of heap each.** Each further concurrent query costs about a third of a core, with 1 GB to 2 GB of heap alongside it.
 
 Three years of hourly files is about 26,000 objects, past the [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files) default. Narrow the resource pattern, or raise the setting.
 
@@ -137,20 +127,11 @@ Three years of hourly files is about 26,000 objects, past the [`esql.external.ma
 
 [Backblaze drive stats](https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data) is published as one CSV file per day, with a wide schema of SMART attributes.
 
-| | With a mapping | Schema inferred |
-|---|---|---|
-| Starting heap | 4 GB | 6 GB to 8 GB |
-| Cores for twelve concurrent queries | 3 to 4 | 3 to 4 |
-| Heap at 4 cores | 4 GB to 8 GB | 6 GB to 12 GB |
-| Each further concurrent query | about 0.3 core | about 0.3 core |
+With a mapping specified, this is compressed text like the example above: 4 GB of heap to start, three to four cores for ten concurrent queries, and 4 GB to 8 GB of heap at 1 GB to 2 GB per core.
 
-Inference is what separates the two columns, and on a schema this wide it is the first thing to fail. Specifying a mapping with `dynamic` set to `false` is worth more here than any hardware change on this page.
+With the schema inferred instead, add a further 2 GB to 4 GB on the coordinating node. On a schema this wide, inference is the first thing to fail.
 
-## What these figures rest on [provenance]
-
-These figures come from a number of experiments and from the architecture of the read paths themselves.
-
-They are given for cold reads: every query is assumed to fetch its data from object storage rather than from a cache.
+**Use a 4-core node with 8 GB of heap and a specified mapping.** Without the mapping, the same node needs 12 GB, which is the clearest case on this page for setting `dynamic` to `false`.
 
 ## Troubleshoot [troubleshoot]
 
@@ -180,3 +161,12 @@ To improve query performance under load:
 * **Narrow the query.** On Parquet, [`KEEP`](/reference/query-languages/esql/commands/keep.md) cuts both the bytes fetched and the work done. On text it saves less, because whole rows are read either way.
 * **Specify a mapping** on text datasets, which takes schema inference out of planning.
 * **Lower [`esql.external.max_concurrent_requests`](#lower-concurrency)** if the slowdown comes with breaker rejections, trading some wall-clock time for stability.
+
+## Related pages [related]
+
+- [Query external datasets](esql-data-federation-querying.md): how the engine reduces storage reads, and how to query datasets alongside indices
+- [Schema inference](esql-data-federation-schema.md): how {{es}} discovers schemas, and how to specify a mapping instead
+- [Dataset settings](esql-data-federation-dataset-settings.md): file discovery, parsing, and reader behavior, including [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size)
+- [Cluster settings](esql-data-federation-cluster-settings.md): request concurrency, file-discovery limits, and caching
+- [Optimize {{esql}} query performance](esql-query-performance.md): general {{esql}} tuning, which applies to datasets too
+- [Costs](esql-data-federation-costs.md): what your storage provider bills for the reads a query generates

@@ -358,7 +358,7 @@ setup:
 synthetic source keeps the order and the duplicates of the values that remain after a null on a keyword field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -434,7 +434,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a text field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -510,7 +510,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a wildcard field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -586,7 +586,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on an ip field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -662,7 +662,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a boolean field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -738,7 +738,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a byte field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -814,7 +814,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a short field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -890,7 +890,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on an integer field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -966,7 +966,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a long field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -1042,7 +1042,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a half_float field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -1118,7 +1118,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a float field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -1194,7 +1194,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a double field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -1270,7 +1270,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a date field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -1346,7 +1346,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a date_nanos field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:

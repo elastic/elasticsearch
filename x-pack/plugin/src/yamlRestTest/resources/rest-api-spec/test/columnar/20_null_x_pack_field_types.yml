@@ -90,7 +90,7 @@ exists matches only documents with a non-null value on an unsigned_long field:
 exists matches only documents with a non-null value on a wildcard field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "string exists matches documents that hold only nulls (proposed contract)"
+      reason: "string exists matches documents that hold only nulls"
 
   - do:
       search:
@@ -186,7 +186,7 @@ value_count and missing aggregations treat documents with only nulls as having n
 synthetic source drops the null elements of an unsigned_long field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -212,7 +212,7 @@ synthetic source drops the null elements of an unsigned_long field:
 synthetic source drops the null elements of a wildcard field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:

@@ -430,7 +430,7 @@ value_count and missing aggregations treat documents with only nulls as having n
 synthetic source drops the null elements of a byte field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -456,7 +456,7 @@ synthetic source drops the null elements of a byte field:
 synthetic source drops the null elements of a short field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -482,7 +482,7 @@ synthetic source drops the null elements of a short field:
 synthetic source drops the null elements of an integer field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -508,7 +508,7 @@ synthetic source drops the null elements of an integer field:
 synthetic source drops the null elements of a half_float field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -534,7 +534,7 @@ synthetic source drops the null elements of a half_float field:
 synthetic source drops the null elements of a float field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -560,7 +560,7 @@ synthetic source drops the null elements of a float field:
 synthetic source drops the null elements of a double field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -586,7 +586,7 @@ synthetic source drops the null elements of a double field:
 synthetic source drops the null elements of a scaled_float field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -612,7 +612,7 @@ synthetic source drops the null elements of a scaled_float field:
 synthetic source drops the null elements of a date_nanos field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:

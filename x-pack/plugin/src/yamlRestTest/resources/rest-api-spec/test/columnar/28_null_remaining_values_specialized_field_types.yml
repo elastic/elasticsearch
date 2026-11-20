@@ -124,7 +124,7 @@ setup:
 synthetic source keeps the order and the duplicates of the values that remain after a null on a match_only_text field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -170,7 +170,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on a scaled_float field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:
@@ -216,7 +216,7 @@ synthetic source keeps the order and the duplicates of the values that remain af
 synthetic source keeps the order and the duplicates of the values that remain after a null on an unsigned_long field in every variant:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+      reason: "source keeps the null element, so the values that remain are not returned alone"
 
   - do:
       search:

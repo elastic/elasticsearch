@@ -54,7 +54,7 @@ setup:
 exists matches only documents with a non-null value on a text field in vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "exists matches a document that holds only nulls on this type (proposed contract in #165909)"
+      reason: "exists matches a document that holds only nulls on this type"
 
   - do:
       search:

@@ -154,7 +154,7 @@ exists in the default index mode matches only documents with a non-null value:
 exists matches only documents with a non-null value on a keyword field without an index:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "string exists matches documents that hold only nulls (proposed contract)"
+      reason: "string exists matches documents that hold only nulls"
 
   - do:
       search:
@@ -193,7 +193,7 @@ exists matches only documents with a non-null value on a keyword field without a
 exists matches only documents with a non-null value on an indexed keyword field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "string exists matches documents that hold only nulls (proposed contract)"
+      reason: "string exists matches documents that hold only nulls"
 
   - do:
       search:
@@ -232,7 +232,7 @@ exists matches only documents with a non-null value on an indexed keyword field:
 exists matches only documents with a non-null value on a text field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "string exists matches documents that hold only nulls (proposed contract)"
+      reason: "string exists matches documents that hold only nulls"
 
   - do:
       search:
@@ -701,7 +701,7 @@ exists hits, size 0 total and count agree on string fields after a merge:
 exists matches only documents with a non-null value on string fields after a deletion:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "string exists matches documents that hold only nulls (proposed contract)"
+      reason: "string exists matches documents that hold only nulls"
 
   - do:
       delete:
@@ -754,7 +754,7 @@ exists matches only documents with a non-null value on string fields after a del
 exists matches only documents with a non-null value on string fields after a merge:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "string exists matches documents that hold only nulls (proposed contract)"
+      reason: "string exists matches documents that hold only nulls"
 
   - do:
       delete:
@@ -813,7 +813,7 @@ exists matches only documents with a non-null value on string fields after a mer
 exists and the missing aggregation count each document once on an indexed keyword field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "string exists matches documents that hold only nulls (proposed contract), while the missing aggregation counts them as missing"
+      reason: "string exists matches documents that hold only nulls, while the missing aggregation counts them as missing"
 
   - do:
       search:
@@ -946,7 +946,7 @@ value_count counts only the values of an indexed keyword field and a date field:
 synthetic source drops the null elements of a keyword field without an index:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -972,7 +972,7 @@ synthetic source drops the null elements of a keyword field without an index:
 synthetic source drops the null elements of an indexed keyword field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -998,7 +998,7 @@ synthetic source drops the null elements of an indexed keyword field:
 synthetic source drops the null elements of a text field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -1024,7 +1024,7 @@ synthetic source drops the null elements of a text field:
 synthetic source drops the null elements of a long field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:
@@ -1050,7 +1050,7 @@ synthetic source drops the null elements of a long field:
 synthetic source drops the null elements of a date field:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "synthetic source keeps null array elements today, and the proposed rule drops them at indexing"
+      reason: "synthetic source keeps null array elements today"
 
   - do:
       search:

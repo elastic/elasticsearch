@@ -526,7 +526,7 @@ setup:
 exists matches only documents with a non-null value on a keyword field in logsdb_columnar and vectordb_columnar and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "exists matches a document that holds only nulls on this type (proposed contract in #165909)"
+      reason: "exists matches a document that holds only nulls on this type"
 
   - do:
       search:
@@ -600,7 +600,7 @@ exists matches only documents with a non-null value on a keyword field in logsdb
 synthetic source drops the null elements of a keyword field in logsdb_columnar and vectordb_columnar and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -690,7 +690,7 @@ synthetic source drops the null elements of a keyword field in logsdb_columnar a
 exists matches only documents with a non-null value on a text field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "exists matches a document that holds only nulls on this type (proposed contract in #165909)"
+      reason: "exists matches a document that holds only nulls on this type"
 
   - do:
       search:
@@ -781,7 +781,7 @@ exists matches only documents with a non-null value on a text field in logsdb_co
 synthetic source drops the null elements of a text field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -892,7 +892,7 @@ synthetic source drops the null elements of a text field in logsdb_columnar and 
 exists matches only documents with a non-null value on a wildcard field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "exists matches a document that holds only nulls on this type (proposed contract in #165909)"
+      reason: "exists matches a document that holds only nulls on this type"
 
   - do:
       search:
@@ -983,7 +983,7 @@ exists matches only documents with a non-null value on a wildcard field in logsd
 synthetic source drops the null elements of a wildcard field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -1417,7 +1417,7 @@ exists matches only documents with a non-null value on an ip field in logsdb_col
 synthetic source drops the null elements of an ip field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -1615,7 +1615,7 @@ exists matches only documents with a non-null value on a boolean field in logsdb
 synthetic source drops the null elements of a boolean field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -1813,7 +1813,7 @@ exists matches only documents with a non-null value on a byte field in logsdb_co
 synthetic source drops the null elements of a byte field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -2032,7 +2032,7 @@ exists matches only documents with a non-null value on a short field in logsdb_c
 synthetic source drops the null elements of a short field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -2251,7 +2251,7 @@ exists matches only documents with a non-null value on an integer field in logsd
 synthetic source drops the null elements of an integer field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -2453,7 +2453,7 @@ exists matches only documents with a non-null value on a long field in logsdb_co
 synthetic source drops the null elements of a long field in logsdb_columnar and vectordb_columnar and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -2630,7 +2630,7 @@ exists matches only documents with a non-null value on a half_float field in log
 synthetic source drops the null elements of a half_float field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -2849,7 +2849,7 @@ exists matches only documents with a non-null value on a float field in logsdb_c
 synthetic source drops the null elements of a float field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -3068,7 +3068,7 @@ exists matches only documents with a non-null value on a double field in logsdb_
 synthetic source drops the null elements of a double field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -3287,7 +3287,7 @@ exists matches only documents with a non-null value on a date field in logsdb_co
 synthetic source drops the null elements of a date field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -3485,7 +3485,7 @@ exists matches only documents with a non-null value on a date_nanos field in log
 synthetic source drops the null elements of a date_nanos field in logsdb_columnar and vectordb_columnar and columnar with row indexing and logsdb_columnar with row indexing and vectordb_columnar with row indexing and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:

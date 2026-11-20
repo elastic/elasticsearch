@@ -320,7 +320,7 @@ setup:
 exists matches only documents with a non-null value on a match_only_text field in logsdb_columnar and vectordb_columnar:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "exists matches a document that holds only nulls on this type (proposed contract in #165909)"
+      reason: "exists matches a document that holds only nulls on this type"
 
   - do:
       search:
@@ -360,7 +360,7 @@ exists matches only documents with a non-null value on a match_only_text field i
 synthetic source drops the null elements of a match_only_text field in logsdb_columnar and vectordb_columnar:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -545,7 +545,7 @@ exists matches only documents with a non-null value on a scaled_float field in l
 synthetic source drops the null elements of a scaled_float field in logsdb_columnar and vectordb_columnar and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:
@@ -650,7 +650,7 @@ exists matches only documents with a non-null value on an unsigned_long field in
 synthetic source drops the null elements of an unsigned_long field in logsdb_columnar and vectordb_columnar and columnar with columnar_stored:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements on this type (proposed contract in #165909)"
+      reason: "source keeps null array elements on this type"
 
   - do:
       search:

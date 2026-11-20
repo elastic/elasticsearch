@@ -171,7 +171,7 @@ setup:
 exists matches only documents with a non-null value on a flattened field in every strict columnar mode:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "exists on the flattened field matches documents whose keys hold only nulls (proposed contract in #165909)"
+      reason: "exists on the flattened field matches documents whose keys hold only nulls"
 
   - do:
       search:
@@ -278,7 +278,7 @@ exists on a flattened key matches only documents with a non-null value for that 
 synthetic source drops the null elements of a flattened field in every strict columnar mode:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
-      reason: "source keeps null array elements and null keys of a flattened field (proposed contract in #165909)"
+      reason: "source keeps null array elements and null keys of a flattened field"
 
   - do:
       search:

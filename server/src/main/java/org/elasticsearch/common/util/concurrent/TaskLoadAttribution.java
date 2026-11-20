@@ -147,7 +147,7 @@ public final class TaskLoadAttribution {
             return;
         }
         long startNanos = task.timed == null ? task.startNanos : task.timed.getStartTimeNanos();
-        assert startNanos >= 0 : "the task has not started running yet";
+        assert task.timed == null || startNanos != -1 : "the task has not started running yet";
         long nanos = nowNanos - startNanos - task.chargedNanos;
         if (nanos <= 0) {
             return;

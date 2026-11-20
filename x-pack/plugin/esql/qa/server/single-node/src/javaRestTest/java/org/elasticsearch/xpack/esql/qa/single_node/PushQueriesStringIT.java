@@ -1077,7 +1077,8 @@ public class PushQueriesStringIT extends ESRestTestCase {
         name = TO_NAME.matcher(name).replaceAll("");
         if (name.equals("LuceneSourceOperator")) {
             MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name))
-                .entry("status", matchesMap().entry("processed_queries", List.of(query)).extraOk());
+                .entry("status", matchesMap().entry("processed_queries", List.of(query)).extraOk())
+                .extraOk();
             assertMap(o, expectedOp);
         }
         return name;

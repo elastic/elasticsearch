@@ -11,7 +11,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lucene.Lucene;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -255,7 +255,7 @@ public class AsyncSearchRefcountAndFallbackTests extends ESSingleNodeTestCase {
             successfulShards,
             skippedShards,
             1L,
-            ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             clusters
         );
     }

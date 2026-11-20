@@ -69,7 +69,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,7 +79,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -837,8 +835,8 @@ public class CompositeRolesStore {
     public void invalidateProject(ProjectId projectId) {
         if (projectResolver.supportsMultipleProjects()) {
             invalidateCachesThenBumpCounter(
-                () -> removeCachedKeysIf(roleCache, key -> key.projectId().equals(projectId)),
-                () -> removeCachedKeysIf(negativeLookupCache, key -> key.projectId().equals(projectId)),
+                () -> roleCache.removeIf(key -> key.projectId().equals(projectId)),
+                () -> negativeLookupCache.removeIf(key -> key.projectId().equals(projectId)),
                 () -> numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1)
             );
         } else {
@@ -848,8 +846,8 @@ public class CompositeRolesStore {
 
     final void removeProject(ProjectId projectId) {
         invalidateCachesThenBumpCounter(
-            () -> removeCachedKeysIf(roleCache, key -> key.projectId().equals(projectId)),
-            () -> removeCachedKeysIf(negativeLookupCache, key -> key.projectId().equals(projectId)),
+            () -> roleCache.removeIf(key -> key.projectId().equals(projectId)),
+            () -> negativeLookupCache.removeIf(key -> key.projectId().equals(projectId)),
             () -> numInvalidation.remove(projectId)
         );
     }
@@ -866,7 +864,7 @@ public class CompositeRolesStore {
     public void invalidate(String role) {
         final ProjectId projectId = Objects.requireNonNull(projectResolver.getProjectId());
         invalidateCachesThenBumpCounter(
-            () -> removeCachedKeysIf(roleCache, key -> projectId.equals(key.projectId()) && key.value().getNames().contains(role)),
+            () -> roleCache.removeIf(key -> projectId.equals(key.projectId()) && key.value().getNames().contains(role)),
             () -> negativeLookupCache.invalidate(new ProjectScoped<>(projectId, role)),
             () -> numInvalidation.compute(projectId, (p, num) -> num == null ? 1 : num + 1)
         );
@@ -874,8 +872,8 @@ public class CompositeRolesStore {
 
     public void invalidateClusterScopedRoles(Set<String> roles) {
         invalidateCachesThenBumpCounter(
-            () -> removeCachedKeysIf(roleCache, key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false),
-            () -> removeCachedKeysIf(negativeLookupCache, key -> roles.contains(key.value())),
+            () -> roleCache.removeIf(key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false),
+            () -> negativeLookupCache.removeIf(key -> roles.contains(key.value())),
             numGlobalInvalidation::incrementAndGet
         );
     }
@@ -906,23 +904,6 @@ public class CompositeRolesStore {
             clearRoleCache.run();
             clearNegativeCache.run();
             bumpInvalidationCounter.run();
-        }
-    }
-
-    /**
-     * Iterates the given cache and removes every key matching {@code removeIf}. Callers <b>must</b> hold
-     * {@link #cacheInvalidationLock} (the exclusive side of the shared cache lock): the underlying {@link Cache} does not permit
-     * concurrent modification while its key iterator is in use, and single-entry writes take the shared side
-     * of the same lock, so holding the exclusive side provides the required isolation.
-     */
-    private <K> void removeCachedKeysIf(Cache<K, ?> cache, Predicate<K> removeIf) {
-        assert cacheInvalidationLock.isHeldByCurrentThread()
-            : "cacheInvalidationLock must be held while iterating and removing cache entries";
-        final Iterator<K> iterator = cache.keys().iterator();
-        while (iterator.hasNext()) {
-            if (removeIf.test(iterator.next())) {
-                iterator.remove();
-            }
         }
     }
 

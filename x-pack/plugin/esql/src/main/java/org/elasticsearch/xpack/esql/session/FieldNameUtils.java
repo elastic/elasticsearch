@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -64,7 +65,8 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.DenseVector;
-import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
@@ -103,6 +105,42 @@ public class FieldNameUtils {
     }
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
+        return addNestedExpand(parsed, collectFieldNames(parsed, hasEnriches, includePrefixFields));
+    }
+
+    /**
+     * A {@code NESTED_EXPAND} needs the nested field's mapping, which field caps otherwise drops. The result's
+     * {@link PreAnalysisResult#nestedScope()} tells the resolution of the main source to keep those fields in a private schema
+     * instead of turning them into ordinary columns.
+     */
+    private static PreAnalysisResult addNestedExpand(LogicalPlan parsed, PreAnalysisResult result) {
+        Set<String> collections = new HashSet<>();
+        parsed.forEachDown(NestedExpand.class, expand -> {
+            if (expand.bound() == false && expand.target() != null) {
+                // TODO: When collection aliases/references are supported, resolve their owning
+                // source and mapped path here; the target name may be an alias in the query.
+                collections.add(expand.target().name());
+            }
+        });
+        if (collections.isEmpty()) {
+            return result;
+        }
+        if (result.fieldNames().contains(WILDCARD)) {
+            return new PreAnalysisResult(result.fieldNames(), result.parentPaths(), true, result.wildcardJoinIndices());
+        }
+        Set<String> fieldNames = new HashSet<>(result.fieldNames());
+        for (String name : result.fieldNames()) {
+            fieldNames.addAll(parentPrefixes(name));
+        }
+        for (String collection : collections) {
+            fieldNames.add(collection);
+            fieldNames.add(collection + ".*");
+            fieldNames.addAll(parentPrefixes(collection));
+        }
+        return new PreAnalysisResult(fieldNames, result.parentPaths(), true, result.wildcardJoinIndices());
+    }
+
+    private static PreAnalysisResult collectFieldNames(LogicalPlan parsed, boolean hasEnriches, boolean includePrefixFields) {
 
         // The EQL command's output is the whole mapping: its query references fields the ES|QL field-name walk
         // cannot see, and a narrow set risks a zero-column schema for `EQL x "q" | STATS COUNT(*)`, so resolve all
@@ -205,7 +243,7 @@ public class FieldNameUtils {
                 var mergeKeepRefsResult = AttributeSet.builder();
                 mergeKeepRefsResult.addAll(parentKeepRefs);
                 // When this fork sits inside a branch of an enclosing fork (nested subqueries), the enclosing fork is mid-loop and
-                // its own branch state must survive this one. Restored at every exit below, the same way the AbstractSubqueryJoin
+                // its own branch state must survive this one. Restored at every exit below, the same way the IndependentSubqueryJoin
                 // handler restores state around an independent subquery. Note that holding the enclosing builder and putting it
                 // back is safe only because currentBranchKeepRefs is replaced, never cleared; keepRefs is cleared, so it is saved
                 // by copy into parentKeepRefs above.
@@ -291,14 +329,14 @@ public class FieldNameUtils {
                     // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
                     joinRefs.addAll(keepRefs);
                 }
-            } else if (p instanceof AbstractSubqueryJoin sj) {
+            } else if (p instanceof Join sj && p instanceof IndependentSubqueryJoin) {
                 // The top-down traversal has already collected references from plans above this join. For a MarkJoin, those references
                 // include the synthetic mark produced by the join itself, which must not be requested from field_caps as an index field.
                 if (sj instanceof MarkJoin markJoin) {
                     referencesBuilder.get().remove(markJoin.markAttribute());
                 }
-                // The IN operand (left join key) is an ordinary outer-pipeline reference (like any WHERE reference), so it goes through
-                // the regular builder where outer aliases can shadow it.
+                // The left join keys (the IN operand, or the ON fields of a JOIN) are ordinary outer-pipeline references (like any WHERE
+                // reference), so they go through the regular builder where outer aliases can shadow them.
                 referencesBuilder.get().addAll(sj.leftReferences());
                 // The subquery (right side) is an independent query: save all mutable traversal state, traverse it
                 // with a clean slate, then restore before traversing the left (main pipeline) side. Only joinRefs,
@@ -451,11 +489,14 @@ public class FieldNameUtils {
             return new PreAnalysisResult(IndexResolver.INDEX_METADATA_FIELD, wildcardJoinIndices);
         } else {
             Set<String> allFields = new HashSet<>();
+            Set<String> parentPaths = new HashSet<>();
             for (String name : fieldNames) {
-                addRelatedFields(includePrefixFields, allFields, name);
+                addRelatedFields(includePrefixFields, allFields, parentPaths, name);
             }
             allFields.add(MetadataAttribute.INDEX);
-            return new PreAnalysisResult(allFields, wildcardJoinIndices);
+            Set<String> onlyParentPaths = onlyParentPaths(parentPaths, allFields);
+            allFields.addAll(parentPaths);
+            return new PreAnalysisResult(allFields, onlyParentPaths, false, wildcardJoinIndices);
         }
     }
 
@@ -465,12 +506,12 @@ public class FieldNameUtils {
      * <li>The field itself: "a.b.c"</li>
      * <li>Its multi-fields: "a.b.c.*". A sample case where this is required is TEXT fields that may have a ".keyword" subfield that's
      * implicitly used in some queries.</li>
-     * <li>(Only when {@code includeFieldParentPrefixes}) All dot-delimited parent prefixes: ["a", "a.b"]. This is needed to get back
-     * flattened parents, which hold a name as a key or, under {@code unmapped_fields="load"}, let the verifier detect their
-     * subfields.</li>
+     * <li>(Only when {@code includeFieldParentPrefixes}) All dot-delimited parent prefixes, into {@code parentPaths}: ["a", "a.b"].
+     * This is needed to get back flattened parents, which hold a name as a key or, under {@code unmapped_fields="load"}, let the
+     * verifier detect their subfields.</li>
      * </ul>
      */
-    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, String name) {
+    private static void addRelatedFields(boolean includeFieldParentPrefixes, Set<String> allFields, Set<String> parentPaths, String name) {
         allFields.add(name);
 
         if (name.endsWith(WILDCARD) == false) {
@@ -478,8 +519,26 @@ public class FieldNameUtils {
         }
 
         if (includeFieldParentPrefixes) {
-            allFields.addAll(parentPrefixes(name));
+            parentPaths.addAll(parentPrefixes(name));
         }
+    }
+
+    /**
+     * The {@code parentPaths} that field caps is asked for only to find the {@code flattened} fields above the names the query uses:
+     * those that none of {@code fieldNames}, by name or pattern, asks for as a field.
+     */
+    public static Set<String> onlyParentPaths(Set<String> parentPaths, Set<String> fieldNames) {
+        if (parentPaths.isEmpty()) {
+            return Set.of();
+        }
+        List<String> patterns = fieldNames.stream().filter(Regex::isSimpleMatchPattern).toList();
+        Set<String> only = new HashSet<>();
+        for (String path : parentPaths) {
+            if (fieldNames.contains(path) == false && patterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, path))) {
+                only.add(path);
+            }
+        }
+        return only;
     }
 
     /**
@@ -498,7 +557,7 @@ public class FieldNameUtils {
     }
 
     /**
-     * Checks whether the main query (excluding subquery plans inside SemiJoin/AntiJoin right children)
+     * Checks whether the main query (excluding the right side of every {@link IndependentSubqueryJoin})
      * contains a plan node that requires explicit field collection (e.g. KEEP, STATS).
      * Subquery plans are skipped because a KEEP inside a subquery should not force field collection
      * for the main query — the main query may still need all fields.
@@ -507,9 +566,9 @@ public class FieldNameUtils {
         if (shouldCollectReferencedFields(plan, inlinestatsAggs)) {
             return true;
         }
-        // Skip the right (subquery) child of SemiJoin/AntiJoin/MarkJoin — its KEEP/STATS should not
+        // Skip the right (subquery) child of an independent subquery join: its KEEP/STATS should not
         // force the main pipeline into explicit field collection.
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
+        if (plan instanceof IndependentSubqueryJoin subqueryJoin) {
             return mainQueryRequiresFieldCollection(subqueryJoin.left(), inlinestatsAggs);
         }
         for (LogicalPlan child : plan.children()) {
@@ -522,8 +581,13 @@ public class FieldNameUtils {
 
     private static boolean subqueryRequiresFieldCollection(LogicalPlan plan, Set<Aggregate> inlinestatsAggs) {
         Holder<Boolean> requireFieldCollection = new Holder<>(true);
-        plan.forEachUp(AbstractSubqueryJoin.class, sj -> {
-            if (sj.right().anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
+        plan.forEachUp(p -> {
+            // A KEEP or STATS inside a subquery nested in this one narrows only the nested subquery, not this one.
+            if (p instanceof IndependentSubqueryJoin sj
+                && IndependentSubqueryJoin.anyMatchInMainScope(
+                    sj.right(),
+                    sub -> shouldCollectReferencedFields(sub, inlinestatsAggs)
+                ) == false) {
                 requireFieldCollection.set(false);
             }
         });
@@ -591,6 +655,7 @@ public class FieldNameUtils {
             || p instanceof Keep
             || p instanceof Limit
             || p instanceof MvExpand
+            || p instanceof NestedExpand
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract

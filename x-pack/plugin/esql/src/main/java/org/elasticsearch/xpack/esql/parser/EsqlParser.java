@@ -23,9 +23,11 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.BitSet;
 import java.util.EmptyStackException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -172,6 +175,7 @@ public class EsqlParser {
             log.debug("Parsed logical plan:\n{}", parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
+        PlanJsonLog.debug(PlanJsonLog.Stage.PARSED, parsed.plan());
         return parsed;
     }
 
@@ -197,6 +201,9 @@ public class EsqlParser {
             log.debug("Parsed view '{}' logical plan:\n{}", viewName, parsed.plan());
             log.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
+        parsed.plan()
+            .forEachDown(Into.class, into -> { throw new ParsingException(into.source(), "INTO is not allowed in a view definition"); });
+        PlanJsonLog.debug(PlanJsonLog.Stage.PARSED, viewName, parsed.plan());
         ViewQuerySettings.validate(parsed.settings(), parsed);
         return parsed;
     }
@@ -250,32 +257,21 @@ public class EsqlParser {
         try {
             ParserPipeline pipeline = createParserPipeline(query, params);
 
-            // Pre-scan the token stream for expression depth BEFORE invoking ANTLR's
+            // Pre-scan the token stream for expression depth and complexity BEFORE invoking ANTLR's
             // recursive-descent parser.
+            boolean lexed;
             try {
                 pipeline.tokenStream().fill();
-                int depth = 0;
-                int prefixChain = 0;
-                for (Token token : pipeline.tokenStream().getTokens()) {
-                    switch (token.getType()) {
-                        case EsqlBaseLexer.LP -> depth++;
-                        case EsqlBaseLexer.RP -> depth--;
-                        case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
-                        default -> prefixChain = 0;
-                    }
-                    if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
-                        throw new ParsingException(
-                            "ES|QL statement exceeded the maximum expression depth allowed ({})",
-                            ExpressionBuilder.MAX_EXPRESSION_DEPTH
-                        );
-                    }
-                }
+                lexed = true;
             } catch (ParsingException pe) {
-                if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum expression depth")) {
-                    throw pe;
-                }
+                lexed = false;
+            }
+            // If the lexer failed, the buffer still holds the tokens before the invalid character. Those are the only tokens the
+            // parser can work on before reporting the error, so they must respect the limits too.
+            checkTokenLimits(pipeline.tokenStream().getTokens(), flags.maxBinaryOperatorsPerExpression(), flags.maxParenthesesCount());
+            if (lexed == false) {
                 // Lexer error during fill() — rebuild the entire pipeline from scratch so the
-                // parser runs lazily and reports the same error as without this depth check.
+                // parser runs lazily and reports the same error as without this pre-scan.
                 pipeline = createParserPipeline(query, params);
             }
 
@@ -295,6 +291,67 @@ public class EsqlParser {
         } catch (EmptyStackException ese) {
             throw new ParsingException("Invalid query [{}]", query);
         }
+    }
+
+    private static void checkTokenLimits(List<Token> tokens, int maxBinaryOperators, int maxParenthesesCount) {
+        // the setting counts the opening and the closing parentheses, a valid query has as many of each
+        int maxLeftParentheses = maxParenthesesCount / 2;
+        int depth = 0;
+        int prefixChain = 0;
+        int binaryOperators = 0;
+        int leftParentheses = 0;
+        for (Token token : tokens) {
+            int type = token.getType();
+            switch (type) {
+                case EsqlBaseLexer.LP -> {
+                    depth++;
+                    leftParentheses++;
+                }
+                case EsqlBaseLexer.RP -> depth--;
+                case EsqlBaseLexer.NOT, EsqlBaseLexer.MINUS, EsqlBaseLexer.PLUS -> prefixChain++;
+                default -> prefixChain = 0;
+            }
+            if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum expression depth allowed ({})",
+                    ExpressionBuilder.MAX_EXPRESSION_DEPTH
+                );
+            }
+            // depth can be negative for an invalid query with an unmatched right parenthesis, which is reported by the parser
+            boolean topLevelSeparator = depth <= 0
+                && (type == EsqlBaseLexer.COMMA || type == EsqlBaseLexer.PIPE || type == EsqlBaseLexer.SEMICOLON);
+            if (type == EsqlBaseLexer.COMMA || topLevelSeparator) {
+                binaryOperators = 0;
+            }
+            if (topLevelSeparator) {
+                leftParentheses = 0;
+            }
+            if (isBinaryOperator(type) && ++binaryOperators > maxBinaryOperators) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum number of binary operators allowed between commas or pipes ({}), "
+                        + "set by the [{}] cluster setting",
+                    maxBinaryOperators,
+                    EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getKey()
+                );
+            }
+            if (leftParentheses > maxLeftParentheses) {
+                throw new ParsingException(
+                    "ES|QL statement exceeded the maximum number of left parentheses allowed in an expression ({}), "
+                        + "which is half of the [{}] cluster setting",
+                    maxLeftParentheses,
+                    EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.getKey()
+                );
+            }
+        }
+    }
+
+    private static boolean isBinaryOperator(int tokenType) {
+        return switch (tokenType) {
+            case EsqlBaseLexer.PLUS, EsqlBaseLexer.MINUS, EsqlBaseLexer.ASTERISK, EsqlBaseLexer.SLASH, EsqlBaseLexer.PERCENT,
+                EsqlBaseLexer.EQ, EsqlBaseLexer.CIEQ, EsqlBaseLexer.NEQ, EsqlBaseLexer.LT, EsqlBaseLexer.LTE, EsqlBaseLexer.GT,
+                EsqlBaseLexer.GTE, EsqlBaseLexer.AND, EsqlBaseLexer.OR, EsqlBaseLexer.CAST_OP -> true;
+            default -> false;
+        };
     }
 
     private class PostProcessor extends EsqlBaseParserBaseListener {

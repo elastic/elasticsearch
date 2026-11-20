@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -51,11 +52,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
 
     @Before
     public void setup() {
-        threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build(),
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders()
-        );
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build();
+        threadPool = new ThreadPool(new ThreadContext(settings), settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
     }
 
     @After
@@ -255,11 +253,8 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
     public void testOnRejectionCausesCancellation() throws Exception {
         final TimeValue delay = TimeValue.timeValueMillis(10L);
         terminate(threadPool);
-        threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build(),
-            MeterRegistry.NOOP,
-            new DefaultBuiltInExecutorBuilders()
-        ) {
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "fixed delay tests").build();
+        threadPool = new ThreadPool(new ThreadContext(settings), settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()) {
             @Override
             public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 if (command instanceof ReschedulingRunnable) {

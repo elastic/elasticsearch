@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -54,8 +57,11 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
 
     private final EsqlCapabilities capabilities;
 
-    public RestEsqlStreamQueryAction(EsqlCapabilities capabilities) {
+    private final BigArrays bigArrays;
+
+    public RestEsqlStreamQueryAction(EsqlCapabilities capabilities, BigArrays bigArrays) {
         this.capabilities = capabilities;
+        this.bigArrays = bigArrays;
     }
 
     @Override
@@ -79,18 +85,15 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             parsed = RequestXContent.parseStream(parser);
         }
-        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client);
-    }
-
-    static RestChannelConsumer streamingChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
-        return streamingChannelConsumer(esqlRequest, StreamOptions.NONE, request, client);
+        return streamingChannelConsumer(parsed.request(), parsed.options(), request, client, bigArrays.bytesRefRecycler());
     }
 
     static RestChannelConsumer streamingChannelConsumer(
         EsqlQueryRequest esqlRequest,
         StreamOptions options,
         RestRequest request,
-        NodeClient client
+        NodeClient client,
+        Recycler<BytesRef> recycler
     ) {
         if (esqlRequest.columnar()) {
             throw new IllegalArgumentException("[columnar] cannot be used with [POST /_query/stream]");
@@ -110,6 +113,8 @@ public class RestEsqlStreamQueryAction extends BaseRestHandler {
             EsqlStreamResponseListener restListener = new EsqlStreamResponseListener(
                 channel,
                 client.threadPool().getThreadContext(),
+                recycler,
+                client,
                 options
             );
             EsqlStreamQueryRequest streamRequest = new EsqlStreamQueryRequest(

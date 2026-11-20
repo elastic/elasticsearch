@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
@@ -31,7 +32,10 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class RestEsqlStreamQueryActionTests extends ESTestCase {
 
-    private final RestEsqlStreamQueryAction handler = new RestEsqlStreamQueryAction(new EsqlCapabilities.Builder(false).build());
+    private final RestEsqlStreamQueryAction handler = new RestEsqlStreamQueryAction(
+        new EsqlCapabilities.Builder(false).build(),
+        BigArrays.NON_RECYCLING_INSTANCE
+    );
 
     public void testRoute() {
         assertThat(handler.getName(), equalTo("esql_stream_query"));
@@ -50,20 +54,30 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
     public void testColumnarRejected() {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         esqlRequest.columnar(true);
-        expectThrows(
-            IllegalArgumentException.class,
-            containsString("columnar"),
-            () -> RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(Map.of()), null)
-        );
+        expectThrows(IllegalArgumentException.class, containsString("columnar"), () -> {
+            RestRequest request = requestWithParams(Map.of());
+            RestEsqlStreamQueryAction.streamingChannelConsumer(
+                esqlRequest,
+                StreamOptions.NONE,
+                request,
+                null,
+                BigArrays.NON_RECYCLING_INSTANCE.bytesRefRecycler()
+            );
+        });
     }
 
     public void testFormatMustBeNdjson() {
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
-        expectThrows(
-            IllegalArgumentException.class,
-            allOf(containsString("ndjson"), containsString("csv")),
-            () -> RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(Map.of("format", "csv")), null)
-        );
+        expectThrows(IllegalArgumentException.class, allOf(containsString("ndjson"), containsString("csv")), () -> {
+            RestRequest request = requestWithParams(Map.of("format", "csv"));
+            RestEsqlStreamQueryAction.streamingChannelConsumer(
+                esqlRequest,
+                StreamOptions.NONE,
+                request,
+                null,
+                BigArrays.NON_RECYCLING_INSTANCE.bytesRefRecycler()
+            );
+        });
     }
 
     /**
@@ -87,7 +101,14 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         boolean allowPartial = randomBoolean();
         EsqlQueryRequest esqlRequest = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx");
         Map<String, String> params = Map.of("allow_partial_results", "" + allowPartial);
-        RestEsqlStreamQueryAction.streamingChannelConsumer(esqlRequest, requestWithParams(params), null);
+        RestRequest request = requestWithParams(params);
+        RestEsqlStreamQueryAction.streamingChannelConsumer(
+            esqlRequest,
+            StreamOptions.NONE,
+            request,
+            null,
+            BigArrays.NON_RECYCLING_INSTANCE.bytesRefRecycler()
+        );
         assertThat(esqlRequest.allowPartialResults(), equalTo(allowPartial));
     }
 

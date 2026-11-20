@@ -394,6 +394,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
+    private final SetOnce<BigArrays> bigArrays = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -410,6 +411,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
+        this.bigArrays.set(bigArrays);
         var blockFactoryProvider = blockFactoryProvider(
             BlockFactory.builder(bigArrays)
                 .maxPrimitiveArraySize(
@@ -894,7 +896,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         // Streaming is unreleased: on release builds the route is not registered, as if it had never been added.
         if (RestEsqlStreamQueryAction.ENABLED) {
-            handlers.add(new RestEsqlStreamQueryAction(capabilities));
+            handlers.add(new RestEsqlStreamQueryAction(capabilities, bigArrays.get()));
         }
         // Federation (external data sources) REST handlers are registered only when the feature is on. When it is
         // not available the routes are unregistered, so PUT/GET/DELETE of data sources and datasets return the

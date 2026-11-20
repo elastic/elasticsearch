@@ -216,7 +216,7 @@ public class SystemIndexStreamWriter implements StoredStreamWriter {
             String streamId = metadata.streamId();
             EscfRowBuffer row = builder.beginRow();
             stringField(row, STREAM_ID_FIELD, streamId);
-            row.longField(PAGE_SEQ_FIELD, 0);
+            row.longField(PAGE_SEQ_FIELD, -1);
             stringField(row, STREAM_TASK, metadata.taskId().toString());
             if (metadata.expiration() != null) {
                 row.longField(STREAM_EXPIRATION_TIME_FIELD, metadata.expiration().toEpochMilli());

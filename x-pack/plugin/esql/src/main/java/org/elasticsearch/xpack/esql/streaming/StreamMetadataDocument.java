@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescr
 
 final class StreamMetadataDocument {
 
-    private static final int METADATA_PAGE_SEQ = 0;
+    private static final int METADATA_PAGE_SEQ = -1;
 
     private StreamMetadataDocument() {}
 

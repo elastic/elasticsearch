@@ -8462,9 +8462,9 @@ public class InternalEngineTests extends EngineTestCase {
                 )
             );
         }
-        if (randomBoolean()) {
-            // have the batch find the existing docs in Lucene rather than in the version map
-            engine.refresh("test");
+        final boolean evictedFromVersionMap = randomBoolean();
+        if (evictedFromVersionMap) {
+            // a refresh empties the version map, so the batch has to find the existing docs in Lucene
             engine.refresh("test");
         }
         final int newDocs = between(1, 5);
@@ -8474,8 +8474,14 @@ public class InternalEngineTests extends EngineTestCase {
         // The conflicts land anywhere in the batch: before, between and after the docs that are written.
         Collections.shuffle(ops, random());
 
+        final long luceneLookupsBefore = engine.getNumIndexVersionsLookups();
         List<Engine.IndexResult> results = engine.indexBatch(engineBatch(ops, encodeAsEscfBatch(ops)));
 
+        // The new docs are never in the version map. The existing ones are, unless the refresh evicted them.
+        assertThat(
+            engine.getNumIndexVersionsLookups() - luceneLookupsBefore,
+            equalTo((long) newDocs + (evictedFromVersionMap ? existingDocs : 0))
+        );
         assertThat(results, hasSize(ops.size()));
         for (int i = 0; i < ops.size(); i++) {
             String id = ops.get(i).id();

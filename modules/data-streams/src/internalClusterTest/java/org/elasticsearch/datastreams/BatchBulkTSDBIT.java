@@ -43,9 +43,11 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -296,18 +298,20 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
         }
         assertNoFailures(client(coordinatingNode).bulk(warmUp).actionGet());
 
-        // Every new document may be preceded by a copy of a warm-up document: same time series and timestamp, so the same _id.
-        BulkRequest bulkRequest = new BulkRequest();
-        List<Boolean> duplicates = new ArrayList<>();
-        int alwaysDuplicated = randomIntBetween(0, numDocs - 1);
+        // The bulk holds the new documents and copies of some of the warm-up documents: same time series and timestamp, so the same
+        // _id. There is always a copy, or the batch would have no document to leave out, and the bulk is shuffled, so that the
+        // rejected documents fall anywhere in the batch: at either end, in between the new documents, and next to each other.
+        record BulkItem(IndexRequest request, boolean duplicate) {}
+        List<BulkItem> items = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            if (i == alwaysDuplicated || randomBoolean()) {
-                bulkRequest.add(keywordDimensionDoc(dataStreamName, baseTime.minusSeconds(numDocs - i).toEpochMilli(), i));
-                duplicates.add(true);
-            }
-            bulkRequest.add(keywordDimensionDoc(dataStreamName, baseTime.plusSeconds(i).toEpochMilli(), i));
-            duplicates.add(false);
+            items.add(new BulkItem(keywordDimensionDoc(dataStreamName, baseTime.plusSeconds(i).toEpochMilli(), i), false));
         }
+        for (int i : randomNonEmptySubsetOf(IntStream.range(0, numDocs).boxed().toList())) {
+            items.add(new BulkItem(keywordDimensionDoc(dataStreamName, baseTime.minusSeconds(numDocs - i).toEpochMilli(), i), true));
+        }
+        Collections.shuffle(items, random());
+        BulkRequest bulkRequest = new BulkRequest();
+        items.forEach(item -> bulkRequest.add(item.request()));
 
         withBatchLoggingEnabled(mockLog -> {
             mockLog.addExpectation(
@@ -323,10 +327,10 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
             );
 
             BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
-            assertThat(bulkResponse.getItems().length, equalTo(duplicates.size()));
-            for (int i = 0; i < duplicates.size(); i++) {
+            assertThat(bulkResponse.getItems().length, equalTo(items.size()));
+            for (int i = 0; i < items.size(); i++) {
                 BulkItemResponse item = bulkResponse.getItems()[i];
-                if (duplicates.get(i)) {
+                if (items.get(i).duplicate()) {
                     assertTrue("item [" + i + "] repeats a document and must be rejected", item.isFailed());
                     assertThat(item.getFailure().getStatus(), equalTo(RestStatus.CONFLICT));
                 } else {

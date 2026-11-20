@@ -550,6 +550,11 @@ public class MappedColumnsTests extends ESTestCase {
         }
 
         @Override
+        public Column toLuceneColumn(int[] compactedDocIds) {
+            return CompactedColumns.of(this, compactedDocIds);
+        }
+
+        @Override
         public RowFieldCursor rowFieldCursor() {
             throw new UnsupportedOperationException("only the column batch is under test");
         }
@@ -594,6 +599,11 @@ public class MappedColumnsTests extends ESTestCase {
         @Override
         public Column toLuceneColumn() {
             return this;
+        }
+
+        @Override
+        public Column toLuceneColumn(int[] compactedDocIds) {
+            return CompactedColumns.of(this, compactedDocIds);
         }
 
         @Override

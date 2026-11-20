@@ -9,18 +9,13 @@
 
 package org.elasticsearch.sourcebatch;
 
-import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.document.column.BinaryColumn;
 import org.apache.lucene.document.column.BytesRefValuesCursor;
 import org.apache.lucene.document.column.Column;
 import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.LongColumn;
-import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
-import org.apache.lucene.document.column.TokenStreamColumn;
-import org.apache.lucene.document.column.VectorColumn;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -157,89 +152,9 @@ public final class MappedColumns {
         }
         final List<Column> luceneColumns = new ArrayList<>(columns.size());
         for (LuceneColumn column : columns) {
-            luceneColumns.add(compact(column.toLuceneColumn(), compactedDocIds));
+            luceneColumns.add(column.toLuceneColumn(compactedDocIds));
         }
         return new SliceableColumnBatch(luceneColumns, numDocs);
-    }
-
-    /**
-     * Wraps a filtered column so that its tuples carry the compacted doc ids. A filtered column is always
-     * {@link Column.Density#SPARSE}, so Lucene only ever reads it through its tuple cursor, and that cursor already skips the
-     * excluded documents: renumbering the doc ids it returns is all that is left to do, whatever the column is backed by.
-     *
-     * @param compactedDocIds the doc id each document of the window takes in the batch, {@code -1} for the excluded ones
-     */
-    private static Column compact(Column column, int[] compactedDocIds) {
-        assert column.density() == Column.Density.SPARSE : "filtered column [" + column.name() + "] must be sparse";
-        return switch (column) {
-            case LongColumn c -> new LongColumn(c.name(), c.fieldType(), Column.Density.SPARSE, c.numericKind()) {
-                @Override
-                public LongTupleCursor tuples() {
-                    final LongTupleCursor in = c.tuples();
-                    return new LongTupleCursor() {
-                        @Override
-                        public int nextDoc() {
-                            return compactedDocId(in.nextDoc(), compactedDocIds);
-                        }
-
-                        @Override
-                        public long longValue() {
-                            return in.longValue();
-                        }
-                    };
-                }
-            };
-            case BinaryColumn c -> new BinaryColumn(c.name(), c.fieldType(), Column.Density.SPARSE) {
-                @Override
-                public StoredValue.Type storedType() {
-                    return c.storedType();
-                }
-
-                @Override
-                public ObjectTupleCursor<BytesRef> tuples() {
-                    return compact(c.tuples(), compactedDocIds);
-                }
-            };
-            case TokenStreamColumn c -> new TokenStreamColumn(c.name(), c.fieldType(), Column.Density.SPARSE) {
-                @Override
-                public ObjectTupleCursor<TokenStream> tuples() {
-                    return compact(c.tuples(), compactedDocIds);
-                }
-            };
-            case VectorColumn<?> c -> compactVectors(c, compactedDocIds);
-            default -> throw new IllegalStateException("cannot compact column [" + column.name() + "] of type " + column.getClass());
-        };
-    }
-
-    private static <T> VectorColumn<T> compactVectors(VectorColumn<T> column, int[] compactedDocIds) {
-        return new VectorColumn<>(column.name(), column.fieldType(), Column.Density.SPARSE) {
-            @Override
-            public ObjectTupleCursor<T> tuples() {
-                return compact(column.tuples(), compactedDocIds);
-            }
-        };
-    }
-
-    private static <T> ObjectTupleCursor<T> compact(ObjectTupleCursor<T> in, int[] compactedDocIds) {
-        return new ObjectTupleCursor<>() {
-            @Override
-            public int nextDoc() {
-                return compactedDocId(in.nextDoc(), compactedDocIds);
-            }
-
-            @Override
-            public T value() {
-                return in.value();
-            }
-        };
-    }
-
-    private static int compactedDocId(int doc, int[] compactedDocIds) {
-        if (doc == DocIdSetIterator.NO_MORE_DOCS) {
-            return doc;
-        }
-        assert compactedDocIds[doc] >= 0 : "column emitted filtered-out doc [" + doc + "]";
-        return compactedDocIds[doc];
     }
 
     /**
@@ -420,6 +335,11 @@ public final class MappedColumns {
         @Override
         public Column toLuceneColumn() {
             return this;
+        }
+
+        @Override
+        public Column toLuceneColumn(int[] compactedDocIds) {
+            return CompactedColumns.of(this, compactedDocIds);
         }
 
         @Override

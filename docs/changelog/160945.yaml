@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 160945
+summary: Treat wrapped pause exceptions as paused
+type: bug

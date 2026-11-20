@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlAsyncActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlStreamActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -397,15 +398,21 @@ public class RBACEngine implements AuthorizationEngine {
                     // the same as the user that submitted the original request so no additional checks are needed here.
                     return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
+            } else if (isStreamRelatedAction(action)) {
+                // ES|QL stream actions that work on a stored result carry a stream id, not indices, so there are no indices to authorize
+                // here.
+                // TODO: these actions must check that the caller owns the stream before they read or delete it. That check is not wired
+                // yet. Until stream storage exists every id is not found, so there is nothing to read or delete.
+                return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else if (action.equals(TransportClosePointInTimeAction.TYPE.name())) {
                 return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
             } else {
                 assert false
-                    : "only scroll and async-search related requests are known indices api that don't "
+                    : "only scroll, async-search and ES|QL stream related requests are known indices api that don't "
                         + "support retrieving the indices they relate to";
                 return SubscribableListener.newFailed(
                     new IllegalStateException(
-                        "only scroll and async-search related requests are known indices "
+                        "only scroll, async-search and ES|QL stream related requests are known indices "
                             + "api that don't support retrieving the indices they relate to"
                     )
                 );
@@ -1166,6 +1173,11 @@ public class RBACEngine implements AuthorizationEngine {
             || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_GET_RESULT_ACTION_NAME)
             || action.equals(EsqlAsyncActionNames.ESQL_ASYNC_STOP_ACTION_NAME)
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
+    }
+
+    private static boolean isStreamRelatedAction(String action) {
+        return action.equals(EsqlStreamActionNames.ESQL_STREAM_GET_RESULT_ACTION_NAME)
+            || action.equals(EsqlStreamActionNames.ESQL_STREAM_DELETE_ACTION_NAME);
     }
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {

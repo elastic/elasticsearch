@@ -551,7 +551,8 @@ public class CsvTestsDataLoader {
         new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json", "airport_city_boundaries"),
         new EnrichConfig("city_airports", "enrich-policy-city_airports.json", "airport_city_boundaries"),
         new EnrichConfig("city_locations", "enrich-policy-city_locations.json", "airport_city_boundaries"),
-        new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json", "colors_cmyk")
+        new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json", "colors_cmyk"),
+        new EnrichConfig("flattened_attributes_policy", "enrich-policy-flattened_attributes.json", "flattened_paths_lookup")
     ).collect(toMap(EnrichConfig::policyName, Function.identity()));
 
     public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(

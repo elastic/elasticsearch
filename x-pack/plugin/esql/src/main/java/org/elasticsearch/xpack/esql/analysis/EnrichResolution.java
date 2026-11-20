@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Holds the resolution results of the enrich polices.
@@ -28,6 +29,7 @@ public final class EnrichResolution {
 
     private final Map<Source, ResolvedEnrichPolicy> resolvedPolicies = ConcurrentCollections.newConcurrentMap();
     private final Map<Source, String> errors = ConcurrentCollections.newConcurrentMap();
+    private volatile Set<String> namedFields = Set.of();
 
     public ResolvedEnrichPolicy getResolvedPolicy(Source source) {
         return resolvedPolicies.get(source);
@@ -49,5 +51,19 @@ public final class EnrichResolution {
 
     public void addError(Source source, String reason) {
         errors.putIfAbsent(source, reason);
+    }
+
+    /**
+     * The names the query uses, which may be keys of the {@code flattened} enrich fields. Empty if the query reads no keys.
+     */
+    public Set<String> namedFields() {
+        return namedFields;
+    }
+
+    /**
+     * Sets the names the query uses, see {@link #namedFields()}.
+     */
+    public void namedFields(Set<String> namedFields) {
+        this.namedFields = Set.copyOf(namedFields);
     }
 }

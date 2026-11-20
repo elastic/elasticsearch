@@ -1,5 +1,5 @@
 ---
-# A key only the lookup index of a LOOKUP JOIN holds is not a column.
+# The lookup index of a LOOKUP JOIN brings in the keys of its flattened fields, but a key never shadows a mapped field.
 setup:
   - requires:
       test_runner_features: [ capabilities ]
@@ -7,7 +7,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ flattened_keys, join_lookup_v12 ]
+          capabilities: [ flattened_keys, flattened_keys_from_lookup_and_enrich, join_lookup_v12 ]
       reason: "A name under a flattened field is a field"
   - do:
       indices.create:
@@ -41,11 +41,19 @@ setup:
           - { "k": "x", "attrs": { "bar": "M" } }
 
 ---
-'a key only the lookup index holds is not a column':
+'a key only the lookup index holds':
   - do:
-      catch: bad_request
       esql.query:
         body:
           query: 'FROM main_kw | LOOKUP JOIN lk ON k | KEEP attrs.baz | LIMIT 10'
-  - match: { error.type: verification_exception }
-  - match: { error.reason: "/(?s).*Unknown.column.\\[attrs.baz\\].*/" }
+  - match: { columns: [ { name: attrs.baz, type: keyword } ] }
+  - match: { values: [ [ "L" ] ] }
+
+---
+'a key never shadows a mapped field':
+  - do:
+      esql.query:
+        body:
+          query: 'FROM main_kw | LOOKUP JOIN lk ON k | KEEP attrs.bar, attrs.baz | LIMIT 10'
+  - match: { columns: [ { name: attrs.bar, type: keyword }, { name: attrs.baz, type: keyword } ] }
+  - match: { values: [ [ "M", "L" ] ] }

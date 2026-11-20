@@ -108,6 +108,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         );
     }
 
+    /**
+     * An enrich index reads the keys of its {@code flattened} enrich fields. Field-level security does not apply to it, and the
+     * coordinator asks for a key only when every node reads keys, so this needs no flag from the request.
+     */
+    @Override
+    protected boolean readsFlattenedKeys(TransportRequest request) {
+        return true;
+    }
+
     @Override
     protected TransportRequest transportRequest(EnrichLookupService.Request request, ShardId shardId) {
         return new TransportRequest(

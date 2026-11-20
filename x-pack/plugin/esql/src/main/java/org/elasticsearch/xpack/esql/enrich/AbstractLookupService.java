@@ -106,6 +106,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -442,6 +443,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         );
     }
 
+    /**
+     * Whether {@code request} reads the names under a {@code flattened} field as its keys, so that field-level security hides a key
+     * as it hides a mapped field. Only {@code LOOKUP JOIN} sends the configuration that says so.
+     */
+    protected boolean readsFlattenedKeys(T request) {
+        return false;
+    }
+
     protected void doLookup(T request, CancellableTask task, ActionListener<LookupResponse> listener) {
         PlannerSettings plannerSettings = this.plannerSettings.get();
         for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
@@ -465,7 +474,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(projectState.metadata(), request.indexPattern)
             );
 
-            LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
+            LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId, readsFlattenedKeys(request));
             releasables.add(shardContext.release);
             final LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(
                 blockFactory.breaker(),
@@ -954,20 +963,37 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     public interface LookupShardContextFactory {
         LookupShardContext create(ShardId shardId) throws IOException;
 
+        /**
+         * Like {@link #create(ShardId)}, for a lookup that reads the names under a {@code flattened} field as its keys when
+         * {@code flattenedKeys}.
+         */
+        default LookupShardContext create(ShardId shardId, boolean flattenedKeys) throws IOException {
+            return create(shardId);
+        }
+
         static LookupShardContextFactory fromSearchService(SearchService searchService) {
-            return shardId -> {
-                // Lookup indices always have one shard and can't be resharded so the value of `SplitShardCountSummary`
-                // doesn't matter.
-                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
-                    shardId,
-                    0,
-                    AliasFilter.EMPTY,
-                    null,
-                    SplitShardCountSummary.IRRELEVANT
-                );
-                return LookupShardContext.fromSearchContext(
-                    searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT)
-                );
+            return new LookupShardContextFactory() {
+                @Override
+                public LookupShardContext create(ShardId shardId) throws IOException {
+                    return create(shardId, false);
+                }
+
+                @Override
+                public LookupShardContext create(ShardId shardId, boolean flattenedKeys) throws IOException {
+                    // Lookup indices always have one shard and can't be resharded so the value of `SplitShardCountSummary`
+                    // doesn't matter.
+                    ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+                        shardId,
+                        0,
+                        AliasFilter.EMPTY,
+                        null,
+                        SplitShardCountSummary.IRRELEVANT
+                    );
+                    return LookupShardContext.fromSearchContext(
+                        searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT),
+                        flattenedKeys
+                    );
+                }
             };
         }
     }
@@ -982,11 +1008,20 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Releasable release
     ) {
         public static LookupShardContext fromSearchContext(SearchContext searchContext) {
+            return fromSearchContext(searchContext, false);
+        }
+
+        /**
+         * @param flattenedKeys whether a name under a {@code flattened} field is a field, the key of that name
+         */
+        public static LookupShardContext fromSearchContext(SearchContext searchContext, boolean flattenedKeys) {
             // A lookup index is a single index that unmapped_fields never reads unmapped fields from, so it resolves only the fields
-            // it maps
+            // it maps, and the keys of its flattened fields
             EsqlSearchExecutionContext esqlCtx = new EsqlSearchExecutionContext(
                 searchContext.getSearchExecutionContext(),
-                QueryWarnings.NOOP
+                QueryWarnings.NOOP,
+                Set.of(),
+                flattenedKeys
             );
             // Queries built via the wrapper charge its own accounting pool, which nothing else drains.
             searchContext.addReleasable(esqlCtx::releaseQueryConstructionMemory);

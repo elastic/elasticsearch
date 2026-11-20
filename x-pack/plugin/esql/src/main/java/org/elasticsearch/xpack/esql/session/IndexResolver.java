@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FlattenedKeyEsField;
 import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
@@ -167,6 +168,21 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         ActionListener<IndexResolution> listener
     ) {
+        resolveLookupIndices(indexPattern, fieldNames, needsFieldSemantics, null, minimumVersion, listener);
+    }
+
+    /**
+     * Like {@link #resolveLookupIndices(String, Set, boolean, TransportVersion, ActionListener)}, also resolving the names in
+     * {@code namedFields} that are keys of the {@code flattened} fields of the lookup indices, as it does for the main indices.
+     */
+    public void resolveLookupIndices(
+        String indexPattern,
+        Set<String> fieldNames,
+        boolean needsFieldSemantics,
+        @Nullable Set<String> namedFields,
+        TransportVersion minimumVersion,
+        ActionListener<IndexResolution> listener
+    ) {
         doResolveIndices(
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
@@ -178,7 +194,7 @@ public class IndexResolver {
             false, /* HIGHLIGHT only reads the analyzer groups of the main indices */
             needsFieldSemantics,
             false,
-            null,
+            namedFields,
             null,
             DO_NOT_GROUP,
             null, /* lookup indices never feed the EQL delegate */
@@ -582,12 +598,8 @@ public class IndexResolver {
         }
 
         // For each field name, store a list of the field caps responses from each index
-        var collectedFieldCaps = collectFieldCaps(
-            fieldsInfo.caps,
-            trackUnmappedFieldIndices,
-            fieldsInfo.objectsAreNotLeaves(),
-            fieldsInfo.keyNames()
-        );
+        Set<String> keyNames = fieldsInfo.keyNames();
+        var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps, trackUnmappedFieldIndices, fieldsInfo.objectsAreNotLeaves(), keyNames);
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
@@ -639,6 +651,10 @@ public class IndexResolver {
                     firstUnsupportedParent.getName(),
                     new HashMap<>()
                 );
+            if (field.getClass() == KeywordEsField.class && keyNames.contains(fullName)) {
+                // Lets the analyzer tell a key from a mapped field of the same name, see FlattenedKeyEsField
+                field = new FlattenedKeyEsField((KeywordEsField) field);
+            }
             if (trackUnmappedFieldIndices) {
                 Set<String> mappedIndices = collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of());
                 field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices, indexDedupCache);

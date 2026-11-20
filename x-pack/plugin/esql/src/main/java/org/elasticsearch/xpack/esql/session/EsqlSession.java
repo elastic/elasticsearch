@@ -2032,13 +2032,14 @@ public class EsqlSession {
         boolean exemplars = QuerySettings.EXEMPLARS.get(configuration.resolvedSettings()).enabled();
         // Exemplar columns missing from the exemplar data streams' mappings are nullified rather than failing the query
         boolean nullify = exemplars || parsed.collectFirstChildren(p -> p instanceof PromqlCommand).isEmpty() == false;
+        Set<String> namedFields = configuration.flattenedKeys() ? FieldNameUtils.namedFields(parsed) : null;
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(
                 preAnalysis,
                 configuration,
                 executionInfo,
                 trackedUnmappedFieldIndices,
-                configuration.flattenedKeys() ? FieldNameUtils.namedFields(parsed) : null,
+                namedFields,
                 result,
                 requestFilter,
                 viewInternalIndexPatterns(parsed),
@@ -2101,6 +2102,7 @@ public class EsqlSession {
                     preAnalysis.lookupIndices().iterator(),
                     parsed,
                     preAnalysis.needsFieldSemantics(),
+                    namedFields,
                     r,
                     executionInfo,
                     l
@@ -2137,6 +2139,9 @@ public class EsqlSession {
                     r.minimumTransportVersion(),
                     planningCpu.meteredCpu(l.delegateFailureAndWrap((ll, enrichResolution) -> {
                         executionInfo.queryProfile().enrichResolutionMarker().stop();
+                        if (namedFields != null) {
+                            enrichResolution.namedFields(namedFields);
+                        }
                         ll.onResponse(r.withEnrichResolution(enrichResolution));
                     }))
                 );
@@ -2178,6 +2183,7 @@ public class EsqlSession {
         Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
         boolean needsFieldSemantics,
+        @Nullable Set<String> namedFields,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2185,7 +2191,7 @@ public class EsqlSession {
         forAll(
             lookupIndices,
             preAnalysisResult,
-            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, r, executionInfo, l),
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, namedFields, r, executionInfo, l),
             listener
         );
     }
@@ -2194,6 +2200,7 @@ public class EsqlSession {
         PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
         boolean needsFieldSemantics,
+        @Nullable Set<String> namedFields,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2254,6 +2261,8 @@ public class EsqlSession {
             qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             needsFieldSemantics,
+            // A lookup index holds keys as a main index does; the analyzer keeps those no other column shadows
+            namedFields,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should

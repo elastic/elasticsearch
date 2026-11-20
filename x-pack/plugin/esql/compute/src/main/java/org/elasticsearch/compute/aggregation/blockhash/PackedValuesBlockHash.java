@@ -855,35 +855,40 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
             for (int g = 0; g < specs.size(); g++) {
                 vectors[g] = page.getBlock(specs.get(g).channel()).asVector();
             }
-            while (positionOffset < positionCount) {
-                final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
-                int batchOffset = 0;
-                while (batchOffset < emitSize) {
-                    final int chunkSize = Math.min(BATCH_SIZE, emitSize - batchOffset);
-                    fillKeys(positionOffset + batchOffset, chunkSize);
-                    if (swiss.shouldPrefetch()) {
-                        for (int i = 0; i < chunkSize; i++) {
-                            hashes[i] = BytesRefSwissHash.hash64(keys, i * keyLength, keyLength);
-                            dummy ^= swiss.prefetch(hashes[i]);
+            try {
+                while (positionOffset < positionCount) {
+                    final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
+                    int batchOffset = 0;
+                    while (batchOffset < emitSize) {
+                        final int chunkSize = Math.min(BATCH_SIZE, emitSize - batchOffset);
+                        fillKeys(positionOffset + batchOffset, chunkSize);
+                        if (swiss.shouldPrefetch()) {
+                            for (int i = 0; i < chunkSize; i++) {
+                                hashes[i] = BytesRefSwissHash.hash64(keys, i * keyLength, keyLength);
+                                dummy ^= swiss.prefetch(hashes[i]);
+                            }
+                            for (int i = 0; i < chunkSize; i++) {
+                                key.offset = i * keyLength;
+                                long id = swiss.addWithHash(key, hashes[i]);
+                                groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                            }
+                        } else {
+                            for (int i = 0; i < chunkSize; i++) {
+                                key.offset = i * keyLength;
+                                long id = swiss.add(key);
+                                groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                            }
                         }
-                        for (int i = 0; i < chunkSize; i++) {
-                            key.offset = i * keyLength;
-                            long id = swiss.addWithHash(key, hashes[i]);
-                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
-                        }
-                    } else {
-                        for (int i = 0; i < chunkSize; i++) {
-                            key.offset = i * keyLength;
-                            long id = swiss.add(key);
-                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
-                        }
+                        batchOffset += chunkSize;
                     }
-                    batchOffset += chunkSize;
+                    emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
+                    positionOffset += emitSize;
                 }
-                emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
-                positionOffset += emitSize;
+                prefetchBarrier.consume(dummy);
+            } finally {
+                // Don't keep the page reachable after it's released.
+                Arrays.fill(vectors, null);
             }
-            prefetchBarrier.consume(dummy);
         }
 
         private void fillKeys(int positionOffset, int batchSize) {
@@ -1171,39 +1176,46 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
             for (int b = 0; b < brVectors.length; b++) {
                 brVectors[b] = (BytesRefVector) vectors[bytesRefSpecIdx[b]];
             }
-            while (positionOffset < positionCount) {
-                final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
-                int batchOffset = 0;
-                while (batchOffset < emitSize) {
-                    final int requested = Math.min(BATCH_SIZE, emitSize - batchOffset);
-                    final int chunkSize = collectRowSizes(positionOffset + batchOffset, requested);
-                    ensureKeyBuf(rowKeys[chunkSize - 1].offset + rowKeys[chunkSize - 1].length);
-                    for (int i = 0; i < chunkSize; i++) {
-                        rowKeys[i].bytes = keyBuf;
-                    }
-                    serializeColumns(positionOffset + batchOffset, chunkSize, cursors);
+            try {
+                while (positionOffset < positionCount) {
+                    final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
+                    int batchOffset = 0;
+                    while (batchOffset < emitSize) {
+                        final int requested = Math.min(BATCH_SIZE, emitSize - batchOffset);
+                        final int chunkSize = collectRowSizes(positionOffset + batchOffset, requested);
+                        ensureKeyBuf(rowKeys[chunkSize - 1].offset + rowKeys[chunkSize - 1].length);
+                        for (int i = 0; i < chunkSize; i++) {
+                            rowKeys[i].bytes = keyBuf;
+                        }
+                        serializeColumns(positionOffset + batchOffset, chunkSize, cursors);
 
-                    if (swiss.shouldPrefetch()) {
-                        for (int i = 0; i < chunkSize; i++) {
-                            hashes[i] = BytesRefSwissHash.hash64(rowKeys[i]);
-                            dummy ^= swiss.prefetch(hashes[i]);
+                        if (swiss.shouldPrefetch()) {
+                            for (int i = 0; i < chunkSize; i++) {
+                                hashes[i] = BytesRefSwissHash.hash64(rowKeys[i]);
+                                dummy ^= swiss.prefetch(hashes[i]);
+                            }
+                            for (int i = 0; i < chunkSize; i++) {
+                                long id = swiss.addWithHash(rowKeys[i], hashes[i]);
+                                groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                            }
+                        } else {
+                            for (int i = 0; i < chunkSize; i++) {
+                                long id = swiss.add(rowKeys[i]);
+                                groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                            }
                         }
-                        for (int i = 0; i < chunkSize; i++) {
-                            long id = swiss.addWithHash(rowKeys[i], hashes[i]);
-                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
-                        }
-                    } else {
-                        for (int i = 0; i < chunkSize; i++) {
-                            long id = swiss.add(rowKeys[i]);
-                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
-                        }
+                        batchOffset += chunkSize;
                     }
-                    batchOffset += chunkSize;
+                    emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
+                    positionOffset += emitSize;
                 }
-                emitBatch(blockFactory, addInput, groupIds, positionOffset, emitSize);
-                positionOffset += emitSize;
+                prefetchBarrier.consume(dummy);
+            } finally {
+                // Don't keep the page reachable after it's released.
+                Arrays.fill(vectors, null);
+                Arrays.fill(nullableBlocks, null);
+                Arrays.fill(brVectors, null);
             }
-            prefetchBarrier.consume(dummy);
         }
 
         /**

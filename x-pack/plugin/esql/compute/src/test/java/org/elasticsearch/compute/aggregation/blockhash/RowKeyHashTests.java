@@ -20,6 +20,7 @@ import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -81,13 +82,28 @@ public class RowKeyHashTests extends BlockHashTestCase {
     public void testNaNsKeepTheirBits() {
         double nan = Double.NaN;
         double otherNan = Double.longBitsToDouble(Double.doubleToRawLongBits(Double.NaN) | 1L);
-        Page page = new Page(blockFactory.newDoubleArrayVector(new double[] { nan, otherNan, nan }, 3).asBlock());
         try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(ElementType.DOUBLE), blockFactory)) {
-            int[] groupIds = hash.add(page);
-            assertThat(groupIds[0], equalTo(groupIds[2]));
-            assertThat(groupIds[0] == groupIds[1], equalTo(false));
-        } finally {
-            page.releaseBlocks();
+            // A vector page, through the batch path.
+            Page vectors = new Page(blockFactory.newDoubleArrayVector(new double[] { nan, otherNan, nan }, 3).asBlock());
+            int[] first;
+            try {
+                first = hash.add(vectors);
+            } finally {
+                vectors.releaseBlocks();
+            }
+            assertThat(first[0], equalTo(first[2]));
+            assertThat(first[0] == first[1], equalTo(false));
+            // A page with a null and a multivalue, through the other paths: the same keys keep their groups.
+            Page mixed = new Page(
+                BlockTestUtils.asBlock(blockFactory, ElementType.DOUBLE, Arrays.asList(otherNan, null, nan, List.of(1.0, 2.0)))
+            );
+            try {
+                int[] second = hash.add(mixed);
+                assertThat(second[0], equalTo(first[1]));
+                assertThat(second[2], equalTo(first[0]));
+            } finally {
+                mixed.releaseBlocks();
+            }
         }
     }
 

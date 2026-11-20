@@ -192,9 +192,9 @@ public final class ExternalSourceCacheSettings {
      * Unlike {@link #STRIPE_SIZE} this does NOT participate in stripe identity, so changing it does not
      * invalidate anything: a cached wide extremum is a TRUE extremum, and the cap is about footprint rather
      * than correctness. Restart-only and cluster-uniform, like {@link #STRIPE_SIZE}: a data node's
-     * contribution rides back to the coordinator, which merges it into its own store, so under a
-     * heterogeneous setting the narrowest node decides what every coordinator can serve. Nothing enforces
-     * that — {@code NodeScope} is per node — and the cost is a miss rather than a wrong answer either way.
+     * contribution rides back to the coordinator of that query, which merges it into its own store, so under
+     * a heterogeneous setting what a coordinator can serve turns on which node read the file for it. Nothing
+     * enforces that — {@code NodeScope} is per node — and the cost is a miss rather than a wrong answer.
      * Raising it does not make a withheld column answerable again in the general case: a fold over more than
      * one piece writes an unservable marker, and the marker outlives every later measurement. Only a file
      * read whole as a single piece re-measures cleanly.

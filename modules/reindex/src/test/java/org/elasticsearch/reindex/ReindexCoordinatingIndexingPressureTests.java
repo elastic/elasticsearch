@@ -1332,6 +1332,128 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
     }
 
     /**
+     * Several workers on one node each want their first page, and every estimate is as big as the coordinating limit. The limit is
+     * a limit on the node, so the workers must not all be admitted together: the node may not hold more coordinating bytes than the
+     * limit, and the ones that do not fit keep waiting.
+     */
+    public void testWorkersWithLimitSizedEstimatesDoNotTogetherHoldMoreThanTheCoordinatingLimit() {
+        int pageSize = between(1, 3);
+        int workers = 3;
+        long limit = between(64 * 1024, 1024 * 1024);
+        IndexingPressure pressure = pressureWhereEveryEstimateHitsTheLimit(limit);
+        ScriptedClock clock = new ScriptedClock();
+        List<Harness> harnesses = new ArrayList<>();
+        for (int i = 0; i < workers; i++) {
+            harnesses.add(new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null));
+        }
+
+        for (Harness harness : harnesses) {
+            harness.start();
+        }
+
+        long searching = harnesses.stream().filter(harness -> harness.client.searches.isEmpty() == false).count();
+        long charged = pressure.stats().getCurrentCoordinatingBytes();
+        assertThat(
+            format(
+                "[%d] of [%d] workers were admitted, and the node holds [%d] coordinating bytes against a limit of [%d]",
+                searching,
+                workers,
+                charged,
+                pressure.getCoordinatingLimitInBytes()
+            ),
+            charged,
+            lessThanOrEqualTo(pressure.getCoordinatingLimitInBytes())
+        );
+        assertThat(
+            format("every one of the [%d] workers is searching, none is waiting for the others", workers),
+            searching,
+            lessThan((long) workers)
+        );
+        assertTrue("a worker that does not fit has to be tried again", clock.hasDeferredTasks());
+    }
+
+    /**
+     * Replica writes already hold a good part of the node's budget. A worker whose estimate is as big as the whole coordinating limit
+     * has to wait for them, because admitting it would put the node well over the limit. It searches once they are gone.
+     */
+    public void testWorkerWithALimitSizedEstimateWaitsForReplicaBytesAndThenSearches() {
+        int pageSize = between(1, 3);
+        long limit = between(64 * 1024, 1024 * 1024);
+        IndexingPressure pressure = pressureWhereEveryEstimateHitsTheLimit(limit);
+        ScriptedClock clock = new ScriptedClock();
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        long replicaBytes = limit * between(55, 65) / 100;
+        Releasable replica = holdOtherBytes(pressure, replicaBytes, true);
+        try {
+            harness.start();
+
+            assertThat(
+                format(
+                    "the worker searched at once, so the node holds [%d] coordinating and [%d] replica bytes against a limit of [%d]",
+                    pressure.stats().getCurrentCoordinatingBytes(),
+                    pressure.stats().getCurrentReplicaBytes(),
+                    pressure.getCoordinatingLimitInBytes()
+                ),
+                harness.client.searches.size(),
+                equalTo(0)
+            );
+            assertFalse(harness.listener.isDone());
+            assertTrue("the refused reserve has to be tried again", clock.hasDeferredTasks());
+        } finally {
+            replica.close();
+        }
+
+        clock.advanceTime();
+
+        assertThat(harness.client.searches.size(), equalTo(1));
+        assertThat(harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes()));
+    }
+
+    /**
+     * Replica writes hold only a small part of the node's budget, so a worker whose estimate is as big as the coordinating limit
+     * still has to be admitted. Without this a node with a steady trickle of replica writes would never let a reindex search again.
+     */
+    public void testWorkerWithALimitSizedEstimateIsAdmittedWhenReplicaBytesAreSmall() {
+        int pageSize = between(1, 3);
+        long limit = between(64 * 1024, 1024 * 1024);
+        IndexingPressure pressure = pressureWhereEveryEstimateHitsTheLimit(limit);
+        ScriptedClock clock = new ScriptedClock();
+        Harness harness = new Harness(clock, pressure, updateRequest(pageSize), NoopCircuitBreaker.INSTANCE, null);
+        long replicaBytes = limit * between(15, 25) / 100;
+        try (Releasable ignored = holdOtherBytes(pressure, replicaBytes, true)) {
+            harness.start();
+
+            assertThat(
+                format(
+                    "the worker was not admitted with [%d] replica bytes against a limit of [%d], reserve rejections [%d], coordinating [%d]",
+                    pressure.stats().getCurrentReplicaBytes(),
+                    pressure.getCoordinatingLimitInBytes(),
+                    pressure.stats().getReindexPageReserveRejections(),
+                    pressure.stats().getCurrentCoordinatingBytes()
+                ),
+                harness.client.searches.size(),
+                equalTo(1)
+            );
+            assertThat(harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes()));
+            assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(0L));
+        }
+    }
+
+    /**
+     * Every page estimate is above the coordinating limit, even for a page of one document, so the estimate is always cut down to the
+     * limit and the worker reserves the limit itself. One byte more than the limit per document is enough, because the estimate is the
+     * per-document bytes times the page size, plus the request context.
+     */
+    private static IndexingPressure pressureWhereEveryEstimateHitsTheLimit(long limit) {
+        return pressure(
+            Settings.builder()
+                .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), limit + "b")
+                .put(IndexingPressure.REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.getKey(), (limit + 1) + "b")
+                .build()
+        );
+    }
+
+    /**
      * A capped estimate is admitted without forcing the reservation. A page that is not a system page and whose own size is above the
      * limit therefore still fails when it arrives, and the charge it held is given back.
      */

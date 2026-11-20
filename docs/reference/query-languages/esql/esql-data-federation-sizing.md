@@ -38,13 +38,13 @@ What differs is the work of reading data that lives outside the cluster. A few s
 * **Split distribution.** The files a query reads are divided into units of work called splits, sized by [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size), and those splits are distributed across the data nodes. How many a node reads at once follows its core count.
 * **Staging and decompression buffers.** {{es}} allocates memory to hold the data fetched from the object store, and further memory to decompress it and to parse it into the columnar form the query engine works on. A compressed split expands in memory before it can be read, so data that compresses well costs *more* heap per reader rather than less.
 
-The formats then diverge. Parquet carries its schema in the file footers, so no sampling is needed, and it is read chunk by chunk: a reader takes one row group at a time and, within it, fetches and decodes only the columns the query names. Both the bytes read and the work done follow your projection rather than the width of the file, so narrowing a query with [`KEEP`](/reference/query-languages/esql/commands/keep.md) reads less.
+The formats then diverge. Parquet carries its schema in the file footers, so no sampling is needed. It is read chunk by chunk: a reader takes one row group at a time and, within that group, fetches and decodes only the columns the query asks for. Both the bytes read and the work done therefore follow your projection rather than the width of the file, which means that narrowing a query with [`KEEP`](/reference/query-languages/esql/commands/keep.md) genuinely reads less.
 
-The text formats work differently. A file is read as a continuous stream, and a row must be parsed in full before any of its columns can be used. Narrowing a text query therefore does not read less: the same bytes are fetched, decompressed and parsed either way, and a projection saves only the building of the result columns.
+The text formats work the other way. A file is read as a continuous stream, and a row has to be parsed in full before any of its columns can be used. Narrowing a text query therefore does not read less: the same bytes are fetched, decompressed and parsed whichever columns you ask for, and the projection saves only the work of building the result.
 
-Parallelization works differently depending on the format, because each one divides a file into a different unit of work. For Parquet that unit is a row group, so one large file still parallelizes. For uncompressed text it is a split, so a larger file is read as several of them. For compressed text it is the whole file, which cannot be read from the middle and so cannot be divided at all: one file is one reader, decompressing on one thread.
+Parallelization works differently by format too, because each one divides a file into a different unit of work. For Parquet that unit is a row group, so even one large file is read by several readers at once. For uncompressed text it is a split, so a larger file is read as several of them. For compressed text it is the whole file: a compressed file cannot be read from the middle, so it cannot be divided at all, and one file is handled by one reader on one thread.
 
-The heap a cluster needs does not depend on the size of your dataset. Data is streamed through the cluster rather than loaded into it, so what matters is how much is in flight at any moment. A dataset of 10,000 objects needs much the same heap as one of 100. What the size of the dataset affects is the time a query takes, and therefore the cores you need to meet a latency target.
+The heap a cluster needs does not depend on how large your dataset is. Data is streamed through the cluster rather than loaded into it, so what matters is how much is in flight at any one moment, and a dataset of 10,000 objects needs much the same heap as one of 100. What the size of the dataset does affect is how long a query takes, and so the number of cores you need to meet a latency target.
 
 ## Size your files for your workload [file-layout]
 
@@ -125,9 +125,9 @@ The guidance on [file layout](#file-layout) and on [specifying a mapping](#decla
 
 ## Sizing for performance [performance]
 
-Data federation queries scale with the number of cores, and their scan time is proportional to the size of the dataset being read.
+Data federation queries scale with the number of cores available to them, and the time a scan takes is proportional to the amount of data it reads.
 
-If you want your queries to run faster, add cores, and scale the heap with them at 1 GB to 2 GB per core, plus the budget for your [concurrent queries](#concurrency). Cores added without the heap to match will not help. For compressed text, add those cores as more nodes rather than as a wider one.
+If you want your queries to run faster, the lever is cores. Add them, and scale the heap alongside at 1 GB to 2 GB per core, plus the budget for the [concurrent queries](#concurrency) you expect. Cores added without the memory to match will not help, because each one needs somewhere to put the data it reads. For compressed text, add those cores as more nodes rather than as a wider one.
 
 ## Example configurations [examples]
 
@@ -137,7 +137,7 @@ Both of these size a cluster for 10 concurrent queries.
 
 The [TLC trip record data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) is published as 1 Parquet file per month, of 50 MB to 110 MB. 5 years is about 60 files.
 
-Parquet, so the initial heap is 2 GB. At 1 core per 8 to 10 concurrent queries, 10 concurrent queries need 1 to 2 cores, so the 2-core minimum governs. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB.
+This is a Parquet dataset, so the initial heap is 2 GB. At 1 core per 8 to 10 concurrent queries, 10 concurrent queries need 1 to 2 cores, so the 2-core minimum governs. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB.
 
 Start with 1 node, with at least 2 cores and at least 4 GB of heap.
 
@@ -145,18 +145,18 @@ Start with 1 node, with at least 2 cores and at least 4 GB of heap.
 
 [Backblaze drive stats](https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data) is published as 1 gzipped CSV file per day, with a wide schema of SMART attributes.
 
-Compressed text, so the initial heap is 4 GB. At 1 core per 3 to 4 concurrent queries, 10 concurrent queries need 3 to 4 cores. Compressed text serves fewer concurrent queries as a node widens, so those cores belong on separate nodes: 2 nodes of 2 cores each. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB, so the initial 4 GB governs.
+This is compressed text, so the initial heap is 4 GB. At 1 core per 3 to 4 concurrent queries, 10 concurrent queries need 3 to 4 cores. Compressed text serves fewer concurrent queries as a node widens, so those cores belong on separate nodes: 2 nodes of 2 cores each. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB, so the initial 4 GB governs.
 
 Start with 2 nodes, each with at least 2 cores and at least 4 GB of heap.
 
-With the schema inferred, add 2 GB to 4 GB of heap.
+If the schema is inferred rather than specified, add a further 2 GB to 4 GB of heap to each node.
 
 ## Troubleshoot [troubleshoot]
 
 Because the figures on this page are starting points, the configuration you end up with should be the one your own data asks for. Watch for the following as you load it up:
 
 * **Circuit breaker rejections**, which mean there is insufficient memory for the workload.
-* **Queries slowing as concurrency rises** without any rejection, which means readers are contended rather than exhausted.
+* **Queries slowing as concurrency rises**, with nothing being rejected, which means your queries are competing with each other for readers.
 * **Query times that do not improve when you add capacity**, which points at the file layout rather than the cluster: too few files, or compressed text files too large to divide, leave the extra cores with nothing to pick up.
 * **Planning time growing with your file count**, which points at schema inference or, on Parquet, at footer reads on the coordinating node.
 

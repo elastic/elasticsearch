@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.AbstractTimeSeriesMetadataFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
@@ -57,6 +61,8 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_TSMD_DATA_TYPE;
+
 /**
  * The PromQL translation threads the labels of a series through the plan as one value: the {@code _timeseries} label container, of
  * type {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}. A plan does four things with a container, and nothing else:
@@ -88,11 +94,14 @@ import java.util.TreeSet;
  *     <li>From the leaves up, each node on its own: a node that defines a container promotes the labels read by name to
  *     attributes next to it, and a node that names a container names the container that is left and its promoted labels.</li>
  * </ol>
+ * Where a node before 9.7 takes part, a container is the keyword {@code _timeseries} the source loads, and nothing can change it
+ * after that. The same two steps run, and a plan that is left with a call changing a container fails.
  */
 public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
     /**
      * {@code plan} with its label containers split into parts; the configuration of {@code context} renders the ones left whole.
+     * Where a node before 9.7 takes part, what is left of a container stays the keyword {@code _timeseries} of the source.
      */
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -103,35 +112,84 @@ public final class ScalarizeTimeSeriesMetadataPaths extends ParameterizedRule<Lo
         if (plan.anyMatch(ScalarizeTimeSeriesMetadataPaths::readsSource) == false) {
             return plan;
         }
+        // typed where the feature is on and every participating node reads the typed label container
+        if (ENABLE_TSMD_DATA_TYPE.isEnabled()
+            && DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion()
+                .supportedOn(context.minimumVersion(), Build.current().isSnapshot())) {
+            return new Run() {
+                @Override
+                DataType containerType() {
+                    return DataType.TIME_SERIES_METADATA_DATA_TYPE;
+                }
+
+                @Override
+                boolean writesContainers() {
+                    return true;
+                }
+
+                @Override
+                Expression empty(Source at) {
+                    return TranslationContextV2.emptyLabels(at);
+                }
+
+                @Override
+                Expression render(Source at, Expression whole) {
+                    return new ToString(at, whole, context.configuration());
+                }
+
+                @Override
+                boolean keysWhole() {
+                    return true;
+                }
+
+                @Override
+                void verify(LogicalPlan rewritten) {
+                    // what is left is a typed container every node reads
+                }
+            }.apply(plan);
+        }
+
         return new Run() {
             @Override
             DataType containerType() {
-                return DataType.TIME_SERIES_METADATA_DATA_TYPE;
+                return DataType.KEYWORD;
             }
 
             @Override
             boolean writesContainers() {
-                return true;
+                return false;
             }
 
             @Override
             Expression empty(Source at) {
-                return TranslationContextV2.emptyLabels(at);
+                return absent(at);
             }
 
             @Override
             Expression render(Source at, Expression whole) {
-                return new ToString(at, whole, context.configuration());
+                return whole;
             }
 
             @Override
             boolean keysWhole() {
-                return true;
+                return false;
             }
 
             @Override
             void verify(LogicalPlan rewritten) {
-                // what is left is a typed container every node reads
+                // A keyword container is what the source loads, and no ts_* call takes one: none may be left.
+                rewritten.forEachDown(node -> node.forEachExpression(AbstractTimeSeriesMetadataFunction.class, e -> {
+                    throw new VerificationException(
+                        List.of(
+                            Failure.fail(
+                                e,
+                                "[{}] is not supported on every participating node; "
+                                    + "rolling upgrade in progress, or a remote cluster is on an older version",
+                                e.sourceText()
+                            )
+                        )
+                    );
+                }));
             }
         }.apply(plan);
     }

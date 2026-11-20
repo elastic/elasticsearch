@@ -127,11 +127,12 @@ public final class ParquetFormatSettings {
     );
 
     /**
-     * The compression of the local files that every bulk writes. They live until the next flush merges them, and the flush reads them
-     * once. Compression makes them smaller on the disk and in the counters of the flush threshold and of the backpressure, and costs
-     * CPU on the path that acknowledges the bulk. On the ClickBench documents, ZSTD made the local files 2.3 times smaller than
-     * uncompressed ones, as large as the uploaded file (88 MB and 80 MB for 1,000,000 rows), with no change in the throughput of the
-     * bulks that the measurement could see (one run is about 7% noisy).
+     * The compression of the local files that every bulk writes, and so of their staged copies. They live until the next flush merges
+     * them, and the flush reads them once. Compression makes them smaller on the disk and in the counters of the flush threshold and of
+     * the backpressure, and costs CPU on the path that acknowledges the bulk. With ZSTD the level is 1 and the files have no dictionary
+     * (see {@code ColumnarParquetWriter}), because the merge of the flush encodes the rows again, and the file that it uploads keeps the
+     * dictionary and the level 3. On 600,000 distinct documents with 105 fields, the local files were 345 bytes for each row and the
+     * uploaded file 310, and the write threads used 6 microseconds of CPU for each document (11 to 12 with a dictionary and level 3).
      */
     public static final Setting<Compression> LOCAL_COMPRESSION = Setting.enumSetting(
         Compression.class,

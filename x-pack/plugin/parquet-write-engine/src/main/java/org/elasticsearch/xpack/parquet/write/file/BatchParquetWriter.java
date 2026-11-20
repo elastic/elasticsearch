@@ -120,15 +120,7 @@ public final class BatchParquetWriter {
             // The bulk is one row group, and each column is written on its own, straight from its cursor to the column writer of
             // parquet-mr.
             // A row group of a bulk is small, and the merge of the flush makes the row groups that readers want.
-            try (
-                ColumnarParquetWriter writer = new ColumnarParquetWriter(
-                    new IndexOutputFile(out),
-                    schema,
-                    codec,
-                    Long.MAX_VALUE,
-                    ColumnarParquetWriter.columnProperties()
-                )
-            ) {
+            try (ColumnarParquetWriter writer = ColumnarParquetWriter.forColumns(new IndexOutputFile(out), schema, codec)) {
                 for (int i = 0; i < sources.size(); i++) {
                     sources.get(i).writeColumn(writer.columnWriter(i), accepted);
                 }

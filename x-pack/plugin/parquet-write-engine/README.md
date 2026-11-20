@@ -100,11 +100,11 @@ fields of the types above before the bulk (not tested here).
 | `index.parquet.catalog.enabled` | `true` | Every commit of the table creates or updates its entry in the catalog of the repository (see "The catalog"). Final. |
 | `index.parquet.catalog.namespace` | `default` | The namespace of the table in the catalog. A dotted value is a nested namespace (`prod.eu` is the directory `prod/eu`). Final. |
 | `index.parquet.compression` | `zstd` | Compression of uploaded files (`uncompressed`, `snappy`, `zstd`). |
-| `index.parquet.local_compression` | `zstd` | Compression of the local files that every bulk writes (same values). On ClickBench data, `zstd` made them 2.3 times smaller than uncompressed ones, about the size of the uploaded file, at no throughput cost that a measurement could see. Dynamic. |
+| `index.parquet.local_compression` | `zstd` | Compression of the local files that every bulk writes, and of their staged copies (same values). With `zstd` the level is 1, and a local file has no dictionary, because the merge of the flush encodes the rows again (see "The encoding of the files"). Dynamic. |
 | `index.parquet.flush_threshold_size` | `1gb` | Local bytes at which the periodic flush uploads. |
 | `index.parquet.flush_threshold_age` | `30m` | Age of the oldest local file at which the periodic flush uploads. |
 | `index.parquet.max_local_size` | `4gb` | Local bytes at which batches of at most 5,000 documents get a 429, for each document, until a flush frees space. A bulk can be accepted in part. |
-| `index.parquet.max_file_size` | `1gb` | The most **local bytes** that one uploaded file is merged from. With `zstd` local files (the default) an uploaded file is about as large as its local files; with `uncompressed` local files it is about 0.4 times as large. A compaction merges at most this many bytes of uploaded files. |
+| `index.parquet.max_file_size` | `1gb` | The most **local bytes** that one uploaded file is merged from. With `zstd` local files (the default) the local files are about 1.1 times as large as the uploaded file (345 and 310 bytes for each row in a test with 105 fields and distinct documents); with `uncompressed` local files an uploaded file is about 0.4 times as large. A compaction merges at most this many bytes of uploaded files. |
 | `index.parquet.row_group_size` | `128mb` | Buffered data at which a row group is written. |
 | `index.parquet.compaction.enabled` | `true` | Merge small uploaded files in the background. |
 | `index.parquet.compaction.target_file_size` | `1gb` | A file below half of it is small and is merged with its neighbours. |
@@ -118,7 +118,7 @@ one data set to the next.
 ## How it works
 
 **Write path.** The engine implements `Engine#indexBatch`. It reads each mapped column of the batch through the typed cursors of Lucene's
-column API (no Lucene field is built) and writes one local file for each batch (compressed with `index.parquet.local_compression`), named
+column API (no Lucene field is built) and writes one local file for each batch (compressed with `index.parquet.local_compression`, without a dictionary), named
 `pqlocal_<from>_<to>.parquet` by the range of sequence numbers. The shard still keeps one empty Lucene commit and an empty translog, because the server needs both before it calls the
 engine. The commit also holds the state of the engine in custom keys (`parquet.pending_upload`, `parquet.uploaded_through_seq_no`,
 `parquet.uploaded_rows`); the sequence numbers of the server in it are never rewritten.
@@ -149,6 +149,25 @@ batch and written to the column writer of parquet-mr, with no `Group` for each r
 column (the server hands the engine at most 5,000 documents at a time, and the merge of the flush makes the row groups that readers
 want). In a test node with one shard, four clients, local durability and 105 fields like ClickBench's, bulk indexing went from about
 88,000 to about 180,000 documents per second with this change (a laptop, the time of parsing and of the client included).
+
+**The encoding of the files.** The two kinds of file are encoded differently, on purpose:
+
+| | Local file of a bulk, and its staged copy | File of a flush, of a compaction, of an adoption |
+| --- | --- | --- |
+| Lives | until the next flush, and one read by the merge | in the object store, for a long time |
+| Dictionary | no | yes, where it pays |
+| ZSTD level | 1 | 3 |
+| Row groups | one for each bulk, one page for each column | `index.parquet.row_group_size` |
+
+The local file is written once and read once, by a merge that encodes the rows again, so it gets the cheapest encoding. The file that
+stays in the object store keeps the encoding that makes it small, and its storage efficiency does not change. In a test node (one shard,
+four clients, local durability, 600,000 distinct documents with 105 fields like ClickBench's), with a dictionary and level 3 the write
+threads used 11 to 12 microseconds of CPU for each document, and without a dictionary and with level 1 they used 6. The local files were
+6% smaller (345 against 367 bytes for each row), because a column with many different values wrote its dictionary and then the values
+again after the writer gave the dictionary up. The uploaded file had the same size in every run (185.8 MB), and the flush took the same
+time (11 to 12 s for the 600,000 rows). The level is not in the file, and a reader handles pages with and without a dictionary, so files
+that an earlier version wrote read the same. `ParquetFlushIT` checks that the local files have no dictionary and that the uploaded file
+has one.
 
 On start, the engine finishes a flush that a crash cut off. The table, and not the commit, is the source of truth for what is uploaded.
 

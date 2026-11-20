@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.parquet.write;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.store.Directory;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -55,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -373,6 +376,71 @@ public class ParquetFlushIT extends ESIntegTestCase {
 
         assertUploaded(1, rows);
         assertThat("local files", localFiles(0), equalTo(0L));
+    }
+
+    /**
+     * The local file of a bulk, and the staged copy of it, is intermediate and gets the cheapest encoding: no dictionary. The file that a
+     * flush uploads stays in the object store for a long time, so it keeps the dictionary where it pays, and the codec of
+     * {@code index.parquet.compression}. The keyword here has seven values, so a dictionary pays.
+     */
+    public void testLocalFilesHaveNoDictionaryAndTheFlushedFileKeepsIt() throws Exception {
+        registerRepository();
+        createIndex(
+            1,
+            Settings.builder()
+                .put("index.parquet.local_compression", "zstd")
+                .put("index.parquet.compression", "zstd")
+                .put("index.parquet.compaction.enabled", false)
+        );
+        assertFalse(bulk(0, 6_000).hasFailures());
+
+        final Directory directory = shard(0).store().directory();
+        final List<LocalParquetFiles.LocalFile> local = LocalParquetFiles.list(directory);
+        assertThat(local.size(), greaterThan(0));
+        for (LocalParquetFiles.LocalFile file : local) {
+            try (
+                ParquetFileReader reader = ParquetFileReader.open(
+                    new IndexInputFile(directory, file.name()),
+                    PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+                )
+            ) {
+                for (BlockMetaData block : reader.getFooter().getBlocks()) {
+                    for (ColumnChunkMetaData column : block.getColumns()) {
+                        final String what = file.name() + " " + column.getPath();
+                        assertThat(what + " codec", column.getCodec(), equalTo(CompressionCodecName.ZSTD));
+                        assertFalse(what + " has a dictionary page", column.hasDictionaryPage());
+                        assertThat(what + " encodings", column.getEncodings(), not(hasItem(Encoding.PLAIN_DICTIONARY)));
+                        assertThat(what + " encodings", column.getEncodings(), not(hasItem(Encoding.RLE_DICTIONARY)));
+                    }
+                }
+            }
+        }
+
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+
+        final List<ShardTable.UploadedFile> uploaded = table(0).uploadedFiles();
+        assertThat(uploaded.size(), greaterThan(0));
+        boolean keywordHasADictionary = false;
+        for (ShardTable.UploadedFile file : uploaded) {
+            final Path path = org.elasticsearch.core.PathUtils.get(java.net.URI.create(file.location()));
+            try (
+                ParquetFileReader reader = ParquetFileReader.open(
+                    new TestParquetBytes.MemoryInputFile(java.nio.file.Files.readAllBytes(path)),
+                    PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+                )
+            ) {
+                for (BlockMetaData block : reader.getFooter().getBlocks()) {
+                    for (ColumnChunkMetaData column : block.getColumns()) {
+                        assertThat(column.getPath() + " codec", column.getCodec(), equalTo(CompressionCodecName.ZSTD));
+                        if (column.getPath().toDotString().equals("host.name")) {
+                            keywordHasADictionary |= column.hasDictionaryPage();
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue("the uploaded file has a dictionary for the keyword with seven values", keywordHasADictionary);
+        assertUploaded(1, 6_000);
     }
 
     /**

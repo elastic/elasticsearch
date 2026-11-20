@@ -159,12 +159,11 @@ public final class ParquetMerger {
         try (IndexOutput out = directory.createTempOutput(LocalParquetFiles.TEMP_PREFIX, "parquet", IOContext.DEFAULT)) {
             tempName = out.getName();
             try (
-                ColumnarParquetWriter writer = new ColumnarParquetWriter(
+                ColumnarParquetWriter writer = ColumnarParquetWriter.forRows(
                     new BatchParquetWriter.IndexOutputFile(out),
                     outputSchema,
                     codec,
-                    rowGroupBytes,
-                    ColumnarParquetWriter.rowProperties()
+                    rowGroupBytes
                 )
             ) {
                 for (Input input : inputs) {

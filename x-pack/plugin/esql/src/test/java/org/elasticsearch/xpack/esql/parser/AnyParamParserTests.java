@@ -152,8 +152,7 @@ public class AnyParamParserTests extends ESTestCase {
 
     public void testSetChangesTheReservedValue() {
         QueryParams params = params(paramAsConstant("x", "*"), paramAsConstant("y", ANY));
-        LogicalPlan plan = TEST_PARSER.createStatement("SET param_any_value = \"*\"; FROM t | WHERE a == ?x AND b == ?y", params)
-            .plan();
+        LogicalPlan plan = TEST_PARSER.createStatement("SET param_any_value = \"*\"; FROM t | WHERE a == ?x AND b == ?y", params).plan();
         List<AnyParam> markers = markers(plan);
         assertThat(markers, hasSize(1));
         assertThat(markers.getFirst().parameterText(), equalTo("?x"));

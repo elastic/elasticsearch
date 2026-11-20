@@ -23,17 +23,21 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerNestedExpandTests.nestedAnalyzer;
 import static org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTestUtils.randomReferenceAttribute;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 public class NestedPredicateSerializationTests extends AbstractExpressionSerializationTests<NestedPredicate> {
     @Override
     protected NestedPredicate createTestInstance() {
         int size = between(0, 3);
+        int outer = between(0, 2);
         return new NestedPredicate(
             randomSource(),
             randomPath(),
             randomChild(),
             randomInputs(size),
             randomRelativePaths(size),
+            randomInputs(outer),
+            randomOuters(outer),
             configuration()
         );
     }
@@ -44,19 +48,25 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         Expression body = instance.body();
         List<Attribute> inputs = instance.inputs();
         List<String> relativePaths = instance.relativePaths();
+        List<Attribute> outerInputs = instance.outerInputs();
+        List<Expression> outers = instance.outers();
         int size = inputs.size();
-        switch (size == 0 ? between(0, 2) : between(0, 4)) {
+        switch (between(0, size == 0 ? 3 : 5)) {
             case 0 -> path = randomValueOtherThan(path, NestedPredicateSerializationTests::randomPath);
             case 1 -> body = randomValueOtherThan(body, AbstractExpressionSerializationTests::randomChild);
             case 2 -> {
                 inputs = randomInputs(size + 1);
                 relativePaths = randomRelativePaths(size + 1);
             }
-            case 3 -> inputs = randomValueOtherThan(inputs, () -> randomInputs(size));
-            case 4 -> relativePaths = randomValueOtherThan(relativePaths, () -> randomRelativePaths(size));
+            case 3 -> {
+                outerInputs = randomInputs(outers.size() + 1);
+                outers = randomOuters(outers.size() + 1);
+            }
+            case 4 -> inputs = randomValueOtherThan(inputs, () -> randomInputs(size));
+            case 5 -> relativePaths = randomValueOtherThan(relativePaths, () -> randomRelativePaths(size));
             default -> throw new UnsupportedOperationException();
         }
-        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, instance.configuration());
+        return new NestedPredicate(instance.source(), path, body, inputs, relativePaths, outerInputs, outers, instance.configuration());
     }
 
     public void testWriteToRefusesNodesWithoutNestedPredicates() throws IOException {
@@ -71,6 +81,12 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         SerializationTestUtils.assertSerialization(
             analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == \"a\" AND items.qty > 1) | LIMIT 10")
         );
+    }
+
+    public void testRoundTripsAPredicateWithAnOuterExpression() throws IOException {
+        NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == CONCAT(id, \"x\")) | LIMIT 10");
+        assertThat(predicate.outers(), hasSize(1));
+        SerializationTestUtils.assertSerialization(predicate);
     }
 
     public void testRoundTripsAPredicateOverTheCollection() throws IOException {
@@ -95,6 +111,14 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
             inputs.add(randomReferenceAttribute(false));
         }
         return inputs;
+    }
+
+    private static List<Expression> randomOuters(int size) {
+        List<Expression> outers = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            outers.add(randomChild());
+        }
+        return outers;
     }
 
     private static List<String> randomRelativePaths(int size) {

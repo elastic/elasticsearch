@@ -36,9 +36,11 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Binds {@code NESTED_ANY} to the private nested schema and lowers it to a {@link NestedPredicate}. Name resolution ignores
@@ -94,8 +96,11 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 schema.put(field.name(), field);
             }
         }
+        Set<String> nestedPaths = new HashSet<>();
+        schema.values().forEach(field -> nestedPaths.add(((NestedScopeField) field.field()).path()));
         Map<NameId, Attribute> fields = new LinkedHashMap<>();
         body.forEachDown(Attribute.class, attribute -> fields.putIfAbsent(attribute.id(), attribute));
+        Map<NameId, Attribute> childFields = new LinkedHashMap<>();
         String path = collection;
         for (Attribute attribute : fields.values()) {
             FieldAttribute field = attribute instanceof FieldAttribute f ? f : null;
@@ -119,7 +124,9 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                     throw error(nested, "NESTED_ANY requires one nested path");
                 }
                 path = scope.path();
-            } else {
+                childFields.put(attribute.id(), attribute);
+            } else if (underNestedPath(attribute.name(), nestedPaths)) {
+                // An unmapped name under a nested path keeps its meaning as a parent field, so it is not one of the child fields
                 throw error(nested, "Field [" + attribute.name() + "] is outside the nested scope");
             }
         }
@@ -137,7 +144,7 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
         List<Attribute> channels = new ArrayList<>();
         List<String> paths = new ArrayList<>();
         Map<NameId, Attribute> replacement = new HashMap<>();
-        for (Attribute attribute : fields.values()) {
+        for (Attribute attribute : childFields.values()) {
             FieldAttribute field = (FieldAttribute) attribute;
             FieldAttribute read = schemaOf(field, schema);
             NestedScopeField scope = (NestedScopeField) read.field();
@@ -161,8 +168,52 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
                 replacement.put(attribute.id(), ref);
             }
         }
-        Expression bound = body.transformUp(Attribute.class, attribute -> replacement.getOrDefault(attribute.id(), attribute));
-        return new NestedPredicate(nested.source(), path, bound, channels, paths, configuration);
+        Map<Expression, ReferenceAttribute> outers = new LinkedHashMap<>();
+        Expression bound = hoistOuter(body, childFields.keySet(), outers).transformUp(
+            Attribute.class,
+            attribute -> replacement.getOrDefault(attribute.id(), attribute)
+        );
+        return new NestedPredicate(
+            nested.source(),
+            path,
+            bound,
+            channels,
+            paths,
+            List.copyOf(outers.values()),
+            List.copyOf(outers.keySet()),
+            configuration
+        );
+    }
+
+    /**
+     * Replaces each maximal part of {@code expression} that reads parent columns and no child field with an attribute, and
+     * records the part. The predicate evaluates each part once per parent and gives every child that value.
+     */
+    private static Expression hoistOuter(Expression expression, Set<NameId> childIds, Map<Expression, ReferenceAttribute> outers) {
+        if (expression instanceof Attribute attribute && childIds.contains(attribute.id())) {
+            return expression;
+        }
+        if (expression.references().isEmpty() == false && expression.references().stream().noneMatch(a -> childIds.contains(a.id()))) {
+            ReferenceAttribute existing = outers.get(expression);
+            if (existing != null) {
+                return existing;
+            }
+            ReferenceAttribute outer = new ReferenceAttribute(
+                expression.source(),
+                "$$nested_any_outer$" + outers.size(),
+                expression.dataType()
+            );
+            outers.put(expression, outer);
+            return outer;
+        }
+        if (expression.children().isEmpty()) {
+            return expression;
+        }
+        return expression.replaceChildren(expression.children().stream().map(child -> hoistOuter(child, childIds, outers)).toList());
+    }
+
+    private static boolean underNestedPath(String name, Set<String> nestedPaths) {
+        return nestedPaths.stream().anyMatch(path -> name.equals(path) || name.startsWith(path + "."));
     }
 
     /** The named collection, or {@code null} when the predicate's fields name the path. */

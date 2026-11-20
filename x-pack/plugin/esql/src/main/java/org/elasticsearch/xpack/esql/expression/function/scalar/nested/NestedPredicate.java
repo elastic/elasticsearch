@@ -26,8 +26,10 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -45,14 +47,17 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /**
- * A {@link NestedAny} lowered to one boolean per parent. It has no expression children: the predicate's fields are
- * loaded from the child documents, and the parent {@code _doc} stays on the page through
+ * A {@link NestedAny} lowered to one boolean per parent. Its children are the predicate body and the outer expressions: the
+ * parts of the predicate that read parent columns and no child field. Each outer expression is evaluated once per parent and
+ * every child sees that value as an input of the body. The body's child fields are loaded from the child documents, and the
+ * parent {@code _doc} stays on the page through
  * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LoadNestedFromIndex} rather than as a column the
  * query names.
  */
@@ -69,6 +74,9 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
     /** Child fields of {@link #body}, in the order {@link NestedChildren} loads them. */
     private final List<Attribute> inputs;
     private final List<String> relativePaths;
+    /** Where {@link #body} reads the value of each of {@link #outers}, in the same order. */
+    private final List<Attribute> outerInputs;
+    private final List<Expression> outers;
 
     public NestedPredicate(
         Source source,
@@ -76,13 +84,25 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         Expression body,
         List<Attribute> inputs,
         List<String> relativePaths,
+        List<Attribute> outerInputs,
+        List<Expression> outers,
         Configuration configuration
     ) {
-        super(source, List.of(body), configuration);
+        super(source, children(body, outers), configuration);
+        assert outerInputs.size() == outers.size();
         this.path = path;
         this.body = body;
         this.inputs = List.copyOf(inputs);
         this.relativePaths = List.copyOf(relativePaths);
+        this.outerInputs = List.copyOf(outerInputs);
+        this.outers = List.copyOf(outers);
+    }
+
+    private static List<Expression> children(Expression body, List<Expression> outers) {
+        List<Expression> children = new ArrayList<>(1 + outers.size());
+        children.add(body);
+        children.addAll(outers);
+        return children;
     }
 
     private NestedPredicate(StreamInput in) throws IOException {
@@ -92,6 +112,8 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readStringCollectionAsList(),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            in.readNamedWriteableCollectionAsList(Expression.class),
             ((PlanStreamInput) in).configuration()
         );
     }
@@ -117,6 +139,8 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         out.writeNamedWriteable(body);
         out.writeNamedWriteableCollection(inputs);
         out.writeStringCollection(relativePaths);
+        out.writeNamedWriteableCollection(outerInputs);
+        out.writeNamedWriteableCollection(outers);
     }
 
     @Override
@@ -138,6 +162,15 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     public List<String> relativePaths() {
         return relativePaths;
+    }
+
+    /** The parts of the predicate that read parent columns and no child field, each evaluated once per parent. */
+    public List<Expression> outers() {
+        return outers;
+    }
+
+    public List<Attribute> outerInputs() {
+        return outerInputs;
     }
 
     /** The full names of the child fields this predicate reads. */
@@ -189,18 +222,39 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     @Override
     protected NodeInfo<NestedPredicate> info() {
-        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, configuration());
+        return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, outerInputs, outers, configuration());
     }
 
+    /** An outer expression that a rewrite folded to a constant is part of the body again. */
     @Override
     public NestedPredicate replaceChildren(List<Expression> newChildren) {
-        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths, configuration());
+        Expression newBody = newChildren.getFirst();
+        Map<NameId, Expression> constants = new HashMap<>();
+        List<Attribute> keptInputs = new ArrayList<>();
+        List<Expression> keptOuters = new ArrayList<>();
+        for (int i = 0; i < outerInputs.size(); i++) {
+            Expression outer = newChildren.get(i + 1);
+            if (outer instanceof Literal) {
+                constants.put(outerInputs.get(i).id(), outer);
+            } else {
+                keptInputs.add(outerInputs.get(i));
+                keptOuters.add(outer);
+            }
+        }
+        if (constants.isEmpty() == false) {
+            newBody = newBody.transformUp(Attribute.class, attribute -> constants.getOrDefault(attribute.id(), attribute));
+        }
+        return new NestedPredicate(source(), path, newBody, inputs, relativePaths, keptInputs, keptOuters, configuration());
     }
 
-    /** The inputs are loaded from the child documents by {@link NestedChildren}, so they are not columns of the parent row. */
+    /**
+     * The parent columns the outer expressions read. The inputs are loaded from the child documents by {@link NestedChildren},
+     * so they are not columns of the parent row.
+     */
     @Override
     public AttributeSet references() {
-        return body.references().subtract(AttributeSet.of(inputs));
+        return Expressions.references(outers)
+            .combine(body.references().subtract(AttributeSet.of(inputs)).subtract(AttributeSet.of(outerInputs)));
     }
 
     @Override
@@ -210,18 +264,21 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             && path.equals(other.path)
             && body.equals(other.body)
             && inputs.equals(other.inputs)
-            && relativePaths.equals(other.relativePaths);
+            && relativePaths.equals(other.relativePaths)
+            && outerInputs.equals(other.outerInputs)
+            && outers.equals(other.outers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths);
+        return Objects.hash(super.hashCode(), path, body, inputs, relativePaths, outerInputs, outers);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        Layout layout = new Layout.Builder().append(inputs).build();
+        Layout layout = new Layout.Builder().append(inputs).append(outerInputs).build();
         FoldContext foldCtx = toEvaluator.foldCtx();
+        List<ExpressionEvaluator.Factory> outerEvaluators = outers.stream().map(toEvaluator::apply).toList();
         ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluator(foldCtx, body, layout, toEvaluator.shardContexts(), null);
         List<DataType> types = inputs.stream().map(Attribute::dataType).toList();
         // The expand command threads the query's planner settings. A predicate uses the defaults: the budgets change how
@@ -244,7 +301,11 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             public ExpressionEvaluator get(DriverContext context) {
                 NestedChildren read = children.get(context);
                 ExpressionEvaluator eval = predicate.get(context);
-                return new Evaluator(context, read, eval, fieldChannels);
+                ExpressionEvaluator[] outer = new ExpressionEvaluator[outerEvaluators.size()];
+                for (int i = 0; i < outer.length; i++) {
+                    outer[i] = outerEvaluators.get(i).get(context);
+                }
+                return new Evaluator(context, read, eval, outer, fieldChannels);
             }
         };
     }
@@ -253,12 +314,20 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         private final DriverContext context;
         private final NestedChildren children;
         private final ExpressionEvaluator predicate;
+        private final ExpressionEvaluator[] outers;
         private final int[] fieldChannels;
 
-        private Evaluator(DriverContext context, NestedChildren children, ExpressionEvaluator predicate, int[] fieldChannels) {
+        private Evaluator(
+            DriverContext context,
+            NestedChildren children,
+            ExpressionEvaluator predicate,
+            ExpressionEvaluator[] outers,
+            int[] fieldChannels
+        ) {
             this.context = context;
             this.children = children;
             this.predicate = predicate;
+            this.outers = outers;
             this.fieldChannels = fieldChannels;
         }
 
@@ -266,7 +335,20 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         public Block eval(Page page) {
             DocVector docs = docs(page);
             boolean[] matched = new boolean[docs.getPositionCount()];
-            children.read(docs, position -> true, position -> matched[position] == false, loaded -> accept(loaded, matched));
+            Block[] outerBlocks = new Block[outers.length];
+            try {
+                for (int i = 0; i < outers.length; i++) {
+                    outerBlocks[i] = outers[i].eval(page);
+                }
+                children.read(
+                    docs,
+                    position -> true,
+                    position -> matched[position] == false,
+                    loaded -> accept(loaded, matched, outerBlocks)
+                );
+            } finally {
+                Releasables.closeWhileHandlingException(outerBlocks);
+            }
             BooleanBlock.Builder builder = context.blockFactory().newBooleanBlockBuilder(matched.length);
             Block result = null;
             try {
@@ -282,12 +364,12 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             }
         }
 
-        private void accept(Page loaded, boolean[] matched) {
+        private void accept(Page loaded, boolean[] matched, Block[] outerBlocks) {
             IntVector parents = loaded.<IntBlock>getBlock(0).asVector();
             if (parents == null) {
                 throw new IllegalStateException("NESTED_ANY expected one parent position per child");
             }
-            if (fieldChannels.length == 0) {
+            if (fieldChannels.length == 0 && outerBlocks.length == 0) {
                 Block constant = predicate.eval(new Page(1));
                 try {
                     boolean childMatched = Boolean.TRUE.equals(BlockUtils.toJavaObject(constant, 0));
@@ -299,10 +381,10 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
                 }
                 return;
             }
-            Page fields = loaded.projectBlocks(fieldChannels);
+            Page inputs = bodyInput(loaded, parents, outerBlocks);
             Block values = null;
             try {
-                values = predicate.eval(fields);
+                values = predicate.eval(inputs);
                 for (int c = 0; c < values.getPositionCount(); c++) {
                     // As for a WHERE, a null or multivalued result is like false
                     if (values.getValueCount(c) != 1) {
@@ -315,7 +397,33 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
                 if (values != null) {
                     values.close();
                 }
-                fields.releaseBlocks();
+                inputs.releaseBlocks();
+            }
+        }
+
+        /** The child fields of {@code loaded}, then each outer value repeated for every child of its parent. */
+        private Page bodyInput(Page loaded, IntVector parents, Block[] outerBlocks) {
+            int[] parentPositions = new int[parents.getPositionCount()];
+            for (int c = 0; c < parentPositions.length; c++) {
+                parentPositions[c] = parents.getInt(c);
+            }
+            Block[] blocks = new Block[fieldChannels.length + outerBlocks.length];
+            boolean built = false;
+            try {
+                for (int i = 0; i < fieldChannels.length; i++) {
+                    blocks[i] = loaded.getBlock(fieldChannels[i]);
+                    blocks[i].incRef();
+                }
+                for (int i = 0; i < outerBlocks.length; i++) {
+                    blocks[fieldChannels.length + i] = outerBlocks[i].filter(false, parentPositions);
+                }
+                Page page = new Page(loaded.getPositionCount(), blocks);
+                built = true;
+                return page;
+            } finally {
+                if (built == false) {
+                    Releasables.closeWhileHandlingException(blocks);
+                }
             }
         }
 
@@ -335,7 +443,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
         @Override
         public void close() {
-            Releasables.close(predicate, children);
+            Releasables.close(predicate, children, Releasables.wrap(outers));
         }
     }
 }

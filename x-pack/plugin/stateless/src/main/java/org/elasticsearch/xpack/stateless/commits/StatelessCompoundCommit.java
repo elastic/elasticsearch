@@ -636,7 +636,7 @@ public record StatelessCompoundCommit(
         @Nullable TimestampFieldValueRange timestampFieldValueRange
     ) {
         PrimaryTermAndGeneration bccTermAndGen = new PrimaryTermAndGeneration(primaryTerm, bccGenSupplier.apply(generation));
-        var blobFile = new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(bccTermAndGen.generation()), bccTermAndGen);
+        var blobFile = new BccBlob(bccTermAndGen);
         final var combinedCommitFilesResult = combineCommitFiles(
             blobFile,
             replicatedContentRanges,

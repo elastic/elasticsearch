@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -1308,7 +1309,7 @@ public class PointInTimeRelocationIT extends AbstractStatelessPluginIntegTestCas
         // acquireSearcherForCommit while it is inside openIfChanged opening the PIT commit.
         var blobReadStarted = new CountDownLatch(1);
         var blobReadBlocked = new CountDownLatch(1);
-        var blobNameToBlock = BatchedCompoundCommit.blobNameFromGeneration(randomBoolean() ? pit1BccBlobGeneration : pit2BccBlobGeneration);
+        var blobNameToBlock = BccBlob.blobNameFromGeneration(randomBoolean() ? pit1BccBlobGeneration : pit2BccBlobGeneration);
         setNodeRepositoryStrategy(searchNodeNext, new StatelessMockRepositoryStrategy() {
             @Override
             public InputStream blobContainerReadBlob(

@@ -284,24 +284,49 @@ public class PartitionFilterHintExtractorTests extends ESTestCase {
         );
     }
 
-    /** {@code hour == 5 AND hour == 6} matches nothing, so that branch adds no values to the union. */
-    public void testOrUnsatisfiableBranchAddsNoValues() {
+    /** A branch that pins a column twice contributes the smaller of its two sets; each one covers the branch. */
+    public void testOrBranchPinningAColumnTwiceKeepsTheSmallerSet() {
         Expression condition = new Or(
             SRC,
-            new And(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 6)),
+            new And(SRC, new In(SRC, unresolved("hour"), List.of(intLiteral(5), intLiteral(6))), unresolvedEquals("hour", 6)),
             unresolvedEquals("hour", 7)
         );
-        assertEquals(List.of(new PartitionFilterHint("hour", Operator.EQUALS, List.of(7))), hintsOf(condition));
+        assertEquals(List.of(new PartitionFilterHint("hour", Operator.IN, List.of(6, 7))), hintsOf(condition));
     }
 
-    /** When every branch matches nothing there is no value to list by, and no hint is the safe answer. */
-    public void testOrOfUnsatisfiableBranchesEmitsNothing() {
+    /**
+     * {@code year == 2025 AND year == 2025.0} matches the {@code year=2025} folder, but {@code Integer 2025} and
+     * {@code Double 2025.0} are not {@code equals}. Intersecting them would empty the branch and list only 2024.
+     */
+    public void testOrBranchPinningAColumnWithTwoNumericSpellingsKeepsItsValue() {
         Expression condition = new Or(
             SRC,
-            new And(SRC, unresolvedEquals("hour", 5), unresolvedEquals("hour", 6)),
-            new And(SRC, unresolvedEquals("hour", 7), unresolvedEquals("hour", 8))
+            new And(SRC, unresolvedEquals("year", 2025), new Equals(SRC, unresolved("year"), new Literal(SRC, 2025.0, DataType.DOUBLE))),
+            unresolvedEquals("year", 2024)
         );
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.IN, List.of(2025, 2024))), hintsOf(condition));
+    }
+
+    /** A {@code == null} compares unknown against every row: it names no folder, and must not fail the query. */
+    public void testNullComparisonEmitsNothing() {
+        Expression condition = new Equals(SRC, unresolved("year"), Literal.NULL);
         assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** A branch that compares with {@code null} pins nothing, so the {@code OR} leaves the column open. */
+    public void testOrWithANullBranchEmitsNothing() {
+        Expression condition = new Or(SRC, unresolvedEquals("year", 2025), new Equals(SRC, unresolved("year"), Literal.NULL));
+        assertTrue(PartitionFilterHintExtractor.extract(filterAboveExternal(condition, PATH)).isEmpty());
+    }
+
+    /** A null item never makes an {@code IN} true, so the hint keeps the other items. */
+    public void testOrWithANullInsideInDropsTheNull() {
+        Expression condition = new Or(
+            SRC,
+            new In(SRC, unresolved("year"), List.of(intLiteral(2025), Literal.NULL)),
+            unresolvedEquals("year", 2024)
+        );
+        assertEquals(List.of(new PartitionFilterHint("year", Operator.IN, List.of(2025, 2024))), hintsOf(condition));
     }
 
     /** The same {@code OR} yields the same hint in every occurrence, so {@code FORK} branches that share it keep it. */

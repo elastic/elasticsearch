@@ -702,25 +702,44 @@ public class ExternalHivePartitionPruningIT extends AbstractExternalDataSourceIT
     }
 
     /**
-     * An {@code OR} over partition columns narrows the listing to the folders its branches name. The whole filter is one
-     * {@code OR}, so before the extractor read disjunctions no hint reached the listing. With
-     * {@code max_discovered_files} at the four files the {@code OR} needs, a listing that ignored it would see all eight
-     * and fail.
+     * An {@code OR} over partition columns narrows the listing to a superset of the folders its branches name: the
+     * product of one union per column. The whole filter is one {@code OR} with no conjunct the branches share, so the
+     * optimizer leaves an {@code OR} for split discovery too. The unions are {@code year IN (2025, 2023)},
+     * {@code month IN (1, 7)} and {@code day IN (1, 15)}. The fixture has no 2023 and no month 7, so the listing holds the
+     * two {@code 2025/month=1} files, one more than the single file the {@code OR} matches. With
+     * {@code max_discovered_files} at two, between that one file and all eight, dropping the year or the month union
+     * lists four files and fails, and ignoring the {@code OR} lists all eight.
      */
     public void testKeyedGlobOrOfPartitionArmsNarrowsTheListing() throws Exception {
         String dataset = registerKeyedTree("csv_keyed_or", "csv");
-        updateClusterSettings(Settings.builder().put("esql.external.max_discovered_files", 4));
+        updateClusterSettings(Settings.builder().put("esql.external.max_discovered_files", 2));
         try {
             assertPrune(
                 dataset,
-                "WHERE (year == 2025 AND month == 1) OR (year == 2025 AND month == 6)",
+                "WHERE (year == 2025 AND month == 1 AND day == 1) OR (year == 2023 AND month == 7 AND day == 15)",
                 TOTAL_FILES,
-                4,
-                idsWhere((y, m, d) -> y == 2025)
+                1,
+                idsWhere((y, m, d) -> y == 2025 && m == 1 && d == 1)
             );
         } finally {
             updateClusterSettings(Settings.builder().putNull("esql.external.max_discovered_files"));
         }
+    }
+
+    /**
+     * A branch that pins {@code year} with two spellings of one number still matches the {@code year=2025} folder, as
+     * ES|QL compares them numerically. The branch must keep its value in the union, or the listing narrows to 2024 and
+     * the 2025 rows are lost.
+     */
+    public void testKeyedGlobOrBranchWithTwoNumericSpellingsKeepsItsFolders() throws Exception {
+        String dataset = registerKeyedTree("csv_keyed_or_spellings", "csv");
+        assertPrune(
+            dataset,
+            "WHERE (year == 2025 AND year == 2025.0) OR year == 2024",
+            TOTAL_FILES,
+            TOTAL_FILES,
+            idsWhere((y, m, d) -> true)
+        );
     }
 
     /**

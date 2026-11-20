@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
@@ -341,8 +343,8 @@ public final class PartitionFilterHintExtractor {
      * the query reads. That is safe because every file is still filtered by the full predicate after listing. Adding
      * each branch's hints as they are would instead AND them, and keep only files that satisfy every branch at once.
      * <p>
-     * This is not {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions} or
-     * {@link Predicates#extractCommon}, for two reasons. Both rewrite a predicate into an equivalent one, and the
+     * This is not {@link CombineDisjunctions} or the common-factor rewrite in {@link BooleanSimplification}, for two
+     * reasons. Both rewrite a predicate into an equivalent one, and the
      * {@code OR} above has no equivalent made of per-column filters: no simplification reaches it, only a superset
      * does. And {@link #extract} runs before analysis, where {@code CombineDisjunctions} cannot run, because it reads
      * {@code dataType()} from the field and an {@link UnresolvedAttribute} throws there. Where those rules do apply,
@@ -375,30 +377,30 @@ public final class PartitionFilterHintExtractor {
             }
         }
         for (Map.Entry<String, Set<Object>> column : union.entrySet()) {
-            // Every branch pinned this column to no value at all: the OR matches nothing. No hint is the safe answer.
-            if (column.getValue().isEmpty()) {
-                continue;
-            }
             List<Object> values = List.copyOf(column.getValue());
             hints.add(new PartitionFilterHint(column.getKey(), values.size() == 1 ? Operator.EQUALS : Operator.IN, values));
         }
     }
 
     /**
-     * The values one {@code OR} branch allows for each column it pins: the intersection of its {@code ==} and {@code IN}
-     * hints on that column. A column the branch restricts only by a range, {@code !=}, or a pattern is absent, because
-     * that branch can match a value no finite set names.
+     * The values one {@code OR} branch allows for each column it pins with {@code ==} or {@code IN}. When the branch pins
+     * a column more than once, the smallest set wins: each one already covers every value the branch can match. The sets
+     * are not intersected, because {@code equals} is not the listing's equality. {@link PartitionValueMatcher} matches
+     * {@code 2025} and {@code 2025.0} to the same folder, so {@code year == 2025 AND year == 2025.0} has an empty
+     * intersection yet matches rows.
+     * <p>
+     * A column the branch restricts only by a range, {@code !=}, or a pattern is absent, because that branch can match a
+     * value no finite set names.
      */
     private static Map<String, Set<Object>> pinnedValues(List<PartitionFilterHint> branchHints) {
         Map<String, Set<Object>> pinned = new LinkedHashMap<>();
         for (PartitionFilterHint hint : branchHints) {
-            if (hint.operator() != Operator.EQUALS && hint.operator() != Operator.IN) {
+            if ((hint.operator() != Operator.EQUALS && hint.operator() != Operator.IN) || hint.values().isEmpty()) {
                 continue;
             }
-            Set<Object> values = new LinkedHashSet<>(hint.values());
-            Set<Object> previous = pinned.putIfAbsent(hint.columnName(), values);
-            if (previous != null) {
-                previous.retainAll(values);
+            Set<Object> previous = pinned.get(hint.columnName());
+            if (previous == null || hint.values().size() < previous.size()) {
+                pinned.put(hint.columnName(), new LinkedHashSet<>(hint.values()));
             }
         }
         return pinned;
@@ -425,7 +427,8 @@ public final class PartitionFilterHintExtractor {
             reversed = true;
         }
 
-        if (columnName == null) {
+        // A null literal compares unknown against every row, so it names no folder to list.
+        if (columnName == null || literalValue == null) {
             return;
         }
         if (isUnrequestedFileMetadata(columnName, requestedMetadata)) {
@@ -452,7 +455,10 @@ public final class PartitionFilterHintExtractor {
         List<Object> literalValues = new ArrayList<>();
         for (Expression listItem : in.list()) {
             if (listItem instanceof Literal lit && hasListingUnits(lit)) {
-                literalValues.add(normalizeValue(lit.value()));
+                // A null item never makes the IN true, so leaving it out keeps the same rows.
+                if (lit.value() != null) {
+                    literalValues.add(normalizeValue(lit.value()));
+                }
             } else {
                 return;
             }

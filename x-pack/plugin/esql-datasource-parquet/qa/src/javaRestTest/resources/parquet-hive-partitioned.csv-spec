@@ -89,8 +89,9 @@ count:long
 63
 ;
 
-// An OR of two values on the partition column narrows the listing to lang IN (1, 3): the lang=1 (15) and
-// lang=3 (17) buckets. The lang=null rows match neither branch and must not appear.
+// Guards the rows when an OR on the partition column becomes the listing hint lang IN (1, 3): the lang=1 (15)
+// and lang=3 (17) buckets. The lang=null rows match neither branch and must not appear. This checks results only;
+// ExternalHivePartitionPruningIT checks that the listing narrows.
 hivePartitionOrSameColumn
 required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"
@@ -103,8 +104,8 @@ count:long
 32
 ;
 
-// Both branches pin `lang`, so the listing narrows to lang IN (1, 3) while each branch keeps its own gender:
-// lang=1 M rows (9) plus lang=3 F rows (6).
+// Guards the rows when both branches pin `lang` and add a data column: the listing hint is lang IN (1, 3), and
+// each branch keeps its own gender: lang=1 M rows (9) plus lang=3 F rows (6). This checks results only.
 hivePartitionOrAcrossColumnsSharingTheKey
 required_capability: dataset_in_from_command
 dataset: employees_hive: "{{employees_hive}}"

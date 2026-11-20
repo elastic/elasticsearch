@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.stateless.commits.BccUploadMetrics;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
+import org.elasticsearch.xpack.stateless.commits.MergeBlob;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
@@ -989,6 +990,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         for (var blob : blobs.entrySet()) {
             if (startsWithBlobPrefix(blob.getKey())) {
                 map.put(new PrimaryTermAndGeneration(blobPrimaryTerm, parseGenerationFromBlobName(blob.getKey())), blob.getValue());
+            } else if (MergeBlob.startsWithPrefix(blob.getKey())) {
+                logger.trace(() -> format("ignoring merge blob [%s] in [%s]", blob.getKey(), blobContainer.path().buildAsString()));
             } else {
                 logger.warn(
                     () -> format(

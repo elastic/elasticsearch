@@ -1159,6 +1159,79 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * A cast that rewrites a node rebuilds the nodes above it, and the cast above must still use the view's mode. Under load,
+     * TO_DEGREES of the partially unmapped [foo] is rejected; the caller's default mode would convert it.
+     */
+    public void testUnionTypeCastAboveRewrittenNodeInsideLoadViewUsesTheViewsMode() {
+        partiallyUnmappedFoo().addView("v", """
+            SET unmapped_fields="load";
+            FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo)
+            """).statementError("FROM v", allOf(containsString("line 2:59 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+    }
+
+    /**
+     * The view's load mode reaches the subquery side of an IN inside the view, even when casts on both sides rebuild the join
+     * and the subquery nodes above them.
+     */
+    public void testUnionTypeCastInInSubqueryInsideLoadViewUsesTheViewsMode() {
+        partiallyUnmappedFoo().addView("v", """
+            SET unmapped_fields="load";
+            FROM idx* | EVAL s = TO_STRING(foo) | WHERE k IN (FROM idx* | EVAL s = TO_STRING(foo) | EVAL d = TO_DEGREES(foo) | KEEP k)
+            """).statementError("FROM v", allOf(containsString("line 2:109 (in view [v])"), containsString(AMBIGUOUS_FOO)));
+    }
+
+    private static final String AMBIGUOUS_FOO = "Cannot use field [foo] due to ambiguities";
+
+    /** [foo] is double in idx1, long in idx2 and unmapped in idx3; [k] is keyword everywhere. */
+    private TestAnalyzer partiallyUnmappedFoo() {
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("idx1", fieldResponseMap(Map.of("foo", "double", "k", "keyword"))),
+                fieldCapabilitiesIndexResponse("idx2", fieldResponseMap(Map.of("foo", "long", "k", "keyword"))),
+                fieldCapabilitiesIndexResponse("idx3", fieldResponseMap("k", "keyword"))
+            ),
+            List.of()
+        );
+        return analyzer().addIndex("idx*", mergedResolution("idx*", caps, true));
+    }
+
+    /**
+     * A caller SET keeps the view as its own branch. A bare time-series aggregation in that view only gets its implicit
+     * {@code _timeseries} column after the branch's columns are determined, and the view must still return it, in the same
+     * position as the view queried without SET, or its body run directly.
+     */
+    public void testCallerSetUnmappedKeepsImplicitTimeSeriesColumnOfView() {
+        String body = "TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)";
+        List<String> expected = List.of("rate", "_timeseries", "tbucket");
+        assertThat(outputNames(analyzer().addK8s().statement(body)), equalTo(expected));
+        assertThat(outputNames(analyzer().addK8s().addView("v", body).statement("FROM v")), equalTo(expected));
+        for (Function<String, String> set : List.<Function<String, String>>of(
+            AnalyzerUnmappedTestBase::setUnmappedNullify,
+            AnalyzerUnmappedTestBase::setUnmappedLoad,
+            AnalyzerUnmappedTestBase::setUnmappedLoadAll
+        )) {
+            assertThat(outputNames(analyzer().addK8s().addView("v", body).statement(set.apply("FROM v"))), equalTo(expected));
+        }
+    }
+
+    /**
+     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: {@code TS} is allowed
+     * in a view the caller reads with {@code LOAD_ALL}, but still rejected in a plain subquery next to it, which the caller's mode
+     * does reach.
+     */
+    public void testLoadAllCommandAllowListStopsAtView() {
+        String body = "TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)";
+        analyzer().addK8s().addView("v", body).statement(setUnmappedLoadAll("FROM v"));
+        analyzer().addK8s()
+            .addView("v", body)
+            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("TS")));
+    }
+
+    private static List<String> outputNames(LogicalPlan plan) {
+        return plan.output().stream().map(Attribute::name).toList();
+    }
+
+    /**
      * The caller's setting answers a reference the view does not output with a null column at the view's output. The view
      * body is analysed without the setting, so its projections are plain {@link Project}s; surfacing the null column must
      * not reach into them, which would e.g. replace a RENAME's alias with a reference nothing produces, or let a field the
@@ -2297,6 +2370,47 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             setUnmappedNullify("PROMQL index=test step=5m sum(network.bytes_in) | EVAL x = does_not_exist"),
             containsString("Unknown column [does_not_exist]")
         );
+    }
+
+    /**
+     * PROMQL nullifies a missing label or metric, so the session analyzes any query containing PROMQL with NULLIFY. A caller
+     * SET keeps view boundaries, and the PROMQL body of a view without its own SET must still be nullified in its own scope
+     * rather than fail with "Unknown column". The same holds for a view that sets {@code unmapped_fields="default"}, which asks
+     * for PromQL's own behavior.
+     */
+    public void testCallerSetUnmappedNullifiesMissingLabelsInPromQlView() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        for (String body : List.of(
+            "PROMQL index=k8s step=5m sum(network.total_bytes_in{no_such_label=\"x\"})",
+            "PROMQL index=k8s step=5m sum(no_such_metric)",
+            "SET unmapped_fields=\"default\"; PROMQL index=k8s step=5m sum(network.total_bytes_in{no_such_label=\"x\"})"
+        )) {
+            for (String query : List.of(setUnmappedNullify("FROM promql_view"), setUnmappedLoad("FROM promql_view"))) {
+                LogicalPlan plan = analyzer().addK8s().addView("promql_view", body).statement(query);
+                assertThat(body + " via " + query, plan.resolved(), is(true));
+            }
+        }
+    }
+
+    /** The PROMQL nullification stops at the view's output: a caller reference to a missing column is still null-filled. */
+    public void testCallerSetUnmappedNullifyAfterPromQlView() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        LogicalPlan plan = analyzer().addK8s()
+            .addView("promql_view", "PROMQL index=k8s step=5m bytes=(sum(network.total_bytes_in{no_such_label=\"x\"}))")
+            .statement(setUnmappedNullify("FROM promql_view | KEEP bytes, step, does_not_exist"));
+        assertThat(plan.resolved(), is(true));
+        assertThat(Expressions.names(plan.output()), equalTo(List.of("bytes", "step", "does_not_exist")));
+    }
+
+    /** A non-PROMQL view keeps failing on its own missing columns: only PROMQL bodies get NULLIFY in the view's scope. */
+    public void testCallerSetUnmappedDoesNotNullifyNonPromQlViewBody() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        analyzer().addK8s()
+            .addView("ts_view", "TS k8s | STATS max(network.total_bytes_in) BY no_such_label")
+            .statementError(
+                setUnmappedNullify("FROM ts_view"),
+                allOf(containsString("in view [ts_view]"), containsString("Unknown column [no_such_label]"))
+            );
     }
 
     /**

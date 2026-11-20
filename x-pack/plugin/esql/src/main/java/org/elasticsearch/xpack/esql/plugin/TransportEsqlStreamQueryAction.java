@@ -21,21 +21,25 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.activity.QueryInterceptor;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -84,7 +88,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction.getOrCreateSessionID;
 
 /**
- * Transport action for streaming ES|QL execution on {@code POST /_query?streaming=true}.
+ * Transport action for streaming ES|QL execution on {@code POST /_query/stream}.
  * Mirrors {@link TransportEsqlQueryAction} but delivers the schema and publisher out-of-band
  * (via {@link EsqlStreamQueryRequest#resultStreamListener()}) before compute finishes, so the
  * transport task stays registered for the full duration of the query. This keeps
@@ -228,14 +232,17 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
         EsqlExecutionInfo executionInfo,
         PageStreamPublisher publisher,
         AtomicReference<Result> resultRef,
-        ActionListener<ActionResponse.Empty> listener
+        ActionListener<ActionResponse.Empty> streamListener
     ) {
+        ActionListener<ActionResponse.Empty> listener = computeService.coordinate(task, streamListener);
         EsqlFlags flags = computeService.createFlags();
         String sessionId = getOrCreateSessionID(task);
         AtomicBoolean streamStarted = new AtomicBoolean(false);
         AtomicBoolean outputRunSeen = new AtomicBoolean(false);
         AtomicReference<Map<NameId, Map<String, Object>>> columnMetadataRef = new AtomicReference<>();
         DriverCompletionInfo.AtomicAccumulator completedWork = new DriverCompletionInfo.AtomicAccumulator();
+        // The metrics of the query are reported once, with the first outcome that is decided for it.
+        AtomicBoolean metricsCollected = new AtomicBoolean();
 
         PlanRunner planRunner = new PlanRunner() {
             @Override
@@ -250,10 +257,11 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 Configuration configuration,
                 FoldContext foldCtx,
                 PlanTimeProfile planTimeProfile,
+                ByteSizeValue maxResultSize,
                 ActionListener<Result> resultListener
             ) {
                 if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
-                    throw new IllegalArgumentException("[unmapped_fields=LOAD_ALL] cannot be used with [streaming=true]");
+                    throw new IllegalArgumentException("[unmapped_fields=LOAD_ALL] cannot be used with [POST /_query/stream]");
                 }
                 if (role == PlanRunner.Role.INTERMEDIATE) {
                     computeService.execute(
@@ -265,6 +273,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         foldCtx,
                         executionInfo,
                         planTimeProfile,
+                        maxResultSize,
                         resultListener.map(r -> {
                             completedWork.accumulate(r.completionInfo());
                             return r;
@@ -304,6 +313,7 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                             foldCtx,
                             executionInfo,
                             planTimeProfile,
+                            maxResultSize,
                             resultListener
                         );
                     } catch (Exception e) {
@@ -369,7 +379,18 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(versionedResult -> {
                 Result result = versionedResult.inner();
-                TransportEsqlQueryAction.failIfCancelled(task, result);
+                try {
+                    TransportEsqlQueryAction.failIfCancelled(task, result);
+                } catch (TaskCancelledException cancelled) {
+                    // The compute completed, and the query turns into a failure: its work is not lost with the result.
+                    transportEsqlQueryAction.collectMetricsOnce(
+                        metricsCollected,
+                        executionInfo,
+                        result.completionInfo(),
+                        QueryMetricsListener.Outcome.CANCELLED
+                    );
+                    throw cancelled;
+                }
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, null);
                 markPartialFromCompletionInfo(result);
                 resultRef.set(result);
@@ -385,6 +406,13 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                         QuerySettings.TIME_ZONE.get(result.configuration().resolvedSettings())
                     );
                     if (startFailure != null) {
+                        // The compute completed and nobody reads the result: its work is still reported.
+                        transportEsqlQueryAction.collectMetricsOnce(
+                            metricsCollected,
+                            executionInfo,
+                            result.completionInfo(),
+                            PlanExecutor.outcomeOf(startFailure)
+                        );
                         listener.onFailure(startFailure);
                         return;
                     }
@@ -416,10 +444,21 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                     )
                 );
                 planExecutor.metrics().recordTook(tookMillis);
-                transportEsqlQueryAction.collectMetrics(result);
+                transportEsqlQueryAction.collectMetricsOnce(
+                    metricsCollected,
+                    executionInfo,
+                    result.completionInfo(),
+                    QueryMetricsListener.Outcome.SUCCESS
+                );
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }, ex -> {
                 transportEsqlQueryAction.recordCCSTelemetry(task, executionInfo, request, ex);
+                transportEsqlQueryAction.collectMetricsOnce(
+                    metricsCollected,
+                    executionInfo,
+                    workDoneBeforeFailure(executionInfo, resultRef.get()),
+                    PlanExecutor.outcomeOf(ex)
+                );
                 PageStreamPublisher.StreamFooter footer = failureFooter(
                     ex,
                     executionInfo,
@@ -434,6 +473,16 @@ public class TransportEsqlStreamQueryAction extends TransportAction<EsqlStreamQu
                 listener.onFailure(ex);
             })
         );
+    }
+
+    /**
+     * What is known to have been done by a query that failed. If its final compute completed and the failure came after it, for
+     * example while the footer was written, that is everything the query did: its completion info includes the intermediate computes.
+     * Otherwise it is what the computes that failed and the sub-plans that completed before them did, see
+     * {@link EsqlExecutionInfo#addFailedWork}.
+     */
+    static DriverCompletionInfo workDoneBeforeFailure(EsqlExecutionInfo executionInfo, @Nullable Result finalResult) {
+        return finalResult != null ? finalResult.completionInfo() : executionInfo.failedWork();
     }
 
     static ToXContent footerClusters(EsqlExecutionInfo executionInfo) {

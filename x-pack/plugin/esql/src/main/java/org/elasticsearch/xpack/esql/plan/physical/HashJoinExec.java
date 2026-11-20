@@ -37,7 +37,7 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
     private final List<Attribute> addedFields;
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
     private AttributeSet lazyAddedFields;
 
     public HashJoinExec(
@@ -93,10 +93,12 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     }
 
     public Set<Attribute> addedFields() {
-        if (lazyAddedFields == null) {
-            lazyAddedFields = AttributeSet.of(addedFields);
+        AttributeSet added = lazyAddedFields;
+        if (added == null) {
+            added = AttributeSet.of(addedFields);
+            lazyAddedFields = added;
         }
-        return lazyAddedFields;
+        return added;
     }
 
     @Override

@@ -73,6 +73,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.externalResolutionFor;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rewriteDatasetsUnsecured;
@@ -88,6 +89,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -1913,7 +1915,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
     }
 
-    // consecutive forks are not supported yet
+    // two FORKs written on one pipeline are rejected by the parser
     public void testConsecutiveForksInMainQuery() {
         analyzer().addEmployees("test").error("""
             FROM test
@@ -1972,29 +1974,6 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
                         (WHERE emp_no > 50))
                   (WHERE emp_no > 100)
                 | KEEP emp_no
-            """, containsString("Only a single FORK command is supported, but found multiple"));
-    }
-
-    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
-    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
-    // differentiate this case from the consecutive FORKs.
-    public void testConsecutiveForksWithFromSubquery() {
-        analyzer().addEmployees("test").error("""
-            FROM (
-                FROM test
-                | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)
-            )
-            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
-            """, containsString("Only a single FORK command is supported, but found multiple"));
-    }
-
-    // TODO a single subquery is promoted as the main query, so this query behaves similarly as consecutive FORKs in the main query.
-    // once consecutive FORKs are supported, this query will be supported as well, but for now it is rejected. Alternatively find a way to
-    // differentiate this case from the consecutive FORKs.
-    public void testConsecutiveForksWithNestedView() {
-        analyzer().addEmployees("test").addView("fork_view", "FROM test | FORK (WHERE emp_no > 10) (WHERE emp_no <= 10)").error("""
-            FROM fork_view
-            | FORK (WHERE emp_no > 5) (WHERE emp_no <= 5)
             """, containsString("Only a single FORK command is supported, but found multiple"));
     }
 
@@ -2087,7 +2066,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             // These cases name their datasets exactly, which reaches them at the wildcards_match_datasets default.
             false
         );
-        ExternalSourceResolution resolution = new ExternalSourceResolution(
+        ExternalSourceResolution resolution = externalResolutionFor(
+            projectMetadata,
             Map.of(
                 SALARIES_INT_RESOURCE,
                 externalSource(SALARIES_INT_RESOURCE, INTEGER),
@@ -2180,6 +2160,19 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
     }
 
+    /**
+     * A bare time-series aggregation only gets its implicit {@code _timeseries} column after the union's columns are determined.
+     * The union must still return it, right after the column that precedes it in the subquery, as the subquery does on its own.
+     */
+    public void testUnionAllKeepsImplicitTimeSeriesColumnOfBareTimeSeriesAggregate() {
+        assumeTrue("Requires TS in subqueries", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzer().addEmployees("test").addK8s().query("""
+            FROM test, (TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour))
+            """);
+        List<String> names = plan.output().stream().map(Attribute::name).toList();
+        assertThat(names.subList(names.size() - 3, names.size()), equalTo(List.of("rate", "_timeseries", "tbucket")));
+    }
+
     private static void assertProjectionHasLong(Project project, String name, Class<? extends NamedExpression> kind) {
         NamedExpression match = project.projections().stream().filter(p -> name.equals(p.name())).findFirst().orElseThrow();
         NamedExpression typed = as(match, kind);
@@ -2228,6 +2221,130 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      */
     private static LogicalPlan analyzeMaybeNullify(TestAnalyzer analyzer, String query) {
         return randomBoolean() ? analyzer.statement("SET unmapped_fields=\"nullify\";\n" + query) : analyzer.query(query);
+    }
+
+    /**
+     * The union merges {@code _score} as the live {@link MetadataAttribute}, so that a scoring search after it keeps adding
+     * to it, when a branch asked for {@code METADATA _score} and the others leave the column null - whichever branch it is,
+     * and whether the null was filled in by alignment or written as an explicit typed null.
+     */
+    public void testUnionAllMergesScoreAsMetadataWhenABranchScoresAndTheOthersAreNull() {
+        for (String from : List.of(
+            "FROM (FROM test METADATA _score), (FROM test)",
+            "FROM test, (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = null::double)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = null::double), (FROM test | KEEP emp_no)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL s = null::double | RENAME s AS _score)",
+            "FROM (FROM test | EVAL s = null::double | RENAME s AS _score), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL s = null::double | EVAL _score = s)",
+            "FROM (FROM test | EVAL s = null::double | EVAL _score = s), (FROM test METADATA _score)",
+            "FROM (FROM test | EVAL a = null::double, b = 1.0 | EVAL _score = a + b), (FROM test METADATA _score)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(MetadataAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /**
+     * A branch that computed its own {@code _score} makes the merged column a plain reference, which later scoring leaves
+     * alone, as it does for a single source.
+     */
+    public void testUnionAllMergesScoreAsReferenceWhenABranchComputesIt() {
+        for (String from : List.of(
+            "FROM (FROM test METADATA _score | EVAL _score = 1.0), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0)",
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = salary::double)",
+            "FROM (FROM test METADATA _score | EVAL _score = ROUND(_score, 2)), (FROM test METADATA _score)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(ReferenceAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /** With no branch scoring there is nothing for a later search to add onto, so the merged column stays a reference. */
+    public void testUnionAllMergesScoreAsReferenceWhenNoBranchScores() {
+        for (String from : List.of(
+            "FROM (FROM test), (FROM test) METADATA _score",
+            "FROM (FROM test | EVAL _score = null::double), (FROM test)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(ReferenceAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /**
+     * Test null-only {@code _score} branch in a nested UnionAll is recognized correctly.
+     * For the test queries below, the analyzer injects null-filled _score columns in the nested UnionAll. The output _score attribute
+     * of nested UnionAll should be correctly recognized as null-only _score branches and since other branch of
+     * outer UnionAll has {@code METADATA _score}, the merged _score column should be a MetadataAttribute.
+     */
+    public void testUnionAllMergesScoreAsMetadataWhenTheOtherBranchesAreNullThroughNesting() {
+        for (String from : List.of(
+            "FROM (FROM (FROM test), (FROM test) METADATA _score | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM (FROM test), (FROM test) METADATA _score), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test), (FROM test) METADATA _score)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(MetadataAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /**
+     * Test null-only {@code _score} branch or branch with missing {@code _score} in a nested UnionAll is recognized correctly.
+     */
+    public void testUnionAllMergesScoreAsMetadataWithNestedUnionAll() {
+        for (String from : List.of(
+            "FROM (FROM (FROM test METADATA _score), (FROM test) | LIMIT 5), (FROM test)",
+            "FROM (FROM test), (FROM (FROM test METADATA _score), (FROM test) | LIMIT 5)",
+            "FROM (FROM (FROM test), (FROM test) | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test), (FROM test) | LIMIT 5)",
+            "FROM (FROM (FROM test METADATA _score), (FROM test) | LIMIT 5), (FROM test | EVAL _score = null::double)",
+            "FROM (FROM test | EVAL _score = null::double), (FROM (FROM test METADATA _score), (FROM test) | LIMIT 5)",
+            "FROM (FROM (FROM test | EVAL _score = null::double), (FROM test) | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test | EVAL _score = null::double), (FROM test) | LIMIT 5)",
+            "FROM (FROM (FROM test), (FROM test | EVAL _score = null::double) | LIMIT 5), (FROM test METADATA _score)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(MetadataAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /**
+     * Test score column is {@code ReferenceAttribute} when a branch in nested UnionAll computes its own {@code _score}.
+     */
+    public void testUnionAllMergesScoreAsReferenceWithNestedUnionAll() {
+        for (String from : List.of(
+            "FROM (FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0) | LIMIT 5), (FROM test)",
+            "FROM (FROM test), (FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0) | LIMIT 5)",
+            "FROM (FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0) | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0) | LIMIT 5)",
+            "FROM (FROM (FROM test), (FROM test | EVAL _score = 1.0) | LIMIT 5), (FROM test METADATA _score)",
+            "FROM (FROM test METADATA _score), (FROM (FROM test), (FROM test | EVAL _score = 1.0) | LIMIT 5)"
+        )) {
+            Attribute score = mergedScore(from);
+            assertThat(from, score, instanceOf(ReferenceAttribute.class));
+            assertThat(from, score.dataType(), is(DOUBLE));
+        }
+    }
+
+    /** The {@code _score} column of the {@link UnionAll} that {@code from} resolves to, with every branch aligned to it. */
+    private Attribute mergedScore(String from) {
+        LogicalPlan plan = analyzer().addEmployees("test").query(from);
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        Attribute score = null;
+        for (Attribute attr : unionAll.output()) {
+            if (attr.name().equals(MetadataAttribute.SCORE)) {
+                score = attr;
+            }
+        }
+        assertNotNull(from, score);
+        return score;
     }
 
     @Override

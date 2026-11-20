@@ -251,14 +251,19 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         );
     }
 
-    private static void setNodeAttributes(
+    // Visible for testing
+    static void setNodeAttributes(
         TransformStats transformStats,
         PersistentTasksCustomMetadata persistentTasksCustomMetadata,
         ClusterState clusterState
     ) {
         var pTask = persistentTasksCustomMetadata.getTask(transformStats.getId());
-        if (pTask != null) {
-            transformStats.setNode(NodeAttributes.fromDiscoveryNode(clusterState.nodes().get(pTask.getExecutorNode())));
+        if (pTask != null && pTask.isAssigned()) {
+            // The node is not in the cluster state if it has left but the task has not been reassigned yet
+            var node = clusterState.nodes().get(pTask.getExecutorNode());
+            if (node != null) {
+                transformStats.setNode(NodeAttributes.fromDiscoveryNode(node));
+            }
         }
     }
 

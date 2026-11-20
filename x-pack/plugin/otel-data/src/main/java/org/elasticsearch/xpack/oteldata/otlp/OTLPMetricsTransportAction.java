@@ -75,14 +75,12 @@ import java.util.concurrent.TimeUnit;
  * It also handles the response according to the OpenTelemetry Protocol specifications,
  * including success, partial success responses, and errors due to bad data or server errors.
  *
- * <p>When {@link BatchIndexingEnabled} is active cluster-wide, exemplar ingestion does not apply, and all data-point values and
- * attributes in the request are scalar,
- * (gauges and monotonic sums with string/bool/int/double attributes only), metrics are written
- * directly into an {@link EscfBatch} without a CBOR intermediate representation, and the coordinator
- * derives {@code _tsid} column-major via
+ * <p>When {@link BatchIndexingEnabled} is active cluster-wide, exemplar ingestion does not apply, and all
+ * attributes in the request are expressible as ESCF columns (string/bool/int/double values and arrays thereof),
+ * metrics of every type are written directly into an {@link EscfBatch} without a CBOR intermediate representation,
+ * and the coordinator derives {@code _tsid} column-major via
  * {@link org.elasticsearch.cluster.routing.ColumnarTsidCalculator}. For all other cases
- * (histograms, summaries, non-scalar attributes, or the setting disabled) the existing XContent path
- * is used unchanged.
+ * (non-scalar attributes, or the setting disabled) the existing XContent path is used unchanged.
  *
  * @see <a href="https://opentelemetry.io/docs/specs/otlp">OTLP Specification</a>
  */
@@ -235,10 +233,10 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     // -------------------------------------------------------------------------
 
     /**
-     * Optimistically attempts to write every group in {@code groups} as scalar ESCF columns into a single
+     * Optimistically attempts to write every group in {@code groups} as ESCF columns into a single
      * {@link OTLPMetricBatchBuilder}, registering the resulting batch on {@code bulkRequestBuilder} on
      * success. Returns {@code false} without mutating {@code bulkRequestBuilder} if any group turns out
-     * ineligible (a non-scalar attribute or an unsupported data point) —
+     * ineligible (a non-scalar attribute) —
      * {@link OTLPMetricBatchBuilder#buildMetricRow} discovers this the moment it tries to write the
      * offending value, rather than this method scanning every group's data upfront. On failure, the
      * caller falls back to the doc-mode (XContent) path for the whole request.

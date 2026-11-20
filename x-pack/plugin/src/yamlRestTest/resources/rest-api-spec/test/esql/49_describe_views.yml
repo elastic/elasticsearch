@@ -46,6 +46,7 @@ setup:
                 type: double
                 meta:
                   unit: s
+                  description: "Latency, in seconds"
 
   - do:
       esql.put_view:
@@ -100,7 +101,15 @@ setup:
   - match: { values.2: [ "latency", "latency", "mapped", "ms", "Request latency" ] }
 
 ---
-"Branches that disagree on a unit have none":
+"Branches that disagree on a unit list every unit":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -108,7 +117,121 @@ setup:
         body:
           query: 'FROM latencies, latencies_in_seconds | KEEP lat | DESCRIBE | KEEP name, field, origin, unit, description'
 
-  - match: { values.0: [ "lat", null, "computed", null, null ] }
+  - match: { values.0: [ "lat", "latency", "renamed", [ "ms", "s" ], [ "Latency, in seconds", "Request latency" ] ] }
+
+---
+"Indices that disagree on a unit list every unit":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_semantics, test_semantics_seconds | KEEP latency | DESCRIBE | KEEP name, field, origin, unit, description'
+
+  - match: { values.0: [ "latency", "latency", "mapped", [ "ms", "s" ], [ "Latency, in seconds", "Request latency" ] ] }
+
+---
+"Branches that read the same field merge its units as indices do":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
+  - do:
+      indices.create:
+        index: test_semantics_millis
+        body:
+          mappings:
+            properties:
+              latency:
+                type: double
+                meta:
+                  unit: millis
+  - do:
+      indices.create:
+        index: test_semantics_no_unit
+        body:
+          mappings:
+            properties:
+              latency:
+                type: double
+  - do:
+      esql.put_view:
+        name: latencies_in_millis
+        body:
+          query: 'FROM test_semantics_millis | RENAME latency AS lat'
+  - do:
+      esql.put_view:
+        name: latencies_without_unit
+        body:
+          query: 'FROM test_semantics_no_unit | RENAME latency AS lat'
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies, latencies_in_millis | KEEP lat | DESCRIBE | KEEP name, unit'
+
+  - match: { values.0: [ "lat", [ "millis", "ms" ] ] }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies, latencies_without_unit | KEEP lat | DESCRIBE | KEEP name, unit'
+
+  - match: { values.0: [ "lat", "ms" ] }
+
+---
+"Computed units that disagree across branches are listed":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_semantics | FORK (EVAL x = latency) (EVAL x = latency / 1000) | KEEP x | DESCRIBE | KEEP name, field, origin, unit'
+
+  - match: { values.0: [ "x", null, "computed", [ "ms", "s" ] ] }
+
+---
+"Nothing computed from listed units has a unit":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latencies, latencies_in_seconds | EVAL lat2 = lat * 2 | KEEP lat2 | DESCRIBE | KEEP name, unit'
+
+  - match: { values.0: [ "lat2", null ] }
 
 ---
 "DESCRIBE after FORK":
@@ -139,3 +262,163 @@ setup:
   - match: { columns.3.name: latency }
   - match: { columns.3._meta.field.name: latency }
   - match: { columns.3._meta.unit: ms }
+
+---
+"column_metadata lists every unit and description":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
+  - do:
+      esql.query:
+        body:
+          query: 'SET column_metadata=true; FROM test_semantics, test_semantics_seconds | KEEP latency | LIMIT 0'
+
+  - match: { columns.0.name: latency }
+  - match: { columns.0._meta.field.name: latency }
+  - match: { columns.0._meta.field.description: [ "Latency, in seconds", "Request latency" ] }
+  - match: { columns.0._meta.unit: [ "ms", "s" ] }
+
+---
+"A data stream whose backing indices agree reports one unit":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
+  - do:
+      indices.put_index_template:
+        name: latency_template
+        body:
+          index_patterns: latency_ds*
+          data_stream: {}
+          priority: 500
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                latency:
+                  type: double
+                  meta:
+                    unit: ms
+                    description: "Request latency"
+
+  - do:
+      indices.create_data_stream:
+        name: latency_ds
+
+  - do:
+      index:
+        index: latency_ds
+        refresh: true
+        body:
+          '@timestamp': '2026-01-01T00:00:00Z'
+          latency: 1
+
+  - do:
+      indices.rollover:
+        alias: latency_ds
+
+  - do:
+      index:
+        index: latency_ds
+        refresh: true
+        body:
+          '@timestamp': '2026-01-02T00:00:00Z'
+          latency: 2
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latency_ds | KEEP latency | DESCRIBE | KEEP name, field, origin, unit, description'
+
+  - match: { values.0: [ "latency", "latency", "mapped", "ms", "Request latency" ] }
+
+---
+"A data stream rolled over after its unit changed lists every unit":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_listed_units ]
+      reason: "listed units"
+  - do:
+      indices.put_index_template:
+        name: latency_template
+        body:
+          index_patterns: latency_ds*
+          data_stream: {}
+          priority: 500
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                latency:
+                  type: double
+                  meta:
+                    unit: ms
+                    description: "Request latency"
+
+  - do:
+      indices.create_data_stream:
+        name: latency_ds
+
+  - do:
+      index:
+        index: latency_ds
+        refresh: true
+        body:
+          '@timestamp': '2026-01-01T00:00:00Z'
+          latency: 1
+
+  - do:
+      indices.put_index_template:
+        name: latency_template
+        body:
+          index_patterns: latency_ds*
+          data_stream: {}
+          priority: 500
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                latency:
+                  type: double
+                  meta:
+                    unit: s
+                    description: "Request latency"
+
+  - do:
+      indices.rollover:
+        alias: latency_ds
+
+  - do:
+      index:
+        index: latency_ds
+        refresh: true
+        body:
+          '@timestamp': '2026-01-02T00:00:00Z'
+          latency: 2
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM latency_ds | KEEP latency | DESCRIBE | KEEP name, field, origin, unit, description'
+
+  - match: { values.0: [ "latency", "latency", "mapped", [ "ms", "s" ], "Request latency" ] }

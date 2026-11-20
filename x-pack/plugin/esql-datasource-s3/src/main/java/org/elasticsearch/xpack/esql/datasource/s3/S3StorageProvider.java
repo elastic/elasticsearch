@@ -119,7 +119,7 @@ public class S3StorageProvider implements StorageProvider {
      * provider, mirroring the client-wide scope the strategy had when it lived inside the SDK client.
      * SDK-level retries are disabled on {@link #s3AsyncClient} — see {@link #buildS3AsyncClient}.
      */
-    private final RetryStrategy asyncReadRetryStrategy = AwsRetryStrategy.standardRetryStrategy();
+    private final RetryStrategy asyncReadRetryStrategy = standardRetryStrategy();
     private final S3Configuration config;
     private final StorageIdentity storageIdentity;
     // Non-null only in the production constructor; null in the test-only constructor (forTesting).
@@ -310,7 +310,7 @@ public class S3StorageProvider implements StorageProvider {
      * Package-private for subclass override in tests.
      */
     S3Client buildRetryClient(String region) {
-        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy(), region).build();
+        return configureCommon(S3Client.builder(), config, credentials, standardRetryStrategy(), region).build();
     }
 
     /**
@@ -423,8 +423,21 @@ public class S3StorageProvider implements StorageProvider {
         }
     }
 
+    /**
+     * AWS Standard retries plus {@code InvalidAccessKeyId}. IAM is not strongly consistent, so a
+     * freshly minted key can 403 until it propagates; this is the S3 SDK seam that waits that out.
+     * Azure/GCS would add an SDK-native predicate at their own builders if they hit the same class
+     * of failure.
+     */
+    private static RetryStrategy standardRetryStrategy() {
+        return AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .retryOnException(S3FailureDetail::isInvalidAccessKeyIdException)
+            .build();
+    }
+
     private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
-        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy(), null).build();
+        return configureCommon(S3Client.builder(), config, credentials, standardRetryStrategy(), null).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(
@@ -493,7 +506,7 @@ public class S3StorageProvider implements StorageProvider {
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
         List<ExecutionInterceptor> interceptors
     ) {
-        return configureCommon(builder, config, credentials, AwsRetryStrategy.standardRetryStrategy(), null, interceptors);
+        return configureCommon(builder, config, credentials, standardRetryStrategy(), null, interceptors);
     }
 
     private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(
@@ -885,8 +898,13 @@ public class S3StorageProvider implements StorageProvider {
                 if (files.size() + directories.size() > limit) {
                     return null; // too wide to buffer; the caller falls back to listObjects, which pages lazily
                 }
-                continuationToken = response.nextContinuationToken();
+                if (truncatedWithoutToken(response)) {
+                    throw new TruncatedWithoutTokenException();
+                }
+                continuationToken = continuationTokenOf(response);
             } while (continuationToken != null);
+        } catch (TruncatedWithoutTokenException e) {
+            throw new IOException("Failed to list children in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE);
         } catch (Exception e) {
             ExternalPlanningIo.addMetadataGet(0);
             // Same typing as the other list sites: a 503/429 must surface as ExternalUnavailableException so the
@@ -1147,7 +1165,7 @@ public class S3StorageProvider implements StorageProvider {
 
         private Iterator<S3Object> currentBatch;
         private String continuationToken;
-        private boolean hasMorePages;
+        private boolean firstPageFetched;
 
         /**
          * Non-null on the custom-endpoint, no-explicit-region path; consumed (set to null) after the
@@ -1169,26 +1187,18 @@ public class S3StorageProvider implements StorageProvider {
             this.prefix = prefix;
             this.baseDirectory = baseDirectory;
             this.regionHint = regionHint;
-            this.hasMorePages = true;
             this.retryClientFactory = retryClientFactory;
         }
 
         @Override
         public boolean hasNext() {
-            if (currentBatch == null) {
+            while (currentBatch == null || currentBatch.hasNext() == false) {
+                if (firstPageFetched && continuationToken == null) {
+                    return false;
+                }
                 fetchNextBatch();
             }
-
-            if (currentBatch != null && currentBatch.hasNext()) {
-                return true;
-            }
-
-            if (hasMorePages) {
-                fetchNextBatch();
-                return currentBatch != null && currentBatch.hasNext();
-            }
-
-            return false;
+            return true;
         }
 
         @Override
@@ -1207,6 +1217,7 @@ public class S3StorageProvider implements StorageProvider {
         }
 
         private void fetchNextBatch() {
+            ListObjectsV2Response response;
             try {
                 ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix);
 
@@ -1214,12 +1225,8 @@ public class S3StorageProvider implements StorageProvider {
                     requestBuilder.continuationToken(continuationToken);
                 }
 
-                ListObjectsV2Response response = s3Client.listObjectsV2(requestBuilder.build());
+                response = s3Client.listObjectsV2(requestBuilder.build());
                 ExternalPlanningIo.addMetadataGet(0);
-
-                currentBatch = response.contents().iterator();
-                continuationToken = response.nextContinuationToken();
-                hasMorePages = response.isTruncated();
             } catch (Exception e) {
                 ExternalPlanningIo.addMetadataGet(0);
                 ExternalCredentialsExpiredException expired = S3FailureDetail.expired(e, "listing objects in the configured path");
@@ -1248,7 +1255,33 @@ public class S3StorageProvider implements StorageProvider {
                     : "Failed to list objects in the configured path";
                 throw new UncheckedIOException(new IOException(msg + ": " + S3FailureDetail.of(e) + regionHint, e));
             }
+            if (truncatedWithoutToken(response)) {
+                throw new UncheckedIOException(
+                    new IOException("Failed to list objects in the configured path: " + TRUNCATED_WITHOUT_TOKEN_MESSAGE)
+                );
+            }
+            currentBatch = response.contents().iterator();
+            continuationToken = continuationTokenOf(response);
+            firstPageFetched = true;
         }
+    }
+
+    private static final class TruncatedWithoutTokenException extends RuntimeException {
+        TruncatedWithoutTokenException() {
+            super(null, null, false, false);
+        }
+    }
+
+    private static final String TRUNCATED_WITHOUT_TOKEN_MESSAGE =
+        "the store returned a truncated listing page without a continuation token";
+
+    private static boolean truncatedWithoutToken(ListObjectsV2Response response) {
+        return Boolean.TRUE.equals(response.isTruncated()) && continuationTokenOf(response) == null;
+    }
+
+    private static String continuationTokenOf(ListObjectsV2Response response) {
+        String token = response.nextContinuationToken();
+        return token == null || token.isEmpty() ? null : token;
     }
 
 }

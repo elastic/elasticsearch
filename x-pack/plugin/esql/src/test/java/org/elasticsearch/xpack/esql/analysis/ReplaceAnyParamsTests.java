@@ -73,7 +73,11 @@ public class ReplaceAnyParamsTests extends ESTestCase {
 
     /** The plan has no marker and the first {@link Filter} has {@code true} as its condition. */
     private static Filter assertWhereIsTrue(String query) {
-        LogicalPlan plan = analyzer().query(query, anyParams());
+        return assertWhereIsTrue(analyzer(), query);
+    }
+
+    private static Filter assertWhereIsTrue(TestAnalyzer analyzer, String query) {
+        LogicalPlan plan = analyzer.query(query, anyParams());
         assertNoMarkers(plan);
         List<Filter> filters = new ArrayList<>();
         plan.forEachDown(Filter.class, filters::add);
@@ -280,6 +284,38 @@ public class ReplaceAnyParamsTests extends ESTestCase {
         assertThat(withAny, not(containsString("stands for \"Any\"")));
         assertThat(withAny, equalTo(withValue));
     }
+
+    /** A list of values that can't be compared with each other is wrong for every value, so it is not hidden by the marker. */
+    public void testInValuesOfIncompatibleTypesAreAnError() {
+        String error = analyzer().error(
+            "FROM test | WHERE ?x IN (emp_no, first_name)",
+            containsString("must be [integer], found value [first_name] type [keyword]"),
+            anyParams()
+        );
+        assertThat(error, not(containsString("stands for \"Any\"")));
+        analyzer().error(
+            "FROM test | WHERE ?x IN (1, emp_no, first_name)",
+            containsString("must be [integer], found value [first_name] type [keyword]"),
+            anyParams()
+        );
+        // the types that can be compared with each other are fine, even if they are not the same
+        assertWhereIsTrue("FROM test | WHERE ?x IN (emp_no, 1, salary, ?f)");
+    }
+
+    /**
+     * The condition that doesn't type check yet may do after the operands are cast, which can take a pass of the analyzer more:
+     * here, when the {@code IN} value is the result of a condition that is replaced first.
+     */
+    public void testConditionThatNeedsACastOfItsOperandsIsReplaced() {
+        assertWhereIsTrue("FROM test | WHERE (emp_no == ?x) IN (\"false\", ?x)");
+    }
+
+    /** The analyzer compares an {@code aggregate_metric_double} by its default metric, but not if the other operand is a marker. */
+    public void testAggregateMetricDoubleIsComparedByItsDefaultMetric() {
+        assertWhereIsTrue(EsqlTestUtils.analyzer().addK8sDownsampled().stripErrorPrefix(true), "FROM k8s | WHERE network.eth0.tx == ?x");
+        assertWhereIsTrue(EsqlTestUtils.analyzer().addK8sDownsampled().stripErrorPrefix(true), "FROM k8s | WHERE ?x == network.eth0.tx");
+    }
+
     // The errors of the other operands are the ones that are reported
 
     public void testUnknownColumnIsReported() {

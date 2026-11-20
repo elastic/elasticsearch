@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -292,15 +291,12 @@ public class EsqlParser {
         if (EsqlCapabilities.Cap.PARAM_ANY_VALUE.isEnabled() == false) {
             return null;
         }
-        ResolvedSettings resolved = QuerySettings.resolve(
-            List.of(QuerySettings.PARAM_ANY_VALUE),
-            Settings.EMPTY,
-            Settings.EMPTY,
-            requestSettings,
-            null,
-            new SettingsValidationContext(false, true)
-        );
-        return QuerySettings.PARAM_ANY_VALUE.get(resolved);
+        // The request value is not validated here: a SET of the statement may override it, so it is validated with the rest of the
+        // settings once the final value is known. An invalid one only has to not be used meanwhile.
+        if (requestSettings.get(QuerySettings.PARAM_ANY_VALUE) instanceof String value && value.isEmpty() == false) {
+            return value;
+        }
+        return QuerySettings.PARAM_ANY_VALUE_DEFAULT;
     }
 
     private record ParserPipeline(CommonTokenStream tokenStream, EsqlBaseParser parser) {}

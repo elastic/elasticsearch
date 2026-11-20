@@ -39,8 +39,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.NoSuchFileException;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -71,6 +73,13 @@ public final class GlobExpander {
     private static final int LISTING_RESERVE_BATCH = 1000;
 
     private static final Logger logger = LogManager.getLogger(GlobExpander.class);
+
+    /**
+     * Exact-string TEMPLATE splice and exact-prefix empty retry. Default false so this change can merge
+     * without listing numeric {@code *} levels wider on snapshot. Tests set it true. Delete the field in
+     * <a href="https://github.com/elastic/esql-planning/issues/2739">#2739</a> and keep the true path.
+     */
+    public static volatile boolean TEMPLATE_EXACT_SPLICE = false;
 
     private GlobExpander() {}
 
@@ -697,7 +706,7 @@ public final class GlobExpander {
      * beyond where it stopped. Both report empty for a dataset that has data, which is silent zero rows rather
      * than a slow query.
      *
-     * <p>So emptiness after a rewrite is decided by listing the original glob once more, with the bound dropped and
+     * <p>So emptiness after a Hive rewrite is decided by listing the original glob once more, with the bound dropped and
      * the rewrite skipped, while the partition hints stay. The splice is a literal folder name and a hint is a
      * comparison on the typed value, so that re-list reaches a spelling the splice missed ({@code month=06} for
      * {@code month == 6}). Where a value filter runs on the original pattern, {@link PartitionValueMatcher} keeps
@@ -706,6 +715,12 @@ public final class GlobExpander {
      * keeps: a closed integral range and a non-integral equality. The equality the splice carried is not one of
      * them, and neither is a {@code NOT_EQUALS} or a range that is not a closed integral span, so the retry lists
      * a superset rather than a subset. The {@code _file.*} filters stay too — they are exact and can hide nothing.
+     *
+     * <p>TEMPLATE does not print a typed value into a {@code *} slot; only an exact string folder name is spliced.
+     * The narrowed glob is already the longest exact prefix (string account/region still in the path, numeric
+     * month/day/hour left as {@code *}). An empty listing of that prefix is conclusive: retrying the original glob
+     * would drop those splices and list the dataset. A truncated empty still retries, but with that same prefix
+     * and the bound dropped.
      *
      * <p>A spelling miss with survivors is not an unfiltered re-list. A value filter that keeps nothing still
      * keeps one inference-anchor file from the excluded set when that prune is trusted, so that pass is not
@@ -716,8 +731,8 @@ public final class GlobExpander {
      *
      * <p>Narrowing is only ever an optimisation: the query's filter still runs on the rows, so listing a superset
      * is always correct while listing a subset is a wrong answer. When nothing narrowed the glob there is nothing
-     * to disambiguate and this expands once, with no retry. A non-empty splice is not retried, so a folder spelled
-     * exactly as {@link String#valueOf} hides every other spelling of the same value.
+     * to disambiguate and this expands once, with no retry. A non-empty Hive splice is not retried, so a folder
+     * spelled exactly as {@link String#valueOf} hides every other spelling of the same value.
      */
     private static FileList expandGlobWithRewriteFallback(
         String pattern,
@@ -734,7 +749,8 @@ public final class GlobExpander {
         BooleanSupplier cancelled,
         @Nullable FolderRangePredicate folderRange
     ) throws IOException {
-        boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
+        String effective = effectivePattern(pattern, hints, partitionConfig);
+        boolean rewritten = effective.equals(pattern) == false;
         boolean bounded = extents.boundsFileSet();
         if (rewritten == false && bounded == false) {
             return doExpandGlob(
@@ -757,7 +773,9 @@ public final class GlobExpander {
 
         FileList narrowed = null;
         // A rewritten prefix may name a folder that does not exist; the local filesystem throws where object stores
-        // return empty. That is the rewrite failing, not the dataset, so it takes the same path as an empty result.
+        // return empty. Hive treats that throw as empty and retries the original glob. TEMPLATE's exact prefix is
+        // the dataset at that folder: a missing prefix is empty (same as S3) and must not list the original glob.
+        // Any other listing IO still fails.
         IOException failure = null;
         try {
             narrowed = doExpandGlob(
@@ -777,33 +795,41 @@ public final class GlobExpander {
                 folderRange
             );
         } catch (IOException e) {
-            failure = e;
+            // Only a rewritten prefix is a folder we invented. A bound on the original glob that throws
+            // is the storage's own missing directory and must not be mapped to empty.
+            if (rewritten && keepExactTemplatePrefix(partitionConfig) && isMissingPrefix(e)) {
+                narrowed = FileList.EMPTY;
+            } else {
+                failure = e;
+            }
         }
         if (failure == null && (narrowed.isResolved() == false || narrowed.fileCount() > 0)) {
             return narrowed;
         }
         // An untruncated empty drain is conclusive: it saw every key under the prefix, so the dataset has none.
-        // A rewrite listed a different prefix and cannot say that, and a truncated empty result was cut short by
-        // matches a partition-value or _file.* filter dropped - matches past the bound may survive it. Both still
-        // retry.
-        if (failure == null && rewritten == false && narrowed.isTruncated() == false) {
+        // A Hive rewrite listed a different prefix and cannot say that. TEMPLATE already listed the longest exact
+        // prefix, so retrying the original glob would only drop string splices. A truncated empty result was cut
+        // short by matches a partition-value or _file.* filter dropped - matches past the bound may survive it.
+        if (failure == null && narrowed.isTruncated() == false && retryOriginalGlobOnEmpty(rewritten, partitionConfig) == false) {
             return narrowed;
         }
         // Only the rewrite can throw spuriously — it may name a folder that does not exist, where the local
         // filesystem throws and object stores return empty. A bound cannot invent an IOException, so when it was
-        // the only narrowing the error is the storage's own and is surfaced rather than retried.
-        if (failure != null && rewritten == false) {
+        // the only narrowing the error is the storage's own and is surfaced rather than retried. TEMPLATE already
+        // mapped a missing prefix to empty above; any other throw is the storage's own and is surfaced.
+        if (failure != null && (rewritten == false || keepExactTemplatePrefix(partitionConfig))) {
             throw failure;
         }
 
         final IOException narrowedFailure = failure;
+        String retryPattern = rewriteFallbackPattern(pattern, effective, partitionConfig);
         // A bound-only retry never spliced, so it must not claim the partition filter is what changed.
-        String retryDetail = rewritten ? "re-listing the original glob with the partition filter" : "re-listing without the bound";
+        String retryDetail = rewriteFallbackRetryDetail(rewritten, retryPattern.equals(pattern));
         logger.debug(() -> "Narrowed listing of [" + pattern + "] yielded no files; " + retryDetail, narrowedFailure);
         try {
-            // Skip the splice. Passing the original hints through doExpandGlob's rewrite would list month=6 again.
+            // Skip the splice on Hive so month=6 is not listed again. TEMPLATE retries the exact-string prefix.
             return doExpandGlob(
-                pattern,
+                retryPattern,
                 provider,
                 hints,
                 partitionConfig,
@@ -822,6 +848,55 @@ public final class GlobExpander {
             SuppressedFailures.attach(retryFailure, failure);
             throw retryFailure;
         }
+    }
+
+    /**
+     * TEMPLATE splice is an exact string folder name, so the narrowed glob is already the longest exact prefix.
+     * Hive still retries the original glob because {@link #rewriteSegment} may have printed a typed value.
+     * Requires a non-null template: that is the same gate {@link #rewriteGlobWithHints} uses, so a
+     * {@code TEMPLATE} config with no template (unreachable via {@link PartitionConfig#fromConfig}) cannot
+     * Hive-splice then skip the original-glob retry.
+     */
+    private static boolean keepExactTemplatePrefix(PartitionConfig partitionConfig) {
+        return TEMPLATE_EXACT_SPLICE
+            && partitionConfig != null
+            && PartitionConfig.Strategy.TEMPLATE == partitionConfig.strategy()
+            && partitionConfig.pathTemplate() != null;
+    }
+
+    /**
+     * Local filesystems throw when a directory is absent; object stores list the prefix as empty.
+     * {@link NoSuchFileException} and {@link FileNotFoundException} are that absence. Other listing IO is
+     * still a failure.
+     */
+    private static boolean isMissingPrefix(Throwable e) {
+        return e instanceof NoSuchFileException || e instanceof FileNotFoundException;
+    }
+
+    /**
+     * Whether an untruncated empty rewrite should list the original glob. TEMPLATE already listed the exact
+     * prefix; retrying the original glob would drop string splices and flatten the dataset.
+     */
+    private static boolean retryOriginalGlobOnEmpty(boolean rewritten, PartitionConfig partitionConfig) {
+        return rewritten && keepExactTemplatePrefix(partitionConfig) == false;
+    }
+
+    /**
+     * Pattern the empty-rewrite retry lists. TEMPLATE keeps the exact-string prefix; Hive lists the original glob
+     * so a padded sibling the splice missed can still be found.
+     */
+    private static String rewriteFallbackPattern(String pattern, String effective, PartitionConfig partitionConfig) {
+        return keepExactTemplatePrefix(partitionConfig) ? effective : pattern;
+    }
+
+    private static String rewriteFallbackRetryDetail(boolean rewritten, boolean retryIsOriginalGlob) {
+        if (rewritten == false) {
+            return "re-listing without the bound";
+        }
+        if (retryIsOriginalGlob) {
+            return "re-listing the original glob with the partition filter";
+        }
+        return "re-listing the exact prefix without the bound";
     }
 
     /**
@@ -1527,7 +1602,8 @@ public final class GlobExpander {
         ActionListener<FileList> listener,
         @Nullable FolderRangePredicate folderRange
     ) {
-        boolean rewritten = effectivePattern(pattern, hints, partitionConfig).equals(pattern) == false;
+        String effective = effectivePattern(pattern, hints, partitionConfig);
+        boolean rewritten = effective.equals(pattern) == false;
         boolean bounded = extents.boundsFileSet();
         if (rewritten == false && bounded == false) {
             doExpandGlobAsync(
@@ -1552,8 +1628,11 @@ public final class GlobExpander {
             return;
         }
 
-        // Narrowed attempt first; on empty or IOException from the rewrite, retry without narrowing.
+        // Narrowed attempt first; on empty or IOException from the rewrite, retry without Hive narrowing.
+        // TEMPLATE retries the exact-string prefix (or surfaces the error) rather than the original glob.
         final boolean finalRewritten = rewritten;
+        final String retryPattern = rewriteFallbackPattern(pattern, effective, partitionConfig);
+        final boolean keepExactPrefix = keepExactTemplatePrefix(partitionConfig);
         doExpandGlobAsync(
             pattern,
             provider,
@@ -1577,15 +1656,18 @@ public final class GlobExpander {
                     return;
                 }
                 // Same rule as the synchronous fallback above: an untruncated empty drain is conclusive.
-                if (finalRewritten == false && narrowed.isTruncated() == false) {
+                if (narrowed.isTruncated() == false && retryOriginalGlobOnEmpty(finalRewritten, partitionConfig) == false) {
                     listener.onResponse(narrowed);
                     return;
                 }
                 logger.debug(
-                    () -> "Narrowed listing of [" + pattern + "] yielded no files; re-listing without the narrowing that produced it"
+                    () -> "Narrowed listing of ["
+                        + pattern
+                        + "] yielded no files; "
+                        + rewriteFallbackRetryDetail(finalRewritten, retryPattern.equals(pattern))
                 );
                 doExpandGlobAsync(
-                    pattern,
+                    retryPattern,
                     provider,
                     hints,
                     partitionConfig,
@@ -1604,10 +1686,16 @@ public final class GlobExpander {
                     listener
                 );
             }, narrowFailure -> {
+                // Local-filesystem missing prefix is empty, same as the sync path and same as S3. Other listing
+                // IO still fails. Neither case lists the original glob.
+                if (finalRewritten && keepExactPrefix && isMissingPrefix(narrowFailure)) {
+                    listener.onResponse(FileList.EMPTY);
+                    return;
+                }
                 // Only the rewrite can throw spuriously (a folder that does not exist on a local filesystem).
                 // A bound cannot invent an IOException from a path that exists, so when it was the only narrowing
                 // the error is the storage's own and is surfaced rather than retried.
-                if (finalRewritten == false) {
+                if (finalRewritten == false || keepExactPrefix) {
                     listener.onFailure(narrowFailure);
                     return;
                 }
@@ -1616,7 +1704,7 @@ public final class GlobExpander {
                     narrowFailure
                 );
                 doExpandGlobAsync(
-                    pattern,
+                    retryPattern,
                     provider,
                     hints,
                     partitionConfig,
@@ -3501,6 +3589,12 @@ public final class GlobExpander {
         return result.toString();
     }
 
+    /**
+     * Narrows a TEMPLATE glob by splicing an exact string folder name into a {@code *} slot. A numeric or boolean
+     * value is one spelling of a typed comparison ({@code 6} vs {@code 06}, {@code true} vs {@code TRUE}); leaving
+     * the wildcard lets {@link PartitionValueMatcher} keep every typed match. Guessing {@code 06} from {@code 6}
+     * would invent a spelling.
+     */
     public static String rewriteGlobWithTemplate(String pattern, Map<String, PartitionFilterHint> rewritableHints, String template) {
         List<TemplateSegment> templateSegments = TemplatePartitionDetector.parseTemplate(template);
         if (hasPlaceholder(templateSegments) == false) {
@@ -3556,14 +3650,24 @@ public final class GlobExpander {
                         continue;
                     }
                     List<Object> values = hint.values();
-                    // A non-integral number's printed form is one spelling. 6.0 would miss price=6.00, and 1.10
-                    // would hit price=1.1. Leave the wildcard; the typed folder filter keeps the matches.
-                    if (containsNonIntegralNumber(values)) {
-                        continue;
-                    }
                     if (hint.isSingleValue() == false) {
                         // Multi-value IN leaves the * slot. A brace of guessed spellings misses percent-encoded
                         // folders while one guessed hit keeps the listing non-empty, so the empty fallback never runs.
+                        continue;
+                    }
+                    if (TEMPLATE_EXACT_SPLICE) {
+                        // Only a string that is the on-disk folder name. String.valueOf(6) would splice "6"
+                        // and miss "06". A decoded value ("a b") would splice a folder that is stored encoded
+                        // ("a%20b/") and the empty retry is now conclusive.
+                        if (values.get(0) instanceof String value && exactTemplateFolderName(value)) {
+                            raw[rawIdx] = value;
+                            changed = true;
+                        }
+                        continue;
+                    }
+                    // A non-integral number's printed form is one spelling. 6.0 would miss price=6.00, and 1.10
+                    // would hit price=1.1. Leave the wildcard; the typed folder filter keeps the matches.
+                    if (containsNonIntegralNumber(values)) {
                         continue;
                     }
                     String value = String.valueOf(values.get(0));
@@ -3921,8 +4025,8 @@ public final class GlobExpander {
         }
 
         List<Object> values = hint.values();
-        // Same as the template rewrite: a non-integral number is not one folder name. Keep key=* and let the
-        // typed filter decide, so IN (1.25, 6.0) still lists price=6.00.
+        // A non-integral number's printed form is not one folder name. Keep key=* and let the typed filter
+        // decide, so IN (1.25, 6.0) still lists price=6.00. Integers still splice here; TEMPLATE does not.
         if (containsNonIntegralNumber(values)) {
             return segment;
         }
@@ -3951,6 +4055,30 @@ public final class GlobExpander {
      */
     private static boolean globExpressible(String value) {
         return value.indexOf('*') < 0 && value.indexOf('?') < 0 && value.indexOf('[') < 0 && value.indexOf('{') < 0;
+    }
+
+    /**
+     * A TEMPLATE splice must be the folder name on disk. {@link TemplatePartitionDetector} percent-decodes
+     * segments, so {@code region == "a b"} is the decoded value of {@code a%20b/} and {@code "a+b"} of
+     * {@code a%2Bb/}; splicing the decoded form lists a folder that does not exist and the empty retry is
+     * conclusive. Only RFC 3986 unreserved characters are a spelling a writer would leave unescaped;
+     * anything else stays {@code *} and the typed filter keeps the encoded match.
+     */
+    private static boolean exactTemplateFolderName(String value) {
+        if (globExpressible(value) == false) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (isUnreservedFolderChar(value.charAt(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** RFC 3986 unreserved: {@code ALPHA / DIGIT / "-" / "." / "_" / "~"}. */
+    private static boolean isUnreservedFolderChar(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~';
     }
 
     public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {

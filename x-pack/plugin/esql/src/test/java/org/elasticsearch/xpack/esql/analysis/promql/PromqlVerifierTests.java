@@ -166,7 +166,7 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlHeterogeneousOffsetBinaryExpression() {
         // Both operands are source-backed and get merged into a single time-series aggregate, which cannot carry
         // two different offsets. `or` (UNION) translates to independent branches and is therefore allowed.
-        tsdb.error(
+        mixedTsdb.error(
             "PROMQL index=test step=5m (network.bytes_in - network.bytes_in offset 1d)",
             containsString("binary expressions with different offsets are not supported at this time")
         );
@@ -503,7 +503,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "network.connections * max by (host) (network.bytes_in)",
             "stddev(network.bytes_in) + network.connections"
         )) {
-            tsdb.error(
+            mixedTsdb.error(
                 query + rejected,
                 containsString("binary operations between an aggregated and a raw vector are not supported at this time")
             );
@@ -516,7 +516,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "sum by (value) (label_replace(network.bytes_in, \"value\", \"$1\", \"host\", \"(.*)\")) "
                 + "* scalar(max(network.connections))"
         )) {
-            tsdb.error(
+            mixedTsdb.error(
                 query + rejected,
                 containsString("binary operations between scalar() of a vector and a vector with labels are not supported at this time")
             );
@@ -529,7 +529,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "topk(2, network.bytes_in) * network.connections",
             "sum by (host) (network.bytes_in) / topk(2, network.connections)"
         )) {
-            tsdb.error(
+            mixedTsdb.error(
                 query + rejected,
                 containsString("binary operations over topk, bottomk, limitk or limit_ratio are not supported at this time")
             );
@@ -540,7 +540,7 @@ public class PromqlVerifierTests extends ESTestCase {
             "sum(limit_ratio(0.5, network.bytes_in)) / sum(network.connections)",
             "sum(network.bytes_in) / scalar(sum(network.connections))"
         )) {
-            tsdb.error(query + rejected, containsString("binary expressions with nested aggregations are not supported at this time"));
+            mixedTsdb.error(query + rejected, containsString("binary expressions with nested aggregations are not supported at this time"));
         }
         for (String accepted : List.of(
             "network.bytes_in / network.connections",

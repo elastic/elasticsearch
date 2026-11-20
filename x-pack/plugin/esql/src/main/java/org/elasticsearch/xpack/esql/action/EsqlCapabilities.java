@@ -4337,6 +4337,14 @@ public class EsqlCapabilities {
         FIX_PROMQL_CARRIED_FIELD_LABELS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL arithmetic/comparison binaries join independent operand pipelines when they cannot share one aggregation:
+         * different {@code offset}s, nested across-series next to another operand, aggregated x raw, and {@code scalar()} x
+         * labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} join over a typed
+         * label container; a keyword one still rejects them. Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * PromQL vector matching no longer needs both operands to name their labels: {@code on(...)} and {@code ignoring(...)}
          * read the listed labels out of an opaque operand's label container, and default matching keys an opaque side by its
          * label container without {@code __name__} and a side without one by the empty signature, as Prometheus signatures do.

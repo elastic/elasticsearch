@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.CountValuesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
@@ -362,8 +363,8 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * functions: a source-backed scalar, which broadcasts on the step; operands disagreeing on {@code offset}, as one
      * aggregate has one evaluation time; an operand aggregated across series beside a raw one, or nested aggregations,
      * which no single aggregate computes; a {@code topk}-like reduction, which ranks after its own aggregate; a filter
-     * comparison of two vectors, which pairs them like any match; and operands reading different metrics stored as
-     * separate series, which never share a series.
+     * comparison of two vectors, which pairs them like any match; a relabel, which changes the labels of one operand's
+     * series only; and operands reading different metrics stored as separate series, which never share a series.
      */
     private boolean requiresIndependentPipelines(TranslationContext context) {
         boolean leftScalar = PromqlPlan.returnsScalar(left());
@@ -381,6 +382,11 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (context.cmd().storesMetricName()
             && readsDifferentMetrics()
             && (hasPackedLabels(left().output()) || hasPackedLabels(right().output()))) {
+            return true;
+        }
+        // A relabel changes the series' labels, which one shared aggregate does not carry for both operands.
+        if (left().anyMatch(MetadataManipulationFunction.class::isInstance)
+            || right().anyMatch(MetadataManipulationFunction.class::isInstance)) {
             return true;
         }
         if (hasSourceBackedExpression(left()) == false || hasSourceBackedExpression(right()) == false) {
@@ -631,11 +637,16 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         Alias stepAlias = new Alias(step.source(), step.name(), step, context.stepAttr().id());
         Alias valueAlias = new Alias(source(), cmd.valueColumnName(), value, new NameId());
         Alias labelsAlias = labels == null ? null : new Alias(source(), RESULT_LABELS, labels, new NameId());
-        var definitions = new ArrayList<Alias>(List.of(valueAlias, stepAlias));
+        LogicalPlan plan = join;
         if (labelsAlias != null) {
-            definitions.add(labelsAlias);
+            plan = new Eval(cmd.source(), plan, List.of(labelsAlias));
+            if (match.grouping() != Joining.NONE) {
+                // Prometheus fails a group_left/group_right match before it compares values: copying the one side's labels
+                // over the many side's can leave two many side series with the same labels.
+                plan = TranslationContext.uniqueSeries(cmd.source(), plan, step, List.of(labelsAlias.toAttribute()));
+            }
         }
-        LogicalPlan plan = new Eval(cmd.source(), join, definitions);
+        plan = new Eval(cmd.source(), plan, List.of(valueAlias, stepAlias));
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }
@@ -920,6 +931,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         List<Alias> definitions = new ArrayList<>(List.of(valueAlias, stepAlias));
         definitions.addAll(defined(output));
         LogicalPlan plan = new Eval(cmd.source(), join, definitions);
+        if (match.grouping() != Joining.NONE) {
+            // Prometheus fails a group_left/group_right match before it compares values: copying the one side's labels over
+            // the many side's can leave two many side series with the same labels.
+            List<Attribute> labels = output.stream().map(NamedExpression::toAttribute).toList();
+            plan = TranslationContext.uniqueSeries(cmd.source(), plan, stepAlias.toAttribute(), labels);
+        }
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }

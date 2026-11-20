@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.search.vectors;
 
+import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
+
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
@@ -15,6 +17,10 @@ import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAS
 /**
  * Minimum competitive doc score shared across the leaves of one IVF kNN search, so a leaf can skip candidates that
  * another leaf has already outscored.
+ * <p>
+ * Only the score is shared. A published bound's doc id tie-breaker is local to the publishing segment, so it cannot
+ * order ties against docs in other leaves. A doc in another leaf that ties the shared score may still win the doc id
+ * tie-break when leaves are merged, so the shared bound is one that ties beat.
  */
 public final class SharedMinCompetitiveScore {
     private final AtomicLong value;
@@ -33,10 +39,20 @@ public final class SharedMinCompetitiveScore {
         return value.get();
     }
 
-    /** Raises the shared score to {@code score} if it is more competitive; a no-op on a {@link #readOnly()} view. */
-    void publish(long score) {
-        if (canPublish && score > value.get()) {
-            value.accumulateAndGet(score, Math::max);
+    /**
+     * Raises the shared bound to the score of the encoded {@code minCompetitiveDocScore} if it is more competitive;
+     * a no-op on a {@link #readOnly()} view.
+     * <p>
+     * Collectors skip candidates that do not score strictly above the bound, so the stored bound is one ulp below the
+     * published score, with the least competitive doc id in place of the segment-local one, to keep candidates that tie it.
+     */
+    void publish(long minCompetitiveDocScore) {
+        if (canPublish == false) {
+            return;
+        }
+        long bound = NeighborQueue.encodeRaw(Integer.MAX_VALUE, Math.nextDown(NeighborQueue.decodeScoreRaw(minCompetitiveDocScore)));
+        if (bound > value.get()) {
+            value.accumulateAndGet(bound, Math::max);
         }
     }
 

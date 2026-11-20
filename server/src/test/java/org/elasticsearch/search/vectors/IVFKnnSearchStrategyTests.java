@@ -27,20 +27,21 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
         assertEquals(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE, sharedScore.get());
         assertEquals(AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE, collector.getMinCompetitiveDocScore());
 
-        // shared score should now be updated
+        // shared score should now be updated, while the collector keeps its own more competitive bound
         collector.collect(2, 0.9f);
         long competitiveScore = NeighborQueue.encodeRaw(2, 0.9f);
         strategy.nextVectorsBlock();
-        assertEquals(competitiveScore, sharedScore.get());
+        assertEquals(sharedBound(0.9f), sharedScore.get());
         assertEquals(competitiveScore, collector.getMinCompetitiveDocScore());
 
         // updated shared score directly with more competitive score
-        competitiveScore = NeighborQueue.encodeRaw(3, 1.5f);
-        sharedScore.publish(competitiveScore);
-        assertEquals(competitiveScore, sharedScore.get());
+        sharedScore.publish(NeighborQueue.encodeRaw(3, 1.5f));
+        assertEquals(sharedBound(1.5f), sharedScore.get());
         strategy.nextVectorsBlock();
-        assertEquals(competitiveScore, collector.getMinCompetitiveDocScore());
-        assertEquals(competitiveScore, sharedScore.get());
+        assertEquals(sharedBound(1.5f), collector.getMinCompetitiveDocScore());
+        assertEquals(sharedBound(1.5f), sharedScore.get());
+        // a doc tying the shared score is still competitive
+        assertTrue(collector.minCompetitiveSimilarity() < 1.5f);
     }
 
     public void testReadOnlySharedScoreIsNotPublishedTo() {
@@ -58,10 +59,41 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
         assertEquals(collectorScore, collector.getMinCompetitiveDocScore());
 
         // a more competitive shared cutoff is still read
-        long otherLeafScore = NeighborQueue.encodeRaw(3, 1.5f);
-        sharedScore.publish(otherLeafScore);
+        sharedScore.publish(NeighborQueue.encodeRaw(3, 1.5f));
         strategy.nextVectorsBlock();
-        assertEquals(otherLeafScore, collector.getMinCompetitiveDocScore());
-        assertEquals(otherLeafScore, sharedScore.get());
+        assertEquals(sharedBound(1.5f), collector.getMinCompetitiveDocScore());
+        assertEquals(sharedBound(1.5f), sharedScore.get());
+    }
+
+    /**
+     * Leaf A publishes a cutoff whose doc id is local to A, so leaf B cannot tell whether its own doc with the same score
+     * would lose the tie-break at merge. B must keep docs that tie the cutoff, and may only skip docs scoring below it.
+     */
+    public void testTiedScoreInAnotherLeafStaysCompetitive() {
+        SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
+        IVFKnnSearchStrategy strategyA = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore);
+        MaxScoreTopKnnCollector leafA = new MaxScoreTopKnnCollector(2, 1000, strategyA);
+        strategyA.setCollector(leafA);
+        IVFKnnSearchStrategy strategyB = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore);
+        MaxScoreTopKnnCollector leafB = new MaxScoreTopKnnCollector(2, 1000, strategyB);
+        strategyB.setCollector(leafB);
+
+        leafA.collect(5, 1f);
+        leafA.collect(6, 1f);
+        strategyA.nextVectorsBlock();
+
+        leafB.collect(1, 0.5f);
+        leafB.collect(2, 0.6f);
+        strategyB.nextVectorsBlock();
+
+        // readers collect a doc only when minCompetitiveSimilarity() < score
+        assertTrue(leafB.minCompetitiveSimilarity() < 1f);
+        assertFalse(leafB.minCompetitiveSimilarity() < 0.99f);
+        assertTrue(leafB.collect(0, 1f));
+    }
+
+    /** The encoded bound {@link SharedMinCompetitiveScore#get()} returns once {@code score} is the shared score. */
+    static long sharedBound(float score) {
+        return NeighborQueue.encodeRaw(Integer.MAX_VALUE, Math.nextDown(score));
     }
 }

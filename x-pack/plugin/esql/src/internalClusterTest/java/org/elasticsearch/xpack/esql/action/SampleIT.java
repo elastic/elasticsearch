@@ -12,21 +12,22 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Tests for {@code SAMPLE} that need more than one shard. The csv-spec tests cover the command itself, but they run
- * against a single shard everywhere except on serverless.
+ * Tests for {@code SAMPLE} that need more than one shard.
  */
 // One data node, so that all the shards of an index are planned together.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class SampleIT extends AbstractEsqlIntegTestCase {
 
     /**
-     * Runs with the default pragmas. A random {@code max_concurrent_shards_per_node} makes the data node plan the shards
-     * in several batches, and each batch samples with a random seed of its own. That hides shards that share a seed.
+     * A random {@code max_concurrent_shards_per_node} splits the shards into batches that each sample with a seed of
+     * their own, which hides shards that share one.
      */
     @Override
     protected QueryPragmas getPragmas() {
@@ -34,8 +35,7 @@ public class SampleIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Each shard has to sample its own documents. Shards that share a random stream keep the same segment-local doc
-     * ids, so with one document per shard they keep either all of the documents or none of them.
+     * Shards that share a random stream keep the same doc ids: with one document each, all of them or none.
      */
     public void testShardsSampleDifferentDocs() {
         String index = "sample_one_doc_per_shard";
@@ -50,11 +50,11 @@ public class SampleIT extends AbstractEsqlIntegTestCase {
             assertThat(shardStats.getShardRouting().toString(), shardStats.getStats().getDocs().getCount(), equalTo(1L));
         }
 
-        // Independent shards keep all or none of the documents in one query out of 512, and in all 20 of them never.
+        // Each query is all-or-none with probability 1/512, so 20 in a row is practically impossible.
         boolean sampledSomeOfTheShards = false;
         for (int i = 0; i < 20 && sampledSomeOfTheShards == false; i++) {
             try (EsqlQueryResponse response = run("FROM " + index + " | SAMPLE 0.5 | STATS c = COUNT(*)")) {
-                long count = (long) getValuesList(response).get(0).get(0);
+                long count = as(singleValue(singleValue(getValuesList(response))), Long.class);
                 sampledSomeOfTheShards = 0 < count && count < shards;
             }
         }

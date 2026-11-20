@@ -9,12 +9,15 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -25,9 +28,12 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -53,13 +59,12 @@ public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<Rando
         var rsQuery = asInstanceOf(RandomSamplingQuery.class, query);
         assertThat(rsQuery.probability(), equalTo(queryBuilder.probability()));
         assertThat(rsQuery.seed(), equalTo(queryBuilder.seed()));
-        int shardSeed = new ShardId(context.index(), context.getShardId()).hashCode();
+        int shardSeed = BitMixer.mix(new ShardId(context.index(), context.getShardId()).hashCode());
         assertThat(rsQuery.hash(), equalTo(queryBuilder.hash() ^ shardSeed));
     }
 
     /**
-     * Every shard has to draw its own random stream. Shards that share one keep the same segment-local doc ids, so with
-     * a single document per shard they keep either all of the documents or none of them.
+     * Shards that share a random stream keep the same doc ids: with one document each, all of them or none.
      */
     public void testShardsSampleDifferentDocs() throws IOException {
         int shards = 64;
@@ -80,7 +85,32 @@ public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<Rando
     }
 
     /**
-     * The contexts that {@link AbstractQueryTestCase} builds are all for shard 0, this one is for the shard asked for.
+     * Seeds that differ in a low bit must not get each other's streams on neighbouring shards.
+     */
+    public void testNearbySeedsDrawDifferentStreams() throws IOException {
+        int shards = 8;
+        int seed = randomInt();
+        IndexSettings indexSettings = createSearchExecutionContext().getIndexSettings();
+        Set<Integer> streams = new HashSet<>();
+        Set<Integer> nearbyStreams = new HashSet<>();
+        for (int shard = 0; shard < shards; shard++) {
+            SearchExecutionContext context = searchExecutionContext(indexSettings, shard);
+            streams.add(stream(new RandomSamplingQueryBuilder(0.5).seed(seed), context));
+            nearbyStreams.add(stream(new RandomSamplingQueryBuilder(0.5).seed(seed ^ 1), context));
+        }
+        assertThat(Sets.intersection(streams, nearbyStreams), empty());
+    }
+
+    /**
+     * The value whose mix seeds the stream of {@link RandomSamplingQuery}: equal values, equal streams.
+     */
+    private static int stream(RandomSamplingQueryBuilder builder, SearchExecutionContext context) throws IOException {
+        RandomSamplingQuery query = asInstanceOf(RandomSamplingQuery.class, builder.toQuery(context));
+        return query.hash() ^ query.seed();
+    }
+
+    /**
+     * The contexts of {@link AbstractQueryTestCase} are all for shard 0.
      */
     private SearchExecutionContext searchExecutionContext(IndexSettings indexSettings, int shardId) {
         return new SearchExecutionContext(

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Randomness;
@@ -120,10 +122,9 @@ public class RandomSamplingQueryBuilder extends LeafQueryBuilder<RandomSamplingQ
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        // One builder is turned into a query on every shard it runs on. Without a salt that differs per shard all of them
-        // draw the same random stream and so keep the same segment-local doc ids. This is the salt the random_sampler
-        // aggregation gets from AggregationContext#shardRandomSeed.
-        int shardSeed = new ShardId(context.index(), context.getShardId()).hashCode();
+        // Shards must not draw the same stream. Mixed, because the shard hashes of an index are consecutive: unmixed,
+        // seeds that differ in their low bits swap streams between neighbouring shards.
+        int shardSeed = BitMixer.mix(new ShardId(context.index(), context.getShardId()).hashCode());
         return new RandomSamplingQuery(probability, seed, hash ^ shardSeed);
     }
 

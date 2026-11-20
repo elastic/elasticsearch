@@ -1,0 +1,5 @@
+area: CRUD
+issues: []
+pr: 166471
+summary: Charge `_mget` sources and drop them once serialized
+type: enhancement

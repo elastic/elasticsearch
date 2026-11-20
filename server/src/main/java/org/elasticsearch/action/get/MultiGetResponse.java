@@ -110,17 +110,26 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         return Iterators.forArray(responses);
     }
 
+    /**
+     * The returned iterator drops each item once it has handed it out, so a response that is still being written doesn't keep the
+     * documents it has serialized reachable, unless something else references this response.
+     */
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        final MultiGetItemResponse[] unserialized = responses.clone();
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.array(DOCS.getPreferredName(), Iterators.map(Iterators.forArray(responses), response -> (b, p) -> {
-                if (response.isFailed()) {
-                    response.getFailure().toXContent(b, p);
-                } else {
-                    response.getResponse().toXContent(b, p);
-                }
-                return b;
+            ChunkedToXContentHelper.array(DOCS.getPreferredName(), Iterators.forRange(0, unserialized.length, i -> {
+                final MultiGetItemResponse response = unserialized[i];
+                unserialized[i] = null;
+                return (b, p) -> {
+                    if (response.isFailed()) {
+                        response.getFailure().toXContent(b, p);
+                    } else {
+                        response.getResponse().toXContent(b, p);
+                    }
+                    return b;
+                };
             })),
             ChunkedToXContentHelper.endObject()
         );

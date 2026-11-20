@@ -107,7 +107,7 @@ public interface ChunkedRestResponseBodyPart {
     static ChunkedRestResponseBodyPart fromXContent(ChunkedToXContent chunkedToXContent, ToXContent.Params params, RestChannel channel)
         throws IOException {
 
-        return new ChunkedRestResponseBodyPart() {
+        final var bodyPart = new ChunkedRestResponseBodyPart() {
 
             private final OutputStream out = new OutputStream() {
                 @Override
@@ -128,10 +128,7 @@ public interface ChunkedRestResponseBodyPart {
                 Streams.noCloseStream(out)
             );
 
-            private final Iterator<? extends ToXContent> serialization = chunkedToXContent.toXContentChunked(
-                builder.getRestApiVersion(),
-                params
-            );
+            private Iterator<? extends ToXContent> serialization;
 
             private BytesStream target;
 
@@ -186,6 +183,10 @@ public interface ChunkedRestResponseBodyPart {
                 return builder.getResponseContentTypeString();
             }
         };
+        // Assigned after construction so that the body part, which lives until the response has been written, doesn't capture
+        // chunkedToXContent and keep alive what the iterator has already dropped.
+        bodyPart.serialization = chunkedToXContent.toXContentChunked(bodyPart.builder.getRestApiVersion(), params);
+        return bodyPart;
     }
 
     /**

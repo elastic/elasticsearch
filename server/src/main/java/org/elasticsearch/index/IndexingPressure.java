@@ -138,6 +138,14 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final AtomicLong largeOpsRejections = new AtomicLong(0);
     private final AtomicLong totalRejectedLargeOpsBytes = new AtomicLong(0);
 
+    // A reindex page reserve that did not fit. Also counted in coordinatingRejections.
+    private final AtomicLong reindexPageReserveRejections = new AtomicLong(0);
+    // Bytes a built reindex page gave back, or took on, against the estimate it reserved.
+    private final AtomicLong reindexPageBytesBelowEstimate = new AtomicLong(0);
+    private final AtomicLong reindexPageBytesAboveEstimate = new AtomicLong(0);
+    // A built reindex page larger than the coordinating limit. Also counted in coordinatingRejections.
+    private final AtomicLong reindexPageExceedsLimit = new AtomicLong(0);
+
     private final long lowWatermark;
     private final long lowWatermarkSize;
     private final long highWatermark;
@@ -172,6 +180,36 @@ public class IndexingPressure implements IndexingPressureMonitor {
      */
     public long reindexBytesEstimatePerDocument() {
         return reindexBytesEstimatePerDocument;
+    }
+
+    /**
+     * One reindex page reserve was refused. The task waits and tries again.
+     */
+    public void addReindexPageReserveRejection() {
+        reindexPageReserveRejections.incrementAndGet();
+    }
+
+    /**
+     * A built reindex page was this many bytes under the estimate it reserved.
+     */
+    public void addReindexPageBytesBelowEstimate(long bytes) {
+        assert bytes > 0 : bytes;
+        reindexPageBytesBelowEstimate.addAndGet(bytes);
+    }
+
+    /**
+     * A built reindex page was this many bytes over the estimate it reserved.
+     */
+    public void addReindexPageBytesAboveEstimate(long bytes) {
+        assert bytes > 0 : bytes;
+        reindexPageBytesAboveEstimate.addAndGet(bytes);
+    }
+
+    /**
+     * A built reindex page was larger than the coordinating limit, so its charge could not grow to the real size.
+     */
+    public void addReindexPageExceedsLimit() {
+        reindexPageExceedsLimit.incrementAndGet();
     }
 
     /**
@@ -786,7 +824,11 @@ public class IndexingPressure implements IndexingPressureMonitor {
             totalRejectedLargeOpsBytes.get(),
             currentIngestExpansionBytes.get(),
             totalIngestExpansionBytes.get(),
-            ingestExpansionRejections.get()
+            ingestExpansionRejections.get(),
+            reindexPageReserveRejections.get(),
+            reindexPageBytesBelowEstimate.get(),
+            reindexPageBytesAboveEstimate.get(),
+            reindexPageExceedsLimit.get()
         );
     }
 

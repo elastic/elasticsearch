@@ -149,6 +149,7 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             assertFalse(harness.listener.isDone());
             assertTrue("the refused estimate has to be tried again", harness.queue.hasDeferredTasks());
             assertThat(harness.chargedBytes(), equalTo(pressure.getCoordinatingLimitInBytes()));
+            assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
         }
 
         harness.queue.advanceTime();
@@ -161,6 +162,10 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(harness.client.searches.size(), equalTo(1));
         assertThat(harness.chargedBytes(), equalTo(0L));
         assertThat(hit.releases.get(), equalTo(1));
+        assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
+        assertThat(pressure.stats().getReindexPageBytesBelowEstimate(), greaterThan(0L));
+        assertThat(pressure.stats().getReindexPageBytesAboveEstimate(), equalTo(0L));
+        assertThat(pressure.stats().getReindexPageExceedsLimit(), equalTo(0L));
     }
 
     /**
@@ -794,8 +799,12 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         first.onDone = first::finishWithEmptyPage;
         first.start();
         first.feed(List.of(hit));
+        assertThat(pressure.stats().getReindexPageBytesAboveEstimate(), equalTo(realCharge.get() - estimate));
+        assertThat(pressure.stats().getReindexPageBytesBelowEstimate(), equalTo(0L));
+        assertThat(pressure.stats().getReindexPageExceedsLimit(), equalTo(0L));
 
         second.start();
+        assertThat(pressure.stats().getReindexPageReserveRejections(), equalTo(1L));
         assertThat(second.client.searches.size(), equalTo(0));
         assertFalse(second.listener.isDone());
         assertThat(second.client.bulks, equalTo(List.of()));
@@ -837,6 +846,10 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
             assertThat(harness.client.bulks, equalTo(List.of()));
             assertThat(hit.releases.get(), equalTo(1));
             assertThat(harness.chargedBytes(), equalTo(preexisting));
+            assertThat(pressure.stats().getReindexPageExceedsLimit(), equalTo(1L));
+            assertThat(pressure.stats().getReindexPageBytesAboveEstimate(), equalTo(0L));
+            assertThat(pressure.stats().getReindexPageBytesBelowEstimate(), equalTo(0L));
+            assertThat(pressure.stats().getCoordinatingRejections(), equalTo(1L));
         }
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }

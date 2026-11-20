@@ -29,6 +29,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         "indexing_pressure_ingest_expansion_stats"
     );
 
+    private static final TransportVersion REINDEX_PAGE_STATS_ADDED = TransportVersion.fromName("reindex_page_indexing_pressure_stats");
+
     private final long totalCombinedCoordinatingAndPrimaryBytes;
     private final long totalCoordinatingBytes;
     private final long totalPrimaryBytes;
@@ -58,6 +60,14 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long totalIngestExpansionBytes;
     // Rejections of ingest expansion. These are also counted in coordinatingRejections.
     private final long ingestExpansionRejections;
+
+    // A reindex page reserve that did not fit. Also counted in coordinatingRejections.
+    private final long reindexPageReserveRejections;
+    // Bytes a built reindex page gave back, or took on, against the estimate it reserved.
+    private final long reindexPageBytesBelowEstimate;
+    private final long reindexPageBytesAboveEstimate;
+    // A built reindex page larger than the coordinating limit. Also counted in coordinatingRejections.
+    private final long reindexPageExceedsLimit;
 
     // These fields will be used for additional back-pressure and metrics in the future
     private final long totalCoordinatingOps;
@@ -117,6 +127,18 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             totalIngestExpansionBytes = 0L;
             ingestExpansionRejections = 0L;
         }
+
+        if (in.getTransportVersion().supports(REINDEX_PAGE_STATS_ADDED)) {
+            reindexPageReserveRejections = in.readVLong();
+            reindexPageBytesBelowEstimate = in.readVLong();
+            reindexPageBytesAboveEstimate = in.readVLong();
+            reindexPageExceedsLimit = in.readVLong();
+        } else {
+            reindexPageReserveRejections = 0L;
+            reindexPageBytesBelowEstimate = 0L;
+            reindexPageBytesAboveEstimate = 0L;
+            reindexPageExceedsLimit = 0L;
+        }
     }
 
     public IndexingPressureStats(
@@ -146,7 +168,11 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         long totalRejectedLargeOpsBytes,
         long currentIngestExpansionBytes,
         long totalIngestExpansionBytes,
-        long ingestExpansionRejections
+        long ingestExpansionRejections,
+        long reindexPageReserveRejections,
+        long reindexPageBytesBelowEstimate,
+        long reindexPageBytesAboveEstimate,
+        long reindexPageExceedsLimit
     ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
@@ -178,6 +204,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentIngestExpansionBytes = currentIngestExpansionBytes;
         this.totalIngestExpansionBytes = totalIngestExpansionBytes;
         this.ingestExpansionRejections = ingestExpansionRejections;
+        this.reindexPageReserveRejections = reindexPageReserveRejections;
+        this.reindexPageBytesBelowEstimate = reindexPageBytesBelowEstimate;
+        this.reindexPageBytesAboveEstimate = reindexPageBytesAboveEstimate;
+        this.reindexPageExceedsLimit = reindexPageExceedsLimit;
     }
 
     @Override
@@ -214,6 +244,13 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             out.writeVLong(currentIngestExpansionBytes);
             out.writeVLong(totalIngestExpansionBytes);
             out.writeVLong(ingestExpansionRejections);
+        }
+
+        if (out.getTransportVersion().supports(REINDEX_PAGE_STATS_ADDED)) {
+            out.writeVLong(reindexPageReserveRejections);
+            out.writeVLong(reindexPageBytesBelowEstimate);
+            out.writeVLong(reindexPageBytesAboveEstimate);
+            out.writeVLong(reindexPageExceedsLimit);
         }
     }
 
@@ -325,6 +362,22 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return ingestExpansionRejections;
     }
 
+    public long getReindexPageReserveRejections() {
+        return reindexPageReserveRejections;
+    }
+
+    public long getReindexPageBytesBelowEstimate() {
+        return reindexPageBytesBelowEstimate;
+    }
+
+    public long getReindexPageBytesAboveEstimate() {
+        return reindexPageBytesAboveEstimate;
+    }
+
+    public long getReindexPageExceedsLimit() {
+        return reindexPageExceedsLimit;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";
@@ -345,6 +398,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private static final String INGEST_EXPANSION = "ingest_expansion";
     private static final String INGEST_EXPANSION_IN_BYTES = "ingest_expansion_in_bytes";
     private static final String INGEST_EXPANSION_REJECTIONS = "ingest_expansion_rejections";
+    private static final String REINDEX_PAGE_RESERVE_REJECTIONS = "reindex_page_reserve_rejections";
+    private static final String REINDEX_PAGE_BYTES_BELOW_ESTIMATE = "reindex_page_bytes_below_estimate";
+    private static final String REINDEX_PAGE_BYTES_BELOW_ESTIMATE_IN_BYTES = "reindex_page_bytes_below_estimate_in_bytes";
+    private static final String REINDEX_PAGE_BYTES_ABOVE_ESTIMATE = "reindex_page_bytes_above_estimate";
+    private static final String REINDEX_PAGE_BYTES_ABOVE_ESTIMATE_IN_BYTES = "reindex_page_bytes_above_estimate_in_bytes";
+    private static final String REINDEX_PAGE_EXCEEDS_LIMIT = "reindex_page_exceeds_limit";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -375,6 +434,18 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(PRIMARY_DOCUMENT_REJECTIONS, primaryDocumentRejections);
         builder.field(LARGE_OPERATION_REJECTIONS, largeOpsRejections);
         builder.field(INGEST_EXPANSION_REJECTIONS, ingestExpansionRejections);
+        builder.field(REINDEX_PAGE_RESERVE_REJECTIONS, reindexPageReserveRejections);
+        builder.humanReadableField(
+            REINDEX_PAGE_BYTES_BELOW_ESTIMATE_IN_BYTES,
+            REINDEX_PAGE_BYTES_BELOW_ESTIMATE,
+            ByteSizeValue.ofBytes(reindexPageBytesBelowEstimate)
+        );
+        builder.humanReadableField(
+            REINDEX_PAGE_BYTES_ABOVE_ESTIMATE_IN_BYTES,
+            REINDEX_PAGE_BYTES_ABOVE_ESTIMATE,
+            ByteSizeValue.ofBytes(reindexPageBytesAboveEstimate)
+        );
+        builder.field(REINDEX_PAGE_EXCEEDS_LIMIT, reindexPageExceedsLimit);
         builder.endObject();
         builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, ByteSizeValue.ofBytes(memoryLimit));
         builder.endObject();

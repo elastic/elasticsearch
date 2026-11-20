@@ -1263,6 +1263,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                 charge = pressure.markCoordinatingOperationStarted(pageDocCount(), estimatedPageBytes(pressure), false);
             } catch (EsRejectedExecutionException e) {
                 logger.debug("[{}]: waiting to reserve the next page [{}]", task.getId(), e.getMessage());
+                pressure.addReindexPageReserveRejection();
                 scheduleReservationRetry(search);
                 return;
             } catch (Exception e) {
@@ -1430,9 +1431,18 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         long realBytes = request.ramBytesUsed() + threadPool.getThreadContext().estimatedRequestContextBytes();
         long reserved = charge.currentBytes();
         if (realBytes > reserved) {
-            charge.increaseBytes(realBytes - reserved);
+            long grew = realBytes - reserved;
+            try {
+                charge.increaseBytes(grew);
+            } catch (EsRejectedExecutionException e) {
+                indexingPressure.addReindexPageExceedsLimit();
+                throw e;
+            }
+            indexingPressure.addReindexPageBytesAboveEstimate(grew);
         } else if (realBytes < reserved) {
-            charge.reduceBytes(reserved - realBytes);
+            long shrank = reserved - realBytes;
+            charge.reduceBytes(shrank);
+            indexingPressure.addReindexPageBytesBelowEstimate(shrank);
         }
     }
 

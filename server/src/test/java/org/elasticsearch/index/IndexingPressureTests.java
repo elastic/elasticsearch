@@ -366,6 +366,28 @@ public class IndexingPressureTests extends ESTestCase {
         assertEquals(12L, indexingPressure.stats().getPrimaryDocumentRejections());
     }
 
+    public void testReindexPageStatsAccumulate() {
+        IndexingPressure indexingPressure = new IndexingPressure(settings);
+        assertEquals(0, indexingPressure.stats().getReindexPageReserveRejections());
+        assertEquals(0, indexingPressure.stats().getReindexPageBytesBelowEstimate());
+        assertEquals(0, indexingPressure.stats().getReindexPageBytesAboveEstimate());
+        assertEquals(0, indexingPressure.stats().getReindexPageExceedsLimit());
+
+        indexingPressure.addReindexPageReserveRejection();
+        indexingPressure.addReindexPageReserveRejection();
+        indexingPressure.addReindexPageBytesBelowEstimate(300);
+        indexingPressure.addReindexPageBytesAboveEstimate(50);
+        indexingPressure.addReindexPageBytesAboveEstimate(25);
+        indexingPressure.addReindexPageExceedsLimit();
+
+        assertEquals(2, indexingPressure.stats().getReindexPageReserveRejections());
+        assertEquals(300, indexingPressure.stats().getReindexPageBytesBelowEstimate());
+        assertEquals(75, indexingPressure.stats().getReindexPageBytesAboveEstimate());
+        assertEquals(1, indexingPressure.stats().getReindexPageExceedsLimit());
+        // These counts are separate from an ordinary coordinating rejection.
+        assertEquals(0, indexingPressure.stats().getCoordinatingRejections());
+    }
+
     public void testCoordinatingReduceBytes() {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
         IndexingPressure.Coordinating coordinating = indexingPressure.markCoordinatingOperationStarted(1, 1024, false);
@@ -375,6 +397,8 @@ public class IndexingPressureTests extends ESTestCase {
         coordinating.reduceBytes(512);
         assertEquals(512, indexingPressure.stats().getCurrentCoordinatingBytes());
         assertEquals(512, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+        // A coordinating shrink that is not a reindex page does not count as a low estimate.
+        assertEquals(0, indexingPressure.stats().getReindexPageBytesBelowEstimate());
 
         coordinating.close();
         assertEquals(0, indexingPressure.stats().getCurrentCoordinatingBytes());

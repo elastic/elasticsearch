@@ -9,9 +9,10 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -30,10 +31,13 @@ import java.util.UUID;
  * <pre>
  *   [int] originalDim (number of rows in W)
  *   [int] nDims (number of columns in W, i.e. projected dimensions)
- *   [byte] learned
+ *   [byte] flags: 1 if learned, 2 if seeded
  *   [long, long] id
  *   [int] trainingSampleSize
- *   [float[originalDim * nDims]] WT matrix in row-major order (little-endian)
+ *   if seeded:
+ *     [long] seed
+ *   otherwise:
+ *     [float[originalDim * nDims]] WT matrix in row-major order (little-endian)
  * </pre>
  * <p>
  * The id identifies the content of W: a newly trained matrix gets a new random (version 4) UUID, and a matrix that is reused as-is,
@@ -41,8 +45,15 @@ import java.util.UUID;
  * same W, so a query projected through one of them can be reused for the other, and readers can share a single in-memory
  * copy. The training sample size is the number of vectors W's subspace was estimated from, 0 if none, so that a matrix
  * can be reused only by segments for which it is as good as one they would learn themselves.
+ * <p>
+ * A seeded matrix is a random orthonormal projection generated from a seed rather than learned from data, see
+ * {@link SeededProjections}. Only its seed is stored, its id is derived from its shape and seed, and its W^T is shared by
+ * every segment that uses it. Nothing is learned into it, so it is never inherited at merge.
  */
 public final class AshProjectionMatrix {
+
+    private static final byte LEARNED = 1;
+    private static final byte SEEDED = 2;
 
     private final float[] wT;
     private final int originalDim;
@@ -50,36 +61,20 @@ public final class AshProjectionMatrix {
     private final boolean learned;
     private final UUID id;
     private final int trainingSampleSize;
+    private final boolean seeded;
+    // only meaningful if seeded
+    private final long seed;
 
-    /**
-     * W^T quantized to int8, each row (one projected dimension) with its own scale.
-     *
-     * @param values    the quantized rows, row-major (nDims x originalDim)
-     * @param rowScales the scale that maps each quantized row back to W^T
-     */
-    private record Quantized(byte[] values, float[] rowScales) {}
-
-    /**
-     * Built on the first query, so writers and merges, which only use {@link #wT}, never build it.
-     * Concurrent queries may each build it, but the result is deterministic, so either copy is correct.
-     */
-    private volatile Quantized quantized;
-
-    /**
-     * Creates a projection matrix.
-     *
-     * @param wT          the transposed projection matrix in row-major order, length originalDim*nDims
-     * @param originalDim number of rows (original vector dimensionality)
-     * @param nDims       number of columns (projected dimensionality)
-     * @param learned     {@code true} if W was learned via PCA + rotation from at least twice as many
-     *                    vectors as projected dimensions; {@code false} if it is a random orthonormal
-     *                    projection, or was learned from fewer vectors (e.g. a small flush segment). Such
-     *                    a matrix must not be inherited/warm-started at merge time — merge should learn
-     *                    a full W instead.
-     * @param id          the identity of W's content, see {@link AshProjectionMatrix}
-     * @param trainingSampleSize the number of vectors W's subspace was estimated from, 0 if none
-     */
-    public AshProjectionMatrix(float[] wT, int originalDim, int nDims, boolean learned, UUID id, int trainingSampleSize) {
+    private AshProjectionMatrix(
+        float[] wT,
+        int originalDim,
+        int nDims,
+        boolean learned,
+        UUID id,
+        int trainingSampleSize,
+        boolean seeded,
+        long seed
+    ) {
         if (wT.length != originalDim * nDims) {
             throw new IllegalArgumentException("wT.length " + wT.length + " != originalDim * nDims " + (originalDim * nDims));
         }
@@ -92,6 +87,42 @@ public final class AshProjectionMatrix {
         this.learned = learned;
         this.id = Objects.requireNonNull(id);
         this.trainingSampleSize = trainingSampleSize;
+        this.seeded = seeded;
+        this.seed = seed;
+    }
+
+    /**
+     * Returns a projection matrix stored as its W^T.
+     *
+     * @param wT          the transposed projection matrix in row-major order, length originalDim*nDims
+     * @param originalDim number of rows (original vector dimensionality)
+     * @param nDims       number of columns (projected dimensionality)
+     * @param learned     whether W may be inherited or warm-started at merge: {@code true} if it was learned via PCA +
+     *                    rotation from at least twice as many vectors as projected dimensions; {@code false} otherwise,
+     *                    for which merge should learn a full W instead
+     * @param id          the identity of W's content, see {@link AshProjectionMatrix}
+     * @param trainingSampleSize the number of vectors W's subspace was estimated from, 0 if none
+     */
+    public static AshProjectionMatrix of(float[] wT, int originalDim, int nDims, boolean learned, UUID id, int trainingSampleSize) {
+        return new AshProjectionMatrix(wT, originalDim, nDims, learned, id, trainingSampleSize, false, 0L);
+    }
+
+    /**
+     * Returns the random orthonormal projection of the given shape generated from {@code seed}, generating it with
+     * {@code executor}, or on the calling thread if {@code null}, if it is not cached; the result does not depend on the
+     * executor.
+     */
+    public static AshProjectionMatrix seeded(int originalDim, int nDims, long seed, TaskExecutor executor) {
+        return new AshProjectionMatrix(
+            SeededProjections.wT(originalDim, nDims, seed, executor),
+            originalDim,
+            nDims,
+            false,
+            SeededProjections.id(originalDim, nDims, seed),
+            0,
+            true,
+            seed
+        );
     }
 
     /**
@@ -100,6 +131,11 @@ public final class AshProjectionMatrix {
      */
     public boolean isLearned() {
         return learned;
+    }
+
+    /** Returns whether W is a random orthonormal projection generated from a seed, which is all that is stored of it. */
+    public boolean isSeeded() {
+        return seeded;
     }
 
     /** Returns the identity of W's content. */
@@ -113,53 +149,13 @@ public final class AshProjectionMatrix {
     }
 
     /**
-     * Returns the transposed projection matrix W^T in row-major order, shape (nDims, originalDim).
+     * Returns the transposed projection matrix W^T in row-major order, shape (nDims, originalDim). It may be shared with
+     * other matrices, so it must not be modified.
      *
      * @return the transposed projection matrix
      */
     public float[] wT() {
         return wT;
-    }
-
-    /**
-     * Projects {@code query} into the latent space, as {@code W^T @ query}, using int8 arithmetic.
-     * The query is not centered, so the result can be used by both the float and the integer scorer.
-     * Both scorers use the absolute values of the projection, so the query scale and the row scales
-     * of W^T are applied to the integer result.
-     *
-     * @param query the raw query vector, length originalDim
-     * @return the projected query, length nDims
-     */
-    public float[] projectQuery(float[] query) {
-        if (query.length != originalDim) {
-            throw new IllegalArgumentException("query.length " + query.length + " != originalDim " + originalDim);
-        }
-        Quantized quantized = quantizedWT();
-        byte[] queryQuantized = new byte[originalDim];
-        float queryScale = AshUtils.quantizeInt8(query, 0, originalDim, queryQuantized, 0);
-
-        int[] products = new int[nDims];
-        ESVectorUtil.matrixVectorMultiply(quantized.values(), nDims, originalDim, queryQuantized, products);
-
-        float[] projected = new float[nDims];
-        float[] rowScales = quantized.rowScales();
-        for (int j = 0; j < nDims; j++) {
-            projected[j] = products[j] * queryScale * rowScales[j];
-        }
-        return projected;
-    }
-
-    private Quantized quantizedWT() {
-        Quantized quantized = this.quantized;
-        if (quantized == null) {
-            byte[] values = new byte[wT.length];
-            float[] rowScales = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                rowScales[j] = AshUtils.quantizeInt8(wT, j * originalDim, originalDim, values, j * originalDim);
-            }
-            this.quantized = quantized = new Quantized(values, rowScales);
-        }
-        return quantized;
     }
 
     /**
@@ -185,33 +181,84 @@ public final class AshProjectionMatrix {
     public void write(IndexOutput out) throws IOException {
         out.writeInt(originalDim);
         out.writeInt(nDims);
-        out.writeByte((byte) (learned ? 1 : 0));
+        out.writeByte((byte) ((learned ? LEARNED : 0) | (seeded ? SEEDED : 0)));
         out.writeLong(id.getMostSignificantBits());
         out.writeLong(id.getLeastSignificantBits());
         out.writeInt(trainingSampleSize);
+        if (seeded) {
+            out.writeLong(seed);
+            return;
+        }
         ByteBuffer buffer = ByteBuffer.allocate(wT.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         buffer.asFloatBuffer().put(wT);
         out.writeBytes(buffer.array(), buffer.capacity());
     }
 
     /**
-     * Reads a projection matrix from the given input.
+     * Reads a projection matrix from the given input, with its float W^T, as writers and merges need.
      *
      * @param in the index input to read from
      * @return the deserialized projection matrix
      * @throws IOException if an I/O error occurs
      */
     public static AshProjectionMatrix read(IndexInput in) throws IOException {
+        Header header = readHeader(in);
+        if (header.seeded()) {
+            return seeded(header.originalDim(), header.nDims(), readSeed(in, header), null);
+        }
+        float[] wT = new float[header.originalDim() * header.nDims()];
+        in.readFloats(wT, 0, wT.length);
+        return of(wT, header.originalDim(), header.nDims(), header.learned(), header.id(), header.trainingSampleSize());
+    }
+
+    /**
+     * Reads the int8 projection of queries through a projection matrix from the given input, as searches need, without
+     * holding the float W^T in memory.
+     *
+     * @param in the index input to read from
+     * @return the query projection
+     * @throws IOException if an I/O error occurs
+     */
+    public static AshQueryProjection readQueryProjection(IndexInput in) throws IOException {
+        Header header = readHeader(in);
+        int originalDim = header.originalDim();
+        if (header.seeded()) {
+            return SeededProjections.queryProjection(originalDim, header.nDims(), readSeed(in, header));
+        }
+        return AshQueryProjection.quantize(header.id(), originalDim, header.nDims(), (j, row) -> in.readFloats(row, 0, originalDim));
+    }
+
+    /**
+     * What is stored of a projection matrix before its W^T or seed: enough to decide whether to read the matrix, for
+     * instance to choose which input segment's matrix a merge inherits.
+     */
+    public record Header(int originalDim, int nDims, boolean learned, boolean seeded, UUID id, int trainingSampleSize) {
+        /** Returns whether the matrix projects vectors of {@code expectedOriginalDim} dimensions to {@code expectedNDims}. */
+        public boolean hasShape(int expectedOriginalDim, int expectedNDims) {
+            return originalDim == expectedOriginalDim && nDims == expectedNDims;
+        }
+    }
+
+    /** Reads the {@link Header} of a projection matrix, leaving the input before its W^T or seed. */
+    public static Header readHeader(IndexInput in) throws IOException {
         int originalDim = in.readInt();
         int nDims = in.readInt();
-        boolean learned = in.readByte() != 0;
+        byte flags = in.readByte();
+        if ((flags & ~(LEARNED | SEEDED)) != 0) {
+            throw new CorruptIndexException("unknown ASH projection matrix flags [" + flags + "]", in);
+        }
         UUID id = new UUID(in.readLong(), in.readLong());
         int trainingSampleSize = in.readInt();
-        float[] wT = new float[originalDim * nDims];
-        ByteBuffer buffer = ByteBuffer.allocate(wT.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
-        in.readBytes(buffer.array(), 0, buffer.capacity());
-        buffer.asFloatBuffer().get(wT);
-        return new AshProjectionMatrix(wT, originalDim, nDims, learned, id, trainingSampleSize);
+        return new Header(originalDim, nDims, (flags & LEARNED) != 0, (flags & SEEDED) != 0, id, trainingSampleSize);
+    }
+
+    private static long readSeed(IndexInput in, Header header) throws IOException {
+        long seed = in.readLong();
+        // the id is derived from the shape and seed, so a mismatch means the derivation, and maybe the projection, changed
+        if (SeededProjections.id(header.originalDim(), header.nDims(), seed).equals(header.id()) == false) {
+            throw new CorruptIndexException("ASH seeded projection id [" + header.id() + "] does not match its shape and seed", in);
+        }
+        return seed;
     }
 
     /**
@@ -220,6 +267,7 @@ public final class AshProjectionMatrix {
      * @return total bytes when serialized
      */
     public long byteSize() {
-        return Integer.BYTES * 2L + Byte.BYTES + Long.BYTES * 2L + Integer.BYTES + (long) originalDim * nDims * Float.BYTES;
+        long header = Integer.BYTES * 2L + Byte.BYTES + Long.BYTES * 2L + Integer.BYTES;
+        return header + (seeded ? Long.BYTES : (long) originalDim * nDims * Float.BYTES);
     }
 }

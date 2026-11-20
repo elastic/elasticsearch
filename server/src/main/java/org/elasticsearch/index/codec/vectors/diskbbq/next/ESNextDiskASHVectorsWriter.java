@@ -228,13 +228,13 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
      * source. Any reader that is not an {@link ESNextDiskASHVectorsReader} (or has no matrix for the
      * field) is skipped, and a {@code null} result causes the caller to fall back to training W.
      */
-    private AshProjectionMatrix inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
+    private AshProjectionMatrix inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         int originalDim = fieldInfo.getVectorDimension();
         IvfSegmentConfig.AshConfig config = ashConfig(fieldInfo);
         if (inheritsProjection(config, originalDim) == false) {
             return null;
         }
-        List<SizedProjectionMatrix> candidates = new ArrayList<>();
+        List<InheritanceCandidate> candidates = new ArrayList<>();
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
             if (reader == null) {
@@ -243,9 +243,11 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                 reader = fieldsReader.getFieldReader(fieldInfo.name);
             }
-            if (reader instanceof ESNextDiskASHVectorsReader ashReader && mergeState.fieldInfos[i].fieldInfo(fieldInfo.name) != null) {
-                AshProjectionMatrix matrix = ashReader.getProjectionMatrix(fieldInfo);
-                if (matrix == null) {
+            // the input segment's own FieldInfo: its field numbers can differ from the merged segment's, e.g. with addIndexes
+            FieldInfo inputFieldInfo = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
+            if (reader instanceof ESNextDiskASHVectorsReader ashReader && inputFieldInfo != null) {
+                AshProjectionMatrix.Header header = ashReader.getProjectionMatrixHeader(inputFieldInfo);
+                if (header == null) {
                     continue;
                 }
                 int size = 0;
@@ -258,10 +260,11 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                     // Fall back to using the matrix without a size preference if the count is unavailable.
                     size = 0;
                 }
-                candidates.add(new SizedProjectionMatrix(matrix, size));
+                candidates.add(new InheritanceCandidate(header, size, ashReader, inputFieldInfo));
             }
         }
-        return selectInheritedProjectionMatrix(originalDim, config.projectedDims(originalDim), candidates);
+        InheritanceCandidate selected = selectInheritanceCandidate(originalDim, config.projectedDims(originalDim), candidates);
+        return selected == null ? null : selected.reader().getProjectionMatrix(selected.fieldInfo());
     }
 
     /**
@@ -274,13 +277,14 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     }
 
     /**
-     * A candidate projection matrix for merge inheritance together with the number of vectors in the
-     * segment it came from (used to prefer the best-trained source).
+     * An input segment whose projection matrix a merge may inherit: the matrix's header, which the selection uses, the
+     * number of vectors in the segment (used to prefer the best-trained source), and the segment's reader and own
+     * {@link FieldInfo} for the field, with which the matrix of the selected segment only is read.
      */
-    record SizedProjectionMatrix(AshProjectionMatrix matrix, int size) {}
+    record InheritanceCandidate(AshProjectionMatrix.Header header, int size, ESNextDiskASHVectorsReader reader, FieldInfo fieldInfo) {}
 
     /**
-     * Selects the projection matrix to inherit at merge from the given candidates, or {@code null}
+     * Selects the input segment whose projection matrix to inherit at merge from the given candidates, or {@code null}
      * if none is suitable. Prefers the candidate from the segment with the most vectors so W is seeded
      * from the best-trained source. Skips random (non-learned) projections from transient flush segments
      * — inheriting a random rotation would carry it into the merged segment — and skips matrices whose
@@ -291,24 +295,19 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
      * as segments from snapshot builds before projected dimensions were derived from the vector dimension, or from a
      * fixed {@link IvfSegmentConfig.AshConfig}. Such a merge trains a new projection instead.
      */
-    static AshProjectionMatrix selectInheritedProjectionMatrix(
+    static InheritanceCandidate selectInheritanceCandidate(
         int expectedDim,
         int expectedProjectedDims,
-        List<SizedProjectionMatrix> candidates
+        List<InheritanceCandidate> candidates
     ) {
-        AshProjectionMatrix best = null;
-        int bestSize = -1;
-        for (SizedProjectionMatrix candidate : candidates) {
-            AshProjectionMatrix matrix = candidate.matrix();
-            if (matrix == null
-                || matrix.isLearned() == false
-                || matrix.originalDim() != expectedDim
-                || matrix.nDims() != expectedProjectedDims) {
+        InheritanceCandidate best = null;
+        for (InheritanceCandidate candidate : candidates) {
+            AshProjectionMatrix.Header header = candidate.header();
+            if (header.learned() == false || header.hasShape(expectedDim, expectedProjectedDims) == false) {
                 continue;
             }
-            if (candidate.size() > bestSize) {
-                bestSize = candidate.size();
-                best = matrix;
+            if (best == null || candidate.size() > best.size()) {
+                best = candidate;
             }
         }
         return best;

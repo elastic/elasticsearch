@@ -19,7 +19,7 @@ import java.util.UUID;
 
 /**
  * Unit tests for the merge-time projection-matrix selection rule
- * ({@link ESNextDiskASHVectorsWriter#selectInheritedProjectionMatrix}). The rule decides which input
+ * ({@link ESNextDiskASHVectorsWriter#selectInheritanceCandidate}). The rule decides which input
  * segment's learned matrix is inherited (warm-started) into the merged segment.
  */
 public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
@@ -27,27 +27,48 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
     private static AshProjectionMatrix learned(int originalDim, int nDims, float fill) {
         float[] wT = new float[originalDim * nDims];
         Arrays.fill(wT, fill);
-        return new AshProjectionMatrix(wT, originalDim, nDims, true, UUID.randomUUID(), 0);
+        return AshProjectionMatrix.of(wT, originalDim, nDims, true, UUID.randomUUID(), 0);
     }
 
     private static AshProjectionMatrix random(int originalDim, int nDims, float fill) {
         float[] wT = new float[originalDim * nDims];
         Arrays.fill(wT, fill);
-        return new AshProjectionMatrix(wT, originalDim, nDims, false, UUID.randomUUID(), 0);
+        return AshProjectionMatrix.of(wT, originalDim, nDims, false, UUID.randomUUID(), 0);
+    }
+
+    /** An input segment of {@code size} vectors whose projection matrix is {@code matrix}. */
+    private static ESNextDiskASHVectorsWriter.InheritanceCandidate candidate(AshProjectionMatrix matrix, int size) {
+        AshProjectionMatrix.Header header = new AshProjectionMatrix.Header(
+            matrix.originalDim(),
+            matrix.nDims(),
+            matrix.isLearned(),
+            matrix.isSeeded(),
+            matrix.id(),
+            matrix.trainingSampleSize()
+        );
+        // the selection only uses the header and the size
+        return new ESNextDiskASHVectorsWriter.InheritanceCandidate(header, size, null, null);
+    }
+
+    /** The id of the projection matrix the selection inherits, or {@code null} if none. */
+    private static UUID selected(
+        int expectedDim,
+        int expectedProjectedDims,
+        List<ESNextDiskASHVectorsWriter.InheritanceCandidate> candidates
+    ) {
+        var selected = ESNextDiskASHVectorsWriter.selectInheritanceCandidate(expectedDim, expectedProjectedDims, candidates);
+        return selected == null ? null : selected.header().id();
     }
 
     public void testReturnsNullWhenNoCandidates() {
-        assertNull(ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, List.of()));
+        assertNull(selected(4, 2, List.of()));
     }
 
     public void testPrefersLargestLearnedSegment() {
         AshProjectionMatrix small = learned(4, 2, 1.0f);
         AshProjectionMatrix large = learned(4, 2, 2.0f);
-        var candidates = List.of(
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(small, 10),
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(large, 100)
-        );
-        assertSame(large, ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        var candidates = List.of(candidate(small, 10), candidate(large, 100));
+        assertEquals(large.id(), selected(4, 2, candidates));
     }
 
     public void testSkipsRandomProjections() {
@@ -55,38 +76,29 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
         AshProjectionMatrix smallLearned = learned(4, 2, 1.0f);
         var candidates = List.of(
             // The random one is bigger but must be skipped so a random rotation is not inherited.
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(largeRandom, 1000),
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(smallLearned, 10)
+            candidate(largeRandom, 1000),
+            candidate(smallLearned, 10)
         );
-        assertSame(smallLearned, ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        assertEquals(smallLearned.id(), selected(4, 2, candidates));
     }
 
     public void testReturnsNullWhenAllRandom() {
-        var candidates = List.of(
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(random(4, 2, 1.0f), 10),
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(random(4, 2, 2.0f), 20)
-        );
-        assertNull(ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        var candidates = List.of(candidate(random(4, 2, 1.0f), 10), candidate(random(4, 2, 2.0f), 20));
+        assertNull(selected(4, 2, candidates));
     }
 
     public void testSkipsDimensionMismatch() {
         AshProjectionMatrix wrongDim = learned(8, 2, 1.0f);
         AshProjectionMatrix rightDim = learned(4, 2, 2.0f);
-        var candidates = List.of(
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(wrongDim, 1000),
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(rightDim, 10)
-        );
-        assertSame(rightDim, ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        var candidates = List.of(candidate(wrongDim, 1000), candidate(rightDim, 10));
+        assertEquals(rightDim.id(), selected(4, 2, candidates));
     }
 
     public void testSkipsProjectedDimensionMismatch() {
         AshProjectionMatrix wrongProjectedDims = learned(4, 3, 1.0f);
         AshProjectionMatrix rightProjectedDims = learned(4, 2, 2.0f);
-        var candidates = List.of(
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(wrongProjectedDims, 1000),
-            new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(rightProjectedDims, 10)
-        );
-        assertSame(rightProjectedDims, ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        var candidates = List.of(candidate(wrongProjectedDims, 1000), candidate(rightProjectedDims, 10));
+        assertEquals(rightProjectedDims.id(), selected(4, 2, candidates));
     }
 
     public void testInheritsProjectionOnlyWhenThereIsSomethingToInherit() {
@@ -105,7 +117,7 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
     }
 
     public void testReturnsNullWhenAllDimensionMismatch() {
-        var candidates = List.of(new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(learned(8, 2, 1.0f), 10));
-        assertNull(ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+        var candidates = List.of(candidate(learned(8, 2, 1.0f), 10));
+        assertNull(selected(4, 2, candidates));
     }
 }

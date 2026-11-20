@@ -190,17 +190,16 @@ public class RestNodesStatsAction extends BaseRestHandler {
             }
         }
 
-        String[] fieldData = request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", null));
-        if (nodesStatsRequest.indices().isSet(Flag.FieldData) && fieldData != null) {
-            nodesStatsRequest.indices().fieldDataFields(fieldData);
+        if (nodesStatsRequest.indices().isSet(Flag.FieldData) && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
+            nodesStatsRequest.indices()
+                .fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", null)));
         }
-        String[] completionData = request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", null));
-        if (nodesStatsRequest.indices().isSet(Flag.Completion) && completionData != null) {
-            nodesStatsRequest.indices().completionDataFields(completionData);
+        if (nodesStatsRequest.indices().isSet(Flag.Completion) && (request.hasParam("fields") || request.hasParam("completion_fields"))) {
+            nodesStatsRequest.indices()
+                .completionDataFields(request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", null)));
         }
-        String[] groups = request.paramAsStringArray("groups", null);
-        if (nodesStatsRequest.indices().isSet(Flag.Search) && groups != null) {
-            nodesStatsRequest.indices().groups(groups);
+        if (nodesStatsRequest.indices().isSet(Flag.Search) && (request.hasParam("groups"))) {
+            nodesStatsRequest.indices().groups(request.paramAsStringArray("groups", null));
         }
         if (nodesStatsRequest.indices().isSet(Flag.Segments)) {
             nodesStatsRequest.indices().includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
@@ -222,7 +221,15 @@ public class RestNodesStatsAction extends BaseRestHandler {
         );
     }
 
-    private final Set<String> RESPONSE_PARAMS = Set.of("level", "include_segment_file_sizes", "include_unloaded_segments");
+    private final Set<String> RESPONSE_PARAMS = Set.of(
+        "level",
+        "fields",
+        "fielddata_fields",
+        "completion_fields",
+        "groups",
+        "include_segment_file_sizes",
+        "include_unloaded_segments"
+    );
 
     @Override
     protected Set<String> responseParams() {

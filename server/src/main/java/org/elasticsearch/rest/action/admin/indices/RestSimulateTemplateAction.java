@@ -12,10 +12,8 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.post.SimulateTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -32,14 +30,6 @@ import static org.elasticsearch.rest.action.admin.indices.RestPutComposableIndex
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSimulateTemplateAction extends BaseRestHandler {
-
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
-        RestUtils.REST_MASTER_TIMEOUT_PARAM,
-        "include_defaults",
-        "create",
-        "cause"
-    );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
 
     static final String SIMULATE_TEMPLATE_SHARD_COUNT_FIX = "simulate_template_shard_count_fix";
 
@@ -62,8 +52,6 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
             request.param("name")
         );
         simulateRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        boolean create = request.paramAsBoolean("create", false);
-        String cause = request.param("cause", "api");
         if (request.hasContent()) {
             TransportPutComposableIndexTemplateAction.Request indexTemplateRequest = new TransportPutComposableIndexTemplateAction.Request(
                 "simulating_template"
@@ -71,8 +59,8 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
             try (var parser = request.contentParser()) {
                 indexTemplateRequest.indexTemplate(parseAndValidateTemplate(parser));
             }
-            indexTemplateRequest.create(create);
-            indexTemplateRequest.cause(cause);
+            indexTemplateRequest.create(request.paramAsBoolean("create", false));
+            indexTemplateRequest.cause(request.param("cause", "api"));
 
             simulateRequest.indexTemplateRequest(indexTemplateRequest);
         }
@@ -88,15 +76,4 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
     public Set<String> supportedCapabilities() {
         return CAPABILITIES;
     }
-
-    @Override
-    public Set<String> supportedQueryParameters() {
-        return SUPPORTED_QUERY_PARAMETERS;
-    }
-
-    @Override
-    public Set<String> allSupportedParameters() {
-        return ALL_SUPPORTED_PARAMETERS;
-    }
-
 }

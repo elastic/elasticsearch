@@ -131,19 +131,20 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             }
         }
 
-        String groups = request.param("groups");
-        if (groups != null) {
-            indicesStatsRequest.groups(Strings.splitStringByCommaToArray(groups));
+        if (request.hasParam("groups")) {
+            indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
         }
 
-        String[] fields = request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", null));
-        if (indicesStatsRequest.completion() && fields != null) {
-            indicesStatsRequest.completionFields(fields);
+        if (indicesStatsRequest.completion() && (request.hasParam("fields") || request.hasParam("completion_fields"))) {
+            indicesStatsRequest.completionFields(
+                request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY))
+            );
         }
 
-        String[] fielddata = request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", null));
-        if (indicesStatsRequest.fieldData() && fielddata != null) {
-            indicesStatsRequest.fieldDataFields(fielddata);
+        if (indicesStatsRequest.fieldData() && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
+            indicesStatsRequest.fieldDataFields(
+                request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY))
+            );
         }
 
         if (indicesStatsRequest.segments()) {
@@ -161,8 +162,12 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         return false;
     }
 
-    private static final Set<String> RESPONSE_PARAMS = Set.of(
+    private final Set<String> RESPONSE_PARAMS = Set.of(
         "level",
+        "fields",
+        "fielddata_fields",
+        "completion_fields",
+        "groups",
         "include_auto_calibration",
         "include_segment_file_sizes",
         "include_unloaded_segments"

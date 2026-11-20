@@ -41,9 +41,10 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
     public static final String OUTCOME_SUCCESS = "success";
     /// The request failed with a [ResourceNotFoundException]. When the indexing node replies with it, the virtual batched compound commit has
     /// been uploaded and must be read from the blob store instead: this is an expected outcome, not an error. This is exact for the
-    /// per attempt metrics. For the per operation metrics, which see the failure the action completes with, it is an approximation:
-    /// the action also fails with a [ResourceNotFoundException] without having reached an indexing node when the node it prefers is not in
-    /// the cluster state, in which case the VBCC may not have been uploaded.
+    /// per attempt metrics. For the per operation metrics, which see the failure the action completes with, it is an approximation: the
+    /// action also produces a [ResourceNotFoundException] locally, as a signal to fall back to the blob store, in cases where the VBCC may
+    /// not have been uploaded: when the node it prefers is not in the cluster state, and when a request fails with a `NodeClosedException`
+    /// (the indexing node is shutting down) while the primary shard is still assigned.
     public static final String OUTCOME_UPLOADED = "uploaded";
     /// The request failed for any other reason.
     public static final String OUTCOME_FAILURE = "failure";

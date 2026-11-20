@@ -148,10 +148,7 @@ public class AnyParamGroupingParserTests extends ESTestCase {
     }
 
     public void testTimeSeriesKeyIsDropped() {
-        LogicalPlan plan = TEST_PARSER.parseQuery(
-            "TS t | STATS c = COUNT(*) BY b = TBUCKET(1h), ??g",
-            params(paramAsConstant("g", ANY))
-        );
+        LogicalPlan plan = TEST_PARSER.parseQuery("TS t | STATS c = COUNT(*) BY b = TBUCKET(1h), ??g", params(paramAsConstant("g", ANY)));
         Aggregate aggregate = as(plan, TimeSeriesAggregate.class);
         assertThat(groupingNames(aggregate), contains("b"));
     }

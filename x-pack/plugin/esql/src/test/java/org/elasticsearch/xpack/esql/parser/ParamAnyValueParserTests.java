@@ -132,10 +132,7 @@ public class ParamAnyValueParserTests extends ESTestCase {
     }
 
     public void testSetWithAnotherTypeIsRejected() {
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            () -> TEST_PARSER.createStatement("SET param_any_value = 1; ROW x = 1")
-        );
+        ParsingException e = expectThrows(ParsingException.class, () -> TEST_PARSER.createStatement("SET param_any_value = 1; ROW x = 1"));
         assertThat(e.getMessage(), containsString("Setting [param_any_value] must be of type KEYWORD"));
     }
 

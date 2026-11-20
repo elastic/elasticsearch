@@ -11,9 +11,9 @@ import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo;
 import org.elasticsearch.xpack.core.esql.action.EsqlClusterInfo.Status;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.ExecutionMetadata;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 
-import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -32,7 +32,7 @@ public class CrossClusterCoreClientApiIT extends AbstractCrossClusterTestCase {
 
     public void testLimitZeroReportsClustersWithCcsMetadata() throws Exception {
         setupClusters(2);
-        try (var response = run(CROSS_CLUSTER_PATTERN + " | LIMIT 0", b -> b.includeCcsMetadata(true))) {
+        try (var response = run(CROSS_CLUSTER_PATTERN + " | LIMIT 0", b -> b.executionMetadata(ExecutionMetadata.CCS_ONLY))) {
             assertBothClustersSuccessful(response.response().clusters());
             assertFalse(response.response().rows().iterator().hasNext());
         }
@@ -41,14 +41,14 @@ public class CrossClusterCoreClientApiIT extends AbstractCrossClusterTestCase {
     public void testDescribeReportsClustersWithCcsMetadata() throws Exception {
         assumeTrue("DESCRIBE is snapshot-only", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
         setupClusters(2);
-        try (var response = run(CROSS_CLUSTER_PATTERN + " | DESCRIBE", b -> b.includeCcsMetadata(true))) {
+        try (var response = run(CROSS_CLUSTER_PATTERN + " | DESCRIBE", b -> b.executionMetadata(ExecutionMetadata.CCS_ONLY))) {
             assertBothClustersSuccessful(response.response().clusters());
         }
     }
 
     public void testLocalOnlyQueryWithExecutionMetadata() throws Exception {
         setupClusters(2);
-        try (var response = run("FROM logs-* | LIMIT 0", b -> b.includeExecutionMetadata(true))) {
+        try (var response = run("FROM logs-* | LIMIT 0", b -> b.executionMetadata(ExecutionMetadata.ALWAYS))) {
             assertThat(
                 response.response().clusters(),
                 contains(new EsqlClusterInfo(EsqlClusterInfo.LOCAL_CLUSTER_ALIAS, "logs-*", Status.SUCCESSFUL))
@@ -65,7 +65,7 @@ public class CrossClusterCoreClientApiIT extends AbstractCrossClusterTestCase {
 
     public void testTimeZoneApplies() {
         String query = "ROW t = TO_DATETIME(\"2024-01-01T00:00:00Z\") | EVAL h = DATE_EXTRACT(\"hour_of_day\", t) | KEEP h";
-        try (var response = run(query, b -> b.timeZone(ZoneId.of("Europe/Paris")))) {
+        try (var response = run(query, b -> b.setting("time_zone", "Europe/Paris"))) {
             assertThat(singleValue(response), equalTo(1L));
         }
         try (var response = run(query, b -> {})) {

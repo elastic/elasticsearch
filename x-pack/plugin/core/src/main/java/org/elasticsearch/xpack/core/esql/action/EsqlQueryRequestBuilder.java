@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.core.esql.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 
-import java.time.ZoneId;
 import java.util.List;
 
 public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, Response extends EsqlQueryResponse> extends
@@ -49,23 +49,36 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
     public abstract EsqlQueryRequestBuilder<Request, Response> projectRouting(String projectRouting);
 
     /**
-     * Equivalent of the {@code include_ccs_metadata} request parameter: report {@link EsqlResponse#clusters()} for cross-cluster
-     * queries. Call at most one of this and {@link #includeExecutionMetadata}: the server rejects a request that sets both, even
-     * when one of them is {@code false}.
+     * When the response reports per-cluster execution metadata through {@link EsqlResponse#clusters()}. Replaces any mode set
+     * earlier on this builder.
      */
-    public abstract EsqlQueryRequestBuilder<Request, Response> includeCcsMetadata(boolean include);
+    public abstract EsqlQueryRequestBuilder<Request, Response> executionMetadata(ExecutionMetadata mode);
 
     /**
-     * Equivalent of the {@code include_execution_metadata} request parameter: report {@link EsqlResponse#clusters()} for every query,
-     * including local-only ones. Call at most one of this and {@link #includeCcsMetadata}: the server rejects a request that sets
-     * both, even when one of them is {@code false}.
+     * Sets an ES|QL query setting by name, with the names and values the REST API accepts under {@code settings} in the request
+     * body, for example {@code setting("time_zone", "Europe/Paris")}. The value is what that JSON body would carry: a
+     * {@link String}, {@link Number}, {@link Boolean}, or a {@link java.util.Map} or {@link List} of these. {@code null} removes
+     * the setting.
+     *
+     * @throws IllegalArgumentException if no such setting exists, the setting is not accepted in the request body, or the value
+     *         does not parse
      */
-    public abstract EsqlQueryRequestBuilder<Request, Response> includeExecutionMetadata(boolean include);
-
-    /** Equivalent of the {@code time_zone} request setting. */
-    public abstract EsqlQueryRequestBuilder<Request, Response> timeZone(ZoneId timeZone);
+    public abstract EsqlQueryRequestBuilder<Request, Response> setting(String name, @Nullable Object value);
 
     public abstract EsqlQueryRequestBuilder<Request, Response> params(List<EsqlQueryParam> params);
+
+    /** When the response reports per-cluster execution metadata ({@link EsqlResponse#clusters()}). */
+    public enum ExecutionMetadata {
+        /** Never report it. The default. */
+        NEVER,
+        /** Report it for cross-cluster queries only. Equivalent of the {@code include_ccs_metadata} request parameter. */
+        CCS_ONLY,
+        /**
+         * Report it for every query, including local-only ones. Equivalent of the {@code include_execution_metadata} request
+         * parameter.
+         */
+        ALWAYS
+    }
 
     /**
      * A lightweight representation of a single ES|QL query parameter, used to pass typed values or field-name identifiers

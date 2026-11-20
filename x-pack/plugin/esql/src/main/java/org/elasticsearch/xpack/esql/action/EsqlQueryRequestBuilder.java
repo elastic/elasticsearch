@@ -8,19 +8,26 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder<
     EsqlQueryRequest,
@@ -94,21 +101,48 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
     }
 
     @Override
-    public EsqlQueryRequestBuilder includeCcsMetadata(boolean include) {
-        request.includeCCSMetadata(include);
+    public EsqlQueryRequestBuilder executionMetadata(ExecutionMetadata mode) {
+        Objects.requireNonNull(mode, "mode");
+        // The server rejects a request with both flags set, even to false, so the flag not in use stays null.
+        request.includeCCSMetadata(mode == ExecutionMetadata.CCS_ONLY ? Boolean.TRUE : null);
+        request.includeExecutionMetadata(mode == ExecutionMetadata.ALWAYS ? Boolean.TRUE : null);
         return this;
     }
 
+    /**
+     * Mirrors the REST parsing of {@code settings.<name>} in {@link RequestXContent}: the same lookup and checks, and the value
+     * goes through the setting's own JSON reader, so both surfaces accept the same values.
+     */
     @Override
-    public EsqlQueryRequestBuilder includeExecutionMetadata(boolean include) {
-        request.includeExecutionMetadata(include);
+    public EsqlQueryRequestBuilder setting(String name, @Nullable Object value) {
+        QuerySettingDef<?> def = QuerySettings.lookup(name);
+        if (def == null) {
+            throw new IllegalArgumentException("Unknown setting [" + name + "]");
+        }
+        if (def.requestBody() == false) {
+            throw new IllegalArgumentException("Setting [" + name + "] is not exposed as a request body parameter");
+        }
+        QuerySettings.warnIfDeprecated(def);
+        setFromJsonValue(def, value);
         return this;
     }
 
-    @Override
-    public EsqlQueryRequestBuilder timeZone(ZoneId timeZone) {
-        request.set(QuerySettings.TIME_ZONE, timeZone);
-        return this;
+    private <T> void setFromJsonValue(QuerySettingDef<T> def, @Nullable Object value) {
+        if (value == null) {
+            request.set(def, null);
+            return;
+        }
+        T parsed;
+        try (
+            XContentBuilder json = JsonXContent.contentBuilder().value(value);
+            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, Strings.toString(json))
+        ) {
+            parser.nextToken();
+            parsed = def.readFromJson(parser);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to parse value for setting [" + def.name() + "]: " + e.getMessage(), e);
+        }
+        request.set(def, parsed);
     }
 
     @Override

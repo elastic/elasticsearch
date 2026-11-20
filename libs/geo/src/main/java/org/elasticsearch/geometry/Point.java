@@ -12,7 +12,7 @@ package org.elasticsearch.geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
 /**
- * Represents a Point on the earth's surface in decimal degrees and optional altitude in meters.
+ * Represents a Point on the earth's surface with optional Z (altitude) and M (measure).
  */
 public class Point implements Geometry {
     public static final Point EMPTY = new Point();
@@ -20,23 +20,34 @@ public class Point implements Geometry {
     private final double y;
     private final double x;
     private final double z;
+    private final double m;
     private final boolean empty;
 
     private Point() {
         y = 0;
         x = 0;
         z = Double.NaN;
+        m = Double.NaN;
         empty = true;
     }
 
     public Point(double x, double y) {
-        this(x, y, Double.NaN);
+        this(x, y, Double.NaN, Double.NaN);
     }
 
     public Point(double x, double y, double z) {
         this.y = y;
         this.x = x;
         this.z = z;
+        this.m = Double.NaN;
+        this.empty = false;
+    }
+
+    public Point(double x, double y, double z, double m) {
+        this.y = y;
+        this.x = x;
+        this.z = z;
+        this.m = m;
         this.empty = false;
     }
 
@@ -56,6 +67,8 @@ public class Point implements Geometry {
     public double getZ() {
         return z;
     }
+
+    public double getM() { return m; }
 
     public double getLat() {
         return y;
@@ -78,7 +91,8 @@ public class Point implements Geometry {
         if (point.empty != empty) return false;
         if (Double.compare(point.y, y) != 0) return false;
         if (Double.compare(point.x, x) != 0) return false;
-        return Double.compare(point.z, z) == 0;
+        if (Double.compare(point.z, z) != 0) return false;
+        return Double.compare(point.m, m) == 0;
     }
 
     @Override
@@ -90,6 +104,8 @@ public class Point implements Geometry {
         temp = Double.doubleToLongBits(x);
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         temp = Double.doubleToLongBits(z);
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        temp = Double.doubleToLongBits(m);
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         return result;
     }
@@ -107,6 +123,11 @@ public class Point implements Geometry {
     @Override
     public boolean hasZ() {
         return Double.isNaN(z) == false;
+    }
+
+    @Override
+    public boolean hasM() {
+        return Double.isNaN(m) == false;
     }
 
     @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -45,6 +48,8 @@ public class Into extends UnaryPlan
         PostAnalysisPlanVerificationAware,
         PostAnalysisVerificationAware {
     public static final String UNSUPPORTED_SOURCE = "INTO currently only supports ROW or local FROM as a source, without FORK";
+    public static final String UNBOUNDED_SORT = "INTO cannot be preceded by an unbounded SORT [{}], since indices are not sorted: "
+        + "add a LIMIT after the SORT, or remove the SORT";
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Into", Into::new);
 
@@ -143,6 +148,32 @@ public class Into extends UnaryPlan
         if (unsupportedSource(child())) {
             failures.add(fail(this, UNSUPPORTED_SOURCE));
         }
+        OrderBy sort = unboundedSort(child());
+        if (sort != null) {
+            failures.add(fail(this, UNBOUNDED_SORT, sort.sourceText()));
+        }
+    }
+
+    /**
+     * The SORT that reaches this INTO without a LIMIT after it, which the optimizer could not turn into a TopN. It walks through the
+     * commands that keep the order of the rows like {@code PruneRedundantOrderBy} does, and stops at an aggregation, which makes a SORT
+     * before it redundant. This is checked here, as the generic check for an unbounded SORT runs after optimization, says it is
+     * "not supported yet", and an index will never keep the order it is written in.
+     */
+    @Nullable
+    private static OrderBy unboundedSort(LogicalPlan child) {
+        Deque<LogicalPlan> toCheck = new ArrayDeque<>();
+        toCheck.push(child);
+        while (toCheck.isEmpty() == false) {
+            LogicalPlan plan = toCheck.pop();
+            if (plan instanceof OrderBy sort) {
+                return sort;
+            }
+            if (plan instanceof SortAgnostic && plan instanceof Aggregate == false) {
+                plan.children().forEach(toCheck::push);
+            }
+        }
+        return null;
     }
 
     private static boolean isSupportedSource(LogicalPlan leaf) {

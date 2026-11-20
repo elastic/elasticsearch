@@ -264,6 +264,22 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
         assertReadBack("KEEP k, d, l | SORT k", List.of(Arrays.asList("b", 20.0, null), Arrays.asList("c", 30.0, null)));
     }
 
+    public void testFromSortLimitInto() {
+        createSource();
+        assertInto("FROM " + SOURCE + " | SORT k | LIMIT 2 | KEEP k", 2);
+        assertReadBack("KEEP k | SORT k", List.of(List.of("a"), List.of("b")));
+    }
+
+    public void testUnboundedSortBeforeIntoIsRejected() {
+        createSource();
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> run("FROM " + SOURCE + " | SORT k | INTO " + DESTINATION).close()
+        );
+        assertThat(e.getMessage(), containsString("INTO cannot be preceded by an unbounded SORT [SORT k]"));
+        assertThat(e.getMessage(), not(containsString("not supported yet")));
+    }
+
     public void testFromStatsInto() {
         createSource();
         assertInto("FROM " + SOURCE + " | STATS l = SUM(l) BY b | EVAL k = TO_STRING(b)", 2);

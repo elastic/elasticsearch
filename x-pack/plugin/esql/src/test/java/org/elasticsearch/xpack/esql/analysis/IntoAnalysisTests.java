@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.Before;
@@ -25,6 +26,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class IntoAnalysisTests extends AnalyzerTestCase {
     public IntoAnalysisTests(VersionMode versionMode) {
@@ -71,6 +73,25 @@ public class IntoAnalysisTests extends AnalyzerTestCase {
         analyzer().addK8s().error("TS k8s | INTO dst", containsString(error));
         analyzer().addIndex("remote:employees", "mapping-default.json").error("FROM remote:employees | INTO dst", containsString(error));
         analyzer().error("ROW a = 1 | FORK (WHERE true) (WHERE false) | INTO dst", containsString(error));
+    }
+
+    public void testSortWithLimitIsAnEligibleSource() {
+        Into into = as(analyzer().addEmployees().query("FROM employees | SORT emp_no | LIMIT 10 | INTO dst"), Into.class);
+        Limit limit = as(into.child(), Limit.class);
+        as(limit.child(), OrderBy.class);
+        assertThat(into.collect(Limit.class), hasSize(1));
+    }
+
+    public void testUnboundedSortBeforeIntoIsRejected() {
+        String error = "INTO cannot be preceded by an unbounded SORT [SORT emp_no]";
+        analyzer().addEmployees().error("FROM employees | SORT emp_no | INTO dst", containsString(error));
+        analyzer().addEmployees().error("FROM employees | SORT emp_no | KEEP emp_no | INTO dst", containsString(error));
+        analyzer().addEmployees().error("FROM employees | SORT emp_no | LIMIT 5 | SORT emp_no | INTO dst", containsString(error));
+        analyzer().error("ROW a = 1 | SORT a | INTO dst", containsString("INTO cannot be preceded by an unbounded SORT [SORT a]"));
+    }
+
+    public void testSortThatAnAggregationMakesRedundantIsAnEligibleSource() {
+        as(analyzer().addEmployees().query("FROM employees | SORT emp_no | STATS c = COUNT(*) BY gender | INTO dst"), Into.class);
     }
 
     public void testDescribeIsAnEligibleSource() {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
@@ -21,10 +22,12 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -33,6 +36,7 @@ import org.hamcrest.Matcher;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -126,6 +130,40 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
         Alias bucketAlias = as(stepEval.fields().getFirst(), Alias.class);
         assertThat(bucketAlias.id(), equalTo(stepInTsAgg.id()));
         assertThat(bucketAlias.id(), equalTo(step.id()));
+    }
+
+    /**
+     * The labels {@code plan} keys by through {@code key}: the labels of what is packed into it, the labels written into it where
+     * it is a typed label container packed whole (in name order), none where it is a constant, or the key itself.
+     */
+    protected static List<String> keyLabels(LogicalPlan plan, Attribute key) {
+        for (PackDims pack : plan.collect(PackDims.class)) {
+            if (pack.packed().id().equals(key.id())) {
+                var labels = new ArrayList<String>();
+                pack.dims().forEach(dim -> labels.addAll(keyLabels(plan, dim)));
+                return labels;
+            }
+        }
+        for (Eval eval : plan.collect(Eval.class)) {
+            for (Alias field : eval.fields()) {
+                if (field.id().equals(key.id()) && field.child() instanceof TimeSeriesMetadataSet) {
+                    return writtenLabels(field.child());
+                }
+                if (field.id().equals(key.id()) && field.child() instanceof Literal) {
+                    return List.of();
+                }
+            }
+        }
+        return List.of(key.name());
+    }
+
+    /** The labels the {@link TimeSeriesMetadataSet} calls of {@code container} write into it, in the order they write them. */
+    protected static List<String> writtenLabels(Expression container) {
+        var labels = new ArrayList<String>();
+        for (Expression k = container; k instanceof TimeSeriesMetadataSet set; k = set.children().getFirst()) {
+            labels.addFirst(BytesRefs.toString(((Literal) set.label()).value()));
+        }
+        return labels;
     }
 
     /**

@@ -113,6 +113,7 @@ final class DefaultSearchContext extends SearchContext {
     private DirectoryMetricsAwareExecutor metricsAwareExecutor;
     private final DirectoryMetrics.Capture currentThreadDirectoryMetricsCapture;
     private DirectoryMetrics fetchThreadsMetrics = DirectoryMetrics.EMPTY;
+    @Nullable
     private volatile QueryLoad.Charging searchLoad;
     private final long memoryAccountingBufferSize;
     private DfsSearchResult dfsResult;
@@ -282,6 +283,7 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
+    @Nullable
     public QueryLoad.Charging searchLoad() {
         return searchLoad;
     }

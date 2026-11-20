@@ -1037,7 +1037,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             QueryLoad.Charging mergeLoad = queryPhaseResultConsumer.mergeLoad();
             if (mergeLoad != null) {
                 chargeMerge();
-                return SearchLoadMetrics.of(mergeLoad.load());
+                return SearchLoadMetrics.directoryMetricsOf(mergeLoad.load());
             }
             return DirectoryMetrics.EMPTY;
         }

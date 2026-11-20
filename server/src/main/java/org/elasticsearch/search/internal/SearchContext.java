@@ -161,6 +161,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Where the phase of this context is charged, or {@code null} if it reports no load.
      */
+    @Nullable
     public QueryLoad.Charging searchLoad() {
         return null;
     }

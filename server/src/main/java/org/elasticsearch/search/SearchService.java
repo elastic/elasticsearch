@@ -1373,7 +1373,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return metrics;
         }
         TaskLoadAttribution.chargeSoFar(searchLoad, System.nanoTime());
-        return metrics.merge(SearchLoadMetrics.of(searchLoad.load()));
+        return metrics.merge(SearchLoadMetrics.directoryMetricsOf(searchLoad.load()));
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {

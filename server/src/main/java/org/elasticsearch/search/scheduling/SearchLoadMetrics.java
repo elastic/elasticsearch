@@ -44,7 +44,7 @@ public record SearchLoadMetrics(long loadNanos, long cpuNanos, long waitingNanos
     /**
      * The metrics of {@code load}.
      */
-    public static DirectoryMetrics of(QueryLoad load) {
+    public static DirectoryMetrics directoryMetricsOf(QueryLoad load) {
         DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
         builder.add(NAME, load.snapshot());
         return builder.build();

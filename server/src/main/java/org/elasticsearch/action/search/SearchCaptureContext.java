@@ -117,6 +117,7 @@ public class SearchCaptureContext extends QueryCaptureContext {
     /**
      * The search load, CPU time and waiting of the search, or {@code null} if it reported none.
      */
+    @Nullable
     SearchLoadMetrics getSearchLoad() {
         if (response == null) {
             return null;

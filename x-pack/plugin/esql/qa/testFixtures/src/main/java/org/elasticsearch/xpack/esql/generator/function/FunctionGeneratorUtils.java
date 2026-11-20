@@ -41,7 +41,8 @@ final class FunctionGeneratorUtils {
         "tdigest",
         "histogram",
         "exponential_histogram",
-        "date_range"
+        "date_range",
+        "_source"
     );
 
     private FunctionGeneratorUtils() {}

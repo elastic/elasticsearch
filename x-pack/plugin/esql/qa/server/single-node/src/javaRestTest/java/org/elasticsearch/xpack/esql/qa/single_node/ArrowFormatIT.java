@@ -23,9 +23,11 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.util.VectorSchemaRootAppender;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -35,6 +37,7 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class ArrowFormatIT extends ESRestTestCase {
@@ -294,8 +297,9 @@ public class ArrowFormatIT extends ESRestTestCase {
             }
 
             var source = (VarCharVector) root.getVector("_source");
-            assertEquals("{\"value\": 1, \"flat\": {\"a\": \"x\"}}", source.getObject(0).toString());
-            assertEquals("{\"value\": 2}", source.getObject(1).toString());
+            // Compare as parsed JSON so the test doesn't depend on the exact formatting of the stored _source
+            assertEquals(Map.of("value", 1, "flat", Map.of("a", "x")), parseJson(source.getObject(0).toString()));
+            assertEquals(Map.of("value", 2), parseJson(source.getObject(1).toString()));
 
             var flat = (VarCharVector) root.getVector("flat");
             assertEquals("{\"a\":\"x\"}", flat.getObject(0).toString());
@@ -375,5 +379,9 @@ public class ArrowFormatIT extends ESRestTestCase {
         assertEquals("1.0.2", versionVector.getObject(1).toString());
         assertTrue(versionVector.isNull(2));
         assertEquals("1.0.4", versionVector.getObject(3).toString());
+    }
+
+    private static Map<String, Object> parseJson(String json) {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
     }
 }

@@ -100,6 +100,7 @@ import org.elasticsearch.index.engine.EngineBatch;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -313,8 +314,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final MeanMetric flushMetric = new MeanMetric();
     private final CounterMetric periodicFlushMetric = new CounterMetric();
     private final MergeMetrics mergeMetrics;
+    private final FlushMetrics flushMetrics;
 
-    private final ShardEventListener shardEventListener = new ShardEventListener();
+    private final EngineEventListener engineEventListener = new EngineEventListener();
 
     private final ShardPath path;
 
@@ -394,7 +396,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MapperMetrics mapperMetrics,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics
+        final MergeMetrics mergeMetrics,
+        final FlushMetrics flushMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -503,6 +506,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.mergeMetrics = mergeMetrics;
+        this.flushMetrics = flushMetrics;
     }
 
     public ThreadPool getThreadPool() {
@@ -2269,11 +2273,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /// Returns whether a cancellation has been requested via [#requestRecoveryCancellation].
+    ///
+    /// See also [#ensureRecoveryNotCancelled] for a variant that throws.
+    public boolean isRecoveryCancellationRequested() {
+        return recoveryCancellationRequested;
+    }
+
     /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
     ///
     /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries.
     /// Callers should let the exception propagate up the call stack, or catch it to forward it unchanged or wrapped
     /// (preserving it as the cause), e.g. via `onFailure`.
+    ///
+    /// See also [#isRecoveryCancellationRequested()] for a non-throwing variant.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         if (recoveryCancellationRequested) {
             final RecoveryState currentRecoveryState = recoveryState;
@@ -3026,7 +3039,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {
-        this.shardEventListener.delegates.add(onShardFailure);
+        this.engineEventListener.delegates.add(onShardFailure);
     }
 
     /**
@@ -4303,7 +4316,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     }
 
-    class ShardEventListener implements Engine.EventListener {
+    class EngineEventListener implements Engine.EventListener {
         private final CopyOnWriteArrayList<Consumer<ShardFailure>> delegates = new CopyOnWriteArrayList<>();
 
         // called by the current engine
@@ -4392,7 +4405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .analyzer(buildIndexAnalyzer(mapperService))
             .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
             .codecProvider(codecService)
-            .eventListener(shardEventListener)
+            .eventListener(engineEventListener)
             .queryCache(indexCache != null ? indexCache.query() : null)
             .queryCachingPolicy(cachingPolicy)
             .translogConfig(translogConfig)
@@ -4412,6 +4425,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .mapperService(mapperService())
             .engineResetLock(engineResetLock)
             .mergeMetrics(mergeMetrics)
+            .flushMetrics(flushMetrics)
             .indexDeletionPolicyWrapper(Function.identity())
             .build();
     }

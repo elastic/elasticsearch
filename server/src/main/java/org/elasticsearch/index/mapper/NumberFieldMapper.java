@@ -465,18 +465,14 @@ public class NumberFieldMapper extends FieldMapper {
 
         /**
          * How the field's doc values are laid out on disk. {@code long} fields of an index that opts into binary numeric
-         * doc values are written as {@link DocValuesDiskFormat#BINARY}, except for an index sort field, which Lucene's
-         * index sort reads as {@code SORTED_NUMERIC}.
+         * doc values are written as {@link DocValuesDiskFormat#BINARY}.
          */
         // TODO: write the other numeric types as binary doc values too.
-        // TODO: sort an index by a numeric field with binary doc values, as keyword fields can be.
-        private DocValuesDiskFormat diskFormat(String fullName) {
+        private DocValuesDiskFormat diskFormat() {
             if (docValuesParameters.getValue().enabled() == false) {
                 return DocValuesDiskFormat.NONE;
             }
-            if (type == NumberType.LONG
-                && indexSettings.useBinaryNumericDocValues()
-                && indexSettings.getIndexSortConfig().hasSortOnField(fullName) == false) {
+            if (type == NumberType.LONG && indexSettings.useBinaryNumericDocValues()) {
                 return DocValuesDiskFormat.BINARY;
             }
             return DocValuesDiskFormat.SORTED_NUMERIC;
@@ -490,7 +486,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
-            this.diskFormat = diskFormat(context.buildFullName(leafName()));
+            this.diskFormat = diskFormat();
             // A binary payload keeps a document's values in the order they were written and keeps no nulls, so it needs no
             // offsets to rebuild an array.
             this.offsetsFieldName = diskFormat == DocValuesDiskFormat.BINARY

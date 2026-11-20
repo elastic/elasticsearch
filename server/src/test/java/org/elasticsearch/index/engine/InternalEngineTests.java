@@ -146,6 +146,7 @@ import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -666,9 +667,15 @@ public class InternalEngineTests extends EngineTestCase {
         indexDoc(engine, indexForDoc(doc));
         engine.close();
 
-        engine = new InternalEngine(engine.config());
-        expectThrows(IllegalStateException.class, engine::ensureCanFlush);
-        expectThrows(IllegalStateException.class, () -> engine.flush(true, true));
+        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).flushMetrics(new FlushMetrics(meterRegistry)).build());
+        expectThrows(PendingTranslogRecoveryException.class, engine::ensureCanFlush);
+        expectThrows(PendingTranslogRecoveryException.class, () -> engine.flush(true, true));
+        assertThat(
+            "a pending translog recovery is not a flush failure",
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, FlushMetrics.FLUSH_UNEXPECTED_FAILURE_TOTAL),
+            empty()
+        );
         if (randomBoolean()) {
             recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
         } else {
@@ -678,6 +685,34 @@ public class InternalEngineTests extends EngineTestCase {
         doc = testParsedDocument("2", null, testDocumentWithTextField(), SOURCE);
         indexDoc(engine, indexForDoc(doc));
         engine.flush();
+    }
+
+    public void testFlushListenerCompletesWhenReportingFlushFailureFails() throws IOException {
+        engine.close();
+        final AtomicBoolean rethrowFlushFailure = new AtomicBoolean();
+        final FlushMetrics failingMetrics = new FlushMetrics(TelemetryProvider.NOOP.getMeterRegistry()) {
+            @Override
+            public void onFailure(IndexMode indexMode, Throwable error) {
+                if (rethrowFlushFailure.get()) {
+                    // the flush failure below is unchecked
+                    throw (RuntimeException) error;
+                }
+                throw new IllegalStateException("simulated metrics failure");
+            }
+        };
+        engine = new InternalEngine(EngineConfig.builder(engine.config()).flushMetrics(failingMetrics).build()) {
+            @Override
+            protected void ensureCanFlush() {
+                throw new IllegalArgumentException("simulated flush failure");
+            }
+        };
+
+        for (boolean rethrow : new boolean[] { false, true }) {
+            rethrowFlushFailure.set(rethrow);
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            engine.flush(true, true, future);
+            assertThat(expectThrows(IllegalArgumentException.class, future::actionGet).getMessage(), equalTo("simulated flush failure"));
+        }
     }
 
     public void testTranslogMultipleOperationsSameDocument() throws IOException {

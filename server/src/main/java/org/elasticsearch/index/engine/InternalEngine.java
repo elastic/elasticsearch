@@ -3546,9 +3546,11 @@ public class InternalEngine extends Engine {
                 listener.afterFlushWithLock(generation);
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
+                reportFlushFailure(ex);
                 listener.onFailure(ex);
                 return;
             } catch (Exception e) {
+                reportFlushFailure(e);
                 listener.onFailure(e);
                 return;
             } finally {
@@ -4410,7 +4412,7 @@ public class InternalEngine extends Engine {
         // engine otherwise we might loose documents if the flush succeeds
         // and the translog recovery fails when we "commit" the translog on flush.
         if (pendingTranslogRecovery.get()) {
-            throw new IllegalStateException(shardId.toString() + " flushes are disabled - pending translog recovery");
+            throw new PendingTranslogRecoveryException(shardId.toString() + " flushes are disabled - pending translog recovery");
         }
     }
 
@@ -4535,6 +4537,25 @@ public class InternalEngine extends Engine {
     @Override
     public long getTotalFlushTimeExcludingWaitingOnLockInMillis() {
         return TimeUnit.NANOSECONDS.toMillis(totalFlushTimeExcludingWaitingOnLock.sum());
+    }
+
+    /**
+     * Counts a flush failure unless it is a pending translog recovery or an {@link AlreadyClosedException}. A flush that fails the
+     * index writer or translog itself surfaces the original exception, so an {@link AlreadyClosedException} means that something else
+     * closed them first: a clean close, or an engine failure that is reported where it happened.
+     */
+    private void reportFlushFailure(Exception e) {
+        try {
+            if (e instanceof AlreadyClosedException == false && e instanceof PendingTranslogRecoveryException == false) {
+                engineConfig.getFlushMetrics().onFailure(engineConfig.getIndexSettings().getMode(), e);
+            }
+        } catch (Exception inner) {
+            // must not stop the flush listener from completing
+            if (inner != e) {
+                inner.addSuppressed(e);
+            }
+            logger.warn("failed to report flush failure", inner);
+        }
     }
 
     @Override

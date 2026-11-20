@@ -33,10 +33,16 @@ final class SearchShardRelocations {
         return countRelocationsToTarget(state, targetNodeId, nodeShutdowns::isNodeMarkedForRemoval);
     }
 
-    /// The shards initializing on `targetNodeId`: the relocations, the recoveries of unassigned shards and the snapshot restores, which use
-    /// the incoming recovery slots of the target. The critical recoveries are counted as well, as they use the overall limit of the slots.
-    static int countRecoveriesOn(ClusterState state, String targetNodeId) {
-        return countWithState(state, targetNodeId, ShardRoutingState.INITIALIZING);
+    /// The non-critical recoveries on `targetNodeId`: the relocations, the snapshot restores and the replicas added for performance, which
+    /// use the slots of the target for the non-critical recoveries.
+    static int countNonCriticalInitializing(ClusterState state, String targetNodeId) {
+        return countInitializing(state, targetNodeId, shard -> shard.recoveryPriority().isCritical() == false);
+    }
+
+    /// The critical recoveries on `targetNodeId`, which do not use the slots for the non-critical recoveries, but use the overall limit of
+    /// the incoming recoveries.
+    static int countCriticalInitializing(ClusterState state, String targetNodeId) {
+        return countInitializing(state, targetNodeId, shard -> shard.recoveryPriority().isCritical());
     }
 
     /// The search shards started on `nodeId`, which have not begun to relocate yet.

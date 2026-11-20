@@ -19,11 +19,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -65,7 +67,12 @@ public final class OtherNodeShutdownClusterStates {
     }
 
     /// The search replica of a shard of the index: the node it is on, and, if it is `RELOCATING`, it goes to [#RELOCATION_TARGET_NODE].
-    private record SearchShardSpec(String nodeId, ShardRoutingState state) {}
+    private record SearchShardSpec(String nodeId, ShardRoutingState state, @Nullable RecoveryPriority priority) {
+
+        SearchShardSpec(String nodeId, ShardRoutingState state) {
+            this(nodeId, state, null);
+        }
+    }
 
     /// The settings with which the shard shares the target's slots with the shards of the shutting-down nodes: a grace cap of 10s, the
     /// sharing enabled, and the data nodes accepting 2 relocations at once.
@@ -92,12 +99,23 @@ public final class OtherNodeShutdownClusterStates {
         return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, 0);
     }
 
-    /// As above, with `otherRecoveriesOnTarget` more shards initializing on the target, which are not relocations, as the recoveries of
-    /// unassigned shards.
+    /// As above, with `otherRecoveriesOnTarget` more shards initializing on the target, which are not relocations, as the non-critical
+    /// recoveries of unassigned shards.
     static ClusterState relocationWithOtherNodesShuttingDown(
         Index index,
         List<ShuttingDownNode> shuttingDownNodes,
         int otherRecoveriesOnTarget
+    ) {
+        return relocationWithOtherNodesShuttingDown(index, shuttingDownNodes, otherRecoveriesOnTarget, 0);
+    }
+
+    /// As above, with `criticalRecoveriesOnTarget` more shards initializing on the target, which are critical recoveries of unassigned
+    /// shards.
+    static ClusterState relocationWithOtherNodesShuttingDown(
+        Index index,
+        List<ShuttingDownNode> shuttingDownNodes,
+        int otherRecoveriesOnTarget,
+        int criticalRecoveriesOnTarget
     ) {
         // shard 0 is the one under test, the relocating and the pending shards of each shutting-down node follow it
         final var searchShards = new ArrayList<SearchShardSpec>();
@@ -110,7 +128,18 @@ public final class OtherNodeShutdownClusterStates {
                 Collections.nCopies(shuttingDownNode.pendingShards(), new SearchShardSpec(shuttingDownNode.nodeId(), STARTED))
             );
         }
-        searchShards.addAll(Collections.nCopies(otherRecoveriesOnTarget, new SearchShardSpec(RELOCATION_TARGET_NODE, INITIALIZING)));
+        searchShards.addAll(
+            Collections.nCopies(
+                otherRecoveriesOnTarget,
+                new SearchShardSpec(RELOCATION_TARGET_NODE, INITIALIZING, RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING)
+            )
+        );
+        searchShards.addAll(
+            Collections.nCopies(
+                criticalRecoveriesOnTarget,
+                new SearchShardSpec(RELOCATION_TARGET_NODE, INITIALIZING, RecoveryPriority.UNASSIGNED_UNEXPECTED)
+            )
+        );
         return ClusterState.builder(new ClusterName("test"))
             .nodes(nodes(shuttingDownNodes))
             .metadata(
@@ -159,6 +188,10 @@ public final class OtherNodeShutdownClusterStates {
                 .withRole(ShardRouting.Role.SEARCH_ONLY);
             if (searchShard.state() == RELOCATING) {
                 replicaBuilder.withRelocatingNodeId(RELOCATION_TARGET_NODE);
+            }
+            if (searchShard.priority() != null) {
+                // the builder would pick the priority at random
+                replicaBuilder.withRecoveryPriority(searchShard.priority());
             }
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replicaBuilder.build()));
         }

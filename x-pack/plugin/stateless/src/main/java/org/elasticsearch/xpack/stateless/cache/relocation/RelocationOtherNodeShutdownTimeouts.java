@@ -98,10 +98,12 @@ public class RelocationOtherNodeShutdownTimeouts {
     /// What each grace deadline leaves to the shards competing for the target, from the earliest deadline to the latest. A deadline that has
     /// passed leaves nothing: the warming cap does not free a slot, so its shards may still be queued for one.
     private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
-        // All the recoveries on the target share its slots, also the ones of the shutting-down nodes with a later deadline, as the
-        // recoveries are not scheduled by the deadline.
-        final int recoveriesOnTarget = SearchShardRelocations.countRecoveriesOn(state, targetNodeId);
-        final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
+        // All the non-critical recoveries on the target share its slots, also the ones of the shutting-down nodes with a later deadline, as
+        // the recoveries are not scheduled by the deadline. The critical recoveries take a part of the overall limit first.
+        final int recoveriesOnTarget = SearchShardRelocations.countNonCriticalInitializing(state, targetNodeId);
+        final int slots = targetRelocationSlotsEstimator.slotsForNonCriticalRecoveries(
+            SearchShardRelocations.countCriticalInitializing(state, targetNodeId)
+        );
         final long now = threadPool.absoluteTimeInMillis();
         // the shards competing before each deadline rely on the order
         final var shardsOfShuttingDownNodes = shardsOfShuttingDownNodes(state, targetNodeId).sorted(
@@ -142,9 +144,9 @@ public class RelocationOtherNodeShutdownTimeouts {
             .filter(nodeShards -> nodeShards.shards() > 0);
     }
 
-    /// The slots of the target are shared equally by all the recoveries on it. This is the part of them that the `shardsCompetingForTarget`
-    /// shards get: `min(N, slots * N / recoveries)`. It can be fractional. A cluster state that does not show all the competing shards yet
-    /// gives fewer recoveries than shards, so the recoveries are taken to be at least the competing shards.
+    /// The slots of the target are shared equally by all the non-critical recoveries on it. This is the part of them that the
+    /// `shardsCompetingForTarget` shards get: `min(N, slots * N / recoveries)`. It can be fractional. A cluster state that does not show all
+    /// the competing shards yet gives fewer recoveries than shards, so the recoveries are taken to be at least the competing shards.
     private static double slotShareOfCompetingShards(int slots, long shardsCompetingForTarget, int recoveriesOnTarget) {
         return Math.min(
             shardsCompetingForTarget,

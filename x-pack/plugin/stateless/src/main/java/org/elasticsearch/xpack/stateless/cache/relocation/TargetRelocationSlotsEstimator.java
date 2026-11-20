@@ -36,16 +36,15 @@ public class TargetRelocationSlotsEstimator {
         -1
     );
 
+    private volatile int maxConcurrentRecoveries;
     private volatile int maxConcurrentNonCriticalRecoveries;
     private volatile boolean masterThrottlingDisabled;
 
     public TargetRelocationSlotsEstimator(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
-        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(
-            clusterSettings,
-            nodeSettings,
-            maxHeap,
-            limits -> this.maxConcurrentNonCriticalRecoveries = limits.maxConcurrentNonCriticalRecoveries()
-        );
+        DataNodeRecoveryThrottlingSettings.watchIncomingRecoveryLimits(clusterSettings, nodeSettings, maxHeap, limits -> {
+            this.maxConcurrentRecoveries = limits.maxConcurrentRecoveries();
+            this.maxConcurrentNonCriticalRecoveries = limits.maxConcurrentNonCriticalRecoveries();
+        });
         this.masterThrottlingDisabled = masterThrottlingDisabled(clusterSettings::get);
         clusterSettings.addSettingsUpdateConsumer(
             settings -> this.masterThrottlingDisabled = masterThrottlingDisabled(setting -> setting.get(settings)),
@@ -69,10 +68,11 @@ public class TargetRelocationSlotsEstimator {
                 : Math.min(maxRecoveries, relocationsInFlight);
     }
 
-    /// The data node limit on the incoming non-critical recoveries of a target. It is `Integer.MAX_VALUE` when the data nodes have no
-    /// limit.
-    public int maxConcurrentRelocations() {
-        return maxConcurrentNonCriticalRecoveries;
+    /// The slots of a target for the non-critical recoveries, as the relocations, while `criticalRecoveries` run on it: the data node limit
+    /// on the non-critical recoveries, or what the overall limit leaves after the critical recoveries, which use it as well. It is very
+    /// large when the data nodes have no limit.
+    public int slotsForNonCriticalRecoveries(final int criticalRecoveries) {
+        return Math.max(0, Math.min(maxConcurrentNonCriticalRecoveries, maxConcurrentRecoveries - criticalRecoveries));
     }
 
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not

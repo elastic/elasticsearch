@@ -45,6 +45,7 @@ import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /// The slots are only trusted to come from the data nodes when the settings of this node say so and the cluster state agrees. The tests
 /// use real settings and cluster states, and the `RELOCATING` and `STARTED` shards on a shutting-down search node stand for a master that
@@ -132,6 +133,33 @@ public class TargetRelocationSlotsEstimatorTests extends ESTestCase {
         final int newLimit = limit + randomIntBetween(1, 10);
         clusterSettings.applySettings(dataNodeLimit(newLimit));
         assertThat(estimator.knownAvailableSlots(state, 1), equalTo(newLimit));
+    }
+
+    public void testSlotsForNonCriticalRecoveriesAreLimitedByTheCriticalOnesThroughTheOverallLimit() {
+        // 4 slots in total, 2 of them for the non-critical recoveries
+        final var settings = Settings.builder()
+            .put(dataNodeLimit(4))
+            .put(
+                DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING.getKey(),
+                "50%"
+            )
+            .build();
+        final var estimator = newEstimator(newClusterSettings(settings, true), Settings.EMPTY);
+
+        // the critical recoveries run in the slots above the non-critical limit first
+        assertThat(estimator.slotsForNonCriticalRecoveries(0), equalTo(2));
+        assertThat(estimator.slotsForNonCriticalRecoveries(1), equalTo(2));
+        assertThat(estimator.slotsForNonCriticalRecoveries(2), equalTo(2));
+        // then they take the slots of the non-critical recoveries
+        assertThat(estimator.slotsForNonCriticalRecoveries(3), equalTo(1));
+        assertThat(estimator.slotsForNonCriticalRecoveries(4), equalTo(0));
+        assertThat(estimator.slotsForNonCriticalRecoveries(5), equalTo(0));
+    }
+
+    public void testSlotsForNonCriticalRecoveriesAreVeryLargeWhenTheDataNodeLimitIsNotRegistered() {
+        final var estimator = newEstimator(newClusterSettings(Settings.EMPTY, false), Settings.EMPTY);
+
+        assertThat(estimator.slotsForNonCriticalRecoveries(randomIntBetween(0, 100)), greaterThan(Integer.MAX_VALUE - 100));
     }
 
     private static TargetRelocationSlotsEstimator newEstimator(ClusterSettings clusterSettings, Settings nodeSettings) {

@@ -23,6 +23,8 @@ setup:
                     type: keyword
                   lng:
                     type: long
+              other:
+                type: keyword
 
   - do:
       bulk:

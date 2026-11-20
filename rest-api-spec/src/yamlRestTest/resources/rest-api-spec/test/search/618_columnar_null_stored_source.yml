@@ -32,6 +32,8 @@ setup:
                   type: ip
                 flag:
                   type: boolean
+                other:
+                  type: keyword
 
   - do:
       indices.create:
@@ -57,6 +59,8 @@ setup:
                   type: ip
                 flag:
                   type: boolean
+                other:
+                  type: keyword
 
   - do:
       indices.create:
@@ -83,6 +87,8 @@ setup:
                   type: ip
                 flag:
                   type: boolean
+                other:
+                  type: keyword
   - do:
       bulk:
         index: synthetic_source

@@ -7,19 +7,26 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.exchange.ExchangeRequest;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -40,13 +47,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * The reader contexts of the fetch phase, on a cluster with three data nodes. The data nodes of a query that gets the
@@ -249,6 +259,57 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * Stopping a query discards the pages that still wait in the sinks of the data nodes. Their rows never leave, so the
+     * coordinator never hears of their contexts, and the data nodes free them themselves, long before the reaper would.
+     */
+    public void testStoppingTheQueryFreesTheContextsOfTheRowsInTheSinks() throws Exception {
+        HeldExchangeRequests held = new HeldExchangeRequests();
+        EsqlQueryRequest request = asyncEsqlQueryRequest(QUERY).pragmas(fetchPhase(true))
+            .waitForCompletionTimeout(TimeValue.timeValueNanos(1))
+            .keepOnCompletion(true);
+        String id;
+        ActionFuture<EsqlQueryResponse> stopped;
+        try {
+            try (EsqlQueryResponse response = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS)) {
+                assertTrue(response.isRunning());
+                id = response.asyncExecutionId().orElseThrow();
+            }
+            awaitRowsInTheSinks();
+            stopped = client().execute(EsqlAsyncStopAction.INSTANCE, new AsyncStopRequest(id));
+            // the keep-alive of _search is at least 100s in tests, so only the data nodes can free them this soon
+            assertBusy(() -> assertThat(freed.get(), equalTo(registered.get())));
+        } finally {
+            held.release();
+        }
+        try (EsqlQueryResponse response = stopped.actionGet(30, TimeUnit.SECONDS)) {
+            assertFalse(response.isRunning());
+            assertTrue(response.isPartial());
+            assertThat(getValuesList(response), empty());
+        }
+        assertThat(freeRequests.get(), equalTo(0));
+    }
+
+    /**
+     * Cancelling a query discards the pages that still wait in the sinks of the data nodes, and the data nodes free the
+     * contexts of their rows themselves.
+     */
+    public void testCancellingTheQueryFreesTheContextsOfTheRowsInTheSinks() throws Exception {
+        HeldExchangeRequests held = new HeldExchangeRequests();
+        ActionFuture<EsqlQueryResponse> query = client().execute(EsqlQueryAction.INSTANCE, request(true));
+        try {
+            awaitRowsInTheSinks();
+            clusterAdmin().prepareCancelTasks().setActions(EsqlQueryAction.NAME).get(TimeValue.timeValueSeconds(30));
+            // the keep-alive of _search is at least 100s in tests, so only the data nodes can free them this soon
+            assertBusy(() -> assertThat(freed.get(), equalTo(registered.get())));
+        } finally {
+            held.release();
+        }
+        Exception failure = expectThrows(Exception.class, () -> query.actionGet(30, TimeUnit.SECONDS).close());
+        assertThat(failure.toString(), ExceptionsHelper.unwrap(failure, TaskCancelledException.class), notNullValue());
+        assertThat(freeRequests.get(), equalTo(0));
+    }
+
+    /**
      * Without the fetch phase the query reads through unregistered contexts, as it always did.
      */
     public void testQueryWithoutTheFetchPhaseRegistersNoContext() {
@@ -273,13 +334,83 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
         assertThat(registered.get(), equalTo(0));
     }
 
+    /**
+     * Waits until every data node of the query opened its contexts and has rows waiting in the sink of its request.
+     */
+    private void awaitRowsInTheSinks() throws Exception {
+        assertBusy(() -> {
+            assertThat("a registered context per shard", registered.get(), equalTo(shards));
+            for (String node : internalCluster().getNodeNames()) {
+                if (internalCluster().getInstance(SearchService.class, node).getActiveContexts() == 0) {
+                    // no shard of the index
+                    continue;
+                }
+                ExchangeService exchangeService = internalCluster().getInstance(ExchangeService.class, node);
+                List<String> sinks = exchangeService.sinkKeys()
+                    .stream()
+                    // the exchange of the node-level reduction stays on the node
+                    .filter(sink -> sink.endsWith("[n]") == false)
+                    .toList();
+                assertThat(node + " runs one data node request", sinks, hasSize(1));
+                assertThat(node + " has rows waiting", exchangeService.getSinkHandler(sinks.get(0)).bufferSize(), greaterThan(0));
+            }
+        });
+    }
+
+    /**
+     * Holds the exchange requests that ask the data nodes for pages, so the rows of the query wait in the sinks of the data
+     * nodes. A request that tells a sink its source finished, like the one a stop sends, goes through.
+     */
+    private static final class HeldExchangeRequests {
+        private final List<CheckedRunnable<Exception>> held = new ArrayList<>();
+        private boolean released;
+
+        HeldExchangeRequests() {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                ((MockTransportService) transportService).<ExchangeRequest>addRequestHandlingBehavior(
+                    ExchangeService.EXCHANGE_ACTION_NAME,
+                    (handler, request, channel, task) -> {
+                        if (request.sourcesFinished() || hold(() -> handler.messageReceived(request, channel, task)) == false) {
+                            handler.messageReceived(request, channel, task);
+                        }
+                    }
+                );
+            }
+        }
+
+        private synchronized boolean hold(CheckedRunnable<Exception> request) {
+            if (released) {
+                return false;
+            }
+            held.add(request);
+            return true;
+        }
+
+        /**
+         * Lets the held requests and every later one through.
+         */
+        void release() throws Exception {
+            List<CheckedRunnable<Exception>> toRun;
+            synchronized (this) {
+                released = true;
+                toRun = new ArrayList<>(held);
+                held.clear();
+            }
+            for (CheckedRunnable<Exception> request : toRun) {
+                request.run();
+            }
+        }
+    }
+
     private static EsqlQueryRequest request(boolean fetchPhase) {
         return request(QUERY, fetchPhase);
     }
 
     private static EsqlQueryRequest request(String query, boolean fetchPhase) {
-        return syncEsqlQueryRequest(query).pragmas(
-            new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), fetchPhase).build())
-        );
+        return syncEsqlQueryRequest(query).pragmas(fetchPhase(fetchPhase));
+    }
+
+    private static QueryPragmas fetchPhase(boolean fetchPhase) {
+        return new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), fetchPhase).build());
     }
 }

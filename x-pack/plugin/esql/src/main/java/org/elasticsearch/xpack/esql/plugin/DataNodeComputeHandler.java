@@ -1453,6 +1453,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (externalSink == null) {
             return;
         }
+        if (fetchContexts != null) {
+            // the coordinator never hears of the contexts of the pages the sink discards on stop, cancellation or failure
+            externalSink.setOnPageDiscarded(fetchContexts::discarded);
+        }
         // Shared by the batches of shards, and released once all of them are done
         final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
         final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
@@ -1814,7 +1818,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     /**
      * The sink of the pages that leave this node. A query with a fetch phase sends {@code _doc} to the coordinator, which
      * loads the other columns of the winners later, so the documents get the origin of their shard. Asking for the origin
-     * marks the reader context as one the node keeps after the request.
+     * makes the node keep the reader context after the request, unless the sink discards the page.
      */
     private static ExchangeSink leavingTheNode(
         ExchangeSink sink,

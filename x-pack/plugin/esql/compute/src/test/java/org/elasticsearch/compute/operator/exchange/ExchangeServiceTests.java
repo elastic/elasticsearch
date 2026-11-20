@@ -528,6 +528,52 @@ public class ExchangeServiceTests extends ESTestCase {
         assertTrue(sink.isFinished());
     }
 
+    /**
+     * The sink handler reports each page it drops instead of sending it: the pages it still buffers when its source finishes
+     * early or it fails, and the pages its sinks add after that. It doesn't report the pages it sends.
+     */
+    public void testOnPageDiscardedSeesEveryDroppedPage() {
+        ExchangeSinkHandler sinkHandler = new ExchangeSinkHandler(100, threadPool.relativeTimeInMillisSupplier());
+        List<Integer> discarded = Collections.synchronizedList(new ArrayList<>());
+        sinkHandler.setOnPageDiscarded(page -> discarded.add(page.<IntBlock>getBlock(0).getInt(0)));
+        ExchangeSink sink = sinkHandler.createExchangeSink(() -> {});
+        BlockFactory blockFactory = blockFactory();
+        int sent = between(0, 5);
+        int buffered = between(1, 5);
+        int late = between(0, 5);
+        for (int n = 0; n < sent + buffered; n++) {
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
+        }
+        for (int n = 0; n < sent; n++) {
+            PlainActionFuture<Page> future = new PlainActionFuture<>();
+            sinkHandler.fetchPageAsync(false, future.map(ExchangeResponse::takePage));
+            Page page = safeGet(future);
+            assertThat(page.<IntBlock>getBlock(0).getInt(0), equalTo(n));
+            page.releaseBlocks();
+        }
+        assertThat(discarded, empty());
+
+        if (randomBoolean()) {
+            // the source has enough pages, like after a stop
+            PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+            sinkHandler.fetchPageAsync(true, future.map(response -> {
+                assertNull(response.takePage());
+                return response.finished();
+            }));
+            assertTrue(safeGet(future));
+        } else {
+            // like a cancellation or a failure of the request
+            sinkHandler.onFailure(new IOException("simulated"));
+        }
+        for (int n = sent + buffered; n < sent + buffered + late; n++) {
+            sink.addPage(new Page(blockFactory.newConstantIntBlockWith(n, 1)));
+        }
+
+        assertThat(discarded, equalTo(IntStream.range(sent, sent + buffered + late).boxed().toList()));
+        sink.finish();
+        assertTrue(sinkHandler.isFinished());
+    }
+
     public void testFinishEarly() {
         ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(20, threadPool.generic());
         Semaphore permits = new Semaphore(between(1, 5));

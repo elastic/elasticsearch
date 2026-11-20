@@ -7,16 +7,21 @@
 package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.search.ReservingResponseHandler;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,9 +37,14 @@ import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncResultRequest, AsyncSearchResponse> {
+
+    /** Breaker label for a relayed get async search response. */
+    static final String RELAYED_RESPONSE_BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[async_search_response]";
+
     private final AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> resultsService;
     private final TransportService transportService;
     private final ThreadContext threadContext;
+    private final CircuitBreaker circuitBreaker;
 
     @Inject
     public TransportGetAsyncSearchAction(
@@ -44,11 +54,22 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         NamedWriteableRegistry registry,
         Client client,
         ThreadPool threadPool,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        CircuitBreakerService circuitBreakerService
     ) {
-        super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        // Charges the reply this node serializes for a relayed request until it is written.
+        super(
+            GetAsyncSearchAction.NAME,
+            true,
+            transportService,
+            actionFilters,
+            GetAsyncResultRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         this.transportService = transportService;
         this.threadContext = threadPool.getThreadContext();
+        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool, bigArrays);
     }
 
@@ -98,8 +119,37 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
                 node,
                 GetAsyncSearchAction.NAME,
                 request,
-                new ActionListenerResponseHandler<>(listenerWithHeaders, AsyncSearchResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                new RelayedResponseHandler(listenerWithHeaders, circuitBreaker)
             );
+        }
+    }
+
+    /**
+     * Charges a response relayed from the node that runs the search in two steps. Its serialized bytes are reserved while it arrives,
+     * so one that doesn't fit is rejected before it is read. Once read, it stays charged until it is released after being written,
+     * see {@link SearchResponse#chargeReadResponse}, which bounds what this node holds, not the peak of reading one response.
+     * Either trip reaches the listener as the {@link CircuitBreakingException} itself, which is a 429.
+     */
+    static final class RelayedResponseHandler extends ReservingResponseHandler<AsyncSearchResponse> {
+        private final CircuitBreaker circuitBreaker;
+
+        RelayedResponseHandler(ActionListener<? super AsyncSearchResponse> listener, CircuitBreaker circuitBreaker) {
+            super(listener, AsyncSearchResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE, circuitBreaker, RELAYED_RESPONSE_BREAKER_LABEL);
+            this.circuitBreaker = circuitBreaker;
+        }
+
+        @Override
+        public void handleResponse(AsyncSearchResponse response) {
+            SearchResponse searchResponse = response.getSearchResponse();
+            if (searchResponse != null) {
+                try {
+                    searchResponse.chargeReadResponse(circuitBreaker, reservation.reservedTotal(), RELAYED_RESPONSE_BREAKER_LABEL);
+                } catch (CircuitBreakingException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+            }
+            super.handleResponse(response);
         }
     }
 }

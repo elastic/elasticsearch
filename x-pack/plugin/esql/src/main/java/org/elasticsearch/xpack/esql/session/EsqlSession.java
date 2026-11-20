@@ -2519,7 +2519,8 @@ public class EsqlSession {
      * <p>
      * For any {@link IndependentSubqueryJoin}, the right child is a separate query that the coordinator runs and replaces with its
      * result, so only the left child contributes source clusters to this join. That covers the SEMI/ANTI/MARK joins that
-     * {@code InSubqueryResolver} produces for {@code field IN (subquery)} and the {@code SubqueryJoin} of {@code LEFT OUTER JOIN (subquery)}.
+     * {@code InSubqueryResolver} produces for {@code field IN (subquery)} and the {@code SubqueryJoin} of
+     * {@code LEFT OUTER JOIN (subquery)}.
      * So {@code ... | WHERE x IN (FROM remote:idx) | LOOKUP JOIN ...} scopes the lookup to the outer source only, not to {@code remote}.
      * A {@code FROM a, b} union ({@code Fork}/{@code UnionAll}) instead reads from every branch, so all of its children are followed.
      * The behavior is validated by {@code CrossClusterInSubqueryIT.testMissingLookupIndexAfterWhereInSubquery}

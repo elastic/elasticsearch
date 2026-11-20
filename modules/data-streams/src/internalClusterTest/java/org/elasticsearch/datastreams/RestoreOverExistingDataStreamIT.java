@@ -279,10 +279,6 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         assertThat("what exists is untouched", currentDataStream().getIndices().get(0), equalTo(originalBackingIndex));
     }
 
-    /**
-     * A restore of the global state replaces the templates of the project with the ones of the snapshot, so the templates of the
-     * snapshot are the ones that count: a data stream that only the snapshot has a template for is restored.
-     */
     public void testRestoreWithGlobalStateRequiringTemplatesUsesTheTemplatesOfTheSnapshot() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -317,10 +313,6 @@ public class RestoreOverExistingDataStreamIT extends AbstractSnapshotIntegTestCa
         assertThat("the template of the snapshot is restored", currentTemplates(), hasKey(TEMPLATE_ID));
     }
 
-    /**
-     * A template of the cluster does not count for a restore of the global state, because the restore replaces it with the templates
-     * of the snapshot: a data stream that only a template of the cluster matches is rejected, and the restore does not start.
-     */
     public void testRestoreWithGlobalStateRequiringTemplatesIgnoresTheTemplatesThatItReplaces() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();

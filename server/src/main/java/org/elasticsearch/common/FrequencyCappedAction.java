@@ -16,7 +16,8 @@ import java.util.function.LongSupplier;
 
 /**
  * Execute an action at most once per time interval. Safe to use from multiple threads: if several threads call
- * {@link #maybeExecute} concurrently when the action is due, only one of them runs it, and it runs without holding any lock.
+ * {@link #maybeExecute} concurrently when the action is due, only one of them runs it, and it runs without holding any lock. An
+ * interval of zero milliseconds imposes no cap, so in that case every due caller may run the action.
  */
 public class FrequencyCappedAction {
 

@@ -12,6 +12,8 @@ package org.elasticsearch.common;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
@@ -50,13 +52,45 @@ public class FrequencyCappedActionTests extends ESTestCase {
         assertThat(executions.get(), equalTo(2L));
     }
 
-    public void testConcurrentCallersExecuteOncePerInterval() {
+    public void testMinIntervalFromConstructor() {
         var executions = new AtomicLong(0);
         var currentTime = new AtomicLong();
-        var action = new FrequencyCappedAction(currentTime::get, TimeValue.ZERO, TimeValue.timeValueMinutes(1));
+        var minInterval = TimeValue.timeValueMinutes(1);
+        var action = new FrequencyCappedAction(currentTime::get, TimeValue.ZERO, minInterval);
 
-        startInParallel(between(2, 10), i -> action.maybeExecute(executions::incrementAndGet));
-
+        action.maybeExecute(executions::incrementAndGet);
         assertThat(executions.get(), equalTo(1L));
+
+        currentTime.set(minInterval.millis() - 1);
+        action.maybeExecute(executions::incrementAndGet);
+        assertThat(executions.get(), equalTo(1L));
+
+        currentTime.set(minInterval.millis());
+        action.maybeExecute(executions::incrementAndGet);
+        assertThat(executions.get(), equalTo(2L));
+    }
+
+    public void testConcurrentCallersExecuteOncePerInterval() {
+        final int threads = between(2, 10);
+        var executions = new AtomicLong(0);
+        var currentTime = new AtomicLong();
+        var contend = new AtomicBoolean();
+        var barrier = new CyclicBarrier(threads);
+        var minInterval = TimeValue.timeValueMinutes(1);
+        // Every caller reads the clock before any of them tries to claim the execution, so that they all see the same deadline
+        var action = new FrequencyCappedAction(() -> {
+            if (contend.get()) {
+                safeAwait(barrier);
+            }
+            return currentTime.get();
+        }, TimeValue.ZERO, minInterval);
+        contend.set(true);
+
+        final int rounds = between(20, 100);
+        for (int round = 1; round <= rounds; round++) {
+            startInParallel(threads, i -> action.maybeExecute(executions::incrementAndGet));
+            assertThat(executions.get(), equalTo((long) round));
+            currentTime.addAndGet(minInterval.millis());
+        }
     }
 }

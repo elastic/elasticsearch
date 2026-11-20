@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
+@LuceneTestCase.SuppressCodecs("*")
 public class VectorIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "test";

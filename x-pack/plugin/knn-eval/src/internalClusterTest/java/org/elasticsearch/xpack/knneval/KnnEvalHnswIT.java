@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.knneval;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /** Every HNSW index_options type is evaluated alike, so each run draws one type, its early-termination setting and its data at random. */
+@LuceneTestCase.SuppressCodecs("*")
 public class KnnEvalHnswIT extends ESIntegTestCase {
 
     private static final int DIMS = 64; // bbq_hnsw's minimum

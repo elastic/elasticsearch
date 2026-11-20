@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -31,6 +32,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2, maxNumDataNodes = 4)
 @ESIntegTestCase.SuiteScopeTestCase
+@LuceneTestCase.SuppressCodecs("*")
 public class RRFRankMultiShardIT extends ESIntegTestCase {
 
     @Override

@@ -10,14 +10,21 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
@@ -37,6 +44,8 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.internal.CancellableBulkScorer;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 
@@ -246,8 +255,74 @@ class SignificanceLookup {
         if (backgroundFilter != null) {
             query = new BooleanQuery.Builder().add(query, Occur.FILTER).add(backgroundFilter, Occur.FILTER).build();
         }
-        // use a brand new index searcher as we want to run this query on the current thread
-        return new IndexSearcher(context.searcher().getIndexReader()).count(query);
+        // Use a brand new index searcher so this count runs on the current thread, but wrap the
+        // bulk scorer with CancellableBulkScorer so long-running scoring (e.g. against a script
+        // field that loads synthetic source per doc) honors task cancellation.
+        return cancellableSearcher(context.searcher().getIndexReader(), this::checkCancelled).count(query);
+    }
+
+    private void checkCancelled() {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled");
+        }
+    }
+
+    /**
+     * Build an {@link IndexSearcher} backed by {@code reader} that runs counts on the current
+     * thread and wires {@code checkCancelled} into the bulk-scoring loop, so long-running counts
+     * (e.g. against a script field that loads synthetic source per doc) can be interrupted.
+     * Visible for testing.
+     */
+    static IndexSearcher cancellableSearcher(IndexReader reader, Runnable checkCancelled) {
+        return new IndexSearcher(reader) {
+            @Override
+            protected void searchLeaf(LeafReaderContext ctx, int minDocId, int maxDocId, Weight weight, Collector collector)
+                throws IOException {
+                checkCancelled.run();
+                super.searchLeaf(ctx, minDocId, maxDocId, cancellableWeight(weight, checkCancelled), collector);
+            }
+        };
+    }
+
+    /**
+     * Wrap {@code delegate} so the {@link BulkScorer} it produces is itself wrapped in a
+     * {@link CancellableBulkScorer}. {@link IndexSearcher#searchLeaf} reaches the bulk scorer via
+     * {@code weight.scorerSupplier(ctx).bulkScorer()}, so we override {@link Weight#scorerSupplier}
+     * and the resulting supplier's {@link ScorerSupplier#bulkScorer} is where the cancellation
+     * hook is installed.
+     */
+    private static Weight cancellableWeight(Weight delegate, Runnable checkCancelled) {
+        return new FilterWeight(delegate) {
+            @Override
+            public ScorerSupplier scorerSupplier(LeafReaderContext ctx) throws IOException {
+                ScorerSupplier inner = super.scorerSupplier(ctx);
+                if (inner == null) {
+                    return null;
+                }
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        return inner.get(leadCost);
+                    }
+
+                    @Override
+                    public BulkScorer bulkScorer() throws IOException {
+                        BulkScorer bs = inner.bulkScorer();
+                        return bs == null ? null : new CancellableBulkScorer(bs, checkCancelled);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return inner.cost();
+                    }
+
+                    @Override
+                    public void setTopLevelScoringClause() throws IOException {
+                        inner.setTopLevelScoringClause();
+                    }
+                };
+            }
+        };
     }
 
     private TermsEnum getTermsEnum() throws IOException {

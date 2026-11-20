@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -160,10 +159,6 @@ public final class OtherNodeShutdownClusterStates {
                 .withRole(ShardRouting.Role.SEARCH_ONLY);
             if (searchShard.state() == RELOCATING) {
                 replicaBuilder.withRelocatingNodeId(RELOCATION_TARGET_NODE);
-            } else if (searchShard.state() == INITIALIZING) {
-                // a non-critical recovery, which uses the non-critical slots of the target, as the builder would pick the priority at
-                // random
-                replicaBuilder.withRecoveryPriority(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING);
             }
             routingBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary).addShard(replicaBuilder.build()));
         }

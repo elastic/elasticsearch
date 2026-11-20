@@ -100,7 +100,7 @@ public class RelocationOtherNodeShutdownTimeouts {
     private List<DeadlineShare> deadlineShares(final ClusterState state, final String targetNodeId) {
         // All the recoveries on the target share its slots, also the ones of the shutting-down nodes with a later deadline, as the
         // recoveries are not scheduled by the deadline.
-        final int recoveriesOnTarget = SearchShardRelocations.countNonCriticalInitializing(state, targetNodeId);
+        final int recoveriesOnTarget = SearchShardRelocations.countRecoveriesOn(state, targetNodeId);
         final int slots = targetRelocationSlotsEstimator.maxConcurrentRelocations();
         final long now = threadPool.absoluteTimeInMillis();
         // the shards competing before each deadline rely on the order

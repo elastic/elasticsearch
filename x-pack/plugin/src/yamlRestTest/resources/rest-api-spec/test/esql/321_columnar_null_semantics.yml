@@ -53,7 +53,7 @@ setup:
 ---
 IS NOT NULL keeps only documents with a non-null keyword value when it is pushed down:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "IS NOT NULL on a string is pushed down to exists, which matches documents that hold only nulls"
 
   - do:

@@ -50,7 +50,7 @@ setup:
 ---
 exists matches only documents with a non-null value on a match_only_text field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:
@@ -136,7 +136,7 @@ exists hits, size 0 total and count agree on a match_only_text field:
 ---
 exists matches only documents with a non-null value on a match_only_text field after a deletion:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:
@@ -172,7 +172,7 @@ exists matches only documents with a non-null value on a match_only_text field a
 ---
 exists matches only documents with a non-null value on a match_only_text field after a merge:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:

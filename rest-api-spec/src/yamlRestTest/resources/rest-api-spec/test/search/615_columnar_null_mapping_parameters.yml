@@ -122,7 +122,7 @@ exists does not match a malformed date:
 ---
 exists matches an empty string but not a lone null:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "exists matches documents that hold only nulls"
 
   - do:

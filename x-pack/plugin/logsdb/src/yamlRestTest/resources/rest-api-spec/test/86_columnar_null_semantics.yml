@@ -46,7 +46,7 @@ setup:
 ---
 exists matches only documents with a non-null value on an indexed keyword field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:
@@ -125,7 +125,7 @@ exists hits and size 0 total agree on an indexed keyword field:
 ---
 exists matches only documents with a non-null value on an indexed keyword field after a deletion and a merge:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:

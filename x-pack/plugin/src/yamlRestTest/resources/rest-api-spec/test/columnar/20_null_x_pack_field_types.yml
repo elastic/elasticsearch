@@ -89,7 +89,7 @@ exists matches only documents with a non-null value on an unsigned_long field:
 ---
 exists matches only documents with a non-null value on a wildcard field:
   - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
       reason: "string exists matches documents that hold only nulls (proposed contract)"
 
   - do:

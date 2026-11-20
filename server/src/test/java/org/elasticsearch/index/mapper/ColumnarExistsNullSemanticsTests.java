@@ -51,12 +51,12 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165521")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testKeywordExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
         assertExistsMatchesOnlyDocumentsWithANonNullValue("keyword", () -> randomAlphaOfLengthBetween(1, 8));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165521")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testTextExistsMatchesOnlyDocumentsWithANonNullValue() throws IOException {
         assertExistsMatchesOnlyDocumentsWithANonNullValue("text", () -> randomAlphaOfLengthBetween(1, 8));
     }

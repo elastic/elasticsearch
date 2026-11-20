@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Set;
 
 import javax.annotation.processing.Completion;
-import javax.annotation.processing.Filer;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -138,7 +137,13 @@ public class AggregatorProcessor implements Processor {
     }
 
     /**
-     * Just like {@link JavaFile#writeTo(Filer)} but on windows it replaces {@code \n} with {@code \r\n}.
+     * Writes the generated file with {@code \n} line endings on every platform.
+     * <p>
+     *     The generated sources are checked in and {@code .gitattributes} marks {@code *.java} as {@code eol=lf},
+     *     so they are LF in every checkout, Windows included. Emitting the platform's line separator would
+     *     rewrite them as CRLF on each compilation on Windows, which git reports as modifications and which
+     *     changes the compilation inputs, forcing the module to be recompiled.
+     * </p>
      */
     public static void write(Object origination, String what, JavaFile file, ProcessingEnvironment env) {
         try {
@@ -146,11 +151,7 @@ public class AggregatorProcessor implements Processor {
             JavaFileObject filerSourceFile = env.getFiler()
                 .createSourceFile(fileName, file.typeSpec.originatingElements.toArray(Element[]::new));
             try (Writer w = filerSourceFile.openWriter()) {
-                if (System.getProperty("line.separator").equals("\n")) {
-                    file.writeTo(w);
-                } else {
-                    w.write(file.toString().replace("\n", System.getProperty("line.separator")));
-                }
+                file.writeTo(w);
             }
         } catch (IOException e) {
             env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed generating " + what + " for " + origination);

@@ -563,6 +563,11 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoValueInLogsdbColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoValue(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
     public void testNullOnlyArraysHaveNoValueInVectordbColumnar() throws IOException {
         assertNullOnlyArraysHaveNoValue(IndexMode.VECTORDB_COLUMNAR);
     }

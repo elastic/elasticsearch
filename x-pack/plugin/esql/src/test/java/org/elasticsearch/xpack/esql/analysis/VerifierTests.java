@@ -5954,16 +5954,19 @@ public class VerifierTests extends AnalyzerTestCase {
 
     public void testSubqueryJoinNotSupported() {
         assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
-        for (String key : List.of("language_code", "does_not_exist")) {
-            analyzer().addEmployees()
-                .addLanguages()
-                .error(
-                    """
-                        FROM employees
-                        | EVAL language_code = languages
-                        | LEFT OUTER JOIN (FROM languages) ON\s""" + key,
-                    allOf(containsString("Found 1 problem"), containsString("line 3:3: JOIN on a subquery is not supported yet"))
-                );
+        // The unmapped_fields settings check that ResolveUnmapped neither rewrites nor rejects the unresolved keys first.
+        for (String setting : List.of("", "SET unmapped_fields=\"nullify\"; ", "SET unmapped_fields=\"load\"; ")) {
+            for (String key : List.of("language_code", "does_not_exist")) {
+                analyzer().addEmployees()
+                    .addLanguages()
+                    .statementError(
+                        setting + """
+                            FROM employees
+                            | EVAL language_code = languages
+                            | LEFT OUTER JOIN (FROM languages) ON\s""" + key,
+                        allOf(containsString("Found 1 problem"), containsString("line 3:3: JOIN on a subquery is not supported yet"))
+                    );
+            }
         }
     }
 

@@ -234,7 +234,14 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     public void testMatchInStatsFilterAfterCommands() {
         String stats = " | STATS c = count(*) WHERE match(content, \"fox\"), d = count(*)";
 
-        for (String commands : List.of("LIMIT 10", "SORT id | LIMIT 10", "STATS m = max(id) BY content")) {
+        for (String commands : List.of(
+            "LIMIT 10",
+            "SORT id | LIMIT 10",
+            "STATS m = max(id) BY content",
+            "CHANGE_POINT id ON id",
+            // the optimizer replaces the alias with the indexed field
+            "RENAME content AS c2 | LIMIT 10 | EVAL content = c2"
+        )) {
             var error = expectThrows(VerificationException.class, () -> run("FROM test | " + commands + stats));
             assertThat(commands, error.getMessage(), containsString("[MATCH] function cannot be used after "));
         }

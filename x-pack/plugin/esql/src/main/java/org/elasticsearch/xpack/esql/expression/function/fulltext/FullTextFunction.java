@@ -379,6 +379,18 @@ public abstract class FullTextFunction extends Function
             && (lp instanceof TopN == false);
     }
 
+    /**
+     * Whether a command only runs on the coordinator, like {@code CHANGE_POINT} or an {@code ENRICH} in coordinator mode, taking
+     * what follows it there too. {@code INLINE STATS} is not such a command, the rows it adds its results to stay on the shards.
+     * Its aggregation is left to {@link #readsLuceneDocuments}, that tells it from the one of a {@code STATS}.
+     */
+    private static boolean executesOnCoordinator(LogicalPlan lp) {
+        if (lp instanceof Aggregate || lp instanceof InlineStats || lp instanceof InlineJoin) {
+            return false;
+        }
+        return lp instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR;
+    }
+
     private static void checkScoreFunction(LogicalPlan plan, Failures failures, Score scoreFunction) {
         checkCommandsBeforeExpression(
             plan,
@@ -401,11 +413,7 @@ public abstract class FullTextFunction extends Function
                 }
             });
         });
-        // A filter shared by every aggregate function is turned into a WHERE that can be pushed into subqueries, so with a
-        // subquery below the check waits for the optimized plan, like it does for WHERE.
-        if (hasSubqueryInChildrenPlans(agg) == false) {
-            checkFullTextFunctionsInAggFilters(agg, failures, true);
-        }
+        checkFullTextFunctionsInAggFilters(agg, failures, true);
     }
 
     /**
@@ -416,11 +424,17 @@ public abstract class FullTextFunction extends Function
      * <p>
      * The commands that only stop a {@code WHERE} from being pushed to Lucene, like {@code MV_EXPAND} or {@code EVAL} before
      * {@code QSTR}, are not rejected here because the filter of an aggregate function doesn't need to be pushed down.
+     * <p>
+     * This runs on the analyzed plan, to fail early, and again on the optimized plan, which has the final say: the optimizer
+     * turns a filter shared by every aggregate function into a {@code WHERE} that it can push into the branches of a
+     * {@code FORK} or into subqueries, it replaces a column with the indexed field it is an alias of, making the search of a
+     * column one of the index, and it expands commands like {@code CHANGE_POINT} to the ones that implement them.
      *
-     * @param checkSources whether to reject {@code QSTR} and {@code KQL} over a source that is not an index. Only the analyzed
-     *                     plan can tell, the optimizer may replace an index with local data.
+     * @param analyzed whether this is the analyzed plan. Only there, {@code QSTR} and {@code KQL} are rejected over a source
+     *                 that is not an index, as the optimizer may replace an index with local data. The commands below a
+     *                 {@code FORK} or subqueries are left for the optimized plan.
      */
-    private static void checkFullTextFunctionsInAggFilters(Aggregate agg, Failures failures, boolean checkSources) {
+    private static void checkFullTextFunctionsInAggFilters(Aggregate agg, Failures failures, boolean analyzed) {
         List<Expression> filters = new ArrayList<>();
         for (NamedExpression aggregate : agg.aggregates()) {
             // the analyzed plan wraps a filtered aggregate function, the optimized one stores the filter in the function
@@ -436,17 +450,20 @@ public abstract class FullTextFunction extends Function
         }
         LogicalPlan input = agg.child();
         Set<Aggregate> inlineStatsAggregates = inlineStatsAggregates(input);
+        boolean checkCommands = analyzed == false || input.anyMatch(p -> p instanceof MergePlan) == false;
         for (Expression filter : filters) {
-            checkCommandsBeforeExpression(
-                agg,
-                input,
-                filter,
-                FullTextFunction.class,
-                lp -> readsLuceneDocuments(lp, inlineStatsAggregates),
-                m -> "[" + m.functionName() + "] " + m.functionType(),
-                failures
-            );
-            if (checkSources) {
+            if (checkCommands) {
+                checkCommandsBeforeExpression(
+                    agg,
+                    input,
+                    filter,
+                    FullTextFunction.class,
+                    lp -> readsLuceneDocuments(lp, inlineStatsAggregates) && executesOnCoordinator(lp) == false,
+                    m -> "[" + m.functionName() + "] " + m.functionType(),
+                    failures
+                );
+            }
+            if (analyzed) {
                 for (Class<? extends FullTextFunction> functionClass : List.of(QueryString.class, Kql.class)) {
                     // These search the whole index instead of a field, so there is no field to tell them it is missing.
                     checkCommandsBeforeExpression(
@@ -901,8 +918,8 @@ public abstract class FullTextFunction extends Function
         // does not apply after logical planner. Also limit is pushed down further(below Join) by PushDownAndCombineLimits,
         // the check for LookupJoin or the score function may fail at LogicalVerifier.
         return (logicalPlan, failures) -> {
-            if (logicalPlan instanceof Aggregate agg && hasSubqueryInChildrenPlans(agg)) {
-                // Deferred from the analyzed plan: the filters left in the aggregate functions were not pushed into the subqueries.
+            if (logicalPlan instanceof Aggregate agg) {
+                // the filters left in the aggregate functions are the ones the aggregation evaluates
                 checkFullTextFunctionsInAggFilters(agg, failures, false);
             }
             if (logicalPlan instanceof Filter f) {

@@ -4181,7 +4181,8 @@ public class VerifierTests extends AnalyzerTestCase {
             String stats = " | stats c = max(id) where " + function + "(\"title: Meditation\"), d = count(*)";
             String error = "[" + function + "] function cannot be used after ";
             fullText().error("row title = \"Meditation\", id = 1" + stats, containsString(error + "ROW"));
-            fullText().error("from test | fork (where id > 0) (where id > 1)" + stats, containsString(error + "FORK"));
+            // a filter shared by all the aggregate functions can be pushed into the branches, the optimized plan tells
+            fullText().query("from test | fork (where id > 0) (where id > 1)" + stats);
         }
     }
 
@@ -4194,6 +4195,8 @@ public class VerifierTests extends AnalyzerTestCase {
         fullText().error("from test | sort id | limit 10" + stats, containsString(error + "LIMIT"));
         fullText().error("from test | limit 1 by id" + stats, containsString(error + "LIMIT"));
         fullText().error("from test | stats id = max(id) by " + fieldName + stats, containsString(error + "STATS"));
+        // runs on the coordinator, and so does what follows
+        fullText().error("from test | change_point id on id" + stats, containsString(error + "CHANGE_POINT"));
         // the filter doesn't have to be the only one
         fullText().error(
             "from test | limit 10 | stats c = max(id) where " + functionInvocation + ", d = count(*) where id > 10",

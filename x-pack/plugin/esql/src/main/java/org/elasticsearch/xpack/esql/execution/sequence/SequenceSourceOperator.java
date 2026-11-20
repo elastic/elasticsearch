@@ -120,6 +120,7 @@ public final class SequenceSourceOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(SequenceSourceOperator.class);
     private static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueMinutes(5);
     private static final int SEARCH_PAGE_SIZE = 256;
+    private static final int CONTINUATION_PAGE_SIZE = 1024;
     private static final int OUTPUT_BATCH_SIZE = 64;
     private static final String BREAKER_LABEL = "esql_sequence_reader";
     private static final Comparator<Candidate> CANDIDATE_ORDER = Comparator.comparing((Candidate c) -> c.ordinal)
@@ -748,7 +749,7 @@ public final class SequenceSourceOperator extends SourceOperator {
         }
     }
 
-    private SearchSourceBuilder searchSource(SequenceStageInput input, int stage, int branch) {
+    private SearchSourceBuilder searchSource(SequenceStageInput input, int stage, int branch, int pageSize) {
         var relation = input.source(branch);
         var query = boolQuery().filter(termsQuery("_index", relation.concreteQualifiedIndices())).filter(existsQuery("@timestamp"));
         QueryBuilder stageQuery = input.searchQuery(branch);
@@ -762,7 +763,7 @@ public final class SequenceSourceOperator extends SourceOperator {
         String numericType = input.timestampType(branch) == DataType.DATE_NANOS ? "date_nanos" : "date";
         return new SequenceHitReader(relation.output(), factory.configuration).fields(
             new SearchSourceBuilder().query(query)
-                .size(SEARCH_PAGE_SIZE)
+                .size(pageSize)
                 .trackTotalHits(false)
                 .sort(
                     new FieldSortBuilder("@timestamp").order(SortOrder.ASC)
@@ -785,7 +786,8 @@ public final class SequenceSourceOperator extends SourceOperator {
                 return;
             }
         }
-        SearchSourceBuilder source = searchSource(cursor.input, cursor.stage, cursor.branch);
+        int pageSize = cursor.after == null ? SEARCH_PAGE_SIZE : CONTINUATION_PAGE_SIZE;
+        SearchSourceBuilder source = searchSource(cursor.input, cursor.stage, cursor.branch, pageSize);
         DataType timestampType = cursor.input.timestampType(cursor.branch);
         if (cursor.stage > 0 && initialTimeBound != null) {
             // Keep equal timestamps: the shared PIT ordinal still decides strict event order.
@@ -823,7 +825,7 @@ public final class SequenceSourceOperator extends SourceOperator {
         }
         search(cursor.stage, cursor.branch, source, response -> {
             SearchHit[] allHits = response.getHits().getHits();
-            cursor.exhausted = allHits.length < SEARCH_PAGE_SIZE;
+            cursor.exhausted = allHits.length < pageSize;
             if (allHits.length == 0) {
                 return;
             }

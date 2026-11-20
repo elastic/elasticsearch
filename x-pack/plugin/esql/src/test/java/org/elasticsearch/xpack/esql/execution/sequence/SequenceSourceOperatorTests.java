@@ -1790,6 +1790,70 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         assertRawTimestampPages(Long.MAX_VALUE - 1, Long.MAX_VALUE, DataType.DATE_NANOS);
     }
 
+    public void testCandidateRequestUsesLargerContinuationPage() {
+        CandidatePaging paging = readCandidatePages(257);
+        assertEquals(List.of(256, 1024), paging.requestSizes());
+    }
+
+    public void testFullCandidateContinuationKeepsCursorOpen() {
+        CandidatePaging paging = readCandidatePages(1281);
+        assertEquals(List.of(256, 1024, 1), paging.hitCounts());
+    }
+
+    public void testShortCandidateContinuationReturnsCompletingEventAndClosesCursor() {
+        CandidatePaging paging = readCandidatePages(513);
+        assertEquals(List.of(256, 257), paging.hitCounts());
+        assertEquals(1, paging.rows().size());
+        List<List<String>> row = paging.rows().getFirst();
+        assertEquals(List.of("selected"), row.getFirst());
+        assertEquals(
+            List.of(new SequenceProvenance.Member(1, "a", "event-a-0"), new SequenceProvenance.Member(2, "b", "event-b-512")),
+            SequenceProvenance.decode(row.get(1))
+        );
+    }
+
+    private record CandidatePaging(List<Integer> requestSizes, List<Integer> hitCounts, List<List<List<String>>> rows) {}
+
+    private CandidatePaging readCandidatePages(int laterHitCount) {
+        Sequence sequence = plan("""
+            SEQUENCE BY key WITHIN 10 seconds PRIMARY 1
+            (FROM a | KEEP key), (FROM b | KEEP key) | KEEP key | LIMIT 10
+            """);
+        try (var harness = new Harness(sequence)) {
+            // A full continuation is larger than this harness's usual 1 MiB request breaker.
+            harness.breaker.setLimitAndOverhead(4L << 20, harness.breaker.getOverhead());
+            harness.prepareLatestOpen();
+            List<Integer> requestSizes = new ArrayList<>();
+            List<Integer> hitCounts = new ArrayList<>();
+            List<List<List<String>>> rows = drainLatest(harness, request -> {
+                String index = request.getPointInTimeAuthorizationScope().indices()[0];
+                if (index.equals("a")) {
+                    // The second start stays unmatched, so completion does not by itself end the reader.
+                    return latestPage(
+                        "a",
+                        0,
+                        List.of(new LatestRow(0, 0, "selected", List.of()), new LatestRow(1, 1, "waiting", List.of()))
+                    );
+                }
+                Object[] after = request.source().searchAfter();
+                int first = after == null ? 0 : ShardDocSortField.decodeDoc(((Number) after[1]).longValue()) + 1;
+                assertEquals(hitCounts.stream().mapToInt(Integer::intValue).sum(), first);
+                int size = request.source().size();
+                int last = Math.min(first + size, laterHitCount);
+                List<LatestRow> hits = new ArrayList<>();
+                for (int doc = first; doc < last; doc++) {
+                    String key = doc == laterHitCount - 1 ? "selected" : "no-start";
+                    hits.add(new LatestRow(doc + 2, doc, key, List.of()));
+                }
+                requestSizes.add(size);
+                hitCounts.add(hits.size());
+                return latestPage("b", 1, hits);
+            });
+            finishLatest(harness);
+            return new CandidatePaging(requestSizes, hitCounts, rows);
+        }
+    }
+
     private void assertRawTimestampPages(long startTimestamp, long endTimestamp, DataType timestampType) {
         Sequence sequence = plan("""
             SEQUENCE BY key WITHIN 2 milliseconds PRIMARY 1

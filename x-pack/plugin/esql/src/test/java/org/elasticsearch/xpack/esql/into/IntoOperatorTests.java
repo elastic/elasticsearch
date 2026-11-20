@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.into;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -35,6 +34,8 @@ import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.
 import static org.elasticsearch.xpack.esql.into.IntoPageWriter.Factory.Indexing.INDEX;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.CREATED;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.Outcome.REFUSED;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.bulks;
+import static org.elasticsearch.xpack.esql.into.IntoTestUtils.mockBigArrays;
 import static org.elasticsearch.xpack.esql.into.IntoTestUtils.stats;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -49,8 +50,15 @@ public class IntoOperatorTests extends ComputeTestCase {
     private final IntoTestUtils.CapturingClient client = new IntoTestUtils.CapturingClient(threadPool);
     @SuppressWarnings("this-escape")
     private final BlockFactory blockFactory = blockFactory();
-    private final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
-    private final IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, INDEX);
+    private final DriverContext driverContext = new DriverContext(mockBigArrays(), blockFactory, null);
+    private final IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+        bulks(),
+        client,
+        blockFactory.breaker(),
+        IntoTestUtils.DEST,
+        COLUMNS,
+        INDEX
+    );
 
     @After
     public void tearDownOperator() throws Exception {
@@ -120,7 +128,14 @@ public class IntoOperatorTests extends ComputeTestCase {
     }
 
     public void testDiscardModeDiscardsPages() {
-        IntoPageWriter.Factory discardSink = IntoPageWriter.Factory.createFactory(client, IntoTestUtils.DESTINATION, COLUMNS, DISCARD);
+        IntoPageWriter.Factory discardSink = IntoPageWriter.Factory.createFactory(
+            bulks(),
+            client,
+            blockFactory.breaker(),
+            IntoTestUtils.DEST,
+            COLUMNS,
+            DISCARD
+        );
         Operator op = new IntoOperator.Factory(discardSink, Function.identity()).get(driverContext);
         op.addInput(page("discarded"));
         op.finish();

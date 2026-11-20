@@ -2146,7 +2146,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             MatcherWatchdog.noop(),
             TransportVersion.current(),
             null, // client - not needed for these tests
-            externalCompute
+            externalCompute,
+            null, // escfBulkService - not needed for these tests
+            () -> false
         );
     }
 

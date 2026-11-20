@@ -3189,6 +3189,12 @@ public class EsqlCapabilities {
         EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
 
         /**
+         * The EQL source command takes its number of matches only from {@code WITH {"size"}} (EQL's default of 10, with a warning when
+         * used) and {@code LIMIT} only trims rows. Snapshot-only, gated together with {@link #EQL_COMMAND}. Added in #165563.
+         */
+        EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
@@ -4980,13 +4986,6 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
-         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
-         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
-         * for a request without the header. Before this, every query was counted as {@code rest}.
-         */
-        USAGE_QUERIES_BY_CLIENT,
-
-        /**
          * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
          * Snapshot-only until the command is advertised.
          */
@@ -5009,6 +5008,11 @@ public class EsqlCapabilities {
          * of scoring, as it does for a single source.
          */
         FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
+
+        /**
+         * A filter with should clauses still requires one of them when other filters are pushed next to it.
+         */
+        FIX_DISJUNCTION_COMBINED_WITH_PUSHED_FILTER,
 
         /**
          * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a

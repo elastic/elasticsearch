@@ -5011,6 +5011,11 @@ public class EsqlCapabilities {
         FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
 
         /**
+         * A filter with should clauses still requires one of them when other filters are pushed next to it.
+         */
+        FIX_DISJUNCTION_COMBINED_WITH_PUSHED_FILTER,
+
+        /**
          * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a
          * time series, like outside of {@code TS}. {@code EARLIEST} returned the last value of the time series whose last sample
          * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.

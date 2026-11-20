@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.util.List;
@@ -24,19 +25,70 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThan;
 
 public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testDefaults() {
         Settings settings = Settings.EMPTY;
         assertEquals(30, (int) ExternalSourceSettings.THROTTLE_MAX_RETRY_DURATION.get(settings));
-        assertEquals(25_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings));
+        assertEquals(
+            ExternalSourceSettings.defaultMaxDiscoveredFiles(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()),
+            (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings)
+        );
         // The in-flight-read permit bound defaults to the heap- and CPU-scaled formula, not a fixed literal.
         assertEquals(
             ExternalSourceSettings.defaultBlobStoreConcurrency(settings),
             (int) ExternalSourceSettings.MAX_CONCURRENT_REQUESTS.get(settings)
         );
         assertEquals(ExternalSourceSettings.defaultBlobStoreConcurrency(settings), ExternalSourceSettings.blobStoreConcurrency(settings));
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(settings));
+    }
+
+    public void testDefaultMaxDiscoveredFilesMatrix() {
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(0L));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(-1L));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(128).getBytes()));
+        assertEquals(25_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(187).getBytes()));
+        assertEquals(25_059, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(188).getBytes()));
+        assertEquals(68_246, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofMb(512).getBytes()));
+        assertEquals(136_492, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(1).getBytes()));
+        assertEquals(272_985, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(2).getBytes()));
+        assertEquals(545_970, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(4).getBytes()));
+        assertEquals(955_448, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(7).getBytes()));
+        assertEquals(1_091_940, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(8).getBytes()));
+        assertEquals(4_367_763, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(32).getBytes()));
+        assertEquals(10_000_000, ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(128).getBytes()));
+    }
+
+    public void testMaxDiscoveredFilesOverrideBeatsHeapDefault() {
+        Settings pinned = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 42).build();
+        assertEquals(42, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(pinned));
+        Settings atMax = Settings.builder().put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 10_000_000).build();
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_DISCOVERED_FILES.get(atMax));
+    }
+
+    public void testMaxListedObjectsBounds() {
+        assertEquals(10_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(Settings.EMPTY));
+        Settings atMax = Settings.builder().put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 100_000_000).build();
+        assertEquals(100_000_000, (int) ExternalSourceSettings.MAX_LISTED_OBJECTS.get(atMax));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ExternalSourceSettings.MAX_LISTED_OBJECTS.get(
+                Settings.builder().put(ExternalSourceSettings.MAX_LISTED_OBJECTS.getKey(), 100_000_001).build()
+            )
+        );
+    }
+
+    public void testPlanningBytesPerDiscoveredFileMatchesBreakerCharges() {
+        assertEquals(
+            FileList.LISTING_BYTES_PER_ENTRY + ExternalSourceResolver.SCHEMA_MAP_BYTES_PER_FILE + Phase2Reservation.SHELL_BYTES,
+            ExternalSourceSettings.PLANNING_BYTES_PER_DISCOVERED_FILE
+        );
+        int files = ExternalSourceSettings.defaultMaxDiscoveredFiles(ByteSizeValue.ofGb(1).getBytes());
+        long billed = files * ExternalSourceSettings.PLANNING_BYTES_PER_DISCOVERED_FILE;
+        long request = ByteSizeValue.ofGb(1).getBytes() * 60 / 100;
+        assertThat(billed, lessThan(request));
     }
 
     public void testMaxConcurrentRequestsDefaultTracksFormula() {

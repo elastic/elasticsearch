@@ -120,8 +120,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.parseGenerationFromBlobName;
-import static org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit.startsWithBlobPrefix;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.parseGenerationFromBlobName;
+import static org.elasticsearch.xpack.stateless.commits.BccBlob.startsWithBlobPrefix;
 import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBlobFileRanges;
 
 public class ObjectStoreService extends AbstractLifecycleComponent implements ClusterStateApplier {
@@ -1022,7 +1022,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength
     ) throws IOException {
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BccBlob.blobNameFromGeneration(blobTermAndGen.generation());
         var blobReader = getBlobReader(directory, context, blobTermAndGen, maxBlobLength);
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, blobReader, true);
     }
@@ -1055,7 +1055,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         long maxBlobLength
     ) {
         assert directory.getBlobContainer(blobTermAndGen.primaryTerm()) != null;
-        var blobName = BatchedCompoundCommit.blobNameFromGeneration(blobTermAndGen.generation());
+        var blobName = BccBlob.blobNameFromGeneration(blobTermAndGen.generation());
         logger.trace(
             () -> format(
                 "%s reading blob [name=%s, length=%d]%s from object store using cache",

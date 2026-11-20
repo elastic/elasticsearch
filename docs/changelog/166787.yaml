@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 165755
+pr: 166787
+summary: Do not load the right operand of a LOOKUP JOIN ON expression as an unmapped left field
+type: bug

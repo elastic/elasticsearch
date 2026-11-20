@@ -17,6 +17,7 @@ module org.elasticsearch.analysis.common {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.analysis.common;
+    requires org.elasticsearch.base;
 
     exports org.elasticsearch.analysis.common;  // for painless
 

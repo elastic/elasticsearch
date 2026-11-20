@@ -388,6 +388,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
                 .affects("min_subword_size", "3")
                 .affects("max_subword_size", "10")
                 .affects("only_longest_match", "true")
+                .gatedAt(IndexVersions.UPGRADE_TO_LUCENE_11_0_0)
         );
         filters.put(
             "elision",

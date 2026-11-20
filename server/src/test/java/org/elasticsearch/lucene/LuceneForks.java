@@ -88,6 +88,13 @@ public final class LuceneForks {
         return new Fork(Kind.WORKAROUND, className, upstreamIssue, Version.fromBits(major, minor, bugfix), removalNote);
     }
 
+    /**
+     * Registers a class that is needed to maintain backwards compatibility in some way
+     */
+    static Fork compatibility(String className, String removalNote) {
+        return new Fork(Kind.FORK, className, null, null, removalNote);
+    }
+
     static Fork permanent(String className, String reason) {
         return new Fork(Kind.FORK, className, reason, null, "This fork is intentional and does not expire.");
     }
@@ -113,7 +120,11 @@ public final class LuceneForks {
         permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),
-        permanent("org.elasticsearch.common.lucene.search.XMoreLikeThis", "Elasticsearch-specific more-like-this behaviour")
+        permanent("org.elasticsearch.common.lucene.search.XMoreLikeThis", "Elasticsearch-specific more-like-this behaviour"),
+        compatibility(
+            "org.elasticsearch.analysis.common.XDictionaryCompoundWordTokenFilter",
+            "Remove when index compatibility pre-Lucene 11 is not required"
+        )
     );
 
     private LuceneForks() {}

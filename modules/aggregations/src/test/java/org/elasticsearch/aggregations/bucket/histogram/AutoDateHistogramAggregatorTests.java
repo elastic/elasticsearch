@@ -163,6 +163,22 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
         );
     }
 
+    public void testMinimumIntervalYearSingleYear() throws IOException {
+        List<ZonedDateTime> dates = Arrays.asList(
+            ZonedDateTime.of(2020, 1, 15, 1, 0, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2020, 6, 20, 12, 30, 0, 0, ZoneOffset.UTC),
+            ZonedDateTime.of(2020, 11, 30, 23, 59, 0, 0, ZoneOffset.UTC)
+        );
+        Map<String, Integer> expectedDocCount = new TreeMap<>();
+        expectedDocCount.put("2020-01-01T00:00:00.000Z", 3);
+        testSearchCase(
+            DEFAULT_QUERY,
+            dates,
+            aggregation -> aggregation.setNumBuckets(8).setMinimumIntervalExpression("year").field(DATE_FIELD),
+            result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
+        );
+    }
+
     public void testSubAggregations() throws IOException {
         testSearchCase(
             DEFAULT_QUERY,

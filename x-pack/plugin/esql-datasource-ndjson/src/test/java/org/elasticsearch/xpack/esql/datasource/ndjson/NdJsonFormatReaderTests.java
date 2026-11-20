@@ -339,10 +339,15 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         // What this pins is the reader's own exception -- its condition prefix and its diagnosis -- and not the REST
         // contract above it: it would still pass if a layer in between replaced the diagnosis with a generic 400.
         // ExternalSourceResolverTests pins the hop that would do the replacing, for a typed refusal of any format.
-        // The end-to-end rendering is pinned for the CSV refusals by ExternalErrorSurfaceIT and is NOT pinned for
-        // this one, which has no probe there: the budget is a reader-level 32 MB default with no dataset setting to
-        // lower it, so a failing NDJSON probe for this condition needs a fixture with a first line over 32 MB. That
-        // is the reason the surface has no failing NDJSON object, and why this move had to be caught by reading.
+        // What ExternalErrorSurfaceIT pins for the CSV refusals is the HTTP status and error.type, not error.reason --
+        // so even there a changed diagnosis, or a lost condition prefix, would pass. For this refusal it pins nothing
+        // at all, having no failing NDJSON probe.
+        //
+        // Such a probe is not out of reach, only unwritten: the budget has no dataset setting to lower it, so over a
+        // single object it needs a first line past the 32 MB default, but schema inference divides the budget across
+        // the files of a glob down to a floor of MIN_SHARED_SCHEMA_SAMPLE_BYTES (1 MiB), which a far smaller fixture
+        // clears. Either way nothing on the surface watches this condition today, which is why the move it made had
+        // to be caught by reading.
         assertTrue(
             "a typed refusal must open with the condition's prefix, got: " + e.getMessage(),
             e.getMessage().startsWith("Malformed external data: ")

@@ -749,8 +749,16 @@ public class GlobExpanderTests extends ESTestCase {
 
     // -- partition-aware glob rewriting --
 
-    public void testRewriteGlobWithEqualsHint() {
+    /** Integer {@code year == 2024} is one spelling ({@code 02024} is another). Leave {@code key=*}. */
+    public void testRewriteGlobDoesNotSpliceIntegerEquals() {
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
+        assertEquals("s3://bucket/year=*/*.parquet", rewritten);
+    }
+
+    /** An exact string folder name is the on-disk spelling and is spliced. */
+    public void testRewriteGlobSplicesExactStringEquals() {
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
         assertEquals("s3://bucket/year=2024/*.parquet", rewritten);
     }
@@ -779,6 +787,20 @@ public class GlobExpanderTests extends ESTestCase {
             GlobExpander.rewriteGlobWithHints(
                 "s3://bucket/tag=*/*.parquet",
                 List.of(hint("tag", PartitionFilterHintExtractor.Operator.EQUALS, "a*b"))
+            )
+        );
+        assertEquals(
+            "s3://bucket/flag=*/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/flag=*/*.parquet",
+                List.of(hint("flag", PartitionFilterHintExtractor.Operator.EQUALS, true))
+            )
+        );
+        assertEquals(
+            "s3://bucket/month=*/*.parquet",
+            GlobExpander.rewriteGlobWithHints(
+                "s3://bucket/month=*/*.parquet",
+                List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6))
             )
         );
     }
@@ -1010,7 +1032,7 @@ public class GlobExpanderTests extends ESTestCase {
         var equalsAndRange = List.of(
             hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020),
             hint("year", PartitionFilterHintExtractor.Operator.LESS_THAN_OR_EQUAL, 2030),
-            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2019)
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2019")
         );
         assertEquals("s3://bucket/year=2019/*.parquet", GlobExpander.rewriteGlobWithHints(pattern, equalsAndRange));
 
@@ -1289,7 +1311,7 @@ public class GlobExpanderTests extends ESTestCase {
     /** {@code EQUALS} outside the range still lists that key. The range must not drop it afterwards. */
     public void testClosedRangeYieldsToEqualsInTheListing() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
-            Map.of("s3://bucket/data/year=2019/", List.of(entry("s3://bucket/data/year=2019/a.parquet", 100)))
+            Map.of("s3://bucket/data/", List.of(entry("s3://bucket/data/year=2019/a.parquet", 100)))
         );
         var hints = List.of(
             hint("year", PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL, 2020),
@@ -1427,9 +1449,9 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * {@code month == 6} splices {@code month=6}, which is not walk-eligible, so the cache key used to ignore a
-     * deeper open range. The empty splice retries the original {@code month=*}, and that walk keeps different days
-     * for {@code day > 5} and {@code day < 5}. Equal discriminators would cache one listing for the other.
+     * Integer {@code month == 6} leaves {@code month=*}, which is walk-eligible, so a deeper open range joins
+     * the cache key. That walk keeps different days for {@code day > 5} and {@code day < 5}. Equal discriminators
+     * would cache one listing for the other.
      */
     public void testRewrittenWalkableOriginalSeparatesDeeperRangeHints() throws IOException {
         String glob = "s3://bucket/data/month=*/*/*.parquet";
@@ -1469,8 +1491,8 @@ public class GlobExpanderTests extends ESTestCase {
             hint("month", PartitionFilterHintExtractor.Operator.IN, 1, 2, 3)
         );
         String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/month=*/*.parquet", hints);
-        // EQUALS still splices. Multi-value IN leaves month=*; the value filter keeps month=01/02/03.
-        assertEquals("s3://bucket/year=2024/month=*/*.parquet", rewritten);
+        // Integer EQUALS and multi-value IN both leave key=*; the value filter keeps matching folders.
+        assertEquals("s3://bucket/year=*/month=*/*.parquet", rewritten);
     }
 
     public void testRewriteGlobNonWildcardNotRewritten() {
@@ -2021,7 +2043,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(List.of());
         provider.existingPaths.add("s3://bucket/year=2024/data.parquet");
 
-        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
         FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isResolved());
         assertEquals(1, result.fileCount());
@@ -2031,7 +2053,7 @@ public class GlobExpanderTests extends ESTestCase {
     public void testExpandGlobFullyResolvedByHintsFileMissing() throws IOException {
         StubProvider provider = new StubProvider(List.of());
 
-        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
         FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isEmpty());
     }
@@ -2040,7 +2062,7 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(List.of());
         provider.existingPaths.add("s3://bucket/year=2024/data.parquet");
 
-        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
         FileList result = GlobExpander.expandGlob("s3://bucket/year=*/data.parquet", provider, hints, HIVE_ON);
         assertTrue(result.isResolved());
         assertNotNull(result.partitionMetadata());
@@ -2093,9 +2115,8 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The trap this fix exists to avoid. {@code rewriteSegment} spells the hint's value with {@code String.valueOf},
-     * so {@code WHERE month == 6} narrows the glob to {@code month=6} — but Hive writes a zero-padded {@code month=06}.
-     * Reporting "matched no files" (or empty) there would turn an ordinary dataset into silent zero rows.
+     * Integer {@code month == 6} leaves {@code month=*}. The typed filter keeps Hive's zero-padded
+     * {@code month=06} instead of listing a guessed {@code month=6} folder that is empty.
      */
     public void testZeroPaddedFolderAgainstUnpaddedHintFallsBack() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -2110,8 +2131,8 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The local filesystem provider throws when a directory does not exist, where an object store lists the missing
-     * prefix as empty. A hint that narrows the prefix to a folder that was never created must behave the same on both.
+     * Integer {@code year == 2099} leaves {@code year=*}. The parent is listed, the typed filter keeps nothing, and
+     * one inference-anchor file is retained. Cap 2 must not throw.
      */
     public void testHintNarrowedPrefixThatThrowsKeepsOneAnchor() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -2178,7 +2199,7 @@ public class GlobExpanderTests extends ESTestCase {
         );
 
         var hints = List.of(
-            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024),
+            hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"),
             hint(FileMetadataColumns.NAME, PartitionFilterHintExtractor.Operator.EQUALS, "nope.parquet")
         );
         FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
@@ -2302,9 +2323,7 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The rewrite-channel fallback drops the splice but keeps the partition hints and the exact {@code _file.*}
-     * filters. {@code month == 6} empties {@code month=6}; the retry lists {@code month=*} and the typed filter
-     * keeps {@code month=06} only.
+     * Integer {@code month == 6} leaves {@code month=*}. The typed filter keeps {@code month=06} only.
      * {@code _file.size > 100} still drops the small file, and {@code month=07} stays out.
      */
     public void testRewriteFallbackKeepsFileMetadataFilter() throws IOException {
@@ -2326,13 +2345,13 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/month=06/big.parquet"), paths(result));
-        assertEquals(List.of("s3://bucket/data/month=6/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
     }
 
     /**
-     * {@code month == 6} splices {@code month=6}, which this tree does not have. Five files sit under the parent and
-     * the cap is 4, so an unfiltered retry would throw. The retry lists the original glob and the typed filter keeps
-     * the two {@code month=06} files. The second prefix is the parent, which shows the retry did not splice again.
+     * Integer {@code month == 6} leaves {@code month=*}. Five files sit under the parent and the cap is 4, so an
+     * unfiltered listing would throw. The typed filter keeps the two {@code month=06} files. The parent is listed
+     * once; there is no splice of {@code month=6}.
      */
     public void testPaddedMonthUnderCapKeepsOnlyMatchingFiles() throws IOException {
         PrefixAwareStubProvider provider = paddedMonthTree();
@@ -2341,10 +2360,10 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, 4, MAX);
 
         assertEquals(List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=06/b.parquet"), paths(result));
-        assertEquals(List.of("s3://bucket/data/month=6/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
     }
 
-    /** A one-element {@code IN (6)} splices the same way as {@code == 6} and keeps the same two padded files. */
+    /** A one-element {@code IN (6)} leaves {@code month=*} the same way as {@code == 6} and keeps the same two padded files. */
     public void testPaddedMonthUnderCapKeepsOnlyMatchingFilesForOneValueIn() throws IOException {
         PrefixAwareStubProvider provider = paddedMonthTree();
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.IN, 6));
@@ -2352,91 +2371,84 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, 4, MAX);
 
         assertEquals(List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=06/b.parquet"), paths(result));
-        assertEquals(List.of("s3://bucket/data/month=6/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
     }
 
     /**
      * Leading {@code month=*} walks when the provider can list children. {@link PrefixAwareStubProvider} cannot, so
-     * the cap tests above stay on the flat value filter. The splice {@code month=6} is not walkable, so the first
-     * pass lists that prefix and finds nothing. The retry walks the original glob and keeps {@code month=06} by
-     * typed value. An empty walk would suppress the value filter and flat-list the parent, enumerating
-     * {@code month=07} and tripping a cap of 4.
+     * the cap tests above stay on the flat value filter. Integer {@code month == 6} leaves {@code month=*}, so the
+     * walk keeps {@code month=06} by typed value without listing the dataset root. An empty walk would suppress the
+     * value filter and flat-list the parent, enumerating {@code month=07} and tripping a cap of 4.
      */
     public void testPaddedMonthWalkKeepsTypedMatchUnderCap() throws IOException {
         assertPaddedMonthWalkKeepsTypedMatch(PartitionFilterHintExtractor.Operator.EQUALS);
     }
 
-    /** A one-element {@code IN (6)} takes the same walk after the same empty splice. */
+    /** A one-element {@code IN (6)} takes the same walk with {@code month=*} still in the glob. */
     public void testPaddedMonthWalkKeepsTypedMatchUnderCapForOneValueIn() throws IOException {
         assertPaddedMonthWalkKeepsTypedMatch(PartitionFilterHintExtractor.Operator.IN);
     }
 
     /**
-     * A non-empty splice is not retried. {@code month=6/a.parquet} is a hit, so {@code month=06/b.parquet} on the
-     * parent is never listed.
+     * Integer {@code month == 6} leaves {@code month=*}. Both {@code month=6} and {@code month=06} typed-match.
      */
-    public void testUnpaddedMonthHitDoesNotRetryForPaddedSibling() throws IOException {
-        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
-            Map.of(
-                "s3://bucket/data/month=6/",
-                List.of(entry("s3://bucket/data/month=6/a.parquet", 100)),
-                "s3://bucket/data/",
-                List.of(entry("s3://bucket/data/month=06/b.parquet", 100))
+    public void testUnpaddedAndPaddedMonthFoldersBothKept() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(
+                ListingWalkHarness.entry("s3://bucket/data/month=6/a.parquet"),
+                ListingWalkHarness.entry("s3://bucket/data/month=06/b.parquet")
             )
         );
         var hints = List.of(hint("month", PartitionFilterHintExtractor.Operator.EQUALS, 6));
 
         FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
-        assertEquals(List.of("s3://bucket/data/month=6/a.parquet"), paths(result));
-        assertEquals(1, provider.listCallCount);
+        assertEquals(List.of("s3://bucket/data/month=06/b.parquet", "s3://bucket/data/month=6/a.parquet"), paths(result));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
     }
 
     /**
-     * Same hole for a boolean: {@code flag=true} is a hit, so {@code flag=TRUE} on the parent is never listed.
+     * Boolean {@code flag == true} leaves {@code flag=*}. Both {@code true} and {@code TRUE} typed-match.
      */
-    public void testLiteralBooleanHitDoesNotRetryForUppercaseSibling() throws IOException {
-        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
-            Map.of(
-                "s3://bucket/data/flag=true/",
-                List.of(entry("s3://bucket/data/flag=true/a.parquet", 100)),
-                "s3://bucket/data/",
-                List.of(entry("s3://bucket/data/flag=TRUE/b.parquet", 100))
+    public void testLiteralBooleanKeepsUppercaseSibling() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(
+                ListingWalkHarness.entry("s3://bucket/data/flag=true/a.parquet"),
+                ListingWalkHarness.entry("s3://bucket/data/flag=TRUE/b.parquet")
             )
         );
         var hints = List.of(hint("flag", PartitionFilterHintExtractor.Operator.EQUALS, true));
 
         FileList result = GlobExpander.expand("s3://bucket/data/flag=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
-        assertEquals(List.of("s3://bucket/data/flag=true/a.parquet"), paths(result));
-        assertEquals(1, provider.listCallCount);
+        assertEquals(List.of("s3://bucket/data/flag=TRUE/b.parquet", "s3://bucket/data/flag=true/a.parquet"), paths(result));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
     }
 
     /**
-     * Same hole for a space: the splice lists {@code city=New York} and never reaches {@code city=New%20York}.
+     * {@code city == "New York"} is a decoded value, so the glob stays {@code city=*}. Both the space folder and
+     * the percent-encoded sibling typed-match.
      */
-    public void testLiteralCityHitDoesNotRetryForEncodedSibling() throws IOException {
-        PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
-            Map.of(
-                "s3://bucket/data/city=New York/",
-                List.of(entry("s3://bucket/data/city=New York/a.parquet", 100)),
-                "s3://bucket/data/",
-                List.of(entry("s3://bucket/data/city=New%20York/b.parquet", 100))
+    public void testLiteralCityKeepsEncodedSibling() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(
+            List.of(
+                ListingWalkHarness.entry("s3://bucket/data/city=New York/a.parquet"),
+                ListingWalkHarness.entry("s3://bucket/data/city=New%20York/b.parquet")
             )
         );
         var hints = List.of(hint("city", PartitionFilterHintExtractor.Operator.EQUALS, "New York"));
 
         FileList result = GlobExpander.expand("s3://bucket/data/city=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
-        assertEquals(List.of("s3://bucket/data/city=New York/a.parquet"), paths(result));
-        assertEquals(1, provider.listCallCount);
+        assertEquals(List.of("s3://bucket/data/city=New York/a.parquet", "s3://bucket/data/city=New%20York/b.parquet"), paths(result));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
     }
 
     /**
-     * {@code day == 1} splices {@code day=1} inside a glob whose prefix is still the parent. That glob matches
-     * nothing, then the retry lists the parent again and the typed filter keeps {@code day=01}.
+     * Integer {@code day == 1} leaves {@code day=*}. The parent is listed once and the typed filter keeps
+     * {@code day=01}.
      */
-    public void testDeepKeySpellingMissListsParentTwice() throws IOException {
+    public void testDeepKeyIntegerDayListsParentOnce() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of(
                 "s3://bucket/data/",
@@ -2451,7 +2463,7 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/year=*/month=*/day=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/year=2024/month=06/day=01/a.parquet"), paths(result));
-        assertEquals(List.of("s3://bucket/data/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
     }
 
     /**
@@ -2476,7 +2488,7 @@ public class GlobExpanderTests extends ESTestCase {
             () -> GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, 2, MAX)
         );
         assertThat(e.getMessage(), containsString("discovered too many files"));
-        assertEquals(List.of("s3://bucket/data/month=6/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
     }
 
     /**
@@ -2499,12 +2511,12 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=abc/b.parquet"), paths(result));
-        assertEquals(List.of("s3://bucket/data/month=6/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
     }
 
     /**
-     * Only {@code flag=TRUE} matches. {@code flag == true} splices {@code flag=true}, misses, then the typed filter
-     * keeps the uppercase folder and drops {@code flag=FALSE}. The prefixes are the splice, then the parent.
+     * Only {@code flag=TRUE} matches. Boolean {@code flag == true} leaves {@code flag=*}; the typed filter keeps
+     * the uppercase folder and drops {@code flag=FALSE}. The parent is listed once.
      */
     public void testBooleanSpellingMissKeepsUppercaseFolder() throws IOException {
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
@@ -2518,7 +2530,7 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/flag=*/*.parquet", provider, hints, HIVE_ON, MAX, MAX);
 
         assertEquals(List.of("s3://bucket/data/flag=TRUE/a.parquet"), paths(result));
-        assertEquals(List.of("s3://bucket/data/flag=true/", "s3://bucket/data/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/"), provider.listedPrefixes);
     }
 
     /**
@@ -2897,7 +2909,7 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, 2, MAX);
         assertEquals(1, result.fileCount());
         assertTrue(result.isInferenceAnchor());
-        assertEquals("rewrite-miss plus one original pass, not a third unfiltered pass", 2, provider.listCallCount);
+        assertEquals("integer year does not splice, so the parent is listed once", 1, provider.listCallCount);
     }
 
     /** A matching partition that itself exceeds the cap still throws with the typed filter applied. */
@@ -2913,7 +2925,7 @@ public class GlobExpanderTests extends ESTestCase {
             )
         );
 
-        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
         var e = expectThrows(
             IllegalArgumentException.class,
             () -> GlobExpander.expand("s3://bucket/data/year=*/*.parquet", provider, hints, HIVE_ON, 2, MAX)
@@ -3253,7 +3265,7 @@ public class GlobExpanderTests extends ESTestCase {
     /** In a comma-separated list only the pattern segments are rewritten, so only they may move the discriminator. */
     public void testDiscriminatorHandlesCommaSeparatedPaths() {
         String paths = "s3://bucket/a/year=*/*.parquet,s3://bucket/b/plain.parquet";
-        var year2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2024));
+        var year2024 = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, "2024"));
 
         String unhinted = GlobExpander.listingCacheDiscriminator(paths, null, HIVE_ON);
         String hinted = GlobExpander.listingCacheDiscriminator(paths, year2024, HIVE_ON);
@@ -3390,7 +3402,7 @@ public class GlobExpanderTests extends ESTestCase {
         FileList result = GlobExpander.expand("s3://bucket/data/month=*/*.parquet", provider, hints, HIVE_ON, 4, MAX);
 
         assertEquals(List.of("s3://bucket/data/month=06/a.parquet", "s3://bucket/data/month=06/b.parquet"), paths(result));
-        assertEquals(List.of("s3://bucket/data/month=6/", "s3://bucket/data/month=06/"), provider.listedPrefixes);
+        assertEquals(List.of("s3://bucket/data/month=06/"), provider.listedPrefixes);
         assertEquals(List.of("s3://bucket/data/"), provider.childListedPrefixes);
         assertFalse("month=07 must not be enumerated", provider.enumeratedFiles.stream().anyMatch(p -> p.contains("month=07")));
         assertFalse("an empty walk must not flat-list the parent", provider.listedPrefixes.contains("s3://bucket/data/"));
@@ -7786,16 +7798,11 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * The re-list after a narrowing matched nothing is the whole glob, so partition detection folds over all of it.
-     * Keeping the partition sample across that retry would type a column from the front of a listing that shipped
-     * every file, and leave every file past the sample with no partition values at all.
-     * <p>
-     * The narrowing here is the glob rewrite, which is the one that can still come back empty from a non-empty
-     * dataset: it spells {@code month == 7} as {@code month=7} and the folders are {@code month=07}, so it lists a
-     * prefix that does not exist. A bound can no longer do this — it counts matching files, so a drain that
-     * exhausted the prefix without reaching it has seen every key and its empty answer is the dataset's.
+     * Integer {@code month == 7} leaves {@code month=*}, so the listing is the whole glob and partition
+     * detection folds over every matching file. A splice of {@code month=7} would have listed an empty
+     * prefix and, even after retry, risked typing {@code year} from a prefix of that listing.
      */
-    public void testRelistAfterANarrowingThatMatchedNothingTypesPartitionsFromEveryFile() throws IOException {
+    public void testIntegerMonthHintTypesPartitionsFromEveryMatchingFile() throws IOException {
         List<StorageEntry> listing = List.of(
             entry("s3://bucket/data/year=2024/month=07/a.parquet", 100),
             entry("s3://bucket/data/year=abc/month=07/b.parquet", 100)
@@ -7807,17 +7814,14 @@ public class GlobExpanderTests extends ESTestCase {
             new CountingStubProvider(listing),
             hints,
             HIVE_ON,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            new ListingExtents(1),
-            PlanningMemory.NONE
+            MAX,
+            MAX
         );
 
-        assertEquals("the re-list is unbounded, so both files are returned", 2, result.fileCount());
+        assertEquals("both typed month=07 files are returned", 2, result.fileCount());
         assertFalse(result.isTruncated());
         assertEquals(
-            "year is typed from every path the re-list returned, not from the first one",
+            "year is typed from every matching path, not from the first one",
             DataType.KEYWORD,
             result.partitionMetadata().partitionColumns().get("year")
         );

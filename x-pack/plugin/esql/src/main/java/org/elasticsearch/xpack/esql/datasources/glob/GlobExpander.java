@@ -859,23 +859,23 @@ public final class GlobExpander {
     /**
      * Expands a single glob, re-listing without narrowing if — and only if — a narrowed listing came back empty.
      *
-     * <p>Two things narrow a listing, and neither is allowed to decide that a dataset is empty. The glob rewrite
-     * ({@link #effectivePattern}/{@link #rewriteSegment}) spells a hint value with {@link String#valueOf}, so
-     * {@code WHERE month == 6} narrows the glob to {@code month=6} while the Hive convention writes a zero-padded
-     * {@code month=06}. And a bound stops the drain once it has counted its matching files, which a partition-value
-     * filter or a {@code _file.*} hint can then drop every one of — leaving the listing empty with matches still
-     * beyond where it stopped. Both report empty for a dataset that has data, which is silent zero rows rather
-     * than a slow query.
+     * <p>Two things narrow a listing, and neither is allowed to decide that a dataset is empty. A Hive
+     * {@link #rewriteSegment} may splice an exact string folder name into {@code key=*}, and that folder can
+     * still miss a typed match stored under another spelling. And a bound stops the drain once it has counted
+     * its matching files, which a partition-value filter or a {@code _file.*} hint can then drop every one of
+     * — leaving the listing empty with matches still beyond where it stopped. Both report empty for a dataset
+     * that has data, which is silent zero rows rather than a slow query.
      *
      * <p>So emptiness after a Hive rewrite is decided by listing the original glob once more, with the bound dropped and
-     * the rewrite skipped, while the partition hints stay. The splice is a literal folder name and a hint is a
-     * comparison on the typed value, so that re-list reaches a spelling the splice missed ({@code month=06} for
-     * {@code month == 6}). Where a value filter runs on the original pattern, {@link PartitionValueMatcher} keeps
-     * that spelling and drops folders the typed comparison excludes; where {@code PartitionValueFilter#forGlob}
-     * declines the pattern, the only partition hints re-applied are the ones {@link #folderPostFilterHints}
-     * keeps: a closed integral range and a non-integral equality. The equality the splice carried is not one of
-     * them, and neither is a {@code NOT_EQUALS} or a range that is not a closed integral span, so the retry lists
-     * a superset rather than a subset. The {@code _file.*} filters stay too — they are exact and can hide nothing.
+     * the rewrite skipped, while the partition hints stay. Numeric and boolean hints never splice; the first listing
+     * already walks {@code key=*} and {@link PartitionValueMatcher} keeps every typed spelling
+     * ({@code month=6}/{@code 06}/{@code 006}, {@code true}/{@code TRUE}). Where a value filter runs on the original
+     * pattern, {@link PartitionValueMatcher} keeps those spellings and drops folders the typed comparison excludes;
+     * where {@code PartitionValueFilter#forGlob} declines the pattern, the only partition hints re-applied are the
+     * ones {@link #folderPostFilterHints} keeps: a closed integral range and a non-integral equality. The equality
+     * an exact-string splice carried is not one of them, and neither is a {@code NOT_EQUALS} or a range that is not
+     * a closed integral span, so the retry lists a superset rather than a subset. The {@code _file.*} filters stay
+     * too — they are exact and can hide nothing.
      *
      * <p>TEMPLATE does not print a typed value into a {@code *} slot; only an exact string folder name is spliced.
      * The narrowed glob is already the longest exact prefix (string account/region still in the path, numeric
@@ -892,8 +892,8 @@ public final class GlobExpander {
      *
      * <p>Narrowing is only ever an optimisation: the query's filter still runs on the rows, so listing a superset
      * is always correct while listing a subset is a wrong answer. When nothing narrowed the glob there is nothing
-     * to disambiguate and this expands once, with no retry. A non-empty Hive splice is not retried, so a folder
-     * spelled exactly as {@link String#valueOf} hides every other spelling of the same value.
+     * to disambiguate and this expands once, with no retry. A non-empty Hive splice is not retried; only an exact
+     * string folder name is spliced, so a typed numeric or boolean comparison cannot hide a sibling spelling.
      */
     private static FileList expandGlobWithRewriteFallback(
         String pattern,
@@ -1017,7 +1017,8 @@ public final class GlobExpander {
 
     /**
      * TEMPLATE splice is an exact string folder name, so the narrowed glob is already the longest exact prefix.
-     * Hive still retries the original glob because {@link #rewriteSegment} may have printed a typed value.
+     * Hive still retries the original glob because an exact-string {@link #rewriteSegment} listed a prefix that
+     * may not be the only typed match.
      * Requires a non-null template: that is the same gate {@link #rewriteGlobWithHints} uses, so a
      * {@code TEMPLATE} config with no template (unreachable via {@link PartitionConfig#fromConfig}) cannot
      * Hive-splice then skip the original-glob retry.
@@ -4293,18 +4294,17 @@ public final class GlobExpander {
         }
 
         List<Object> values = hint.values();
-        // A non-integral number's printed form is not one folder name. Keep key=* and let the typed filter
-        // decide, so IN (1.25, 6.0) still lists price=6.00. Integers still splice here; TEMPLATE does not.
-        if (containsNonIntegralNumber(values)) {
+        if (hint.isSingleValue() == false) {
+            // Multi-value IN leaves key=*. The walk (or the flat value filter, when the walk withdraws) matches the
+            // decoded folder value, so percent-encoded and zero-padded spellings stay without a guessed brace.
             return segment;
         }
-        if (hint.isSingleValue()) {
-            String value = String.valueOf(values.get(0));
-            return globExpressible(value) ? key + "=" + value : segment;
+        // Only a string that is the on-disk folder name. String.valueOf(6) would splice "6" and miss "06";
+        // Boolean.TRUE would splice "true" and miss "TRUE". A decoded value ("a b") would splice a folder
+        // stored encoded ("a%20b/"). The walk (or the flat value filter) keeps every typed match.
+        if (values.get(0) instanceof String value && exactTemplateFolderName(value)) {
+            return key + "=" + value;
         }
-
-        // Multi-value IN leaves key=*. The walk (or the flat value filter, when the walk withdraws) matches the
-        // decoded folder value, so percent-encoded and zero-padded spellings stay without a guessed brace.
         return segment;
     }
 

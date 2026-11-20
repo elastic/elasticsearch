@@ -77,12 +77,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Named-tree harness: listing must match a flat prefix listing plus {@code PartitionValueMatcher},
  * {@code PartitionSpec.overlaps}, and {@code _file.*} hints. LIST pins record request counts under the
  * request-count finish rule. Key-dump replay and the 154-prefix AWS VPC Hive tree pin listing cost.
- *
- * <p>Documented holes:
- * <ul>
- *   <li>Mixed-tree {@code month == 6} returns only {@code month=6}. {@code 006} is another spelling of 6;
- *       {@code 007} is integer 7.</li>
- * </ul>
  */
 public class ListingWalkHarnessTests extends ESTestCase {
 
@@ -319,30 +313,23 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     /**
-     * Unpadded {@code month=6} exists, so the splice hits and padded siblings are not listed. The matcher
-     * keeps {@code 6}/{@code 06}/{@code 006}.
+     * Integer {@code month == 6} leaves {@code month=*}. Walk and forced-flat keep every typed spelling
+     * ({@code 6}/{@code 06}/{@code 006}), matching the matcher.
      */
-    public void testMixedTreeMonthEqualsSixReturnsOnlyUnpaddedSpelling() throws IOException {
+    public void testMixedTreeMonthEqualsSixKeepsEveryTypedSpelling() throws IOException {
         List<StorageEntry> tree = mixedTree();
         List<PartitionFilterHint> hints = List.of(new PartitionFilterHint("month", Operator.EQUALS, List.of(6)));
         ListingWalkHarness.Reference ref = reference(tree, MIXED_GLOB, hints, PartitionSpec.EMPTY, List.of(), HIVE_ON);
         assertEquals("matcher keeps 6, 06, and 006", 3 * FILES_PER_DAY, ref.paths().size());
 
         ListingWalkHarness walk = new ListingWalkHarness(tree);
-        assertSplicedUnpaddedOnly(expand(walk, MIXED_GLOB, hints, MAX));
+        FileList walked = expand(walk, MIXED_GLOB, hints, MAX);
+        assertObserved(walked, ref);
         ListingWalkHarness flat = new ListingWalkHarness(tree);
         flat.childrenUnsupported = true;
-        assertSplicedUnpaddedOnly(expand(flat, MIXED_GLOB, hints, MAX));
-    }
-
-    private static void assertSplicedUnpaddedOnly(FileList result) {
-        assertEquals(FILES_PER_DAY, result.fileCount());
-        assertFalse(result.isInferenceAnchor());
-        for (String path : pathsOf(result)) {
-            assertTrue(path, path.contains("/month=6/"));
-            assertFalse(path, path.contains("/month=06/"));
-            assertFalse(path, path.contains("/month=006/"));
-        }
+        FileList flattened = expand(flat, MIXED_GLOB, hints, MAX);
+        assertObserved(flattened, ref);
+        assertEquals(pathsOf(walked), pathsOf(flattened));
     }
 
     /**

@@ -76,7 +76,7 @@ public final class ListingWalkHarness implements StorageProvider {
     public static final String PADDED_PREFIX = "s3://bucket/padded";
     public static final String PADDED_GLOB = "s3://bucket/padded/year=*/*/*/*.parquet";
     public static final String MIXED_PREFIX = "s3://bucket/mixed";
-    /** Keyed {@code month=*} so {@code month == 6} splices and misses padded siblings. */
+    /** Keyed {@code month=*} so integer {@code month == 6} stays {@code *} and the typed filter keeps every spelling. */
     public static final String MIXED_GLOB = "s3://bucket/mixed/year=*/month=*/*.parquet";
 
     /**

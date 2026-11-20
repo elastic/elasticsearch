@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.generator.command.source;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
@@ -26,6 +27,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -66,18 +68,9 @@ public class EqlGenerator implements CommandGenerator {
     private static final Set<String> KEY_TYPES = Set.of("keyword", "long", "integer", "ip");
     private static final Set<String> TIEBREAKER_TYPES = Set.of("long", "integer");
     private static final Set<String> NUMERIC_TYPES = Set.of("long", "integer", "double");
-    private static final Set<String> CONVERTIBLE_TYPES = Set.of(
-        "keyword",
-        "text",
-        "long",
-        "integer",
-        "double",
-        "boolean",
-        "date",
-        "datetime",
-        "ip",
-        "version"
-    );
+    private static final Set<String> CONVERTIBLE_TYPES = EqlRelation.CONVERTIBLE_TYPES.stream()
+        .map(DataType::outputType)
+        .collect(Collectors.toUnmodifiableSet());
 
     private static final Pattern EQL_FIELD_NAME = Pattern.compile("[A-Za-z_@][A-Za-z0-9_]*(?:\\.[A-Za-z_@][A-Za-z0-9_]*)*");
     private static final Set<String> EQL_KEYWORDS = Set.of(

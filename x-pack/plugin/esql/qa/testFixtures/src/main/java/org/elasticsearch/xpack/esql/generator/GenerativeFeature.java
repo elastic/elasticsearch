@@ -47,6 +47,10 @@ public enum GenerativeFeature {
      */
     PROMQL,
 
+    /**
+     * Start generated pipelines from an {@code EQL} source command over a sampled index. Snapshot-only: the run is skipped without the
+     * EQL command capability, and the generator falls back to a plain {@code FROM} when no sampled index suits an EQL query.
+     */
     EQL,
 
     /**

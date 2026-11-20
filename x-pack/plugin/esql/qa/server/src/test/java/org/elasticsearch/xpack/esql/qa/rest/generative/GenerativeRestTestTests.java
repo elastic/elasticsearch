@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
 import java.util.List;
 import java.util.Set;
@@ -547,11 +548,13 @@ public class GenerativeRestTestTests extends ESTestCase {
     public void testEqlUnconvertibleFieldTypeIsAllowedUnderTheEqlFeature() {
         assertTrue(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "cartesian_point"));
         assertTrue(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "date_nanos"));
+        assertTrue(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "double_range"));
     }
 
     public void testEqlConvertibleFieldTypeIsNotAllowed() {
-        assertFalse(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "keyword"));
-        assertFalse(allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), "datetime"));
+        for (DataType type : EqlRelation.CONVERTIBLE_TYPES) {
+            assertFalse(type.typeName(), allowsEqlFieldTypeError(Set.of(GenerativeFeature.EQL), type.typeName()));
+        }
     }
 
     public void testEqlUnconvertibleFieldTypeIsNotAllowedWithoutTheEqlFeature() {

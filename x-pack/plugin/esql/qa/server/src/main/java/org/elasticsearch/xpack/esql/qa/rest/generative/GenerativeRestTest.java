@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.BackendFixture;
 import org.elasticsearch.xpack.esql.datasources.DatasetRegistry;
 import org.elasticsearch.xpack.esql.generator.AllowedGeneratorFailureException;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.generator.command.source.EqlGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
@@ -152,9 +154,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Set.of(
             // EQL source columns of a type the EQL page converter cannot extract are unsupported, unlike under FROM
             // https://github.com/elastic/elasticsearch/issues/165569
-            "EQL command does not yet support \\[(?!(?:keyword|text|long|integer|double|boolean|datetime|ip|version)\\])[^\\]]+\\] fields"
+            eqlUnconvertibleFieldTypeError()
         )
     );
+
+    private static String eqlUnconvertibleFieldTypeError() {
+        String convertible = EqlRelation.CONVERTIBLE_TYPES.stream()
+            .map(DataType::typeName)
+            .map(Pattern::quote)
+            .collect(Collectors.joining("|"));
+        return "EQL command does not yet support \\[(?!(?:" + convertible + ")\\])[^\\]]+\\] fields";
+    }
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",

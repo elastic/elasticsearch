@@ -243,6 +243,16 @@ public class EqlGeneratorTests extends ESTestCase {
         }
     }
 
+    public void testFromBranchNextToEqlWhenEveryTypeIsConvertible() {
+        assumeEqlCommand();
+        assumeTrue("EQL in subqueries is snapshot-only", EsqlCapabilities.Cap.EQL_IN_SUBQUERY.isEnabled());
+        boolean fromBranch = false;
+        for (int i = 0; i < 2000 && fromBranch == false; i++) {
+            fromBranch = stripSetPrefix(generate(executor(COLUMNS, ROWS, Map.of("tags", 2)))).startsWith("FROM " + INDEX + ", (");
+        }
+        assertTrue(fromBranch);
+    }
+
     public void testNestedSourceObjectsCountAsInSource() {
         assumeEqlCommand();
         List<Column> columns = List.of(new Column("source.ip", "ip", List.of()), new Column("_source", "_source", List.of()));

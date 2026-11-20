@@ -30,6 +30,7 @@ import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -122,16 +123,17 @@ public class Driver implements Releasable, Describable {
 
     /**
      * Plan-node ids for operators created from a physical plan. Identity map, touched on the driver thread.
-     * Empty when the driver was not built from a plan (tests, enrich lookup).
+     * Empty when the driver was not built from a plan (tests, enrich lookup). An operator is taken out when the
+     * driver closes it: it has released its memory by then, and the driver outlives it, so it must not stay reachable.
      */
     private Map<Operator, String> planNodeIds = Map.of();
 
     /**
-     * Associates operators with the physical plan node that created them.
-     * The map must use identity equality. Operators missing from the map omit {@code plan_node_id}.
+     * Associates operators with the physical plan node that created them. Operators missing from the map omit
+     * {@code plan_node_id}. The driver keeps its own copy, and takes an operator out of it when it closes it.
      */
     public void setPlanNodeIds(Map<Operator, String> planNodeIds) {
-        this.planNodeIds = planNodeIds == null ? Map.of() : planNodeIds;
+        this.planNodeIds = copyLabels(planNodeIds);
     }
 
     /**
@@ -140,23 +142,33 @@ public class Driver implements Releasable, Describable {
     private Map<Operator, String> exchangeIds = Map.of();
 
     /**
-     * Associates the exchange sink and source operators with the exchange they are one side of.
-     * The map must use identity equality. Operators missing from the map omit {@code exchange_id}.
+     * Associates the exchange sink and source operators with the exchange they are one side of. Operators missing from
+     * the map omit {@code exchange_id}. The driver keeps its own copy, as for {@link #setPlanNodeIds}.
      */
     public void setExchangeIds(Map<Operator, String> exchangeIds) {
-        this.exchangeIds = exchangeIds == null ? Map.of() : exchangeIds;
+        this.exchangeIds = copyLabels(exchangeIds);
+    }
+
+    private static Map<Operator, String> copyLabels(@Nullable Map<Operator, String> labels) {
+        return labels == null || labels.isEmpty() ? Map.of() : new IdentityHashMap<>(labels);
     }
 
     private OperatorStatus operatorStatus(Operator op) {
         return new OperatorStatus(op.toString(), op.status(), planNodeIds.get(op), exchangeIds.get(op));
     }
 
-    /** Gives {@code promoted} the label {@code original} has in {@code labels}, if any, so its status still reports it. */
-    private static void carryLabel(Map<Operator, String> labels, Operator original, Operator promoted) {
-        String label = labels.get(original);
+    /** Moves the label {@code original} has in {@code labels}, if any, to {@code promoted}, so its status still reports it. */
+    private static void moveLabel(Map<Operator, String> labels, Operator original, Operator promoted) {
+        String label = forgetLabel(labels, original);
         if (label != null) {
             labels.put(promoted, label);
         }
+    }
+
+    /** Takes {@code op} out of {@code labels} and returns the label it had, if any. */
+    private static String forgetLabel(Map<Operator, String> labels, Operator op) {
+        // the empty map is immutable
+        return labels.isEmpty() ? null : labels.remove(op);
     }
 
     /**
@@ -461,8 +473,8 @@ public class Driver implements Releasable, Describable {
                     movedPage = true;
                     Operator promoted = nextOp.tryPromote(driverContext);
                     if (promoted != nextOp) {
-                        carryLabel(planNodeIds, nextOp, promoted);
-                        carryLabel(exchangeIds, nextOp, promoted);
+                        moveLabel(planNodeIds, nextOp, promoted);
+                        moveLabel(exchangeIds, nextOp, promoted);
                         activeOperators.set(iterator.nextIndex(), promoted);
                     }
                 }
@@ -533,8 +545,10 @@ public class Driver implements Releasable, Describable {
                         statusOfCompletedOperators.remove(statusIndex);
                         throw e;
                     }
+                    String planNodeId = forgetLabel(planNodeIds, op);
+                    String exchangeId = forgetLabel(exchangeIds, op);
                     if (op.finalStatusAfterAsyncActions()) {
-                        pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op));
+                        pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op, planNodeId, exchangeId));
                     }
                     finishedOperators.remove();
                 }
@@ -671,6 +685,8 @@ public class Driver implements Releasable, Describable {
             }
             itr.remove();
         }
+        planNodeIds = Map.of();
+        exchangeIds = Map.of();
         driverContext.finish();
         Releasables.closeWhileHandlingException(releasable, driverContext.getSnapshot());
     }
@@ -685,7 +701,7 @@ public class Driver implements Releasable, Describable {
         try {
             statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
             if (op.finalStatusAfterAsyncActions()) {
-                pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op));
+                pendingFinalStatus.add(new PendingFinalStatus(statusIndex, op, planNodeIds.get(op), exchangeIds.get(op)));
             }
         } catch (Exception statusFailure) {
             LOGGER.debug("failed to read the status of an operator that is being closed [{}]", shortDescription, statusFailure);
@@ -870,7 +886,10 @@ public class Driver implements Releasable, Describable {
         for (PendingFinalStatus pending : pendingFinalStatus) {
             Operator op = pending.operator;
             try {
-                statusOfCompletedOperators.set(pending.index, operatorStatus(op));
+                statusOfCompletedOperators.set(
+                    pending.index,
+                    new OperatorStatus(op.toString(), op.status(), pending.planNodeId, pending.exchangeId)
+                );
             } catch (Exception statusFailure) {
                 // Keep the status taken before the close: failing to refresh it must not leave the driver unfinished.
                 LOGGER.debug("failed to re-read the status of a closed operator [{}]", shortDescription, statusFailure);
@@ -880,7 +899,8 @@ public class Driver implements Releasable, Describable {
         updateStatus(0, 0, DriverStatus.Status.DONE, "driver done", System.nanoTime());
     }
 
-    private record PendingFinalStatus(int index, Operator operator) {}
+    /** The labels are kept here because the operator is out of {@link #planNodeIds} and {@link #exchangeIds} once it is closed. */
+    private record PendingFinalStatus(int index, Operator operator, @Nullable String planNodeId, @Nullable String exchangeId) {}
 
     /**
      * Update the status. The CPU time is the driver context's {@link DriverContext#cpuNanos() total}, after adding

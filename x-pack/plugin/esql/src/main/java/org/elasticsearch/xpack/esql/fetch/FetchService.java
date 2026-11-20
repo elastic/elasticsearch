@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
@@ -148,6 +149,23 @@ public final class FetchService {
      * serialization, through the same handler and the same authorization.
      */
     public void sendFetch(DiscoveryNode target, FetchRequest request, Task parentTask, ActionListener<FetchResponse> listener) {
+        sendFetch(transportService, blockFactory, target, request, parentTask, listener);
+    }
+
+    /**
+     * {@link #sendFetch(DiscoveryNode, FetchRequest, Task, ActionListener)} without the rest of the service, so the tests of
+     * the fetch operator send their requests the same way.
+     *
+     * @param blockFactory reads the blocks of the response
+     */
+    static void sendFetch(
+        TransportService transportService,
+        BlockFactory blockFactory,
+        DiscoveryNode target,
+        FetchRequest request,
+        Task parentTask,
+        ActionListener<FetchResponse> listener
+    ) {
         transportService.sendChildRequest(
             target,
             FETCH_ACTION_NAME,
@@ -156,16 +174,16 @@ public final class FetchService {
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 listener,
-                this::readResponse,
+                in -> readResponse(in, blockFactory, transportService.getThreadPool().getThreadContext()),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             )
         );
     }
 
-    private FetchResponse readResponse(StreamInput in) throws IOException {
+    private static FetchResponse readResponse(StreamInput in, BlockFactory blockFactory, ThreadContext threadContext) throws IOException {
         // the stream keeps a reference to the last block of nulls it read, which closing it releases
         try (BlockStreamInput blocks = new BlockStreamInput(in, blockFactory)) {
-            return new FetchResponse(blocks, transportService.getThreadPool().getThreadContext());
+            return new FetchResponse(blocks, threadContext);
         }
     }
 
@@ -394,7 +412,7 @@ public final class FetchService {
                 fail(e);
                 return;
             }
-            // the coordinator checks that every document has a row
+            // the coordinator places the rows of the response by their position, so every document needs one row
             assert response.rows() == request.totalDocs()
                 : "fetched [" + response.rows() + "] rows for [" + request.totalDocs() + "] documents";
             logger.debug(

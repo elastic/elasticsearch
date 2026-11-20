@@ -15,10 +15,17 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,8 +40,8 @@ import static org.hamcrest.Matchers.equalTo;
  * Shared test infrastructure for {@code INTO} operator tests.
  */
 class IntoTestUtils {
-    static final String DESTINATION = "dst";
-    static final ShardId SHARD = new ShardId(DESTINATION, "uuid", 0);
+    static final String DEST = "dst";
+    static final ShardId SHARD = new ShardId(DEST, "uuid", 0);
 
     enum Outcome {
         CREATED,
@@ -72,7 +79,7 @@ class IntoTestUtils {
                     case REFUSED -> BulkItemResponse.failure(
                         i,
                         opType,
-                        new BulkItemResponse.Failure(DESTINATION, "id-" + i, new IllegalArgumentException("mapper_parsing_exception"))
+                        new BulkItemResponse.Failure(DEST, "id-" + i, new IllegalArgumentException("mapper_parsing_exception"))
                     );
                 };
             }
@@ -83,6 +90,18 @@ class IntoTestUtils {
             bulks.removeFirst();
             listeners.removeFirst().onFailure(e);
         }
+    }
+
+    /** An {@link EscfBulkService} whose callbacks run on the calling thread, so {@code answer()} settles a writer before it returns. */
+    static EscfBulkService bulks() {
+        IndexingPressure pressure = new IndexingPressure(
+            Settings.builder().put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "1gb").build()
+        );
+        return new EscfBulkService(pressure, Runnable::run, mockBigArrays().bytesRefRecycler());
+    }
+
+    static BigArrays mockBigArrays() {
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), ByteSizeValue.ofGb(1));
     }
 
     static IntoStats stats(Page page) {

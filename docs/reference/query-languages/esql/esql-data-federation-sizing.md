@@ -21,30 +21,29 @@ For data held in {{es}} indices, refer to the [Size your shards](docs-content://
 * **Prefer Parquet to the text formats** where you have the choice. It needs no schema inference, reads only the columns a query names, and stays splittable when compressed.
 * **Prefer mid-sized files**, from tens of megabytes to several hundred megabytes.
 * **Prefer an explicitly declared schema for text datasets.** [Specify a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) with [`dynamic`](esql-data-federation-schema.md#mapping-properties) set to `false`.
-* **Start at 2 GB of heap** for Parquet, **2 GB to 4 GB** for uncompressed text, and **4 GB** for compressed text. Add a further **2 GB to 4 GB** for a text dataset whose schema is inferred.
-* **Allocate 1 GB to 2 GB of heap per core.**
+* **Allocate 1 GB to 2 GB of heap per core**, and never less than **2 GB** for Parquet, **2 GB to 4 GB** for uncompressed text, or **4 GB** for compressed text. A text dataset whose schema is inferred needs **2 GB to 4 GB** on top.
 * **Add 1 core per 3 to 4 concurrent queries** on text, and 1 core per 8 to 10 on Parquet.
-* **Do not raise heap past 31 GB.** Scale horizontally across nodes instead.
+* **Keep heap below the compressed object pointer threshold**, which is 26 GB on most systems and as much as 30 GB on some. Scale horizontally across nodes instead.
 
-These figures are starting points. They assume cold reads, where every query fetches its data from Amazon S3. How a dataset behaves then depends on characteristics of your own data: how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects. A configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
+These figures are starting points, and they assume cold reads, where every query fetches its data from Amazon S3 rather than from a warmed cache. How a dataset behaves then depends on characteristics of your own data: how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects. A configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
 
 ## Background [background]
 
 Data federation and index workloads share the same query engine, but their read paths differ. Aggregation, filtering, sorting and the rest of the {{esql}} pipeline are the same code, so a dataset supports the same commands and functions an index does, with [known exceptions](esql-data-federation-querying.md#limitations).
 
-What differs is the work of reading data that lives outside the cluster. A few stages exist only on this path, and they are what affect memory allocation and the performance of your queries:
+What differs is the work of reading data that lives outside the cluster. A few stages exist only on this path, and these are what drive the memory a query needs and the time it takes:
 
-* **Schema inference.** Text files carry no description of their own columns, so {{es}} establishes one by [sampling rows](esql-data-federation-schema.md) from the dataset's files. This happens on the coordinating node at planning time, before any data is read, unless the dataset [specifies a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) with [`dynamic`](esql-data-federation-schema.md#mapping-properties) set to `false`. Its cost follows the number of columns rather than the size of the dataset, and because it falls on the coordinating node alone, adding data nodes does not divide it.
-* **Split distribution.** The files a query reads are divided into units of work called splits, sized by [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size), and those splits are distributed across the data nodes. How many a node reads at once follows its core count.
-* **Staging and decompression buffers.** {{es}} allocates memory to hold the data fetched from Amazon S3, and further memory to decompress it and to parse it into the columnar form the query engine works on. A compressed split expands in memory before it can be read, so data that compresses well costs *more* heap per reader rather than less.
+* **Schema inference.** Text files carry no description of their own columns, so {{es}} establishes one by [sampling rows](esql-data-federation-schema.md) from the dataset's files. This happens before the scan, and it reads from S3, so it costs time and storage requests. How much depends on the number of columns and, with the `union_by_name` and `strict` [resolution strategies](esql-data-federation-schema.md#choose-a-schema-resolution-strategy), on how many files the query reads, because both sample every one of them. `first_file_wins`, the default from 9.6, samples one. [Specify a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) with [`dynamic`](esql-data-federation-schema.md#mapping-properties) set to `false` to skip it.
+* **Split distribution.** The files a query reads are divided into units of work called splits, which are distributed across the data nodes. For uncompressed text, [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size) sets how large each one is. Parquet takes its splits from the row groups listed in the file footer instead, and a compressed text file is one split whatever that setting says. How many a node reads at once follows its core count.
+* **Staging and decompression buffers.** {{es}} allocates memory to hold the data fetched from Amazon S3, and further memory to decompress it and to parse it into the columnar form the query engine works on. Compressed data is decompressed into bounded, recycled buffers rather than expanded whole, so what a reader holds follows how many buffers are in flight rather than how well the data compresses.
 
-The formats then diverge. Parquet carries its schema in the file footers, so no sampling is needed. It is read chunk by chunk: a reader takes one row group at a time and, within that group, fetches and decodes only the columns the query asks for. Both the bytes read and the work done therefore follow your projection rather than the width of the file, which means that narrowing a query with [`KEEP`](/reference/query-languages/esql/commands/keep.md) genuinely reads less.
+The formats then diverge. Parquet carries its schema in the file footers, so no sampling is needed. It is read chunk by chunk: a reader takes one row group at a time and, within that group, fetches and decodes only the columns the query asks for. Both the bytes read and the work done therefore follow your projection rather than the width of the file, so narrowing a query with [`KEEP`](/reference/query-languages/esql/commands/keep.md) reads less.
 
-The text formats work the other way. A file is read as a continuous stream, and a row has to be parsed in full before any of its columns can be used. Narrowing a text query therefore does not read less: the same bytes are fetched, decompressed and parsed however few columns you ask for, and the projection only saves the work of building the result.
+The text formats work the other way round, because a file is read as a continuous stream and and a row has to be parsed in full before any of its columns can be used. Narrowing a text query therefore does not read less: the same bytes are fetched and decompressed however few columns you ask for. What the projection saves is the decoding of the columns you left out, and the work of building the result.
 
-Parallelization works differently by format too, because each one divides a file into a different unit of work. For Parquet that unit is a row group, so even one large file is read by several readers at once. For uncompressed text it is a split, so a larger file is read as several of them. For compressed text it is the whole file: a compressed file cannot be read from the middle, so it cannot be divided at all, and one file is handled by one reader on one thread.
+Parallelization works differently by format too, because each one divides a file into a different unit of work. For Parquet that unit is a row group, so a file holding several of them is read by several readers at once, while a file written as a single row group is not. For uncompressed text it is a split, so a larger file is read as several of them. For compressed text it is the whole file: a compressed file cannot be read from the middle, so it cannot be divided at all. One reader decompresses it, though the rows it produces are parsed in parallel.
 
-The heap a cluster needs does not depend on how large your dataset is. Data is streamed through the cluster rather than loaded into it, so what matters is how much is in flight at any one moment. What the size of the dataset does affect is how long a query takes, and so the number of cores you need to meet a latency target.
+The heap a cluster needs to read data does not depend on how large your dataset is, because data is streamed through the cluster rather than loaded into it. One thing does grow with it: the coordinating node reserves planning memory for every file a query discovers, so many small objects cost more there than the same bytes in fewer. What the size of the dataset does affect is how long a query takes, and so the number of cores you need to meet a latency target.
 
 ## Size your files for your workload [file-layout]
 
@@ -52,9 +51,9 @@ File layout is a property of your data rather than of your cluster.
 
 Aim for mid-sized files, from tens of megabytes to several hundred megabytes.
 
-Amazon S3 has high latency on every request, so a query gets its throughput from reading many files in parallel rather than from any single read being fast. This works against you at both extremes. If a dataset holds too few files, there is not enough work to share out and some of your cores sit idle however large the cluster is. If it holds too many, each one still costs a full request, and a query over very small files spends more of its time waiting on those requests than reading data.
+Amazon S3 has high latency on every request, so a query gets its throughput from reading many files in parallel rather than from any single read being fast. Both extremes cost you throughput. If a dataset yields too few splits, whether from too few files or from compressed text files that are one split each, there is not enough work to share out and some of your cores sit idle however large the cluster is. If it holds too many, each one still costs a full request, and a query over very small files spends more of its time waiting on those requests than reading data.
 
-There is also a hard limit on how many files one dataset can hold, set by [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files). A query over a dataset above that limit fails, so either keep the dataset within it, by narrowing the resource pattern or splitting the data across several datasets, or raise the setting.
+There is also a hard limit on how many files one query may keep after its listing filters have run, set by [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files). A query that keeps more than that fails, and pruning is the first remedy, because a partition filter or a narrower resource pattern can bring a large dataset under the limit without changing anything else. Beyond that, split the data across several datasets, or raise the setting on a self-managed cluster.
 
 Compressing your files reduces what every query has to fetch, which makes queries faster and reduces what your storage provider bills you. For the text formats it costs you parallelism, because a compressed text file cannot be read from the middle and so is handled by a single reader.
 
@@ -62,7 +61,7 @@ Parquet is not affected, because it compresses each column chunk inside the file
 
 ## Sizing your cluster [sizing]
 
-A node running federated queries needs memory for three things at once: for {{esql}} and the rest of {{es}}, for the planning and schema inference that happen on the coordinating node before any data is read, and for the splits the node is reading at that moment. The sections below size each of them.
+A node running federated queries needs memory for three things at once: for {{esql}} and the rest of {{es}}, for the planning and schema inference that happen before the scan, and for the splits the node is reading at that moment. The figures below cover the reading and the planning, so allow for {{esql}} itself on top of them.
 
 The format you query makes a large difference here. Parquet needs less heap than the text formats to do the same work, and less again for each query you run alongside it.
 
@@ -70,24 +69,23 @@ Cores matter as much as heap, and the two move together. Adding cores lets a nod
 
 ### Where to start [heap-per-node]
 
-Start with:
+Allocate 1 GB to 2 GB of heap per core, on at least 2 cores per node, and never less than the figure for your format:
 
-* **2 GB of heap** for Parquet
-* **2 GB to 4 GB of heap** for uncompressed text
-* **4 GB of heap** for compressed text
-* **A further 2 GB to 4 GB** for a text dataset whose schema is inferred
+* **2 GB** for Parquet
+* **2 GB to 4 GB** for uncompressed text
+* **4 GB** for compressed text
 
-Then allocate 1 GB to 2 GB of heap per core, on at least 2 cores per node.
+A text dataset whose schema is inferred needs 2 GB to 4 GB on top of that.
 
 ### Sizing for concurrency [concurrency]
 
 Queries that run at the same time share a node's cores between them, so the way to serve more of them is to add cores, and the heap those cores need.
 
-On a text dataset, allow about **1 core for every 3 to 4 concurrent queries**. For uncompressed text you can add those cores to a node you already have. For compressed text you should not: what a node needs per core grows as the node gets wider, so a larger node ends up serving fewer concurrent queries rather than more. Add nodes instead.
+On a text dataset, allow about **1 core for every 3 to 4 concurrent queries**. For uncompressed text you can add those cores to a node you already have. For compressed text you should not: the memory a node needs per core grows as the node gets wider, so a larger node needs more heap than the extra cores give back. Add the cores as additional nodes instead.
 
 Parquet is less demanding, and needs about **1 core for every 8 to 10 concurrent queries**.
 
-Whichever format you are reading, more nodes give you more parallelism, and no single node should be given more than 31 GB of heap.
+Whichever format you are reading, more nodes give you more parallelism, and no single node should be given more heap than its compressed object pointer threshold allows. That threshold is 26 GB on most systems and as much as 30 GB on some, and [Set the JVM heap size](/reference/elasticsearch/jvm-settings.md#set-jvm-heap-size) explains how to check it on yours.
 
 ### Specify a mapping on text datasets [declare-schema]
 
@@ -97,31 +95,29 @@ CSV, TSV and NDJSON files do not describe their own columns, so {{es}} works the
 
 ### Increase read concurrency for more parallelism [read-concurrency]
 
-[`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) sets how many requests to Amazon S3 a node has outstanding at any moment. Its default is worked out from the node's core count.
+[`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) sets how many requests to Amazon S3 a node has outstanding at any moment. Its default is worked out from the node's core count, its heap, and the request circuit breaker limit, whichever is lowest.
 
-Raising it gives you more read parallelism. Raise the heap at the same time: every request in flight is holding data that is being staged and decompressed, so a node given more read concurrency and no more memory will trip a [circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). This is a [static setting](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), so the node has to be restarted before a change takes effect.
+Raising it does not on its own give you more read parallelism. The value you set is capped by a memory term derived from the node's heap and the request circuit breaker limit, so a node raises its reads in flight only when it has the memory to hold them. Raise the heap, and the limit rises with it. It is a [static setting](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), so the node has to be restarted before a change takes effect. Static settings cannot be changed on {{ech}} or on {{es-serverless}}, so this applies to self-managed clusters. On the other two, size with [Sizing for {{ech}}](#sizing-ech) or [Sizing for {{es-serverless}}](#sizing-serverless) instead.
 
 ### Sizing for {{ech}} [sizing-ech]
 
-On {{ech}} the unit you choose is a size per zone for each data tier, given in RAM, together with a hardware profile for the deployment. Heap and cores both follow from that choice: heap is half the node's RAM, and the cores come from the profile's vCPU to RAM ratio.
+On {{ech}} you choose a size per zone in RAM, and a hardware profile. Heap is half that RAM, and the core count is the RAM times a ratio set by the profile.
 
-To apply the figures above, **select a size per zone of twice the heap you need**, then check that the vCPU count shown for that size meets your core figure. Sizing this way leaves you with more heap per core than this page asks for, so on {{ech}} the core count is what limits you rather than the memory.
+The profile decides how much heap each core gets, and that ratio does not change as you move up the sizes. A CPU optimized profile gives about 1 GB of heap per core, general purpose about 2 GB, and storage optimized about 3.5 GB.
 
-For the Parquet example, 2 cores and 4 GB of heap is an 8 GB size per zone, in 1 zone. For the compressed CSV example, 2 nodes of 2 cores and 4 GB of heap each is an 8 GB size per zone across 2 zones.
+**Use a general purpose profile.** It gives the 1 GB to 2 GB per core this page asks for, so a size chosen to meet your core figure carries the right heap with it. Storage optimized works too, but you pay for memory this workload will not use. Avoid CPU optimized: its heap per core sits at the bottom of the range, leaving nothing spare for compressed text or an inferred schema.
 
-Hardware profiles differ in how many cores come with a given amount of RAM. A CPU optimized profile gives the most and a storage optimized profile the fewest, so a storage optimized deployment needs a larger size per zone to reach the same core count.
-
-The smallest sizes run on temporarily boosted CPU, and briefly have more processing available than they report. Size on the core count rather than on the boost.
+Select a size per zone of twice the heap you need, then check its core count against your core figure. Both examples above come to an 8 GB size per zone: the Parquet one in 1 zone, the compressed CSV one across 2.
 
 ### Sizing for {{es-serverless}} [sizing-serverless]
 
-On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores. The unit is the virtual compute unit, and the Search tier scales with your load. There is no published conversion from heap or cores to VCUs, so the figures above do not translate directly.
+On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores. The unit is the virtual compute unit, and the Search tier scales with your load, so the figures above do not translate directly.
 
-What you can set is a floor. [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus) stops the Search tier scaling below a value you choose, even while the project is idle, which is how you hold capacity ready for a known query concurrency. Raise it 30 to 60 minutes ahead of an expected increase in federated query load. You are billed for at least that many Search VCUs for as long as it is set, so lower it again once the load has passed.
+You can, however, set a floor under that scaling. [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus) stops the Search tier scaling below a value you choose, even while the project is idle, so capacity stays ready for the concurrency you expect. Raise it 30 to 60 minutes ahead of an expected increase in federated query load. You are billed for at least that many Search VCUs for as long as it is set, so lower it again once the load has passed.
 
 If you set a high minimum, raise [Search Power](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#elasticsearch-manage-project-search-power-settings) alongside it, to make use of the capacity you have pre-scaled.
 
-The guidance on [file layout](#file-layout) and on [specifying a mapping](#declare-schema) applies on serverless unchanged, because both are properties of your data rather than of the cluster.
+The guidance on [file layout](#file-layout) and on [specifying a mapping](#declare-schema) still applies, because both are properties of your data. The cluster settings named on this page are not available on serverless.
 
 ## Sizing for performance [performance]
 
@@ -143,7 +139,7 @@ Start with 1 node, with at least 2 cores and at least 4 GB of heap.
 
 ### Backblaze drive stats, gzipped CSV [example-backblaze]
 
-[Backblaze drive stats](https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data) is published as 1 gzipped CSV file per day, with a wide schema of SMART attributes.
+[Backblaze drive stats](https://www.backblaze.com/cloud-storage/resources/hard-drive-test-data) is published as one CSV file per day, with a wide schema of SMART attributes. This example assumes those daily files repacked as `.csv.gz`.
 
 This is compressed text, so the initial heap is 4 GB. At 1 core per 3 to 4 concurrent queries, 10 concurrent queries need 3 to 4 cores. Compressed text serves fewer concurrent queries as a node widens, so those cores belong on separate nodes: 2 nodes of 2 cores each. At 1 GB to 2 GB of heap per core, 2 cores need 2 GB to 4 GB, which is less than the 4 GB this format starts at, so use 4 GB.
 
@@ -157,7 +153,7 @@ Because the figures on this page are starting points, the configuration you end 
 
 * **Circuit breaker rejections**, which mean there is insufficient memory for the workload.
 * **Queries slowing as concurrency rises**, with nothing being rejected, which means your queries are competing with each other for readers.
-* **Query times that do not improve when you add capacity**, which points at the file layout rather than the cluster: too few files, or compressed text files too large to divide, leave the extra cores with nothing to pick up.
+* **Query times that do not improve when you add capacity**, which points at the file layout rather than the cluster: too few splits leave the extra cores with nothing to pick up.
 * **Planning time growing with your file count**, which points at schema inference or, on Parquet, at footer reads on the coordinating node.
 
 ### `circuit_breaking_exception` with `Data too large` [breaker]
@@ -166,20 +162,18 @@ A circuit breaker has rejected the query because there is insufficient memory fo
 
 On a text dataset, the usual cause is schema inference at planning time. [Specify a mapping](#declare-schema) with `dynamic` set to `false` first, which removes that cost instead of paying for it.
 
-If you have raised [`esql.external.max_concurrent_requests`](#read-concurrency), raise the heap to match it.
-
 The figures on this page cover reading the external data. {{esql}} needs further memory for the query itself, for aggregations, sorting and grouping, so allow for that on top. Refer to [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
 
 ### Queries are slow under load [slow-under-load]
 
-Queries that still return results but take longer as load rises are competing with each other for readers. Nothing has run out. There are simply not enough readers for every query at once, so each one waits its turn.
+Queries that still return results but take longer as load rises are competing with each other for readers. Nothing has run out, there are simply not enough readers for every query at once, so each one waits its turn.
 
 To improve query performance under load:
 
 * **Add cores, and scale the heap with them** at 1 GB to 2 GB per core. For compressed text, add those cores as more nodes rather than as a wider one.
-* **Check your file layout.** A query can only use as many readers as your data gives it work for. If the dataset holds too few files, or if it holds compressed text files so large that each one takes a reader a long time, some cores will sit idle no matter how large you make the node. Refer to [Size your files for your workload](#file-layout).
+* **Check your file layout.** A query can only use as many readers as your data gives it work for. If the dataset yields too few splits, some cores will sit idle no matter how large you make the node, because a compressed text file is one split however large it is. Refer to [Size your files for your workload](#file-layout).
 * **Specify a mapping** on text datasets, which takes schema inference out of planning.
-* **Raise [`esql.external.max_concurrent_requests`](#read-concurrency)**, with the corresponding heap increase.
+* **On a self-managed cluster, raise [`esql.external.max_concurrent_requests`](#read-concurrency)**, together with the heap increase it needs to take effect.
 
 ## Related pages [related]
 

@@ -181,7 +181,7 @@ public final class ExternalSourceCacheSettings {
     /**
      * The widest text extremum a line-oriented read publishes. A staged record copies both extrema of every
      * harvested column into itself at whatever width the data has, so one long value in a column sets the
-     * size of every record that column appears in -- and an extremum big enough to push the whole
+     * size of every record that column appears in — and an extremum big enough to push the whole
      * measurement past the statistics store's per-entry ceiling takes the row count and every other column
      * down with it, leaving that file with no statistics at all. Past this width a read publishes the
      * column's counts and no extremum, and {@code MIN}/{@code MAX} over it is answered by a scan.

@@ -14,11 +14,14 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -95,6 +98,50 @@ public class ExternalCsvExtremumWidthSettingIT extends AbstractExternalDataSourc
             assertThat("the answer is still correct, by scanning", rows.get(0).get(1), equalTo(expectedTagMax));
             assertThat(
                 "a five-byte extremum is withheld under a four-byte setting, so this scans where the default serves",
+                response.documentsFound(),
+                equalTo((long) FILE_COUNT)
+            );
+        }
+    }
+
+    /**
+     * The same, over gzipped files. A compressed object has no known decompressed length, so it is read as a
+     * stream through {@code StreamingParallelParsingCoordinator} rather than split into ranges — a different
+     * forward of the same setting out of the operator factory, and one the plain-CSV case above never reaches.
+     */
+    public void testTheSettingReachesTheStreamingReadOfACompressedFile() throws Exception {
+        Path dir = createTempDir();
+        for (int i = 0; i < FILE_COUNT; i++) {
+            try (OutputStream gz = new GZIPOutputStream(Files.newOutputStream(dir.resolve("part" + i + ".csv.gz")))) {
+                gz.write(("id,tag\n" + i + ",tag-" + i + "\n").getBytes(StandardCharsets.UTF_8));
+            }
+        }
+        String dataset = registerLocalFileDataset("narrow_width_gz", StoragePath.fileUri(dir) + "/*.csv.gz", Map.of("format", "csv"));
+
+        String expectedTagMin = "tag-0";
+        String expectedTagMax = "tag-" + (FILE_COUNT - 1);
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag), MIN(id), MAX(id)"),
+                TimeValue.timeValueMinutes(5)
+            )
+        ) {
+            assertThat("the harvesting read scans", response.documentsFound(), equalTo((long) FILE_COUNT));
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(id), MAX(id)"), TimeValue.timeValueMinutes(5))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.get(0).get(0), equalTo(0));
+            assertThat("a numeric extremum is served warm, so the record is cached", response.documentsFound(), equalTo(0L));
+        }
+
+        try (var response = run(syncEsqlQueryRequest("FROM " + dataset + " | STATS MIN(tag), MAX(tag)"), TimeValue.timeValueMinutes(5))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("the answer is still correct, by scanning", rows.get(0).get(0), equalTo(expectedTagMin));
+            assertThat("the answer is still correct, by scanning", rows.get(0).get(1), equalTo(expectedTagMax));
+            assertThat(
+                "the streaming read withholds it too, so this scans where the default serves",
                 response.documentsFound(),
                 equalTo((long) FILE_COUNT)
             );

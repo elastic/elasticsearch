@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -37,6 +38,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.operator.exchange.DetachingExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -82,8 +84,12 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.fetch.FetchContextTracker;
+import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -178,9 +184,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
+        // Non-null when documents leave the data nodes: each data node keeps the fetch contexts of the rows that left it
+        @Nullable FetchContextTracker fetchContexts,
         Runnable runOnTaskFailure,
+        Consumer<DriverCompletionInfo> onFailureUsage,
         ActionListener<ComputeResponse> outListener
     ) {
+        // the keep-alive of _search, like a scroll
+        final TimeValue readerContextKeepAlive = fetchContexts == null
+            ? null
+            : TimeValue.timeValueMillis(searchService.getDefaultKeepAliveInMillis());
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
 
         new DataNodeRequestSender(
@@ -210,6 +223,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
 
                 final AtomicLong pagesFetched = new AtomicLong();
+                // TODO: once FROM supports INTO, do not retry requests whose writer has already sent a bulk
                 var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
                 final Transport.Connection connection;
                 try {
@@ -269,10 +283,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
                                 queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
-                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias)
+                                sameNodeAsCoordinator && queryPragmas.singleNodeOptimizations() && Strings.isEmpty(clusterAlias),
+                                List.of(),
+                                0L,
+                                readerContextKeepAlive
                             );
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                            final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
+                            final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -288,12 +306,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     searchExecutor
                                 )
                             );
-                            exchangeSource.addRemoteSink(
-                                remoteSink,
-                                configuration.allowPartialResults() == false,
-                                pagesFetched::incrementAndGet,
+                            exchangeSource.addRemoteSink(remoteSink, configuration.allowPartialResults() == false, page -> {
+                                pagesFetched.incrementAndGet();
+                                if (fetchContexts != null) {
+                                    // before the exchange buffers the page, so the execution learns of the contexts it names
+                                    fetchContexts.track(page);
+                                }
+                            },
                                 queryPragmas.concurrentExchangeClients(),
-                                computeListener.acquireAvoid()
+                                ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)
                             );
                         }
                     })
@@ -302,6 +323,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }.startComputeOnDataNodes(
             concreteIndices,
             runOnTaskFailure,
+            onFailureUsage,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
     }
@@ -400,8 +422,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     // Mirror the indexed path (startComputeOnDataNodes): forward the inner
                     // ComputeListener's accumulated DriverCompletionInfo (driver + plan profiles)
                     // into a dedicated parentComputeListener.acquireCompute() slot.
-                    final ActionListener<DriverCompletionInfo> profileSlot = parentComputeListener.acquireCompute();
+                    final ComputeCompletionListener profileSlot = parentComputeListener.acquireCompute();
                     final ActionListener<Void> outerL = l;
+                    // What the group did before it failed, which the failure cannot carry: set just before the failure is delivered.
+                    final AtomicReference<DriverCompletionInfo> failedUsage = new AtomicReference<>(DriverCompletionInfo.EMPTY);
                     try (var computeListener = new ComputeListener(onGroupFailure, ActionListener.wrap(info -> {
                         try {
                             profileSlot.onResponse(info);
@@ -410,11 +434,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                     }, e -> {
                         try {
-                            profileSlot.onFailure(e);
+                            profileSlot.onFailure(e, failedUsage.get());
                         } finally {
                             outerL.onFailure(e);
                         }
-                    }))) {
+                    }), failedUsage::set)) {
                         final ExternalSplitWalk walk = new ExternalSplitWalk(
                             sessionId,
                             computeService.queryId(parentTask),
@@ -429,7 +453,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             currentNode
                         );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                        var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
+                        var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
+                        var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
@@ -448,7 +473,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             false,
                             walk::pageFetched,
                             queryPragmas.concurrentExchangeClients(),
-                            walk.sinkListener(0, computeListener.acquireAvoid())
+                            ActionListener.releaseAfter(walk.sinkListener(0, computeListener.acquireAvoid()), sinkPart)
                         );
                     }
                 });
@@ -665,6 +690,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * fetched from this walk cannot be replayed, so a failure after the first page is terminal.
      */
     static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker) {
+        // TODO: once FROM supports INTO, do not reroute external workers whose writer has already sent a bulk
         return hasNextWorker && pagesFetched == 0 && isRetryableExternalWorkerFailure(failure);
     }
 
@@ -699,7 +725,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             false,
             false,
             splits,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            null
         );
     }
 
@@ -741,7 +768,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         /** The node the splits currently run on, for the group task's description. */
         private final AtomicReference<DiscoveryNode> currentNode;
         private final AtomicLong pagesFetched = new AtomicLong();
-        private final ActionListener<DriverCompletionInfo> response;
+        private final ComputeCompletionListener response;
+        /** What the attempts that failed did before they failed, as their workers reported it: see {@link FailedComputeUsageHeader}. */
+        private final DriverCompletionInfo.AtomicAccumulator failedUsage = new DriverCompletionInfo.AtomicAccumulator();
         @Nullable
         private final ActionListener<Void> walkRef;
         /** Set once the walk's outcome is decided; a failure that arrives after that must not hop on a closed listener. */
@@ -787,7 +816,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.currentNode = currentNode;
             // Each completed exactly once, whichever step of whichever attempt ends the walk, and a step that throws after
             // the attempt's response handler was registered must not complete them a second time.
-            this.response = ActionListener.notifyOnce(computeListener.acquireCompute());
+            this.response = ComputeCompletionListener.notifyOnce(computeListener.acquireCompute());
             this.walkRef = workers.size() < 2 ? null : ActionListener.notifyOnce(computeListener.acquireAvoid());
         }
 
@@ -819,6 +848,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
          */
         ActionListener<DataNodeComputeResponse> attemptListener(int attempt) {
             return ActionListener.wrap(r -> onDataActionSuccess(attempt, r.completionInfo()), e -> {
+                // What the worker did before it failed travels in a response header. Take it off the context first, so that it
+                // never reaches the client, whatever becomes of the failure.
+                failedUsage.accumulate(FailedComputeUsageHeader.take(transportService.getThreadPool().getThreadContext()));
                 boolean drain = false;
                 boolean succeedWithPages = false;
                 DriverCompletionInfo info = null;
@@ -999,7 +1031,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
             }
             try {
-                response.onFailure(e);
+                response.onFailure(e, failedUsage.finish());
             } finally {
                 endWalk();
             }
@@ -1024,7 +1056,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final String childSessionId = computeService.newChildSession(sessionId);
             final ActionListener<Void> opened = ActionListener.wrap(unused -> {
                 ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, next.connection());
+                var sinkPart = computeService.remoteSinkPart(queryId, groupTask);
+                var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, next.connection(), sinkPart);
                 transportService.sendChildRequest(
                     next.connection(),
                     ComputeService.DATA_ACTION_NAME,
@@ -1043,7 +1076,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     false,
                     this::pageFetched,
                     queryPragmas.concurrentExchangeClients(),
-                    sinkListener(attempt, sink)
+                    ActionListener.releaseAfter(sinkListener(attempt, sink), sinkPart)
                 );
             }, e -> {
                 if (abandonAttempt(attempt, e)) {
@@ -1140,6 +1173,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final boolean singleNodeOptimizations;
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
+        @Nullable
+        private final NodeFetchContexts fetchContexts;
         private final PlanTimeProfile planTimeProfile;
         private final List<DataNodeRequest.Shard> shards;
         @Nullable
@@ -1158,6 +1193,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
             AcquiredSearchContexts searchContexts,
+            @Nullable NodeFetchContexts fetchContexts,
             @Nullable SharedSortBound sortBound
         ) {
             assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
@@ -1172,8 +1208,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.failFastOnShardFailure = failFastOnShardFailure;
             this.singleNodeOptimizations = singleNodeOptimizations;
             this.shardLevelFailures = shardLevelFailures;
-            this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
+            this.fetchContexts = fetchContexts;
+            // the sinks read the contexts above
+            this.blockingSink = exchangeSink(() -> {});
             this.planTimeProfile = new PlanTimeProfile();
             this.sortBound = sortBound;
             boolean ascending = ShardTimestampOrder.ascending(request.plan());
@@ -1189,7 +1227,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private ExchangeSink exchangeSink(Runnable onPageAdded) {
-            return internalExchange != null ? internalExchange.exchangeSink(onPageAdded) : externalSink.createExchangeSink(onPageAdded);
+            return internalExchange != null
+                ? internalExchange.exchangeSink(onPageAdded)
+                : leavingTheNode(externalSink.createExchangeSink(onPageAdded), searchContexts, fetchContexts);
         }
 
         private boolean exchangeFinished() {
@@ -1217,6 +1257,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
+                    // TODO: once FROM supports INTO, fail fast if a writer in this batch has already sent a bulk
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);
@@ -1265,7 +1306,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> exchangeSink(pagesProduced::incrementAndGet),
                         singleNodeOptimizations,
                         sortBound,
-                        null
+                        null,
+                        FetchOperatorProvider.UNSUPPORTED
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1318,14 +1360,24 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             clusterAlias,
                             targetShard.v2()
                         );
-                        // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
-                        // we need to limit the number of active search contexts here or in SearchService
-                        context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
+                        if (fetchContexts != null) {
+                            // a registered context that the fetch phase can find again after the response
+                            context = fetchContexts.open(shardRequest, searchService.queryPart(request.queryId(), parentTask));
+                        } else {
+                            // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
+                            // we need to limit the number of active search contexts here or in SearchService
+                            context = searchService.createSearchContext(
+                                shardRequest,
+                                SearchService.NO_TIMEOUT,
+                                searchService.queryPart(request.queryId(), parentTask)
+                            );
+                        }
                         // The slices the plan reads, for the field mappers that build its queries.
                         context.getSearchExecutionContext().setSliceSelection(slices);
                         context.preProcess();
                         newContexts.add(context);
-                    } catch (RuntimeException e) {
+                    } catch (Exception e) {
+                        // opening a context can also fail with an IOException, which must close the contexts opened so far
                         IOUtils.close(context);
                         if (addShardLevelFailure(indexShard.shardId(), e) == false) {
                             IOUtils.closeWhileHandlingException(newContexts);
@@ -1389,6 +1441,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         DataNodeRequest request,
         boolean failFastOnShardFailure,
         AcquiredSearchContexts searchContexts,
+        @Nullable NodeFetchContexts fetchContexts,
         PlannerSettings plannerSettings,
         PlanTimeProfile planTimeProfile,
         ActionListener<DataNodeComputeResponse> listener
@@ -1399,6 +1452,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final ExchangeSinkHandler externalSink = sinkToRun(externalId, listener);
         if (externalSink == null) {
             return;
+        }
+        if (fetchContexts != null) {
+            // the coordinator never hears of the contexts of the pages the sink discards on stop, cancellation or failure
+            externalSink.setOnPageDiscarded(fetchContexts::discarded);
         }
         // Shared by the batches of shards, and released once all of them are done
         final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
@@ -1441,6 +1498,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     shardLevelFailures,
                     computeListener,
                     searchContexts,
+                    fetchContexts,
                     sortBound
                 );
                 dataNodeRequestExecutor.start();
@@ -1462,10 +1520,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         internalExchange::exchangeSource,
-                        () -> externalSink.createExchangeSink(() -> {}),
+                        () -> leavingTheNode(externalSink.createExchangeSink(() -> {}), searchContexts, fetchContexts),
                         request.singleNodeOptimizations(),
                         null,
-                        reduceLoad(request.shards(), searchContexts)
+                        reduceLoad(request.shards(), searchContexts),
+                        FetchOperatorProvider.UNSUPPORTED
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,
@@ -1654,6 +1713,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
         ReductionPlan reductionPlan;
         if (request.plan() instanceof ExchangeSinkExec plan) {
+            try {
+                validateFetchContexts(plan, request);
+            } catch (Exception e) {
+                failWithoutStarting(request, listener, e);
+                return;
+            }
             reductionPlan = ComputeService.reductionPlan(
                 computeService.plannerSettings().get(),
                 computeService.createFlags(),
@@ -1683,10 +1748,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.reductionLateMaterialization(),
             request.singleNodeOptimizations(),
             request.externalSplits(),
-            request.requiredClusterStateVersion()
+            request.requiredClusterStateVersion(),
+            request.readerContextKeepAlive()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
         final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
+        final NodeFetchContexts fetchContexts = request.keepFetchContexts() ? newFetchContexts(task, request) : null;
         var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
         runComputeOnDataNode(
             task,
@@ -1695,10 +1762,28 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.withPlan(reductionPlan.dataNodePlan()),
             failFastOnShardFailures,
             computeSearchContexts,
+            fetchContexts,
             computeService.plannerSettings().get(),
             planTimeProfile,
-            ActionListener.releaseAfter(listener, computeSearchContexts)
+            // the search contexts of the query phase close before the fetch contexts free the ones no row reads
+            ActionListener.releaseAfter(listener, Releasables.wrap(computeSearchContexts, fetchContexts))
         );
+    }
+
+    private NodeFetchContexts newFetchContexts(Task task, DataNodeRequest request) {
+        TimeValue keepAlive = readerContextKeepAlive(request, clusterService.getClusterSettings());
+        return new NodeFetchContexts(searchService, task, keepAlive);
+    }
+
+    /**
+     * The keep-alive of the fetch contexts of {@code request}: the keep-alive of the request, but at most
+     * {@code search.max_keep_alive} of this node, which can be shorter than the one of the coordinator. {@code _search}
+     * rejects a longer keep-alive, but here the coordinator picked it, not the user.
+     */
+    static TimeValue readerContextKeepAlive(DataNodeRequest request, ClusterSettings clusterSettings) {
+        TimeValue maxKeepAlive = clusterSettings.get(SearchService.MAX_KEEPALIVE_SETTING);
+        TimeValue requested = request.readerContextKeepAlive();
+        return requested.compareTo(maxKeepAlive) <= 0 ? requested : maxKeepAlive;
     }
 
     /**
@@ -1719,6 +1804,32 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return null;
         }
         return sink;
+    }
+
+    /**
+     * Documents that leave the node must name contexts that the fetch phase finds again.
+     */
+    static void validateFetchContexts(PhysicalPlan plan, DataNodeRequest request) {
+        if (request.keepFetchContexts() == false && plan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
+            throw new IllegalStateException("documents can only leave their node for a fetch, but the request kept no fetch contexts");
+        }
+    }
+
+    /**
+     * The sink of the pages that leave this node. A query with a fetch phase sends {@code _doc} to the coordinator, which
+     * loads the other columns of the winners later, so the documents get the origin of their shard. Asking for the origin
+     * makes the node keep the reader context after the request, unless the sink discards the page.
+     */
+    private static ExchangeSink leavingTheNode(
+        ExchangeSink sink,
+        AcquiredSearchContexts searchContexts,
+        @Nullable NodeFetchContexts fetchContexts
+    ) {
+        if (fetchContexts == null) {
+            return sink;
+        }
+        IndexedByShardId<ComputeSearchContext> contexts = searchContexts.globalView();
+        return new DetachingExchangeSink(sink, slot -> fetchContexts.originOf(contexts.get(slot).searchContext()));
     }
 
     /**
@@ -2039,14 +2150,17 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return;
         }
 
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
-                listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of()))
+                listener.map(profiles -> new DataNodeComputeResponse(profiles, Map.of())),
+                // Called just before the failure is delivered, on the thread that delivers it: the header is sent with that response.
+                usage -> FailedComputeUsageHeader.write(threadContext, usage)
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
-            final ActionListener<DriverCompletionInfo> driverCompletionListener = ActionListener.notifyOnce(
+            final ComputeCompletionListener driverCompletionListener = ComputeCompletionListener.notifyOnce(
                 computeListener.acquireCompute()
             );
             try {
@@ -2071,23 +2185,33 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     plannerSettings,
                     LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
-                    ActionListener.wrap(resp -> {
-                        // don't return until all pages are fetched
-                        externalSink.addCompletionListener(ActionListener.running(() -> {
-                            exchangeService.finishSinkHandler(sessionId, null);
-                            driverCompletionListener.onResponse(resp);
-                        }));
-                    }, e -> {
-                        LOGGER.warn(
-                            "external source compute failed on data node [{}] with {} splits, session [{}]",
-                            transportService.getLocalNode().getName(),
-                            request.externalSplits().size(),
-                            sessionId,
-                            e
-                        );
-                        exchangeService.finishSinkHandler(sessionId, e);
-                        driverCompletionListener.onFailure(e);
-                    })
+                    new ComputeCompletionListener() {
+                        @Override
+                        public void onResponse(DriverCompletionInfo resp) {
+                            try {
+                                // don't return until all pages are fetched
+                                externalSink.addCompletionListener(ActionListener.running(() -> {
+                                    exchangeService.finishSinkHandler(sessionId, null);
+                                    driverCompletionListener.onResponse(resp);
+                                }));
+                            } catch (Exception e) {
+                                onFailure(e, DriverCompletionInfo.EMPTY);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e, DriverCompletionInfo usage) {
+                            LOGGER.warn(
+                                "external source compute failed on data node [{}] with {} splits, session [{}]",
+                                transportService.getLocalNode().getName(),
+                                request.externalSplits().size(),
+                                sessionId,
+                                e
+                            );
+                            exchangeService.finishSinkHandler(sessionId, e);
+                            driverCompletionListener.onFailure(e, usage);
+                        }
+                    }
                 );
                 parentListener.onResponse(null);
             } catch (Exception e) {

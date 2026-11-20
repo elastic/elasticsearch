@@ -12,6 +12,7 @@ package org.elasticsearch;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -87,6 +88,8 @@ public final class ExceptionsHelper {
             if (t instanceof ElasticsearchException) {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
+                return RestStatus.BAD_REQUEST;
+            } else if (t instanceof IndexSearcher.TooManyClauses) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof XContentParseException) {
                 return RestStatus.BAD_REQUEST;
@@ -535,40 +538,17 @@ public final class ExceptionsHelper {
      */
     public static List<ShardOperationFailedException> groupBy(List<? extends ShardOperationFailedException> failures) {
         if (failures.isEmpty()) {
-            return List.of();
+            return Collections.emptyList();
         }
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
             GroupBy reason = new GroupBy(failure);
-            if (reasons.contains(reason) == false) {
-                reasons.add(reason);
+            if (reasons.add(reason)) {
                 uniqueFailures.add(failure);
             }
         }
-        return List.copyOf(uniqueFailures);
-    }
-
-    /**
-     * Deduplicate the failures by exception message and index.
-     * @param failures array to deduplicate
-     * @return deduplicated array; if failures is null or empty, it will be returned without modification
-     */
-    @Deprecated // Use List<ShardOperationFailedException> instead
-    public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
-        if (failures == null || failures.length == 0) {
-            return failures;
-        }
-        List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
-        Set<GroupBy> reasons = new HashSet<>();
-        for (ShardOperationFailedException failure : failures) {
-            GroupBy reason = new GroupBy(failure);
-            if (reasons.contains(reason) == false) {
-                reasons.add(reason);
-                uniqueFailures.add(failure);
-            }
-        }
-        return uniqueFailures.toArray(new ShardOperationFailedException[0]);
+        return Collections.unmodifiableList(uniqueFailures);
     }
 
     /**

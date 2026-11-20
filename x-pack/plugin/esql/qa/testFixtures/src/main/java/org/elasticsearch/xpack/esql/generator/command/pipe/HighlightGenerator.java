@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.function.FullTextFunctionGenerator;
 
 import java.util.ArrayList;
@@ -45,6 +47,15 @@ public class HighlightGenerator implements CommandGenerator {
 
     public static final CommandGenerator INSTANCE = new HighlightGenerator();
 
+    private static final String[] ANALYZER_OPTION = {
+        "analyzer",
+        "\"standard\"",
+        "\"english\"",
+        "\"whitespace\"",
+        "\"simple\"",
+        "\"keyword\"",
+        "\"stop\"" };
+
     /** Entries have the form {@code { name, value1, value2, ... }}. */
     private static final String[][] WITH_OPTIONS = {
         { "pre_tags", "[\"<b>\"]", "[\"<em>\"]", "[\"<mark>\"]" },
@@ -52,7 +63,7 @@ public class HighlightGenerator implements CommandGenerator {
         { "number_of_fragments", "1", "2", "3", "5" },
         { "fragment_size", "50", "100", "150", "200" },
         { "encoder", "\"default\"", "\"html\"" },
-        { "analyzer", "\"standard\"", "\"english\"", "\"whitespace\"", "\"simple\"", "\"keyword\"", "\"stop\"" },
+        ANALYZER_OPTION,
         { "boundary_scanner", "\"sentence\"", "\"word\"" },
         { "boundary_scanner_locale", "\"en-US\"", "\"en\"", "\"fr\"" },
         { "order", "\"none\"", "\"score\"" },
@@ -91,7 +102,11 @@ public class HighlightGenerator implements CommandGenerator {
             case EXPLICIT -> explicitOn(stringColumns, previousCommands);
         };
 
-        String command = " | HIGHLIGHT " + prefix.clause() + parts.query() + parts.onClause() + maybeWith();
+        String command = " | HIGHLIGHT "
+            + prefix.clause()
+            + parts.query()
+            + parts.onClause()
+            + maybeWith(requiresAnalyzer(previousCommands));
         List<String> generatedColumns = parts.generatedFrom().stream().map(c -> prefix.value() + c.name()).toList();
         Map<String, Object> commandContext = Map.of(HIGHLIGHT_COLUMNS, generatedColumns);
         return new CommandDescription(HIGHLIGHT, this, command, commandContext);
@@ -237,7 +252,9 @@ public class HighlightGenerator implements CommandGenerator {
 
     /** Union-typed string columns can be used by the ON clause and string queries. */
     private static boolean isStringField(Column column) {
-        return STRING_TYPES.contains(column.type()) && EsqlQueryGenerator.fieldCanBeUsed(column);
+        return STRING_TYPES.contains(column.type())
+            && EsqlQueryGenerator.fieldCanBeUsed(column)
+            && MetadataAttribute.isSupported(column.name()) == false;
     }
 
     /**
@@ -390,15 +407,31 @@ public class HighlightGenerator implements CommandGenerator {
         return left + (randomBoolean() ? " AND " : " OR ") + right;
     }
 
-    private static String maybeWith() {
+    // Permanent design constraint: once rows lose their source index (FORK, union, DEDUP, STATS), HIGHLIGHT rejects a field whose inputs
+    // disagree on the analyzer unless WITH names one (Highlight.verifyAnalyzersAgree), so always name one there.
+    static boolean requiresAnalyzer(List<CommandDescription> previousCommands) {
+        if (previousCommands.isEmpty()) {
+            return false;
+        }
+        if (Boolean.TRUE.equals(previousCommands.getFirst().context().get(FromGenerator.HAS_UNION_ALL))) {
+            return true;
+        }
+        return previousCommands.stream().map(CommandDescription::commandName).anyMatch(INDEX_KEY_DROPPING_COMMANDS::contains);
+    }
+
+    private static final Set<String> INDEX_KEY_DROPPING_COMMANDS = Set.of(ForkGenerator.FORK, DedupGenerator.DEDUP, StatsGenerator.STATS);
+
+    private static String maybeWith(boolean requireAnalyzer) {
         // Exercise WITH options without making them more common than the default behavior.
-        if (randomIntBetween(0, 9) < 6) {
+        if (requireAnalyzer == false && randomIntBetween(0, 9) < 6) {
             return "";
         }
         int count = randomIntBetween(1, 3);
-        List<String> entries = randomSubsetOf(Math.min(count, WITH_OPTIONS.length), List.of(WITH_OPTIONS)).stream()
-            .map(HighlightGenerator::optionEntry)
-            .toList();
+        List<String[]> options = new ArrayList<>(randomSubsetOf(Math.min(count, WITH_OPTIONS.length), List.of(WITH_OPTIONS)));
+        if (requireAnalyzer && options.contains(ANALYZER_OPTION) == false) {
+            options.add(ANALYZER_OPTION);
+        }
+        List<String> entries = options.stream().map(HighlightGenerator::optionEntry).toList();
         return " WITH { " + String.join(", ", entries) + " }";
     }
 

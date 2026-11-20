@@ -8,7 +8,9 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
@@ -23,24 +25,33 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBui
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
+import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 
 public class InternalAggregationsTests extends ESTestCase {
 
@@ -308,6 +319,129 @@ public class InternalAggregationsTests extends ESTestCase {
             DelayableWriteable.getUncompressedSerializedSize(aggregations),
             equalTo((long) serialize(aggregations, TransportVersion.current()).length)
         );
+    }
+
+    /**
+     * Each aggregation and each list of sub-aggregations, which every bucket writes, adds a fixed overhead to the serialized size.
+     */
+    public void testEstimateHeapBytesAddsOverheadPerObject() {
+        int buckets = randomIntBetween(1, 100);
+        boolean withSubAggregation = randomBoolean();
+        List<StringTerms.Bucket> list = new ArrayList<>(buckets);
+        for (int i = 0; i < buckets; i++) {
+            InternalAggregations sub = withSubAggregation
+                ? InternalAggregations.from(new Max("max", i, DocValueFormat.RAW, null))
+                : InternalAggregations.EMPTY;
+            list.add(new StringTerms.Bucket(new BytesRef("key-" + i), 1, sub, false, 0, DocValueFormat.RAW));
+        }
+        InternalAggregations aggregations = InternalAggregations.from(
+            new StringTerms(
+                "terms",
+                BucketOrder.key(true),
+                BucketOrder.count(false),
+                buckets,
+                1,
+                null,
+                DocValueFormat.RAW,
+                buckets,
+                false,
+                0,
+                list,
+                0L
+            )
+        );
+
+        // The top level list and the terms aggregation, then a list per bucket and the max aggregation in it if there is one.
+        long objects = 2 + buckets + (withSubAggregation ? buckets : 0);
+        assertThat(
+            aggregations.estimateHeapBytes(),
+            equalTo(DelayableWriteable.getUncompressedSerializedSize(aggregations) + objects * InternalAggregations.OBJECT_OVERHEAD_BYTES)
+        );
+    }
+
+    /**
+     * The estimate stays within wide bands of the heap, measured by walking the trees, so this catches a large drift and not the exact
+     * figure.
+     */
+    public void testEstimateHeapBytesIsCloseToHeap() {
+        assumeTrue("the object sizes assume compressed references", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
+        assertEstimateWithin(stringTerms(5000, true), 0.8, 1.5);
+        assertEstimateWithin(stringTerms(5000, false), 0.8, 1.5);
+        assertEstimateWithin(histogram(5000, true), 0.8, 1.5);
+        // Buckets without a sub-aggregation share one empty list that takes no heap, so the band is wider.
+        assertEstimateWithin(histogram(5000, false), 0.8, 2.5);
+    }
+
+    private static void assertEstimateWithin(InternalAggregations aggregations, double lowest, double highest) {
+        double ratio = (double) aggregations.estimateHeapBytes() / RamUsageTester.ramUsed(aggregations);
+        assertThat("estimate over heap", ratio, both(greaterThan(lowest)).and(lessThan(highest)));
+    }
+
+    private static InternalAggregations stringTerms(int buckets, boolean withMax) {
+        List<StringTerms.Bucket> list = new ArrayList<>(buckets);
+        for (int i = 0; i < buckets; i++) {
+            InternalAggregations sub = withMax
+                ? InternalAggregations.from(new Max("max", i, DocValueFormat.RAW, null))
+                : InternalAggregations.EMPTY;
+            // A key read off the wire is exactly sized, unlike the array of a BytesRef built from a string.
+            BytesRef key = new BytesRef(String.format(Locale.ROOT, "%032d", i).getBytes(StandardCharsets.UTF_8));
+            list.add(new StringTerms.Bucket(key, 1, sub, false, 0, DocValueFormat.RAW));
+        }
+        return InternalAggregations.from(
+            new StringTerms(
+                "terms",
+                BucketOrder.key(true),
+                BucketOrder.count(false),
+                buckets,
+                1,
+                null,
+                DocValueFormat.RAW,
+                buckets,
+                false,
+                0,
+                list,
+                0L
+            )
+        );
+    }
+
+    private static InternalAggregations histogram(int buckets, boolean withMax) {
+        List<InternalHistogram.Bucket> list = new ArrayList<>(buckets);
+        for (int i = 0; i < buckets; i++) {
+            InternalAggregations sub = withMax
+                ? InternalAggregations.from(new Max("max", i, DocValueFormat.RAW, null))
+                : InternalAggregations.EMPTY;
+            list.add(new InternalHistogram.Bucket(i * 10.0, 1, DocValueFormat.RAW, sub));
+        }
+        return InternalAggregations.from(
+            new InternalHistogram(
+                "histogram",
+                list,
+                BucketOrder.key(true),
+                0,
+                new InternalHistogram.EmptyBucketInfo(10, 0, 0, 100, InternalAggregations.EMPTY),
+                DocValueFormat.RAW,
+                false,
+                null
+            )
+        );
+    }
+
+    /**
+     * A sketch without state takes less heap than its serialized form plus the overhead counted for it, such as one over an unmapped
+     * field, so nothing is subtracted for it.
+     */
+    public void testEstimateHeapBytesAddsNothingForSketchesWithoutState() {
+        List<InternalAggregation> withoutState = List.of(
+            new InternalTDigestPercentiles("tdigest", new double[] { 50 }, null, false, DocValueFormat.RAW, null),
+            new InternalHDRPercentiles("hdr", new double[] { 50 }, null, false, DocValueFormat.RAW, null)
+        );
+        for (InternalAggregation aggregation : withoutState) {
+            InternalAggregations aggregations = InternalAggregations.from(aggregation);
+            long serialized = DelayableWriteable.getUncompressedSerializedSize(aggregations);
+            // The list of aggregations and the aggregation.
+            assertThat(aggregations.estimateHeapBytes(), equalTo(serialized + 2 * InternalAggregations.OBJECT_OVERHEAD_BYTES));
+        }
     }
 
     private void writeToAndReadFrom(InternalAggregations aggregations, TransportVersion version, int iteration) throws IOException {

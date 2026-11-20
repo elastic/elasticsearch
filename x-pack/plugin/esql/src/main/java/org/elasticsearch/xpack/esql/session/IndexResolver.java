@@ -539,10 +539,10 @@ public class IndexResolver {
          * The names the query uses that no index maps as a leaf and whose {@code flattened} root is not a {@code flattened} column of the
          * merged mapping: in an index where such a name is under a {@code flattened} field, it is the {@code keyword} key of that name.
          * <p>
-         * That is where an index maps the root as {@code flattened} and another one maps it as another type, so the root is a conflict and
-         * the analyzer has nothing to read the key from. Where the root is a {@code flattened} column, which is the usual case, the analyzer
-         * resolves the name as a key of the root where the query uses it (see {@code Analyzer.ResolveRefs#withFlattenedKeys}). Empty
-         * unless every node reads keys.
+         * That is where an index maps the root as {@code flattened} and another one maps it as another type, so the root is a conflict
+         * and the analyzer has nothing to read the key from. Where the root is a {@code flattened} column, which is the usual case, the
+         * analyzer resolves the name as a key of the root where the query uses it (see
+         * {@code Analyzer.ResolveRefs#withFlattenedKeys}). Empty unless every node reads keys.
          */
         Set<String> keyNames() {
             if (namedFields == null || flattenedDataTypeEnabled == false || minTransportVersion == null) {

@@ -1725,8 +1725,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Resolves the keys of {@code flattened} fields that {@code plan} names, by adding them as columns below it.
          * <p>
-         * <b>The rules for keys of {@code flattened} fields.</b> A key works like an unmapped field that is loaded: a name is one column, and
-         * the mappings and the query decide what that column is.
+         * <b>The rules for keys of {@code flattened} fields.</b> A key works like an unmapped field that is loaded: a name is one
+         * column, and the mappings and the query decide what that column is.
          * <ol>
          *     <li>A name resolves to a visible column of exactly that name. Only if there is none, and a visible column {@code P} of type
          *     {@code flattened} is a dotted prefix of the name, is the rest of the name a key of {@code P}. The key is then a new column,
@@ -1739,8 +1739,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *     The key of a renamed {@code flattened} column is reached under the new name, and a key is only reached while a
          *     {@code flattened} parent is visible. A name that no visible parent holds is an unmapped field: an error, {@code null} or
          *     loaded from {@code _source}, as {@code unmapped_fields} says. A key always wins over those settings.</li>
-         *     <li>Patterns never match keys, {@code RENAME} renames columns, and {@code DROP} reaches no key (see elastic/elasticsearch#166913
-         *     for removing the key from the value).</li>
+         *     <li>Patterns never match keys, {@code RENAME} renames columns, and {@code DROP} reaches no key (see
+         *     elastic/elasticsearch#166913 for removing the key from the value).</li>
          *     <li>{@code FROM} is a union of its indices: a name that some index maps is a column of the relation, and an index that
          *     holds it as a key fills it from the key. Only names that no index maps are resolved by this step.</li>
          *     <li>Any other type that exposes names inside a value, such as {@code nested} once its sub-fields can be named, has to follow

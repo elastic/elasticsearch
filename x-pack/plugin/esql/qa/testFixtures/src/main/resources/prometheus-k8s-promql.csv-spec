@@ -2108,6 +2108,22 @@ result:double | step:datetime            | _timeseries:keyword
 947.0         | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
+// topk over a filter comparison ranks the series the filter keeps: `two` is filtered out, so `three` wins.
+topk_over_filter_comparison
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+required_capability: promql_binary_comparison_v0
+required_capability: promql_timeseries_metadata_functions
+required_capability: promql_comparisons_anywhere
+PROMQL index=prometheus-k8s step=1h result=(topk(1, network.total_bytes_in{cluster="prod"} < 10000))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+9969.0        | 2024-05-10T01:00:00.000Z | "{""__name__"":""network.total_bytes_in"",""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+;
+
 // topk is evaluated independently at every step of a range query, so the winning series can change from
 // one step to the next as the underlying series values change - here `three` wins the first step and `two`
 // wins the second.

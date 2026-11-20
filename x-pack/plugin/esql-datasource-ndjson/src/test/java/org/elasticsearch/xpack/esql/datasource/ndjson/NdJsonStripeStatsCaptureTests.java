@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.CountingMtimeStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -728,49 +729,7 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
 
     /** Delegates to the in-memory object, counting every mtime probe. */
     private StorageObject countingObject(byte[] bytes, AtomicInteger probes) {
-        StorageObject delegate = memoryObject(bytes);
-        return new StorageObject() {
-            @Override
-            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
-                delegate.attachMetrics(metrics, scheme);
-            }
-
-            @Override
-            public StorageIdentity storageIdentity() {
-                return delegate.storageIdentity();
-            }
-
-            @Override
-            public InputStream newStream() throws IOException {
-                return delegate.newStream();
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) throws IOException {
-                return delegate.newStream(position, length);
-            }
-
-            @Override
-            public long length() throws IOException {
-                return delegate.length();
-            }
-
-            @Override
-            public Instant lastModified() throws IOException {
-                probes.incrementAndGet();
-                return delegate.lastModified();
-            }
-
-            @Override
-            public boolean exists() throws IOException {
-                return delegate.exists();
-            }
-
-            @Override
-            public StoragePath path() {
-                return delegate.path();
-            }
-        };
+        return new CountingMtimeStorageObject(memoryObject(bytes), probes);
     }
 
     private StorageObject memoryObject(byte[] bytes) {

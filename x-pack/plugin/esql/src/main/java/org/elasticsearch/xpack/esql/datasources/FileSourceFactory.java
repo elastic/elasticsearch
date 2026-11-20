@@ -208,16 +208,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
     @Nullable
     private final DatasetListingService listingService;
     /**
-     * Whether the node's external-source cache is accepting writes, asked once per read.
+     * Whether the node's external-source cache is accepting writes. Statistics are harvested for that cache
+     * and nothing else, and {@link ExternalSourceCacheService#reconcileSourceStatsFromContributions} discards
+     * them on its first line when it is off.
      * <p>
-     * Per-stripe and whole-file statistics are harvested for that cache and nothing else: a disabled cache
-     * discards the contribution on the coordinator, where
-     * {@link ExternalSourceCacheService#reconcileSourceStatsFromContributions} returns on its first line, so
-     * harvesting under a disabled cache is scan-path cost spent on a result no one accepts. A supplier rather
-     * than a captured flag because {@code esql.external.cache.enabled} is dynamic and doubles as the cache's
-     * clear operation, while this factory is a per-node singleton built once: a value read at construction
-     * would miss every toggle. It governs neither the footer caches, which are per-reader and
-     * built from node settings, nor the columnar statistics read out of a footer, which cost no extra scan.
+     * A supplier, not a captured flag: {@code esql.external.cache.enabled} is dynamic and this factory is a
+     * per-node singleton, so a value read at construction would miss every toggle. It does not govern the
+     * footer caches, which have their own budgets.
      */
     private final BooleanSupplier externalSourceCacheEnabled;
     /** One per node, so a dataset-layout warning is throttled across every query this factory serves. */
@@ -291,8 +288,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             externalSourceMetrics,
             listingService,
             AdmissionTracker.NOOP,
-            // Test wiring: read the setting directly, as the shorter DataSourceModule constructors do. It honours a
-            // yml-configured disable, and cannot observe a dynamic toggle -- production passes the cache's own flag.
+            // Test wiring: the setting, not the cache's live flag, so a dynamic toggle is not observed here.
             () -> ExternalSourceCacheSettings.CACHE_ENABLED.get(settings != null ? settings : Settings.EMPTY)
         );
     }
@@ -720,8 +716,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     && context.deferredExtraction()
                     && dropsRowsOnCoercionFailure == false;
 
-                // Resolved once for this read, so both stats arguments below agree even if the cache is toggled
-                // between them.
+                // Once per read, so the two stats arguments below cannot straddle a toggle.
                 boolean harvestStatistics = externalSourceCacheEnabled.getAsBoolean();
 
                 AsyncExternalSourceOperatorFactory built = AsyncExternalSourceOperatorFactory.builder(
@@ -745,11 +740,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .parsingParallelism(context.parsingParallelism())
                     .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
                     .maxRecordBytes(context.maxRecordBytes())
-                    // A disabled cache harvests nothing. NONE is the whole off switch for both row readers: it
-                    // zeroes the stripe grid NdJsonPageIterator derives and short-circuits the capture in both, so
-                    // the whole-file publish stops with the per-stripe one. The grid size goes with it rather than
-                    // being left set, so no reader builds a harvester that can never be fed. Asked here, per read,
-                    // because this is where the harvest is configured and the flag is live.
+                    // A disabled cache accepts no statistics, so harvest none. The grid goes with the scope so
+                    // that no reader builds a harvester nothing can feed.
                     .statsStripeSize(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes() : -1L)
                     .statsColumnScope(harvestStatistics ? ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings) : StripeColumnScope.NONE)
                     .streamingSegmentatorAdmission(segmentatorAdmission)

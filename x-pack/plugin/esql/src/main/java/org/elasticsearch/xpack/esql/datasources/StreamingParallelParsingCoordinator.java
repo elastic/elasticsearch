@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -632,6 +633,14 @@ public final class StreamingParallelParsingCoordinator {
         /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
         @Nullable
         private final StorageObject storageObject;
+        /**
+         * The source's last-modified, probed at most once and shared by every chunk. The probe is a HEAD on a
+         * store that carries no last-modified hint, and chunks are stamped from several threads, so probing per
+         * chunk would be one round trip per chunk for a value that cannot differ between them. Holding the
+         * result — including the failure, as an empty optional — also pins ONE mtime for the whole file, which
+         * is what the row readers do at open. Null means not yet probed.
+         */
+        private final AtomicReference<Optional<Instant>> pinnedSourceMtime = new AtomicReference<>();
 
         private final ArrayBlockingQueue<PoolBuffer> bufferPool;
         /**
@@ -2469,6 +2478,31 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
+         * The source's last-modified, probed on first use and reused by every later chunk.
+         * <p>
+         * A losing thread in a race probes too, and discards its own answer rather than the winner's, so every
+         * chunk of one file is stamped with the same instant either way. A failed probe is memoized as well:
+         * retrying it per chunk would pay the round trip repeatedly to keep getting null.
+         */
+        @Nullable
+        private Instant pinnedSourceMtime() {
+            Optional<Instant> cached = pinnedSourceMtime.get();
+            if (cached == null) {
+                Optional<Instant> probed;
+                try {
+                    probed = Optional.ofNullable(storageObject.lastModified());
+                } catch (IOException e) {
+                    // Leave it empty — the chunk cannot be safely cached without a pinned mtime, and the
+                    // readers' pinnedMtimeMillis >= 0 gate turns that into a safe miss.
+                    probed = Optional.empty();
+                }
+                pinnedSourceMtime.compareAndSet(null, probed);
+                cached = pinnedSourceMtime.get();
+            }
+            return cached.orElse(null);
+        }
+
+        /**
          * Test-only accessor: returns {@code true} when at least one thread is parked on
          * {@link #dispatchPermits}. Used by close-path tests to deterministically wait for the
          * segmentator to reach the permit-acquire blocking site instead of relying on wall-clock sleeps.
@@ -2484,16 +2518,12 @@ public final class StreamingParallelParsingCoordinator {
             // the chunk under a fabricated mtime — risking a stale warm hit if the file later changes. A null
             // mtime leaves pinnedMtimeMillis at -1, so the chunk's stats are uncacheable (safe-miss). A real
             // last-modified (including a genuine EPOCH) still flows through and stays cacheable.
-            // Only a read that captures statistics needs the stamp, and the probe is a round trip on a store
-            // that carries no last-modified header — so a read with no capture sink does not pay for it. This is
-            // the compressed/streaming path's half of the same gate the two row readers apply.
+            // Only a read that harvests statistics needs the stamp, so one that does not never probes. The
+            // scope term is the one the two row readers apply; the sink is this path's own producer of the
+            // thing being stamped.
             Instant mtime = null;
-            if (storageObject != null && captureSink != null) {
-                try {
-                    mtime = storageObject.lastModified();
-                } catch (IOException e) {
-                    // Fall back to null — the chunk cannot be safely cached without a pinned mtime.
-                }
+            if (storageObject != null && captureSink != null && statsColumnScope != StripeColumnScope.NONE) {
+                mtime = pinnedSourceMtime();
             }
             return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
         }

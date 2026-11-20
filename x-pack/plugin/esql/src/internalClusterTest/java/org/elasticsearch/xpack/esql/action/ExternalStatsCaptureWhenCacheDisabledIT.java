@@ -88,7 +88,7 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
      * A parsing coordinator is built only above parallelism 1, and the marker is written by a coordinator — so the
      * early-close arms pin it rather than depending on the runner's processor count. A release build rejects
      * pragmas at request validation unless the request opts in, which {@link #scan} does, so this holds in both
-     * build types and neither arm has to be skipped.
+     * build types.
      */
     @Override
     protected QueryPragmas getPragmas() {
@@ -131,9 +131,8 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
             Map<String, List<Map<String, Object>>> disabled = scan(format, "clean_off", "| STATS COUNT(*)", exhausted());
             assertThat("a disabled cache must harvest nothing", disabled, anEmptyMap());
 
-            // Back on, against a file neither earlier arm read. The flag is resolved per read through a supplier
-            // rather than captured once, and only this arm can tell that apart from a value latched at the first
-            // disable: the two arms above pass either way.
+            // Back on, against a file neither earlier arm read: the flag is resolved per read through a
+            // supplier rather than captured once, so re-enabling restores harvesting.
             setCacheEnabled(true);
             Map<String, List<Map<String, Object>>> reenabled = scan(format, "clean_again", "| STATS COUNT(*)", exhausted());
             assertThat("re-enabling the cache must put harvesting back", reenabled, not(anEmptyMap()));
@@ -162,8 +161,7 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
         try {
             setCacheEnabled(true);
             Map<String, List<Map<String, Object>>> enabled = scan(format, "limit_on", tail, stoppedShort());
-            // Not merely non-empty: a non-empty map could hold a completed stripe rather than the marker, and
-            // then this control would pass without ever reaching the path under test.
+            // Not merely non-empty: a non-empty map could hold a completed stripe rather than the marker.
             assertThat(
                 "control: an early close against an enabled cache must write the per-file marker itself; got " + enabled,
                 markerCount(enabled),
@@ -229,9 +227,8 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
 
         try (
             EsqlQueryResponse response = run(
-                // acceptedPragmaRisks because a release build otherwise rejects the parallelism pragma at request
-                // validation, and skipping the arms there would drop the marker coverage on exactly the
-                // runners most likely to have one processor.
+                // acceptedPragmaRisks because a release build otherwise rejects the parallelism pragma at
+                // request validation.
                 syncEsqlQueryRequest("FROM " + dataset + " " + tail).pragmas(getPragmas()).acceptedPragmaRisks(true).profile(true),
                 TimeValue.timeValueMinutes(5)
             )

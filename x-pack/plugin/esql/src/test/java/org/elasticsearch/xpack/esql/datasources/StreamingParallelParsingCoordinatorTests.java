@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.cache.StripeStatsHarvester;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.CountingMtimeStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
@@ -384,10 +385,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals("a read with no capture sink must not probe lastModified()", 0, uncaptured.get());
 
         // Control: the same read WITH a sink must probe, or this would also pass against a path that had
-        // stopped stamping chunks altogether.
+        // stopped stamping chunks altogether. EXACTLY one: the probe is memoized per file, so this pins both
+        // halves at once -- zero would mean nothing is stamped, and more than one would mean the memo broke
+        // and every chunk is paying a HEAD again.
         AtomicInteger captured = new AtomicInteger();
         streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), captured);
-        assertThat("a capturing read pins each chunk's mtime, so it must probe", captured.get(), Matchers.greaterThan(0));
+        assertThat("a capturing read probes once for the whole file", captured.get(), Matchers.equalTo(1));
     }
 
     /** Drains a streaming parallel read whose storage object counts every {@code lastModified()} call. */
@@ -399,7 +402,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         String content = buildContent(500);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
         String path = "mem://streaming-mtime-probe-test";
-        StorageObject file = new CountingMtimeStorageObject(path, Instant.parse("2020-01-01T00:00:00Z"), probes);
+        StorageObject file = new CountingMtimeStorageObject(new TestFileStorageObject(path, Instant.parse("2020-01-01T00:00:00Z")), probes);
         StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
 
         ExecutorService executor = Executors.newFixedThreadPool(6);
@@ -6502,51 +6505,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+
     /** Path + mtime only — bytes come from the decompressed stream, not this object. */
-    /** A file object that records how many times its last-modified was asked for. */
-    private static final class CountingMtimeStorageObject extends AbstractTestStorageObject {
-        private final StoragePath path;
-        private final Instant mtime;
-        private final AtomicInteger probes;
-
-        CountingMtimeStorageObject(String path, Instant mtime, AtomicInteger probes) {
-            this.path = StoragePath.of(path);
-            this.mtime = mtime;
-            this.probes = probes;
-        }
-
-        @Override
-        public InputStream newStream() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public InputStream newStream(long position, long length) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long length() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Instant lastModified() {
-            probes.incrementAndGet();
-            return mtime;
-        }
-
-        @Override
-        public boolean exists() {
-            return true;
-        }
-
-        @Override
-        public StoragePath path() {
-            return path;
-        }
-    }
-
     private static final class TestFileStorageObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final Instant mtime;

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.StatisticsKey;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.CountingMtimeStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -1524,8 +1525,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         readWholeFile(countingObject(full, noneProbes), StripeColumnScope.NONE, 64);
         assertEquals("a read that harvests nothing must not probe lastModified()", 0, noneProbes.get());
 
-        // Control: the same read that DOES harvest must probe, or this test would also pass against a reader
-        // that had stopped probing altogether.
+        // Control: the same read that DOES harvest must probe.
         AtomicInteger projectedProbes = new AtomicInteger();
         readWholeFile(countingObject(full, projectedProbes), StripeColumnScope.PROJECTED, 64);
         assertThat("a harvesting read pins the mtime, so it must probe", projectedProbes.get(), greaterThan(0));
@@ -1536,10 +1536,9 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
      * the scope kept per-column statistics out of its publish: the accumulator was built from the projected
      * attributes whenever the file was cacheable, and a whole-file publish is the one consumer that reads it.
      * <p>
-     * The header is TYPED so the read actually takes that path. An untyped header leaves the schema unresolved,
-     * inference then samples far more rows than this fixture holds, every row arrives pre-parsed, and the direct
-     * batch is reached only at EOF with nothing in it — so an untyped fixture pins the accumulator being built
-     * and published while never folding a single cell, which is the cost this scope exists to avoid.
+     * The header is TYPED so the read actually takes that path: an untyped header leaves the schema unresolved,
+     * inference samples more rows than this fixture holds, and the direct batch is then reached only at EOF with
+     * nothing in it.
      * <p>
      * Each arm pairs the per-column assertion with the row count, because "no column stats" is also what a read
      * that published nothing at all looks like.
@@ -1613,49 +1612,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
     /** Delegates to the in-memory object, counting every mtime probe. */
     private StorageObject countingObject(byte[] bytes, AtomicInteger probes) {
-        StorageObject delegate = memoryObject(bytes);
-        return new StorageObject() {
-            @Override
-            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
-                delegate.attachMetrics(metrics, scheme);
-            }
-
-            @Override
-            public StorageIdentity storageIdentity() {
-                return delegate.storageIdentity();
-            }
-
-            @Override
-            public InputStream newStream() throws IOException {
-                return delegate.newStream();
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) throws IOException {
-                return delegate.newStream(position, length);
-            }
-
-            @Override
-            public long length() throws IOException {
-                return delegate.length();
-            }
-
-            @Override
-            public Instant lastModified() throws IOException {
-                probes.incrementAndGet();
-                return delegate.lastModified();
-            }
-
-            @Override
-            public boolean exists() throws IOException {
-                return delegate.exists();
-            }
-
-            @Override
-            public StoragePath path() {
-                return delegate.path();
-            }
-        };
+        return new CountingMtimeStorageObject(memoryObject(bytes), probes);
     }
 
     private static byte[] slice(byte[] src, int from, int to) {

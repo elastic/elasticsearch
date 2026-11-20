@@ -2737,11 +2737,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             useDirectBlockPlain,
             useDirectBlockQuoted,
             context.splitStartByte(),
-            // Self-gated on the scope as NdJsonPageIterator does, so the grid and the scope cannot disagree:
-            // the factory resolves the two independently, and cache-on with stripe.columns=none hands this
-            // reader a positive grid under NONE. Without this term it would build a harvester, and take the
-            // offset-tracking read route, with nothing to consume either.
-            chunkMode && context.statsColumnScope() != StripeColumnScope.NONE ? context.statsStripeSize() : -1L,
+            // cacheable already carries the scope term, so the NONE check stays in one place.
+            cacheable && chunkMode ? context.statsStripeSize() : -1L,
             context.statsFileFinal(),
             context.statsColumnScope(),
             context.statsStripeSink(),
@@ -4571,10 +4568,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
             this.statsFileFinal = statsFileFinal;
             this.stripeHarvester = statsStripeSize > 0 ? new StripeStatsHarvester(statsStripeSize, statsFileFinal, statsStripeSink) : null;
-            // Pins the call site's scope term: drop it and chunkMode alone leaves a positive grid under NONE, so
-            // this builds a harvester nothing can feed. Assertions are off in production.
-            assert this.statsColumnScope != StripeColumnScope.NONE || this.stripeHarvester == null
-                : "stripe grid active under " + this.statsColumnScope + ", size " + statsStripeSize;
             // Same fallback as SkipWarnings, so a read context without a sink (tests, benchmarks) does not silence one
             // read-time channel while the other still reaches HeaderWarning. Production read paths always supply one.
             this.warningSink = warningSink != null ? warningSink : message -> HeaderWarning.addWarning(message);
@@ -5510,7 +5503,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // early for every other, so accumulating under another scope folds a min/max/null per cell on the
                 // parse loop for a result no one reads. The direct path is never entered under ALL (see
                 // directEligible), and COUNT wants the row count alone.
-                if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED) {
+                // statsStripeSize > 0 is the other half: under a stripe grid captureBlockStats returns at its
+                // accumulateStripes branch and closeInternal publishes per stripe, so nothing ever reads this
+                // accumulator and every projected cell would be folded twice.
+                if (cacheableObject != null && statsColumnScope == StripeColumnScope.PROJECTED && statsStripeSize <= 0) {
                     columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
                     accumulateDirectStats = columnStats.isEmpty() == false;
                 }

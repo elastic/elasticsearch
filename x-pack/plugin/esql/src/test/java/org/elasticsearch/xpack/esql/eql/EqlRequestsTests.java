@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.generator.command.source.EqlGenerator;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.List;
@@ -138,7 +139,9 @@ public class EqlRequestsTests extends ESTestCase {
     }
 
     public void testSizeDefaultsToTheEqlDefault() {
-        assertThat(build("process where true", "logs", NO_SCHEMA, Map.of()).size(), equalTo(10));
+        int size = build("process where true", "logs", NO_SCHEMA, Map.of()).size();
+        assertThat(size, equalTo(10));
+        assertThat(EqlGenerator.DEFAULT_SIZE, equalTo(size));
     }
 
     public void testPushedLimitLowersTheDefaultSize() {

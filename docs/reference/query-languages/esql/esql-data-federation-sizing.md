@@ -44,7 +44,7 @@ The text formats work the other way. A file is read as a continuous stream, and 
 
 Parallelization works differently by format too, because each one divides a file into a different unit of work. For Parquet that unit is a row group, so even one large file is read by several readers at once. For uncompressed text it is a split, so a larger file is read as several of them. For compressed text it is the whole file: a compressed file cannot be read from the middle, so it cannot be divided at all, and one file is handled by one reader on one thread.
 
-The heap a cluster needs does not depend on how large your dataset is. Data is streamed through the cluster rather than loaded into it, so what matters is how much is in flight at any one moment, and a dataset of 10,000 objects needs much the same heap as one of 100. What the size of the dataset does affect is how long a query takes, and so the number of cores you need to meet a latency target.
+The heap a cluster needs does not depend on how large your dataset is. Data is streamed through the cluster rather than loaded into it, so what matters is how much is in flight at any one moment. What the size of the dataset does affect is how long a query takes, and so the number of cores you need to meet a latency target.
 
 ## Size your files for your workload [file-layout]
 

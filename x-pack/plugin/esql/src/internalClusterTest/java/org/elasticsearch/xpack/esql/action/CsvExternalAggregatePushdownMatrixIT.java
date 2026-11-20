@@ -65,6 +65,24 @@ public class CsvExternalAggregatePushdownMatrixIT extends AbstractExternalAggreg
         });
     }
 
+    public void testFilteredCountsOverNaNRowMatchAScanAfterTheStatisticsAreHarvested() throws Exception {
+        Path file = createTempDir().resolve("nan_filter.csv");
+        Files.writeString(file, "emp_no:long,d:double\n0,1.0\n1,NaN\n");
+        registerDataset("nan_filter_csv", StoragePath.fileUri(file));
+
+        assertFilteredCountsOverNaNRowMatchAScan("nan_filter_csv", true);
+    }
+
+    public void testFilteredCountsOverNaNRowInAnotherFileMatchAScanAfterTheStatisticsAreHarvested() throws Exception {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("a.csv"), "emp_no:long,d:double\n0,1.0\n");
+        Files.writeString(dir.resolve("b.csv"), "emp_no:long,d:double\n1,NaN\n");
+        String dirUri = StoragePath.fileUri(dir);
+        registerDataset("nan_filter_csv_files", (dirUri.endsWith("/") ? dirUri : dirUri + "/") + "*.csv");
+
+        assertFilteredCountsOverNaNRowMatchAScan("nan_filter_csv_files", true);
+    }
+
     /**
      * Multivalue via {@code multi_value_syntax: brackets} (the text-format path, distinct from NDJSON arrays):
      * a bracketed cell {@code [a,b]} is two values in one column, so {@code COUNT(tags)} counts VALUES

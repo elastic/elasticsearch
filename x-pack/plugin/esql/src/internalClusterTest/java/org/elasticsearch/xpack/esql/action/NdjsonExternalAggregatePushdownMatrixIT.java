@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.metadata.DatasetFieldMapping;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -15,7 +16,9 @@ import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -49,6 +52,16 @@ public class NdjsonExternalAggregatePushdownMatrixIT extends AbstractExternalAgg
         Path file = dir.resolve("employees.ndjson");
         Files.writeString(file, sb.toString());
         return StoragePath.fileUri(file);
+    }
+
+    public void testFilteredCountsOverNaNRowMatchAScanAfterTheStatisticsAreHarvested() throws Exception {
+        Path file = createTempDir().resolve("nan_filter.ndjson");
+        Files.writeString(file, "{\"emp_no\":0,\"d\":1.0}\n{\"emp_no\":1,\"d\":\"NaN\"}\n");
+        LinkedHashMap<String, DatasetFieldMapping> declared = new LinkedHashMap<>();
+        declared.put("d", new DatasetFieldMapping("double", null));
+        registerNonStrictDataset("nan_filter_ndjson", StoragePath.fileUri(file), declared, Map.of("format", format()));
+
+        assertFilteredCountsOverNaNRowMatchAScan("nan_filter_ndjson", false);
     }
 
     /**

@@ -196,6 +196,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *     <li>
  *         If appropriate, remove the type from the ESQL limitations list of
  *         unsupported types.</li>
+ *     <li>
+ *         Decide whether the type can be a grouping key and declare it via
+ *         {@link Builder#groupable()}; see {@link #isGroupable()} for the contract.
+ *         Without it, STATS BY, LIMIT BY and DEDUP reject the type.</li>
  * </ul>
  */
 public enum DataType implements Writeable {
@@ -1041,8 +1045,18 @@ public enum DataType implements Writeable {
 
     /**
      * {@code true} if values of this type can be a grouping key: a {@code STATS BY}, {@code INLINE STATS BY}
-     * or {@code LIMIT BY} grouping, or a {@code DEDUP} column. The compute engine must be able to hash values
-     * of every groupable type into groups. New types reject grouping until this is deliberately enabled.
+     * or {@code LIMIT BY} grouping, or a {@code DEDUP} column.
+     * <p>
+     * Grouping keys follow the type's own equality: group keys compare encoded values, so every path that
+     * produces a value of a groupable type (block loaders, evaluators, conversions, deserialization) must
+     * encode equal values as identical bits. {@code null} keys equal each other. {@code STATS BY} expands a
+     * multivalue into one key per value, while {@code LIMIT BY} and {@code DEDUP} compare a multivalue as one
+     * key with list semantics, sensitive to order and repeats. {@code _source}, {@code _tsid} and spatial
+     * shapes compare by their encoded bytes.
+     * <p>
+     * New types reject grouping until this is deliberately enabled. Since {@code LIMIT BY} is GA, the set of
+     * groupable types can only grow, and a type that becomes groupable later needs a transport version gate
+     * when its key encoding is new, so a key never reaches a node that cannot encode it.
      */
     public boolean isGroupable() {
         return isGroupable;

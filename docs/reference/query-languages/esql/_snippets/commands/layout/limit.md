@@ -39,6 +39,15 @@ When `BY` is specified, up to `max_number_of_rows` rows are retained for each
 distinct combination of the grouping expressions.
 Precede `LIMIT <N> BY` with a `SORT` to keep the top N for each group.
 
+`null` grouping values compare equal, so rows whose grouping values are all
+`null` form one group. A multivalued grouping value is compared as a whole, in
+order: `[a, b]`, `[b, a]` and `[a, a, b]` are three distinct groups, unlike
+[`STATS ... BY`](/reference/query-languages/esql/commands/stats-by.md), which
+puts such a row into one group per value. `_source` and spatial shapes
+(`geo_shape`, `cartesian_shape`) are compared by their stored byte
+representation, so the same logical value encoded differently counts as a
+separate group.
+
 {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` To remove
 duplicate rows, use [`DEDUP`](/reference/query-languages/esql/commands/dedup.md)
 instead. It is equivalent to `LIMIT 1 BY` for every column in scope, without having

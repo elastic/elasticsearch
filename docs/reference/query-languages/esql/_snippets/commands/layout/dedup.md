@@ -17,6 +17,8 @@ DEDUP
 
 A multivalued column is compared as a whole: two values are equal only if they hold the same values in the same order. `[a, b]`, `[b, a]` and `[a, a, b]` are three different values, so `DEDUP` keeps a row for each of them. This differs from [`STATS ... BY`](/reference/query-languages/esql/commands/stats-by.md), which puts a row with a multivalued grouping key into one group for each of its values.
 
+`_source` and spatial shapes (`geo_shape`, `cartesian_shape`) are compared by their stored byte representation. The same logical value encoded differently, such as the same `_source` document with another key order, or the same shape listing its vertices from another starting point, is a different value to `DEDUP`.
+
 After a [`SORT`](/reference/query-languages/esql/commands/sort.md), the rows that `DEDUP` keeps stay in sort order, each at the position of its first occurrence. Without a `SORT`, the order of the output rows is not defined.
 
 `DEDUP` is equivalent to `LIMIT 1 BY <all columns>`.

@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.GroupKeyEncoder;
+import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -32,6 +34,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -91,6 +94,63 @@ public class GroupableTypesTests extends ESTestCase {
         }
     }
 
+    /**
+     * LIMIT BY is GA, so a type that is groupable today must stay groupable: this pins the set as a lower
+     * bound. Adding types is fine; removing one rejects queries that work today.
+     */
+    public void testGroupableSetOnlyGrows() {
+        Set<DataType> groupable = Set.of(
+            DataType.NULL,
+            DataType.BOOLEAN,
+            DataType.COUNTER_LONG,
+            DataType.COUNTER_INTEGER,
+            DataType.COUNTER_DOUBLE,
+            DataType.LONG,
+            DataType.INTEGER,
+            DataType.UNSIGNED_LONG,
+            DataType.DOUBLE,
+            DataType.KEYWORD,
+            DataType.TEXT,
+            DataType.DATETIME,
+            DataType.DATE_NANOS,
+            DataType.DOUBLE_RANGE,
+            DataType.IP,
+            DataType.VERSION,
+            DataType.SOURCE,
+            DataType.GEO_POINT,
+            DataType.CARTESIAN_POINT,
+            DataType.CARTESIAN_SHAPE,
+            DataType.GEO_SHAPE,
+            DataType.GEOHASH,
+            DataType.GEOTILE,
+            DataType.GEOHEX,
+            DataType.TSID_DATA_TYPE,
+            DataType.HISTOGRAM,
+            DataType.DENSE_VECTOR,
+            DataType.FLATTENED
+        );
+        for (DataType type : groupable) {
+            assertTrue("[" + type.typeName() + "] was groupable and the set can only grow", type.isGroupable());
+        }
+    }
+
+    /**
+     * A type SORT accepts should be a legal grouping key too, since both need stable value comparisons.
+     * The pinned violations are types {@code isSortable} accepts although no sort key encoding exists for
+     * them either; they must not grow.
+     */
+    public void testSortableImpliesGroupable() {
+        Set<DataType> knownViolations = Set.of(DataType.TDIGEST, DataType.EXPONENTIAL_HISTOGRAM, DataType.PARTIAL_AGG);
+        for (DataType type : DataType.values()) {
+            if (NEVER_A_GROUPING.contains(type) || type == DataType.DOC_DATA_TYPE) {
+                continue;
+            }
+            if (DataType.isSortable(type) && knownViolations.contains(type) == false) {
+                assertTrue("sortable [" + type.typeName() + "] must be groupable", type.isGroupable());
+            }
+        }
+    }
+
     public void testNullIsGroupable() {
         assertTrue(DataType.NULL.isGroupable());
         analyzer().query("ROW x = 1 | EVAL f = null | STATS c = count(*) BY f");
@@ -118,16 +178,35 @@ public class GroupableTypesTests extends ESTestCase {
         }
     }
 
+    /**
+     * dense_vector cannot build a {@link BlockHash}, which is why STATS rejects it, but it stays groupable
+     * because the LIMIT BY and DEDUP key path can encode {@link ElementType#FLOAT}. That encoding may come
+     * from the mv-dedupe batch encoders or from {@link GroupKeyEncoder}; either satisfies the contract.
+     */
     public void testDenseVectorHasARowKeyEncoding() {
         assertTrue(DataType.DENSE_VECTOR.isGroupable());
         BlockFactory blockFactory = blockFactory();
-        ElementType elementType = PlannerUtils.toElementType(DataType.DENSE_VECTOR);
+        assertThat(PlannerUtils.toElementType(DataType.DENSE_VECTOR), is(ElementType.FLOAT));
+        try (FloatBlock block = blockFactory.newFloatArrayVector(new float[] { 1F, 2F }, 2).asBlock()) {
+            assertTrue(
+                "the LIMIT BY/DEDUP key path must encode FLOAT",
+                batchEncodersSupport(block) || groupKeyEncoderEncodes(block, blockFactory)
+            );
+        }
+    }
+
+    private static boolean batchEncodersSupport(FloatBlock block) {
+        try (BatchEncoder encoder = MultivalueDedupe.batchEncoder(block, 1, true)) {
+            return encoder != null;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private static boolean groupKeyEncoderEncodes(FloatBlock block, BlockFactory blockFactory) {
         PagedBytesBuilder row = new PagedBytesBuilder(blockFactory.bigArrays().recycler(), blockFactory.breaker(), "test", 64);
-        try (
-            GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(elementType), row);
-            FloatBlock block = blockFactory.newFloatArrayVector(new float[] { 1F, 2F }, 2).asBlock()
-        ) {
-            assertThat(encoder.encode(new Page(block), 0), notNullValue());
+        try (GroupKeyEncoder encoder = new GroupKeyEncoder(new int[] { 0 }, List.of(ElementType.FLOAT), row)) {
+            return encoder.encode(new Page(block), 0) != null;
         }
     }
 

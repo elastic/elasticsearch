@@ -1,6 +1,6 @@
 ---
 navigation_title: "Sizing and performance"
-description: "Size your Elasticsearch cluster for ES|QL Data Federation workloads, by file format, compression, and query concurrency."
+description: "Size your Elasticsearch cluster for ES|QL Data Federation workloads on Amazon S3, by file format, compression, and query concurrency."
 applies_to:
   stack: preview 9.6+, experimental =9.5
   serverless: preview
@@ -10,7 +10,7 @@ products:
 
 # Size your {{es}} cluster for {{esql}} Data Federation workloads
 
-With [data federation](esql-data-federation.md), you can query tabular data held in object storage, in CSV, TSV, NDJSON and Parquet files, without ingesting it into {{es}} first. The guidance on this page is for those formats held on [Amazon S3](esql-data-federation-s3.md).
+With [data federation](esql-data-federation.md), you can query tabular data held on [Amazon S3](esql-data-federation-s3.md), in CSV, TSV, NDJSON and Parquet files, without ingesting it into {{es}} first. The guidance on this page is for those formats on Amazon S3.
 
 This guide covers how much heap and how many cores your cluster needs to run your queries at the concurrency you expect, and how to lay out your files so those cores stay busy.
 
@@ -26,7 +26,7 @@ For data held in {{es}} indices, refer to the [Size your shards](docs-content://
 * **Add 1 core per 3 to 4 concurrent queries** on text, and 1 core per 8 to 10 on Parquet.
 * **Do not raise heap past 31 GB.** Scale horizontally across nodes instead.
 
-These figures are starting points. They assume cold reads, where every query fetches its data from object storage. How a dataset behaves then depends on characteristics of your own data: how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects. A configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
+These figures are starting points. They assume cold reads, where every query fetches its data from Amazon S3. How a dataset behaves then depends on characteristics of your own data: how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects. A configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
 
 ## Background [background]
 
@@ -36,7 +36,7 @@ What differs is the work of reading data that lives outside the cluster. A few s
 
 * **Schema inference.** Text files carry no description of their own columns, so {{es}} establishes one by [sampling rows](esql-data-federation-schema.md) from the dataset's files. This happens on the coordinating node at planning time, before any data is read, unless the dataset [specifies a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) with [`dynamic`](esql-data-federation-schema.md#mapping-properties) set to `false`. Its cost follows the number of columns rather than the size of the dataset, and because it falls on the coordinating node alone, adding data nodes does not divide it.
 * **Split distribution.** The files a query reads are divided into units of work called splits, sized by [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size), and those splits are distributed across the data nodes. How many a node reads at once follows its core count.
-* **Staging and decompression buffers.** {{es}} allocates memory to hold the data fetched from object storage, and further memory to decompress it and to parse it into the columnar form the query engine works on. A compressed split expands in memory before it can be read, so data that compresses well costs *more* heap per reader rather than less.
+* **Staging and decompression buffers.** {{es}} allocates memory to hold the data fetched from Amazon S3, and further memory to decompress it and to parse it into the columnar form the query engine works on. A compressed split expands in memory before it can be read, so data that compresses well costs *more* heap per reader rather than less.
 
 The formats then diverge. Parquet carries its schema in the file footers, so no sampling is needed. It is read chunk by chunk: a reader takes one row group at a time and, within that group, fetches and decodes only the columns the query asks for. Both the bytes read and the work done therefore follow your projection rather than the width of the file, which means that narrowing a query with [`KEEP`](/reference/query-languages/esql/commands/keep.md) genuinely reads less.
 
@@ -52,7 +52,7 @@ File layout is a property of your data rather than of your cluster.
 
 Aim for mid-sized files, from tens of megabytes to several hundred megabytes.
 
-Object storage has high latency on every request, so a query gets its throughput from reading many files in parallel rather than from any single read being fast. This works against you at both extremes. If a dataset holds too few files, there is not enough work to share out and some of your cores sit idle however large the cluster is. If it holds too many, each one still costs a full request, and a query over very small files spends more of its time waiting on those requests than reading data.
+Amazon S3 has high latency on every request, so a query gets its throughput from reading many files in parallel rather than from any single read being fast. This works against you at both extremes. If a dataset holds too few files, there is not enough work to share out and some of your cores sit idle however large the cluster is. If it holds too many, each one still costs a full request, and a query over very small files spends more of its time waiting on those requests than reading data.
 
 There is also a hard limit on how many files one dataset can hold, set by [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files). A query over a dataset above that limit fails, so either keep the dataset within it, by narrowing the resource pattern or splitting the data across several datasets, or raise the setting.
 
@@ -97,7 +97,7 @@ CSV, TSV and NDJSON files do not describe their own columns, so {{es}} works the
 
 ### Increase read concurrency for more parallelism [read-concurrency]
 
-[`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) sets how many requests to object storage a node has outstanding at any moment. Its default is worked out from the node's core count.
+[`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) sets how many requests to Amazon S3 a node has outstanding at any moment. Its default is worked out from the node's core count.
 
 Raising it gives you more read parallelism. Raise the heap at the same time: every request in flight is holding data that is being staged and decompressed, so a node given more read concurrency and no more memory will trip a [circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). This is a [static setting](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), so the node has to be restarted before a change takes effect.
 

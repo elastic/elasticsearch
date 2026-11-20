@@ -12,12 +12,8 @@ package org.elasticsearch.ingest.attachment.heappressure;
 import java.util.Map;
 
 /**
- * A document whose extracted text cannot fit on the heap must be rejected by the request circuit breaker, not run the node out of memory.
- *
- * <p>The spreadsheet extracts to 150M chars, 300 MB of text with two bytes per char, more than the 256 MB heap, from a request of a few
- * MB. Nothing bounds the text with {@code indexed_chars: -1}, and the memory the processor uses for it is not charged to any breaker, so
- * today the node runs out of memory. Once the processor charges the request breaker for it, the document is rejected, the charge is
- * released, and the node goes on processing attachments.
+ * A document whose extracted text exceeds the heap (150M chars, 300 MB as UTF-16) must be rejected by the request circuit breaker rather
+ * than run the node out of memory, and the node must keep processing attachments afterwards.
  */
 public class AttachmentOversizedTextHeapPressureIT extends AttachmentHeapPressureTestCase {
 

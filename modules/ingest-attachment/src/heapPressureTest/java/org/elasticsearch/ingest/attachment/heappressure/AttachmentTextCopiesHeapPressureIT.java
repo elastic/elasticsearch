@@ -16,17 +16,12 @@ import org.elasticsearch.test.rest.ObjectPath;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * A document whose extracted text fits on the heap must be indexed, not run the node out of memory.
- *
- * <p>The spreadsheet extracts to 30M chars, 60 MB of text with two bytes per char, a quarter of the 256 MB heap. The processor keeps
- * several full copies of the text at once: the growing output buffer of Tika and its {@code toString()}, the {@code trim()} of that, and
- * the char array {@code LanguageIdentifier} copies the text into, besides the base64 source and the decoded bytes. Today that exhausts
- * the heap while {@code LanguageIdentifier} copies the text, the same frame as in the incident: 25M chars still passed, 28M did not.
- * Once the processor keeps no more copies than it needs, the document is indexed.
+ * A document whose extracted text fits on the heap (45M chars, 90 MB as UTF-16) must be indexed. Today the redundant copies of the text
+ * the processor keeps run the node out of memory.
  */
 public class AttachmentTextCopiesHeapPressureIT extends AttachmentHeapPressureTestCase {
 
-    private static final long TEXT_CHARS = 30_000_000;
+    private static final long TEXT_CHARS = 45_000_000;
 
     public void testTextFittingOnHeapIsIndexed() throws Exception {
         assertSmallSpreadsheetIndexed("small");

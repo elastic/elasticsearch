@@ -35,20 +35,18 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Base class for the {@code attachment} processor heap pressure scenarios. A single document goes through the pipeline Kibana File
- * Upload creates for every uploaded file, {@code attachment} with {@code indexed_chars: -1}, so all text Tika extracts is kept.
- *
- * <p>The documents are spreadsheets generated on the fly. Their repetitive cells compress well, so a request of a few MB expands to tens
- * or hundreds of millions of chars of extracted text, like the zipped Office file that ran a 1 GB heap serverless indexing node out of
- * memory. A single char outside Latin1 makes Java store the extracted text with two bytes per char, as in that incident.
- *
- * <p>Each scenario is its own class, because a node that died cannot be reused by another test and the source set gives every class its
- * own cluster.
+ * Base class for the {@code attachment} processor heap pressure tests. Each test indexes a generated spreadsheet through Kibana File
+ * Upload's pipeline ({@code indexed_chars: -1}), followed by a truncation of the extracted text, so that the processor's memory use is
+ * measured rather than the cost of indexing a huge text field. The spreadsheets compress well and contain a non-Latin1 char, so a request
+ * of a few MB extracts to a large UTF-16 text, as in the incident. Each test is its own class, because a node that died can't be reused.
  */
 public abstract class AttachmentHeapPressureTestCase extends HeapPressureTestCase {
 
     protected static final String PIPELINE = "attachment";
     protected static final String INDEX = "attachments";
+
+    /** The extracted text is truncated to this many chars before the document is indexed, more than the small spreadsheet has. */
+    protected static final int INDEXED_CONTENT_CHARS = 10_000;
 
     /**
      * The scenarios are calibrated against this heap, scaled down from the 1 GB of the smallest serverless indexing nodes to keep the
@@ -58,6 +56,8 @@ public abstract class AttachmentHeapPressureTestCase extends HeapPressureTestCas
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
         .module("ingest-attachment")
+        // for gsub, which truncates the extracted text
+        .module("ingest-common")
         .jvmArg("-Xms256m")
         .jvmArg("-Xmx256m")
         // An OutOfMemoryError must end the node so the test sees it.
@@ -66,11 +66,6 @@ public abstract class AttachmentHeapPressureTestCase extends HeapPressureTestCas
         // Only charged bytes count towards the parent breaker. Real memory accounting would also trip on uncharged memory, which hides
         // the accounting gaps these tests look for.
         .setting("indices.breaker.total.use_real_memory", "false")
-        // Indexing pressure rejects a document that is larger than 10% of the heap, or that its pipeline grows by more than that, once
-        // the pipeline completes. That bounds what the document retains afterwards, not what the processor needs while it runs, so it is
-        // raised here to let the documents reach the processor and complete their pipeline.
-        .setting("indexing_pressure.memory.limit", "90%")
-        .setting("indexing_pressure.memory.max_operation_size", "90%")
         .build();
 
     @Override
@@ -87,12 +82,14 @@ public abstract class AttachmentHeapPressureTestCase extends HeapPressureTestCas
     @Before
     public void createPipelineAndIndex() throws IOException {
         Request pipeline = new Request("PUT", "/_ingest/pipeline/" + PIPELINE);
-        pipeline.setJsonEntity("""
+        // truncate the extracted text, so we don't reject the document due to indexing memory pressure
+        pipeline.setJsonEntity(Strings.format("""
             {
               "processors": [
-                { "attachment": { "field": "data", "remove_binary": true, "indexed_chars": -1 } }
+                { "attachment": { "field": "data", "remove_binary": true, "indexed_chars": -1 } },
+                { "gsub": { "field": "attachment.content", "pattern": "(?s)^(.{0,%d}).*", "replacement": "$1", "ignore_missing": true } }
               ]
-            }""");
+            }""", INDEXED_CONTENT_CHARS));
         assertOK(client().performRequest(pipeline));
 
         Request index = new Request("PUT", "/" + INDEX);

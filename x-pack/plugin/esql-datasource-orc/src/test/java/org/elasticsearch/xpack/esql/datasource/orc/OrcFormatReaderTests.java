@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.Split
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -87,11 +86,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
@@ -640,31 +637,6 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         SourceMetadata metadata = reader.metadata(storageObject);
         assertEquals("orc", metadata.sourceType());
-    }
-
-    public void testDoubleStatisticsServeFiniteBoundsAndNeverANaNBound() throws Exception {
-        assertDoubleBounds(new double[] { 1.0, Double.NaN, 2.0 }, 1.0, 2.0);
-        assertDoubleBounds(new double[] { Double.NaN, 1.0, 2.0 }, null, null);
-        assertDoubleBounds(new double[] { Double.NaN, Double.NaN }, null, null);
-    }
-
-    private void assertDoubleBounds(double[] values, Double expectedMin, Double expectedMax) throws Exception {
-        TypeDescription schema = TypeDescription.createStruct().addField("d", TypeDescription.createDouble());
-        byte[] orcData = createOrcFile(schema, batch -> {
-            batch.size = values.length;
-            System.arraycopy(values, 0, ((DoubleColumnVector) batch.cols[0]).vector, 0, values.length);
-        });
-        OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        String label = Arrays.toString(values);
-
-        SourceMetadata metadata = reader.metadata(createStorageObject(orcData));
-        SourceStatistics.ColumnStatistics d = metadata.statistics().get().columnStatistics().get().get("d");
-        assertEquals("file min of " + label, Optional.ofNullable(expectedMin), d.minValue());
-        assertEquals("file max of " + label, Optional.ofNullable(expectedMax), d.maxValue());
-
-        Map<String, Object> stripeStats = reader.discoverSplitRanges(createStorageObject(orcData)).getFirst().statistics();
-        assertEquals("stripe min of " + label, expectedMin, stripeStats.get("_stats.columns.d.min"));
-        assertEquals("stripe max of " + label, expectedMax, stripeStats.get("_stats.columns.d.max"));
     }
 
     public void testReadNullValuesInColumns() throws Exception {

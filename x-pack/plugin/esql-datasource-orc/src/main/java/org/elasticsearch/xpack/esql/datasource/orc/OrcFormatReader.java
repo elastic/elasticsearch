@@ -581,8 +581,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         if (cs instanceof IntegerColumnStatistics intStats) {
             return intStats.getMinimum();
         } else if (cs instanceof DoubleColumnStatistics dblStats) {
-            double min = dblStats.getMinimum();
-            return Double.isNaN(min) ? null : (Object) min;
+            return dblStats.getMinimum();
         } else if (cs instanceof StringColumnStatistics strStats) {
             return strStats.getMinimum();
         }
@@ -593,8 +592,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         if (cs instanceof IntegerColumnStatistics intStats) {
             return intStats.getMaximum();
         } else if (cs instanceof DoubleColumnStatistics dblStats) {
-            double max = dblStats.getMaximum();
-            return Double.isNaN(max) ? null : (Object) max;
+            return dblStats.getMaximum();
         } else if (cs instanceof StringColumnStatistics strStats) {
             return strStats.getMaximum();
         }

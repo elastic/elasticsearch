@@ -536,8 +536,13 @@ public class IndexResolver {
         }
 
         /**
-         * The names the query uses that no index maps as a leaf: in an index where such a name is under a {@code flattened} field,
-         * it is the {@code keyword} key of that name. Empty unless every node reads keys.
+         * The names the query uses that no index maps as a leaf and whose {@code flattened} root is not a {@code flattened} column of the
+         * merged mapping: in an index where such a name is under a {@code flattened} field, it is the {@code keyword} key of that name.
+         * <p>
+         * That is where an index maps the root as {@code flattened} and another one maps it as another type, so the root is a conflict and
+         * the analyzer has nothing to read the key from. Where the root is a {@code flattened} column, which is the usual case, the analyzer
+         * resolves the name as a key of the root where the query uses it (see {@code Analyzer.ResolveRefs#withFlattenedKeys}). Empty
+         * unless every node reads keys.
          */
         Set<String> keyNames() {
             if (namedFields == null || flattenedDataTypeEnabled == false || minTransportVersion == null) {
@@ -548,11 +553,35 @@ public class IndexResolver {
             }
             Set<String> keys = new HashSet<>();
             for (String name : namedFields) {
-                if (name.indexOf('.') > 0 && isLeaf(name) == false) {
+                if (name.indexOf('.') > 0 && isLeaf(name) == false && rootIsAConflict(name)) {
                     keys.add(name);
                 }
             }
             return keys;
+        }
+
+        /** Whether a parent of {@code name} is mapped as {@code flattened} by an index and as another leaf type by another. */
+        private boolean rootIsAConflict(String name) {
+            for (int dot = name.indexOf('.'); dot > 0; dot = name.indexOf('.', dot + 1)) {
+                String parent = name.substring(0, dot);
+                boolean flattened = false;
+                boolean other = false;
+                for (FieldCapabilitiesIndexResponse response : caps.getIndexResponses()) {
+                    IndexFieldCapabilities fc = response.get().get(parent);
+                    if (fc == null) {
+                        continue;
+                    }
+                    if (FlattenedFieldMapper.CONTENT_TYPE.equals(fc.type())) {
+                        flattened = true;
+                    } else if (isObject(fc) == false) {
+                        other = true;
+                    }
+                }
+                if (flattened && other) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private boolean isLeaf(String name) {

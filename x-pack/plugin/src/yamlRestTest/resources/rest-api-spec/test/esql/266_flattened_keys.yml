@@ -318,12 +318,16 @@ setup:
 
 ---
 "a key with unmapped_fields set to load":
+  # attrs is flattened in one index and unmapped in the other, so it is a flattened column that is null in the second; the key is
+  # read from that column
   - do:
+      warnings_regex:
+        - ".*Field \\[attrs\\] is unmapped in some indices and has no implicit conversion from KEYWORD.*"
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM flat, unmapped METADATA _id | KEEP _id, attrs.bar | SORT _id | LIMIT 10'
   - match: { columns.1: { name: attrs.bar, type: keyword } }
-  - match: { values: [ [ "f1", "a" ], [ "f2", null ], [ "u1", "e" ] ] }
+  - match: { values: [ [ "f1", "a" ], [ "f2", null ], [ "u1", null ] ] }
   - do:
       warnings_regex:
         - ".*evaluation of \\[FROM flat, typed, unmapped METADATA _id\\] failed, treating result as null.*"

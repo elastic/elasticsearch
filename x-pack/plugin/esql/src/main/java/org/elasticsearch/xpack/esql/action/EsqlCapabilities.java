@@ -616,6 +616,12 @@ public class EsqlCapabilities {
         FLATTENED_KEYS(EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG),
 
         /**
+         * {@code LOOKUP JOIN} and {@code ENRICH} bring in the keys of the {@code flattened} fields they bring in, as {@code FROM} does.
+         * A key they bring in replaces a key of the same name, but never a mapped field or a computed column.
+         */
+        FLATTENED_KEYS_FROM_LOOKUP_AND_ENRICH(EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG),
+
+        /**
          * The root of a {@code flattened} field has no value that {@code ignore_above} left out, as a {@code keyword} field.
          */
         FLATTENED_ROOT_DROPS_IGNORED_VALUES,

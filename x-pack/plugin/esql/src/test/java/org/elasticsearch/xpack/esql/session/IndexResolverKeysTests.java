@@ -26,13 +26,25 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * A name the query uses under a {@code flattened} field is the {@code keyword} key of that name, unless an index maps it as a leaf.
+ * A name the query uses under a {@code flattened} field that is a conflict with another type, in another index, is the {@code keyword}
+ * key of that name, unless an index maps it as a leaf. Under a {@code flattened} column the analyzer resolves the name instead.
  */
 public class IndexResolverKeysTests extends ESTestCase {
 
-    public void testAKeyIsAKeyword() {
+    /** Where the root is a flattened column, the analyzer resolves the key where the query uses it. */
+    public void testAKeyOfAFlattenedColumnIsNotAField() {
         Map<String, EsField> mapping = resolve(TransportVersion.current(), index("flat", field("attrs", "flattened")));
         assertThat(mapping.get("attrs").getDataType(), equalTo(DataType.FLATTENED));
+        assertThat(mapping.get("attrs").getProperties().containsKey("bar"), equalTo(false));
+    }
+
+    /** Where the root is flattened in one index and a keyword in another, the key is a keyword field of the first. */
+    public void testAKeyOfAConflictingRootIsAKeyword() {
+        Map<String, EsField> mapping = resolve(
+            TransportVersion.current(),
+            index("flat", field("attrs", "flattened")),
+            index("kw", field("attrs", "keyword"))
+        );
         assertThat(mapping.get("attrs").getProperties().get("bar").getDataType(), equalTo(DataType.KEYWORD));
     }
 
@@ -54,7 +66,7 @@ public class IndexResolverKeysTests extends ESTestCase {
     /** With a node that predates keys, a name under a flattened field is not a field: no node reads it. */
     public void testWithAnOlderNodeANameUnderAFlattenedFieldIsNotAField() {
         TransportVersion older = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_flattened_keys"));
-        Map<String, EsField> mapping = resolve(older, index("flat", field("attrs", "flattened")));
+        Map<String, EsField> mapping = resolve(older, index("flat", field("attrs", "flattened")), index("kw", field("attrs", "keyword")));
         assertThat(mapping.get("attrs").getProperties().containsKey("bar"), equalTo(false));
     }
 

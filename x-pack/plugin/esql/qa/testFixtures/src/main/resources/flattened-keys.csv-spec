@@ -207,12 +207,32 @@ c:long
 // [attributes.host] is a key of the flattened [attributes] in [flattened_paths_mapped], a keyword in
 // [flattened_paths_keyword] and unmapped in [flattened_paths_unmapped].
 
+// Naming the key in one branch does not name it in its siblings, as for an unmapped field that one branch loads: the main branch,
+// where attributes is flattened, only holds the key if it names it
 keyInSubquery
 skip_flattened_rewrite: keyword_also_a_flattened_key
 required_capability: flattened_keys
 required_capability: subquery_in_from_command
+required_capability: flattened_keys_from_lookup_and_enrich
 
 FROM flattened_paths_mapped, (FROM flattened_paths_keyword | KEEP attributes.host)
+| KEEP attributes.host
+| SORT attributes.host
+;
+
+attributes.host:keyword
+k
+null
+null
+;
+
+keyNamedByBothBranchesOfSubquery
+skip_flattened_rewrite: keyword_also_a_flattened_key
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+required_capability: flattened_keys_from_lookup_and_enrich
+
+FROM (FROM flattened_paths_mapped | KEEP attributes.host), (FROM flattened_paths_keyword | KEEP attributes.host)
 | KEEP attributes.host
 | SORT attributes.host
 ;
@@ -259,6 +279,7 @@ keyInSubqueryUnderLoad
 required_capability: flattened_keys
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: flattened_keys_from_lookup_and_enrich
 
 SET unmapped_fields="load"\;
 FROM flattened_paths_mapped, (FROM flattened_paths_unmapped | KEEP attributes.host)
@@ -267,9 +288,9 @@ FROM flattened_paths_mapped, (FROM flattened_paths_unmapped | KEEP attributes.ho
 ;
 
 attributes.host:keyword
-a
-c
 d
+null
+null
 ;
 
 // As for a mapped field, a branch that does not name the key does not load it
@@ -307,10 +328,12 @@ c
 null
 ;
 
+// As for LOAD, the branch that does not name the key does not read it
 keyInSubqueryUnderLoadAll
 required_capability: flattened_keys
 required_capability: subquery_in_from_command
 required_capability: optional_fields_load_all_v2
+required_capability: flattened_keys_from_lookup_and_enrich
 
 SET unmapped_fields="load_all"\;
 FROM flattened_paths_unmapped, (FROM flattened_paths_mapped | KEEP attributes.host)
@@ -321,7 +344,7 @@ FROM flattened_paths_unmapped, (FROM flattened_paths_mapped | KEEP attributes.ho
 attributes.host:keyword
 a
 c
-d
+null
 ;
 
 keyInFork
@@ -357,6 +380,7 @@ fork1         | a
 keyInForkUnderLoad
 required_capability: flattened_keys
 required_capability: optional_fields_load_with_fork_subqueries_and_views
+required_capability: flattened_keys_from_lookup_and_enrich
 
 SET unmapped_fields="load"\;
 FROM flattened_paths_mapped, flattened_paths_unmapped
@@ -367,28 +391,174 @@ FROM flattened_paths_mapped, flattened_paths_unmapped
 warning:Field [attributes] is unmapped in some indices and has no implicit conversion from KEYWORD; it is null in those indices
 _fork:keyword | attributes.host:keyword
 fork1         | a
-fork2         | d
 ;
 
-// The name keeps reading the field of the main index: a lookup index contributes no keys
-keywordWithLookupJoin
+// The key of a renamed flattened column is reached under the new name
+keyOfRenamedFlattened
 required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+
+FROM flattened_paths_mapped
+| RENAME attributes AS a
+| WHERE a.host == "a"
+| KEEP id, a.host
+;
+
+id:keyword | a.host:keyword
+f1         | a
+;
+
+// ... and a copy is a flattened column of its own
+keyOfCopiedFlattened
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+
+FROM flattened_paths_mapped
+| EVAL a = attributes
+| KEEP id, a
+| WHERE a.host == "c"
+| KEEP id, a.host
+;
+
+id:keyword | a.host:keyword
+f2         | c
+;
+
+// A key that a command named stays a column after KEEP drops it from the parent; a key that no command named is read from the
+// parent that is visible
+keyReadFromTheParentThatIsVisible
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+
+FROM flattened_paths_mapped
+| KEEP id, attributes
+| WHERE attributes.host == "a"
+| KEEP id, attributes.host
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+;
+
+// A key that a command named is a column that survives the replacement of its parent; one that no command named is not
+keyNamedBeforeTheParentIsReplaced
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+
+FROM flattened_paths_mapped
+| WHERE attributes.host IS NOT NULL
+| EVAL attributes = "x"
+| KEEP id, attributes, attributes.host
+| SORT id
+;
+
+id:keyword | attributes:keyword | attributes.host:keyword
+f1         | x                  | a
+f2         | x                  | c
+;
+
+keyNotNamedBeforeTheParentIsReplacedIsNullified
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: optional_fields_nullify_tech_preview
+
+SET unmapped_fields="nullify"\;
+FROM flattened_paths_mapped
+| EVAL attributes = "x"
+| KEEP id, attributes, attributes.host
+| SORT id
+;
+
+id:keyword | attributes:keyword | attributes.host:null
+f1         | x                  | null
+f2         | x                  | null
+;
+
+// The flattened column comes from the command, not from FROM
+keyOfFlattenedFromRowAndLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: join_lookup_v12
+
+ROW id = "f1"
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host, attributes.zone
+;
+
+id:keyword | attributes.host:keyword | attributes.zone:keyword
+f1         | L                       | L
+;
+
+keyOfFlattenedFromRowAndEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+ROW id = "f1"
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host, attributes.zone
+;
+
+id:keyword | attributes.host:keyword | attributes.zone:keyword
+f1         | L                       | L
+;
+
+// A key never shadows a mapped field: attributes.host keeps reading the main index, next to the attributes of the lookup index
+mappedKeepsItsNameLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+required_capability: flattened_datatype_sorted_keys
 
 FROM flattened_paths_keyword
 | LOOKUP JOIN flattened_paths_lookup ON id
-| KEEP attributes.host
 ;
 
-attributes.host:keyword
-k
+attributes.host:keyword | id:keyword | notes:text | notes.text:keyword | attributes:flattened
+k                       | k1         | hi         | hi                 | "{""host"":""L"",""zone"":""L""}"
 ;
 
-keyWithLookupJoin
+mappedWinsOverKeyLookupJoin
 required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+required_capability: flattened_datatype_sorted_keys
+
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| WHERE attributes.host == "k"
+| KEEP id, attributes.host, attributes
+;
+
+id:keyword | attributes.host:keyword | attributes:flattened
+k1         | k                       | "{""host"":""L"",""zone"":""L""}"
+;
+
+// A key never shadows a computed column
+computedWinsOverKeyLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: join_lookup_v12
 
 FROM flattened_paths_mapped
+| EVAL attributes.host = "e"
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | e
+f2         | e
+;
+
+copiedKeyWinsOverKeyLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+
+FROM flattened_paths_mapped
+| EVAL attributes.host = attributes.host
 | LOOKUP JOIN flattened_paths_lookup ON id
 | KEEP id, attributes.host
 | SORT id
@@ -399,8 +569,124 @@ f1         | a
 f2         | c
 ;
 
-keyOnlyTheLookupIndexHolds
+// Once the mapped field is dropped, the name is the key of the attributes of the lookup index
+keyAfterDroppingMappedLookupJoin
 required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+
+FROM flattened_paths_keyword
+| DROP attributes.host
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host
+;
+
+id:keyword | attributes.host:keyword
+k1         | L
+;
+
+// A key of the attributes of the lookup index replaces the key of the attributes it replaces; f2 has no match
+keyReplacesKeyLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+
+FROM flattened_paths_mapped
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | L
+f2         | null
+;
+
+// A key that a command named is a column from there on, so the command that replaces the attributes does not replace it
+keyFilteredBeforeIsPinnedLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+
+FROM flattened_paths_mapped
+| WHERE attributes.host == "a"
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+;
+
+keyKeptBeforeIsPinnedLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+
+FROM flattened_paths_mapped
+| KEEP id, attributes.host
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+f2         | c
+;
+
+// Naming one key does not make the other keys of the attributes columns
+keyNamedBeforeDoesNotPinOtherKeysLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+
+FROM flattened_paths_mapped
+| WHERE attributes.env == "prod"
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host
+;
+
+id:keyword | attributes.host:keyword
+f1         | L
+;
+
+// The attributes of FROM are flattened, and host is named before the command that replaces them: host is a column that keeps its
+// value, while zone and env were not named, so they are read from the attributes the command brings in. f2 has no match
+keysNamedBeforeAndAfterReplacingTheFlattenedFieldLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+
+FROM flattened_paths_mapped
+| WHERE attributes.host IS NOT NULL
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.host, attributes.zone, attributes.env
+| SORT id
+;
+
+id:keyword | attributes.host:keyword | attributes.zone:keyword | attributes.env:keyword
+f1         | a                       | L                       | null
+f2         | c                       | null                    | null
+;
+
+keyOnlyTheNewFieldHoldsLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: join_lookup_v12
+
+FROM flattened_paths_keyword
+| LOOKUP JOIN flattened_paths_lookup ON id
+| KEEP id, attributes.zone
+;
+
+id:keyword | attributes.zone:keyword
+k1         | L
+;
+
+keyAlsoTheOldFieldHoldsLookupJoin
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
 required_capability: join_lookup_v12
 
 FROM flattened_paths_mapped
@@ -410,6 +696,203 @@ FROM flattened_paths_mapped
 ;
 
 id:keyword | attributes.zone:keyword
-f1         | null
+f1         | L
+f2         | null
+;
+
+// A key never shadows a mapped field: attributes.host keeps reading the main index, next to the attributes of the enrich index
+mappedKeepsItsNameEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+required_capability: flattened_datatype_sorted_keys
+
+FROM flattened_paths_keyword
+| ENRICH flattened_attributes_policy ON id
+;
+
+attributes.host:keyword | id:keyword | notes:text | notes.text:keyword | attributes:flattened
+k                       | k1         | hi         | hi                 | "{""host"":""L"",""zone"":""L""}"
+;
+
+mappedWinsOverKeyEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+required_capability: flattened_datatype_sorted_keys
+
+FROM flattened_paths_keyword
+| ENRICH flattened_attributes_policy ON id
+| WHERE attributes.host == "k"
+| KEEP id, attributes.host, attributes
+;
+
+id:keyword | attributes.host:keyword | attributes:flattened
+k1         | k                       | "{""host"":""L"",""zone"":""L""}"
+;
+
+// A key never shadows a computed column
+computedWinsOverKeyEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_mapped
+| EVAL attributes.host = "e"
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | e
+f2         | e
+;
+
+copiedKeyWinsOverKeyEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_mapped
+| EVAL attributes.host = attributes.host
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+f2         | c
+;
+
+// Once the mapped field is dropped, the name is the key of the attributes of the enrich index
+keyAfterDroppingMappedEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_keyword
+| DROP attributes.host
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host
+;
+
+id:keyword | attributes.host:keyword
+k1         | L
+;
+
+// A key of the attributes of the enrich index replaces the key of the attributes it replaces; f2 has no match
+keyReplacesKeyEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_mapped
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | L
+f2         | null
+;
+
+// A key that a command named is a column from there on, so the command that replaces the attributes does not replace it
+keyFilteredBeforeIsPinnedEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_mapped
+| WHERE attributes.host == "a"
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+;
+
+keyKeptBeforeIsPinnedEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_mapped
+| KEEP id, attributes.host
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+f2         | c
+;
+
+// Naming one key does not make the other keys of the attributes columns
+keyNamedBeforeDoesNotPinOtherKeysEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_mapped
+| WHERE attributes.env == "prod"
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host
+;
+
+id:keyword | attributes.host:keyword
+f1         | L
+;
+
+// The attributes of FROM are flattened, and host is named before the command that replaces them: host is a column that keeps its
+// value, while zone and env were not named, so they are read from the attributes the command brings in. f2 has no match
+keysNamedBeforeAndAfterReplacingTheFlattenedFieldEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_mapped
+| WHERE attributes.host IS NOT NULL
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.host, attributes.zone, attributes.env
+| SORT id
+;
+
+id:keyword | attributes.host:keyword | attributes.zone:keyword | attributes.env:keyword
+f1         | a                       | L                       | null
+f2         | c                       | null                    | null
+;
+
+keyOnlyTheNewFieldHoldsEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_keyword
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.zone
+;
+
+id:keyword | attributes.zone:keyword
+k1         | L
+;
+
+keyAlsoTheOldFieldHoldsEnrich
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: enrich_load
+
+FROM flattened_paths_mapped
+| ENRICH flattened_attributes_policy ON id
+| KEEP id, attributes.zone
+| SORT id
+;
+
+id:keyword | attributes.zone:keyword
+f1         | L
 f2         | null
 ;

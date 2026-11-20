@@ -146,6 +146,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -1682,6 +1683,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (plan.childrenResolved() == false) {
                 return plan;
             }
+            LogicalPlan withKeys = withFlattenedKeys(plan, context);
+            if (withKeys != plan) {
+                return withKeys;
+            }
             // TODO: assess if building this list is still required ahead of the switch, or if it can be done per command only where needed
             final List<Attribute> childrenOutput = new ArrayList<>();
 
@@ -1715,6 +1720,139 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
 
             return resolved;
+        }
+
+        /**
+         * Resolves the keys of {@code flattened} fields that {@code plan} names, by adding them as columns below it.
+         * <p>
+         * <b>The rules for keys of {@code flattened} fields.</b> A key works like an unmapped field that is loaded: a name is one column, and
+         * the mappings and the query decide what that column is.
+         * <ol>
+         *     <li>A name resolves to a visible column of exactly that name. Only if there is none, and a visible column {@code P} of type
+         *     {@code flattened} is a dotted prefix of the name, is the rest of the name a key of {@code P}. The key is then a new column,
+         *     {@code EVAL name = FIELD_EXTRACT(P, key)}, from the first command that names it. Later commands find that column by its
+         *     name. If two visible {@code flattened} columns qualify, the name is ambiguous and the query is rejected.</li>
+         *     <li>A key is a column like any other from there on. A command replaces exactly the names it brings in, so
+         *     {@code LOOKUP JOIN} and {@code ENRICH} never replace a column that exists, key or not. A key that no command has named yet
+         *     is not a column: after a command replaces {@code P}, the name is a key of the new {@code P}.</li>
+         *     <li>Keys are not tracked apart from their parent: {@code RENAME}, {@code EVAL} and {@code KEEP} act on the visible columns.
+         *     The key of a renamed {@code flattened} column is reached under the new name, and a key is only reached while a
+         *     {@code flattened} parent is visible. A name that no visible parent holds is an unmapped field: an error, {@code null} or
+         *     loaded from {@code _source}, as {@code unmapped_fields} says. A key always wins over those settings.</li>
+         *     <li>Patterns never match keys, {@code RENAME} renames columns, and {@code DROP} reaches no key (see elastic/elasticsearch#166913
+         *     for removing the key from the value).</li>
+         *     <li>{@code FROM} is a union of its indices: a name that some index maps is a column of the relation, and an index that
+         *     holds it as a key fills it from the key. Only names that no index maps are resolved by this step.</li>
+         *     <li>Any other type that exposes names inside a value, such as {@code nested} once its sub-fields can be named, has to follow
+         *     these rules. Do not add a second set of rules for it.</li>
+         * </ol>
+         */
+        private static LogicalPlan withFlattenedKeys(LogicalPlan plan, AnalyzerContext context) {
+            if (plan instanceof UnaryPlan unary == false
+                || plan instanceof Drop
+                || plan instanceof Rename
+                || context.configuration().flattenedKeys(context.minimumVersion()) == false) {
+                return plan;
+            }
+            UnaryPlan unary = (UnaryPlan) plan;
+            List<Attribute> input = unary.child().output();
+            Set<String> inputNames = new HashSet<>(Expressions.names(input));
+            Map<String, Attribute> keyRoots = new LinkedHashMap<>();
+            Set<String> ambiguous = new HashSet<>();
+            // Names the command defines itself are not references to its input: EVAL a.b = 1, c = a.b. An EVAL field can refer to the
+            // fields before it, and to a name of the input that it replaces: EVAL a.b = a.b
+            Set<String> definedHere = new HashSet<>();
+            if (unary instanceof Eval eval) {
+                for (Alias field : eval.fields()) {
+                    collectKeyRoots(field.child(), input, inputNames, definedHere, keyRoots, ambiguous);
+                    definedHere.add(field.name());
+                }
+            } else {
+                unary.forEachExpression(Alias.class, alias -> definedHere.add(alias.name()));
+                unary.forEachExpression(
+                    UnresolvedAttribute.class,
+                    ua -> collectKeyRoot(ua, input, inputNames, definedHere, keyRoots, ambiguous)
+                );
+            }
+            if (keyRoots.isEmpty() && ambiguous.isEmpty()) {
+                return plan;
+            }
+            if (ambiguous.isEmpty() == false) {
+                return unary.transformExpressionsOnly(
+                    UnresolvedAttribute.class,
+                    ua -> ambiguous.contains(ua.name())
+                        ? ua.withUnresolvedMessage(
+                            "Reference ["
+                                + ua.name()
+                                + "] is ambiguous, it is a key of more than one flattened field: "
+                                + input.stream()
+                                    .filter(a -> a.dataType() == DataType.FLATTENED && ua.name().startsWith(a.name() + "."))
+                                    .map(Attribute::name)
+                                    .toList()
+                        )
+                        : ua
+                );
+            }
+            List<Alias> keys = new ArrayList<>(keyRoots.size());
+            for (Map.Entry<String, Attribute> key : keyRoots.entrySet()) {
+                Attribute root = key.getValue();
+                String path = key.getKey().substring(root.name().length() + 1);
+                keys.add(
+                    new Alias(
+                        unary.source(),
+                        key.getKey(),
+                        new FieldExtract(unary.source(), root, Literal.keyword(unary.source(), path), true)
+                    )
+                );
+            }
+            return unary.replaceChild(new Eval(unary.source(), unary.child(), keys));
+        }
+
+        private static void collectKeyRoots(
+            Expression expression,
+            List<Attribute> input,
+            Set<String> inputNames,
+            Set<String> definedHere,
+            Map<String, Attribute> keyRoots,
+            Set<String> ambiguous
+        ) {
+            expression.forEachDown(
+                UnresolvedAttribute.class,
+                ua -> collectKeyRoot(ua, input, inputNames, definedHere, keyRoots, ambiguous)
+            );
+        }
+
+        private static void collectKeyRoot(
+            UnresolvedAttribute ua,
+            List<Attribute> input,
+            Set<String> inputNames,
+            Set<String> definedHere,
+            Map<String, Attribute> keyRoots,
+            Set<String> ambiguous
+        ) {
+            String name = ua.name();
+            if (ua instanceof UnresolvedPattern
+                || ua.qualifier() != null
+                || name.indexOf('.') <= 0
+                || inputNames.contains(name)
+                || definedHere.contains(name)
+                || keyRoots.containsKey(name)
+                || ambiguous.contains(name)) {
+                return;
+            }
+            Attribute root = null;
+            for (Attribute candidate : input) {
+                if (candidate.dataType() == DataType.FLATTENED && name.startsWith(candidate.name() + ".")) {
+                    if (root != null) {
+                        ambiguous.add(name);
+                        return;
+                    }
+                    root = candidate;
+                }
+            }
+            if (root != null) {
+                keyRoots.put(name, root);
+            }
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {

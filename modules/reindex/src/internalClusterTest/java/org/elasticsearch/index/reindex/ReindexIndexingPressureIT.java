@@ -11,6 +11,8 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,11 +28,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -267,6 +271,7 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
         createIndex(index, indexSettings(1, 1).build());
         ensureGreen(index);
         client().index(new IndexRequest(index).id("1").source("t", "v")).actionGet();
+        awaitWritePoolIdle();
         refresh(index);
 
         ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
@@ -307,15 +312,47 @@ public class ReindexIndexingPressureIT extends ESIntegTestCase {
         createIndex(name, indexSettings(1, 0).build());
     }
 
-    private static void indexBatch(String index) {
+    private void indexBatch(String index) throws Exception {
         indexDocuments(index, DOCS_PER_BATCH, DOC_CHARS);
     }
 
-    private static void indexDocuments(String index, int count, int chars) {
+    /**
+     * Each primary queues a global-checkpoint sync on the write pool before it returns. That pool has one queue slot,
+     * so the next write waits until the sync has finished. A bulk that would not fit the coordinating limit is split.
+     */
+    private void indexDocuments(String index, int count, int chars) throws Exception {
         String source = "{\"t\":\"" + "x".repeat(chars) + "\"}";
+        // Half the limit leaves room for request context and the bytes the shard request adds on top of the bulk.
+        long room = memoryLimit.get() / 2;
+        long contextBytes = internalCluster().getInstance(ThreadPool.class).getThreadContext().estimatedRequestContextBytes();
+        BulkRequest bulk = new BulkRequest();
         for (int i = 0; i < count; i++) {
-            client().index(new IndexRequest(index).id(Integer.toString(i)).source(source, XContentType.JSON)).actionGet();
+            IndexRequest request = new IndexRequest(index).id(Integer.toString(i)).source(source, XContentType.JSON);
+            if (bulk.numberOfActions() > 0 && bulk.ramBytesUsed() + request.ramBytesUsed() + contextBytes > room) {
+                sendBulk(bulk);
+                bulk = new BulkRequest();
+            }
+            bulk.add(request);
         }
+        sendBulk(bulk);
+    }
+
+    private void sendBulk(BulkRequest bulk) throws Exception {
+        awaitWritePoolIdle();
+        BulkResponse response = client().bulk(bulk).actionGet();
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
+        awaitWritePoolIdle();
+    }
+
+    private void awaitWritePoolIdle() throws Exception {
+        assertBusy(() -> {
+            for (String node : internalCluster().getNodeNames()) {
+                ThreadPoolExecutor executor = (ThreadPoolExecutor) internalCluster().getInstance(ThreadPool.class, node)
+                    .executor(ThreadPool.Names.WRITE);
+                assertThat(executor.getActiveCount(), equalTo(0));
+                assertThat(executor.getQueue().size(), equalTo(0));
+            }
+        });
     }
 
     private static UpdateByQueryRequest batchRequest(String index) {

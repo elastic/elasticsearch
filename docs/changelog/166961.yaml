@@ -1,4 +1,4 @@
-area: Infra/Entitlements
+area: Infra/Core
 issues: []
 pr: 166961
 summary: Add entitlement check for System.getProperties()

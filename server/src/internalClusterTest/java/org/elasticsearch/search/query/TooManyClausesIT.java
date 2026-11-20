@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 /**
- * A query with more nested clauses than the max clause count fails the search with a 400 wherever it is built, including
- * the places that build it outside of the main query. The internal cluster runs in this JVM, so lowering
+ * A query, filter aggregation or alias filter with more nested clauses than the max clause count fails the search with a
+ * 400 on every shard. The internal cluster runs in this JVM, so lowering
  * {@link IndexSearcher#setMaxClauseCount(int)} lowers the limit its nodes apply.
  */
 public class TooManyClausesIT extends ESIntegTestCase {

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -244,7 +245,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ipLocationService,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            crossProjectModeDecider
+            crossProjectModeDecider,
+            new BatchIndexingEnabled(clusterService.getClusterSettings())
         );
 
         var dataSourceModule = planExecutor.dataSourceModule();

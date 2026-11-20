@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -24,7 +25,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.FailingFieldPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -442,12 +442,14 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     private List<String> warningsOf(EsqlQueryRequest request) {
-        ThreadPool threadPool = client().threadPool();
+        // One client: each call to client() picks a random node, and the warnings are in the thread context of the node that ran it
+        Client client = client();
         PlainActionFuture<List<String>> warnings = new PlainActionFuture<>();
         // The framework releases the response after the listener returns, so it is not closed here
-        client().execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
+        client.execute(EsqlQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
             warnings.onResponse(
-                threadPool.getThreadContext()
+                client.threadPool()
+                    .getThreadContext()
                     .getResponseHeaders()
                     .getOrDefault("Warning", List.of())
                     .stream()

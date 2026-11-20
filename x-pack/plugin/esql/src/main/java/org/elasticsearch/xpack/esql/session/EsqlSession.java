@@ -12,7 +12,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
-import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -316,6 +316,7 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final EsqlFlags flags;
     private final ClusterService clusterService;
+    private final BatchIndexingEnabled batchIndexingEnabled;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final String localNodeName;
@@ -479,6 +480,7 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.flags = new EsqlFlags(services.clusterService().getClusterSettings());
         this.clusterService = services.clusterService();
+        this.batchIndexingEnabled = services.batchIndexingEnabled();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();
@@ -3679,7 +3681,8 @@ public class EsqlSession {
             rejectDestinationThatIsRead(into);
             if (configuration.explainOnly() == false) {
                 String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
-                IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported(), projectMetadata, target);
+                boolean batchIndexingSupported = ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService);
+                IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported, projectMetadata, target);
             }
         }
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
@@ -3709,13 +3712,6 @@ public class EsqlSession {
                 throw new VerificationException(List.of(Failure.fail(into, message, into.destination(), source.indexPattern())));
             }
         }
-    }
-
-    // The same conditions as ShardBatchIndexer#isBatchIndexingSupported, which needs a BatchIndexingEnabled that watches the settings
-    private boolean batchIndexingSupported() {
-        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled()
-            && clusterService.getClusterSettings().get(BatchIndexingEnabled.BATCH_INDEXING)
-            && clusterService.state().getMinTransportVersion().supports(BulkShardRequest.BULK_SHARD_ESCF_BATCH);
     }
 
     private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {

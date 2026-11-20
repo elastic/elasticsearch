@@ -286,7 +286,7 @@ public class ComputeService {
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
-        this.batchIndexingEnabled = new BatchIndexingEnabled(this.clusterService.getClusterSettings());
+        this.batchIndexingEnabled = transportActionServices.batchIndexingEnabled();
         this.clusterService.getClusterSettings()
             .initializeAndWatch(
                 GROK_WATCHDOG_MAX_EXECUTION_TIME,

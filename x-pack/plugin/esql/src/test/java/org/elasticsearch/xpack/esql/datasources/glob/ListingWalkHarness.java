@@ -101,10 +101,10 @@ public final class ListingWalkHarness implements StorageProvider {
     /** One finish {@code listObjects} page per matching day directory when the 1-day walk completes. */
     public static final int WIDE_HIVE_ONE_DAY_FINISH_PAGES = WIDE_HIVE_PREFIXES;
     /**
-     * Derived {@code listChildren} to reach matching day directories on {@link #wideHiveTree()} with a
+     * Observed {@code listChildren} to reach matching day directories on {@link #wideHiveTree()} with a
      * 1-day filter: root + accounts + services + regions + years + matching months + July peeks.
-     * Formula {@code 1 + 2*accounts + 4*prefixes}. The {@code 4 × prefixes} term is regions, years,
-     * June months, and July peeks; without July peeks the count is 725.
+     * Formula {@code 1 + 2*accounts + 4*prefixes} = 879. The {@code 4 × prefixes} term is regions, years,
+     * June months, and July peeks; without July peeks the count is 725. Peeks are in this number.
      */
     public static final int WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES = 1 + 2 * WIDE_HIVE_ACCOUNTS + 4 * WIDE_HIVE_PREFIXES;
     /**
@@ -174,6 +174,7 @@ public final class ListingWalkHarness implements StorageProvider {
     volatile LongSupplier listChildrenDelayNanos = () -> 0L;
     volatile String failListChildrenContaining;
     volatile boolean failListChildrenUnavailable;
+    volatile boolean failListChildrenRuntime;
     /** Return {@code null} from {@link #listChildren} after this many successful calls. {@code -1} disables. */
     volatile int nullListChildrenAfter = -1;
     boolean childrenUnsupported;
@@ -199,6 +200,10 @@ public final class ListingWalkHarness implements StorageProvider {
 
     public int maxListChildrenInFlight() {
         return maxListChildrenInFlight.get();
+    }
+
+    public int listChildrenInFlight() {
+        return listChildrenInFlight.get();
     }
 
     public void setListChildrenDelayNanos(long nanos) {
@@ -239,6 +244,11 @@ public final class ListingWalkHarness implements StorageProvider {
     /** {@link #setFailListChildrenContaining} throws 503-class {@code ExternalUnavailableException}. */
     public void setFailListChildrenUnavailable(boolean unavailable) {
         this.failListChildrenUnavailable = unavailable;
+    }
+
+    /** {@link #setFailListChildrenContaining} throws a {@link RuntimeException}, not {@link IOException}. */
+    public void setFailListChildrenRuntime(boolean runtime) {
+        this.failListChildrenRuntime = runtime;
     }
 
     public void setNullListChildrenAfter(int successfulBeforeNull) {
@@ -794,6 +804,9 @@ public final class ListingWalkHarness implements StorageProvider {
         if (failListChildrenContaining != null && p.contains(failListChildrenContaining)) {
             if (failListChildrenUnavailable) {
                 throw new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, StoragePath.NONE, "HTTP 503", "", false, 0L);
+            }
+            if (failListChildrenRuntime) {
+                throw new RuntimeException("injected listing failure");
             }
             throw new IOException("injected listing failure");
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.compute.operator.SuppressedFailures;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -51,6 +52,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -71,6 +73,14 @@ public final class GlobExpander {
 
     /** Entries reserved per breaker call. One provider page, so a walk reserves about as often as it lists. */
     private static final int LISTING_RESERVE_BATCH = 1000;
+
+    /**
+     * Ceiling on {@code listChildren} while building prefix fan-out slots. Independent of the walk's
+     * {@code esql.external.max_directory_listings}: fan-out tunnels a few identity folders until a
+     * branch, and 512 is enough. Sharing the walk ceiling of 3000 would start more parallel prefix
+     * drains without a measured need.
+     */
+    static final int FAN_OUT_SLOT_BUDGET = 512;
 
     private static final Logger logger = LogManager.getLogger(GlobExpander.class);
 
@@ -1444,7 +1454,7 @@ public final class GlobExpander {
         // A rejected walk (type mismatch, stray file) must re-list the superset. Re-applying the value filter
         // would prune again and undo the rejection.
         boolean suppressValueFilter = false;
-        if (walkComputed || extents.boundsFileSet() == false && wouldWalk(glob, hints, partitionConfig, folderRange)) {
+        if (walkComputed || (extents.boundsFileSet() == false && wouldWalk(glob, hints, partitionConfig, folderRange))) {
             List<PartitionFilterHint> partitionHints = partitionPruningHints(hints);
             PartitionPruningWalk.WalkResult walk = walkComputed
                 ? precomputedWalk
@@ -1970,11 +1980,27 @@ public final class GlobExpander {
         );
     }
 
+    /** Compute {@code expand} then complete {@code listener} once. A throwing {@code onResponse} is the caller's. */
+    private static void completeExpand(ActionListener<FileList> listener, CheckedSupplier<FileList, Exception> expand) {
+        FileList listing;
+        try {
+            listing = expand.get();
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        listener.onResponse(listing);
+    }
+
     /**
      * Async counterpart of {@link #doExpandGlob}. Walk-eligible unbounded globs with concurrency &gt; 1 run
      * {@link PartitionPruningWalk#tryWalkAsync} on {@code fanOutExecutor} even when
      * {@link StorageProvider#listsInKeyOrder()} is false — the walk merges by slot, not by store key order.
      * Bounded listings and concurrency 1 stay on the sequential walk inside {@link #doExpandGlob}.
+     *
+     * <p>After an async walk the rest of {@link #doExpandGlob} (anchor probe, flat fallback) runs on a
+     * {@code fanOutExecutor} thread — {@code esql_external_io} / {@code metadataReadExecutor}. That pool
+     * is for listing I/O; ThreadPool submission preserves thread context. The caller never joins the pool.
      *
      * <p>Prefix fan-out still needs key order, unbounded listing, and concurrency &gt; 1. Non-walk paths that
      * miss those gates complete synchronously on the calling thread via {@link #doExpandGlob}.
@@ -2038,10 +2064,12 @@ public final class GlobExpander {
                     isCancelled,
                     concurrency,
                     fanOutExecutor,
-                    ActionListener.wrap(walk -> {
-                        try {
-                            listener.onResponse(
-                                doExpandGlob(
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(PartitionPruningWalk.WalkResult walk) {
+                            FileList listing;
+                            try {
+                                listing = doExpandGlob(
                                     pattern,
                                     provider,
                                     hints,
@@ -2059,97 +2087,95 @@ public final class GlobExpander {
                                     maxDirectoryListings,
                                     walk,
                                     true
-                                )
-                            );
-                        } catch (Exception e) {
+                                );
+                            } catch (Exception e) {
+                                listener.onFailure(e);
+                                return;
+                            }
+                            listener.onResponse(listing);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
-                    }, listener::onFailure)
+                    }
                 );
                 return;
             }
         }
 
         if (fanOutEligible == false) {
-            try {
-                listener.onResponse(
-                    doExpandGlob(
-                        pattern,
-                        provider,
-                        hints,
-                        partitionConfig,
-                        maxDiscoveredFiles,
-                        maxGlobExpansion,
-                        maxListedObjects,
-                        nameFilter,
-                        fileOrder,
-                        extents,
-                        memory,
-                        isCancelled,
-                        allowRewrite,
-                        folderRange,
-                        maxDirectoryListings
-                    )
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            completeExpand(
+                listener,
+                () -> doExpandGlob(
+                    pattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    extents,
+                    memory,
+                    isCancelled,
+                    allowRewrite,
+                    folderRange,
+                    maxDirectoryListings
+                )
+            );
             return;
         }
 
         // Fan-out path: non-pattern and enumerable are cheaper as a sync drain.
         if (storagePath.isPattern() == false) {
-            try {
-                listener.onResponse(
-                    doExpandGlob(
-                        pattern,
-                        provider,
-                        hints,
-                        partitionConfig,
-                        maxDiscoveredFiles,
-                        maxGlobExpansion,
-                        maxListedObjects,
-                        nameFilter,
-                        fileOrder,
-                        extents,
-                        memory,
-                        isCancelled,
-                        allowRewrite,
-                        folderRange,
-                        maxDirectoryListings
-                    )
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            completeExpand(
+                listener,
+                () -> doExpandGlob(
+                    pattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    extents,
+                    memory,
+                    isCancelled,
+                    allowRewrite,
+                    folderRange,
+                    maxDirectoryListings
+                )
+            );
             return;
         }
 
         GlobMatcher matcher = new GlobMatcher(storagePath.globPart());
         if (matcher.enumerateKeys(maxGlobExpansion) != null) {
-            try {
-                listener.onResponse(
-                    doExpandGlob(
-                        pattern,
-                        provider,
-                        hints,
-                        partitionConfig,
-                        maxDiscoveredFiles,
-                        maxGlobExpansion,
-                        maxListedObjects,
-                        nameFilter,
-                        fileOrder,
-                        extents,
-                        memory,
-                        isCancelled,
-                        allowRewrite,
-                        folderRange,
-                        maxDirectoryListings
-                    )
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            completeExpand(
+                listener,
+                () -> doExpandGlob(
+                    pattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    extents,
+                    memory,
+                    isCancelled,
+                    allowRewrite,
+                    folderRange,
+                    maxDirectoryListings
+                )
+            );
             return;
         }
 
@@ -2172,10 +2198,10 @@ public final class GlobExpander {
         ) != PartitionValueFilter.NONE;
         try {
             if (valueFilterActive == false && recursive) {
-                slots = buildSlots(provider, prefix, matcher, maxDirectoryListings, sharedListedCount);
+                slots = buildSlots(provider, prefix, matcher, FAN_OUT_SLOT_BUDGET, sharedListedCount);
             }
         } catch (IOException e) {
-            logger.debug(() -> "Prefix fan-out for [" + pattern + "] could not build slots; falling back to flat listing", e);
+            logger.debug("Prefix fan-out for [{}] could not build slots; falling back to flat listing", pattern, e);
         }
 
         // buildSlots yields either no folder slots (files only: the slots are the whole listing, so reuse them rather
@@ -2210,29 +2236,26 @@ public final class GlobExpander {
             );
         } else {
             // Slots unavailable (listChildren unsupported, budget exhausted, or a value filter): use the flat drain.
-            try {
-                listener.onResponse(
-                    doExpandGlob(
-                        pattern,
-                        provider,
-                        hints,
-                        partitionConfig,
-                        maxDiscoveredFiles,
-                        maxGlobExpansion,
-                        maxListedObjects,
-                        nameFilter,
-                        fileOrder,
-                        extents,
-                        memory,
-                        isCancelled,
-                        allowRewrite,
-                        folderRange,
-                        maxDirectoryListings
-                    )
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            completeExpand(
+                listener,
+                () -> doExpandGlob(
+                    pattern,
+                    provider,
+                    hints,
+                    partitionConfig,
+                    maxDiscoveredFiles,
+                    maxGlobExpansion,
+                    maxListedObjects,
+                    nameFilter,
+                    fileOrder,
+                    extents,
+                    memory,
+                    isCancelled,
+                    allowRewrite,
+                    folderRange,
+                    maxDirectoryListings
+                )
+            );
         }
     }
 
@@ -2734,7 +2757,7 @@ public final class GlobExpander {
             @Override
             public Integer next() {
                 if (next >= count) {
-                    throw new java.util.NoSuchElementException();
+                    throw new NoSuchElementException();
                 }
                 return next++;
             }

@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -75,13 +76,11 @@ final class PartitionPruningWalk {
     /**
      * Default ceiling on issued {@code listChildren} calls in one walk. Finish {@code listObjects} pages
      * are not counted. Production reads {@code esql.external.max_directory_listings}; this is that
-     * setting's default and the value tests use when they do not pass a cap. 3000 covers a 154-prefix
-     * AWS Hive layout through hour grain (2111 children for a 7-day window) with slack for peeks.
+     * setting's default and the value tests use when they do not pass a cap. 3000 is observed 2111
+     * {@code listChildren} for a 7-day hour-grain walk on the 154-prefix tree, plus headroom for a
+     * wider account/region fan-out. Peeks are already in that 2111.
      */
     static final int DEFAULT_MAX_DIRECTORY_LISTINGS = 3_000;
-
-    /** Alias of {@link #DEFAULT_MAX_DIRECTORY_LISTINGS} for call sites that have not yet taken the live setting. */
-    static final int MAX_DIRECTORY_LISTINGS = DEFAULT_MAX_DIRECTORY_LISTINGS;
 
     private static final BooleanSupplier NEVER_CANCELLED = () -> false;
 
@@ -107,8 +106,8 @@ final class PartitionPruningWalk {
 
     /**
      * Test-only override of {@link #finishSurvivors}' cost check. Production always uses {@link FinishMode#RULE}.
-     * Not inherited: {@link #tryWalkAsync} finish on an executor thread sees {@link FinishMode#RULE}.
-     * Complete-walk LIST pins must wrap a same-thread {@code expand()} / {@link #tryWalk}.
+     * Captured on the {@link WalkSession} at construction so {@link #tryWalkAsync} honors {@link #withFinishMode}
+     * from the calling thread.
      */
     enum FinishMode {
         RULE,
@@ -303,7 +302,7 @@ final class PartitionPruningWalk {
         } catch (TaskCancelledException | ExternalUnavailableException e) {
             throw e;
         } catch (IOException e) {
-            logger.debug(() -> "Partition-pruning walk of [" + prefix + "] failed; falling back to a flat listing", e);
+            logger.debug("Partition-pruning walk of [{}] failed; falling back to a flat listing", prefix, e);
             return null;
         }
     }
@@ -353,14 +352,22 @@ final class PartitionPruningWalk {
             listener.onFailure(e);
             return;
         }
-        session.runAsync(Math.max(1, concurrency), executor, ActionListener.wrap(listener::onResponse, e -> {
-            if (e instanceof IOException) {
-                logger.debug(() -> "Partition-pruning walk of [" + prefix + "] failed; falling back to a flat listing", e);
-                listener.onResponse(null);
-                return;
+        session.runAsync(Math.max(1, concurrency), executor, new ActionListener<>() {
+            @Override
+            public void onResponse(WalkResult walk) {
+                listener.onResponse(walk);
             }
-            listener.onFailure(e);
-        }));
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IOException) {
+                    logger.debug("Partition-pruning walk of [{}] failed; falling back to a flat listing", prefix, e);
+                    listener.onResponse(null);
+                    return;
+                }
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**
@@ -515,12 +522,12 @@ final class PartitionPruningWalk {
         Set<String> prunedColumns,
         Map<String, DataType> columnFullTypes,
         double estimatedPrefixWidth,
-        List<StoragePath> prunedDirs
+        List<StoragePath> prunedDirs,
+        FinishMode mode
     ) throws IOException {
         if (prunedColumns.isEmpty()) {
             return null;
         }
-        FinishMode mode = FINISH_MODE.get();
         if (mode == FinishMode.ALWAYS_FLAT) {
             return null;
         }
@@ -611,11 +618,14 @@ final class PartitionPruningWalk {
             return;
         }
         if (concurrency <= 1 || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            StorageChildren[] listed;
             try {
-                listener.onResponse(listChildrenSequential(provider, dirs, issued, cancelled));
+                listed = listChildrenSequential(provider, dirs, issued, cancelled);
             } catch (Exception e) {
                 listener.onFailure(e);
+                return;
             }
+            listener.onResponse(listed);
             return;
         }
         AtomicReferenceArray<StorageChildren> results = new AtomicReferenceArray<>(size);
@@ -695,7 +705,7 @@ final class PartitionPruningWalk {
             @Override
             public Integer next() {
                 if (next >= count) {
-                    throw new java.util.NoSuchElementException();
+                    throw new NoSuchElementException();
                 }
                 return next++;
             }
@@ -713,6 +723,7 @@ final class PartitionPruningWalk {
         private final FolderRangePredicate folderRange;
         private final int maxDirectoryListings;
         private final BooleanSupplier cancelled;
+        private final FinishMode finishMode;
         private final Collector collector;
         private final Set<String> pending = new HashSet<>();
         private final Set<String> seenKeys = new HashSet<>();
@@ -721,8 +732,20 @@ final class PartitionPruningWalk {
         private final Map<String, List<String>> seenValues = new LinkedHashMap<>();
         private boolean anyLevelHinted;
         private List<StoragePath> dirs;
+        /** Issued {@code listChildren} from the walk AND from retroactive peeks into pruned dirs. */
         private final AtomicInteger listings = new AtomicInteger();
+        /**
+         * Product over walked levels of (shaped children / listed directories). Estimates how many dirs
+         * of the current grain sit under the prefix, so finishSurvivors can compare remaining finish pages
+         * against a flat listing of the prefix.
+         */
         private double estimatedPrefixWidth = 1.0;
+        /**
+         * Pruned dirs from the previous level, candidates for a one-level retroactive peek. A peek fires
+         * only when the current level introduces a new partition key (confirming a multi-level layout):
+         * peeking into a pruned dir whose direct children are files (single-level layout) would pollute
+         * enumeration tracking without adding any partition-key information.
+         */
         private List<StoragePath> pendingPeeks = List.of();
 
         WalkSession(
@@ -745,6 +768,7 @@ final class PartitionPruningWalk {
             this.folderRange = folderRange;
             this.maxDirectoryListings = maxDirectoryListings;
             this.cancelled = cancelled;
+            this.finishMode = FINISH_MODE.get();
             this.collector = new Collector(prefix.toString(), matcher, nameFilter, maxDiscoveredFiles, fileKeep, maxListedObjects);
             for (PartitionFilterHint hint : hints) {
                 pending.add(hint.columnName());
@@ -796,47 +820,83 @@ final class PartitionPruningWalk {
         }
 
         private void advanceAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
+            final WalkResult early;
+            final boolean listLevel;
+            final boolean cancelledNow;
             try {
                 if (cancelled.getAsBoolean()) {
-                    listener.onFailure(new TaskCancelledException("listing cancelled"));
-                    return;
-                }
-                if (dirs.isEmpty()) {
-                    listener.onResponse(collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs));
-                    return;
-                }
-                if (pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings) {
-                    listener.onResponse(finishSurvivors());
-                    return;
+                    cancelledNow = true;
+                    early = null;
+                    listLevel = false;
+                } else if (dirs.isEmpty()) {
+                    cancelledNow = false;
+                    early = collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
+                    listLevel = false;
+                } else if (pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings) {
+                    cancelledNow = false;
+                    early = finishSurvivors();
+                    listLevel = false;
+                } else {
+                    cancelledNow = false;
+                    early = null;
+                    listLevel = true;
                 }
             } catch (Exception e) {
                 listener.onFailure(e);
                 return;
             }
-            listChildrenParallel(provider, dirs, concurrency, executor, listings, cancelled, ActionListener.wrap(listed -> {
-                if (listed == null) {
-                    listener.onResponse(null);
-                    return;
+            if (cancelledNow) {
+                listener.onFailure(new TaskCancelledException("listing cancelled"));
+                return;
+            }
+            if (listLevel == false) {
+                listener.onResponse(early);
+                return;
+            }
+            listChildrenParallel(provider, dirs, concurrency, executor, listings, cancelled, new ActionListener<>() {
+                @Override
+                public void onResponse(StorageChildren[] listed) {
+                    WalkResult done;
+                    boolean continueWalk;
+                    try {
+                        if (listed == null) {
+                            done = null;
+                            continueWalk = false;
+                        } else {
+                            ClassifiedLevel level = classifyListed(listed);
+                            if (applyPeeksIfNeeded(level) == false) {
+                                done = null;
+                                continueWalk = false;
+                            } else {
+                                done = applyClassified(level);
+                                continueWalk = done == null && level.continueWalk;
+                            }
+                        }
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
+                    }
+                    if (continueWalk) {
+                        advanceAsync(concurrency, executor, listener);
+                        return;
+                    }
+                    listener.onResponse(done);
                 }
-                try {
-                    ClassifiedLevel level = classifyListed(listed);
-                    if (applyPeeksIfNeeded(level) == false) {
-                        listener.onResponse(null);
-                        return;
-                    }
-                    WalkResult done = applyClassified(level);
-                    if (done != null || level.continueWalk == false) {
-                        listener.onResponse(done);
-                        return;
-                    }
-                    advanceAsync(concurrency, executor, listener);
-                } catch (Exception e) {
+
+                @Override
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            }, listener::onFailure));
+            });
         }
 
-        /** Sequential peeks so issued counts match the sequential walk when the ceiling is nearby. */
+        /**
+         * Retroactive peek: a new partition key at this level confirms a multi-level layout, so it is now
+         * safe to list the direct children of dirs pruned at the previous level. Any {@code key=value} dirs
+         * found contribute shadow values to {@code seenValues}, letting the caller detect whether a pruned
+         * subtree was the sole source of a type-widening value for a non-pruned column. Sequential so issued
+         * counts match the sequential walk when the ceiling is nearby; parallel peeks are a follow-up.
+         */
         private boolean applyPeeksIfNeeded(ClassifiedLevel level) throws IOException {
             if (level.newKeyLevel && pendingPeeks.isEmpty() == false) {
                 int updated = processPendingPeeks(provider, pendingPeeks, seenValues, listings.get(), maxDirectoryListings, cancelled);
@@ -857,13 +917,17 @@ final class PartitionPruningWalk {
                 prunedColumns,
                 inferColumnTypes(seenValues),
                 estimatedPrefixWidth,
-                prunedDirs
+                prunedDirs,
+                finishMode
             );
         }
 
         /**
-         * Interprets already-listed children of {@link #dirs}. No further I/O. Peeks stay sequential so
-         * issued counts match the sequential walk when the ceiling is nearby.
+         * Interprets already-listed children of {@link #dirs}. No further I/O. Direct files at this
+         * folder level are deferred until {@link #applyClassified} so a finish-survivors recursive
+         * listing of the same parent does not double-count them. A glob-matching file at a folder
+         * level breaks Hive detection; the caller's validation then rejects the walk. Unshaped dirs
+         * (junk, nested root) are descended untouched.
          */
         private ClassifiedLevel classifyListed(StorageChildren[] listed) {
             int listedDirs = dirs.size();
@@ -940,8 +1004,10 @@ final class PartitionPruningWalk {
         }
 
         /**
-         * Applies a classified level: peeks must already have been consumed. Non-null is a finished walk;
-         * {@code null} with {@code level.continueWalk} means keep walking; {@code null} without it withdraws.
+         * Applies a classified level: peeks must already have been consumed. Surviving dirs become the
+         * next walk frontier; pruned dirs are candidates for the next level's retroactive peek (and
+         * the outermost-first inference-anchor probe list). Non-null is a finished walk; {@code null}
+         * with {@code level.continueWalk} means keep walking; {@code null} without it withdraws.
          */
         @Nullable
         private WalkResult applyClassified(ClassifiedLevel level) throws IOException {

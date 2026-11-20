@@ -489,9 +489,10 @@ public final class ExternalSourceSettings {
      * Ceiling on {@code listChildren} calls in one partition-pruning walk, counting issued requests
      * rather than completed ones. When the walk would exceed this, it stops descending and either
      * finishes the surviving folders or falls back to a flat listing of the prefix — the same
-     * finish-versus-flat rule as below the cap. Default 3000 covers a 154-prefix AWS Hive layout
-     * through hour grain (derived 879 children for one day at day grain, 2111 for seven days at
-     * hour grain) with slack for retroactive peeks. Operators can raise it; the default is not the max.
+     * finish-versus-flat rule as below the cap. Default 3000 is the observed 2111 {@code listChildren}
+     * for a 7-day hour-grain walk on the 154-prefix AWS Hive tree, plus headroom for a wider
+     * account/region fan-out. Peeks are already counted in that 2111. Operators can raise it; the
+     * default is not the max.
      */
     public static final Setting<Integer> MAX_DIRECTORY_LISTINGS = Setting.intSetting(
         "esql.external.max_directory_listings",

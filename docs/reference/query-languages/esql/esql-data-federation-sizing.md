@@ -101,6 +101,28 @@ CSV, TSV and NDJSON files do not describe their own columns, so {{es}} works the
 
 Raising it gives you more read parallelism. Raise the heap at the same time: every request in flight is holding data that is being staged and decompressed, so a node given more read concurrency and no more memory will trip a [circuit breaker](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#parent-circuit-breaker). This is a [static setting](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), so the node has to be restarted before a change takes effect.
 
+### Sizing for {{ech}} [sizing-ech]
+
+On {{ech}} the unit you choose is a size per zone for each data tier, given in RAM, together with a hardware profile for the deployment. Heap and cores both follow from that choice: heap is half the node's RAM, and the cores come from the profile's vCPU to RAM ratio.
+
+To apply the figures above, **select a size per zone of twice the heap you need**, then check that the vCPU count shown for that size meets your core figure. Sizing this way leaves you with more heap per core than this page asks for, so on {{ech}} it is the cores that bind rather than the memory.
+
+For the Parquet example, 2 cores and 4 GB of heap is an 8 GB size per zone, in 1 zone. For the compressed CSV example, 2 nodes of 2 cores and 4 GB of heap each is an 8 GB size per zone across 2 zones.
+
+Hardware profiles differ in how many cores come with a given amount of RAM. A CPU optimized profile gives the most and a storage optimized profile the fewest, so a storage optimized deployment needs a larger size per zone to reach the same core count.
+
+The smallest sizes run on temporarily boosted CPU, and briefly have more processing available than they report. Size on the core count rather than on the boost.
+
+### Sizing for {{es-serverless}} [sizing-serverless]
+
+On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serverless.md) you do not choose nodes, heap or cores. The unit is the virtual compute unit, and the Search tier scales with your load. There is no published conversion from heap or cores to VCUs, so the figures above do not translate directly.
+
+What you can set is a floor. [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus) stops the Search tier scaling below a value you choose, even while the project is idle, which is how you hold capacity ready for a known query concurrency. Raise it 30 to 60 minutes ahead of an expected increase in federated query load. You are billed for at least that many Search VCUs for as long as it is set, so lower it again once the load has passed.
+
+If you set a high minimum, raise [Search Power](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#elasticsearch-manage-project-search-power-settings) alongside it, to make use of the capacity you have pre-scaled.
+
+The guidance on [file layout](#file-layout) and on [specifying a mapping](#declare-schema) applies on serverless unchanged, because both are properties of your data rather than of the cluster.
+
 ## Sizing for performance [performance]
 
 Data federation queries scale with the number of cores, and their scan time is proportional to the size of the dataset being read.

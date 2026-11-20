@@ -16,9 +16,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;
@@ -240,5 +242,59 @@ public class VectorNestedIT extends ESIntegTestCase {
             prepareSearch("test").setQuery(nested2),
             response -> assertThat(response.getHits().getHits().length, greaterThan(0))
         );
+    }
+
+    /**
+     * A top level knn search on a nested vector field over several indices, only one of which maps the field, must return
+     * the same hits as a search on that index alone, whatever the order of the indices. The indices without the field are
+     * named so that their shards sort both before and after the shard with the field.
+     * See https://github.com/elastic/elasticsearch/issues/138974
+     */
+    public void testNestedKnnSearchAcrossIndicesWithoutField() throws Exception {
+        for (String index : List.of("test_1", "test_3")) {
+            assertAcked(prepareCreate(index).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+        }
+        assertAcked(prepareCreate("test_2").setMapping("""
+            {
+              "properties": {
+                "nested": {
+                  "type": "nested",
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 3,
+                      "similarity": "cosine"
+                    }
+                  }
+                }
+              }
+            }
+            """).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+        ensureGreen();
+
+        prepareIndex("test_2").setId("1").setSource("""
+            { "nested": { "vector": [0.11, 0.21, 0.31] } }
+            """, XContentType.JSON).get();
+        prepareIndex("test_2").setId("2").setSource("""
+            { "nested": { "vector": [0.12, 0.22, 0.32] } }
+            """, XContentType.JSON).get();
+        refresh();
+
+        for (String[] indices : List.of(
+            new String[] { "test_2" },
+            new String[] { "test_1", "test_2" },
+            new String[] { "test_2", "test_3" },
+            new String[] { "test_1", "test_2", "test_3" }
+        )) {
+            KnnSearchBuilder knn = new KnnSearchBuilder("nested.vector", new float[] { 0.11f, 0.22f, 0.33f }, 10, 10, null, null, null)
+                .innerHit(new InnerHitBuilder());
+            assertNoFailuresAndResponse(prepareSearch(indices).setKnnSearch(List.of(knn)), response -> {
+                assertHitCount(response, 2);
+                for (SearchHit hit : response.getHits().getHits()) {
+                    assertThat(hit.getIndex(), equalTo("test_2"));
+                    assertThat(hit.getInnerHits().get("nested").getHits().length, equalTo(1));
+                }
+            });
+        }
     }
 }

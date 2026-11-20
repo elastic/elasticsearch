@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.tasks.CancellableTask;
@@ -44,6 +46,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("rollover");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
+
+    private static final TransportVersion ROLLOVER_REQUEST_EXPECTED_SOURCE_INDEX = TransportVersion.fromName(
+        "rollover_request_expected_source_index"
+    );
 
     static {
         PARSER.declareField(
@@ -77,6 +83,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String newIndexName;
     private boolean dryRun;
     private boolean lazy;
+    @Nullable
+    private String expectedSourceIndex;
     private RolloverConditions conditions = new RolloverConditions();
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
@@ -91,6 +99,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         createIndexRequest = new CreateIndexRequest(in);
         lazy = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        expectedSourceIndex = in.getTransportVersion().supports(ROLLOVER_REQUEST_EXPECTED_SOURCE_INDEX) ? in.readOptionalString() : null;
     }
 
     RolloverRequest() {
@@ -118,6 +127,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
+        if (expectedSourceIndex != null && lazy) {
+            validationException = addValidationError("an expected source index cannot be used with a lazy rollover", validationException);
+        }
+
         // Ensure we have a valid selector in the request
         if (rolloverTarget != null) {
             try {
@@ -140,6 +153,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         createIndexRequest.writeTo(out);
         out.writeBoolean(lazy);
         indicesOptions.writeIndicesOptions(out);
+        // An older master ignores the expected source index, which means a retried request may roll over twice as it always did
+        if (out.getTransportVersion().supports(ROLLOVER_REQUEST_EXPECTED_SOURCE_INDEX)) {
+            out.writeOptionalString(expectedSourceIndex);
+        }
     }
 
     @Override
@@ -201,6 +218,23 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      */
     public void lazy(boolean lazy) {
         this.lazy = lazy;
+    }
+
+    /**
+     * Makes this rollover conditional on the rollover target still having {@code expectedSourceIndex} as its (failure store) write
+     * index. If the write index is different by the time the rollover executes, the request completes without rolling over.
+     * <p>
+     * This makes unconditional rollovers idempotent: a {@link org.elasticsearch.action.support.master.TransportMasterNodeAction}
+     * retries the same request on a new master after a failover, and without this guard the retry would roll over the index that the
+     * first attempt had just created.
+     */
+    public void setExpectedSourceIndex(@Nullable String expectedSourceIndex) {
+        this.expectedSourceIndex = expectedSourceIndex;
+    }
+
+    @Nullable
+    public String getExpectedSourceIndex() {
+        return expectedSourceIndex;
     }
 
     public boolean isDryRun() {
@@ -275,11 +309,21 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             && Objects.equals(newIndexName, that.newIndexName)
             && Objects.equals(conditions, that.conditions)
             && Objects.equals(createIndexRequest, that.createIndexRequest)
-            && Objects.equals(indicesOptions, that.indicesOptions);
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(expectedSourceIndex, that.expectedSourceIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rolloverTarget, newIndexName, dryRun, conditions, createIndexRequest, lazy, indicesOptions);
+        return Objects.hash(
+            rolloverTarget,
+            newIndexName,
+            dryRun,
+            conditions,
+            createIndexRequest,
+            lazy,
+            indicesOptions,
+            expectedSourceIndex
+        );
     }
 }

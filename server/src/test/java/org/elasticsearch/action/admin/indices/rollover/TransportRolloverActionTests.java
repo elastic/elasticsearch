@@ -47,9 +47,11 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -102,6 +104,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportRolloverActionTests extends ESTestCase {
@@ -436,6 +439,75 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(1));
         assertThat(response.getConditionStatus().get("[max_docs: 300]"), is(true));
+    }
+
+    /**
+     * The pre-check in {@link TransportRolloverAction#masterOperation} can pass while another rollover of the same target is still
+     * queued, so the expected source index must be checked again when the cluster state update executes. Without that check, a retried
+     * unconditional rollover racing with the original one rolls over twice, see
+     * <a href="https://github.com/elastic/elasticsearch/issues/166865">#166865</a>.
+     */
+    public void testRolloverTaskDoesNotRollOverWhenSourceIndexChangedAfterPreCheck() throws Exception {
+        // given an alias whose write index has already moved on from logs-index-000001 to logs-index-000002
+        final IndexMetadata.Builder rolledOverIndex = IndexMetadata.builder("logs-index-000001")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build())
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        final IndexMetadata.Builder writeIndex = IndexMetadata.builder("logs-index-000002")
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build())
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(1);
+        final var projectId = randomProjectIdOrDefault();
+        final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(rolledOverIndex).put(writeIndex))
+            .build();
+        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        // and a queued unconditional rollover task whose pre-check still saw logs-index-000001 as the write index
+        final RolloverRequest rolloverRequest = new RolloverRequest("logs-alias", null);
+        rolloverRequest.setExpectedSourceIndex("logs-index-000001");
+        final PlainActionFuture<RolloverResponse> future = new PlainActionFuture<>();
+        final RolloverResponse trialRolloverResponse = new RolloverResponse(
+            "logs-index-000001",
+            "logs-index-000002",
+            Map.of(),
+            false,
+            false,
+            false,
+            false,
+            false
+        );
+        final TransportRolloverAction.RolloverTask rolloverTask = new TransportRolloverAction.RolloverTask(
+            projectId,
+            rolloverRequest,
+            null,
+            trialRolloverResponse,
+            null,
+            future
+        );
+        final TransportRolloverAction.RolloverExecutor rolloverExecutor = new TransportRolloverAction.RolloverExecutor(
+            mockClusterService,
+            mockAllocationService,
+            rolloverService,
+            mockThreadPool
+        );
+
+        // when the task executes
+        final ClusterState stateAfter = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            stateBefore,
+            rolloverExecutor,
+            List.of(rolloverTask)
+        );
+
+        // then it does not roll over again
+        assertSame(stateBefore, stateAfter);
+        final RolloverResponse response = future.actionGet();
+        assertThat(response.isRolledOver(), is(false));
+        assertThat(response.getOldIndex(), equalTo("logs-index-000002"));
+        assertThat(response.getNewIndex(), equalTo("logs-index-000003"));
+        verifyNoInteractions(mockCreateIndexService);
     }
 
     public void testLazyRollover() throws Exception {

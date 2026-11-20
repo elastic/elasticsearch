@@ -916,4 +916,36 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/166865">#166865</a>: ILM sends an unconditional rollover,
+     * and if the master fails over while it is in flight, the {@code TransportMasterNodeAction} retries the very same request on the
+     * new master. Replaying the request here is exactly what that retry does. Because the request names the source index it expects to
+     * roll over, the replay must not roll over the index that the first attempt created.
+     */
+    public void testRetriedUnconditionalRolloverWithExpectedSourceIndexRollsOverAliasOnce() {
+        // given an alias whose write index is logs-000001
+        assertAcked(prepareCreate("logs-000001").addAlias(new Alias("logs").writeIndex(true)).get());
+        final RolloverRequest rolloverRequest = new RolloverRequest("logs", null);
+        rolloverRequest.setExpectedSourceIndex("logs-000001");
+
+        // when the same unconditional rollover request is executed twice
+        final RolloverResponse firstResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
+        final RolloverResponse retryResponse = indicesAdmin().rolloverIndex(rolloverRequest).actionGet();
+
+        // then only the first one rolls over
+        assertThat(firstResponse.isRolledOver(), is(true));
+        assertThat(firstResponse.getOldIndex(), equalTo("logs-000001"));
+        assertThat(firstResponse.getNewIndex(), equalTo("logs-000002"));
+        assertThat(retryResponse.isRolledOver(), is(false));
+        assertThat(retryResponse.getOldIndex(), equalTo("logs-000002"));
+        assertFalse(indexExists("logs-000003"));
+        final IndexMetadata writeIndex = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index("logs-000002");
+        assertThat(writeIndex.getAliases().get("logs").writeIndex(), is(true));
+        assertThat(writeIndex.getRolloverInfos().get("logs"), nullValue());
+    }
 }

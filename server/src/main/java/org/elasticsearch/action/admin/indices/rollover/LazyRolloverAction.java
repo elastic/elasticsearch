@@ -120,6 +120,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             assert rolloverRequest.getConditions().hasConditions() == false
                 && rolloverRequest.isDryRun() == false
                 && rolloverRequest.isLazy() == false
+                && rolloverRequest.getExpectedSourceIndex() == null
                 : "The auto rollover action does not expect any other parameters in the request apart from the data stream name";
 
             ProjectMetadata project = projectResolver().getProjectMetadata(clusterState);

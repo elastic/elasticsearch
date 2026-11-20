@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -24,6 +25,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -32,10 +34,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RolloverRequestTests extends ESTestCase {
     private NamedWriteableRegistry writeableRegistry;
@@ -188,6 +192,49 @@ public class RolloverRequestTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testSerializeExpectedSourceIndex() throws IOException {
+        RolloverRequest originalRequest = new RolloverRequest("alias-index", null);
+        originalRequest.setExpectedSourceIndex(randomAlphaOfLength(10));
+
+        RolloverRequest copy = copyWriteable(originalRequest, writeableRegistry, RolloverRequest::new);
+
+        assertThat(copy.getExpectedSourceIndex(), equalTo(originalRequest.getExpectedSourceIndex()));
+        assertThat(copy, equalTo(originalRequest));
+        assertThat(copy.hashCode(), equalTo(originalRequest.hashCode()));
+    }
+
+    public void testExpectedSourceIndexIsNotSentToOlderNodes() throws IOException {
+        RolloverRequest originalRequest = new RolloverRequest("alias-index", null);
+        originalRequest.setExpectedSourceIndex(randomAlphaOfLength(10));
+        TransportVersion olderVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("rollover_request_expected_source_index")
+        );
+
+        RolloverRequest copy = copyWriteable(originalRequest, writeableRegistry, RolloverRequest::new, olderVersion);
+
+        assertThat(copy.getExpectedSourceIndex(), nullValue());
+        assertThat(copy.getRolloverTarget(), equalTo(originalRequest.getRolloverTarget()));
+    }
+
+    public void testEqualsConsidersExpectedSourceIndex() {
+        RolloverRequest request = new RolloverRequest("alias-index", null);
+        RolloverRequest requestWithExpectedSourceIndex = new RolloverRequest("alias-index", null);
+        requestWithExpectedSourceIndex.setExpectedSourceIndex("index-000001");
+
+        assertNotEquals(request, requestWithExpectedSourceIndex);
+    }
+
+    public void testValidationRejectsExpectedSourceIndexWithLazyRollover() {
+        RolloverRequest rolloverRequest = new RolloverRequest("alias-index", null);
+        rolloverRequest.setExpectedSourceIndex("index-000001");
+        rolloverRequest.lazy(true);
+
+        ActionRequestValidationException validationException = rolloverRequest.validate();
+
+        assertNotNull(validationException);
+        assertEquals(List.of("an expected source index cannot be used with a lazy rollover"), validationException.validationErrors());
     }
 
     public void testUnknownFields() throws IOException {

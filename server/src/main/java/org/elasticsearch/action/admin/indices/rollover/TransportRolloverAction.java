@@ -222,6 +222,20 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
         final String trialSourceIndexName = trialRolloverNames.sourceName();
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
+
+        // Cheap early exit; the authoritative check happens again in the cluster state update, see RolloverExecutor#executeTask
+        if (isExpectedSourceIndexMismatch(rolloverRequest, trialSourceIndexName)) {
+            listener.onResponse(
+                expectedSourceIndexMismatchResponse(
+                    rolloverRequest,
+                    trialSourceIndexName,
+                    trialRolloverIndexName,
+                    rolloverRequest.isDryRun()
+                )
+            );
+            return;
+        }
+
         MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, projectMetadata, projectState.routingTable());
 
         if (rolloverRequest.isLazy()) {
@@ -488,6 +502,31 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
     }
 
+    /**
+     * Whether the request names an expected source index which is no longer the index that it would roll over. This happens when the
+     * same request is executed more than once (e.g. retried on a new master after a failover) and an earlier execution already rolled
+     * the index over, in which case rolling over again would be wrong. See {@link RolloverRequest#setExpectedSourceIndex}.
+     */
+    static boolean isExpectedSourceIndexMismatch(RolloverRequest rolloverRequest, @Nullable String sourceIndexName) {
+        final String expectedSourceIndex = rolloverRequest.getExpectedSourceIndex();
+        return expectedSourceIndex != null && expectedSourceIndex.equals(sourceIndexName) == false;
+    }
+
+    private static RolloverResponse expectedSourceIndexMismatchResponse(
+        RolloverRequest rolloverRequest,
+        @Nullable String sourceIndexName,
+        String rolloverIndexName,
+        boolean dryRun
+    ) {
+        logger.debug(
+            "not rolling over [{}] because its source index is [{}] but the request expected [{}]",
+            rolloverRequest.getRolloverTarget(),
+            sourceIndexName,
+            rolloverRequest.getExpectedSourceIndex()
+        );
+        return new RolloverResponse(sourceIndexName, rolloverIndexName, Map.of(), dryRun, false, false, false, false);
+    }
+
     record RolloverTask(
         ProjectId projectId,
         RolloverRequest rolloverRequest,
@@ -559,6 +598,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getCreateIndexRequest(),
                 targetFailureStore
             );
+
+            // Re-check the expected source index, as a rollover could have happened in between the pre-check and the cluster state update
+            if (isExpectedSourceIndexMismatch(rolloverRequest, rolloverNames.sourceName())) {
+                final RolloverResponse response = expectedSourceIndexMismatchResponse(
+                    rolloverRequest,
+                    rolloverNames.sourceName(),
+                    rolloverNames.rolloverName(),
+                    false
+                );
+                rolloverTaskContext.success(() -> rolloverTask.listener().onResponse(response));
+                return currentState;
+            }
 
             // Re-evaluate the conditions, now with our final source index name
             IndexMetadata rolloverSourceIndex = project.index(rolloverNames.sourceName());

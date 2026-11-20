@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 165855
-pr: 165856
-summary: FILLNULL ON * skips metadata after a union
-type: bug

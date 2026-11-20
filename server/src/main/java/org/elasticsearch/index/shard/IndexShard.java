@@ -1150,7 +1150,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 ifSeqNo,
                 ifPrimaryTerm
             );
-            return engine.docValuesUpdate(engineOp);
+            final Engine.DocValuesUpdateResult result = engine.docValuesUpdate(engineOp);
+            if (result.appliedInPlace()) {
+                // Count the in-place application on this shard copy, mirroring how index operations are counted per copy. A reindex
+                // fallback never reaches this path; it is counted as an ordinary index operation instead.
+                internalIndexingStats.inPlaceDocValuesUpdate();
+            }
+            return result;
         } finally {
             active.set(true);
         }

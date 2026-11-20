@@ -987,12 +987,22 @@ public abstract class Engine implements Closeable {
      */
     public static class DocValuesUpdateResult extends Result {
 
-        public DocValuesUpdateResult(long version, long term, long seqNo, String id) {
+        // Whether the update patched the live document's columns in place, as opposed to being recorded only as history (a stale replica
+        // or recovery replay). Used locally to count in-place updates in indexing stats; not serialized.
+        private final boolean appliedInPlace;
+
+        public DocValuesUpdateResult(long version, long term, long seqNo, String id, boolean appliedInPlace) {
             super(Operation.TYPE.DOC_VALUES_UPDATE, version, term, seqNo, id);
+            this.appliedInPlace = appliedInPlace;
         }
 
         public DocValuesUpdateResult(Exception failure, long version, long term, long seqNo, String id) {
             super(Operation.TYPE.DOC_VALUES_UPDATE, failure, version, term, seqNo, id);
+            this.appliedInPlace = false;
+        }
+
+        public boolean appliedInPlace() {
+            return appliedInPlace;
         }
     }
 

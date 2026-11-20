@@ -124,8 +124,9 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
 
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
         assertTrue(get.isExists());
-        // An in-place doc-values update does not bump the document's version; a reindex fallback would have made it 2.
-        assertThat("expected an in-place update, not a reindex", get.getVersion(), equalTo(1L));
+        // The update was applied in place (counted in the indexing stats), and leaves the document version unchanged.
+        assertAppliedInPlace("idx");
+        assertThat(get.getVersion(), equalTo(1L));
         Map<String, Object> source = get.getSourceAsMap();
         assertThat(source.get("status"), equalTo("active"));
         assertThat(((Number) source.get("count")).longValue(), equalTo(42L));
@@ -154,7 +155,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
 
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
-        assertThat("expected a reindex fallback", get.getVersion(), equalTo(2L));
+        assertReindexed("idx");
+        assertThat(get.getVersion(), equalTo(2L));
         assertThat(get.getSourceAsMap().get("status"), equalTo("active"));
         assertThat(get.getSourceAsMap().get("name"), equalTo("gadget"));
     }
@@ -200,7 +202,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         // GET returns the overlaid values, including every floating-point decode path, and the untouched field from the stored blob
         // survives.
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
-        assertThat("expected an in-place update, not a reindex", get.getVersion(), equalTo(1L));
+        assertAppliedInPlace("idx");
+        assertThat(get.getVersion(), equalTo(1L));
         assertOverlaidSource(get.getSourceAsMap());
 
         // The same overlaid _source is returned through the search fetch phase.
@@ -253,9 +256,10 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
         assertThat(bulkResponse.getItems()[0].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
 
-        // The overlay reads the updated binary column back; the version is unchanged, so this was in place, not a reindex.
+        // The overlay reads the updated binary column back; the update was applied in place, not by a reindex.
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
-        assertThat("expected an in-place update, not a reindex", get.getVersion(), equalTo(1L));
+        assertAppliedInPlace("idx");
+        assertThat(get.getVersion(), equalTo(1L));
         Map<String, Object> source = get.getSourceAsMap();
         assertThat(((Number) source.get("count")).longValue(), equalTo(42L));
         assertThat(source.get("name"), equalTo("widget"));
@@ -288,7 +292,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(update.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
-        assertThat("expected an in-place update, not a reindex", update.getVersion(), equalTo(1L));
+        assertAppliedInPlace("idx");
+        assertThat(update.getVersion(), equalTo(1L));
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
         assertThat(get.getSourceAsMap().get("status"), equalTo("active"));
         assertThat(((Number) get.getSourceAsMap().get("count")).longValue(), equalTo(42L));
@@ -337,6 +342,28 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         ensureGreen("idx");
     }
 
+    // The in-place doc-values update discriminator: applying an update in place increments this stat (on each shard copy that applies it),
+    // while a reindex fallback is counted as an ordinary index operation and leaves it at zero. An in-place update leaves the document
+    // version unchanged, which a reindex (being a full index operation) bumps.
+    private static long inPlaceUpdateCount(String index) {
+        return indicesAdmin().prepareStats(index)
+            .clear()
+            .setIndexing(true)
+            .get()
+            .getTotal()
+            .getIndexing()
+            .getTotal()
+            .getInPlaceDocValuesUpdateCount();
+    }
+
+    private static void assertAppliedInPlace(String index) {
+        assertThat("expected an in-place doc-values update, not a reindex", inPlaceUpdateCount(index), greaterThan(0L));
+    }
+
+    private static void assertReindexed(String index) {
+        assertThat("expected a reindex fallback, not an in-place update", inPlaceUpdateCount(index), equalTo(0L));
+    }
+
     /**
      * A realtime get reflects an in-place doc-values update even before a refresh (read-your-writes). Publishing the update to the version
      * map makes the realtime get refresh and read the updated doc-values columns, rather than returning the stale pre-update document.
@@ -379,8 +406,9 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         assertThat(update.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
-        // Still an in-place update: the document version does not change, a reindex would have bumped it to 2. The seq_no does advance,
-        // recorded in the companion columns.
+        // Still applied in place (counted in the indexing stats), even though requesting _source took the read-modify path. The seq_no
+        // advances, recorded in the companion columns; the version is left unchanged.
+        assertAppliedInPlace("idx");
         assertThat(update.getVersion(), equalTo(1L));
         assertThat(update.getSeqNo(), greaterThan(indexed.getSeqNo()));
 
@@ -437,7 +465,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
         assertThat(get.getSourceAsMap().get("status"), equalTo("s5"));
         assertThat(((Number) get.getSourceAsMap().get("count")).longValue(), equalTo(5L));
-        // Still an in-place update every time, so the version never moved.
+        // Every update applied in place (counted in the indexing stats), so the version never moved.
+        assertAppliedInPlace("idx");
         assertThat(get.getVersion(), equalTo(1L));
     }
 
@@ -504,7 +533,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         assertFalse(client().bulk(bulk).actionGet().hasFailures());
 
         GetResponse get = client().prepareGet("idx", "1").setRealtime(false).get();
-        assertThat("in place, version unchanged", get.getVersion(), equalTo(1L));
+        assertAppliedInPlace("idx");
+        assertThat(get.getVersion(), equalTo(1L));
         Map<String, Object> source = get.getSourceAsMap();
         assertThat(source.get("kw"), equalTo("b"));
         assertThat(((Number) source.get("l")).longValue(), equalTo(10L));
@@ -569,14 +599,15 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
 
         // An in-place doc-values update advances the document's seq_no and primary term (recorded in the companion columns, since _seq_no
         // itself cannot be rewritten in place), so the response reports the update's identity rather than the document's previous seq_no.
-        // The version is left unchanged: it is the signal that the change took the in-place path rather than a reindex.
+        // The version is left unchanged; the in-place path is distinguished by the indexing stats.
         UpdateResponse updated = client().update(
             new UpdateRequest("idx", "1").doc(Map.of("status", "active")).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertThat(updated.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
         assertThat("in-place update advances the reported seq_no", updated.getSeqNo(), greaterThan(indexed.getSeqNo()));
         assertThat(updated.getPrimaryTerm(), equalTo(indexed.getPrimaryTerm()));
-        assertThat("in-place update leaves the version unchanged", updated.getVersion(), equalTo(1L));
+        assertAppliedInPlace("idx");
+        assertThat(updated.getVersion(), equalTo(1L));
 
         // The reported seq_no is the document's current identity: a CAS on the now-stale original seq_no conflicts.
         Exception stale = expectThrows(
@@ -788,7 +819,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertThat(update.getResult(), equalTo(DocWriteResponse.Result.UPDATED));
-        assertThat("expected an in-place update, not a reindex", update.getVersion(), equalTo(1L));
+        assertAppliedInPlace("idx");
+        assertThat(update.getVersion(), equalTo(1L));
 
         Map<String, Object> getSource = client().prepareGet("idx", "1").setRealtime(false).get().getSourceAsMap();
         assertThat("get _source after an in-place update", getSource, equalTo(Map.of("status", "active", "name", "widget")));
@@ -988,8 +1020,9 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
             response -> assertHitCount(response, docs)
         );
 
-        // The recovered replica agrees with the primary on the document metadata, not just the values: an in-place update leaves the
-        // document's version, seq_no and primary term unchanged, and both copies must report the same ones after peer recovery.
+        // The recovered replica agrees with the primary on the document metadata, not just the values: an in-place update advances the
+        // document's seq_no and primary term and leaves its version unchanged, and both copies must report the same ones after peer
+        // recovery.
         String primaryNodeId = state.routingTable().index("idx").shard(0).primaryShard().currentNodeId();
         GetResponse fromReplica = client().prepareGet("idx", "5").setRealtime(false).setPreference(replicaPreference).get();
         GetResponse fromPrimary = client().prepareGet("idx", "5").setRealtime(false).setPreference("_only_nodes:" + primaryNodeId).get();
@@ -1064,7 +1097,8 @@ public class DocValuesUpdateIT extends ESIntegTestCase {
         assertFalse(client().bulk(bulk).actionGet().hasFailures());
 
         GetResponse get = client().prepareGet("mv", "1").setRealtime(false).get();
-        assertThat("expected an in-place update, not a reindex", get.getVersion(), equalTo(1L));
+        assertAppliedInPlace("mv");
+        assertThat(get.getVersion(), equalTo(1L));
         assertThat(get.getSourceAsMap().get("tags"), equalTo(List.of("x", "y", "z")));
         assertThat("the untouched field survives from the stored blob", get.getSourceAsMap().get("name"), equalTo("widget"));
 

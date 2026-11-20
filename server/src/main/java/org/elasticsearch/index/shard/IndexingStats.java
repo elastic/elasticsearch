@@ -38,6 +38,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private static final TransportVersion INDEXING_STATS_INDEX_FAILED_DUE_TO_TOO_MANY_DOCS = TransportVersion.fromName(
             "indexing_stats_index_failed_due_to_too_many_docs"
         );
+        // The in-place doc-values update stat ships with the updatable doc-values feature, so it rides that feature's transport version
+        // rather than adding its own: a node that sends in-place updates also reports this stat.
+        private static final TransportVersion DOC_VALUES_UPDATE = TransportVersion.fromName("doc_values_update");
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -49,6 +52,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long deleteTimeInMillis;
         private long deleteCurrent;
         private long noopUpdateCount;
+        private long inPlaceDocValuesUpdateCount;
         private long throttleTimeInMillis;
         private boolean isThrottled;
         private long totalIndexingTimeSinceShardStartedInNanos;
@@ -106,8 +110,55 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (in.getTransportVersion().supports(INDEXING_STATS_INDEX_FAILED_DUE_TO_TOO_MANY_DOCS)) {
                 indexFailedDueToTooManyDocsCount = in.readVLong();
             }
+            if (in.getTransportVersion().supports(DOC_VALUES_UPDATE)) {
+                inPlaceDocValuesUpdateCount = in.readVLong();
+            }
         }
 
+        public Stats(
+            long indexCount,
+            long indexTimeInMillis,
+            long indexCurrent,
+            long indexFailedCount,
+            long indexFailedDueToVersionConflictCount,
+            long indexFailedDueToTooManyDocsCount,
+            long deleteCount,
+            long deleteTimeInMillis,
+            long deleteCurrent,
+            long noopUpdateCount,
+            long inPlaceDocValuesUpdateCount,
+            boolean isThrottled,
+            long throttleTimeInMillis,
+            long totalIndexingTimeSinceShardStartedInNanos,
+            long totalIndexingExecutionTimeSinceShardStartedInNanos,
+            long totalActiveTimeInNanos,
+            double recentIndexingLoad,
+            double peakIndexingLoad
+        ) {
+            this.indexCount = indexCount;
+            this.indexTimeInMillis = indexTimeInMillis;
+            this.indexCurrent = indexCurrent;
+            this.indexFailedCount = indexFailedCount;
+            this.indexFailedDueToVersionConflictCount = indexFailedDueToVersionConflictCount;
+            this.indexFailedDueToTooManyDocsCount = indexFailedDueToTooManyDocsCount;
+            this.deleteCount = deleteCount;
+            this.deleteTimeInMillis = deleteTimeInMillis;
+            this.deleteCurrent = deleteCurrent;
+            this.noopUpdateCount = noopUpdateCount;
+            this.inPlaceDocValuesUpdateCount = inPlaceDocValuesUpdateCount;
+            this.isThrottled = isThrottled;
+            this.throttleTimeInMillis = throttleTimeInMillis;
+            // We store the raw unweighted write load values in order to avoid losing precision when we combine the shard stats
+            this.totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeSinceShardStartedInNanos;
+            this.totalIndexingExecutionTimeSinceShardStartedInNanos = totalIndexingExecutionTimeSinceShardStartedInNanos;
+            this.totalActiveTimeInNanos = totalActiveTimeInNanos;
+            // We store the weighted write load as a double because the calculation is inherently floating point
+            this.recentIndexingLoad = recentIndexingLoad;
+            this.peakIndexingLoad = peakIndexingLoad;
+        }
+
+        // Overload without the in-place doc-values update count, which is produced only by the real indexing path; other callers
+        // (synthetic test stats, cross-node aggregation) do not set it.
         public Stats(
             long indexCount,
             long indexTimeInMillis,
@@ -127,25 +178,26 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             double recentIndexingLoad,
             double peakIndexingLoad
         ) {
-            this.indexCount = indexCount;
-            this.indexTimeInMillis = indexTimeInMillis;
-            this.indexCurrent = indexCurrent;
-            this.indexFailedCount = indexFailedCount;
-            this.indexFailedDueToVersionConflictCount = indexFailedDueToVersionConflictCount;
-            this.indexFailedDueToTooManyDocsCount = indexFailedDueToTooManyDocsCount;
-            this.deleteCount = deleteCount;
-            this.deleteTimeInMillis = deleteTimeInMillis;
-            this.deleteCurrent = deleteCurrent;
-            this.noopUpdateCount = noopUpdateCount;
-            this.isThrottled = isThrottled;
-            this.throttleTimeInMillis = throttleTimeInMillis;
-            // We store the raw unweighted write load values in order to avoid losing precision when we combine the shard stats
-            this.totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeSinceShardStartedInNanos;
-            this.totalIndexingExecutionTimeSinceShardStartedInNanos = totalIndexingExecutionTimeSinceShardStartedInNanos;
-            this.totalActiveTimeInNanos = totalActiveTimeInNanos;
-            // We store the weighted write load as a double because the calculation is inherently floating point
-            this.recentIndexingLoad = recentIndexingLoad;
-            this.peakIndexingLoad = peakIndexingLoad;
+            this(
+                indexCount,
+                indexTimeInMillis,
+                indexCurrent,
+                indexFailedCount,
+                indexFailedDueToVersionConflictCount,
+                indexFailedDueToTooManyDocsCount,
+                deleteCount,
+                deleteTimeInMillis,
+                deleteCurrent,
+                noopUpdateCount,
+                0L,
+                isThrottled,
+                throttleTimeInMillis,
+                totalIndexingTimeSinceShardStartedInNanos,
+                totalIndexingExecutionTimeSinceShardStartedInNanos,
+                totalActiveTimeInNanos,
+                recentIndexingLoad,
+                peakIndexingLoad
+            );
         }
 
         public void add(Stats stats) {
@@ -161,6 +213,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             deleteCurrent += stats.deleteCurrent;
 
             noopUpdateCount += stats.noopUpdateCount;
+            inPlaceDocValuesUpdateCount += stats.inPlaceDocValuesUpdateCount;
             throttleTimeInMillis += stats.throttleTimeInMillis;
             if (isThrottled != stats.isThrottled) {
                 isThrottled = true; // When combining if one is throttled set result to throttled.
@@ -261,6 +314,13 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         }
 
         /**
+         * The number of in-place doc-values updates applied (as opposed to updates realized by reindexing the document).
+         */
+        public long getInPlaceDocValuesUpdateCount() {
+            return inPlaceDocValuesUpdateCount;
+        }
+
+        /**
          * Returns a measurement of the write load.
          *
          * <p>If this {@link Stats} instance represents a single shard, this is ratio of the sum of the time taken by every index operations
@@ -338,6 +398,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (out.getTransportVersion().supports(INDEXING_STATS_INDEX_FAILED_DUE_TO_TOO_MANY_DOCS)) {
                 out.writeVLong(indexFailedDueToTooManyDocsCount);
             }
+            if (out.getTransportVersion().supports(DOC_VALUES_UPDATE)) {
+                out.writeVLong(inPlaceDocValuesUpdateCount);
+            }
         }
 
         @Override
@@ -354,6 +417,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
 
             builder.field(Fields.NOOP_UPDATE_TOTAL, noopUpdateCount);
+            builder.field(Fields.IN_PLACE_DOC_VALUES_UPDATE_TOTAL, inPlaceDocValuesUpdateCount);
 
             builder.field(Fields.IS_THROTTLED, isThrottled);
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
@@ -379,6 +443,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 && deleteTimeInMillis == that.deleteTimeInMillis
                 && deleteCurrent == that.deleteCurrent
                 && noopUpdateCount == that.noopUpdateCount
+                && inPlaceDocValuesUpdateCount == that.inPlaceDocValuesUpdateCount
                 && isThrottled == that.isThrottled
                 && throttleTimeInMillis == that.throttleTimeInMillis
                 && totalIndexingTimeSinceShardStartedInNanos == that.totalIndexingTimeSinceShardStartedInNanos
@@ -401,6 +466,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 deleteTimeInMillis,
                 deleteCurrent,
                 noopUpdateCount,
+                inPlaceDocValuesUpdateCount,
                 isThrottled,
                 throttleTimeInMillis,
                 totalIndexingTimeSinceShardStartedInNanos,
@@ -477,6 +543,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         static final String DELETE_TIME_IN_MILLIS = "delete_time_in_millis";
         static final String DELETE_CURRENT = "delete_current";
         static final String NOOP_UPDATE_TOTAL = "noop_update_total";
+        static final String IN_PLACE_DOC_VALUES_UPDATE_TOTAL = "in_place_doc_values_update_total";
         static final String IS_THROTTLED = "is_throttled";
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";

@@ -2547,7 +2547,8 @@ public class InternalEngine extends Engine {
         // Not append-only: this changes an existing document, so resolve versions under safe access, as delete and index do.
         versionMap.enforceSafeAccess();
         assert assertIncomingSequenceNumber(docValuesUpdate.origin(), docValuesUpdate.seqNo());
-        // The update advances the document's seq_no and primary term through the companion columns; its version is left unchanged.
+        // The update advances the document's seq_no and primary term through the companion columns; its version is left unchanged (the live
+        // document still represents the original index operation for recovery, which keeps _seq_no and _version at the base).
         final boolean seqNoAware = engineConfig.getIndexSettings().seqNoAwareDocValuesUpdates();
         DocValuesUpdateResult result;
         try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(docValuesUpdate.uid())) {
@@ -2794,7 +2795,7 @@ public class InternalEngine extends Engine {
                 doc.add(softDeletesField);
                 indexWriter.addDocument(doc);
             }
-            return new DocValuesUpdateResult(op.version(), op.primaryTerm(), op.seqNo(), op.id());
+            return new DocValuesUpdateResult(op.version(), op.primaryTerm(), op.seqNo(), op.id(), plan.applyInPlace());
         } catch (final Exception ex) {
             // A document-level failure here is unexpected (e.g. the field is not a doc-values-only field, or a corrupt index). A sequence
             // number has already been issued, so this is fatal: fail the engine, mirroring deleteInLucene.

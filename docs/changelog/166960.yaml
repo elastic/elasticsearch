@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166960
+summary: LOOKUP JOIN and ENRICH read keys of flattened fields at the index
+type: enhancement

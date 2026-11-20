@@ -478,7 +478,7 @@ serverless: unavailable
 ## Optimize queries for {{esql}} Data Federation
 
 ```{applies_to}
-stack: preview =9.5
+stack: preview 9.6+, experimental =9.5
 serverless: preview
 ```
 

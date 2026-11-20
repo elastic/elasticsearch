@@ -60,7 +60,8 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
         /** Do not request it. The default. A partial result still lists the clusters that have failures. */
         NEVER,
         /**
-         * Request it for cross-cluster queries. A query on local indices only reports nothing. Equivalent of the
+         * Request it for cross-cluster queries. A query on local indices only reports nothing, unless its result is
+         * partial with failures. A non-empty list is therefore no proof of a cross-cluster query. Equivalent of the
          * {@code include_ccs_metadata} request parameter.
          */
         CCS_ONLY,

@@ -343,15 +343,22 @@ public final class ShardTable {
     }
 
     /**
-     * The histories of this shard that have a staging directory with at least one blob: the current one, and the ones of stores that were
-     * lost. A history whose staged files were all deleted has no blob, so it is not listed.
+     * The histories of this shard that have a staging directory with at least one staged file: the current one, and the ones of stores
+     * that were lost. A history whose staged files were all deleted has none, so it is not listed. An object store has no directory
+     * without an object, but a file system keeps the empty directory of a history whose files were deleted (and a test file system adds
+     * directories of its own), so the files of each directory are looked at.
      */
     public List<String> listStagedHistories() throws IOException {
         // the container of the directory that holds the directories of the histories: any name below it gives it
         final BlobContainer shardStaging = io.containerOf(io.rootLocation() + "/staging/shard-" + shard + "/x");
         final List<String> histories = new ArrayList<>();
         for (var entry : shardStaging.children(RepositoryFileIO.PURPOSE).entrySet()) {
-            histories.add(entry.getKey());
+            for (String blob : entry.getValue().listBlobs(RepositoryFileIO.PURPOSE).keySet()) {
+                if (STAGED_FILE.matcher(blob).matches()) {
+                    histories.add(entry.getKey());
+                    break;
+                }
+            }
         }
         histories.sort(String::compareTo);
         return histories;

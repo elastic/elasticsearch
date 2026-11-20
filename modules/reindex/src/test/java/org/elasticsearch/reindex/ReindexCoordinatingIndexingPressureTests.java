@@ -854,22 +854,13 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         assertThat(pressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
     }
 
-    public void testRefusedReserveAfterAnUpdateByQueryPageHoldsNoHitSources() throws Exception {
-        int pageSize = between(1, 5);
-        assertRefusedReserveHoldsNoHitSources(updateRequest(pageSize), pageSize, 1L);
-    }
-
-    public void testRefusedReserveAfterAReindexPageHoldsNoHitSources() throws Exception {
-        int pageSize = between(1, 5);
-        assertRefusedReserveHoldsNoHitSources(reindexRequest(pageSize), pageSize, -1L);
-    }
-
-    public void testRefusedReserveAfterADeleteByQueryPageHoldsNoHitSources() throws Exception {
-        int pageSize = between(1, 5);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(randomAlphaOfLength(6));
-        request.getSearchRequest().source().size(pageSize);
-        request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
-        assertRefusedReserveHoldsNoHitSources(request, pageSize, 1L);
+    public void testRefusedReserveAfterAFinishedPageHoldsNoHitSources() throws Exception {
+        int updatePageSize = between(1, 5);
+        assertRefusedReserveHoldsNoHitSources(updateRequest(updatePageSize), updatePageSize, 1L);
+        int reindexPageSize = between(1, 5);
+        assertRefusedReserveHoldsNoHitSources(reindexRequest(reindexPageSize), reindexPageSize, -1L);
+        int deletePageSize = between(1, 5);
+        assertRefusedReserveHoldsNoHitSources(deleteRequest(deletePageSize), deletePageSize, 1L);
     }
 
     /**
@@ -1076,6 +1067,13 @@ public class ReindexCoordinatingIndexingPressureTests extends ESTestCase {
         request.getSearchRequest().indices(randomAlphaOfLength(6));
         request.getSearchRequest().source().size(pageSize);
         request.getDestination().index(randomAlphaOfLength(6));
+        request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
+        return request;
+    }
+
+    private static DeleteByQueryRequest deleteRequest(int pageSize) {
+        DeleteByQueryRequest request = new DeleteByQueryRequest(randomAlphaOfLength(6));
+        request.getSearchRequest().source().size(pageSize);
         request.setRetryBackoffInitialTime(TimeValue.timeValueMillis(randomIntBetween(1, 40)));
         return request;
     }

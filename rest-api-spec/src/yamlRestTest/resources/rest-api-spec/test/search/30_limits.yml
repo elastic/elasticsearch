@@ -313,3 +313,38 @@ setup:
                 field: foo
                 include: "b.*"
   - match: { aggregations.terms_agg.buckets.0.key: bar }
+
+  # The limit is each index's own and is checked on the shard, so across indices with different limits the shards that
+  # reject the pattern fail and the others answer.
+  - do:
+      indices.create:
+        index: test_default_regex
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+
+  - do:
+      index:
+        index: test_default_regex
+        id: "1"
+        refresh: true
+        body: { foo: bar }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_default_regex,test_short_regex
+        body:
+          size: 0
+          aggs:
+            terms_agg:
+              terms:
+                field: foo
+                include: "aaaaaaaaaaaaaaaaaaaaa"
+  - gte: { _shards.successful: 1 }
+  - gte: { _shards.failed: 1 }
+  - match:
+      _shards.failures.0.index: /(.*:)?test_short_regex/
+  - length: { aggregations.terms_agg.buckets: 0 }

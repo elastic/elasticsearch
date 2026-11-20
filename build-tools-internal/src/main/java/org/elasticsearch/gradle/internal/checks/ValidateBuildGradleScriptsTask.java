@@ -234,6 +234,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
                 "Ant usage in build logic",
                 path -> true,
                 ANT_USAGE_PATTERN,
+                true,
                 "The Gradle Ant integration (ant.*, getAnt(), createAntBuilder(), AntBuilder, addToAntBuilder) is deprecated "
                     + "since Gradle 9.9 and removed in Gradle 10, which also removes the org.apache.tools.ant classes from the "
                     + "build script classpath.",
@@ -247,16 +248,64 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
     static final String ANT_USAGE_RULE_ID = "ant-usage";
 
     /**
-     * Matches Ant usages on lines that are not comments: {@code ant.xyz}, {@code ant { }}, {@code ant(...)},
-     * {@code getAnt()}, {@code createAntBuilder}, {@code AntBuilder}, {@code addToAntBuilder} and references to the
-     * {@code org.apache.tools.ant} or {@code groovy.ant} packages.
+     * Matches Ant usages in code (comments are blanked out before matching, see {@link #blankComments(String)}): {@code ant.xyz},
+     * {@code ant { }}, {@code ant(...)}, a read of the {@code ant} property of a project ({@code project.ant}), {@code getAnt()},
+     * {@code createAntBuilder}, {@code addToAntBuilder}, the deprecated Gradle types {@code AntBuilder}, {@code AntTarget},
+     * {@code AntBuilderAware} and {@code FileCollection.AntType}, and references to the {@code org.apache.tools.ant} or
+     * {@code groovy.ant} packages.
      */
     static final Pattern ANT_USAGE_PATTERN = Pattern.compile(
-        "(?m)^(?![ \t]*(?://|\\*|/\\*))[^\n]*?"
-            + "(?:(?<![\\w$])ant\\s*[.({]|\\bgetAnt\\s*\\(|\\bcreateAntBuilder\\b|\\bAntBuilder\\b|\\baddToAntBuilder\\b"
+        "(?:(?<![\\w$])ant\\s*[.({]|\\b(?:project|rootProject|getProject\\s*\\(\\s*\\))\\s*\\.\\s*ant\\b"
+            + "|\\bgetAnt\\s*\\(|\\bcreateAntBuilder\\b|\\baddToAntBuilder\\b|\\bAntBuilder\\b|\\bAntBuilderAware\\b"
+            + "|\\bAntTarget\\b|\\bAntType\\b"
             + "|\\borg\\.apache\\.tools\\.ant\\b|\\bgroovy\\.ant\\b)"
     );
 
+    /**
+     * Replaces the contents of line and block comments with spaces, keeping line breaks so that offsets and line numbers are
+     * unchanged. String literals (single, double and triple quoted) are left alone, so {@code "http://..."} is not mistaken for
+     * a comment. Slashy strings and dollar-slashy strings are not recognised.
+     */
+    static String blankComments(String content) {
+        StringBuilder result = new StringBuilder(content.length());
+        int length = content.length();
+        int i = 0;
+        while (i < length) {
+            char c = content.charAt(i);
+            if (c == '/' && i + 1 < length && content.charAt(i + 1) == '/') {
+                while (i < length && content.charAt(i) != '\n') {
+                    result.append(' ');
+                    i++;
+                }
+            } else if (c == '/' && i + 1 < length && content.charAt(i + 1) == '*') {
+                int end = content.indexOf("*/", i + 2);
+                int stop = end < 0 ? length : end + 2;
+                for (; i < stop; i++) {
+                    result.append(content.charAt(i) == '\n' ? '\n' : ' ');
+                }
+            } else if (c == '\'' || c == '"') {
+                String quote = content.startsWith(String.valueOf(c).repeat(3), i) ? String.valueOf(c).repeat(3) : String.valueOf(c);
+                int start = i;
+                i += quote.length();
+                while (i < length && content.startsWith(quote, i) == false) {
+                    if (content.charAt(i) == '\\') {
+                        i++;
+                    } else if (quote.length() == 1 && content.charAt(i) == '\n') {
+                        break;
+                    }
+                    i++;
+                }
+                i = Math.min(length, i + (i < length && content.startsWith(quote, i) ? quote.length() : 0));
+                result.append(content, start, i);
+            } else {
+                result.append(c);
+                i++;
+            }
+        }
+        return result.toString();
+    }
+
+    /**
      * Adds a guardrail against reading the test seed at configuration time. The seed is a configuration cache input when
      * it is read while configuring, so a script that reads it ({@code get()}, {@code getOrNull()}, {@code getOrElse(...)}
      * or {@code orNull}), or reads {@code buildParams.random}, which is derived from it, makes every build with a new seed
@@ -269,7 +318,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             new ScriptRule(
                 "eager-test-seed",
                 "Build scripts must not read the test seed at configuration time",
-                path -> true,
+                ValidateBuildGradleScriptsTask::isBuildScript,
                 Pattern.compile(
                     // the provider, then a chain of calls (arguments and closures on one line each, closures may hold ${...}),
                     // then a read. The whitespace before an argument list or closure sits inside the optional group: if two
@@ -301,7 +350,7 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
             if (rule.appliesToPath().test(relativePath) == false) {
                 continue;
             }
-            Matcher matcher = rule.pattern().matcher(content);
+            Matcher matcher = rule.pattern().matcher(rule.skipComments() ? blankComments(content) : content);
             while (matcher.find()) {
                 int lineNumber = lineNumber(content, matcher.start());
                 String lineText = lineText(content, matcher.start()).trim();
@@ -514,7 +563,23 @@ public abstract class ValidateBuildGradleScriptsTask extends DefaultTask {
         return content.substring(start, end);
     }
 
-    private record ScriptRule(String id, String title, Predicate<String> appliesToPath, Pattern pattern, String details, String solution) {}
+    /**
+     * @param skipComments whether the pattern is matched against the script with comments blanked out, so that commented-out
+     *                     code or an explanatory comment never counts as a violation
+     */
+    private record ScriptRule(
+        String id,
+        String title,
+        Predicate<String> appliesToPath,
+        Pattern pattern,
+        boolean skipComments,
+        String details,
+        String solution
+    ) {
+        ScriptRule(String id, String title, Predicate<String> appliesToPath, Pattern pattern, String details, String solution) {
+            this(id, title, appliesToPath, pattern, false, details, solution);
+        }
+    }
 
     private record IgnoreKey(String ruleId, String relativePath) {}
 

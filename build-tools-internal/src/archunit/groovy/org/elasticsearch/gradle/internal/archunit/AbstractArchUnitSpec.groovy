@@ -54,9 +54,13 @@ abstract class AbstractArchUnitSpec extends Specification {
             .importPackages("org.elasticsearch.gradle")
     }
 
-    /** The jars of the included build-tools and build-conventions builds, e.g. {@code build-tools/build/distributions/build-tools-9.7.0.jar}. */
+    /**
+     * The production jars of the included build-tools and build-conventions builds, e.g.
+     * {@code build-tools/build/distributions/build-tools-9.7.0.jar}. The {@code -test-fixtures} jar of build-tools is
+     * deliberately not matched: it holds test support code, not build logic we ship.
+     */
     private static final java.util.regex.Pattern BUILD_LOGIC_JAR =
-        ~/\/(build-tools|build-conventions)\/build\/(libs|distributions)\/[^\/]+\.jar!/
+        ~/\/(build-tools|build-conventions)\/build\/(libs|distributions)\/(?!.*-test-fixtures)[^\/]+\.jar!/
 
     /**
      * Returns the baseline entries that are no longer valid — either no class with that top-level

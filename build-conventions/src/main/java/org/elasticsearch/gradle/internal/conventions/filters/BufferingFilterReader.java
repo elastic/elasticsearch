@@ -23,6 +23,7 @@ import java.io.StringWriter;
 abstract class BufferingFilterReader extends FilterReader {
 
     private Reader transformed;
+    private boolean closed;
 
     protected BufferingFilterReader(Reader in) {
         super(in);
@@ -34,6 +35,9 @@ abstract class BufferingFilterReader extends FilterReader {
     protected abstract String transform(String content);
 
     private Reader transformed() throws IOException {
+        if (closed) {
+            throw new IOException("Stream closed");
+        }
         if (transformed == null) {
             StringWriter content = new StringWriter();
             in.transferTo(content);
@@ -60,6 +64,21 @@ abstract class BufferingFilterReader extends FilterReader {
     @Override
     public boolean ready() throws IOException {
         return transformed().ready();
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        try {
+            in.close();
+        } finally {
+            if (transformed != null) {
+                transformed.close();
+            }
+        }
     }
 
     @Override

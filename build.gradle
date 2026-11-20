@@ -581,14 +581,6 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'modules/lang-painless/build.gradle::4',
       'qa/vector/build.gradle::1',
     ],
-    // ANTLR regen tasks, removed by https://github.com/elastic/elasticsearch/pull/166296
-    'ant-usage': [
-      'modules/lang-painless/build.gradle::12',
-      'x-pack/plugin/eql/build.gradle::6',
-      'x-pack/plugin/esql/build.gradle::10',
-      'x-pack/plugin/kql/build.gradle::6',
-      'x-pack/plugin/sql/build.gradle::6',
-    ],
   ])
 }
 

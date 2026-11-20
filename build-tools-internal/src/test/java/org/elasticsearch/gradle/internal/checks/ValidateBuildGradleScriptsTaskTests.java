@@ -475,6 +475,67 @@ public class ValidateBuildGradleScriptsTaskTests {
     }
 
     @Test
+    public void testAntUsageRuleFlagsAntPropertyAndDeprecatedTypes() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "subproject/build.gradle",
+            List.of(
+                "def builder = project.ant",
+                "def other = rootProject.ant",
+                "class Foo implements AntBuilderAware {}",
+                "FileCollection.AntType type = null"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        try {
+            task.validateScripts();
+            fail("GradleException was expected");
+        } catch (GradleException e) {
+            String message = e.getMessage();
+            assertEquals(4, message.lines().filter(l -> l.startsWith("- [ant-usage]")).count());
+        }
+    }
+
+    @Test
+    public void testAntUsageRuleIgnoresInlineComments() throws Exception {
+        Project project = createProject();
+        File scriptFile = writeFile(
+            project,
+            "subproject/build.gradle",
+            List.of(
+                "def value = 'x' // use Copy instead of ant.copy",
+                "def other = 'y' /* ant.move(file: 'a') */",
+                "def url = 'http://example.com/index.html'",
+                "/*",
+                " ant.echo(message: 'x')",
+                "*/"
+            )
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptFile);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
+    public void testEagerTestSeedRuleOnlyAppliesToBuildScripts() throws Exception {
+        Project project = createProject();
+        File scriptPlugin = writeFile(
+            project,
+            "build-tools-internal/src/main/groovy/elasticsearch.example.gradle",
+            List.of("def seed = buildParams.testSeedProvider.get()")
+        );
+        ValidateBuildGradleScriptsTask task = createTask(project, scriptPlugin);
+
+        task.validateScripts();
+
+        assertOutputMarkerWritten(task);
+    }
+
+    @Test
     public void testAntUsageRuleIgnoresCommentsAndLookalikes() throws Exception {
         Project project = createProject();
         File scriptFile = writeFile(

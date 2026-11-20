@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 public class ReplaceTokensTests {
 
@@ -85,6 +86,20 @@ public class ReplaceTokensTests {
             result.append((char) c);
         }
         assertEquals("a yz b", result.toString());
+    }
+
+    @Test
+    public void rejectsReadsAfterClose() throws IOException {
+        ReplaceTokens filter = new ReplaceTokens(new StringReader("a @x@ b"));
+        filter.setTokens(Map.of("x", "yz"));
+        assertEquals('a', filter.read());
+        filter.close();
+        assertThrows(IOException.class, filter::read);
+        assertThrows(IOException.class, () -> filter.read(new char[4], 0, 4));
+        assertThrows(IOException.class, () -> filter.skip(1));
+        assertThrows(IOException.class, filter::ready);
+        // closing twice is a no-op
+        filter.close();
     }
 
     private static String filter(String content, Map<String, ?> tokens) throws IOException {

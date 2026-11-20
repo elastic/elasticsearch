@@ -57,6 +57,12 @@ class AntUsageArchUnitSpec extends AbstractArchUnitSpec {
          "org.elasticsearch.gradle.internal.BuildPlugin"].every { buildLogicClasses.contain(it) }
     }
 
+    def "does not import the build-tools test fixtures"() {
+        expect:
+        // test support code is not build logic we ship, so Ant usage there must not fail the production-only rules
+        buildLogicClasses.contain("org.elasticsearch.gradle.internal.test.TestUtils") == false
+    }
+
     def "build logic does not depend on Ant classes"() {
         given:
         ArchRule rule = noClasses()
@@ -93,6 +99,12 @@ class AntUsageArchUnitSpec extends AbstractArchUnitSpec {
     }
 
     private static boolean isGradleAntMethodCall(JavaMethodCall call) {
-        return GRADLE_ANT_METHODS.contains(call.name) && call.targetOwner.packageName.startsWith("org.gradle.")
+        if (GRADLE_ANT_METHODS.contains(call.name) == false) {
+            return false
+        }
+        // The target owner is the class named in the bytecode, which is a custom task for an unqualified getAnt() inside
+        // a task subclass. Also check the member that call resolves to, which is declared by the Gradle API.
+        return call.targetOwner.packageName.startsWith("org.gradle.") ||
+            call.target.resolveMember().map { it.owner.packageName.startsWith("org.gradle.") }.orElse(false)
     }
 }

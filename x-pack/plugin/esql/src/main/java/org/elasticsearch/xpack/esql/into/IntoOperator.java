@@ -97,5 +97,7 @@ public final class IntoOperator implements Operator {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        writer.close();
+    }
 }

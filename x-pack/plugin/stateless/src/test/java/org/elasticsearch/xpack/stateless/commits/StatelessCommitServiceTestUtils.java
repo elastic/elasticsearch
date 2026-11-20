@@ -85,7 +85,7 @@ public class StatelessCommitServiceTestUtils {
         }
 
         @Override
-        protected @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRange(
+        protected @Nullable TimestampFieldValueRange readTimestampFieldValueRange(
             ShardCommitState commitState,
             StatelessCommitRef reference
         ) {

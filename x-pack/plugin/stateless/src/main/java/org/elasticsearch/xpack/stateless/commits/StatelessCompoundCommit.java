@@ -372,12 +372,8 @@ public record StatelessCompoundCommit(
                 if (timestampFieldValueRange != null) {
                     // the CC XContentHeader is always serialized under the last version,
                     // so the timestamp field value range always has the right to be present
-                    b.startObject("timestamp_field_value_range");
-                    {
-                        b.field("min_millis", timestampFieldValueRange.minMillis);
-                        b.field("max_millis", timestampFieldValueRange.maxMillis);
-                    }
-                    b.endObject();
+                    b.field("timestamp_field_value_range");
+                    timestampFieldValueRange.toXContent(b, ToXContent.EMPTY_PARAMS);
                 }
                 b.startObject("commit_files");
                 {
@@ -660,39 +656,6 @@ public record StatelessCompoundCommit(
             combinedCommitFilesResult.extraContent,
             timestampFieldValueRange
         );
-    }
-
-    public record TimestampFieldValueRange(long minMillis, long maxMillis) implements Writeable {
-
-        static final ConstructingObjectParser<TimestampFieldValueRange, Void> TIMESTAMP_FIELD_VALUE_RANGE_PARSER =
-            new ConstructingObjectParser<>(
-                "timestamp_field_value_range",
-                args -> new TimestampFieldValueRange((long) args[0], (long) args[1])
-            );
-        static {
-            TIMESTAMP_FIELD_VALUE_RANGE_PARSER.declareLong(constructorArg(), new ParseField("min_millis"));
-            TIMESTAMP_FIELD_VALUE_RANGE_PARSER.declareLong(constructorArg(), new ParseField("max_millis"));
-        }
-
-        public TimestampFieldValueRange {
-            if (minMillis > maxMillis) {
-                throw new IllegalArgumentException("Invalid millis timestamp range [" + minMillis + ", " + maxMillis + "]");
-            }
-        }
-
-        public TimestampFieldValueRange(StreamInput in) throws IOException {
-            this(in.readLong(), in.readLong());
-        }
-
-        public long midpointMillis() {
-            return minMillis + (maxMillis - minMillis) / 2;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(minMillis);
-            out.writeLong(maxMillis);
-        }
     }
 
     record CombinedCommitFilesResult(

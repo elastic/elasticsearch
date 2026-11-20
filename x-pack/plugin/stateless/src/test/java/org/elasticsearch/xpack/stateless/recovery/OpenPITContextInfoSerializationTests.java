@@ -19,7 +19,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.OpenPITContextInfo;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.OpenPITReshardingState;
 
@@ -62,7 +62,7 @@ public class OpenPITContextInfoSerializationTests extends AbstractWireSerializin
         return randomMetadataWithTs(usually() ? randomTimestampFieldValueRange() : null);
     }
 
-    private static Map<String, BlobFileRanges> randomMetadataWithTs(StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {
+    private static Map<String, BlobFileRanges> randomMetadataWithTs(TimestampFieldValueRange timestampRange) {
         return randomMap(
             1,
             10,

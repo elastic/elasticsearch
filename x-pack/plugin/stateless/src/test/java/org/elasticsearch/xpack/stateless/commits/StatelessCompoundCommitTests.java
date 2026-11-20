@@ -20,7 +20,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
 import java.io.IOException;
@@ -425,6 +428,25 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     assertThat(e.getMessage(), containsString("(offset + file) length is greater than blobLength"));
                 }
             }
+        }
+    }
+
+    public void testTimestampFieldValueRangeXContentIsTheEncodingOfTheHeader() throws IOException {
+        final var range = randomTimestampFieldValueRange();
+
+        // what the header of a compound commit has always written for the range, which is persisted
+        final var inline = new BytesStreamOutput();
+        try (var builder = new XContentBuilder(XContentType.SMILE.xContent(), inline)) {
+            builder.startObject().field("min_millis", range.minMillis()).field("max_millis", range.maxMillis()).endObject();
+        }
+        final var shared = new BytesStreamOutput();
+        try (var builder = new XContentBuilder(XContentType.SMILE.xContent(), shared)) {
+            range.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        assertThat(shared.bytes(), equalTo(inline.bytes()));
+
+        try (var parser = XContentType.SMILE.xContent().createParser(XContentParserConfiguration.EMPTY, shared.bytes().streamInput())) {
+            assertThat(TimestampFieldValueRange.TIMESTAMP_FIELD_VALUE_RANGE_PARSER.parse(parser, null), equalTo(range));
         }
     }
 

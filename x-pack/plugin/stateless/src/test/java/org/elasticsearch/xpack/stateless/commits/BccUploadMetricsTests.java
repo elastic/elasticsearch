@@ -43,7 +43,7 @@ public class BccUploadMetricsTests extends ESTestCase {
     public void testBccTimestampSpanMinutesEmptyWhenNoTimestamps() {
         assertThat(bccTimestampSpanMinutes(Collections.emptyIterator()), equalTo(OptionalDouble.empty()));
         assertThat(
-            bccTimestampSpanMinutes(Arrays.<StatelessCompoundCommit.TimestampFieldValueRange>asList(null, null).iterator()),
+            bccTimestampSpanMinutes(Arrays.<TimestampFieldValueRange>asList(null, null).iterator()),
             equalTo(OptionalDouble.empty())
         );
     }
@@ -56,9 +56,7 @@ public class BccUploadMetricsTests extends ESTestCase {
         {
             final long min = randomLongBetween(0, tenYearsMillis);
             final long max = min + randomLongBetween(0, oneYearMillis);
-            final OptionalDouble span = bccTimestampSpanMinutes(
-                List.of(new StatelessCompoundCommit.TimestampFieldValueRange(min, max)).iterator()
-            );
+            final OptionalDouble span = bccTimestampSpanMinutes(List.of(new TimestampFieldValueRange(min, max)).iterator());
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo((double) (max - min) / 60_000d, 1e-9));
         }
@@ -66,9 +64,7 @@ public class BccUploadMetricsTests extends ESTestCase {
         // zero-width range -> 0.0
         {
             final long ts = randomLongBetween(0, tenYearsMillis);
-            final OptionalDouble span = bccTimestampSpanMinutes(
-                List.of(new StatelessCompoundCommit.TimestampFieldValueRange(ts, ts)).iterator()
-            );
+            final OptionalDouble span = bccTimestampSpanMinutes(List.of(new TimestampFieldValueRange(ts, ts)).iterator());
             assertThat(span.isPresent(), is(true));
             assertThat(span.getAsDouble(), closeTo(0.0, 1e-9));
         }
@@ -76,7 +72,7 @@ public class BccUploadMetricsTests extends ESTestCase {
         // multiple ranges aggregate to the overall [min, max]; interspersed nulls must be ignored
         {
             final int n = randomIntBetween(1, 6);
-            final List<StatelessCompoundCommit.TimestampFieldValueRange> ranges = new ArrayList<>();
+            final List<TimestampFieldValueRange> ranges = new ArrayList<>();
             long expectedMin = Long.MAX_VALUE;
             long expectedMax = Long.MIN_VALUE;
             for (int i = 0; i < n; i++) {
@@ -84,7 +80,7 @@ public class BccUploadMetricsTests extends ESTestCase {
                 final long max = min + randomLongBetween(0, oneYearMillis);
                 expectedMin = Math.min(expectedMin, min);
                 expectedMax = Math.max(expectedMax, max);
-                ranges.add(new StatelessCompoundCommit.TimestampFieldValueRange(min, max));
+                ranges.add(new TimestampFieldValueRange(min, max));
             }
             ranges.add(null);
             ranges.add(null);
@@ -98,7 +94,7 @@ public class BccUploadMetricsTests extends ESTestCase {
 
     public void testBccTimestampSpanMinutesDoesNotThrowOnHugeSpan() {
         final OptionalDouble span = bccTimestampSpanMinutes(
-            List.of(new StatelessCompoundCommit.TimestampFieldValueRange(Long.MIN_VALUE + 1, Long.MAX_VALUE)).iterator()
+            List.of(new TimestampFieldValueRange(Long.MIN_VALUE + 1, Long.MAX_VALUE)).iterator()
         );
         assertThat(span.isPresent(), is(true));
         assertThat(span.getAsDouble(), closeTo(((double) Long.MAX_VALUE - (double) (Long.MIN_VALUE + 1)) / 60_000d, 1.0));

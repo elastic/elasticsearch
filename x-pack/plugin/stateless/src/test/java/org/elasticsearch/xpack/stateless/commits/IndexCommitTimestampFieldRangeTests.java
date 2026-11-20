@@ -371,6 +371,76 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         }
     }
 
+    public void testTimestampFieldValuesOfASingleSegment() throws Exception {
+        IndexMode indexMode = randomFrom(IndexMode.availableModes());
+        DocumentMapper mapper = getDocumentMapper(indexMode);
+        var timestampFieldType = mapper.mappers().getTimestampFieldType();
+        boolean useCFS = randomBoolean();
+        try (Directory directory = newDirectory()) {
+            long minTimestamp = Long.MAX_VALUE;
+            long maxTimestamp = Long.MIN_VALUE;
+            IndexEngine.SegmentTimestampFieldValues values;
+            Set<String> segmentNames;
+            try (IndexWriter indexWriter = new IndexWriter(directory, getIndexWriterConfig(useCFS, false))) {
+                // a segment with the timestamp field
+                final int numDocs = between(1, 10);
+                for (int i = 0; i < numDocs; i++) {
+                    long timestamp = randomLongBetween(10_000L, 1_000_000L);
+                    String docId = indexMode == IndexMode.TIME_SERIES ? TimeSeriesRoutingHashFieldMapper.encode(i) : randomUUID();
+                    indexWriter.addDocument(mapper.parse(source(docId, b -> b.field("@timestamp", timestamp), null)).rootDoc());
+                    minTimestamp = Math.min(minTimestamp, timestamp);
+                    maxTimestamp = Math.max(maxTimestamp, timestamp);
+                }
+                indexWriter.flush();
+                // a segment without it
+                Document withoutTimestamp = new Document();
+                withoutTimestamp.add(new StringField("keepalive", "1", Field.Store.NO));
+                indexWriter.addDocument(withoutTimestamp);
+
+                // the segments are read before any commit references them
+                try (var reader = DirectoryReader.open(indexWriter)) {
+                    assertThat(reader.leaves().size(), equalTo(2));
+                    var withTimestamp = Lucene.segmentReader(reader.leaves().get(0).reader()).getSegmentInfo();
+                    var withoutTimestampSegment = Lucene.segmentReader(reader.leaves().get(1).reader()).getSegmentInfo();
+                    assertThat(withTimestamp.info.getUseCompoundFile(), equalTo(useCFS));
+                    assertThat(withoutTimestampSegment.info.getUseCompoundFile(), equalTo(useCFS));
+
+                    values = IndexEngine.readTimestampFieldValuesOfSegment(directory, withTimestamp, timestampFieldType);
+                    assertNotNull(values);
+                    assertThat(
+                        IndexEngine.toTimestampFieldValueRange(values.minValue(), values.maxValue(), timestampFieldType),
+                        equalTo(new TimestampFieldValueRange(minTimestamp, maxTimestamp))
+                    );
+                    // the segment without the field does not contribute any value
+                    assertNull(IndexEngine.readTimestampFieldValuesOfSegment(directory, withoutTimestampSegment, timestampFieldType));
+                    segmentNames = Set.of(withTimestamp.info.name, withoutTimestampSegment.info.name);
+                }
+                indexWriter.commit();
+            }
+
+            // the per segment values are what the commit based function combines
+            var commit = DirectoryReader.listCommits(directory).getFirst();
+            assertThat(
+                IndexEngine.readTimestampFieldValueRangeAcrossSegments(commit, segmentNames, timestampFieldType),
+                equalTo(IndexEngine.toTimestampFieldValueRange(values.minValue(), values.maxValue(), timestampFieldType))
+            );
+        }
+    }
+
+    public void testTimestampFieldValuesAreConvertedToMillis() {
+        var millis = new DateFieldMapper.DateFieldType("@timestamp", DateFieldMapper.Resolution.MILLISECONDS);
+        assertThat(IndexEngine.toTimestampFieldValueRange(1_234L, 5_678L, millis), equalTo(new TimestampFieldValueRange(1_234L, 5_678L)));
+
+        // the range in milliseconds covers the range in nanoseconds: the minimum is rounded down and the maximum up
+        var nanos = new DateFieldMapper.DateFieldType("@timestamp", DateFieldMapper.Resolution.NANOSECONDS);
+        assertThat(
+            IndexEngine.toTimestampFieldValueRange(1_234_567_890L, 5_678_000_001L, nanos),
+            equalTo(new TimestampFieldValueRange(1_234L, 5_679L))
+        );
+        // dates before the epoch are rounded down too
+        assertThat(IndexEngine.toTimestampFieldValueRange(-1_500_000L, -1L, nanos), equalTo(new TimestampFieldValueRange(-2L, 0L)));
+    }
+
     public void testTimestampRangeIgnoresSegmentWithGhostTimestampField() throws Exception {
         IndexMode indexMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB, IndexMode.LOGSDB_COLUMNAR);
         Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName());
@@ -549,7 +619,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         }
     }
 
-    private @Nullable StatelessCompoundCommit.TimestampFieldValueRange readTimestampFieldValueRangeAcrossAdditionalSegments(
+    private @Nullable TimestampFieldValueRange readTimestampFieldValueRangeAcrossAdditionalSegments(
         StatelessCommitRef reference,
         MappingLookup mappingLookup
     ) throws IOException {

@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.io.IOException;
@@ -229,11 +229,11 @@ public final class TransportGetShardWarmingInfoAction extends TransportAction<
     static long estimateBytesToWarm(
         Collection<BlobFileRanges> ranges,
         WarmingRatioProvider ratioProvider,
-        ToLongFunction<StatelessCompoundCommit.TimestampFieldValueRange> resolveTimestamp,
+        ToLongFunction<TimestampFieldValueRange> resolveTimestamp,
         long nowMillis
     ) {
         // Use timestamp range to identify commits. It's the best we have, and it's acceptable if there is a clash.
-        record CommitInBlob(BccBlob bccBlob, @Nullable StatelessCompoundCommit.TimestampFieldValueRange timestampRange) {}
+        record CommitInBlob(BccBlob bccBlob, @Nullable TimestampFieldValueRange timestampRange) {}
         record Extent(long start, long end) {
             Extent union(Extent other) {
                 return new Extent(Math.min(start, other.start), Math.max(end, other.end));

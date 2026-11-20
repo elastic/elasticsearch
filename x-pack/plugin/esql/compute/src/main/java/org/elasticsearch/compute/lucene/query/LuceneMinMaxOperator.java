@@ -22,10 +22,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -148,10 +150,12 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 }
                 final LeafReader reader = scorer.leafReaderContext().reader();
                 final Query query = scorer.weight().getQuery();
-                final DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldName);
+                // a field alias is resolved to the field that actually holds the data in this shard
+                final String field = backingFieldName(scorer.shardContext());
+                final DocValuesSkipper skipper = reader.getDocValuesSkipper(field);
                 // The planner builds match-all as a boost(0) match_all, so look through the boost/constant-score wrappers.
                 if (query == null || LuceneSourceOperator.Factory.unwrapQuery(query) instanceof MatchAllDocsQuery) {
-                    final PointValues pointValues = reader.getPointValues(fieldName);
+                    final PointValues pointValues = reader.getPointValues(field);
                     // Only apply the shortcut if we are visiting all documents: with a limit that is smaller than the number of
                     // documents we need to trigger the search on doc values, as that's the order they are visited without push down.
                     // Without a limit every document is visited, so the segment bounds always apply.
@@ -200,7 +204,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                     // one doc values iterator per function: the multi value mode wrappers are stateful and must not share one
                     final LongValues[] values = new LongValues[numberTypes.length];
                     for (int i = 0; i < numberTypes.length; i++) {
-                        values[i] = numberTypes[i].multiValueMode(DocValues.getSortedNumeric(reader, fieldName));
+                        values[i] = numberTypes[i].multiValueMode(DocValues.getSortedNumeric(reader, field));
                     }
                     final LeafCollector leafCollector = new LeafCollector() {
                         @Override
@@ -209,7 +213,10 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                         @Override
                         public void collect(int doc) throws IOException {
                             assert remainingDocs > 0;
-                            remainingDocs--;
+                            // keep the no-limit marker: counting down from it would disable the shortcut for later segments
+                            if (remainingDocs != NO_LIMIT) {
+                                remainingDocs--;
+                            }
                             for (int i = 0; i < values.length; i++) {
                                 if (values[i].advanceExact(doc)) {
                                     seen = true;
@@ -244,6 +251,12 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+    }
+
+    /** The name of the field that holds the data in the given shard: differs from {@link #fieldName} for a field alias. */
+    private String backingFieldName(ShardContext shardContext) {
+        MappedFieldType fieldType = shardContext.fieldType(fieldName);
+        return fieldType == null ? fieldName : fieldType.name();
     }
 
     /** A leaf can be skipped only when no function can improve its current result. */

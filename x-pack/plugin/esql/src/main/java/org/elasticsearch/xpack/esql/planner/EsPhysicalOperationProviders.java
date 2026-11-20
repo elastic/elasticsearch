@@ -848,8 +848,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         String fieldName,
         ElementType elementType,
-        List<LuceneMinMaxFactory.Function> functions,
-        Expression limit
+        List<LuceneMinMaxFactory.Function> functions
     ) {
         return new LuceneMinMaxFactory(
             shardContexts,
@@ -859,7 +858,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             fieldName,
             elementType,
             functions,
-            limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
             directoryBytesRead,
             singleValueQueryWarnings
         );

@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -470,8 +469,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var plan = plannerOptimizer.plan("from test | stats min_hd = min(hire_date), max_hd = max(hire_date)", NO_DELETIONS_SV_STATS);
         var statsQuery = minMaxStatsQueryFor(plan);
         assertThat(Expressions.names(statsQuery.output()), contains("$$min_hd$min", "$$min_hd$seen", "$$max_hd$max", "$$max_hd$seen"));
-        // InferNonNullAggConstraint pushes "hire_date exists" for the indexed field, which the metadata shortcut is not affected by
-        assertThat(as(statsQuery.query(), ExistsQueryBuilder.class).fieldName(), is("hire_date"));
+        // InferNonNullAggConstraint pushes "hire_date exists", which MIN/MAX do not need: no query is left on the stats source
+        assertThat(statsQuery.query(), is(nullValue()));
         assertThat(statsQuery.limit(), is(nullValue()));
         assertThat(
             statsQuery.stat(),

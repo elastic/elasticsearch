@@ -1050,10 +1050,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         );
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
         var factory = (LuceneMinMaxFactory) supplier.physicalOperation().sourceOperatorFactory;
-        assertThat(factory.limit(), equalTo(Integer.MAX_VALUE));
         String description = factory.describe();
         assertThat(description, startsWith("LuceneMinMaxOperator[type = LONG, functions = [MIN, MAX], dataPartitioning = "));
-        assertThat(description, endsWith(", fieldName = date, limit = 2147483647]"));
+        assertThat(description, endsWith(", fieldName = date]"));
     }
 
     public void testTimeSeries() throws IOException {

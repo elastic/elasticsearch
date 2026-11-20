@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -172,7 +172,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         }
         if ((field.dataType() != DataType.INTEGER && field.dataType() != DataType.DATETIME)
             || field.field() instanceof FunctionEsField
-            || field.field() instanceof MultiTypeEsField) {
+            || field.field() instanceof UnionTypeEsField) {
             return null;
         }
         // Any other pushed filter means the index-wide metadata no longer describes the matching documents. The exception is the
@@ -206,7 +206,8 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         return new EsStatsQueryExec(
             aggregateExec.source(),
             queryExec.indexPattern(),
-            query,
+            // the exists filter is redundant for MIN/MAX, and dropping it lets segments with partial values use their metadata
+            null,
             null,
             intermediate,
             new EsStatsQueryExec.MinMaxStat(field.fieldName().string(), elementType, functions)

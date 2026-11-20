@@ -107,7 +107,6 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
             FIELD,
             type,
             functions,
-            LuceneOperator.NO_LIMIT,
             () -> 0L,
             QueryWarnings.EMIT
         );
@@ -293,6 +292,11 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
                 addDoc(writer, "b" + i, 300L + i);
             }
             writer.commit();
+            // a segment without deletions after the one with deletions: scanning the latter must not stop this one from using metadata
+            for (int i = 0; i < 20; i++) {
+                addDoc(writer, "c" + i, 500L + i);
+            }
+            writer.commit();
             writer.deleteDocuments(new Term("id", "lowest"));
             writer.deleteDocuments(new Term("id", "highest"));
             writer.commit();
@@ -301,7 +305,7 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
         IndexReader reader = track(failDocValuesOnLeavesWithoutDeletions(lastReader()));
 
         Result result = run(factory(reader, type, Queries.ALL_DOCS_INSTANCE, List.of(Function.MIN, Function.MAX)), type, 2);
-        assertThat(result.values, equalTo(new long[] { 100L, 319L }));
+        assertThat(result.values, equalTo(new long[] { 100L, 519L }));
         assertThat(result.seen, equalTo(new boolean[] { true, true }));
     }
 
@@ -410,6 +414,11 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
                 addPointsDoc(writer, type, "b" + i, 300L + i);
             }
             writer.commit();
+            // a segment without deletions after the one with deletions: scanning the latter must not stop this one from using metadata
+            for (int i = 0; i < 20; i++) {
+                addPointsDoc(writer, type, "c" + i, 500L + i);
+            }
+            writer.commit();
             writer.deleteDocuments(new Term("id", "lowest"));
             writer.deleteDocuments(new Term("id", "highest"));
             writer.commit();
@@ -417,7 +426,7 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
         }
         IndexReader reader = track(failDocValuesOnLeavesWithoutDeletions(lastReader()));
         Result result = run(factory(reader, type, Queries.ALL_DOCS_INSTANCE, List.of(Function.MIN, Function.MAX)), type, 2);
-        assertThat(result.values, equalTo(new long[] { 100L, 319L }));
+        assertThat(result.values, equalTo(new long[] { 100L, 519L }));
     }
 
     private static void addPointsDoc(RandomIndexWriter writer, ElementType type, String id, long value) throws IOException {
@@ -478,7 +487,7 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
         return matchesRegex(
             "LuceneMinMaxOperator\\[type = LONG, functions = \\[MIN, MAX], dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), fieldName = "
                 + FIELD
-                + ", limit = 2147483647]"
+                + "]"
         );
     }
 }

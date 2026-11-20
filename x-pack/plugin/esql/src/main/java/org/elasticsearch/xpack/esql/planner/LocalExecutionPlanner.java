@@ -893,8 +893,7 @@ public class LocalExecutionPlanner {
                 esProvider.querySupplierForField(statsQuery.query(), minMax.name()),
                 minMax.name(),
                 minMax.elementType(),
-                minMax.functions(),
-                statsQuery.limit()
+                minMax.functions()
             );
         };
 

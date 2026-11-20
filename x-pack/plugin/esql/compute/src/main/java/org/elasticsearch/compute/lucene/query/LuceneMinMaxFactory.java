@@ -51,7 +51,6 @@ public final class LuceneMinMaxFactory extends LuceneOperator.Factory {
         String fieldName,
         ElementType elementType,
         List<Function> functions,
-        int limit,
         LongSupplier directoryBytesRead,
         QueryWarnings singleValueQueryWarnings
     ) {
@@ -59,10 +58,17 @@ public final class LuceneMinMaxFactory extends LuceneOperator.Factory {
             contexts,
             queryFunction,
             dataPartitioning,
-            (ctx, query) -> LuceneSliceQueue.PartitioningStrategy.SHARD,
+            // match-all is answered from segment metadata on one slice; any other query is a scan, which should run in parallel
+            (ctx, query) -> LuceneSourceOperator.Factory.autoPartitioning(
+                ctx,
+                query,
+                LuceneSliceQueue.PartitioningStrategy.SHARD,
+                LuceneSliceQueue.MIN_DOCS_PER_SLICE,
+                LuceneSliceQueue.PartitioningStrategy.SHARD
+            ),
             LuceneOperator.SMALL_INDEX_BOUNDARY,
             taskConcurrency,
-            limit,
+            LuceneOperator.NO_LIMIT,
             false,
             shardContext -> ScoreMode.COMPLETE_NO_SCORES,
             directoryBytesRead,
@@ -104,7 +110,7 @@ public final class LuceneMinMaxFactory extends LuceneOperator.Factory {
             sliceQueue,
             fieldName,
             numberTypes,
-            limit,
+            LuceneOperator.NO_LIMIT,
             initialResults,
             directoryBytesRead,
             singleValueQueryWarnings
@@ -121,8 +127,6 @@ public final class LuceneMinMaxFactory extends LuceneOperator.Factory {
             + dataPartitioning
             + ", fieldName = "
             + fieldName
-            + ", limit = "
-            + limit
             + "]";
     }
 }

@@ -210,6 +210,25 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /** A field alias is answered from the metadata of the field it points to. */
+    public void testFieldAlias() {
+        String index = "alias_target";
+        Settings.Builder settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
+        assertAcked(prepareCreate(index).setSettings(settings).setMapping("i", "type=integer", "i_alias", "type=alias,path=i"));
+        docs.clear();
+        for (int segment = 0; segment < SEGMENTS; segment++) {
+            for (int doc = 0; doc < DOCS_PER_SEGMENT; doc++) {
+                int n = segment * DOCS_PER_SEGMENT + doc;
+                prepareIndex(index).setId("doc_" + n).setSource("i", intOf(n)).get();
+                docs.put("doc_" + n, new long[] { 0, intOf(n) });
+            }
+            indicesAdmin().prepareFlush(index).get();
+        }
+        indicesAdmin().prepareRefresh(index).get();
+        Outcome outcome = profiled("FROM " + index + " | STATS lo = MIN(i_alias), hi = MAX(i_alias)");
+        assertThat(asLongs(outcome.row), equalTo(List.of(expected(false, true), expected(false, false))));
+    }
+
     /** A filter means the metadata does not describe the matching documents: the query is not answered by the min/max source. */
     public void testFilterIsNotAnsweredFromMetadata() {
         for (boolean columnar : new boolean[] { false, true }) {
@@ -260,6 +279,9 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
             for (boolean date : new boolean[] { true, false }) {
                 Outcome outcome = minMax(index, date, "");
                 assertThat(index, asLongs(outcome.row), equalTo(List.of(expected(date, true), expected(date, false))));
+                // documents without a value must not turn the metadata path into a scan: MIN/MAX ignore them anyway
+                assertThat(index + " uses the min/max source", outcome.minMaxSource, is(true));
+                assertThat(index + " does not use the regular scan", outcome.luceneSource, is(false));
             }
         }
     }

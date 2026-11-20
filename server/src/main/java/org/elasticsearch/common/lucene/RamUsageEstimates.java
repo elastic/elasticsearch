@@ -81,12 +81,31 @@ public final class RamUsageEstimates {
     public static final long FLOAT_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Float.class);
     public static final long DOUBLE_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Double.class);
 
+    private static final ClassValue<Long> SHALLOW_INSTANCE_SIZES = new ClassValue<>() {
+        @Override
+        protected Long computeValue(Class<?> type) {
+            return RamUsageEstimator.shallowSizeOfInstance(type);
+        }
+    };
+
     private RamUsageEstimates() {}
 
     /** Slots in the table {@link HashMap#newHashMap} allocates for {@code entries}: the smallest power of two at or above n / 0.75. */
     public static long hashTableSlots(int entries) {
         long minSlots = (long) Math.ceil(entries / 0.75);
         return minSlots <= 1 ? 1 : Long.highestOneBit(minSlots - 1) << 1;
+    }
+
+    /**
+     * Like {@link RamUsageEstimator#shallowSizeOf(Object)}, but sizes each non-array class once instead of walking its fields by
+     * reflection on every call.
+     */
+    public static long shallowSizeOf(Object o) {
+        if (o == null) {
+            return 0;
+        }
+        Class<?> type = o.getClass();
+        return type.isArray() ? RamUsageEstimator.shallowSizeOf(o) : SHALLOW_INSTANCE_SIZES.get(type);
     }
 
     /**

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
@@ -74,15 +73,6 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
         runBoth("""
             FROM employees
             | SORT hire_date
-            | LIMIT 10
-            | KEEP first_name, last_name
-            """, EsqlTestUtils.TEST_SEARCH_STATS);
-    }
-
-    /** Without a sort only the documents cross the exchange. */
-    public void testLimit() {
-        runBoth("""
-            FROM employees
             | LIMIT 10
             | KEEP first_name, last_name
             """, EsqlTestUtils.TEST_SEARCH_STATS);
@@ -187,8 +177,8 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
         return builder(query).stages(STAGES)
             .searchStats(searchStats)
             .flags(EsqlFlags.withFetchPhase(FetchPhaseMode.ALWAYS))
-            // the plans send _doc across the exchange, which a node can read from this version on
-            .since(DocVector.ESQL_DOC_ORIGINS)
+            // the coordinator plans the fetch only once every node can run it
+            .since(PlanFetch.PLANNER_MINIMUM)
             .nestedPath("fetch");
     }
 

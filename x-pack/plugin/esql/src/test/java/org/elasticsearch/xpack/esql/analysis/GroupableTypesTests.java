@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -25,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.containsString;
 
@@ -35,7 +33,11 @@ import static org.hamcrest.Matchers.containsString;
  * the compute engine must be able to build a grouping for every groupable type, so the property can never claim
  * comparability the engine cannot deliver.
  */
-public class GroupableTypesTests extends ESTestCase {
+public class GroupableTypesTests extends AnalyzerTestCase {
+
+    public GroupableTypesTests(VersionMode versionMode) {
+        super(versionMode);
+    }
 
     /**
      * Types that cannot reach a grouping as themselves: unsupported and object fields resolve to
@@ -176,9 +178,9 @@ public class GroupableTypesTests extends ESTestCase {
             .toList();
     }
 
-    private static void check(DataType type, String query, boolean accepted, String error) {
+    private void check(DataType type, String query, boolean accepted, String error) {
         Map<String, EsField> mapping = Map.of("f", new EsField("f", type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
-        var analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("t", mapping)).minimumTransportVersion(TransportVersion.current());
+        var analyzer = analyzer().addIndex(EsIndexGenerator.esIndex("t", mapping));
         if (accepted) {
             analyzer.query(query);
         } else {

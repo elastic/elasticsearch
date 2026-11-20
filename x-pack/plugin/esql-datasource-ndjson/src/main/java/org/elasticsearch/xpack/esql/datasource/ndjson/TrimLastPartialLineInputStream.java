@@ -17,6 +17,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
@@ -127,7 +128,11 @@ final class TrimLastPartialLineInputStream extends InputStream {
         this.recordSplitter = recordSplitter;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
-            "Line in [" + sourceLocation + "] exceeds [" + ByteSizeValue.ofBytes(recordSplitter.maxRecordBytes()) + "]; skipping it",
+            "Line"
+                + RowLocation.objectClause(" in", sourceLocation)
+                + " exceeds ["
+                + ByteSizeValue.ofBytes(recordSplitter.maxRecordBytes())
+                + "]; skipping it",
             warningSink
         );
     }

@@ -606,17 +606,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * than {@link #formatName()}: that method returns the configuration-level id {@code ndjson}, while every
      * user-facing message in this reader spells the format in capitals. CSV takes its name from a field for a
      * reason that does not apply here -- one reader there serves both CSV and TSV.
-     */
-    /**
-     * Refuses when the sample budget ran out before a single complete record was read.
      * <p>
      * Typed rather than raised through {@link Check#clientError}, which throws a plain
      * {@link IllegalArgumentException}: the resolver forwards one of those only after
      * {@code ExternalFailures.forwardableDetail} has passed the whole message through its storage-path guard,
      * which matches a bare storage host anywhere in the text — so once this message names the object, an object
      * legitimately called {@code logs.amazonaws.com.ndjson} loses the whole sentence and the remedy with it. An
-     * {@link ExternalClientException} is returned whole by the same resolver without consulting that guard.
-     * {@code CsvFormatReader.sampleLimitError} is the twin of this.
+     * {@link ExternalClientException} is returned whole by that path instead. It is not safe everywhere: the
+     * same predicate is an assertion inside {@code ExternalFailures.classify}, so on the read path such a name
+     * is fatal under {@code -ea}. {@code CsvFormatReader.sampleLimitError} is the twin of this and carries the
+     * whole reasoning.
      */
     private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead, StorageObject object) {
         if (sampleRows > 0 || bytesRead < schemaSampleBytes) {
@@ -822,6 +821,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             chunkMode,
             // From context.recordAligned(), not chunkMode: the latter is demoted above when the object has no
             // last-modified time, which is about cache participation and not about the byte axis.
+            // Deliberately keyed on the offset rather than on firstSplit(): a first macro-split of a
+            // block-aligned compressed object has a non-zero start on the COMPRESSED axis, and the flag below
+            // is binary -- not withholding would print that offset rather than print no clause, which is the
+            // cross-axis byte this whole clause exists to avoid. So such a split says "within a split" over an
+            // ordinal that is in fact the file's: a weaker statement than the truth, never a wrong one.
             context.recordAligned() == false && context.splitStartByte() != 0L,
             context.readCounters() instanceof NdJsonReaderCounters c ? c : null,
             context.splitStartByte(),

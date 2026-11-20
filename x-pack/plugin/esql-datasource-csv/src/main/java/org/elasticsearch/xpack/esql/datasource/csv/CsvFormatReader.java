@@ -1375,9 +1375,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         for (String name : headerNames) {
             if (seen.add(name) == false) {
                 throw new IllegalArgumentException(
-                    "the header of ["
-                        + RowLocation.displayObjectName(object.path().objectName())
-                        + "] has duplicate column name ["
+                    "the header"
+                        + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
+                        + " has duplicate column name ["
                         + ErrorExcerpts.summarize(name)
                         + "]; columns cannot bind by name"
                 );
@@ -2346,8 +2346,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code ExternalFailures.forwardableDetail} has passed the whole message through its storage-path guard,
      * and that guard matches a bare storage host anywhere in the text — so once this message names the object,
      * an object legitimately called {@code logs.amazonaws.com.csv} loses the whole sentence, the remedy with
-     * it. An {@link ExternalClientException} is returned whole by the same resolver without consulting the
-     * guard, which is why its five schema-path siblings already use it.
+     * it. An {@link ExternalClientException} is returned whole by that path instead, which is why its five
+     * schema-path siblings already use it.
+     * <p>
+     * It does not make the name safe everywhere, and nothing here does. The same predicate is an assertion
+     * inside {@code ExternalFailures.classify}, which walks the chain and tests every message including the
+     * one {@code setDetail} appends, so on the read path such a name is a fatal {@code AssertionError} under
+     * {@code -ea} rather than this 400. A shipped distribution runs without {@code -ea}, and the messages
+     * already carrying an object name into that assertion predate this — {@code checkBudget} and the
+     * FAIL_FAST row error both do. Ending it means teaching the guard which span of a message is the
+     * permitted object name, which is a change to the guard and not to this refusal.
      */
     private static ExternalClientException sampleLimitError(long maxSampleBytes, String format, String sourceLocation) {
         ExternalClientException limitEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
@@ -2813,7 +2821,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // object has no last-modified time, which is about cache participation and says nothing about the
             // byte axis. Reading the demoted value suppressed a correct byte on a record-aligned chunk of an
             // object served without Last-Modified.
-            (context.recordAligned() || context.splitStartByte() == 0L) ? context.splitStartByte() : RowLocation.BYTE_UNKNOWN,
+            // firstSplit(), not splitStartByte() == 0: a first macro-split of a block-aligned compressed object
+            // begins at the first block boundary rather than at byte zero, and is still the file's own start, so
+            // keying on the offset qualified an ordinal that needed no qualifier. It takes 0 rather than its own
+            // offset because that offset is on the compressed axis.
+            context.firstSplit() ? 0L : (context.recordAligned() ? context.splitStartByte() : RowLocation.BYTE_UNKNOWN),
             context.readCounters() instanceof CsvReaderCounters c ? c : null,
             useDirectBlockPlain,
             useDirectBlockQuoted,
@@ -4671,9 +4683,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 errorPolicy.mode() == ErrorPolicy.Mode.NULL_FIELD
-                    ? "Some values in [" + messageLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed"
-                    : "Some rows in [" + messageLocation + "] cannot be read; skipping them",
-                "Some values in [" + messageLocation + "] cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
+                    ? "Some values"
+                        + RowLocation.objectClause(" in", messageLocation)
+                        + " cannot be read; returning null, and skipping rows that cannot be parsed"
+                    : "Some rows" + RowLocation.objectClause(" in", messageLocation) + " cannot be read; skipping them",
+                "Some values"
+                    + RowLocation.objectClause(" in", messageLocation)
+                    + " cannot be read; "
+                    + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
                 this.warningSink
             );
         }

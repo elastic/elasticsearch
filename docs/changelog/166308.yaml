@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166308
+summary: Say which object and which row an external text parse error came from
+type: bug

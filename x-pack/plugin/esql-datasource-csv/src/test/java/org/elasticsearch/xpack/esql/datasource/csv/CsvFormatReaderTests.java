@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -6630,12 +6631,19 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * Naming the object put a user-chosen string into these messages, and one legal filename is a storage host.
-     * {@code ExternalFailures.containsStoragePath} tests the WHOLE message for a bare {@code amazonaws.com} and
-     * the resolver withholds the message it matches, so a message raised as a plain
-     * {@link IllegalArgumentException} loses its sentence — the remedy with it — for an object the user is
-     * entitled to call {@code logs.amazonaws.com.csv}. The schema-path refusals raise
-     * {@link ExternalClientException} instead, which the resolver returns whole without consulting the guard.
-     * Asserted as the exception's type rather than through the resolver because the type is what decides it.
+     * {@code ExternalFailures.containsStoragePath} tests the WHOLE message for a bare {@code amazonaws.com}, so
+     * a refusal raised as a plain {@link IllegalArgumentException} reaches the resolver's
+     * {@code forwardableDetail}, matches, and loses its sentence — the remedy with it — for an object the user
+     * is entitled to call {@code logs.amazonaws.com.csv}. Raised as an {@link ExternalClientException} it is
+     * returned whole instead, which is what this pins.
+     * <p>
+     * That is the resolve path only, and the type is NOT what decides it everywhere. The same predicate is also
+     * an assertion inside {@code ExternalFailures.classify}, which walks the chain and tests every message
+     * including the one {@code setDetail} appends — so on the read path such a name is a fatal
+     * {@link AssertionError} under {@code -ea} rather than the 400 this refusal is. That is pinned below
+     * because it is the live boundary, not because it is wanted: a shipped distribution runs without
+     * {@code -ea} and gets the 400. It stops being true when the guard learns which span of a message is the
+     * permitted object name, and this test is then inverted rather than deleted.
      */
     public void testASchemaRefusalSurvivesAnObjectNamedLikeAStorageHost() {
         CsvFormatReader narrowSample = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
@@ -6645,6 +6653,10 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("of [logs.amazonaws.com.csv]"));
         assertThat("the remedy is the part a withheld message loses", e.getMessage(), containsString("declare a schema"));
+
+        assumeTrue("the read-path boundary below is only observable under -ea", getClass().desiredAssertionStatus());
+        AssertionError onTheReadPath = expectThrows(AssertionError.class, () -> ExternalFailures.classify(e));
+        assertThat(onTheReadPath.getMessage(), containsString("storage path leaked in ExternalException"));
     }
 
     /** Rows that every CSV parse fails on, for the sampling paths that need a file they cannot read. */

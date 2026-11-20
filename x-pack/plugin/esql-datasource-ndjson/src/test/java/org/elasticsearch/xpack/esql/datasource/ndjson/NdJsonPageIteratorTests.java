@@ -3579,7 +3579,13 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertThat("a partial-results warning must be surfaced", warnings, Matchers.not(Matchers.empty()));
         // The warning names the limit, not the byte offset; NdJsonPageDecoderMaxRecordSizeTests pins the offset
         // through NdJsonPageDecoder.truncatedAtByte().
-        assertThat(warnings, Matchers.hasItem("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial"));
+        // Located like every other skip warning: without the object this read as the same string for every
+        // object in a glob, and the warning budget deduplicates by exact string, so only one survived.
+        assertThat(
+            warnings,
+            Matchers.hasItem(Matchers.endsWith(": record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial"))
+        );
+        assertThat(warnings, Matchers.hasItem(Matchers.startsWith("row [")));
     }
 
     /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */

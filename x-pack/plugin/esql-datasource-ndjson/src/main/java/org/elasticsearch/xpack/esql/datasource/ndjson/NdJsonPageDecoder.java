@@ -710,9 +710,14 @@ public class NdJsonPageDecoder implements Closeable {
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                ? "Some rows in [" + sourceLocation + "] cannot be read; skipping them"
-                : "Some values in [" + sourceLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed",
-            "Some values in [" + sourceLocation + "] cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
+                ? "Some rows" + RowLocation.objectClause(" in", sourceLocation) + " cannot be read; skipping them"
+                : "Some values"
+                    + RowLocation.objectClause(" in", sourceLocation)
+                    + " cannot be read; returning null, and skipping rows that cannot be parsed",
+            "Some values"
+                + RowLocation.objectClause(" in", sourceLocation)
+                + " cannot be read; "
+                + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
             warningSink
         );
 
@@ -1289,7 +1294,17 @@ public class NdJsonPageDecoder implements Closeable {
                             // Rows already in blockBuilders are a partial prefix. Emit a one-shot partial-results
                             // warning (best-effort, via the same thread-bound HeaderWarning path as skip warnings);
                             // NdJsonPageIterator keeps the under-count out of the stats cache (see truncated()).
-                            skipWarnings.add("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial");
+                            // Through RowLocation like the other six skipWarnings sinks: this one named neither
+                            // the object nor the record, so over a glob every object that tripped the cap
+                            // produced character-identical text and the warning budget, which deduplicates by
+                            // exact string, kept one of them. totalRowCount was decremented just above, so the
+                            // record that tripped the cap is the next one.
+                            skipWarnings.add(
+                                RowLocation.of(totalRowCount + 1, sourceLocation, messageOffsetBase)
+                                    + ": record exceeds ["
+                                    + ByteSizeValue.ofBytes(maxRecordBytes)
+                                    + "]; results are partial"
+                            );
                             truncated = true;
                             truncatedAtByte = recordOffset;
                             break;

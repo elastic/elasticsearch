@@ -21,7 +21,7 @@ import org.elasticsearch.core.Strings;
  * the window's start.
  * <p>
  * Naming the object also separates the detail lines of a glob read, which arrive interleaved in one response
- * under a single summary warning. It does not fully disambiguate them: {@link StoragePath#objectName(String)}
+ * under a single summary warning. It does not fully disambiguate them: {@link StoragePath#objectName()}
  * is the last path segment by design — it never returns the full URI, failing closed rather than leaking a
  * bucket or prefix — so a glob over objects sharing a basename names every one of them the same, and that
  * collision survives this class. What the byte clause does fix is two chunks of ONE object failing at the same
@@ -134,7 +134,7 @@ public final class RowLocation {
      * seeks past the end of the {@code .gz}. Naming the axis is accurate for a plain file too, whose decoded
      * stream is its stored bytes, which is why it is said unconditionally rather than only where the reader
      * suspects compression -- it is not told. Placing the byte in the stored object for a compressed read needs
-     * a compression signal the read context does not carry, and stays with esql-planning#2022.
+     * a compression signal the read context does not carry.
      */
     public static String countedIn(long readStartByte) {
         if (readStartByte > 0L) {

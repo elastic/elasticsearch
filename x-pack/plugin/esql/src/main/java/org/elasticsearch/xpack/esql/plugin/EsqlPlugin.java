@@ -984,16 +984,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+        if (EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled() == false) {
+            return List.of();
+        }
         return List.of(new SequenceDocValuesFetchSubPhase(sequenceBlockFactory::get, sequenceClusterSettings::get));
     }
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        indexModule.addSearchOperationListener(new SequenceKeyFilterShardProfile(sequenceThreadContext::get));
+        if (EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled()) {
+            indexModule.addSearchOperationListener(new SequenceKeyFilterShardProfile(sequenceThreadContext::get));
+        }
     }
 
     @Override
     public List<QuerySpec<?>> getQueries() {
+        if (EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled() == false) {
+            return List.of();
+        }
         return List.of(
             new QuerySpec<>(
                 SequenceSourceQueryBuilder.NAME,
@@ -1005,6 +1013,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public List<SearchExtSpec<?>> getSearchExts() {
+        if (EsqlCapabilities.Cap.SEQUENCE_COMMAND.isEnabled() == false) {
+            return List.of();
+        }
         return List.of(
             new SearchExtSpec<>(SequenceDocValuesSearchExt.NAME, SequenceDocValuesSearchExt::new, SequenceDocValuesSearchExt::fromXContent)
         );

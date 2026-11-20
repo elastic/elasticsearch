@@ -780,7 +780,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return nanos;
             }
         } catch (IllegalArgumentException | ArithmeticException e) {
-            throw new ParsingException(source(duration), "Invalid SEQUENCE WITHIN duration: {}", e.getMessage());
+            throw new ParsingException(source(duration), "Invalid SEQUENCE WITHIN duration: too large for a signed nanosecond span");
         }
         throw new ParsingException(source(duration), "SEQUENCE WITHIN requires a positive integer fixed duration");
     }

@@ -52,7 +52,7 @@ public class SequenceWithinParserTests extends ESTestCase {
             expectThrows(ParsingException.class, () -> parse("WITHIN " + duration));
         }
         for (String duration : List.of("106752 days", "9223372036854775808 ns")) {
-            rejected("WITHIN " + duration, "Invalid SEQUENCE WITHIN duration");
+            rejected("WITHIN " + duration, "too large for a signed nanosecond span");
         }
         rejected("NEAR 10s", "Expected WITHIN");
         expectThrows(ParsingException.class, () -> parse("WITH {\"maxspan\":\"30s\"} WITHIN 30s"));

@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.esql.execution.sequence;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
 
 import java.util.HashMap;
@@ -21,8 +20,6 @@ import java.util.Map;
 
 /** Reports explicit shard decisions. A shard can participate in more than one candidate search. */
 public final class SequenceKeyFilterProfile {
-    private static final Logger logger = LogManager.getLogger(SequenceKeyFilterProfile.class);
-
     public static final ProfileSchema<SequenceKeyFilterProfile> PROFILE_SCHEMA = ProfileSchema.of(
         SequenceKeyFilterProfile.class,
         (builder, value, params) -> builder.map(value.snapshot())
@@ -87,7 +84,8 @@ public final class SequenceKeyFilterProfile {
     private void discard(RuntimeException failure) {
         // Suppress the whole section: previous counts may describe only part of this query.
         failed = true;
-        logger.debug("Discarding SEQUENCE key filter profile", failure);
+        // The standalone profile schema generator does not initialize node logging.
+        LogManager.getLogger(SequenceKeyFilterProfile.class).debug("Discarding SEQUENCE key filter profile", failure);
     }
 
     private void recordShardSearch(List<QueryProfileShardResult> phases) {

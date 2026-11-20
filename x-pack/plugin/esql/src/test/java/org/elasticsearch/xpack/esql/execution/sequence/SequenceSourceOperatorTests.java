@@ -1403,6 +1403,25 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         }
     }
 
+    public void testWarningsBudgetFailureClosesCreatedDriver() {
+        try (var harness = new Harness(true)) {
+            harness.warnBeforeStartingStage = true;
+            harness.prepareOpen().listener.onResponse(openResponse());
+            assertNull(harness.source.getOutput());
+            harness.respond(harness.client.take(TransportSearchAction.TYPE), 0);
+            assertThat(
+                expectThrows(IllegalStateException.class, harness.source::getOutput).getMessage(),
+                containsString("Warnings budget must be set before registering warnings")
+            );
+            assertEquals(0, harness.stageExecutions);
+            assertEquals(1, harness.stageContexts.size());
+            assertTrue(harness.stageContexts.getFirst().isFinished());
+            harness.finishDriver();
+            harness.client.take(TransportClosePointInTimeAction.TYPE).listener.onResponse(new ClosePointInTimeResponse(true, 2));
+            harness.assertFinished();
+        }
+    }
+
     public void testEmptyFirstStageDoesNotCompileUnvisitedStages() {
         try (var harness = new Harness(true)) {
             harness.prepareOpen().listener.onResponse(openResponse());
@@ -3314,6 +3333,7 @@ public class SequenceSourceOperatorTests extends ESTestCase {
         private int stageExecutions;
         private int failPlan = -1;
         private int failDriverCreation = -1;
+        private boolean warnBeforeStartingStage;
         private int failStage = -1;
         private int deferStage = -1;
         private int deferStageStart = -1;
@@ -3630,6 +3650,9 @@ public class SequenceSourceOperatorTests extends ESTestCase {
                 for (Driver driver : drivers) {
                     assertFalse("every execution requires a fresh DriverContext", stageContexts.contains(driver.driverContext()));
                     stageContexts.add(driver.driverContext());
+                    if (warnBeforeStartingStage) {
+                        driver.driverContext().addWarning("stage warning before execution");
+                    }
                 }
                 return drivers;
             };

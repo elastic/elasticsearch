@@ -751,7 +751,7 @@ public final class SequenceSourceOperator extends SourceOperator {
 
     private SearchSourceBuilder searchSource(SequenceStageInput input, int stage, int branch, int pageSize) {
         var relation = input.source(branch);
-        var query = boolQuery().filter(termsQuery("_index", relation.concreteQualifiedIndices())).filter(existsQuery("@timestamp"));
+        var query = boolQuery().filter(existsQuery("@timestamp"));
         QueryBuilder stageQuery = input.searchQuery(branch);
         if (stageQuery != null) {
             query.filter(stageQuery);
@@ -1027,14 +1027,16 @@ public final class SequenceSourceOperator extends SourceOperator {
         var collected = new StagePages();
         List<Page> pages = collected.pages;
         List<Driver> drivers;
+        List<Driver> created = List.of();
         try {
             raw.allowPassingToDifferentDriver();
-            drivers = binding.createDrivers(factory.stagePlanner, collected::add);
-            for (Driver driver : drivers) {
+            created = binding.createDrivers(factory.stagePlanner, collected::add);
+            for (Driver driver : created) {
                 driver.driverContext().setWarningsBudget(stageWarningsBudget);
             }
+            drivers = created;
         } catch (Exception e) {
-            Releasables.close(collected, binding);
+            closeOnFailure(e, Releasables.wrap(created), collected, binding);
             throw e;
         }
         stageDrivers += drivers.size();

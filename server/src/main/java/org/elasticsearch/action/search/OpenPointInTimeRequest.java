@@ -174,8 +174,7 @@ public final class OpenPointInTimeRequest extends UntypedActionRequest implement
     }
 
     /**
-     * Returns {@code true} when the request addresses documents by slice rather than plain {@code routing}. No slice need be named,
-     * see {@link SearchRequest#isRoutingFromSlice()}.
+     * Returns {@code true} when routing was provided through the {@code slice} REST parameter.
      */
     public boolean isRoutingFromSlice() {
         return routingFromSlice;

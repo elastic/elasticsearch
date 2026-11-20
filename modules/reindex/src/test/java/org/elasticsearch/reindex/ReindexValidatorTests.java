@@ -164,11 +164,7 @@ public class ReindexValidatorTests extends ESTestCase {
         ReindexRequest request = new ReindexRequest().setSourceIndices("source-index").setDestIndex("dest-index");
 
         // Reading a slice-enabled source without a slice reads every slice, and each document keeps its own.
-        validator.markSliceModeOfSource(request);
         validator.initialValidation(request);
-
-        assertTrue(request.getSearchRequest().isRoutingFromSlice());
-        assertNull(request.getSearchRequest().routing());
     }
 
     public void testRemoteSourceIsNotReadInSliceMode() {
@@ -192,10 +188,8 @@ public class ReindexValidatorTests extends ESTestCase {
             )
         );
 
-        validator.markSliceModeOfSource(request);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> validator.initialValidation(request));
         assertThat(e.getMessage(), containsString("[" + SliceIndexing.FIELD_NAME + "] is required in [dest]"));
-        assertFalse(request.getSearchRequest().isRoutingFromSlice());
     }
 
     public void testAllowOmittedSliceInSliceEnabledDestinationWhenScriptPresent() {

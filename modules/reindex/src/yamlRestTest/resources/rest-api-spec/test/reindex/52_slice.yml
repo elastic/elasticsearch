@@ -499,3 +499,56 @@ setup:
             _slice: tenant-a
           dest:
             index: routing_required_dest
+
+---
+"Reindex slice-enabled and plain indices into a non-sliced index":
+  - do:
+      index:
+        index: plain_source_mixed
+        id:    "2"
+        body:  { "company": "dog" }
+  - do:
+      indices.create:
+        index: sliced_source_mixed
+        body:
+          settings:
+            index.slice.enabled: true
+  - do:
+      index:
+        index:  sliced_source_mixed
+        id:     "1"
+        _slice: tenant-a
+        body:   { "company": "cat" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      indices.create:
+        index: non_sliced_dest_mixed
+        body:
+          settings:
+            number_of_shards: 1
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: [sliced_source_mixed, plain_source_mixed]
+          dest:
+            index: non_sliced_dest_mixed
+  - match: {created: 2}
+  - match: {failures: []}
+
+  # the slice is not persisted as routing
+  - do:
+      get:
+        index: non_sliced_dest_mixed
+        id:    "1"
+  - is_false: _routing
+
+  - do:
+      get:
+        index: non_sliced_dest_mixed
+        id:    "2"
+  - match: {_source.company: dog}

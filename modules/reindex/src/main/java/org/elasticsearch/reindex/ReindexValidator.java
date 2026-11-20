@@ -18,6 +18,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -38,7 +39,10 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
+import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class ReindexValidator {
@@ -70,24 +74,6 @@ public class ReindexValidator {
         this.autoCreateIndex = autoCreateIndex;
     }
 
-    /**
-     * Reading a slice-enabled source without a slice reads every slice and keeps each document in the slice it was read from, as when
-     * the source names a slice. Marks such a source as read that way, see {@link SliceSourceMode}. Remote sources cannot be resolved
-     * against the local cluster state and are left unchanged.
-     * <p>
-     * This is separate from {@link #initialValidation} so that a {@link TransportReindexAction} that replaces its validation cannot skip
-     * it. Call it before validating, which relies on the result.
-     */
-    public void markSliceModeOfSource(ReindexRequest request) {
-        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && request.getRemoteInfo() == null) {
-            SliceSourceMode.markIfSliceEnabled(
-                request.getSearchRequest(),
-                indexResolver,
-                projectResolver.getProjectMetadata(clusterService.state())
-            );
-        }
-    }
-
     public void initialValidation(ReindexRequest request) {
         checkAllowedRemote(allowedRemotes, remoteBlocklistSettingInUse, request.getRemoteInfo());
         ClusterState state = clusterService.state();
@@ -117,7 +103,8 @@ public class ReindexValidator {
     /**
      * Validates the interaction between the source {@code slice} (which slice of a slice-enabled source to read) and the destination
      * {@code slice} (which slice every reindexed document is written to). A destination {@code slice} may be omitted for a slice-enabled
-     * destination when either the source is read in slice mode (each document preserves the slice it was read from) or a script is present
+     * destination when either the source has slices, because it names one or targets a slice-enabled index (each document preserves the
+     * slice it was read from), or a script is present
      * (the script may assign {@code ctx._slice} per document). If neither holds, a static destination {@code slice} is required.
      */
     private void validateSliceRouting(ReindexRequest request, ProjectMetadata projectMetadata) {
@@ -127,7 +114,7 @@ public class ReindexValidator {
         final boolean destSliceProvided = destination.isRoutingFromSlice();
         final boolean sourceSliceMode = request.getSearchRequest().isRoutingFromSlice();
 
-        validateNoRequiredRoutingMixedWithSlices(
+        final boolean anySourceSliceEnabled = validateNoRequiredRoutingMixedWithSlices(
             request,
             projectMetadata,
             destination,
@@ -160,11 +147,12 @@ public class ReindexValidator {
                         + "] instead"
                 );
             }
-            // Omitting [_slice] in [dest] works when the source is read in slice mode (each document keeps its source slice) or a script is
-            // present (it may assign [_slice] per document). Documents that are left without a slice are rejected at index time by the
-            // slice-enabled destination, so we only reject up-front when neither mechanism can supply one.
+            // Omitting [_slice] in [dest] works when the source has slices, named or not (each document keeps its source slice) or a
+            // script is present (it may assign [_slice] per document). Documents that are left without a slice are rejected at index
+            // time by the slice-enabled destination, so we only reject up-front when neither mechanism can supply one.
+            final boolean sourceHasSlices = sourceSliceMode || anySourceSliceEnabled;
             final boolean scriptMayProvideSlice = request.getScript() != null;
-            if (destSliceProvided == false && sourceSliceMode == false && scriptMayProvideSlice == false) {
+            if (destSliceProvided == false && sourceHasSlices == false && scriptMayProvideSlice == false) {
                 throw new IllegalArgumentException(
                     "["
                         + SliceIndexing.FIELD_NAME
@@ -187,8 +175,10 @@ public class ReindexValidator {
      * distinct routing models that cannot be reconciled during reindex: the former routes documents by their {@code slice}, the latter by
      * an arbitrary user-supplied {@code routing} value. When slices are involved on either side of the reindex, reject any participating
      * non-slice index that requires routing rather than silently producing an unusable destination.
+     *
+     * @return whether any local source index is slice-enabled
      */
-    private void validateNoRequiredRoutingMixedWithSlices(
+    private boolean validateNoRequiredRoutingMixedWithSlices(
         ReindexRequest request,
         ProjectMetadata projectMetadata,
         IndexRequest destination,
@@ -203,7 +193,7 @@ public class ReindexValidator {
         // cluster state, and doing so throws "Cross-cluster calls are not supported in this context". Skip remote index names, mirroring
         // validateAgainstAliases, and only inspect the local source indices for slice/required-routing settings.
         if (request.getRemoteInfo() == null) {
-            final SearchRequest localSource = SliceSourceMode.skipRemoteIndexNames(request.getSearchRequest());
+            final SearchRequest localSource = skipRemoteIndexNames(request.getSearchRequest());
             if (localSource.indices().length > 0) {
                 for (Index index : indexResolver.concreteIndices(projectMetadata, localSource)) {
                     final IndexMetadata indexMetadata = projectMetadata.index(index);
@@ -221,7 +211,7 @@ public class ReindexValidator {
 
         final boolean slicesInvolved = sourceSliceMode || destSliceProvided || destinationSliceEnabled || anySourceSliceEnabled;
         if (slicesInvolved == false) {
-            return;
+            return anySourceSliceEnabled;
         }
 
         if (sourceRequiresRouting) {
@@ -242,6 +232,7 @@ public class ReindexValidator {
                 );
             }
         }
+        return anySourceSliceEnabled;
     }
 
     private static boolean routingRequired(IndexMetadata indexMetadata) {
@@ -345,7 +336,7 @@ public class ReindexValidator {
              */
             target = indexNameExpressionResolver.concreteWriteIndex(project, destination).getName();
         }
-        SearchRequest filteredSource = SliceSourceMode.skipRemoteIndexNames(source);
+        SearchRequest filteredSource = skipRemoteIndexNames(source);
         if (filteredSource.indices().length == 0) {
             return;
         }
@@ -357,5 +348,18 @@ public class ReindexValidator {
                 throw e;
             }
         }
+    }
+
+    private static SearchRequest skipRemoteIndexNames(SearchRequest source) {
+        IndicesOptions indicesOptions = source.indicesOptions();
+        if (indicesOptions.resolveCrossProjectIndexExpression()) {
+            indicesOptions = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
+        }
+        // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
+        // expression, e.g., cluster0:index-name
+        return new SearchRequest(source).indicesOptions(indicesOptions)
+            .indices(
+                Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexName(name) == false).toArray(String[]::new)
+            );
     }
 }

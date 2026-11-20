@@ -76,6 +76,11 @@ class ClientHit implements PaginatedHitSource.Hit {
     }
 
     @Override
+    public boolean isRoutingFromSlice() {
+        return fieldValue(RoutingFieldMapper.NAME) == null && fieldValue(SliceIndexing.FIELD_NAME) != null;
+    }
+
+    @Override
     public Object[] getSortValues() {
         return delegate.getSortValues();
     }

@@ -125,3 +125,28 @@ setup:
       count:
         index: plain
   - match: {count: 1}
+
+---
+"Delete by query without a slice covers slice-enabled and plain indices":
+  - do:
+      index:
+        index:   plain_mixed
+        id:      "10"
+        routing: custom
+        refresh: true
+        body:    { "company": "hen" }
+
+  - do:
+      delete_by_query:
+        index:   sliced,plain_mixed
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - match: {deleted: 4}
+  - match: {failures: []}
+
+  - do:
+      count:
+        index: sliced,plain_mixed
+  - match: {count: 0}

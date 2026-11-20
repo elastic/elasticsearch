@@ -147,7 +147,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
-        reindexValidator.markSliceModeOfSource(request);
         validate(request);
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         reindexer.initTask(

@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -86,6 +87,45 @@ public class ClientHitTests extends ESTestCase {
         } finally {
             clientHit.release();
             searchHit.decRef();
+        }
+    }
+
+    /** Verifies that a slice-enabled index, which exposes the slice as {@code _slice} and no {@code _routing}, routes by that slice. */
+    public void testSliceFieldIsRoutingFromSlice() {
+        String slice = randomAlphaOfLengthBetween(1, 20);
+        SearchHit searchHit = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        searchHit.addDocumentFields(
+            Map.of(),
+            Map.of(SliceIndexing.FIELD_NAME, new DocumentField(SliceIndexing.FIELD_NAME, List.of(slice)))
+        );
+        ClientHit clientHit = new ClientHit(searchHit);
+        try {
+            assertThat(clientHit.getRouting(), equalTo(slice));
+            assertTrue(clientHit.isRoutingFromSlice());
+        } finally {
+            clientHit.release();
+            searchHit.decRef();
+        }
+    }
+
+    /** Verifies that plain routing, and no routing at all, are not a slice. */
+    public void testPlainRoutingIsNotRoutingFromSlice() {
+        SearchHit routed = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        routed.addDocumentFields(
+            Map.of(),
+            Map.of(RoutingFieldMapper.NAME, new DocumentField(RoutingFieldMapper.NAME, List.of(randomAlphaOfLengthBetween(1, 20))))
+        );
+        SearchHit unrouted = new SearchHit(randomInt(), randomAlphaOfLengthBetween(1, 20));
+        ClientHit routedHit = new ClientHit(routed);
+        ClientHit unroutedHit = new ClientHit(unrouted);
+        try {
+            assertFalse(routedHit.isRoutingFromSlice());
+            assertFalse(unroutedHit.isRoutingFromSlice());
+        } finally {
+            routedHit.release();
+            routed.decRef();
+            unroutedHit.release();
+            unrouted.decRef();
         }
     }
 

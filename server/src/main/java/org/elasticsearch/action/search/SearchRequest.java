@@ -570,9 +570,7 @@ public class SearchRequest extends UntypedActionRequest implements IndicesReques
     }
 
     /**
-     * Returns {@code true} when the request addresses documents by slice rather than plain {@code routing}. No slice need be named:
-     * without {@code routing()} every slice is read and {@link #searchSlice()} is {@code null}. Reindex and the by-query actions use
-     * this to keep each hit in its slice when writing it back. To tell whether a slice was selected, use {@link #searchSlice()}.
+     * Returns {@code true} when routing was provided through the {@code slice} REST parameter.
      */
     public boolean isRoutingFromSlice() {
         return routingFromSlice;

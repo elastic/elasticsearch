@@ -1470,16 +1470,21 @@ public class AsyncBulkByPaginatedSearchActionTests extends ESTestCase {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         DummyAsyncBulkByPaginatedSearchAction action = new DummyAsyncBulkByPaginatedSearchAction();
 
+        // the hit decides, so one request can write back plain routing and slices side by side
         IndexRequest routingRequest = new IndexRequest().index("test").id("2");
-        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
+        action.copyRouting(
+            AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest),
+            new PaginatedHitSource.BasicHit("test", "2", 1).setRouting("routing-value")
+        );
         assertThat(routingRequest.routing(), equalTo("routing-value"));
         assertFalse(routingRequest.isRoutingFromSlice());
 
-        testRequest.getSearchRequest().searchSlice("slice-1");
         IndexRequest indexRequest = new IndexRequest().index("test").id("1");
         DeleteRequest deleteRequest = new DeleteRequest("test", "1");
-        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(indexRequest), "slice-1");
-        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(deleteRequest), "slice-1");
+        PaginatedHitSource.BasicHit sliceHit = new PaginatedHitSource.BasicHit("test", "1", 1).setRouting("slice-1")
+            .setRoutingFromSlice(true);
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(indexRequest), sliceHit);
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(deleteRequest), sliceHit);
 
         assertThat(indexRequest.routing(), equalTo("slice-1"));
         assertTrue(indexRequest.isRoutingFromSlice());

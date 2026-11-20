@@ -1261,7 +1261,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         if (sortBound != null) {
                             sortBound.invalidate();
                         }
-                        onResponse(usage);
+                        // none of its pages are returned, so it did not approximate them
+                        onResponse(usage.withoutApproximationApplied());
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {

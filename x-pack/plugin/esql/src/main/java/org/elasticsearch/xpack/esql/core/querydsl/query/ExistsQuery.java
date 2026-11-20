@@ -6,9 +6,13 @@
  */
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -79,7 +83,14 @@ public class ExistsQuery extends Query {
             if (ft == null) {
                 return new MatchNoDocsQuery("missing field [" + fieldName() + "]");
             }
-            return new ConstantScoreQuery(ft.existsQuery(context));
+            org.apache.lucene.search.Query exists = new ConstantScoreQuery(ft.existsQuery(context));
+            // A script is also run on the hidden documents of the nested field unless the query is limited to parent documents
+            if (ft instanceof AbstractScriptFieldType<?> && context.nestedLookup().hasNestedParent(fieldName())) {
+                return new BooleanQuery.Builder().add(Queries.newNonNestedFilter(context.indexVersionCreated()), BooleanClause.Occur.FILTER)
+                    .add(exists, BooleanClause.Occur.FILTER)
+                    .build();
+            }
+            return exists;
         }
     }
 

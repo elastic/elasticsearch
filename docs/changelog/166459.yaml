@@ -1,5 +1,5 @@
 area: Ingest Node
 issues: []
 pr: 166459
-summary: Deduplicate identical enrich lookups per batch
+summary: Deduplicate identical enrich lookups per batch on cache misses resulting in lower observed `executed_searches_total`
 type: enhancement

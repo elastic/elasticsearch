@@ -42,7 +42,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * The requests a query with the fetch phase sends after the cut of its coordinator, counted per node that receives them:
@@ -180,24 +179,6 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         assertAllContextsFreed();
         assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1)));
         assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
-    }
-
-    /**
-     * A {@code LIMIT} cut fetches once its input ended, like a {@code TopN} cut: one request to each node with winners.
-     * The limit is above the number of documents, so every row wins and every context is read. The fetch requests free
-     * them all, so the coordinator sends no free request.
-     */
-    public void testALimitCut() throws Exception {
-        String query = "FROM " + PREFIX + "winner_*," + PREFIX + "other_winner_* | LIMIT 100 | KEEP ts, payload";
-        List<List<Object>> rows = runQuery(randomCoordinator(), query, 0);
-
-        assertThat(rows, hasSize(WINNERS));
-        for (List<Object> row : rows) {
-            assertThat(row.get(1), equalTo("payload-" + row.get(0)));
-        }
-        assertAllContextsFreed();
-        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1, otherWinnerNode, 1)));
-        assertThat("frees", counts(frees), equalTo(Map.of()));
     }
 
     private void createIndex(String name, String node) {

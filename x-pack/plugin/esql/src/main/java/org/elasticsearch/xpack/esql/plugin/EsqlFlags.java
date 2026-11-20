@@ -59,9 +59,9 @@ public class EsqlFlags {
     public static final FeatureFlag FETCH_PHASE_FEATURE_FLAG = new FeatureFlag("esql_fetch_phase");
 
     /**
-     * Whether the coordinator may plan the fetch phase: load the columns a query only needs after a {@code LIMIT} or
-     * {@code TopN} for the rows that survive it, instead of on every data node for every candidate row. The build decides
-     * the mode of the cluster. The {@code fetch_phase} pragma of a query overrides it, except {@link #UNAVAILABLE}.
+     * Whether the coordinator may plan the fetch phase: load the columns a query only needs after a {@code TopN} for the
+     * rows that survive it, instead of on every data node for every candidate row. The build decides the mode of the
+     * cluster. The {@code fetch_phase} pragma of a query overrides it, except {@link #UNAVAILABLE}.
      */
     public enum FetchPhaseMode {
         /** The build does not carry the fetch phase. Nothing turns it on, not even the {@code fetch_phase} pragma. */

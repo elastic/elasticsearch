@@ -78,15 +78,6 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
-    /** Without a sort only the documents cross the exchange. */
-    public void testLimit() {
-        runBoth("""
-            FROM employees
-            | LIMIT 10
-            | KEEP first_name, last_name
-            """, EsqlTestUtils.TEST_SEARCH_STATS);
-    }
-
     /** Without KEEP every column is fetched, and a projection on top restores the original column order. */
     public void testNoKeep() {
         runBoth("""

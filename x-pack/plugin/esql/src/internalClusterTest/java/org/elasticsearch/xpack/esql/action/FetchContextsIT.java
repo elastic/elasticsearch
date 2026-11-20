@@ -41,14 +41,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -262,19 +259,10 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A plain {@code LIMIT} asks the nodes for rows one at a time here, and ends the exchange once it has its rows. The
-     * nodes it reached free the contexts whose rows didn't leave them, and the fetch and the coordinator free the rest.
+     * A plain {@code LIMIT} loads its columns eagerly even when the query asks for the fetch phase, so it keeps no context.
      */
-    public void testAPlainLimitFreesTheContextsOfTheNodesItReached() throws Exception {
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + INDEX + " | LIMIT 5 | KEEP a, b, ts").pragmas(
-            new QueryPragmas(
-                Settings.builder()
-                    .put(QueryPragmas.FETCH_PHASE.getKey(), true)
-                    .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1)
-                    .build()
-            )
-        );
-        try (EsqlQueryResponse response = run(request)) {
+    public void testAPlainLimitRegistersNoContext() {
+        try (EsqlQueryResponse response = run(request("FROM " + INDEX + " | LIMIT 5 | KEEP a, b, ts", true))) {
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(5));
             for (List<Object> row : rows) {
@@ -282,12 +270,7 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
                 assertThat(row, equalTo(List.of("a-" + ts, ts * 10, ts)));
             }
         }
-
-        assertThat(registered.get(), allOf(greaterThan(0), lessThanOrEqualTo(shards)));
-        assertBusy(() -> {
-            assertThat(freed.get(), equalTo(registered.get()));
-            assertThat(indicesAdmin().prepareStats(INDEX).setSearch(true).get().getTotal().getSearch().getOpenContexts(), equalTo(0L));
-        });
+        assertThat(registered.get(), equalTo(0));
     }
 
     private static EsqlQueryRequest request(boolean fetchPhase) {

@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
-import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -129,21 +128,15 @@ public class PlanFetchTests extends ESTestCase {
         assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "hire_date")));
     }
 
-    /** Without a sort, only the documents cross the exchange. */
-    public void testLimit() {
-        FetchExec fetch = single(plan("FROM employees | LIMIT 10 | KEEP first_name, emp_no"), FetchExec.class);
-        LimitExec coordinatorCut = as(narrowed(fetch).child(), LimitExec.class);
-        assertThat(coordinatorCut.child(), instanceOf(ExchangeExec.class));
-        assertThat(names(coordinatorCut.output()), equalTo(List.of("_doc")));
-        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("emp_no", "first_name")));
-    }
-
-    /** The default LIMIT is a cut too: a plain FROM fetches the rows it returns after the coordinator picked them. */
-    public void testDefaultLimit() {
-        FetchExec fetch = single(plan("FROM employees | KEEP first_name"), FetchExec.class);
-        LimitExec coordinatorCut = as(narrowed(fetch).child(), LimitExec.class);
-        assertThat(names(coordinatorCut.output()), equalTo(List.of("_doc")));
-        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+    /**
+     * A plain {@code LIMIT}, written or the default one, keeps the plan eager in every mode, also when it would defer
+     * {@code _source}: the coordinator drops few of the rows the data nodes load.
+     */
+    public void testAPlainLimitStaysEager() {
+        String query = "FROM employees METADATA _source | LIMIT 10 | KEEP first_name, _source";
+        assertEager(plan(query, ALWAYS));
+        assertEager(plan(query, AUTO));
+        assertEager(plan("FROM employees | KEEP first_name", ALWAYS));
         assertWarnings(DEFAULT_LIMIT_WARNING);
     }
 
@@ -322,13 +315,6 @@ public class PlanFetchTests extends ESTestCase {
     public void testAutoKeepsATopNWithoutTheSourceEager() {
         assertEager(plan(BASIC, AUTO));
         assertThat("the plan can use the fetch phase", plan(BASIC, ALWAYS).collect(FetchExec.class), hasSize(1));
-    }
-
-    /** With {@code AUTO}, a {@code LIMIT} stays eager even when it defers {@code _source}: it drops few rows. */
-    public void testAutoKeepsALimitEager() {
-        String query = "FROM employees METADATA _source | LIMIT 10 | KEEP first_name, _source";
-        assertEager(plan(query, AUTO));
-        assertThat("the plan can use the fetch phase", plan(query, ALWAYS).collect(FetchExec.class), hasSize(1));
     }
 
     /**
@@ -517,38 +503,51 @@ public class PlanFetchTests extends ESTestCase {
     /** A build without the fetch phase never plans it, not even when a query asks for it. */
     public void testABuildWithoutTheFetchPhasePlansNone() {
         for (Boolean pragma : new Boolean[] { null, true, false }) {
-            assertThat(PlanFetch.mode(FetchPhaseMode.UNAVAILABLE, pragma, TransportVersion.current()), equalTo(FetchPhaseMode.DISABLED));
+            assertThat(PlanFetch.mode(FetchPhaseMode.UNAVAILABLE, pragma), equalTo(FetchPhaseMode.DISABLED));
         }
     }
 
     /** Without the pragma, the mode of the cluster decides. */
     public void testTheClusterModeDecidesWithoutThePragma() {
         for (FetchPhaseMode clusterMode : List.of(FetchPhaseMode.DISABLED, FetchPhaseMode.AUTO, FetchPhaseMode.ALWAYS)) {
-            assertThat(PlanFetch.mode(clusterMode, null, TransportVersion.current()), equalTo(clusterMode));
+            assertThat(PlanFetch.mode(clusterMode, null), equalTo(clusterMode));
         }
     }
 
     /** The pragma forces the fetch on every plan that can use it, or turns it off, whatever the mode of the cluster. */
     public void testThePragmaOverridesTheClusterMode() {
         for (FetchPhaseMode clusterMode : List.of(FetchPhaseMode.DISABLED, FetchPhaseMode.AUTO, FetchPhaseMode.ALWAYS)) {
-            assertThat(PlanFetch.mode(clusterMode, true, TransportVersion.current()), equalTo(FetchPhaseMode.ALWAYS));
-            assertThat(PlanFetch.mode(clusterMode, false, TransportVersion.current()), equalTo(FetchPhaseMode.DISABLED));
+            assertThat(PlanFetch.mode(clusterMode, true), equalTo(FetchPhaseMode.ALWAYS));
+            assertThat(PlanFetch.mode(clusterMode, false), equalTo(FetchPhaseMode.DISABLED));
         }
     }
 
-    /** A cluster with a node that can't read the fetch requests loads every column eagerly instead of failing. */
-    public void testAClusterWithAnOldNodePlansNone() {
-        TransportVersion old = TransportVersionUtils.getPreviousVersion(PlanFetch.PLANNER_MINIMUM);
-        assertThat(PlanFetch.mode(FetchPhaseMode.AUTO, null, old), equalTo(FetchPhaseMode.DISABLED));
-        assertThat(PlanFetch.mode(FetchPhaseMode.DISABLED, true, old), equalTo(FetchPhaseMode.DISABLED));
-        assertThat(PlanFetch.mode(FetchPhaseMode.AUTO, null, PlanFetch.PLANNER_MINIMUM), equalTo(FetchPhaseMode.AUTO));
-    }
-
-    /** The rule reads the pragma from the configuration of the query, and the minimum version from its context. */
-    public void testReadsThePragmaAndTheMinimumVersionOfTheQuery() {
+    /** The rule reads the pragma from the configuration of the query. */
+    public void testReadsThePragmaOfTheQuery() {
         Configuration fetchPhase = configuration(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), true).build());
         assertThat(plan(BASIC, DISABLED, fetchPhase, TransportVersion.current()).collect(FetchExec.class), hasSize(1));
-        assertEager(plan(BASIC, DISABLED, fetchPhase, TransportVersionUtils.getPreviousVersion(PlanFetch.PLANNER_MINIMUM)));
+    }
+
+    /**
+     * A cluster with a node that can't read the fetch requests loads every column eagerly instead of failing, also when
+     * the query asks for the fetch phase. The rule logs why at debug level.
+     */
+    @TestLogging(value = "org.elasticsearch.xpack.esql.optimizer.rules.logical.fetch.PlanFetch:DEBUG", reason = "asserts the DEBUG event")
+    public void testAClusterWithAnOldNodeStaysEager() {
+        Configuration fetchPhase = configuration(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), true).build());
+        TransportVersion old = TransportVersionUtils.getPreviousVersion(PlanFetch.PLANNER_MINIMUM);
+        MockLog.assertThatLogger(
+            () -> assertEager(plan(BASIC, DISABLED, fetchPhase, old)),
+            PlanFetch.class,
+            new MockLog.SeenEventExpectation(
+                "an old node",
+                PlanFetch.class.getCanonicalName(),
+                Level.DEBUG,
+                "fetch phase not planned: a node of the cluster can't read fetch requests"
+            )
+        );
+        assertEager(plan(BASIC, ALWAYS, configuration(Settings.EMPTY), old));
+        assertThat(plan(BASIC, ALWAYS, configuration(Settings.EMPTY), PlanFetch.PLANNER_MINIMUM).collect(FetchExec.class), hasSize(1));
     }
 
     private static void assertEager(PhysicalPlan plan) {

@@ -9,16 +9,11 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.lucene.read.FetchDocsSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
@@ -29,7 +24,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -39,10 +33,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -64,18 +56,6 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
      * The result and the profile of one run.
      */
     protected record Run(List<String> columns, List<List<Object>> rows, List<DriverProfile> drivers) {}
-
-    /**
-     * The reaper runs often, so a context that nobody frees goes once its keep-alive passed, see
-     * {@link #testAPlainLimitFetchesTheColumnsOfTheRowsItKeeps}.
-     */
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
-            .build();
-    }
 
     @Before
     public void setupIndex() {
@@ -149,49 +129,27 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Without a sort, a {@code LIMIT} keeps the first rows that reach the coordinator, so the rows change from run to run.
-     * The fetch loads the columns of the rows it kept, and each row holds the values of its own document.
-     * <p>
-     * The {@code LIMIT} can finish the exchange before the pages of some shards reach the coordinator. Their data nodes keep
-     * the contexts those pages name, and the coordinator never learns of them, so the reaper frees them once their keep-alive
-     * passed. The query runs with a keep-alive short enough for that to happen while the test waits for every context to
-     * close.
+     * A plain {@code LIMIT}, written or the default one, loads its columns eagerly even when the query asks for the fetch
+     * phase: the coordinator drops few of the rows the data nodes load. Without a sort the rows change from run to run, so
+     * the test checks that each row holds the values of its own document.
      */
-    public void testAPlainLimitFetchesTheColumnsOfTheRowsItKeeps() {
-        Run run;
-        updateClusterSettings(Settings.builder().put(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey(), TimeValue.timeValueSeconds(5)));
-        try {
-            run = runQuery("FROM " + indexName + " | LIMIT 10 | KEEP unique_sort, payload, category", true);
-        } finally {
-            // a context keeps the keep-alive it got
-            updateClusterSettings(Settings.builder().putNull(SearchService.DEFAULT_KEEPALIVE_SETTING.getKey()));
-        }
-        assertThat(run.rows(), hasSize(10));
-        Set<Long> documents = new HashSet<>();
-        for (List<Object> row : run.rows()) {
-            long uniqueSort = (Long) row.getFirst();
-            assertTrue("each document once", documents.add(uniqueSort));
-            assertThat(row, equalTo(List.of(uniqueSort, "payload-" + uniqueSort, "cat-" + (uniqueSort % 5))));
-        }
-        assertFetched(run, 10);
-        assertFetchedOnly(run, "unique_sort");
-        assertFetchedOnly(run, "payload");
-    }
-
-    /**
-     * A query without a {@code LIMIT} gets the default one, which is a cut too. The index holds fewer documents than the
-     * default, so the query returns each of them once, with the columns the fetch loaded.
-     */
-    public void testTheDefaultLimitFetchesItsRows() {
-        Run run = runQuery("FROM " + indexName + " | KEEP unique_sort, payload", true);
-        List<List<Object>> rows = new ArrayList<>(run.rows());
-        rows.sort(Comparator.comparing(row -> (Long) row.getFirst()));
-        List<List<Object>> expected = new ArrayList<>();
-        for (long i = 0; i < 64; i++) {
-            expected.add(List.of(i, "payload-" + i));
-        }
-        assertThat(rows, equalTo(expected));
-        assertFetched(run, 64);
+    public void testAPlainLimitKeepsThePlanEager() {
+        Map<String, Integer> rowsOfQuery = Map.of(
+            "FROM " + indexName + " | LIMIT 10 | KEEP unique_sort, payload, category",
+            10,
+            // the default LIMIT is above the 64 documents of the index
+            "FROM " + indexName + " | KEEP unique_sort, payload, category",
+            64
+        );
+        rowsOfQuery.forEach((query, rows) -> {
+            Run run = runQuery(query, true);
+            assertThat(run.rows(), hasSize(rows));
+            for (List<Object> row : run.rows()) {
+                long uniqueSort = (Long) row.getFirst();
+                assertThat(row, equalTo(List.of(uniqueSort, "payload-" + uniqueSort, "cat-" + (uniqueSort % 5))));
+            }
+            assertNotFetched(run);
+        });
     }
 
     /**
@@ -216,52 +174,6 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
 
         assertThat(run.rows(), equalTo(List.of(List.of(63L, "host-63"), List.of(62L, "host-62"), List.of(61L, "host-61"))));
         assertFetched(run, 3);
-    }
-
-    /**
-     * A plain {@code LIMIT} over many small segments gets a small page from the exchange for each of them. The fetch holds
-     * them all until its input ends, then sends one request to each node that holds a shard of the index.
-     */
-    public void testAPlainLimitOverManySmallSegmentsSendsOneRequestPerNode() {
-        String index = indexName + "_segments";
-        assertAcked(
-            indicesAdmin().prepareCreate(index)
-                // no merges, so every refresh leaves a small segment on each shard that got documents
-                .setSettings(indexSettings(4, 0).put("index.merge.policy.segments_per_tier", 100))
-                .setMapping("unique_sort", "type=long", "payload", "type=keyword")
-        );
-        int refreshes = 25;
-        int docsPerRefresh = 8;
-        for (int r = 0; r < refreshes; r++) {
-            BulkRequestBuilder bulk = client().prepareBulk();
-            for (int d = 0; d < docsPerRefresh; d++) {
-                int doc = r * docsPerRefresh + d;
-                bulk.add(prepareIndex(index).setSource("unique_sort", doc, "payload", "payload-" + doc));
-            }
-            bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        }
-
-        Run run = runQuery("FROM " + index + " | LIMIT 1000 | KEEP unique_sort, payload", true);
-        List<List<Object>> rows = new ArrayList<>(run.rows());
-        rows.sort(Comparator.comparing(row -> (Long) row.getFirst()));
-        List<List<Object>> expected = new ArrayList<>();
-        for (long doc = 0; doc < refreshes * docsPerRefresh; doc++) {
-            expected.add(List.of(doc, "payload-" + doc));
-        }
-        assertThat(rows, equalTo(expected));
-        FetchOperator.Status fetch = coordinatorFetch(run);
-        assertThat("a page per segment, so at least one per refresh", fetch.pagesReceived(), greaterThanOrEqualTo(refreshes));
-        // every shard got documents, so every node that holds one gets a request
-        ClusterState state = clusterService().state();
-        Set<String> nodesWithShards = new HashSet<>();
-        for (ShardRouting shard : state.routingTable(ProjectId.DEFAULT).allShards(index)) {
-            nodesWithShards.add(state.nodes().get(shard.currentNodeId()).getName());
-        }
-        assertThat(
-            "one fetch request per node",
-            fetch.nodes().stream().map(FetchOperator.NodeFetchStats::node).toList(),
-            containsInAnyOrder(nodesWithShards.toArray())
-        );
     }
 
     /**

@@ -33,7 +33,6 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.SharedSortBound;
@@ -85,6 +84,7 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.fetch.FetchContextTracker;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -185,13 +185,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         OriginalIndices originalIndices,
         ExchangeSourceHandler exchangeSource,
         // Non-null when documents leave the data nodes: each data node keeps the fetch contexts of the rows that left it
-        @Nullable TimeValue readerContextKeepAlive,
-        // gets each page of the data nodes before the exchange buffers it, so the coordinator learns of the kept contexts
-        Consumer<Page> onPageFetched,
+        @Nullable FetchContextTracker fetchContexts,
         Runnable runOnTaskFailure,
         Consumer<DriverCompletionInfo> onFailureUsage,
         ActionListener<ComputeResponse> outListener
     ) {
+        // the keep-alive of _search, like a scroll
+        final TimeValue readerContextKeepAlive = fetchContexts == null
+            ? null
+            : TimeValue.timeValueMillis(searchService.getDefaultKeepAliveInMillis());
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
 
         new DataNodeRequestSender(
@@ -306,7 +308,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             );
                             exchangeSource.addRemoteSink(remoteSink, configuration.allowPartialResults() == false, page -> {
                                 pagesFetched.incrementAndGet();
-                                onPageFetched.accept(page);
+                                if (fetchContexts != null) {
+                                    // before the exchange buffers the page, so the execution learns of the contexts it names
+                                    fetchContexts.track(page);
+                                }
                             },
                                 queryPragmas.concurrentExchangeClients(),
                                 ActionListener.releaseAfter(computeListener.acquireAvoid(), sinkPart)

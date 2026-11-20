@@ -62,7 +62,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
@@ -117,7 +116,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.fetch.FetchContextTracker;
-import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.fetch.QueryFetchScope;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -234,7 +232,8 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final FetchPhaseServices fetchPhaseServices;
+    private final FetchService fetchService;
+    private final SearchTransportService searchTransportService;
     private final InferenceService inferenceService;
     private final Client client;
     private final UserAgentParserRegistry userAgentParserRegistry;
@@ -321,7 +320,7 @@ public class ComputeService {
         this.plannerSettings = transportActionServices.plannerSettings();
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.formatReaderRegistry = formatReaderRegistry;
-        FetchService fetchService = new FetchService(
+        this.fetchService = new FetchService(
             transportService,
             clusterService,
             projectResolver,
@@ -332,8 +331,8 @@ public class ComputeService {
             plannerSettings::get,
             computeExecutor
         );
-        fetchService.registerHandlers();
-        this.fetchPhaseServices = new FetchPhaseServices(fetchService, searchTransportService, clusterService);
+        this.fetchService.registerHandlers();
+        this.searchTransportService = searchTransportService;
     }
 
     /** The minimum transport version of the nodes that may read the splits planned here. */
@@ -1625,7 +1624,7 @@ public class ComputeService {
         // documents that leave the data nodes name the contexts they keep open for the fetch phase, which this execution
         // frees once it no longer reads them, and at the latest once its computes ended
         final FetchContextTracker fetchContexts = dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)
-            ? fetchPhaseServices.newContextTracker()
+            ? new FetchContextTracker(searchTransportService, clusterService)
             : null;
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
@@ -1676,13 +1675,12 @@ public class ComputeService {
                         execInfo::addFailedWork
                     )
                 ) {
-                    ActionListener<DriverCompletionInfo> coordinatorListener = localListener.acquireCompute();
                     final FetchOperatorProvider fetchOperators;
                     if (fetchContexts == null) {
                         fetchOperators = FetchOperatorProvider.UNSUPPORTED;
                     } else {
                         // the fetches of the query send their requests as children of its task, and count their drivers as its own
-                        fetchOperators = fetchPhaseServices.operatorProvider(
+                        fetchOperators = fetchService.operatorProvider(
                             new QueryFetchScope(rootTask, sessionId, configuration, localListener::acquireCompute, fetchContexts)
                         );
                     }
@@ -1708,7 +1706,7 @@ public class ComputeService {
                         plannerSettings.get(),
                         LocalPhysicalOptimization.ENABLED,
                         planTimeProfile,
-                        coordinatorListener
+                        localListener.acquireCompute()
                     );
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
@@ -1723,9 +1721,7 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
-                            fetchContexts == null ? null : TimeValue.timeValueMillis(searchService.getDefaultKeepAliveInMillis()),
-                            // the execution learns which contexts the nodes keep from the documents that arrive
-                            fetchContexts == null ? page -> {} : fetchContexts::track,
+                            fetchContexts,
                             cancelQueryOnFailure,
                             // what the workers that succeeded did is lost with the failure of the query unless it is reported here
                             execInfo::addFailedWork,

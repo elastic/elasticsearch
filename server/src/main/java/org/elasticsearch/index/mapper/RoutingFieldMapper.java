@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -75,7 +76,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
             this.requiredByDefault = requiredByDefault;
             this.docValuesEnabledByDefault = docValuesEnabledByDefault;
             this.required = Parameter.boolParam("required", false, requiredByDefault);
-            this.docValues = Parameter.boolParam("doc_values", false, docValuesEnabledByDefault);
+            this.docValues = Parameter.docValuesParam(docValuesEnabledByDefault, IndexVersions.ROUTING_DOC_VALUES_NO_OP_IN_COLUMNAR);
         }
 
         @Override

@@ -87,7 +87,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.recovery.RecoveryFeatures;
-import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
+import org.elasticsearch.plugins.internal.RestoreProjectCustomUpdater;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -177,6 +177,7 @@ public final class RestoreService implements ClusterStateApplier {
         IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
         IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(),
         IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
         IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(),
@@ -225,7 +226,7 @@ public final class RestoreService implements ClusterStateApplier {
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
-    private final RestoreLifecycleListener lifecycleListener;
+    private final RestoreProjectCustomUpdater customUpdater;
 
     public RestoreService(
         ClusterService clusterService,
@@ -241,7 +242,7 @@ public final class RestoreService implements ClusterStateApplier {
         boolean deserializeProjectMetadata,
         IndexMetadataRestoreTransformer indexMetadataRestoreTransformer,
         FeatureService featureService,
-        RestoreLifecycleListener restoreLifecycleListener
+        RestoreProjectCustomUpdater restoreProjectCustomUpdater
     ) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -264,7 +265,7 @@ public final class RestoreService implements ClusterStateApplier {
             .addSettingsUpdateConsumer(REFRESH_REPO_UUID_ON_RESTORE_SETTING, this::setRefreshRepositoryUuidOnRestore);
         this.indexMetadataRestoreTransformer = indexMetadataRestoreTransformer;
         this.featureService = featureService;
-        this.lifecycleListener = Objects.requireNonNull(restoreLifecycleListener);
+        this.customUpdater = Objects.requireNonNull(restoreProjectCustomUpdater);
     }
 
     /**
@@ -1964,19 +1965,52 @@ public final class RestoreService implements ClusterStateApplier {
     private volatile boolean cleanupInProgress = false;
 
     /**
-     * Invokes {@link RestoreLifecycleListener#onRestoreInitialized} for a newly installed restore
-     * entry, or returns {@code state} unchanged when {@code entry} is {@code null}. Package-private for unit tests.
+     * Has the {@link RestoreProjectCustomUpdater} record a newly installed restore entry in {@code project}, or does nothing when
+     * {@code entry} is {@code null} or the updater maintains no custom. Package-private for unit tests.
      */
-    ClusterState applyRestoreInitializedListener(@Nullable RestoreInProgress.Entry entry, ClusterState state) {
-        return entry != null ? lifecycleListener.onRestoreInitialized(entry, state) : state;
+    void applyRestoreInitializedUpdater(@Nullable RestoreInProgress.Entry entry, ProjectMetadata.Builder project) {
+        final String type = customUpdater.projectCustomType();
+        if (entry == null || type == null) {
+            return;
+        }
+        final Metadata.ProjectCustom updated = customUpdater.onRestoreInitialized(entry, project.getCustom(type));
+        if (updated != null) {
+            project.putCustom(type, updated);
+        }
     }
 
     /**
-     * Notifies the {@link RestoreLifecycleListener} for each completed {@link RestoreInProgress} entry,
-     * then removes those entries. The listener fires before removal so its writes publish atomically
-     * with the entry disappearing. Package-private for unit tests.
+     * Has the {@link RestoreProjectCustomUpdater} record the completion of {@code entry} in {@code updatedCustoms}, which holds the customs
+     * changed so far by the same cleanup, keyed by project. Does nothing when {@code project} is {@code null}, because it is gone, or when
+     * the updater maintains no custom. The updater is given the custom from {@code updatedCustoms} if an earlier entry of the cleanup
+     * changed it, and the one in {@code project} otherwise. Package-private for unit tests.
+     */
+    void applyRestoreCompletedUpdater(
+        RestoreInProgress.Entry entry,
+        @Nullable ProjectMetadata project,
+        Map<ProjectId, Metadata.ProjectCustom> updatedCustoms
+    ) {
+        final String type = customUpdater.projectCustomType();
+        if (project == null || type == null) {
+            return;
+        }
+        final Metadata.ProjectCustom current = updatedCustoms.containsKey(project.id())
+            ? updatedCustoms.get(project.id())
+            : project.custom(type);
+        final Metadata.ProjectCustom updated = customUpdater.onRestoreCompleted(entry, project, current);
+        if (updated != null) {
+            updatedCustoms.put(project.id(), updated);
+        }
+    }
+
+    /**
+     * Has the {@link RestoreProjectCustomUpdater} record each completed {@link RestoreInProgress} entry in its project's custom, then
+     * removes those entries. The updater runs before the entry is removed, and its result is published in the same update, so the two
+     * appear atomically. Package-private for unit tests.
      */
     ClusterState executeRestoreCleanup(ClusterState currentState) {
+        final String customType = customUpdater.projectCustomType();
+        final Map<ProjectId, Metadata.ProjectCustom> updatedCustoms = new HashMap<>();
         RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
         boolean changed = false;
         for (RestoreInProgress.Entry entry : RestoreInProgress.get(currentState)) {
@@ -1987,18 +2021,18 @@ public final class RestoreService implements ClusterStateApplier {
                     entry.snapshot(),
                     entry.state()
                 );
-                // Notify the listener before the entry disappears from cluster state.
+                // Record the completion before the entry disappears from cluster state.
                 try {
-                    currentState = Objects.requireNonNull(
-                        lifecycleListener.onRestoreCompleted(entry, currentState),
-                        "restore lifecycle listener returned a null cluster state"
+                    applyRestoreCompletedUpdater(
+                        entry,
+                        currentState.metadata().projects().get(entry.snapshot().getProjectId()),
+                        updatedCustoms
                     );
                     changed = true;
                 } catch (Exception e) {
                     logger.warn(
                         () -> format(
-                            "failed to notify restore lifecycle listener of completed restore [%s] of snapshot [%s]; "
-                                + "retaining the entry to retry",
+                            "failed to record the completion of restore [%s] of snapshot [%s]; retaining the entry to retry",
                             entry.uuid(),
                             entry.snapshot()
                         ),
@@ -2010,9 +2044,22 @@ public final class RestoreService implements ClusterStateApplier {
                 restoreInProgressBuilder.add(entry);
             }
         }
-        return changed == false
-            ? currentState
-            : ClusterState.builder(currentState).putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
+        if (changed == false) {
+            return currentState;
+        }
+        // Only the projects that an updater changed are replaced. Anything else, including every project when nothing is maintained, is
+        // kept as it is rather than rebuilt.
+        Metadata metadata = currentState.metadata();
+        for (Map.Entry<ProjectId, Metadata.ProjectCustom> updated : updatedCustoms.entrySet()) {
+            metadata = metadata.withUpdatedProject(
+                ProjectMetadata.builder(metadata.getProject(updated.getKey())).putCustom(customType, updated.getValue()).build()
+            );
+        }
+        final ClusterState.Builder builder = ClusterState.builder(currentState);
+        if (metadata != currentState.metadata()) {
+            builder.metadata(metadata);
+        }
+        return builder.putCustom(RestoreInProgress.TYPE, restoreInProgressBuilder.build()).build();
     }
 
     // run a cluster state update that removes all completed restores from the cluster state
@@ -2508,6 +2555,7 @@ public final class RestoreService implements ClusterStateApplier {
             }
 
             updater.accept(currentState, mdBuilder.getProject(projectId));
+            applyRestoreInitializedUpdater(restoreEntry, mdBuilder.getProject(projectId));
             ClusterState updatedClusterState = builder.metadata(mdBuilder)
                 .blocks(blocks)
                 .putRoutingTable(projectId, rtBuilder.build())
@@ -2516,7 +2564,6 @@ public final class RestoreService implements ClusterStateApplier {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
 
-            updatedClusterState = applyRestoreInitializedListener(restoreEntry, updatedClusterState);
             return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
 

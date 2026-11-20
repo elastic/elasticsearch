@@ -154,7 +154,6 @@ public final class FieldPresenceOperator extends AbstractPageMappingOperator {
 
     private Page discoverFieldSets(DocBlock docBlock) throws IOException {
         DocVector docVector = docBlock.asVector();
-        docVector.ensureAttached("FieldPresenceOperator");
         IntVector shards = docVector.shards();
         IntVector segments = docVector.segments();
         IntVector docs = docVector.docs();

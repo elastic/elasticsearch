@@ -1,0 +1,5 @@
+area: Infra/Entitlements
+issues: []
+pr: 166961
+summary: Add entitlement check for System.getProperties()
+type: bug

@@ -30,6 +30,11 @@ public class Warnings {
         public void registerWarning(String message) {
             // this space intentionally left blank
         }
+
+        @Override
+        public void registerWarningWithoutSourceText(String message) {
+            // this space intentionally left blank
+        }
     };
 
     /**
@@ -141,6 +146,13 @@ public class Warnings {
     public void registerWarning(String message) {
         if (addedWarnings < MAX_ADDED_WARNINGS) {
             addDistinct(nonExceptionWarningPrefix + message);
+        }
+    }
+
+    // A view's source text is its stored definition, which the caller may not be allowed to read, so this prefix omits it.
+    public void registerWarningWithoutSourceText(String message) {
+        if (addedWarnings < MAX_ADDED_WARNINGS) {
+            addDistinct(location + message);
         }
     }
 

@@ -1,0 +1,147 @@
+// Query parameters declared with the param: directive and sent in the request's params array.
+
+namedScalars
+param: i = 5
+param: l = 3000000000
+param: d = 1.5
+param: s = "a string with = and {braces}"
+param: b = true
+param: n = null
+ROW i = ?i, l = ?l, d = ?d, s = ?s, b = ?b, n = ?n
+;
+
+i:integer | l:long         | d:double | s:keyword                    | b:boolean | n:null
+5         | 3000000000     | 1.5      | a string with = and {braces} | true      | null
+;
+
+namedInFilter
+param: emp = 10002
+param: hired = true
+FROM employees
+| WHERE emp_no == ?emp AND still_hired == ?hired
+| KEEP emp_no, first_name, still_hired
+;
+
+emp_no:integer | first_name:keyword | still_hired:boolean
+10002          | Bezalel            | true
+;
+
+namedValueObject
+param: first = {"value": "Georgi"}
+FROM employees
+| WHERE first_name == ?first
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+namedIdentifier
+param: field = {"identifier": "first_name"}
+param: first = "Parto"
+FROM employees
+| WHERE ?field == ?first
+| KEEP emp_no, ?field
+;
+
+emp_no:integer | first_name:keyword
+10003          | Parto
+;
+
+namedPattern
+param: names = {"pattern": "*_name"}
+FROM employees
+| WHERE emp_no == 10001
+| KEEP emp_no, ?names
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | Georgi             | Facello
+;
+
+doubleParameterMarkers
+required_capability: double_parameter_markers_for_identifiers
+param: field = "last_name"
+param: last = "Koblick"
+FROM employees
+| WHERE ??field == ?last
+| KEEP emp_no, ??field
+;
+
+emp_no:integer | last_name:keyword
+10004          | Koblick
+;
+
+sameParamAsNameAndValue
+required_capability: double_parameter_markers_for_identifiers
+param: field = "first_name"
+FROM employees
+| WHERE emp_no == 10001
+| EVAL name = ?field
+| KEEP emp_no, ??field, name
+;
+
+emp_no:integer | first_name:keyword | name:keyword
+10001          | Georgi             | first_name
+;
+
+namedArray
+required_capability: query_params_multi_values
+param: ids = [10001, 10003]
+param: names = ["Georgi", "Parto"]
+ROW ids = ?ids, names = ?names
+;
+
+ids:integer    | names:keyword
+[10001, 10003] | [Georgi, Parto]
+;
+
+unnamed
+param: 10003
+FROM employees
+| WHERE emp_no == ?
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10003          | Parto
+;
+
+multipleUnnamed
+param: "F"
+param: 10008
+FROM employees
+| WHERE gender == ? AND emp_no < ?
+| KEEP emp_no, gender
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword
+10002          | F
+10006          | F
+10007          | F
+;
+
+positional
+param: "Georgi"
+param: 10001
+FROM employees
+| WHERE emp_no == ?2 AND first_name == ?1
+| KEEP emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword
+10001          | Georgi
+;
+
+unnamedArray
+required_capability: query_params_multi_values
+param: ["a", "b"]
+param: 7
+ROW x = ?, y = ?
+;
+
+x:keyword | y:integer
+[a, b]    | 7
+;

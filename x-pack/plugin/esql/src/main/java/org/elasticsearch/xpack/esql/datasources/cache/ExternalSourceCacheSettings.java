@@ -64,8 +64,10 @@ public final class ExternalSourceCacheSettings {
      * cache nor, in the row formats that harvest them, collects statistics for it. Planning still resolves
      * schema and file metadata and pays more for them — the loader runs on every resolve, not only on a miss.
      * <p>
-     * The flag is read at two moments: a read resolves its harvest scope from it when its operators are
-     * built, and the coordinator consults it again when that read's statistics arrive.
+     * A read resolves its harvest scope from the flag when its operators are built, and the coordinator
+     * consults it again when that read's statistics arrive.
+     * <p>
+     * Turning it off also clears the cache, so turning it back on leaves the node cold.
      * <p>
      * Node-scoped, so set it cluster-wide unless an asymmetry is wanted: off at a data node and on at the
      * coordinator, that node harvests nothing and the coordinator never warms for its files; the reverse

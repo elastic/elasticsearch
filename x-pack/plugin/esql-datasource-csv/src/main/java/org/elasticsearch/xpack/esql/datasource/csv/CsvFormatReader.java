@@ -2695,8 +2695,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // the finalize marker is present.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         boolean chunkMode = context.recordAligned();
-        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below and
-        // leaves cacheableObject null, which every publish and every accumulator downstream keys off.
+        // Under NONE nothing is harvested, so take no cacheable identity: that skips the mtime probe below.
         boolean cacheable = (wholeFileRead || chunkMode) && context.statsColumnScope() != StripeColumnScope.NONE;
         long pinnedMtimeMillis = -1L;
         if (cacheable) {

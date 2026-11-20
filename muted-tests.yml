@@ -729,6 +729,10 @@ tests:
   - :server:internalClusterTest
   method: testDirectoryMetricsLocalAndRemoteMinimizeRoundtripsTrue
   issue: https://github.com/elastic/elasticsearch/issues/166260
+- class: org.elasticsearch.ingest.attachment.heappressure.AttachmentTextCopiesHeapPressureIT
+  issue: https://github.com/elastic/incident-management/issues/3577
+- class: org.elasticsearch.ingest.attachment.heappressure.AttachmentOversizedTextHeapPressureIT
+  issue: https://github.com/elastic/incident-management/issues/3577
 - class: org.elasticsearch.action.search.QueryPhaseTopHitsLeakIT
   tasks:
   - :server:internalClusterTest

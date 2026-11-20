@@ -108,7 +108,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -330,7 +332,6 @@ public class WildcardFieldMapper extends FieldMapper {
         private final IndexVersion indexVersion;
         private final boolean arrayOrderBinaryDocValues;
         private final QueryNgrams caseSensitiveNgrams = new CaseSensitiveNgrams();
-        private final QueryNgrams caseInsensitiveNgrams = new CaseInsensitiveNgrams(MAX_CASE_INSENSITIVE_NGRAM_FORMS);
 
         private WildcardFieldType(
             String name,
@@ -396,7 +397,8 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-            return buildWildcardQuery(wildcardPattern, caseInsensitive ? caseInsensitiveNgrams : caseSensitiveNgrams, context);
+            QueryNgrams ngrams = caseInsensitive ? new CaseInsensitiveNgrams(MAX_CASE_INSENSITIVE_NGRAM_FORMS) : caseSensitiveNgrams;
+            return buildWildcardQuery(wildcardPattern, ngrams, context);
         }
 
         Query buildWildcardQuery(String wildcardPattern, QueryNgrams ngrams, SearchExecutionContext context) {
@@ -550,7 +552,9 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             RegExp ngramRegex = new RegExp(addLineEndChars(value), syntaxFlags, matchFlags);
-            QueryNgrams ngrams = (matchFlags & CASE_INSENSITIVE_MATCH_FLAGS) != 0 ? caseInsensitiveNgrams : caseSensitiveNgrams;
+            QueryNgrams ngrams = (matchFlags & CASE_INSENSITIVE_MATCH_FLAGS) != 0
+                ? new CaseInsensitiveNgrams(MAX_CASE_INSENSITIVE_NGRAM_FORMS)
+                : caseSensitiveNgrams;
 
             Query approxBooleanQuery = toApproximationQuery(ngramRegex, ngrams);
             Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery, ngrams);
@@ -675,7 +679,21 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private static Query createCharacterClassQuery(RegExp r, QueryNgrams ngrams) {
             // TODO: consider expanding this to allow for character ranges as well (need additional tests and performance eval)
+            if (ngrams.caseInsensitive() && Arrays.equals(r.from, r.to)) {
+                // Case-insensitive parsing lists every case variant of each character written, e.g. [Pp] as [PpPp]. When they all
+                // normalize to one character, use it so that it can be joined with its neighbours like any other literal.
+                Set<String> normalized = new HashSet<>();
+                for (int c : r.from) {
+                    normalized.add(ngrams.normalizeLeaf(Character.toString(c)));
+                }
+                if (normalized.size() == 1) {
+                    return new TermQuery(new Term("", normalized.iterator().next()));
+                }
+            }
             List<Query> queries = new ArrayList<>();
+            if (r.from.length > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
+                return Queries.ALL_DOCS_INSTANCE;
+            }
             for (int i = 0; i < r.from.length; i++) {
                 // only handle character classes for now not ranges
                 if (r.from[i] == r.to[i]) {
@@ -686,12 +704,6 @@ public class WildcardFieldMapper extends FieldMapper {
                     // immediately exit because we can't currently optimize a combination of range and classes
                     return Queries.ALL_DOCS_INSTANCE;
                 }
-            }
-            // Case-insensitive parsing lists every case variant of each character written, e.g. [Pp] as [PpPp], so count the
-            // distinct characters they normalize to. Case-sensitive classes keep counting the characters as written.
-            int classSize = ngrams.caseInsensitive() ? new HashSet<>(queries).size() : r.from.length;
-            if (classSize > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
-                return Queries.ALL_DOCS_INSTANCE;
             }
             return formQuery(queries);
         }
@@ -904,9 +916,21 @@ public class WildcardFieldMapper extends FieldMapper {
          */
         final class CaseInsensitiveNgrams implements QueryNgrams {
             private final int maxForms;
+            // Created for each query, so these remember each character's analysis only while that query is built
+            private final Map<Integer, List<Integer>> variants = new HashMap<>();
+            private final Map<Integer, Set<String>> forms = new HashMap<>();
+            private final Map<Integer, Integer> canonical = new HashMap<>();
 
             CaseInsensitiveNgrams(int maxForms) {
                 this.maxForms = maxForms;
+            }
+
+            private List<Integer> variants(int codePoint) {
+                return variants.computeIfAbsent(codePoint, WildcardFieldType::caseVariants);
+            }
+
+            private Set<String> forms(int codePoint) {
+                return forms.computeIfAbsent(codePoint, WildcardFieldType.this::caseVariantForms);
             }
 
             @Override
@@ -931,20 +955,25 @@ public class WildcardFieldMapper extends FieldMapper {
              * match {@code İ}, so following them transitively is what gives every such character the same canonical one.
              */
             private int canonicalCodePoint(int codePoint) {
-                Set<String> forms = caseVariantForms(codePoint);
+                Integer known = canonical.get(codePoint);
+                if (known != null) {
+                    return known;
+                }
+                Set<String> codePointForms = forms(codePoint);
                 Set<Integer> reached = new HashSet<>(List.of(codePoint));
                 List<Integer> toVisit = new ArrayList<>(List.of(codePoint));
-                int canonical = codePoint;
+                int lowest = codePoint;
                 while (toVisit.isEmpty() == false) {
-                    for (int variant : caseVariants(toVisit.removeLast())) {
-                        if (reached.contains(variant) == false && caseVariantForms(variant).equals(forms)) {
+                    for (int variant : variants(toVisit.removeLast())) {
+                        if (reached.contains(variant) == false && forms(variant).equals(codePointForms)) {
                             reached.add(variant);
                             toVisit.add(variant);
-                            canonical = Math.min(canonical, variant);
+                            lowest = Math.min(lowest, variant);
                         }
                     }
                 }
-                return canonical;
+                canonical.put(codePoint, lowest);
+                return lowest;
             }
 
             /**
@@ -956,17 +985,17 @@ public class WildcardFieldMapper extends FieldMapper {
                 if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
                     return;
                 }
-                List<Set<String>> charForms = fragment.codePoints().mapToObj(WildcardFieldType.this::caseVariantForms).toList();
+                List<Set<String>> charForms = fragment.codePoints().mapToObj(this::forms).toList();
                 if (charForms.size() < NGRAM_SIZE) {
-                    tokens.add(forms(charForms));
+                    tokens.add(ngramForms(charForms));
                 } else {
                     for (int i = 0; i + NGRAM_SIZE <= charForms.size(); i++) {
-                        tokens.add(forms(charForms.subList(i, i + NGRAM_SIZE)));
+                        tokens.add(ngramForms(charForms.subList(i, i + NGRAM_SIZE)));
                     }
                 }
             }
 
-            private Set<String> forms(List<Set<String>> charForms) {
+            private Set<String> ngramForms(List<Set<String>> charForms) {
                 long count = 1;
                 for (Set<String> forms : charForms) {
                     count *= forms.size();

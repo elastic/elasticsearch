@@ -50,8 +50,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.FiniteStringsIterator;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.action.index.IndexRequest;
@@ -739,6 +742,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             alternatives.add("\"" + randomVariantLowercasingTheSame(word) + "\"");
         }
         assertCaseInsensitiveDoesNotAddClauses("(" + String.join("|", alternatives) + ")");
+
+        // A class of more characters than are worth looking up stays a single unconstrained clause, however many distinct
+        // characters its case variants come down to
+        assertCaseInsensitiveDoesNotAddClauses("[AaBbCcDdEeFf]");
     }
 
     /** Replaces characters with case variants that lowercase to the same character, e.g. {@code i} with {@code I} or {@code İ}. */
@@ -940,8 +947,17 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
     }
 
+    /**
+     * The characters Lucene matches case-insensitively for the given one, including itself. Enumerated here rather than by the
+     * wildcard field's own code so that the inputs these tests generate do not depend on the code under test.
+     */
     private static List<Integer> caseVariants(int codePoint) {
-        return WildcardFieldMapper.WildcardFieldType.caseVariants(codePoint);
+        List<Integer> variants = new ArrayList<>();
+        FiniteStringsIterator iterator = new FiniteStringsIterator(Automata.makeCaseInsensitiveChar(codePoint));
+        for (IntsRef variant = iterator.next(); variant != null; variant = iterator.next()) {
+            variants.add(variant.ints[variant.offset]);
+        }
+        return variants;
     }
 
     private static String randomCaseVariant(String text) {

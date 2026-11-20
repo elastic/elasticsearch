@@ -42,6 +42,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -56,6 +58,7 @@ import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -311,6 +314,7 @@ public abstract class FullTextFunction extends Function
                     // Check for limitations of QSTR and KQL function.
                     checkCommandsBeforeExpression(
                         plan,
+                        plan,
                         condition,
                         functionClass,
                         lp -> (lp instanceof Filter
@@ -324,34 +328,15 @@ public abstract class FullTextFunction extends Function
                 });
             }
 
-            // Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
-            // row (it is the sub-query side of a left join), so it does not block pushing the full-text function down to Lucene.
-            //
-            // The two walks below cover the two shapes INLINE STATS takes: this verifier runs once on the
-            // analyzed plan, which always contains InlineStats, and again on the optimized plan, where SubstituteSurrogatePlans
-            // has replaced every InlineStats with an InlineJoin.
-            //
-            // On the InlineJoin side, look anywhere in the right-hand subtree rather than just at its root: an aggregate
-            // expression (e.g. MAX(id) + 1) leaves the Aggregate wrapped in a Project/Eval once ReplaceAggregateAggExpressionWithEval
-            // has run. Restricting the walk to right() keeps unrelated aggregates on the left branch (a preceding STATS) failing,
-            // and nothing else can appear there because stubSource() cuts the aggregate's input down to a StubRelation.
-            Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
-            plan.forEachDown(InlineStats.class, is -> inlineStatsAggregates.add(is.aggregate()));
-            plan.forEachDown(InlineJoin.class, ij -> ij.right().forEachDown(Aggregate.class, inlineStatsAggregates::add));
-
+            Set<Aggregate> inlineStatsAggregates = inlineStatsAggregates(plan);
             checkCommandsBeforeExpression(
+                plan,
                 plan,
                 condition,
                 FullTextFunction.class,
-                lp -> (lp instanceof Limit == false)
-                    && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
+                lp -> readsLuceneDocuments(lp, inlineStatsAggregates)
                     && (lp instanceof MvExpand == false)
-                    && (lp instanceof MergePlan == false)
-                    && (lp instanceof LimitBy == false)
-                    && (lp instanceof TopNBy == false)
-                    && (lp instanceof Dedup == false)
-                    && (lp instanceof Highlight == false)
-                    && (lp instanceof TopN == false),
+                    && (lp instanceof Highlight == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );
@@ -359,8 +344,56 @@ public abstract class FullTextFunction extends Function
         checkFullTextFunctionsParents(condition, failures);
     }
 
+    /**
+     * Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
+     * row (it is the sub-query side of a left join), so it does not block pushing the full-text function down to Lucene.
+     * <p>
+     * The two walks below cover the two shapes INLINE STATS takes: this verifier runs once on the
+     * analyzed plan, which always contains InlineStats, and again on the optimized plan, where SubstituteSurrogatePlans
+     * has replaced every InlineStats with an InlineJoin.
+     * <p>
+     * On the InlineJoin side, look anywhere in the right-hand subtree rather than just at its root: an aggregate
+     * expression (e.g. MAX(id) + 1) leaves the Aggregate wrapped in a Project/Eval once ReplaceAggregateAggExpressionWithEval
+     * has run. Restricting the walk to right() keeps unrelated aggregates on the left branch (a preceding STATS) failing,
+     * and nothing else can appear there because stubSource() cuts the aggregate's input down to a StubRelation.
+     */
+    private static Set<Aggregate> inlineStatsAggregates(LogicalPlan plan) {
+        Set<Aggregate> inlineStatsAggregates = Collections.newSetFromMap(new IdentityHashMap<>());
+        plan.forEachDown(InlineStats.class, is -> inlineStatsAggregates.add(is.aggregate()));
+        plan.forEachDown(InlineJoin.class, ij -> ij.right().forEachDown(Aggregate.class, inlineStatsAggregates::add));
+        return inlineStatsAggregates;
+    }
+
+    /**
+     * Whether the rows a command emits are still the Lucene documents they were read from, on the node that holds them.
+     * The commands rejected here cut the plan off from the shards: what follows them runs on the coordinator, on rows that
+     * no longer carry a document reference, so a Lucene query cannot be evaluated against them.
+     */
+    private static boolean readsLuceneDocuments(LogicalPlan lp, Set<Aggregate> inlineStatsAggregates) {
+        return (lp instanceof Limit == false)
+            && (lp instanceof Aggregate == false || inlineStatsAggregates.contains(lp))
+            && (lp instanceof MergePlan == false)
+            && (lp instanceof LimitBy == false)
+            && (lp instanceof TopNBy == false)
+            && (lp instanceof Dedup == false)
+            && (lp instanceof TopN == false);
+    }
+
+    /**
+     * Whether a command only runs on the coordinator, like {@code CHANGE_POINT} or an {@code ENRICH} in coordinator mode, taking
+     * what follows it there too. {@code INLINE STATS} is not such a command, the rows it adds its results to stay on the shards.
+     * Its aggregation is left to {@link #readsLuceneDocuments}, that tells it from the one of a {@code STATS}.
+     */
+    private static boolean executesOnCoordinator(LogicalPlan lp) {
+        if (lp instanceof Aggregate || lp instanceof InlineStats || lp instanceof InlineJoin) {
+            return false;
+        }
+        return lp instanceof ExecutesOn executesOn && executesOn.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR;
+    }
+
     private static void checkScoreFunction(LogicalPlan plan, Failures failures, Score scoreFunction) {
         checkCommandsBeforeExpression(
+            plan,
             plan,
             scoreFunction.canonical(),
             Score.class,
@@ -380,12 +413,79 @@ public abstract class FullTextFunction extends Function
                 }
             });
         });
+        checkFullTextFunctionsInAggFilters(agg, failures, true);
+    }
+
+    /**
+     * Checks that the full-text functions in the {@code WHERE} filters of the aggregate functions of a {@code STATS} can be
+     * evaluated. Such a filter is evaluated by the aggregation itself, against the Lucene document of each row, so it requires
+     * the aggregation to run where the documents are. This is not the case after a command like {@code LIMIT} or another
+     * {@code STATS}, where the aggregation runs on the coordinator and the query fails instead of returning results.
+     * <p>
+     * The commands that only stop a {@code WHERE} from being pushed to Lucene, like {@code MV_EXPAND} or {@code EVAL} before
+     * {@code QSTR}, are not rejected here because the filter of an aggregate function doesn't need to be pushed down.
+     * <p>
+     * This runs on the analyzed plan, to fail early, and again on the optimized plan, which has the final say: the optimizer
+     * turns a filter shared by every aggregate function into a {@code WHERE} that it can push into the branches of a
+     * {@code FORK} or into subqueries, it replaces a column with the indexed field it is an alias of, making the search of a
+     * column one of the index, and it expands commands like {@code CHANGE_POINT} to the ones that implement them.
+     *
+     * @param analyzed whether this is the analyzed plan. Only there, {@code QSTR} and {@code KQL} are rejected over a source
+     *                 that is not an index, as the optimizer may replace an index with local data. The commands below a
+     *                 {@code FORK} or subqueries are left for the optimized plan.
+     */
+    private static void checkFullTextFunctionsInAggFilters(Aggregate agg, Failures failures, boolean analyzed) {
+        List<Expression> filters = new ArrayList<>();
+        for (NamedExpression aggregate : agg.aggregates()) {
+            // the analyzed plan wraps a filtered aggregate function, the optimized one stores the filter in the function
+            aggregate.forEachDown(FilteredExpression.class, fe -> filters.add(fe.filter()));
+            aggregate.forEachDown(AggregateFunction.class, af -> {
+                if (af.hasFilter()) {
+                    filters.add(af.filter());
+                }
+            });
+        }
+        if (filters.isEmpty()) {
+            return;
+        }
+        LogicalPlan input = agg.child();
+        Set<Aggregate> inlineStatsAggregates = inlineStatsAggregates(input);
+        boolean checkCommands = analyzed == false || input.anyMatch(p -> p instanceof MergePlan) == false;
+        for (Expression filter : filters) {
+            if (checkCommands) {
+                checkCommandsBeforeExpression(
+                    agg,
+                    input,
+                    filter,
+                    FullTextFunction.class,
+                    lp -> readsLuceneDocuments(lp, inlineStatsAggregates) && executesOnCoordinator(lp) == false,
+                    m -> "[" + m.functionName() + "] " + m.functionType(),
+                    failures
+                );
+            }
+            if (analyzed) {
+                for (Class<? extends FullTextFunction> functionClass : List.of(QueryString.class, Kql.class)) {
+                    // These search the whole index instead of a field, so there is no field to tell them it is missing.
+                    checkCommandsBeforeExpression(
+                        agg,
+                        input,
+                        filter,
+                        functionClass,
+                        lp -> lp instanceof LeafPlan == false || lp instanceof EsRelation,
+                        m -> "[" + m.functionName() + "] " + m.functionType(),
+                        failures
+                    );
+                }
+            }
+        }
     }
 
     /**
      * Checks all commands that exist before a specific type satisfy conditions.
      *
      * @param plan plan that contains the condition
+     * @param commands plan holding the commands to check: {@code plan} itself, or its input when {@code plan} is not
+     *                 to be checked against {@code commandCheck}
      * @param condition condition to check
      * @param typeToken type to check for. When a type is found in the condition, all plans before the root plan are checked
      * @param commandCheck check to perform on each command that precedes the plan that contains the typeToken
@@ -395,6 +495,7 @@ public abstract class FullTextFunction extends Function
      */
     private static <E extends Expression> void checkCommandsBeforeExpression(
         LogicalPlan plan,
+        LogicalPlan commands,
         Expression condition,
         Class<E> typeToken,
         Predicate<LogicalPlan> commandCheck,
@@ -412,7 +513,7 @@ public abstract class FullTextFunction extends Function
             if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
                 return;
             }
-            plan.forEachDown(LogicalPlan.class, lp -> {
+            commands.forEachDown(LogicalPlan.class, lp -> {
                 if (commandCheck.test(lp) == false) {
                     if (lp instanceof ExternalRelation externalRelation) {
                         // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
@@ -817,6 +918,10 @@ public abstract class FullTextFunction extends Function
         // does not apply after logical planner. Also limit is pushed down further(below Join) by PushDownAndCombineLimits,
         // the check for LookupJoin or the score function may fail at LogicalVerifier.
         return (logicalPlan, failures) -> {
+            if (logicalPlan instanceof Aggregate agg) {
+                // the filters left in the aggregate functions are the ones the aggregation evaluates
+                checkFullTextFunctionsInAggFilters(agg, failures, false);
+            }
             if (logicalPlan instanceof Filter f) {
                 checkFullTextFunctionsInFilter(f, failures, true);
                 // After optimization, if a coordinator-executed join still sits anywhere beneath this filter

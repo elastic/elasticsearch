@@ -92,6 +92,23 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     /**
+     * A full-text filter shared by all the aggregate functions becomes a {@code WHERE} that is pushed into the subqueries. One
+     * that isn't shared stays in the aggregation, which runs after the subqueries are merged, on rows that are no longer tied
+     * to a Lucene document.
+     */
+    public void testFullTextInStatsFilterAfterSubquery() {
+        TestAnalyzer testAnalyzer = analyzer().addIndex("test", "mapping-full_text_search.json");
+        for (String ftf : List.of("kql(\"title: Meditation\")", "qstr(\"title: Meditation\")")) {
+            String from = "FROM (FROM test), (FROM test | WHERE id > 0) | STATS c = COUNT(*) WHERE " + ftf;
+            optimize(testAnalyzer.query(from));
+            optimize(testAnalyzer.query(from + ", d = MAX(id) WHERE " + ftf));
+
+            String err = error(from + ", d = COUNT(*)");
+            assertThat(ftf, err, containsString(" function cannot be used after (FROM test), (FROM test | WHERE id > 0)"));
+        }
+    }
+
+    /**
      * Alignment nodes often inherit the whole {@code FROM (subquery), index} clause.
      * The first token is {@code FROM}, which is legal before KQL; name the parenthesized
      * subquery instead of reporting a bare {@code FROM}.

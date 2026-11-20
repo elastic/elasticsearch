@@ -416,6 +416,48 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(err, containsString("[MATCH] function cannot be used after SORT and LIMIT when it targets an indexed field"));
     }
 
+    /**
+     * The full-text filter of an aggregate function is evaluated by the aggregation. The optimizer has the final say on which
+     * filters remain there: one shared by all the aggregate functions becomes a WHERE that is pushed into the FORK branches.
+     */
+    public void testFullTextInStatsFilterAfterFork() {
+        String fork = "FROM test | FORK (WHERE id > 0) (WHERE id > 1) | STATS c = COUNT(*) WHERE ";
+        for (String ftf : List.of("kql(\"title: Meditation\")", "qstr(\"title: Meditation\")")) {
+            optimize(fullTextAnalyzer().query(fork + ftf));
+            optimize(fullTextAnalyzer().query(fork + ftf + ", d = MAX(id) WHERE " + ftf));
+
+            var err = error(fullTextAnalyzer().query(fork + ftf + ", d = COUNT(*)"));
+            assertThat(ftf, err, containsString(" function cannot be used after FORK"));
+        }
+    }
+
+    /**
+     * INLINE STATS keeps the rows tied to their documents. In the optimized plan its aggregation is on the right of a join,
+     * and must not be taken for the one of a STATS, nor the join for a command that runs on the coordinator.
+     */
+    public void testFullTextInStatsFilterAfterInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        for (String ftf : List.of("match(title, \"Meditation\")", "qstr(\"title: Meditation\")")) {
+            String stats = " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)";
+            optimize(fullTextAnalyzer().query("FROM test | INLINE STATS m = MAX(id)" + stats));
+            optimize(fullTextAnalyzer().query("FROM test | INLINE STATS m = MAX(id) + 1 BY category" + stats));
+        }
+    }
+
+    /**
+     * A column that is an alias of an indexed field looks like one to search row by row in the analyzed plan, but the
+     * optimizer replaces it with the field, making it a Lucene query that the aggregation can't evaluate after LIMIT.
+     */
+    public void testFullTextInStatsFilterOnAliasedField() {
+        String stats = " | STATS c = COUNT(*) WHERE match(t, \"Meditation\"), d = COUNT(*)";
+        for (String commands : List.of("RENAME title AS t | LIMIT 10", "LIMIT 10 | RENAME title AS t", "EVAL t = title | LIMIT 10")) {
+            var err = error(fullTextAnalyzer().query("FROM test | " + commands + stats));
+            assertThat(commands, err, containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field"));
+        }
+        optimize(fullTextAnalyzer().query("FROM test | RENAME title AS t" + stats));
+        optimize(fullTextAnalyzer().query("FROM test | EVAL t = title" + stats));
+    }
+
     public void testRuntimeTextSearchRejectedAfterForkThroughCast() {
         // a cast does not detach the column from the field behind it, so it is not a way around the restriction
         var err = error(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match(title::keyword, \"data\")"));

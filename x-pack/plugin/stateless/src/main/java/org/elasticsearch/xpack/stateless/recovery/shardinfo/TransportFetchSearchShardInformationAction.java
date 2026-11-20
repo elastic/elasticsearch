@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.recovery.shardinfo;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
@@ -59,7 +61,8 @@ import java.util.function.LongSupplier;
  *
  * A Request to a node contains just a shardId and the node to be sent to
  *
- * A NodeResponse contains the time of the last acquired searcher in milliseconds since the epoch.
+ * A NodeResponse contains how many milliseconds ago a searcher was last acquired for search purposes. That is an elapsed time rather
+ * than a timestamp, because the relative clock the SearchEngine records acquisitions with is not comparable across nodes.
  *
  * The transport action contains the node operation, which queries the SearchEngine instance.
  */
@@ -74,6 +77,14 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
     private static final Logger logger = LogManager.getLogger(TransportFetchSearchShardInformationAction.class);
     static final Response NO_OTHER_SHARDS_FOUND_RESPONSE = new Response(-1);
     static final Response SHARD_HAS_MOVED_RESPONSE = new Response(-2);
+    static final Response NO_SEARCHER_ACQUIRED_RESPONSE = new Response(-3);
+
+    /// Before this version a non-negative value in a {@link Response} was a timestamp of the sending node's relative clock, which no
+    /// other node can use. A node that does not support it can only interpret the sentinels, so it degrades to having no searcher
+    /// acquisition information at all.
+    static final TransportVersion SEARCH_SHARD_INFORMATION_ELAPSED_TIME = TransportVersion.fromName(
+        "search_shard_information_elapsed_time"
+    );
 
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
@@ -131,7 +142,9 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             boolean isWriteIndex = index.getParentDataStream() != null
                 && indexName.equals(index.getParentDataStream().getWriteIndex().getName());
             if (isIndexAgeWithinRange && isWriteIndex) {
-                listener.onResponse(new Response(now));
+                // A freshly created write index receives all new writes, so it is about to be searched: its searcher age is zero.
+                // This must not be the current epoch time, which is a different clock domain than the age we send otherwise.
+                listener.onResponse(new Response(0));
                 return;
             }
         }
@@ -168,15 +181,18 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
                 return SHARD_HAS_MOVED_RESPONSE;
             }
 
-            long lastSearcherAcquired = indexShard.tryWithEngineOrNull(engine -> {
+            OptionalLong millisSinceLastSearcherAcquired = indexShard.tryWithEngineOrNull(engine -> {
                 if (engine instanceof SearchEngine searchEngine) {
-                    return searchEngine.getLastSearcherAcquiredTime();
+                    return searchEngine.getMillisSinceLastSearcherAcquired();
                 }
 
-                return 0L;
+                return OptionalLong.empty();
             });
 
-            return new Response(lastSearcherAcquired);
+            if (millisSinceLastSearcherAcquired.isEmpty()) {
+                return NO_SEARCHER_ACQUIRED_RESPONSE;
+            }
+            return new Response(millisSinceLastSearcherAcquired.getAsLong());
         });
     }
 
@@ -267,35 +283,49 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
 
     public static final class Response extends ActionResponse {
 
-        private final long lastSearcherAcquiredTime;
+        private final long millisSinceLastSearcherAcquired;
 
-        public Response(long lastSearcherAcquiredTime) {
-            this.lastSearcherAcquiredTime = lastSearcherAcquiredTime;
+        public Response(long millisSinceLastSearcherAcquired) {
+            this.millisSinceLastSearcherAcquired = millisSinceLastSearcherAcquired;
         }
 
         public Response(StreamInput in) throws IOException {
-            lastSearcherAcquiredTime = in.readZLong();
+            long value = in.readZLong();
+            if (value >= 0 && in.getTransportVersion().supports(SEARCH_SHARD_INFORMATION_ELAPSED_TIME) == false) {
+                // A timestamp of the sender's relative clock, unusable here. Older nodes ignore values <= 0 in the same way.
+                value = NO_SEARCHER_ACQUIRED_RESPONSE.millisSinceLastSearcherAcquired;
+            }
+            millisSinceLastSearcherAcquired = value;
         }
 
-        public long getLastSearcherAcquiredTime() {
-            return lastSearcherAcquiredTime;
+        /**
+         * @return how many milliseconds ago a searcher was last acquired, or a negative value if there is no such information
+         */
+        public long getMillisSinceLastSearcherAcquired() {
+            return millisSinceLastSearcherAcquired;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeZLong(lastSearcherAcquiredTime);
+            if (millisSinceLastSearcherAcquired >= 0
+                && out.getTransportVersion().supports(SEARCH_SHARD_INFORMATION_ELAPSED_TIME) == false) {
+                // Older nodes expect a timestamp of their own relative clock, which cannot be derived here; they ignore values <= 0.
+                out.writeZLong(0);
+            } else {
+                out.writeZLong(millisSinceLastSearcherAcquired);
+            }
         }
 
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(lastSearcherAcquiredTime, response.lastSearcherAcquiredTime);
+            return Objects.equals(millisSinceLastSearcherAcquired, response.millisSinceLastSearcherAcquired);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(lastSearcherAcquiredTime);
+            return Objects.hash(millisSinceLastSearcherAcquired);
         }
     }
 }

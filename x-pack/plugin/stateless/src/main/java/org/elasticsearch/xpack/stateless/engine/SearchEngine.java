@@ -113,6 +113,11 @@ import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBl
  */
 public class SearchEngine extends Engine {
 
+    /**
+     * Sentinel for {@link #lastSearcherAcquiredTime} meaning no search has acquired a searcher on this shard copy yet.
+     */
+    private static final long NO_SEARCHER_ACQUIRED = Long.MIN_VALUE;
+
     private final ClosedShardService closedShardService;
     private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
         .newConcurrentMap();
@@ -136,7 +141,10 @@ public class SearchEngine extends Engine {
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-    private volatile long lastSearcherAcquiredTime;
+    // A timestamp of this node's relative clock (see ThreadPool#relativeTimeInMillis), so it must only leave this node as an elapsed
+    // time. NO_SEARCHER_ACQUIRED rather than 0 when unset, because a timestamp derived from another copy's elapsed time can legitimately
+    // be 0 or negative on a recently started node.
+    private volatile long lastSearcherAcquiredTime = NO_SEARCHER_ACQUIRED;
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
@@ -638,9 +646,7 @@ public class SearchEngine extends Engine {
             listener.onResponse(null);
             return;
         }
-        long timeSinceLastSearcherWasAcquiredInMillis = lastSearcherAcquiredTime == 0L
-            ? Long.MAX_VALUE // never acquired a searcher
-            : engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime;
+        long timeSinceLastSearcherWasAcquiredInMillis = getMillisSinceLastSearcherAcquired().orElse(Long.MAX_VALUE);
         commitPrefetcher.maybePrefetchLatestCommit(
             newCommitNotification,
             timeSinceLastSearcherWasAcquiredInMillis,
@@ -1180,19 +1186,40 @@ public class SearchEngine extends Engine {
         );
     }
 
-    public long getLastSearcherAcquiredTime() {
-        return lastSearcherAcquiredTime;
+    /**
+     * Returns how long ago a search last acquired a searcher on this shard copy, or empty if no search has done so yet.
+     * <p>
+     * This is an elapsed time rather than a timestamp because {@link #lastSearcherAcquiredTime} comes from this node's relative clock
+     * ({@link ThreadPool#relativeTimeInMillis()}), which shares no origin with any other node's. Elapsed times are the only form in which
+     * this information can be shared with the other copies of a shard.
+     */
+    public OptionalLong getMillisSinceLastSearcherAcquired() {
+        final long lastSearcherAcquiredTime = this.lastSearcherAcquiredTime;
+        if (lastSearcherAcquiredTime == NO_SEARCHER_ACQUIRED) {
+            return OptionalLong.empty();
+        }
+        // The cached clock reads could lag the write by up to one tick, so clamp rather than report a negative age: on the wire a
+        // negative value means "no information", which would discard a perfectly good acquisition.
+        return OptionalLong.of(Math.max(0L, engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime));
     }
 
-    public void setLastSearcherAcquiredTime(long lastSearcherAcquiredTime) {
-        long currentLastSearcherAcquiredTime = this.lastSearcherAcquiredTime;
+    /**
+     * Records that a search acquired a searcher {@code millisAgo} milliseconds ago, typically on another copy of this shard, unless a
+     * more recent acquisition is already known. Accepts an elapsed time rather than a timestamp for the reason given in
+     * {@link #getMillisSinceLastSearcherAcquired()}.
+     */
+    public void setLastSearcherAcquiredMillisAgo(long millisAgo) {
+        assert millisAgo >= 0 : "elapsed time must not be negative, got [" + millisAgo + "]";
+        final long lastSearcherAcquiredTime = engineConfig.getThreadPool().relativeTimeInMillis() - millisAgo;
+        // A long enough elapsed time underflows into the sentinel, which would look like "never acquired" and also defeat the
+        // monotonicity check below. Saturate instead: the shard is then simply considered searched very long ago.
+        if (lastSearcherAcquiredTime == NO_SEARCHER_ACQUIRED) {
+            logger.debug("ignoring elapsed time [{}ms] for [{}], it does not fit the local clock", millisAgo, shardId);
+            return;
+        }
+        final long currentLastSearcherAcquiredTime = this.lastSearcherAcquiredTime;
         if (lastSearcherAcquiredTime > currentLastSearcherAcquiredTime) {
-            logger.trace(
-                "update engine last searcher acquired time for [{}] from [{}] to [{}]",
-                shardId,
-                currentLastSearcherAcquiredTime,
-                lastSearcherAcquiredTime
-            );
+            logger.trace("update engine last searcher acquired time for [{}] to [{}ms] ago", shardId, millisAgo);
             this.lastSearcherAcquiredTime = lastSearcherAcquiredTime;
         }
     }

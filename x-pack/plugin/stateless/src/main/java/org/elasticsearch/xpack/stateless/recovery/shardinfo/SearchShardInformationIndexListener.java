@@ -98,12 +98,16 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                     return;
                 }
 
-                long lastSearcherAcquiredTime = response.getLastSearcherAcquiredTime();
+                long millisSinceLastSearcherAcquired = response.getMillisSinceLastSearcherAcquired();
 
-                var attributes = Map.<String, Object>of("es_search_last_searcher_acquired_greater_zero", lastSearcherAcquiredTime > 0);
-                collector.recordSuccess(nowSupplier.getAsLong() - start, attributes);
+                var attributes = Map.<String, Object>of(
+                    "es_search_last_searcher_acquired_greater_zero",
+                    millisSinceLastSearcherAcquired >= 0
+                );
+                final long receivedAt = nowSupplier.getAsLong();
+                collector.recordSuccess(receivedAt - start, attributes);
 
-                if (lastSearcherAcquiredTime <= 0) {
+                if (millisSinceLastSearcherAcquired < 0) {
                     return;
                 }
 
@@ -111,7 +115,10 @@ public class SearchShardInformationIndexListener implements IndexEventListener {
                     if (indexShard.state() != IndexShardState.CLOSED) {
                         indexShard.tryWithEngineOrNull(engine -> {
                             if (engine instanceof SearchEngine searchEngine) {
-                                searchEngine.setLastSearcherAcquiredTime(lastSearcherAcquiredTime);
+                                // The age is measured at the source, so it grows while we wait for the engine to become available.
+                                searchEngine.setLastSearcherAcquiredMillisAgo(
+                                    millisSinceLastSearcherAcquired + (nowSupplier.getAsLong() - receivedAt)
+                                );
                             }
                             return null;
                         });

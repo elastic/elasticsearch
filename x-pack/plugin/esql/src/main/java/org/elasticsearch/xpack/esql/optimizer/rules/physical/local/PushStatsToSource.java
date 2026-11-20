@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -19,10 +20,13 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SumLongAsDouble;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -52,6 +56,10 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
+        PhysicalPlan longSumCount = pushLongSumCount(aggregateExec, context);
+        if (longSumCount != null) {
+            return longSumCount;
+        }
         PhysicalPlan child = aggregateExec.child();
         EsQueryExec queryExec;
         AttributeMap<Attribute> aliasReplacedBy;
@@ -110,6 +118,60 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         }
 
         return plan;
+    }
+
+    /**
+     * {@code SUM} (as a {@code double}, in 128 bits) and {@code COUNT} of a single-valued {@code long} field, which is
+     * {@code AVG} of such a field once {@code ReplaceSumOfToDoubleWithSumLongAsDouble} has run, can be read by
+     * {@code LuceneSumCountLongOperator} without building a page of the values, and, if the query matches a whole segment, without
+     * looking at a doc id. Only the shape that {@code AVG} produces is matched.
+     *
+     * @return the replacement, or {@code null} if the aggregation isn't one of those
+     */
+    private static PhysicalPlan pushLongSumCount(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
+        if (aggregateExec.getMode() != AggregatorMode.INITIAL
+            || aggregateExec.groupings().isEmpty() == false
+            || aggregateExec.aggregates().size() != 2
+            || aggregateExec.child() instanceof EsQueryExec == false) {
+            return null;
+        }
+        EsQueryExec queryExec = (EsQueryExec) aggregateExec.child();
+        // The operator reads every doc that matches the query: it can't stop after a limit, and it has no order.
+        if (queryExec.limit() != null || (queryExec.sorts() != null && queryExec.sorts().isEmpty() == false)) {
+            return null;
+        }
+        // The operator adds up everything it reads into one row, it can't tell the entries of a query that was split by tag apart.
+        // Nothing splits the query before this rule runs, so this keeps that true if the rules are ever reordered.
+        List<EsQueryExec.QueryBuilderAndTags> queries = queryExec.queryBuilderAndTags();
+        if (queries.size() != 1 || queries.get(0).tags().isEmpty() == false) {
+            return null;
+        }
+        if (aggregateExec.aggregates().get(0) instanceof Alias sumAlias
+            && sumAlias.child() instanceof SumLongAsDouble sum
+            && aggregateExec.aggregates().get(1) instanceof Alias countAlias
+            && countAlias.child() instanceof Count count
+            && sum.hasFilter() == false
+            && count.hasFilter() == false
+            && sum.hasWindow() == false
+            && count.hasWindow() == false
+            && sum.field() instanceof FieldAttribute field
+            && count.field() instanceof FieldAttribute countField
+            && field.fieldName().equals(countField.fieldName())
+            && field.dataType() == DataType.LONG
+            // Plain fields only: no conversion of union types, no function pushed into the field, no unmapped fields.
+            && field.field().getClass() == EsField.class
+            && field.isPotentiallyUnmapped() == false
+            && context.searchStats().hasDocValues(field.fieldName())) {
+            return new EsStatsQueryExec(
+                aggregateExec.source(),
+                queryExec.indexPattern(),
+                null,
+                null,
+                aggregateExec.intermediateAttributes(),
+                new EsStatsQueryExec.LongSumCountStat(field, queryExec.queryBuilderAndTags())
+            );
+        }
+        return null;
     }
 
     /**

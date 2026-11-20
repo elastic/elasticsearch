@@ -130,7 +130,7 @@ avg 8.14 or after:
   - match: {columns.0.name: "AVG(data)"}
   - match: {columns.0.type: "double"}
   - match: {values.0.0: 1.5}
-  - match: {profile.drivers.0.operators.0.operator: /ExchangeSourceOperator|LuceneSourceOperator.+/}
+  - match: {profile.drivers.0.operators.0.operator: /ExchangeSourceOperator|LuceneSourceOperator.+|LuceneSumCountLongOperator.+/}
   - gte: {profile.drivers.0.took_nanos: 0}
   - gte: {profile.drivers.0.cpu_nanos: 0}
   - gte: {profile.drivers.1.took_nanos: 0}

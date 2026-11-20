@@ -503,6 +503,38 @@ id:keyword | attributes.host:keyword | attributes.zone:keyword
 f1         | L                       | L
 ;
 
+// MV_EXPAND replaces the column it expands with a new one of the same name and type, which is still the flattened column
+keyAfterMvExpandOfFlattened
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+
+FROM flattened_paths_mapped
+| MV_EXPAND attributes
+| KEEP id, attributes.host
+| SORT id
+;
+
+id:keyword | attributes.host:keyword
+f1         | a
+f2         | c
+;
+
+keyAfterRenameAndMvExpandOfFlattened
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+
+FROM flattened_paths_mapped
+| RENAME attributes AS a
+| MV_EXPAND a
+| KEEP id, a.host
+| SORT id
+;
+
+id:keyword | a.host:keyword
+f1         | a
+f2         | c
+;
+
 // A key never shadows a mapped field: attributes.host keeps reading the main index, next to the attributes of the lookup index
 mappedKeepsItsNameLookupJoin
 required_capability: flattened_keys

@@ -14,7 +14,10 @@ import org.junit.Before;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class CrossClusterIntoIT extends AbstractCrossClusterTestCase {
 
@@ -38,6 +41,18 @@ public class CrossClusterIntoIT extends AbstractCrossClusterTestCase {
                 () -> runQuery("FROM " + source + " | KEEP v | INTO dest-into", null).close()
             );
             assertThat(e.getMessage(), containsString(Into.UNSUPPORTED_SOURCE));
+        }
+    }
+
+    public void testRemoteThatTheQueryExcludesIsNotARemoteSource() throws Exception {
+        setupClusters(2);
+        assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("dest-into"));
+
+        String query = "FROM logs-*," + REMOTE_CLUSTER_1 + ":logs-*,-" + REMOTE_CLUSTER_1 + ":* | KEEP v | INTO dest-into";
+        try (EsqlQueryResponse response = runQuery(query, null)) {
+            List<List<Object>> values = getValuesList(response);
+            assertThat(values, hasSize(1));
+            assertThat((Long) values.getFirst().getFirst(), greaterThan(0L));
         }
     }
 

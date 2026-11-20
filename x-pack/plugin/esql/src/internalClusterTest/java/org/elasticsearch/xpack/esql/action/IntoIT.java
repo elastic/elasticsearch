@@ -140,7 +140,8 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDateMathDestinationCannotAlsoBeRead() {
-        String dateMathDest = "<dest-into-{now/d}>";
+        // A fixed date, as now/d could roll over to the next day between the name and the query
+        String dateMathDest = "<dest-into-{2026.01.01||/d}>";
         String resolvedDest = IndexNameExpressionResolver.resolveDateMathExpression(dateMathDest);
         assertAcked(
             indicesAdmin().prepareCreate(resolvedDest)
@@ -150,7 +151,7 @@ public class IntoIT extends AbstractEsqlIntegTestCase {
 
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> run("FROM " + resolvedDest + " | INTO " + dateMathDest).close()
+            () -> run("FROM " + resolvedDest + " | INTO \"" + dateMathDest + "\"").close()
         );
         assertThat(
             e.getMessage(),

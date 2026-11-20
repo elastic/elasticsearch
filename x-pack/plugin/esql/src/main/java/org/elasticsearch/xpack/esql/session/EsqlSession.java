@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -687,9 +688,14 @@ public class EsqlSession {
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
         boolean hasInto = viewResolution.plan().anyMatch(Into.class::isInstance);
-        VerificationException remoteSource = hasInto ? remoteSourceOfInto(viewResolution.plan()) : null;
-        if (remoteSource != null) {
-            listener.onFailure(remoteSource);
+        try {
+            VerificationException remoteSource = hasInto ? remoteSourceOfInto(viewResolution.plan()) : null;
+            if (remoteSource != null) {
+                listener.onFailure(remoteSource);
+                return;
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
             return;
         }
         if (hasInto && request.allowPartialResultsRequested()) {
@@ -3722,14 +3728,20 @@ public class EsqlSession {
 
     /**
      * A remote cluster that is unavailable and can be skipped leaves no index to resolve, so planning can finish without analysis,
-     * and the verification of {@code INTO} never runs. This looks at the index patterns as they were written, before resolution.
+     * and the verification of {@code INTO} never runs. This groups the index patterns as they were written by the cluster they
+     * target, as the resolution does, so that a remote that the query excludes, like {@code -remote:*}, is not a remote source.
+     * With cross-project search the verification stays the only check.
      */
     @Nullable
-    private static VerificationException remoteSourceOfInto(LogicalPlan parsed) {
+    private VerificationException remoteSourceOfInto(LogicalPlan parsed) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            return null;
+        }
         for (Into into : parsed.collect(Into.class)) {
             for (UnresolvedRelation relation : into.child().collect(UnresolvedRelation.class)) {
                 String[] patterns = Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern());
-                if (Arrays.stream(patterns).anyMatch(RemoteClusterAware::isRemoteIndexName)) {
+                var clusters = indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, patterns, false).keySet();
+                if (clusters.stream().anyMatch(cluster -> RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster) == false)) {
                     return new VerificationException(List.of(Failure.fail(into, Into.UNSUPPORTED_SOURCE)));
                 }
             }

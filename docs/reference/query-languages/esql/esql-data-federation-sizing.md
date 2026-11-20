@@ -138,7 +138,7 @@ On a text dataset, the usual cause is schema inference at planning time. [Specif
 
 If you have raised [`esql.external.max_concurrent_requests`](#read-concurrency), raise the heap to match it.
 
-Not all of the memory this workload holds is attributed to the query that allocated it, so the error may name an unrelated operation rather than the read that filled the heap. Refer to [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
+The figures on this page cover reading the external data. {{esql}} needs further memory for the query itself, for aggregations, sorting and grouping, so allow for that on top. Refer to [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
 
 ### Queries are slow under load [slow-under-load]
 
@@ -150,7 +150,7 @@ To improve query performance under load:
 * **Check your file layout.** Too few files, or compressed text files too large to divide, leave cores idle whatever the size of the node.
 * **Narrow the query.** On Parquet, [`KEEP`](/reference/query-languages/esql/commands/keep.md) cuts both the bytes fetched and the work done. On text it saves less, because whole rows are read either way.
 * **Specify a mapping** on text datasets, which takes schema inference out of planning.
-* **Raise [`esql.external.max_concurrent_requests`](#read-concurrency)**, with the heap to match, to put more reads in flight on each node.
+* **Raise [`esql.external.max_concurrent_requests`](#read-concurrency)**, with the corresponding heap increase.
 
 ## Related pages [related]
 

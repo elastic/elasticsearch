@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -18,21 +19,19 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 
 /**
- * Maps the queries whose scorers allocate per-leaf execution memory to the {@link ExecutionCharge} that
- * {@link ExecutionBreakerWeight} applies for them. {@link ContextIndexSearcher#createWeight} consults it for every query in
- * the tree, so a query is matched only at the node that allocates.
+ * What {@link ExecutionBreakerWeight} charges for one query whose scorer allocates per-leaf execution memory.
+ * {@link #forQuery} maps each such query to its charge.
+ * <p>
+ * {@link ContextIndexSearcher#createWeight} consults {@link #forQuery} only for the queries that reach the searcher: the root, and
+ * children whose parent builds their weight through {@code searcher.createWeight} (e.g. {@link BooleanQuery}
+ * clauses and {@link ConstantScoreQuery}). Wrappers such as {@link BoostQuery} and {@link IndexOrDocValuesQuery} call
+ * {@code query.createWeight} on their children directly, so those children never come back through the searcher and
+ * {@link #forQuery} has to look through the wrapper itself.
+ *
+ * @param estimator sizes the query's execution memory on each leaf
+ * @param label     the request circuit breaker label the memory is charged under
  */
-final class ExecutionEstimators {
-
-    /**
-     * What {@link ExecutionBreakerWeight} charges for one query.
-     *
-     * @param estimator sizes the query's execution memory on each leaf
-     * @param label     the request circuit breaker label the memory is charged under
-     */
-    record ExecutionCharge(LeafExecutionEstimator estimator, String label) {}
-
-    private ExecutionEstimators() {}
+record ExecutionCharge(LeafExecutionEstimator estimator, String label) {
 
     /**
      * @return the charge for {@code query}'s execution memory, or {@code null} if it allocates none worth charging
@@ -66,12 +65,13 @@ final class ExecutionEstimators {
      * side: when its cost / 8 is at most the lead cost. On the other leaves doc values run and allocate nothing.
      */
     private static LeafExecutionEstimator indexSideOnly(LeafExecutionEstimator indexEstimator) {
-        return (ctx, inner, leadCost) -> (inner.cost() >>> 3) <= leadCost ? indexEstimator.bytesForLeaf(ctx, inner, leadCost) : 0L;
+        return (ctx, scorer, leadCost) -> (scorer.cost() >>> 3) <= leadCost ? indexEstimator.bytesForLeaf(ctx, scorer, leadCost) : 0L;
     }
 
     /**
-     * Unwraps {@link BoostQuery} only. {@link ConstantScoreQuery#createWeight} recurses through
-     * {@link ContextIndexSearcher#createWeight}, so its child is already wrapped once; unwrapping it here too would double-charge.
+     * Unwraps {@link BoostQuery} only, because its child's weight is created directly and is otherwise never seen.
+     * {@link ConstantScoreQuery} must not be unwrapped: it creates its child's weight through
+     * {@link ContextIndexSearcher#createWeight}, so the child is already charged there, and unwrapping it here would double-charge.
      */
     private static Query unwrapBoost(Query query) {
         while (query instanceof BoostQuery boostQuery) {

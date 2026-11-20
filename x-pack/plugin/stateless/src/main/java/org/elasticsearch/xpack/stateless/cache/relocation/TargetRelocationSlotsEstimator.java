@@ -22,9 +22,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /// The slots that a target has for incoming non-critical recoveries, which relocations share with the recoveries of unassigned shards
-/// added for performance reasons and with snapshot restores. [RelocationSourceShutdownTimeouts] shares them when it turns the time left
-/// until the grace deadline of a shutting-down node, see [ShutdownWarmingDeadline], into a warming timeout. It only counts the
-/// relocations as using the slots.
+/// added for performance reasons and with snapshot restores. It only counts the relocations as using the slots.
 public class TargetRelocationSlotsEstimator {
 
     /// The values of the master settings at which the master leaves the throttling of the recoveries to a search node to the data nodes, as

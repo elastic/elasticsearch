@@ -99,7 +99,7 @@ public class SearchRecoveryTimeoutCalculationService {
     /// relocations, such a shard always waits for the plain relocation-with-shutdown timeout.
     public static final Setting<Boolean> OFFLINE_WARMING_SHARE_SLOTS_WITH_SHUTTING_DOWN_NODES_SETTING = Setting.boolSetting(
         SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".recovery_warming_share_slots_with_shutting_down_nodes",
-        true, // FIXME remove before merging
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

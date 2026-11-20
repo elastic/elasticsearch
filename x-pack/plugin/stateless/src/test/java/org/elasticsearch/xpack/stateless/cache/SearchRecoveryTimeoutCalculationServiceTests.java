@@ -765,8 +765,10 @@ public class SearchRecoveryTimeoutCalculationServiceTests extends ESTestCase {
                     .build()
             );
             final var legacyPlan = service.searchRecoveryTimeout(state, mockIndexShard(self), 0L, null);
-            // no search node is shutting down, so no shard of one waits for the target
-            assertThat(legacyPlan.timeoutContext(), equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE));
+            assertThat(
+                legacyPlan.timeoutContext(),
+                equalTo(TimeoutContext.RELOCATION_SOURCE_NOT_SHUTTING_DOWN_CLUSTER_SHUTDOWN_METADATA_PRESENT)
+            );
             assertThat(
                 legacyPlan.timeout(),
                 equalTo(

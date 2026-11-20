@@ -53,7 +53,7 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             false
         ),
         RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE(
-            "relocation source not shutting down, cluster shutdown metadata present, enough free relocation slots on the target",
+            "relocation source not shutting down, cluster shutdown metadata present, no relocation slot contention",
             true,
             Phase.OTHER,
             MayFollow.ANY_PLAN,
@@ -153,9 +153,7 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
         };
     }
 
-    /// Whether this is an equal-share plan, of a relocation whose source is shutting down or of one while other nodes are. The shares of
-    /// the two divide the time left between different shards, so when the situation changes between two evaluations the comparison of the
-    /// fresh share to the previous one is arbitrary, but it never extends the wait by more than a first plan would.
+    /// Whether this is an equal-share plan, which carries a per-shard share, see [#perShardShareMs].
     public boolean isEqualSharePlan() {
         return timeoutContext.equalShare;
     }

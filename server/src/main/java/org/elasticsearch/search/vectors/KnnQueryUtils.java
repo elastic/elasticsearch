@@ -32,7 +32,6 @@ import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 public final class KnnQueryUtils {
@@ -175,21 +174,16 @@ public final class KnnQueryUtils {
         return out;
     }
 
-    /** Score descending, ties to the lower doc id, so selection is independent of input order. */
-    static final Comparator<ScoreDoc> BY_SCORE_DESC_THEN_DOC = (a, b) -> {
-        int byScore = Float.compare(b.score, a.score);
-        return byScore != 0 ? byScore : Integer.compare(a.doc, b.doc);
-    };
-
+    /** {@link ScoreDoc#COMPARATOR} breaks score ties by doc id, so selection is independent of input order. */
     private static ScoreDoc[] selectTopK(ScoreDoc[] docs, int k) {
         if (docs.length <= k) {
-            ArrayUtil.introSort(docs, BY_SCORE_DESC_THEN_DOC);
+            ArrayUtil.introSort(docs, ScoreDoc.COMPARATOR);
             return docs;
         }
         // Partition around the kth-best so docs[0..k) holds the k highest-scoring entries
         // (in unspecified order), then sort just those k in place.
-        ArrayUtil.select(docs, 0, docs.length, k - 1, BY_SCORE_DESC_THEN_DOC);
-        ArrayUtil.introSort(docs, 0, k, BY_SCORE_DESC_THEN_DOC);
+        ArrayUtil.select(docs, 0, docs.length, k - 1, ScoreDoc.COMPARATOR);
+        ArrayUtil.introSort(docs, 0, k, ScoreDoc.COMPARATOR);
         return Arrays.copyOf(docs, k);
     }
 

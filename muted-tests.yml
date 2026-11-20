@@ -509,11 +509,6 @@ tests:
   - :test:test-clusters:test
   method: testWaitsForLiveFileRecreatedAfterRename
   issue: https://github.com/elastic/elasticsearch/issues/164549
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  tasks:
-  - :modules:repository-azure:test
-  method: testContentsChangeWhileStreaming
-  issue: https://github.com/elastic/elasticsearch/issues/164636
 - class: org.elasticsearch.xpack.inference.external.http.ByteArrayFlowPublisherTests
   tasks:
   - :x-pack:plugin:inference:test
@@ -660,11 +655,6 @@ tests:
   - :server:test
   method: testDocsOnly
   issue: https://github.com/elastic/elasticsearch/issues/165819
-- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
-  tasks:
-  - :x-pack:plugin:slm:internalClusterTest
-  method: testSnapshotFailureOnMasterStepDown
-  issue: https://github.com/elastic/elasticsearch/issues/165822
 - class: org.elasticsearch.xpack.vectortile.feature.FeatureFactoryTests
   tasks:
   - :x-pack:plugin:vector-tile:test
@@ -675,11 +665,6 @@ tests:
   - :x-pack:plugin:downsample:internalClusterTest
   method: testConcurrentRequestsForDifferentTargets
   issue: https://github.com/elastic/elasticsearch/issues/165848
-- class: org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testSlowTranslogUploadIsHedged
-  issue: https://github.com/elastic/elasticsearch/issues/165850
 - class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
   tasks:
   - :x-pack:plugin:esql-datasource-parquet:test
@@ -714,11 +699,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testBlobsNotDeletedDuringFailedRelocation
   issue: https://github.com/elastic/elasticsearch/issues/166242
-- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
-  tasks:
-  - :modules:data-streams:yamlRestCompatTest
-  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
-  issue: https://github.com/elastic/elasticsearch/issues/166250
 - class: org.elasticsearch.search.ccs.CrossClusterSearchDirectoryMetricsIT
   tasks:
   - :server:internalClusterTest
@@ -738,11 +718,6 @@ tests:
   - :server:internalClusterTest
   method: testTopHitsReleasedAfterSuccessfulHighlight
   issue: https://github.com/elastic/elasticsearch/issues/166292
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest
-  method: test {yaml=data_stream/150_tsdb/dynamic templates with incremental indexing}
-  issue: https://github.com/elastic/elasticsearch/issues/166322
 - class: org.elasticsearch.xpack.esql.action.SubPlanResultLimitIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -869,3 +844,8 @@ tests:
   - :server:test
   method: testDimsDerivedConfigFollowsFieldDimension
   issue: https://github.com/elastic/elasticsearch/issues/166795
+- class: org.elasticsearch.xpack.esql.action.SerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithoutPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166894

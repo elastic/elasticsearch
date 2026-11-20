@@ -11,6 +11,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -288,6 +289,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     }
 
     public static BlobStoreIndexShardSnapshots fromXContent(XContentParser parser) throws IOException {
+        return fromXContent(parser, null);
+    }
+
+    public static BlobStoreIndexShardSnapshots fromXContent(XContentParser parser, @Nullable Set<String> snapshotNames) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) { // New parser
             token = parser.nextToken();
@@ -317,6 +322,10 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                     String snapshot;
                     while ((snapshot = parser.nextFieldName()) != null) {
                         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                        if (snapshotNames != null && snapshotNames.contains(snapshot) == false) {
+                            parser.skipChildren();
+                            continue;
+                        }
                         while ((currentFieldName = parser.nextFieldName()) != null) {
                             token = parser.nextToken();
                             if (Fields.FILES.equals(currentFieldName)) {

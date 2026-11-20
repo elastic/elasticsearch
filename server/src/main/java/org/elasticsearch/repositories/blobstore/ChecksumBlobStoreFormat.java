@@ -112,6 +112,10 @@ public final class ChecksumBlobStoreFormat<T> {
         this(codec, blobNameFormat, reader, null, writer);
     }
 
+    ChecksumBlobStoreFormat<T> withReader(CheckedBiFunction<ProjectRepo, XContentParser, T, IOException> reader) {
+        return new ChecksumBlobStoreFormat<>(codec, blobNameFormat, reader, fallbackReader, writer);
+    }
+
     /**
      * Reads and parses the blob with given name, applying name translation using the {link #blobName} method
      *

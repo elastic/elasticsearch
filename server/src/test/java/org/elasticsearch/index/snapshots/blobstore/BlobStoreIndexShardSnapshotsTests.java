@@ -13,20 +13,29 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.smile.SmileXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.StoreFileMetadata.UNAVAILABLE_WRITER_UUID;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,5 +134,57 @@ public class BlobStoreIndexShardSnapshotsTests extends ESTestCase {
             UNAVAILABLE_WRITER_UUID
         );
         return new FileInfo(name, metadata, null);
+    }
+
+    public void testRetentionCanSkipFileNamesForDeletedSnapshots() throws IOException {
+        final int fileCount = 256;
+        final int snapshotCount = 50;
+        final var files = IntStream.range(0, fileCount).mapToObj(i -> blobFile("__blob-" + i, 1L)).toList();
+        var shardSnapshots = BlobStoreIndexShardSnapshots.EMPTY;
+        for (int i = 0; i < snapshotCount; i++) {
+            shardSnapshots = shardSnapshots.withAddedSnapshot(new SnapshotFiles("snapshot-" + i, files, null));
+        }
+        final var retained = new SnapshotId("snapshot-0", "retained-uuid");
+
+        final BytesReference metadata;
+        try (var builder = XContentFactory.smileBuilder()) {
+            builder.startObject();
+            shardSnapshots.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            metadata = BytesReference.bytes(builder);
+        }
+
+        final byte[] bytes = BytesReference.toBytes(metadata);
+        try (var parser = new BlobNameCountingParser(createParser(SmileXContent.smileXContent, bytes))) {
+            final var parsed = BlobStoreIndexShardSnapshots.fromXContent(parser);
+            assertEquals(snapshotCount, parsed.snapshots().size());
+            assertEquals(fileCount * snapshotCount, parsed.snapshots().stream().mapToInt(snapshot -> snapshot.indexFiles().size()).sum());
+            assertEquals(fileCount * (1 + snapshotCount), parser.blobNameObjects.size());
+            assertEquals(fileCount, new HashSet<>(parser.blobNameObjects).size());
+        }
+        try (var parser = new BlobNameCountingParser(createParser(SmileXContent.smileXContent, bytes))) {
+            final var remaining = BlobStoreIndexShardSnapshots.fromXContent(parser, Set.of(retained.getName()));
+            assertEquals(1, remaining.snapshots().size());
+            assertEquals(retained.getName(), remaining.snapshots().getFirst().snapshot());
+            assertEquals(fileCount, remaining.snapshots().getFirst().indexFiles().size());
+            assertEquals(fileCount * 2, parser.blobNameObjects.size());
+        }
+    }
+
+    private static class BlobNameCountingParser extends FilterXContentParserWrapper {
+        private final Set<String> blobNameObjects = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        BlobNameCountingParser(XContentParser parser) {
+            super(parser);
+        }
+
+        @Override
+        public String text() throws IOException {
+            final String text = super.text();
+            if (text.startsWith("__blob-")) {
+                blobNameObjects.add(text);
+            }
+            return text;
+        }
     }
 }

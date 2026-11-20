@@ -304,7 +304,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
     Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
     :::
 
-`create_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: unavailable`
+`create_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: preview`
 :   Privilege to create or update an [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md), granted on the dataset name. Refer to [dataset privileges](/reference/query-languages/esql/esql-data-federation-security.md#dataset-privileges).
 
 `create_doc`
@@ -345,7 +345,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `delete`
 :   Privilege to delete documents.
 
-`delete_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: unavailable`
+`delete_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: preview`
 :   Privilege to delete an [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md), granted on the dataset name. Refer to [dataset privileges](/reference/query-languages/esql/esql-data-federation-security.md#dataset-privileges).
 
 `delete_index`
@@ -372,7 +372,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `manage_data_stream_lifecycle`
 :   All [Data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) operations relating to reading and managing the built-in lifecycle of a data stream. This includes operations such as adding and removing a lifecycle from a data stream.
 
-`manage_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: unavailable`
+`manage_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: preview`
 :   Privilege to create, update, retrieve, and delete [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) definitions, granted on the dataset name. It does not grant the privilege to query a dataset with `FROM`. Refer to [dataset privileges](/reference/query-languages/esql/esql-data-federation-security.md#dataset-privileges).
 
 `manage_failure_store` {applies_to}`stack: ga 9.1`
@@ -399,7 +399,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `read_cross_cluster` {applies_to}`serverless: unavailable`
 :   Read-only access to the search action from a [remote cluster](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md).
 
-`read_dataset_metadata` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: unavailable`
+`read_dataset_metadata` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: preview`
 :   Privilege to retrieve an [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) definition, granted on the dataset name. It does not grant the privilege to query the dataset. Refer to [dataset privileges](/reference/query-languages/esql/esql-data-federation-security.md#dataset-privileges).
 
 `read_failure_store` {applies_to}`stack: ga 9.1`

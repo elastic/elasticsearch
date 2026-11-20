@@ -6679,6 +6679,16 @@ public class CsvFormatReaderTests extends ESTestCase {
      * {@link IOException} untyped and the resolver forwards an untyped message only past the storage-path guard.
      * The type is the whole fix: {@code ExternalSourceResolver} unwraps an {@link ExternalClientException} before
      * that arm and returns it as it stands. {@link CsvFormatReader#sampleLimitError} carries the reasoning.
+     * <p>
+     * The read path answers the same two objects differently, and that half is pinned here too rather than left
+     * for someone to discover. {@code ExternalFailures.classify} applies the same predicate as an assertion over
+     * the whole message, so under {@code -ea} these two conditions now raise an {@link AssertionError} where the
+     * untyped {@link IOException} they used to be was redacted into a 400. Both halves of that are the point: a
+     * shipped distribution runs without {@code -ea} and gets the diagnosis, which is what this change is for,
+     * and the condition class reaching that assertion predates it -- {@code checkBudget} and the FAIL_FAST row
+     * error already named an object inside it. What is new is these two conditions joining the set. It ends when
+     * the guard learns which span of a message is the permitted object name, and then this expectation inverts
+     * rather than being deleted.
      */
     public void testTheEmptyObjectDiagnosisSurvivesAStorageHostName() {
         CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
@@ -6701,6 +6711,12 @@ public class CsvFormatReaderTests extends ESTestCase {
                 "an object the user is entitled to name this way must not cost them the diagnosis",
                 ExternalFailures.forwardableDetail(new IllegalArgumentException(refusal.getMessage()))
             );
+        }
+
+        assumeTrue("the read-path boundary below is only observable under -ea", getClass().desiredAssertionStatus());
+        for (ExternalClientException refusal : List.of(noRows, noHeader)) {
+            AssertionError onTheReadPath = expectThrows(AssertionError.class, () -> ExternalFailures.classify(refusal));
+            assertThat(onTheReadPath.getMessage(), containsString("storage path leaked in ExternalException"));
         }
     }
 

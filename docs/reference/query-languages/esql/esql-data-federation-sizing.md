@@ -89,11 +89,11 @@ Scale horizontally. More nodes give more parallelism, and individual nodes shoul
 
 Inference is the largest single cost you can remove outright, and on a wide schema it is the first thing to fail.
 
-### Lower `esql.external.max_concurrent_requests` before adding heap [lower-concurrency]
+### Increase read concurrency for more parallelism [read-concurrency]
 
-This setting controls how many storage requests a node keeps in flight. Lowering it is the reliable remedy when text queries are being refused, at the cost of some wall-clock time.
+[`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) controls how many storage requests a node keeps in flight. Its default is derived from the node's cores.
 
-The default of [`esql.external.max_concurrent_requests`](esql-data-federation-cluster-settings.md#esql-external-max-concurrent-requests) is derived from the node's cores. The setting is node-scoped, so a change takes effect after a restart.
+Raising it increases read parallelism. Raise the heap with it: more requests in flight means more data staged and decompressed at the same time, so a node given more read concurrency without more heap will hit a circuit breaker. The setting is node-scoped, so a change takes effect after a restart.
 
 ## Sizing for performance [performance]
 
@@ -136,7 +136,9 @@ Because the figures on this page are starting points, the configuration you end 
 
 A circuit breaker has rejected the query because the node is holding more than it can collect. Give the instance more memory, and raise the heap with it — and if you add cores at the same time, scale the heap with those too, at 1 GB to 2 GB per core.
 
-Two things are worth checking before you do. On a text dataset, the usual cause is schema inference at planning time, so [specify a mapping](#declare-schema) with `dynamic` set to `false` first — that removes the cost rather than paying for it. And lowering [`esql.external.max_concurrent_requests`](#lower-concurrency) will clear the condition at the cost of some wall-clock time, which is useful if more memory is not available to you.
+One thing is worth checking before you do. On a text dataset, the usual cause is schema inference at planning time, so [specify a mapping](#declare-schema) with `dynamic` set to `false` first, which removes the cost instead of paying for it.
+
+If you have raised [`esql.external.max_concurrent_requests`](#read-concurrency), raise the heap to match it.
 
 Not all of the memory this workload holds is attributed to the query that allocated it, so the error may name an unrelated operation rather than the read that filled the heap. Refer to [circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
 
@@ -150,7 +152,7 @@ To improve query performance under load:
 * **Check your file layout.** Too few files, or compressed text files too large to divide, leave cores idle whatever the size of the node.
 * **Narrow the query.** On Parquet, [`KEEP`](/reference/query-languages/esql/commands/keep.md) cuts both the bytes fetched and the work done. On text it saves less, because whole rows are read either way.
 * **Specify a mapping** on text datasets, which takes schema inference out of planning.
-* **Lower [`esql.external.max_concurrent_requests`](#lower-concurrency)** if the slowdown comes with breaker rejections, trading some wall-clock time for stability.
+* **Raise [`esql.external.max_concurrent_requests`](#read-concurrency)**, with the heap to match, to put more reads in flight on each node.
 
 ## Related pages [related]
 

@@ -37,7 +37,7 @@ FROM mv_sample_none
 ;
 warningRegex:Some rows in \[.+\] cannot be read; skipping them
 warningRegex:row \[\d+\]: \[5\] columns, the header has \[3\]
-warningRegex:row \[\d+\] of \[[^\]]*\](?: counted (?:from byte \[\d+\]|within a split))?: \[5\] columns, the header has \[3\]
+warningRegex:row \[\d+\] of \[[^\]]*\](?: counted (?:from byte \[\d+\] of the decoded stream|within a split))?: \[5\] columns, the header has \[3\]
 
 id:integer | tags:keyword
 2          | solo

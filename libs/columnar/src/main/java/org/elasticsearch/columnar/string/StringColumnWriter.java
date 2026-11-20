@@ -255,7 +255,7 @@ public final class StringColumnWriter {
                         valueAddress++;
                     }
                 }
-            } else if (plan.skipsRepeatedValues()) {
+            } else if (plan.skipsRepeatedValueReads()) {
                 // Kept apart from the loop below: with the repeat check inside that loop, a merge of values that rarely
                 // repeat ran about 4% slower.
                 for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {

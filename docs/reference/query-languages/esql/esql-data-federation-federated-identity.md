@@ -4,7 +4,7 @@ description: "Set up Amazon S3 federated identity for ES|QL Data Federation so E
 applies_to:
   deployment:
     ech: preview
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -25,8 +25,8 @@ Refer to the [AWS IAM documentation](https://docs.aws.amazon.com/IAM/latest/User
 
 To follow this guide, you need:
 
-- An {{ech}} deployment with [{{esql}} Data Federation enabled](esql-data-federation.md#enable-the-feature). Federated identity is:
-  - Available on {{ech}} on AWS, Azure, and Google Cloud.
+- An {{ech}} deployment or {{serverless-short}} project with [{{esql}} Data Federation enabled](esql-data-federation.md#enable-the-feature). Federated identity is:
+  - Available on {{ech}} and {{serverless-short}} on AWS, Azure, and Google Cloud.
   - Not available on IBM Cloud, in special environments such as AWS GovCloud, or on self-managed, ECE, or ECK deployments.
 - The cluster `manage` privilege, to use the {{esql}} Data Federation UI. Refer to [privileges](esql-data-federation-security.md#privileges).
 - An S3 bucket containing the files you want to query.

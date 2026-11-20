@@ -90,6 +90,12 @@ public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHa
         return "security_oidc_authenticate_action";
     }
 
+    @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
+
     private static final Set<String> FILTERED_FIELDS = Set.of("redirect_uri");
 
     @Override

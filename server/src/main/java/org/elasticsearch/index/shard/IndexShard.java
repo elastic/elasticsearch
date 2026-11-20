@@ -2158,11 +2158,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /// Returns whether a cancellation has been requested via [#requestRecoveryCancellation].
+    ///
+    /// See also [#ensureRecoveryNotCancelled] for a variant that throws.
+    public boolean isRecoveryCancellationRequested() {
+        return recoveryCancellationRequested;
+    }
+
     /// Throws [RecoveryCancelledException] if a cancellation has been requested via [#requestRecoveryCancellation].
     ///
     /// Must only be called from within the active recovery sequence, at natural checkpoint boundaries.
     /// Callers should let the exception propagate up the call stack, or catch it to forward it unchanged or wrapped
     /// (preserving it as the cause), e.g. via `onFailure`.
+    ///
+    /// See also [#isRecoveryCancellationRequested()] for a non-throwing variant.
     public void ensureRecoveryNotCancelled() throws RecoveryCancelledException {
         if (recoveryCancellationRequested) {
             final RecoveryState currentRecoveryState = recoveryState;
@@ -3980,11 +3989,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryTargetService.startRecovery(this, currentRecoveryState.getSourceNode(), clusterStateVersion, recoveryListener);
                 } catch (Exception e) {
                     failShard("corrupted preexisting index", e);
-                    recoveryListener.onRecoveryFailure(
-                        currentRecoveryState,
-                        new RecoveryFailedException(currentRecoveryState, null, e),
-                        FAIL_SEND
-                    );
+                    recoveryListener.onRecoveryFailure(new RecoveryFailedException(currentRecoveryState, null, e), FAIL_SEND);
                 }
             }
             case SNAPSHOT -> {
@@ -4080,7 +4085,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // Note! Doesn't guarantee local retry, see IndicesClusterStateService#handleRecoveryFailure
                     failureStrategy = RETRY;
                 }
-                recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), failureStrategy);
+                recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), failureStrategy);
             }
         );
         ActionListener.run(actionListener, action);

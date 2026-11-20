@@ -81,20 +81,32 @@ public record GetVirtualBatchedCompoundCommitChunkMetrics(
         );
     }
 
+    /// What a measurement covers:
+    ///
+    /// - `SINGLE_REQUEST`: one request sent to the indexing node, from sending it to receiving its response or failure. Each retry is
+    ///   measured separately;
+    /// - `END_TO_END`: one execution of the action on the search node, including all the retries and backoff delays.
+    public enum Scope {
+        SINGLE_REQUEST,
+        END_TO_END
+    }
+
     /// Records a completed request.
     ///
-    /// @param includeRetries `false` to record a single attempt, i.e. one request sent to the indexing node; `true` to record a whole
-    /// action execution, including the retries
+    /// @param scope what the measurement covers
     /// @param failure the failure the request completed with, or `null` if it completed with a response
     /// @param durationInMillis the duration of the request in milliseconds
-    public void record(boolean includeRetries, @Nullable Exception failure, long durationInMillis) {
+    public void record(Scope scope, @Nullable Exception failure, long durationInMillis) {
         final var attributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, outcome(failure));
-        if (includeRetries) {
-            requestWithRetriesCounter.incrementBy(1L, attributes);
-            requestWithRetriesDurationHistogram.record(durationInMillis, attributes);
-        } else {
-            requestCounter.incrementBy(1L, attributes);
-            requestDurationHistogram.record(durationInMillis, attributes);
+        switch (scope) {
+            case SINGLE_REQUEST -> {
+                requestCounter.incrementBy(1L, attributes);
+                requestDurationHistogram.record(durationInMillis, attributes);
+            }
+            case END_TO_END -> {
+                requestWithRetriesCounter.incrementBy(1L, attributes);
+                requestWithRetriesDurationHistogram.record(durationInMillis, attributes);
+            }
         }
     }
 

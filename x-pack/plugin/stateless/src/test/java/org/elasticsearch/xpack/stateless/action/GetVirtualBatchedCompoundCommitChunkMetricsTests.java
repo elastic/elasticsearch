@@ -13,6 +13,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.Scope;
 
 import java.util.Map;
 
@@ -50,7 +51,7 @@ public class GetVirtualBatchedCompoundCommitChunkMetricsTests extends ESTestCase
 
         final var testCase = randomCase();
         final long millis = randomLongBetween(0, 10_000);
-        metrics.record(false, testCase.failure(), millis);
+        metrics.record(Scope.SINGLE_REQUEST, testCase.failure(), millis);
 
         final var expectedAttributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, testCase.expectedOutcome());
 
@@ -77,7 +78,7 @@ public class GetVirtualBatchedCompoundCommitChunkMetricsTests extends ESTestCase
 
         final var testCase = randomCase();
         final long millis = randomLongBetween(0, 10_000);
-        metrics.record(true, testCase.failure(), millis);
+        metrics.record(Scope.END_TO_END, testCase.failure(), millis);
 
         final var expectedAttributes = Map.<String, Object>of(OUTCOME_ATTRIBUTE, testCase.expectedOutcome());
 

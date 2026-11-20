@@ -54,6 +54,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.StatelessThreadPools;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics.Scope;
 import org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
 
@@ -128,7 +129,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
         assert transportService.getLocalNode().hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) : "not a search node";
-        ActionListener.run(metricsListener(listener, true), l -> {
+        ActionListener.run(metricsListener(listener, Scope.END_TO_END), l -> {
             if (task != null) {
                 request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
@@ -203,7 +204,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             } else {
                 l.onFailure(e);
             }
-        }), false);
+        }), Scope.SINGLE_REQUEST);
         transportService.sendRequest(
             discoveryNode,
             transportPrimaryAction,
@@ -284,26 +285,26 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
      * Wraps the listener so that the time elapsed since this method was called is recorded in the metrics when the listener completes,
      * before the response (or failure) is passed to the wrapped listener.
      *
-     * @param listener       the listener to wrap
-     * @param includeRetries {@code false} to measure a single request sent to the indexing node, {@code true} to measure the whole action
-     *                       execution including retries
+     * @param listener the listener to wrap
+     * @param scope    what the measurement covers: a single request sent to the indexing node, or the whole action execution including
+     *                 retries
      */
     private ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> metricsListener(
         final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener,
-        final boolean includeRetries
+        final Scope scope
     ) {
         final ThreadPool threadPool = transportService.getThreadPool();
         final long startTimeInMillis = threadPool.rawRelativeTimeInMillis();
         return new ActionListener<>() {
             @Override
             public void onResponse(GetVirtualBatchedCompoundCommitChunkResponse response) {
-                metrics.record(includeRetries, null, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
+                metrics.record(scope, null, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
                 listener.onResponse(response);
             }
 
             @Override
             public void onFailure(Exception e) {
-                metrics.record(includeRetries, e, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
+                metrics.record(scope, e, threadPool.rawRelativeTimeInMillis() - startTimeInMillis);
                 listener.onFailure(e);
             }
         };

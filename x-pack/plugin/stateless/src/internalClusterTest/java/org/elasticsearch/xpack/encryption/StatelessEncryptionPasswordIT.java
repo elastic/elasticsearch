@@ -73,7 +73,7 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         startIndexNode();
         startSearchNode();
         ensureStableCluster(3);
-        applyClusterSecrets(1, ACTIVE_PASSWORD_ID_KEY, "v1", PASSWORD_PREFIX + "v1", "password-v1");
+        applyClusterSecrets(1, ACTIVE_PASSWORD_ID_KEY, "v1", PASSWORD_PREFIX + "v1", "test-password-v1");
         assertBusy(() -> assertTrue(hasUsableKey(masterState())));
 
         String joining = startMasterOnlyNode();
@@ -96,10 +96,10 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         startIndexNode();
         startSearchNode();
         ensureStableCluster(4);
-        applyClusterSecrets(1, ACTIVE_PASSWORD_ID_KEY, "v1", PASSWORD_PREFIX + "v1", "password-v1");
+        applyClusterSecrets(1, ACTIVE_PASSWORD_ID_KEY, "v1", PASSWORD_PREFIX + "v1", "test-password-v1");
         assertBusy(() -> assertThat(masterPek().getPasswordId(), equalTo("v1")));
 
-        applyClusterSecrets(2, ACTIVE_PASSWORD_ID_KEY, "v2", PASSWORD_PREFIX + "v2", "password-v2");
+        applyClusterSecrets(2, ACTIVE_PASSWORD_ID_KEY, "v2", PASSWORD_PREFIX + "v2", "test-password-v2");
         for (String node : internalCluster().getNodeNames()) {
             assertThat(node, pekEncryption(node).activePasswordId(), equalTo("v2"));
             assertTrue(node, pekEncryption(node).canWrapForGateway());
@@ -128,7 +128,7 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         String indexNode = startIndexNode();
         ensureStableCluster(2);
         // the index node has no password, and the key is installed anyway
-        reload(master, passwordSettings("v1", "password-v1"));
+        reload(master, passwordSettings("v1", "test-password-v1"));
         assertBusy(() -> assertTrue(hasUsableKey(masterState())));
 
         String searchNode = startSearchNode();
@@ -145,7 +145,7 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
         assertEquals(4, internalCluster().clusterService(master).state().nodes().size());
 
         // the node retries joining, and is admitted once it can persist the key, with a password of its own
-        reload(joining, passwordSettings("v2", "password-v2"));
+        reload(joining, passwordSettings("v2", "test-password-v2"));
         ensureStableCluster(5);
         assertTrue(hasUsableKey(masterState()));
 
@@ -167,13 +167,13 @@ public class StatelessEncryptionPasswordIT extends AbstractStatelessPluginIntegT
     /** The elected master restarts without its password, so it holds no key; it restores the key once its password is reloaded. */
     public void testRestartedMasterRestoresKeyOnceItHasThePassword() throws Exception {
         String master = startMasterOnlyNode(FAST_FAILOVER);
-        reload(master, passwordSettings("v1", "password-v1"));
+        reload(master, passwordSettings("v1", "test-password-v1"));
         assertBusy(() -> assertTrue(hasUsableKey(masterState())));
 
         internalCluster().restartNode(master);
         assertBusy(() -> assertTrue(masterPek().isUnwrapFailed()));
 
-        reload(master, passwordSettings("v1", "password-v1"));
+        reload(master, passwordSettings("v1", "test-password-v1"));
         assertBusy(() -> assertTrue(hasUsableKey(masterState())));
     }
 

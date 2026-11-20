@@ -106,7 +106,7 @@ final class ProjectEncryptionKeyPasswordSettings {
 
     /**
      * Rejects a reload that removes a password this node needs while the cluster uses a key: the active one, which it wraps the key
-     * with, or the one its on-disk copy of the key is wrapped with, which it needs to read the key back after a restart.
+     * with, or the one its on-disk copy of the key is wrapped with, which it needs unchanged to read the key back after a restart.
      */
     static void validateReload(boolean currentCanWrap, Settings current, Settings updated, @Nullable String keyOnDiskPasswordId) {
         if (currentCanWrap) {
@@ -120,16 +120,22 @@ final class ProjectEncryptionKeyPasswordSettings {
                 );
             }
         }
-        if (hasPassword(current, keyOnDiskPasswordId) && hasPassword(updated, keyOnDiskPasswordId) == false) {
-            String missing = PASSWORD_PREFIX + keyOnDiskPasswordId;
+        if (hasPassword(current, keyOnDiskPasswordId) && samePassword(current, updated, keyOnDiskPasswordId) == false) {
+            String setting = PASSWORD_PREFIX + keyOnDiskPasswordId;
             throw new IllegalArgumentException(
                 "cannot reload cluster state encryption settings: this node's on-disk copy of the cluster state encryption key is wrapped"
                     + " with ["
-                    + missing
-                    + "], which is missing from the reloaded secure settings; keeping the previous settings. Keep ["
-                    + missing
-                    + "] until this node has persisted cluster state with the new password"
+                    + setting
+                    + "], which the reloaded secure settings remove or change; keeping the previous settings. Keep ["
+                    + setting
+                    + "] unchanged until this node has persisted cluster state with the new password"
             );
+        }
+    }
+
+    private static boolean samePassword(Settings current, Settings updated, String id) {
+        try (SecureString before = getPassword(current, id); SecureString after = getPassword(updated, id)) {
+            return before != null && before.equals(after);
         }
     }
 

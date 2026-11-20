@@ -97,6 +97,12 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
 
         /** Returns this node's {@link GatewayKeys}. */
         GatewayKeys gatewayKeys();
+
+        /** Returns why this node cannot wrap the key for its persisted cluster state, or {@code null} if it can. */
+        @Nullable
+        default String wrapForGatewayFailure() {
+            return null;
+        }
     }
 
     /** Plaintext AES-256 key bytes and generation timestamp */
@@ -189,7 +195,7 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
         }
 
         /**
-         * Returns whether {@code pekEncryption} can unwrap this node's copy of the active key with the passwords in {@code settings}, or
+         * Returns whether {@code pekEncryption} can unwrap every key in this node's copy with the passwords in {@code settings}, or
          * {@code null} if this node holds no copy. Unwraps at most once per copy and secure settings snapshot, outside the lock, since
          * health reports call it.
          */
@@ -206,8 +212,9 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
             if (check == null || check.copy() != current || check.settings() != settings) {
                 boolean readable;
                 try {
-                    byte[] key = pekEncryption.unwrap(current.wrappedKeys().get(current.activeKeyId()).bytes(), current.passwordId());
-                    Arrays.fill(key, (byte) 0);
+                    for (KeyEntry entry : current.wrappedKeys().values()) {
+                        Arrays.fill(pekEncryption.unwrap(entry.bytes(), current.passwordId()), (byte) 0);
+                    }
                     readable = true;
                 } catch (RuntimeException e) {
                     readable = false;

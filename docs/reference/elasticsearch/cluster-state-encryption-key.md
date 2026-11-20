@@ -131,7 +131,7 @@ You don't need to configure an encryption password to upgrade an existing deploy
 
 You can rotate each node's password independently without restarting {{es}}. The following procedure rotates the password on one node. Repeat it for any other nodes whose passwords you want to rotate. Keep a node's old password available until that node has rewrapped its on-disk copy of the cluster state encryption key with the new password.
 
-A node rewraps its copy the next time it writes changed cluster metadata to disk. A change to the elected master's active password ID, or the next automatic key rotation, always causes this on every node. If you rotate the passwords on several nodes, rotate the elected master last, so that its change rewraps the copies on the other nodes too.
+A node rewraps its copy the next time it rewrites the global cluster metadata on its disk, for example after a cluster settings update, a master election, or a change to the key. Index and mapping changes don't cause this. A change to the elected master's active password ID, or the next automatic key rotation, always causes this on every node. If you rotate the passwords on several nodes, rotate the elected master last, so that its change rewraps the copies on the other nodes too.
 
 1. Add the new password to the node's local {{es}} keystore. For example, to use the password ID `v2`:
 

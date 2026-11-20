@@ -20,6 +20,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.notNullValue;
@@ -35,7 +36,11 @@ public class MissingPasswordRolloutIT extends ESRestTestCase {
     private static final String PASSWORD = "cluster.state.encryption.password.v1";
     private static final int NODES = 3;
     private static final int NODE_WITHOUT_PASSWORD = 2;
+    // the FIPS test fixture uses the same one
+    private static final String KEYSTORE_PASSWORD = "keystore-password";
 
+    // every node starts without a password, so that no key is installed before the last node joins, which would then be refused
+    private static final MutableSettingsProvider keystoreOfOtherNodes = new MutableSettingsProvider();
     private static final MutableSettingsProvider keystoreOfNodeWithoutPassword = new MutableSettingsProvider();
 
     @ClassRule
@@ -46,8 +51,9 @@ public class MissingPasswordRolloutIT extends ESRestTestCase {
         // so that the readiness check, an internal action sent to every node, runs under security
         .setting("xpack.security.enabled", "true")
         .user("test-admin", "x-pack-test-password")
-        .node(0, n -> n.keystore(ACTIVE_PASSWORD_ID, "v1").keystore(PASSWORD, "encryption-test-password"))
-        .node(1, n -> n.keystore(ACTIVE_PASSWORD_ID, "v1").keystore(PASSWORD, "encryption-test-password"))
+        .keystorePassword(KEYSTORE_PASSWORD)
+        .node(0, n -> n.keystore(keystoreOfOtherNodes))
+        .node(1, n -> n.keystore(keystoreOfOtherNodes))
         .node(NODE_WITHOUT_PASSWORD, n -> n.keystore(keystoreOfNodeWithoutPassword))
         .build();
 
@@ -74,26 +80,46 @@ public class MissingPasswordRolloutIT extends ESRestTestCase {
     }
 
     private void runRollout(String nodeName) throws Exception {
-        // a cluster state update that every node acknowledges, so the master has seen every node
-        updatePersistentSetting("51mb");
-        for (int node = 0; node < NODES; node++) {
-            assertThat("no key while a node has no password", health(node).evaluate("details.active_key_id"), nullValue());
-        }
+        Request clusterHealth = new Request("GET", "/_cluster/health");
+        clusterHealth.addParameter("wait_for_nodes", Integer.toString(NODES));
+        client().performRequest(clusterHealth);
 
-        keystoreOfNodeWithoutPassword.put(ACTIVE_PASSWORD_ID, "v1");
-        keystoreOfNodeWithoutPassword.put(PASSWORD, "encryption-test-password");
-        cluster.updateStoredSecureSettings();
-        client().performRequest(new Request("POST", "/_nodes/" + nodeName + "/reload_secure_settings"));
+        addPassword(keystoreOfOtherNodes, 0, 1);
+        assertBusy(() -> {
+            boolean masterWaitsForNode = false;
+            for (int node = 0; node < NODES; node++) {
+                ObjectPath indicator = health(node);
+                assertThat("no key while a node has no password", indicator.evaluate("details.active_key_id"), nullValue());
+                List<?> waitingFor = indicator.evaluate("details.nodes_without_password");
+                masterWaitsForNode |= waitingFor != null && waitingFor.contains(nodeName);
+            }
+            assertTrue("the elected master reports the node it waits for", masterWaitsForNode);
+        }, 60, TimeUnit.SECONDS);
 
+        addPassword(keystoreOfNodeWithoutPassword, NODE_WITHOUT_PASSWORD);
         assertBusy(() -> {
             for (int node = 0; node < NODES; node++) {
-                ObjectPath health = health(node);
-                assertThat(health.evaluate("details.active_key_id"), notNullValue());
-                assertEquals("green", health.evaluate("status"));
+                ObjectPath indicator = health(node);
+                assertThat(indicator.evaluate("details.active_key_id"), notNullValue());
+                assertEquals("green", indicator.evaluate("status"));
             }
         }, 60, TimeUnit.SECONDS);
         // every node persists cluster state with the key, so it acknowledges updates
         updatePersistentSetting("52mb");
+    }
+
+    private void addPassword(MutableSettingsProvider keystore, int... nodes) throws IOException {
+        keystore.put(ACTIVE_PASSWORD_ID, "v1");
+        keystore.put(PASSWORD, "encryption-test-password");
+        cluster.updateStoredSecureSettings();
+        // a password-protected keystore can only be reloaded node by node without transport TLS
+        for (int node : nodes) {
+            Request reload = new Request("POST", "/_nodes/_local/reload_secure_settings");
+            reload.setJsonEntity("{\"secure_settings_password\":\"" + KEYSTORE_PASSWORD + "\"}");
+            try (RestClient nodeClient = nodeClient(node)) {
+                nodeClient.performRequest(reload);
+            }
+        }
     }
 
     private static void updatePersistentSetting(String value) throws IOException {
@@ -104,12 +130,15 @@ public class MissingPasswordRolloutIT extends ESRestTestCase {
 
     /** The indicator as computed by node {@code node}, which the health API does locally. */
     private ObjectPath health(int node) throws IOException {
-        HttpHost[] hosts = { HttpHost.create(cluster.getHttpAddress(node)) };
-        try (RestClient nodeClient = buildClient(restClientSettings(), hosts)) {
+        try (RestClient nodeClient = nodeClient(node)) {
             return new ObjectPath(
                 ObjectPath.createFromResponse(nodeClient.performRequest(new Request("GET", "/_health_report/cluster_state_encryption")))
                     .evaluate("indicators.cluster_state_encryption")
             );
         }
+    }
+
+    private RestClient nodeClient(int node) throws IOException {
+        return buildClient(restClientSettings(), new HttpHost[] { HttpHost.create(cluster.getHttpAddress(node)) });
     }
 }

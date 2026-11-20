@@ -92,6 +92,15 @@ public class ProjectEncryptionKeyPasswordSettingsTests extends ESTestCase {
         assertRejected(true, settings("v2", "v2"), "v1", PREFIX + "v1");
     }
 
+    /** The on-disk copy is unwrapped with the password's value, so the same id with another value is as good as removing it. */
+    public void testValidateReloadRejectsChangingThePasswordTheKeyOnDiskIsWrappedWith() {
+        MockSecureSettings secure = new MockSecureSettings();
+        secure.setString(ACTIVE_ID_KEY, "v2");
+        secure.setString(PREFIX + "v1", "another-password-for-v1");
+        secure.setString(PREFIX + "v2", "password-for-v2");
+        assertRejected(true, Settings.builder().setSecureSettings(secure).build(), "v1", PREFIX + "v1");
+    }
+
     /** Rotating while keeping the on-disk copy's password, a node that could not wrap before, or nothing on disk to read back. */
     public void testValidateReloadAllowsChangesThatKeepNeededPasswords() {
         ProjectEncryptionKeyPasswordSettings.validateReload(true, settings("v1", "v1"), settings("v2", "v1", "v2"), "v1");

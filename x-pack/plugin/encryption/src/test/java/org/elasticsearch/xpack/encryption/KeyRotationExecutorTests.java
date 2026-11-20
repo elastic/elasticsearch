@@ -21,6 +21,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -295,13 +296,22 @@ public class KeyRotationExecutorTests extends ESTestCase {
         );
     }
 
-    /** With passwords from cluster secrets no node is checked, since every node gets the same password. */
-    public void testInstallWithoutReadyNodeIdsSkipsTheCheck() {
+    /**
+     * With passwords from cluster secrets on stateless no node is checked, since every node gets the same password. If they no longer
+     * come from cluster secrets when the task runs, it is dropped.
+     */
+    public void testInstallWithoutReadyNodeIdsOnlyWhilePasswordsComeFromClusterSecrets() throws IOException {
+        var statelessExecutor = new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, NO_OP_ENCRYPTION, true);
         ClusterState state = ClusterState.builder(stateWith(null))
-            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("master")))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("master").roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build()))
             .build();
         String keyId = ProjectEncryptionKeyMetadata.generateKeyId();
-        assertEquals(keyId, metadataOf(executor.executeTask(installTask(keyId, null), state).v1()).getActiveKeyId());
+        assertSame(state, statelessExecutor.executeTask(installTask(keyId, null), state).v1());
+        ClusterState withSecrets = PasswordPekEncryptionTests.withClusterSecrets(
+            state,
+            ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
+        );
+        assertEquals(keyId, metadataOf(statelessExecutor.executeTask(installTask(keyId, null), withSecrets).v1()).getActiveKeyId());
     }
 
     private static KeyRotationCoordinator.InstallKeyTask installTask(String keyId, @Nullable Set<String> readyNodeIds) {

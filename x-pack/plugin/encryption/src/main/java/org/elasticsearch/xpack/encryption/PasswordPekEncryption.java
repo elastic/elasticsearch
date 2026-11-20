@@ -53,9 +53,10 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
     }
 
     /**
-     * Returns whether nodes needn't be checked for the password, because on stateless it comes from {@link ClusterSecrets} in cluster
-     * state, the same on every node. Stateful nodes are always checked: a node persists a cluster state before applying it, so it
-     * writes the key with the password it had before the cluster secrets in that state reach it.
+     * Returns whether nodes needn't be checked for the password: on stateless with the active password id in {@link ClusterSecrets},
+     * every node gets the same password from cluster state. Passwords from keystores are always checked, and so are stateful nodes: a
+     * node persists a cluster state before applying it, so it writes the key with the password it had before the cluster secrets in
+     * that state reach it.
      */
     static boolean passwordsFromClusterSecrets(ClusterState state, boolean stateless) {
         ClusterSecrets secrets = state.custom(ClusterSecrets.TYPE);
@@ -69,12 +70,10 @@ final class PasswordPekEncryption implements ProjectEncryptionKeyMetadata.PekEnc
         return wrapForGatewayFailure() == null;
     }
 
-    /**
-     * Returns why this node cannot wrap the key for its persisted cluster state, or {@code null} if it can. Computed once per secure
-     * settings snapshot, since it derives a key.
-     */
+    /** Computed once per secure settings snapshot, since it derives a key. */
+    @Override
     @Nullable
-    synchronized String wrapForGatewayFailure() {
+    public synchronized String wrapForGatewayFailure() {
         Settings settings = settingsSupplier.get();
         if (settings != checkedSettings) {
             wrapFailure = ProjectEncryptionKeyPasswordSettings.wrapForGatewayFailure(settings);

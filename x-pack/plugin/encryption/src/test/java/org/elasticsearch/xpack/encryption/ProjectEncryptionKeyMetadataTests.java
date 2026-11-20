@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.PekEncryption;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -529,6 +531,49 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         keys.forgetCopyOf("k1");
         assertFalse(keys.holdsKeys());
         assertNull(keys.passwordId());
+    }
+
+    /** A copy is readable only if every key in it is, since a restore unwraps them all. */
+    public void testGatewayKeysUnreadableIfAnyKeyIs() throws IOException {
+        byte[] unreadable = randomPlaintextBytes();
+        PekEncryption failsOnOneKey = new PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                return PASSWORD_ID;
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintext) {
+                return new WrappedKey(PASSWORD_ID, plaintext.clone());
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrapped, String passwordId) {
+                if (Arrays.equals(wrapped, unreadable)) {
+                    throw new IllegalStateException("corrupted");
+                }
+                return wrapped.clone();
+            }
+
+            @Override
+            public GatewayKeys gatewayKeys() {
+                return new GatewayKeys();
+            }
+        };
+        GatewayKeys keys = new GatewayKeys();
+        PekEncryption node = TestPekEncryption.onNode(failsOnOneKey, keys);
+        chunkedToXContent(
+            new ProjectEncryptionKeyMetadata(
+                Map.of("k1", new KeyEntry(unreadable, 10L), "k2", new KeyEntry(randomPlaintextBytes(), 20L)),
+                "k2",
+                PASSWORD_ID,
+                Map.of(),
+                node
+            ),
+            getToXContentParams()
+        );
+
+        assertEquals(false, keys.canRead(node, Settings.EMPTY));
     }
 
     /** Writing a copy for a different active key would roll the key set back if this node were later elected master. */

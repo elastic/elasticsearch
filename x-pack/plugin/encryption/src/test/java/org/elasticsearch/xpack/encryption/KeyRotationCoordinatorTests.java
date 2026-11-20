@@ -126,6 +126,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
     private MasterServiceTaskQueue<KeyRotationCoordinator.KeyRotationTask> taskQueue;
     private AtomicReference<Settings> settingsRef;
     private ThreadPool threadPool;
+    private ClusterService clusterService;
     private Predicate<DiscoveryNode> canPersist = node -> true;
     private Settings nodeSettings = Settings.EMPTY;
 
@@ -159,7 +160,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         Settings extraSettings
     ) {
         taskQueue = mock(MasterServiceTaskQueue.class);
-        ClusterService clusterService = mock(ClusterService.class);
+        clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
         when(clusterService.getSettings()).thenReturn(nodeSettings);
         MasterServiceTaskQueue rawQueue = taskQueue;
@@ -278,6 +279,63 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state));
 
         assertNull(submitted("install-project-encryption-key", KeyRotationCoordinator.InstallKeyTask.class).readyNodeIds());
+    }
+
+    /** Only the elected master reports the nodes it waits for, even if a check completed after it stepped down. */
+    public void testNodesWithoutPasswordEmptyOnceNoLongerMaster() {
+        installWaitingForOther();
+
+        when(clusterService.state()).thenReturn(clusterStateWith(null, false));
+        assertEquals(Set.of(), coordinator.nodesWithoutPassword());
+    }
+
+    /** With passwords from cluster secrets the master still checks that it can use its own, such as one too short for FIPS. */
+    public void testNoInstallWhenMasterCannotUsePasswordFromClusterSecrets() throws IOException {
+        nodeSettings = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        pekEncryption = new ProjectEncryptionKeyMetadata.PekEncryption() {
+            @Override
+            public String activePasswordId() {
+                return NO_OP_ENCRYPTION.activePasswordId();
+            }
+
+            @Override
+            public WrappedKey wrap(byte[] plaintextPek) {
+                return NO_OP_ENCRYPTION.wrap(plaintextPek);
+            }
+
+            @Override
+            public byte[] unwrap(byte[] wrappedPek, String passwordId) {
+                return NO_OP_ENCRYPTION.unwrap(wrappedPek, passwordId);
+            }
+
+            @Override
+            public ProjectEncryptionKeyMetadata.GatewayKeys gatewayKeys() {
+                return NO_OP_ENCRYPTION.gatewayKeys();
+            }
+
+            @Override
+            public String wrapForGatewayFailure() {
+                return "password too short";
+            }
+        };
+        ClusterState state = PasswordPekEncryptionTests.withClusterSecrets(
+            clusterStateWith(null, true),
+            ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY
+        );
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureAvailable());
+
+        MockLog.assertThatLogger(
+            () -> coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state)),
+            KeyRotationCoordinator.class,
+            new MockLog.SeenEventExpectation(
+                "gives the reason",
+                KeyRotationCoordinator.class.getName(),
+                Level.WARN,
+                "project encryption key not installed yet: the elected master cannot persist it (password too short)"
+            )
+        );
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+        assertEquals(Set.of("local"), coordinator.nodesWithoutPassword());
     }
 
     /** A node that persists cluster state restarting, here with a password, ends the wait for the retry. */

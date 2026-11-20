@@ -494,7 +494,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
      */
     Set<String> nodesWithoutPassword() {
         Set<String> nodes = nodesWithoutPEKPassword.get();
-        return nodes == null ? Set.of() : nodes;
+        // a check that completes after this node stopped being master would leave its names behind
+        return nodes == null || clusterService.state().nodes().isLocalNodeElectedMaster() == false ? Set.of() : nodes;
     }
 
     // Visible for testing
@@ -523,12 +524,25 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
     /**
      * Calls {@code onReady} with the ids of the nodes that reported they can wrap the key, once every node that persists cluster state
      * has, and asks again while some can't. One check runs at a time. {@code operation} is what waits for it, as a past participle for
-     * the warning ("installed" or "restored"). When every node gets the password from cluster secrets, calls it right away with
-     * {@code null}. A call made while a check runs doesn't call its {@code onReady}; the master reconciles again once that check completes.
+     * the warning ("installed" or "restored"). When every node gets the password from cluster secrets, checks only this node and calls
+     * it with {@code null}. A call made while a check runs doesn't call its {@code onReady}; the master reconciles again once that check
+     * completes.
      */
     private void whenEveryNodeCanPersist(ClusterState state, String operation, Consumer<Set<String>> onReady) {
         if (PasswordPekEncryption.passwordsFromClusterSecrets(state, stateless)) {
-            onReady.accept(null);
+            // every node has the master's password, which can still be unusable, such as one too short for FIPS
+            threadPool.generic().execute(() -> {
+                String failure = pekEncryption.wrapForGatewayFailure();
+                if (failure != null) {
+                    Set<String> self = Set.of(state.nodes().getLocalNode().getName());
+                    if (self.equals(nodesWithoutPEKPassword.getAndSet(self)) == false) {
+                        logger.warn("project encryption key not {} yet: the elected master cannot persist it ({})", operation, failure);
+                    }
+                    return;
+                }
+                nodesWithoutPEKPassword.set(null);
+                onReady.accept(null);
+            });
             return;
         }
         // If a node joined during the check, the install or restore would be dropped (not all nodes are guaranteed to be able to wrap the
@@ -815,7 +829,8 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
     /**
      * Installs the first key, but only if every node that persists cluster state is among {@code readyNodeIds}, the ephemeral ids of the
-     * nodes that reported they can persist the key. {@code null} when the passwords come from cluster secrets and no node is checked.
+     * nodes that reported they can persist the key. {@code null} when the passwords come from cluster secrets and only the master is
+     * checked.
      */
     record InstallKeyTask(String keyId, byte[] pekBytes, String passwordId, long generatedAt, @Nullable Set<String> readyNodeIds)
         implements
@@ -943,7 +958,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             if (existing != null) {
                 return Tuple.tuple(clusterState, null);
             }
-            if (aNodeJoinedSinceTheCheck(task, clusterState, task.readyNodeIds())) {
+            if (notEveryNodeIsReady(task, clusterState, task.readyNodeIds())) {
                 return Tuple.tuple(clusterState, null);
             }
             ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
@@ -970,15 +985,22 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
                 logger.debug("dropping restore task: project encryption key metadata changed to [{}]", existing);
                 return Tuple.tuple(clusterState, null);
             }
-            if (aNodeJoinedSinceTheCheck(task, clusterState, task.readyNodeIds())) {
+            if (notEveryNodeIsReady(task, clusterState, task.readyNodeIds())) {
                 return Tuple.tuple(clusterState, null);
             }
             logger.info("restored project encryption key [{}]", task.keys().getActiveKeyId());
             return Tuple.tuple(putMetadata(clusterState, projectState, task.keys()), null);
         }
 
-        private boolean aNodeJoinedSinceTheCheck(KeyRotationTask task, ClusterState clusterState, @Nullable Set<String> readyNodeIds) {
-            if (readyNodeIds == null || everyPersistingNodeIsReady(clusterState, readyNodeIds, stateless)) {
+        private boolean notEveryNodeIsReady(KeyRotationTask task, ClusterState clusterState, @Nullable Set<String> readyNodeIds) {
+            if (readyNodeIds == null) {
+                if (PasswordPekEncryption.passwordsFromClusterSecrets(clusterState, stateless)) {
+                    return false;
+                }
+                logger.debug("dropping [{}]: the passwords no longer come from cluster secrets", task.description());
+                return true;
+            }
+            if (everyPersistingNodeIsReady(clusterState, readyNodeIds, stateless)) {
                 return false;
             }
             logger.debug("dropping [{}]: a node joined since the readiness check", task.description());

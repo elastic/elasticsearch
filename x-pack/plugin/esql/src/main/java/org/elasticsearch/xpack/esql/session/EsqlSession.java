@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
@@ -35,6 +37,7 @@ import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -48,6 +51,7 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.TargetProjects;
@@ -136,6 +140,7 @@ import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -1489,6 +1494,7 @@ public class EsqlSession {
                         semiJoinTuple,
                         resultWrapper,
                         resolveInSubqueryHashJoinThreshold(configuration),
+                        this::maxIndexedInSubqueryValues,
                         blockFactory,
                         localRelationPage
                     );
@@ -1762,11 +1768,51 @@ public class EsqlSession {
     }
 
     /**
-     * Resolves the IN subquery hash join threshold: query pragma overrides the cluster setting.
+     * Resolves the IN subquery hash join threshold: query pragma overrides the cluster setting. A negative result lets the cost decide.
      */
     private int resolveInSubqueryHashJoinThreshold(Configuration configuration) {
         int pragmaValue = QueryPragmas.IN_SUBQUERY_HASH_JOIN_THRESHOLD.get(configuration.pragmas().getSettings());
         return pragmaValue >= 0 ? pragmaValue : plannerSettings.inSubqueryHashJoinThreshold();
+    }
+
+    private int maxIndexedInSubqueryValues(EsRelation relation) {
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        // Unit tests with minimal ClusterSettings may omit built-in search settings.
+        boolean allowExpensiveQueries = clusterSettings.get(SearchService.ALLOW_EXPENSIVE_QUERIES.getKey()) != null
+            ? clusterSettings.get(SearchService.ALLOW_EXPENSIVE_QUERIES)
+            : SearchService.ALLOW_EXPENSIVE_QUERIES.get(clusterService.getSettings());
+        return maxIndexedValues(relation, projectMetadata, allowExpensiveQueries);
+    }
+
+    /**
+     * The smallest {@code index.max_terms_count} of the indices {@code relation} reads, as shards reject a longer {@code terms} query.
+     * {@code 0} when unknown: an index on a remote cluster, or one the metadata does not hold. When expensive queries are not allowed the
+     * limit is capped at the default, as a field that keeps only doc values cannot then be queried by a {@code terms} query and the
+     * planner cannot see which fields those are.
+     */
+    static int maxIndexedValues(EsRelation relation, @Nullable ProjectMetadata projectMetadata, boolean allowExpensiveQueries) {
+        if (projectMetadata == null) {
+            return 0;
+        }
+        for (String cluster : relation.concreteIndices().keySet()) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster) == false) {
+                return 0;
+            }
+        }
+        int max = Integer.MAX_VALUE;
+        for (List<String> indices : relation.concreteIndices().values()) {
+            for (String index : indices) {
+                IndexMetadata metadata = projectMetadata.index(index);
+                if (metadata == null) {
+                    return 0;
+                }
+                max = Math.min(max, IndexSettings.MAX_TERMS_COUNT_SETTING.get(metadata.getSettings()));
+            }
+        }
+        if (max == Integer.MAX_VALUE) {
+            return 0;
+        }
+        return allowExpensiveQueries ? max : Math.min(max, AbstractSubqueryJoin.DEFAULT_FILTER_PATH_MAX_VALUES);
     }
 
     private static void releaseLocalRelationBlocks(AtomicReference<Page> localRelationPage) {

@@ -370,6 +370,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                // Once the casting rules of the resolution have had their chance, a condition with an "Any" parameter that still
+                // doesn't type check is given the type error it would have for any value of the parameter.
+                ReplaceAnyParams.lastResort(),
                 new HideNestedScopeFields(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),

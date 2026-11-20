@@ -900,6 +900,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     public void testDifferentMetricsInSeparateSeries() {
         for (String promql : List.of(
             "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
+            "node_memory_MemAvailable_bytes > bool node_memory_MemTotal_bytes",
             "rate(node_cpu_seconds_total[5m]) / node_memory_MemTotal_bytes",
             "(node_memory_MemAvailable_bytes + 1) * node_memory_MemTotal_bytes",
             "sum(node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes",

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ResultOrderingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ResultOrderingFunction.ResultOrdering;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -148,9 +149,12 @@ public final class AddPromqlResultOrder extends ParameterizedRule<LogicalPlan, L
         if (plan instanceof MetadataManipulationFunction relabel) {
             return resultOrdering(relabel.child());
         }
-        // A filter keeps the left side's samples in their order, unless group_right makes the right side the one Prometheus
-        // iterates.
+        // A filter keeps the vector side's samples in their order; between vectors that is the left side, unless
+        // group_right makes the right side the one Prometheus iterates.
         if (plan instanceof VectorBinaryComparison comparison && comparison.filterMode()) {
+            if (PromqlPlan.returnsScalar(comparison.left())) {
+                return resultOrdering(comparison.right());
+            }
             if (comparison.match().grouping() != VectorMatch.Joining.RIGHT) {
                 return resultOrdering(comparison.left());
             }

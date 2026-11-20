@@ -46,6 +46,8 @@ Each [operator reference entry](/reference/query-languages/promql/operators.md) 
 
 `==`, `!=`, `>`, `<`, `>=`, and `<=` between an instant vector and a number, such as `rate(x[5m]) > 100`, with or without `bool`, such as `x > bool 100`.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` Comparisons between two instant vectors, against any scalar on either side, and inside another expression, such as `x > y`, `100 < x`, `x > scalar(y)`, and `count(x > 100)`.
+
 **Not supported yet**
 
 :::{table}
@@ -53,10 +55,10 @@ Each [operator reference entry](/reference/query-languages/promql/operators.md) 
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 16 | Filter with a scalar as the first operand | `100 < x`, `time() <= x` | Swap the operands: `x > 100` | [#158184]({{es-issue}}158184) |
-| 17 | Non-literal scalar as the second operand | `x > time()`, `x > scalar(y)` | - | [#158184]({{es-issue}}158184) |
-| 18 | Two vectors, or `bool` with a scalar as the first operand | `x > y`, `100 > bool x` | For `bool`, swap the operands: `x < bool 100` | [#158184]({{es-issue}}158184) |
-| 19 | Comparison inside another expression | `(x > 100) + 1`, `count(x > 100)` | - | [#158184]({{es-issue}}158184) |
+| 16 | Filter with a scalar as the first operand {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `100 < x`, `time() <= x` | Swap the operands: `x > 100` | [#158184]({{es-issue}}158184) |
+| 17 | Non-literal scalar as the second operand {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `x > time()`, `x > scalar(y)` | - | [#158184]({{es-issue}}158184) |
+| 18 | Two vectors, or `bool` with a scalar as the first operand {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `x > y`, `100 > bool x` | For `bool`, swap the operands: `x < bool 100` | [#158184]({{es-issue}}158184) |
+| 19 | Comparison inside another expression {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `(x > 100) + 1`, `count(x > 100)` | - | [#158184]({{es-issue}}158184) |
 :::
 
 #### Logical/set binary operators [prometheus-compatibility-logical-set-binary-operators]

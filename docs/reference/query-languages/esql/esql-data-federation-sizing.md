@@ -25,7 +25,7 @@ For data held in {{es}} indices, refer to the [Size your shards](docs-content://
 * **Add 1 core per 3 to 4 concurrent queries** on text, and 1 core per 8 to 10 on Parquet.
 * **Keep heap below the compressed object pointer threshold**, which is 26 GB on most systems and as much as 30 GB on some. Scale horizontally across nodes instead.
 
-These figures are starting points, and they assume cold reads, where every query fetches its data from Amazon S3 rather than from a warmed cache. How a dataset behaves then depends on characteristics of your own data: how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects. A configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
+These figures are recommended sizings rather than requirements, and queries may still run successfully on smaller configurations. They assume cold reads, where every query fetches its data from Amazon S3 rather than from a warmed cache. How a dataset behaves then depends on characteristics of your own data: how well it compresses, how its files split, the row group sizes in your Parquet files, the width of your schema, and the size and number of your objects. A configuration that suits one dataset may not suit another. Size against your own queries, at the concurrency you expect, and watch how the cluster behaves.
 
 ## Background [background]
 
@@ -115,9 +115,18 @@ On [{{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/serve
 
 **To follow this guide on serverless, use an {{es-serverless}} project.** It is the only project type that lets you set a capacity floor, through [Minimum Search VCUs](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#minimum-search-vcus), which stops the Search tier scaling below a value you choose, even while the project is idle.
 
+The Search tier is provisioned at 2 Search VCUs per core, and a Search VCU is 1 GiB of memory, so work the figures above out twice and take the larger of the two:
+
+* 2 Search VCUs for every GB of heap
+* 2 Search VCUs for every core
+
+The Parquet example above needs 2 cores and 4 GB of heap, which is 8 from the heap figure and 4 from the cores, so set the minimum to 8. The compressed CSV example needs 4 cores and 8 GB of heap across its 2 nodes, which is 16 and 8, so set it to 16.
+
+The heap figure is usually the larger, because the Search tier gives 1 GB of heap for each core and this page asks for 1 GB to 2 GB. The core figure is there to confirm you have not bought too few.
+
 Raise the minimum 30 to 60 minutes ahead of an expected increase in federated query load, and lower it afterwards, because you are billed for at least that many Search VCUs while it is set.
 
-You can run federated queries from the other project types as well, but with less control over the capacity they get:
+You can run federated queries from the other project types as well. Their capacity is decided by their own configuration, and data federation load is not currently one of the factors in it:
 
 * In {{es}} {{vectordb}} projects, [Search Power](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md#elasticsearch-manage-project-search-power-settings) reserves capacity rather than following query load, so a federated workload does not cause the project to scale.
 * In {{obs-serverless}} and {{sec-serverless}} projects, search capacity is sized from the volume of search-ready data rather than from query load, and there is no minimum to set.

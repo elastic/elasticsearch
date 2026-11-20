@@ -272,30 +272,34 @@ exists hits, size 0 total and count agree on a match_only_text field after a del
 exists hits, size 0 total and count agree on a match_only_text field after a merge:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/165521"
-      reason: "the exists total takes the term count and is lower than the hits after the deleted documents are expunged"
+      reason: "the exists total takes the term count and is lower than the hits on a merged segment without deletions"
 
   - do:
       index:
         index: test
-        id: expunged
+        id: second_segment
         refresh: true
         body: { other: c }
 
   - do:
-      delete:
+      indices.stats:
         index: test
-        id: expunged
-        refresh: true
+        metric: segments
 
-  - do:
-      indices.flush:
-        index: test
-        force: true
+  - match: { _all.primaries.segments.count: 2 }
 
   - do:
       indices.forcemerge:
         index: test
-        only_expunge_deletes: true
+        max_num_segments: 1
+
+  - do:
+      indices.stats:
+        index: test
+        metric: docs,segments
+
+  - match: { _all.primaries.segments.count: 1 }
+  - match: { _all.primaries.docs.deleted: 0 }
 
   - do:
       search:

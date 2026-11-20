@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
@@ -206,10 +207,23 @@ public class ColumnarExistsNullSemanticsTests extends MapperServiceTestCase {
                 assertEquals(
                     "codec=" + withCodec + " index=" + indexed + " document=" + document,
                     expectedSource(document),
-                    syntheticSource(mapperService.documentMapper(), b -> write(b, document))
+                    syntheticSourceWithCodec(mapperService, document)
                 );
             }
         }
+    }
+
+    private String syntheticSourceWithCodec(MapperService mapperService, TestDocument document) throws IOException {
+        final ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> write(b, document)));
+        parsed.updateSeqID(0, 0);
+        parsed.version().setLongValue(0);
+        final AtomicReference<String> source = new AtomicReference<>();
+        withLuceneIndex(
+            mapperService,
+            iw -> iw.addDocuments(parsed.docs()),
+            reader -> source.set(syntheticSource(mapperService.documentMapper(), reader, parsed.docs().size() - 1))
+        );
+        return source.get();
     }
 
     private void assertExistsMatchesOnlyDocumentsWithANonNullValue(String type, Supplier<Object> valueSupplier) throws IOException {

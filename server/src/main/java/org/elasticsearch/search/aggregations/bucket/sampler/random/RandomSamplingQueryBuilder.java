@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -119,7 +120,11 @@ public class RandomSamplingQueryBuilder extends LeafQueryBuilder<RandomSamplingQ
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return new RandomSamplingQuery(probability, seed, hash);
+        // One builder is turned into a query on every shard it runs on. Without a salt that differs per shard all of them
+        // draw the same random stream and so keep the same segment-local doc ids. This is the salt the random_sampler
+        // aggregation gets from AggregationContext#shardRandomSeed.
+        int shardSeed = new ShardId(context.index(), context.getShardId()).hashCode();
+        return new RandomSamplingQuery(probability, seed, hash ^ shardSeed);
     }
 
     @Override

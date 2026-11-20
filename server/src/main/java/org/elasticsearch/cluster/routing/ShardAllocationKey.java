@@ -32,10 +32,6 @@ public record ShardAllocationKey(ShardId shardId, String allocationId) implement
         return new ShardAllocationKey(routing.shardId(), routing.allocationId().getId());
     }
 
-    /// Wire format is unchanged from the two previously-independent classes this record replaces
-    /// (`CancelRecoveriesAction.CancelledInQueue` and `LocalRecoveryRetriesHealthInfo.RecoveryKey`): the shard ID
-    /// followed by the allocation ID as a string. Changing this order, or either field's encoding, needs a
-    /// `TransportVersion`.
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);

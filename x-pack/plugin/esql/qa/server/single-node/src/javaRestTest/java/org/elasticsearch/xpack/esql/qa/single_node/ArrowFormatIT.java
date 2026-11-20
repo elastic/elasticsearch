@@ -451,6 +451,65 @@ public class ArrowFormatIT extends ESRestTestCase {
         }
     }
 
+    /** An indexed histogram retains aligned values and counts, with missing and empty values kept distinct. */
+    public void testHistogram() throws Exception {
+        Request request = new Request("PUT", "/arrow-histogram-test");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "value": { "type": "integer" },
+                  "histogram": { "type": "histogram" }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        request = new Request("POST", "/_bulk?index=arrow-histogram-test&refresh=true");
+        request.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "histogram": {"values": [1.0, 2.5, 9.0], "counts": [2, 4, 1]}}
+            {"index": {"_id": "2"}}
+            {"value": 2}
+            {"index": {"_id": "3"}}
+            {"value": 3, "histogram": {"values": [], "counts": []}}
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        try (VectorSchemaRoot root = esql("""
+            {
+                "query": "FROM arrow-histogram-test | SORT value | LIMIT 100 | KEEP histogram"
+            }""")) {
+            assertEquals(3, root.getRowCount());
+            StructVector histogram = (StructVector) root.getVector("histogram");
+            Field field = histogram.getField();
+            assertEquals(Types.MinorType.STRUCT.getType(), field.getType());
+            assertTrue(field.isNullable());
+            assertEquals("histogram", field.getMetadata().get("elastic:type"));
+            assertEquals(List.of("values", "counts"), field.getChildren().stream().map(Field::getName).toList());
+            for (Field child : field.getChildren()) {
+                assertFalse(child.isNullable());
+                assertEquals(Types.MinorType.LIST.getType(), child.getType());
+                assertFalse(child.getChildren().get(0).isNullable());
+            }
+
+            ListVector values = (ListVector) histogram.getChild("values");
+            ListVector counts = (ListVector) histogram.getChild("counts");
+            assertEquals(Types.MinorType.FLOAT8.getType(), values.getField().getChildren().get(0).getType());
+            assertEquals(Types.MinorType.BIGINT.getType(), counts.getField().getChildren().get(0).getType());
+            assertFalse(histogram.isNull(0));
+            assertEquals(List.of(1.0, 2.5, 9.0), values.getObject(0));
+            assertEquals(List.of(2L, 4L, 1L), counts.getObject(0));
+            assertTrue(histogram.isNull(1));
+            assertEquals(List.of(), values.getObject(1));
+            assertEquals(List.of(), counts.getObject(1));
+            assertFalse(histogram.isNull(2));
+            assertEquals(List.of(), values.getObject(2));
+            assertEquals(List.of(), counts.getObject(2));
+        }
+    }
+
     public void testMappedDenseVectors() throws IOException {
         Request request = new Request("PUT", "/arrow-dense-vector-test");
         request.setJsonEntity("""

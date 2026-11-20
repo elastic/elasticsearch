@@ -76,7 +76,6 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntPredicate;
 
@@ -112,6 +111,8 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
     /** About 1.5 KiB of unprojected random padding per row: ~4096 rows per 6 MiB row group, 3 row groups. */
     private static final int PAD_PER_ROW = (int) (ROW_GROUP_SIZE / 4096);
     private static final List<String> PROJECTION = List.of("value", "id");
+    /** The cap {@code ExternalSourceDrainUtils#tryAdvanceOrPark} asserts on: a reader that reaches it is stuck, not slow. */
+    private static final int MAX_EMPTY_READS_IN_A_ROW = 64;
     /** Encoding stats of a chunk whose data pages are all dictionary encoded: the one shape {@code DictionaryFilter} reads. */
     private static final EncodingStats PURE_DICTIONARY_STATS = new EncodingStats.Builder().addDictEncoding(Encoding.PLAIN)
         .addDataEncoding(Encoding.PLAIN_DICTIONARY)
@@ -295,11 +296,12 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
 
     private static int drain(CloseableIterator<Page> iter) {
         int rows = 0;
-        long lastPage = System.nanoTime();
+        int emptyReads = 0;
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
                 safeAwait(ready, TimeValue.timeValueSeconds(30));
+                emptyReads = 0;
                 continue;
             }
             Page page = iter.tryAdvance();
@@ -307,13 +309,12 @@ public class ParquetRowGroupFilterPreWarmGateTests extends ESTestCase {
                 if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     return rows;
                 }
-                // retried without a count, so a stuck iterator is bounded by time
-                if (System.nanoTime() - lastPage > TimeUnit.SECONDS.toNanos(30)) {
-                    throw new AssertionError("no page and no end of stream for 30s after " + rows + " rows");
+                if (++emptyReads >= MAX_EMPTY_READS_IN_A_ROW) {
+                    throw new AssertionError("iterator stayed ready, empty and not exhausted for " + emptyReads + " reads in a row");
                 }
                 continue;
             }
-            lastPage = System.nanoTime();
+            emptyReads = 0;
             rows += page.getPositionCount();
             page.releaseBlocks();
         }

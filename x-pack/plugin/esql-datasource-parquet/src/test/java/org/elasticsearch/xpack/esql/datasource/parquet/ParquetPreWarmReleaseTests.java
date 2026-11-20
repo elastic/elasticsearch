@@ -84,6 +84,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -113,8 +114,8 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     private static final List<String> CATEGORY = List.of("category");
     /** {@code id} is projection-only and much larger than the predicate column, so the iterator reads in two phases. */
     private static final List<String> CATEGORY_AND_ID = List.of("category", "id");
-    /** A ready, empty iterator that is not exhausted is retried without a count, so a stuck one is bounded by time. */
-    private static final long NO_PAGE_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(30);
+    /** The cap {@code ExternalSourceDrainUtils#tryAdvanceOrPark} asserts on: a reader that reaches it is stuck, not slow. */
+    private static final int MAX_EMPTY_READS_IN_A_ROW = 64;
 
     private ExecutorService asyncIo;
     private LimitedBreaker breaker;
@@ -409,19 +410,33 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         consumeOnePage(readyButEmptyTwice());
     }
 
-    /** Always ready; the third {@code tryAdvance()} returns the only page, of {@link #EXPECTED_ROWS} rows. */
+    /**
+     * An iterator that stays ready, empty and not exhausted fails the drain instead of spinning until the suite times out.
+     */
+    public void testStuckIteratorFailsTheDrain() {
+        AssertionError e = expectThrows(AssertionError.class, () -> drain(emptyUntilAdvance(Integer.MAX_VALUE)));
+        assertThat(e.getMessage(), containsString("ready, empty and not exhausted"));
+        e = expectThrows(AssertionError.class, () -> consumeOnePage(emptyUntilAdvance(Integer.MAX_VALUE)));
+        assertThat(e.getMessage(), containsString("ready, empty and not exhausted"));
+    }
+
     private static CloseableIterator<Page> readyButEmptyTwice() {
+        return emptyUntilAdvance(3);
+    }
+
+    /** Always ready; {@code tryAdvance()} number {@code pageAt} returns the only page, of {@link #EXPECTED_ROWS} rows. */
+    private static CloseableIterator<Page> emptyUntilAdvance(int pageAt) {
         return new CloseableIterator<>() {
             private int advances;
 
             @Override
             public Page tryAdvance() {
-                return ++advances == 3 ? new Page(EXPECTED_ROWS) : null;
+                return ++advances == pageAt ? new Page(EXPECTED_ROWS) : null;
             }
 
             @Override
             public boolean isExhausted() {
-                return advances >= 3;
+                return advances >= pageAt;
             }
 
             @Override
@@ -632,11 +647,12 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     private static DrainResult drain(CloseableIterator<Page> iter, boolean sumId) {
         int rows = 0;
         long idSum = 0L;
-        long lastPage = System.nanoTime();
+        int emptyReads = 0;
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
                 safeAwait(ready, TimeValue.timeValueSeconds(30));
+                emptyReads = 0;
                 continue;
             }
             Page page = iter.tryAdvance();
@@ -644,10 +660,10 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     return new DrainResult(rows, idSum);
                 }
-                failIfNoPageFor30s(lastPage, rows);
+                failIfStuck(++emptyReads);
                 continue;
             }
-            lastPage = System.nanoTime();
+            emptyReads = 0;
             rows += page.getPositionCount();
             if (sumId) {
                 idSum += sumIdColumn(page);
@@ -665,11 +681,12 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     }
 
     private static void consumeOnePage(CloseableIterator<Page> iter) {
-        long start = System.nanoTime();
+        int emptyReads = 0;
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
                 safeAwait(ready, TimeValue.timeValueSeconds(30));
+                emptyReads = 0;
                 continue;
             }
             Page page = iter.tryAdvance();
@@ -677,7 +694,7 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
                 if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     throw new AssertionError("expected at least one page");
                 }
-                failIfNoPageFor30s(start, 0);
+                failIfStuck(++emptyReads);
                 continue;
             }
             page.releaseBlocks();
@@ -685,9 +702,9 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         }
     }
 
-    private static void failIfNoPageFor30s(long lastPageNanos, int rowsSoFar) {
-        if (System.nanoTime() - lastPageNanos > NO_PAGE_TIMEOUT_NANOS) {
-            throw new AssertionError("no page and no end of stream for 30s after " + rowsSoFar + " rows");
+    private static void failIfStuck(int emptyReadsInARow) {
+        if (emptyReadsInARow >= MAX_EMPTY_READS_IN_A_ROW) {
+            throw new AssertionError("iterator stayed ready, empty and not exhausted for " + emptyReadsInARow + " reads in a row");
         }
     }
 

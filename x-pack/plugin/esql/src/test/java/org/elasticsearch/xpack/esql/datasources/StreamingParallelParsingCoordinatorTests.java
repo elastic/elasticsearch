@@ -391,18 +391,41 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         AtomicInteger captured = new AtomicInteger();
         streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), captured);
         assertThat("a capturing read probes once for the whole file", captured.get(), Matchers.equalTo(1));
+
+        // The control above always gets an answer, so on its own it also passes against a memo that caches
+        // only successful lookups -- which would still pay a HEAD per chunk on exactly the stores the probe is
+        // dear on. These two pin the other outcomes: no last-modified header, and a probe that fails outright.
+        AtomicInteger noMtime = new AtomicInteger();
+        streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), noMtime, new TestFileStorageObject(MTIME_PROBE_PATH, null));
+        assertThat("a source with no last-modified is probed once, not per chunk", noMtime.get(), Matchers.equalTo(1));
+
+        AtomicInteger failedProbe = new AtomicInteger();
+        streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), failedProbe, new FailingMtimeStorageObject(MTIME_PROBE_PATH));
+        assertThat("a failed probe is memoized too, not retried per chunk", failedProbe.get(), Matchers.equalTo(1));
     }
+
+    private static final String MTIME_PROBE_PATH = "mem://streaming-mtime-probe-test";
 
     /** Drains a streaming parallel read whose storage object counts every {@code lastModified()} call. */
     private static void streamingReadCountingMtimeProbes(
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
         AtomicInteger probes
     ) throws Exception {
+        StorageObject source = new TestFileStorageObject(MTIME_PROBE_PATH, Instant.parse("2020-01-01T00:00:00Z"));
+        streamingReadCountingMtimeProbes(sink, probes, source);
+    }
+
+    /** As above, over a given source, so the probe's non-answering outcomes can be counted too. */
+    private static void streamingReadCountingMtimeProbes(
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> sink,
+        AtomicInteger probes,
+        StorageObject source
+    ) throws Exception {
         // > 2 chunk-buffers so the segmentator dispatches several chunks and the per-chunk probe repeats.
         String content = buildContent(500);
         InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-        String path = "mem://streaming-mtime-probe-test";
-        StorageObject file = new CountingMtimeStorageObject(new TestFileStorageObject(path, Instant.parse("2020-01-01T00:00:00Z")), probes);
+        String path = MTIME_PROBE_PATH;
+        StorageObject file = new CountingMtimeStorageObject(source, probes);
         StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
 
         ExecutorService executor = Executors.newFixedThreadPool(6);
@@ -6502,6 +6525,45 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 bytesRead += skipped;
             }
             return skipped;
+        }
+    }
+
+    /** A source whose mtime probe throws — pins that the memo holds the failure rather than retrying it. */
+    private static final class FailingMtimeStorageObject extends AbstractTestStorageObject {
+        private final StoragePath path;
+
+        FailingMtimeStorageObject(String path) {
+            this.path = StoragePath.of(path);
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() throws IOException {
+            throw new IOException("this store serves no last-modified");
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
         }
     }
 

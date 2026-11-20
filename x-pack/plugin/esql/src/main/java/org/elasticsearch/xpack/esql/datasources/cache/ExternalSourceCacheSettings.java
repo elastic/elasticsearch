@@ -70,7 +70,8 @@ public final class ExternalSourceCacheSettings {
      * the rule this setting otherwise keeps does not hold: those reads still measure, and the coordinator
      * discards what they send, which is the cost this flag exists to avoid. Both follow from the node scope, and
      * closing either would mean the coordinator deciding and shipping the decision with the plan, which is a wire
-     * field. Set it cluster-wide and the two halves agree on every node that observes the update, for reads started after it arrives: a read already in flight keeps the scope it resolved.
+     * field. Set it cluster-wide and the two halves agree on every node that observes the update, for reads
+     * started after it arrives: a read already in flight keeps the scope it resolved.
      * <p>
      * It does not reach the footer caches, which are built per format reader from {@link #FOOTER_CACHE_SIZE} and
      * {@link #FOOTER_PARSED_CACHE_SIZE}; bound those with their own budgets.

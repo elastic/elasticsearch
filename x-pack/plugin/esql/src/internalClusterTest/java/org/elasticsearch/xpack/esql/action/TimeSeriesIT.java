@@ -210,10 +210,12 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
      * {@code esql.time_series.target_chunk_rows} (so the final output is split into many pages) must produce the same
      * result set as the default (single-page) run. The queries route the chunked final output through downstream
      * operators — {@code SORT} (TopN) and a following {@code STATS ... BY <dimension>} — so this also covers downstream
-     * multi-page consumption. Results are compared as canonicalized multisets because chunking only changes pagination,
+     * multi-page consumption. Rows are matched by their non-floating-point cells because chunking only changes pagination,
      * not the rows produced (row ordering for tied sort keys is not guaranteed to match across two independent runs).
-     * Floating-point values are rounded before comparison: chunking changes the order in which partial sums are combined
+     * Floating-point values are compared with a tolerance: chunking changes the order in which partial sums are combined
      * (e.g. {@code sum(rate(...))}), so results may differ in the last ULP, which is expected and not a correctness issue.
+     * Rounding both sides to a fixed number of decimals would not absorb this, because a value next to a rounding midpoint
+     * can round in different directions after a one-ULP change.
      */
     public void testFinalChunkingMatchesUnchunked() {
         assumeTrue("query pragmas require a snapshot build", canUseQueryPragmas());
@@ -224,13 +226,23 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             "TS hosts | STATS load=avg(cpu) BY host, tbucket=bucket(@timestamp, 1 minute) | STATS peak=max(load) BY host | SORT host"
         );
         for (String query : queries) {
-            List<List<Object>> unchunked = runWithChunkRows(query, 100_000);
-            List<List<Object>> chunked = runWithChunkRows(query, 1);
-            assertThat(
-                "chunked final output must match unchunked for [" + query + "]",
-                canonicalize(chunked),
-                equalTo(canonicalize(unchunked))
-            );
+            List<List<Object>> unchunked = sortByNonDoubleCells(runWithChunkRows(query, 100_000));
+            List<List<Object>> chunked = sortByNonDoubleCells(runWithChunkRows(query, 1));
+            String message = "chunked final output must match unchunked for [" + query + "]";
+            assertThat(message, chunked, hasSize(unchunked.size()));
+            for (int r = 0; r < unchunked.size(); r++) {
+                List<Object> expectedRow = unchunked.get(r);
+                List<Object> actualRow = chunked.get(r);
+                String rowMessage = message + ", expected row " + expectedRow + " but was " + actualRow;
+                assertThat(rowMessage, actualRow, hasSize(expectedRow.size()));
+                for (int c = 0; c < expectedRow.size(); c++) {
+                    if (expectedRow.get(c) instanceof Double expected && actualRow.get(c) instanceof Double actual) {
+                        assertThat(rowMessage, actual, closeTo(expected, 1e-9 * Math.max(1, Math.abs(expected))));
+                    } else {
+                        assertThat(rowMessage, actualRow.get(c), equalTo(expectedRow.get(c)));
+                    }
+                }
+            }
         }
     }
 
@@ -247,15 +259,13 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Rounds floating-point cells (to absorb summation-order differences) and sorts rows into a stable order, so two runs
-     * are compared as multisets independent of tied-sort-key row ordering.
+     * Sorts rows by their non-floating-point cells, so two runs line up row by row independent of tied-sort-key ordering.
+     * The grouping keys in {@link #testFinalChunkingMatchesUnchunked} are unique per row, so this order is total.
      */
-    private static List<List<Object>> canonicalize(List<List<Object>> rows) {
-        return rows.stream().map(TimeSeriesIT::roundDoubles).sorted(Comparator.comparing(Objects::toString)).toList();
-    }
-
-    private static List<Object> roundDoubles(List<Object> row) {
-        return row.stream().map(v -> v instanceof Double d ? (Object) (Math.round(d * 1_000_000d) / 1_000_000d) : v).toList();
+    private static List<List<Object>> sortByNonDoubleCells(List<List<Object>> rows) {
+        return rows.stream()
+            .sorted(Comparator.comparing(row -> row.stream().filter(v -> v instanceof Double == false).toList().toString()))
+            .toList();
     }
 
     public void testWithoutStats() {

@@ -62,6 +62,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.flush.FlushStats;
@@ -854,7 +855,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             MapperMetrics.NOOP,
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            FlushMetrics.NOOP
         );
     }
 

@@ -7429,6 +7429,42 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
+     * Cancellation must abort a flat listing that keeps nothing. The walk checks cancel beside the keep-path
+     * reserve, so a glob whose remaining keys do not match ({@code *.parquet} over {@code .json}) used to
+     * drain the prefix — up to {@code max_listed_objects} — before {@code finishListing} noticed the query
+     * was gone. Cancel after the first key, so this cannot pass by refusing to start.
+     */
+    public void testACancelledListingStopsWalkingNonMatchingKeys() {
+        List<StorageEntry> jsonOnly = new ArrayList<>(5000);
+        for (int i = 0; i < 5000; i++) {
+            jsonOnly.add(entry(String.format(Locale.ROOT, "s3://bucket/data/part-%06d.json", i), 100));
+        }
+        CountingStubProvider provider = new CountingStubProvider(jsonOnly);
+        BooleanSupplier cancelled = () -> provider.keysPulled() > 0;
+
+        expectThrows(
+            TaskCancelledException.class,
+            () -> GlobExpander.expand(
+                "s3://bucket/data/*.parquet",
+                provider,
+                null,
+                HIVE_OFF,
+                MAX,
+                MAX,
+                MAX,
+                ListingExtents.UNBOUNDED,
+                PlanningMemory.NONE,
+                cancelled
+            )
+        );
+        assertThat(
+            "non-matching keys must not keep a cancelled listing walking the rest of the prefix",
+            provider.keysPulled(),
+            lessThan(10)
+        );
+    }
+
+    /**
      * A listing reserves heap as it accumulates, not once it is built. The difference is the whole point of
      * reserving at all: a reservation taken after the walk reports the memory but cannot refuse it, so a dataset
      * this node cannot hold would already be in heap by the time anyone objected.

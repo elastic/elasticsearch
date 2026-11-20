@@ -1272,8 +1272,9 @@ public final class GlobExpander {
             // Tested before hasNext() because on S3 hasNext() fetches the next page, which reaching the bound would
             // then discard. So the bound marks the listing truncated without establishing more matches exist: a
             // dataset of exactly the extent is flagged truncated when it is not, costing it a cache entry and
-            // saving every larger one a request.
-            while (globKeptCount < extents.maxFiles() && iterator.hasNext()) {
+            // saving every larger one a request. Cancel is the same: a keep-only check lets a sparse glob keep
+            // issuing LIST pages after the query is gone.
+            while (cancelled.getAsBoolean() == false && globKeptCount < extents.maxFiles() && iterator.hasNext()) {
                 StorageEntry entry = iterator.next();
                 listed++;
                 checkListedObjectsLimit(listed, maxListedObjects);
@@ -2439,8 +2440,9 @@ public final class GlobExpander {
     /**
      * Aborts a listing whose query is gone. Listing a large dataset is many sequential page requests and nothing
      * downstream can shorten that, so a cancelled query would otherwise keep paying for pages whose result is
-     * discarded - twice over where a bounded attempt is followed by a full one. Checked beside the batch reserve
-     * because that is the one point in the walk that runs often enough to be prompt and rarely enough to be free.
+     * discarded - twice over where a bounded attempt is followed by a full one. The flat drain tests cancel
+     * before {@code hasNext()} so a walk that keeps nothing still stops; the keep-path check remains so a
+     * matching walk aborts without waiting for the next loop.
      */
     private static void throwIfCancelled(BooleanSupplier cancelled) {
         if (cancelled.getAsBoolean()) {

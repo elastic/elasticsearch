@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.type.IndexAnalyzerGroup;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField.UnknownAnalyzer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
@@ -218,7 +217,7 @@ public class ResolveHighlightFieldMappings extends ParameterizedRule<LogicalPlan
         }
 
         private static Map<String, Attribute> valuedColumns(LogicalPlan branch) {
-            Predicate<Attribute> onlyNull = Fork.producesOnlyNull(branch);
+            Predicate<Attribute> onlyNull = MergePlan.producesOnlyNull(branch);
             Map<String, Attribute> columns = new HashMap<>();
             for (Attribute column : branch.output()) {
                 columns.putIfAbsent(column.name(), column);

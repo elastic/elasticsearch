@@ -181,6 +181,16 @@ public final class EscfRowBuffer {
         return colIdx;
     }
 
+    /**
+     * Encodes a packed KEY_VALUE object. The bytes are copied on commit, so {@code packed} must not change before then.
+     */
+    public int keyValueField(String name, byte[] packed) {
+        int colIdx = addLeaf(name);
+        scratchType[colIdx] = SourceValueType.KEY_VALUE;
+        scratchVar[colIdx] = packed;
+        return colIdx;
+    }
+
     /** Stages a boolean value. Returns the leaf column index. */
     public int booleanField(String name, boolean value) {
         int colIdx = addLeaf(name);

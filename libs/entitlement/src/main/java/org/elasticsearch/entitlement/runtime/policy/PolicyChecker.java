@@ -81,14 +81,9 @@ public interface PolicyChecker {
 
     void checkURLFileRead(Class<?> callerClass, URL url);
 
-    void checkWriteProperty(Class<?> callerClass, String property);
+    void checkWriteAllSystemProperties(Class<?> callerClass);
 
-    /**
-     * Like {@link #checkWriteProperty}, but finds the caller itself. It checks the nearest class
-     * on the stack that is not trusted, and allows the write if there is none.
-     * Use this when trusted code may sit between the caller and the write.
-     */
-    void checkWritePropertyFromStack(String property);
+    void checkWriteProperty(Class<?> callerClass, String property);
 
     void checkWriteStoreAttributes(Class<?> callerClass);
 }

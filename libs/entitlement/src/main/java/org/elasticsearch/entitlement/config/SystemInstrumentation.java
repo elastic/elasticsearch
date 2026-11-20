@@ -34,10 +34,6 @@ public class SystemInstrumentation implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
-        Properties systemPropertiesView = new SystemPropertiesView(
-            System.getProperties(),
-            property -> registry.policyChecker().checkWritePropertyFromStack(property)
-        );
 
         builder.on(Runtime.class, rule -> {
             rule.callingVoid(Runtime::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
@@ -53,8 +49,8 @@ public class SystemInstrumentation implements InstrumentationConfig {
         builder.on(System.class, rule -> {
             rule.callingVoidStatic(System::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
             rule.callingStatic(System::setProperty, String.class, String.class).enforce(Policies::writeProperty).elseReturn(null);
-            // the returned object is live, so callers that may not change global state get a view that checks each write
-            rule.callingStatic(System::getProperties).enforce(Policies::changeJvmGlobalState).elseReturn(systemPropertiesView);
+            // the returned object is live and can be written to
+            rule.callingStatic(System::getProperties).enforce(Policies::writeAllSystemProperties).elseThrowNotEntitled();
             rule.callingVoidStatic(System::setProperties, Properties.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
             rule.callingStatic(System::clearProperty, String.class).enforce(Policies::writeProperty).elseReturn(null);
             rule.callingVoidStatic(System::setIn, InputStream.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();

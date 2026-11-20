@@ -23,6 +23,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetwork
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteAllSystemPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 
 import java.io.File;
@@ -35,7 +36,6 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -43,7 +43,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
-import static java.lang.StackWalker.Option.SHOW_HIDDEN_FRAMES;
 import static java.util.function.Predicate.not;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
@@ -356,21 +355,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
     }
 
     @Override
-    public void checkWritePropertyFromStack(String property) {
-        Optional<Class<?>> requestingClass = StackWalker.getInstance(EnumSet.of(RETAIN_CLASS_REFERENCE, SHOW_HIDDEN_FRAMES))
-            .walk(frames -> findFirstUntrustedFrame(frames).map(StackWalker.StackFrame::getDeclaringClass));
-        if (requestingClass.isPresent()) {
-            checkWriteProperty(requestingClass.get(), property);
-        }
-    }
-
-    /**
-     * Given a stream of {@link StackWalker.StackFrame}s, find the nearest one that is not trusted.
-     */
-    Optional<StackWalker.StackFrame> findFirstUntrustedFrame(Stream<StackWalker.StackFrame> frames) {
-        return frames.filter(f -> f.getDeclaringClass().getModule() != entitlementsModule) // ignore entitlements library
-            .filter(f -> policyManager.isTriviallyAllowed(f.getDeclaringClass()) == false)
-            .findFirst();
+    public void checkWriteAllSystemProperties(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, WriteAllSystemPropertiesEntitlement.class);
     }
 
     @Override
@@ -471,9 +457,7 @@ public class PolicyCheckerImpl implements PolicyChecker {
     private void notEntitled(String message, Class<?> requestingClass, ModuleEntitlements entitlements) {
         var exception = new NotEntitledException(message);
         // Don't emit a log for suppressed packages, e.g. packages containing self tests
-        // a generated class can have no package
-        Package requestingPackage = requestingClass.getPackage();
-        if (requestingPackage == null || suppressFailureLogPackages.contains(requestingPackage) == false) {
+        if (suppressFailureLogPackages.contains(requestingClass.getPackage()) == false) {
             entitlements.logger(requestingClass).debug("Not entitled: {}", message, exception);
         }
         throw exception;

@@ -316,6 +316,15 @@ public class Policies {
     }
 
     /**
+     * Returns a check method for writing any system property.
+     *
+     * @return a check method that verifies entitlement for writing all system properties
+     */
+    public static CheckMethod writeAllSystemProperties() {
+        return (callingClass, policyChecker) -> policyChecker.checkWriteAllSystemProperties(callingClass);
+    }
+
+    /**
      * Returns a check method for writing system properties.
      *
      * @param property the property name being written

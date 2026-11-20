@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.runtime.registry;
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
 import org.elasticsearch.entitlement.instrumentation.MethodSignature;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
-import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.util.Map;
 
@@ -23,11 +22,6 @@ import java.util.Map;
  * and retrieve the full rule map for use by the instrumenter.
  */
 public interface InternalInstrumentationRegistry extends InstrumentationRegistry {
-
-    /**
-     * Returns the policy checker that the rules in this registry are checked with.
-     */
-    PolicyChecker policyChecker();
 
     /**
      * Returns all registered instrumentation rules, grouped by internal class name.

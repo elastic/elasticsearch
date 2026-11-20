@@ -147,6 +147,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToText;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -1727,6 +1728,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (plan.childrenResolved() == false) {
                 return plan;
             }
+            LogicalPlan withViewKeys = withKeysOfViewColumns(plan, context);
+            if (withViewKeys != plan) {
+                return withViewKeys;
+            }
             // TODO: assess if building this list is still required ahead of the switch, or if it can be done per command only where needed
             final List<Attribute> childrenOutput = new ArrayList<>();
 
@@ -1760,6 +1765,101 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             };
 
             return resolved;
+        }
+
+        /**
+         * The keys of a {@code flattened} column that a view exposes. A user cannot tell a view from an index, so a flattened column of a
+         * view's output exposes its keys as a flattened field of an index does, however the definition of the view produced the column
+         * (a rename, a copy, a union of subqueries). The key is read from the view's output column and added as a column of the view,
+         * {@code EVAL name = FIELD_EXTRACT(column, key)} atop each view branch that has the column, so that it flows out of the view like
+         * any other column of it. See {@link FlattenedKeyEsField} for the rules for keys.
+         * <p>
+         * This only applies to a column that comes out of a view. Outside views a renamed or copied flattened column does not expose
+         * its keys, and a key of a flattened field of an index is a field of that index, resolved by the index resolver.
+         */
+        private static LogicalPlan withKeysOfViewColumns(LogicalPlan plan, AnalyzerContext context) {
+            if (plan instanceof UnaryPlan == false
+                || plan instanceof Drop
+                || plan instanceof Rename
+                || context.configuration().flattenedKeys(context.minimumVersion()) == false) {
+                return plan;
+            }
+            UnaryPlan unary = (UnaryPlan) plan;
+            if (unary.child().anyMatch(node -> node instanceof BranchPlan branch && branch.viewBranchKeys().isEmpty() == false) == false) {
+                return plan;
+            }
+            List<Attribute> input = unary.child().output();
+            Set<String> inputNames = new HashSet<>(Expressions.names(input));
+            Set<String> definedHere = new HashSet<>();
+            unary.forEachExpression(Alias.class, alias -> definedHere.add(alias.name()));
+            Map<String, Attribute> keyRoots = new LinkedHashMap<>();
+            Set<String> ambiguous = new HashSet<>();
+            unary.forEachExpression(UnresolvedAttribute.class, ua -> {
+                String name = ua.name();
+                if (ua instanceof UnresolvedPattern
+                    || ua.qualifier() != null
+                    || name.indexOf('.') <= 0
+                    || inputNames.contains(name)
+                    || definedHere.contains(name)
+                    || keyRoots.containsKey(name)
+                    || ambiguous.contains(name)) {
+                    return;
+                }
+                Attribute root = null;
+                for (Attribute candidate : input) {
+                    if (candidate.dataType() == DataType.FLATTENED && name.startsWith(candidate.name() + ".")) {
+                        if (root != null) {
+                            ambiguous.add(name);
+                            return;
+                        }
+                        root = candidate;
+                    }
+                }
+                if (root != null) {
+                    keyRoots.put(name, root);
+                }
+            });
+            if (keyRoots.isEmpty()) {
+                return plan;
+            }
+            LogicalPlan newChild = unary.child().transformDown(BranchPlan.class, branch -> keysIntoViewBranches(branch, keyRoots));
+            return newChild == unary.child() ? plan : unary.replaceChild(newChild);
+        }
+
+        private static LogicalPlan keysIntoViewBranches(BranchPlan branch, Map<String, Attribute> keyRoots) {
+            List<LogicalPlan> children = branch.children();
+            List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+            boolean changed = false;
+            for (int i = 0; i < children.size(); i++) {
+                LogicalPlan child = children.get(i);
+                if (branch.isViewBranch(i)) {
+                    List<Alias> keys = new ArrayList<>();
+                    for (Map.Entry<String, Attribute> key : keyRoots.entrySet()) {
+                        Attribute root = key.getValue();
+                        // only the columns that are the union's own: the root the query sees is a column of this view
+                        if (branch.output().stream().noneMatch(a -> a.id().equals(root.id()))
+                            || child.outputSet().names().contains(key.getKey())) {
+                            continue;
+                        }
+                        for (Attribute column : child.output()) {
+                            if (column.name().equals(root.name()) && column.dataType() == DataType.FLATTENED) {
+                                String path = key.getKey().substring(root.name().length() + 1);
+                                Source source = child.source();
+                                keys.add(
+                                    new Alias(source, key.getKey(), new FieldExtract(source, column, Literal.keyword(source, path), true))
+                                );
+                                break;
+                            }
+                        }
+                    }
+                    if (keys.isEmpty() == false) {
+                        child = new Eval(child.source(), child, keys);
+                        changed = true;
+                    }
+                }
+                newChildren.add(child);
+            }
+            return changed ? branch.replaceChildren(newChildren) : branch;
         }
 
         private LogicalPlan resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {

@@ -468,7 +468,8 @@ f2         | c                       | null
 k1         | L                       | L
 ;
 
-// The key originates at the relation: replacing the flattened column does not replace its keys
+// A key is not tied to its parent: it is inferred to be there, as an unmapped field that is loaded, so replacing the flattened column
+// does not replace its keys. keyOfReplacedUnmappedUnderLoad is the same query for a field that is loaded from _source
 keyOfReplacedFlattenedStaysReadable
 required_capability: flattened_keys
 required_capability: flattened_keys_from_lookup_and_enrich
@@ -482,6 +483,21 @@ FROM flattened_paths_mapped
 id:keyword | attributes:keyword | attributes.host:keyword
 f1         | x                  | a
 f2         | x                  | c
+;
+
+keyOfReplacedUnmappedUnderLoad
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM flattened_paths_unmapped
+| EVAL attributes = "x"
+| KEEP id, attributes, attributes.host
+;
+
+id:keyword | attributes:keyword | attributes.host:keyword
+u1         | x                  | d
 ;
 
 // A key never shadows a mapped field: attributes.host keeps reading the main index, next to the attributes of the lookup index

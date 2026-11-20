@@ -3771,6 +3771,60 @@ a
 c
 ;
 
+// A view is a virtual index: when its definition renames a flattened field, the keys of that column are reached under the new name,
+// as if the view were an index that maps it as a flattened field of that name
+flattenedKeyOfRenamedColumnInView
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM view_flattened_renamed
+| KEEP attrs.host
+| SORT attrs.host
+;
+
+attrs.host:keyword
+a
+c
+;
+
+flattenedKeyOfRenamedColumnInViewFiltered
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM view_flattened_renamed
+| WHERE attrs.host == "a"
+| KEEP id, attrs.host
+;
+
+id:keyword | attrs.host:keyword
+f1         | a
+;
+
+// The view is a union of two subqueries that each contribute a flattened column named attrs from a different field. After the union,
+// attrs is one flattened column, and a key is read from whichever value a row holds
+flattenedKeysAfterSubqueriesInView
+required_capability: flattened_keys
+required_capability: flattened_keys_from_lookup_and_enrich
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+FROM view_flattened_subqueries
+| KEEP id, attrs.host, attrs.team
+| SORT id, attrs.host
+;
+
+id:keyword | attrs.host:keyword | attrs.team:keyword
+f1         | a                  | null
+f1         | null               | red
+f2         | c                  | null
+f2         | null               | blue
+;
+
 flattenedKeyInViewAndIndex
 skip_flattened_rewrite: keyword_also_a_flattened_key
 required_capability: flattened_keys

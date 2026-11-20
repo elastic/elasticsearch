@@ -1,0 +1,2 @@
+FROM flattened_paths_mapped
+| RENAME attributes AS attrs

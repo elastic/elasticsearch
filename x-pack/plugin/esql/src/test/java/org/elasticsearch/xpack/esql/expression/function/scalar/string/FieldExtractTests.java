@@ -48,7 +48,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(new BytesRef("{\"host.name\":\"node-a\"}"), DataType.FLATTENED, "field"),
                         new TestCaseSupplier.TypedData(new BytesRef("host.name"), pathType, "path")
                     ),
-                    "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
+                    "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1], silentMissingKey=false]",
                     DataType.KEYWORD,
                     equalTo(new BytesRef("node-a"))
                 );
@@ -62,7 +62,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef("{\"k.inner\":\"v\"}"), DataType.FLATTENED, "field"),
                     new TestCaseSupplier.TypedData(new BytesRef("k.inner"), DataType.KEYWORD, "path").forceLiteral()
                 ),
-                "FieldExtractConstantEvaluator[flattenedJson=Attribute[channel=0], path=k.inner]",
+                "FieldExtractConstantEvaluator[flattenedJson=Attribute[channel=0], path=k.inner, silentMissingKey=false]",
                 DataType.KEYWORD,
                 equalTo(new BytesRef("v"))
             );
@@ -75,7 +75,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(new BytesRef("{\"a\":1}"), DataType.FLATTENED, "field"),
                     new TestCaseSupplier.TypedData(new BytesRef("missing"), DataType.KEYWORD, "path")
                 ),
-                "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
+                "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1], silentMissingKey=false]",
                 DataType.KEYWORD,
                 nullValue()
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -107,7 +107,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
                                 new TestCaseSupplier.TypedData(json, DataType.FLATTENED, "field"),
                                 new TestCaseSupplier.TypedData(new BytesRef(missingKey), DataType.KEYWORD, "path")
                             ),
-                            "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
+                            "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1], silentMissingKey=false]",
                             DataType.KEYWORD,
                             nullValue()
                         ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -140,8 +140,8 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
             // The constant-path evaluator bakes the literal key into its toString, so the
             // expected string is derived from the same random key used to build the inputs.
             String expectedToString = asLiteral
-                ? "FieldExtractConstantEvaluator[flattenedJson=Attribute[channel=0], path=" + flat.key() + "]"
-                : "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]";
+                ? "FieldExtractConstantEvaluator[flattenedJson=Attribute[channel=0], path=" + flat.key() + ", silentMissingKey=false]"
+                : "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1], silentMissingKey=false]";
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(flat.json(), DataType.FLATTENED, "field"), pathData),
                 expectedToString,

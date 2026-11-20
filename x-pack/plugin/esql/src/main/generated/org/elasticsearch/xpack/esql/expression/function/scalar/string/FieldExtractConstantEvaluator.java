@@ -32,15 +32,18 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
 
   private final String path;
 
+  private final boolean silentMissingKey;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public FieldExtractConstantEvaluator(Source source, ExpressionEvaluator flattenedJson,
-      String path, DriverContext driverContext) {
+      String path, boolean silentMissingKey, DriverContext driverContext) {
     this.source = source;
     this.flattenedJson = flattenedJson;
     this.path = path;
+    this.silentMissingKey = silentMissingKey;
     this.driverContext = driverContext;
   }
 
@@ -80,7 +83,7 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
         }
         BytesRef flattenedJson = flattenedJsonBlock.getBytesRef(flattenedJsonBlock.getFirstValueIndex(p), flattenedJsonScratch);
         try {
-          FieldExtract.processConstant(result, flattenedJson, this.path);
+          FieldExtract.processConstant(result, flattenedJson, this.path, this.silentMissingKey);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -96,7 +99,7 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef flattenedJson = flattenedJsonVector.getBytesRef(p, flattenedJsonScratch);
         try {
-          FieldExtract.processConstant(result, flattenedJson, this.path);
+          FieldExtract.processConstant(result, flattenedJson, this.path, this.silentMissingKey);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,7 +111,7 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
 
   @Override
   public String toString() {
-    return "FieldExtractConstantEvaluator[" + "flattenedJson=" + flattenedJson + ", path=" + path + "]";
+    return "FieldExtractConstantEvaluator[" + "flattenedJson=" + flattenedJson + ", path=" + path + ", silentMissingKey=" + silentMissingKey + "]";
   }
 
   @Override
@@ -130,20 +133,24 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
 
     private final String path;
 
-    public Factory(Source source, ExpressionEvaluator.Factory flattenedJson, String path) {
+    private final boolean silentMissingKey;
+
+    public Factory(Source source, ExpressionEvaluator.Factory flattenedJson, String path,
+        boolean silentMissingKey) {
       this.source = source;
       this.flattenedJson = flattenedJson;
       this.path = path;
+      this.silentMissingKey = silentMissingKey;
     }
 
     @Override
     public FieldExtractConstantEvaluator get(DriverContext context) {
-      return new FieldExtractConstantEvaluator(source, flattenedJson.get(context), path, context);
+      return new FieldExtractConstantEvaluator(source, flattenedJson.get(context), path, silentMissingKey, context);
     }
 
     @Override
     public String toString() {
-      return "FieldExtractConstantEvaluator[" + "flattenedJson=" + flattenedJson + ", path=" + path + "]";
+      return "FieldExtractConstantEvaluator[" + "flattenedJson=" + flattenedJson + ", path=" + path + ", silentMissingKey=" + silentMissingKey + "]";
     }
   }
 }

@@ -441,6 +441,17 @@ public class EsqlSession {
         this.ipLocationService = services.ipLocationService();
     }
 
+    /**
+     * Whether the view branches have to survive resolution and compaction so that the keys of a flattened column of a view can be
+     * added at its boundary: a view is a virtual index, and a query that names a dotted field may mean a key of a flattened column
+     * that a view's definition produces, which only the view's own branch can tell. Pass-through views still collapse.
+     */
+    private boolean flattenedKeysNeedViewBranches(LogicalPlan plan) {
+        return EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled()
+            && indexResolver.flattenedDataTypeEnabled()
+            && FieldNameUtils.namedFields(plan).stream().anyMatch(name -> name.indexOf('.') > 0);
+    }
+
     public String sessionId() {
         return sessionId;
     }
@@ -549,6 +560,9 @@ public class EsqlSession {
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved)
         )) {
             boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_IDENTITY;
+        }
+        if (boundaryPreservation == ViewBoundaryPreservation.NONE && flattenedKeysNeedViewBranches(parsedPlan)) {
+            boundaryPreservation = ViewBoundaryPreservation.KEEP_VIEW_BRANCHES;
         }
         viewResolver.replaceViews(
             parsedPlan,
@@ -1952,7 +1966,8 @@ public class EsqlSession {
         // mirroring the decision in execute(): ViewCompaction (an analyzer rule reading AnalyzerContext.preserveViewBoundaries()) must not
         // collapse the lone-view wrappers that ResolveUnmapped null-fills outer references on. esql-planning#2273.
         boolean preserveViewBoundaries = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
-            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings);
+            || ViewBoundaryPreservation.analysisRequiresViewBranches(unmappedResolution, viewSettings)
+            || flattenedKeysNeedViewBranches(parsed);
 
         resolveIndicesAndAnalyze(
             parsed,

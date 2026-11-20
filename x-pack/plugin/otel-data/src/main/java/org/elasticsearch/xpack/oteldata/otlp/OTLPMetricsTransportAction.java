@@ -146,7 +146,9 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
         // fall through to doc-mode. Within a single data stream, BatchModeRouter handles routing to
         // multiple backing indices automatically via timestamp-based resolution.
         List<DataPointGroupingContext.DataPointGroup> allGroups = new ArrayList<>();
-        context.consume(allGroups::add);
+        context.forEachGroup(allGroups::add);
+        // The context outlives this method (it is referenced by the bulk response listener); only allGroups is used from here on.
+        context.clearResourceGroups();
 
         // Snapshot volatile setting to have it consistent for this request
         boolean exemplarIngestionEnabled = this.exemplarIngestionEnabled;

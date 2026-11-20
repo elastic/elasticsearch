@@ -487,11 +487,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             if (handler != null) {
-                var supportedParams = handler.supportedQueryParameters();
-                assert supportedParams == handler.supportedQueryParameters()
-                    : handler.getName() + ": did not return same instance from supportedQueryParameters()";
-                return (supportedParams == null || supportedParams.containsAll(parameters))
-                    && handler.supportedCapabilities().containsAll(capabilities);
+                return handler.supportsQueryParameters(parameters) && handler.supportedCapabilities().containsAll(capabilities);
             }
         }
         return false;
@@ -564,7 +560,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         final int contentLength = request.isFullContent() ? request.contentLength() : 0;
         try {
-            if (handler.canTripCircuitBreaker()) {
+            if (handler.canTripCircuitBreaker() || contentLength > ParsedContentReservation.NON_TRIPPING_ALLOWANCE_BYTES) {
                 inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
             } else {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);

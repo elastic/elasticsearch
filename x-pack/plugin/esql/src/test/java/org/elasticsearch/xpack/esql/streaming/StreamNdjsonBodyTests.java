@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.streaming;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
@@ -204,6 +204,7 @@ public class StreamNdjsonBodyTests extends AbstractStreamTestCase {
         createStream("s").append(4).append(3);
         Read read = read(request("s"));
         assertThat(read.values(), equalTo(range(0, 7)));
+        assertThat("the rows are a valid part of the result", read.httpStatus(), equalTo(RestStatus.OK));
         assertThat(read.first().get("query_status"), equalTo("running"));
         assertThat(read.last().get("complete"), equalTo(false));
         assertThat(read.last().get("next_offset"), equalTo(7));
@@ -235,28 +236,44 @@ public class StreamNdjsonBodyTests extends AbstractStreamTestCase {
         assertThat(read.last().get("is_partial"), equalTo(true));
         assertThat(read.last().get("next_offset"), equalTo(7));
         Map<?, ?> error = (Map<?, ?>) read.last().get("error");
+        assertThat(error.get("type"), equalTo("illegal_state_exception"));
         assertThat(error.get("reason"), equalTo("boom"));
     }
 
-    public void testFailedStreamWithNoRowsAtTheOffsetIsAnHttpError() {
+    /**
+     * A client that resumes from {@code next_offset} ends here. The response has the same lines as a read with rows, so the client
+     * still gets the stored type of the failure. Only the HTTP status tells that nothing was read.
+     */
+    public void testFailedStreamWithNoRowsAtTheOffsetHasTheErrorStatusAndTheSameLastLine() {
         createStream("s").append(4).fail(new IllegalStateException("boom"));
-        Exception e = readFailure(service(), request("s", 4, GetStreamResultRequest.NO_LIMIT, GetStreamResultRequest.NO_LIMIT));
-        // The stored failure keeps only its type, reason and status, so the HTTP error is rebuilt from the status.
-        assertThat(e, instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-        assertThat(e.getMessage(), equalTo("boom"));
+        Read read = read(request("s", 4, GetStreamResultRequest.NO_LIMIT, GetStreamResultRequest.NO_LIMIT));
+        assertThat(read.httpStatus(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(read.first().get("id"), equalTo("s"));
+        assertThat(read.first().get("query_status"), equalTo("failed"));
+        assertThat(read.rows(), equalTo(List.of()));
+        assertThat(read.last().get("status"), equalTo(500));
+        assertThat(read.last().get("complete"), equalTo(false));
+        assertThat(read.last().get("is_partial"), equalTo(true));
+        assertThat(read.last().get("next_offset"), equalTo(4));
+        assertThat(read.last(), hasKey("warnings"));
+        Map<?, ?> error = (Map<?, ?>) read.last().get("error");
+        assertThat(error.get("type"), equalTo("illegal_state_exception"));
+        assertThat(error.get("reason"), equalTo("boom"));
     }
 
     /**
      * A query can fail with a "not found" of its own, for example when an index it reads is deleted. That is the failure of the query,
      * and it must reach the client as it is: it must not be turned into the bare "not found" of an unknown stream.
      */
-    public void testFailedStreamWhoseFailureIsNotFoundKeepsItsReason() {
+    public void testFailedStreamWhoseFailureIsNotFoundKeepsItsTypeAndReason() {
         createStream("s").fail(new ResourceNotFoundException("no such index [logs]"));
-        Exception e = readFailure(service(), request("s"));
-        assertThat(e, instanceOf(ElasticsearchStatusException.class));
-        assertThat(((ElasticsearchStatusException) e).status(), equalTo(RestStatus.NOT_FOUND));
-        assertThat(e.getMessage(), equalTo("no such index [logs]"));
+        Read read = read(request("s"));
+        assertThat(read.httpStatus(), equalTo(RestStatus.NOT_FOUND));
+        assertThat(read.first().get("query_status"), equalTo("failed"));
+        assertThat(read.last().get("status"), equalTo(404));
+        Map<?, ?> error = (Map<?, ?>) read.last().get("error");
+        assertThat(error.get("type"), equalTo("resource_not_found_exception"));
+        assertThat(error.get("reason"), equalTo("no such index [logs]"));
     }
 
     public void testFailedStreamStatusOnlyIsNotAnHttpError() {
@@ -264,11 +281,12 @@ public class StreamNdjsonBodyTests extends AbstractStreamTestCase {
         Read read = read(request("s", 0, 0, GetStreamResultRequest.NO_LIMIT));
         assertThat(read.first().get("query_status"), equalTo("failed"));
         assertThat(read.last(), hasKey("error"));
+        assertThat(read.httpStatus(), equalTo(RestStatus.OK));
     }
 
-    public void testCancelledStream() {
-        createStream("s").append(4);
-        StreamStorage cancelled = new DelegatingStreamStorage(store) {
+    /** The storage cannot mark a stream as cancelled yet, so the status is changed on the way out of the store. */
+    private StreamStorage cancelledStorage() {
+        return new DelegatingStreamStorage(store) {
             @Override
             public void getMetadata(String streamId, ActionListener<StreamMetadata> listener) {
                 super.getMetadata(
@@ -288,11 +306,54 @@ public class StreamNdjsonBodyTests extends AbstractStreamTestCase {
                 );
             }
         };
-        Read read = read(service(cancelled), request("s"));
+    }
+
+    public void testCancelledStreamGivesTheStoredRowsAndTheCancellationInTheLastLine() {
+        createStream("s").append(4);
+        Read read = read(service(cancelledStorage()), request("s"));
+        assertThat("the rows are a valid part of the result", read.httpStatus(), equalTo(RestStatus.OK));
         assertThat(read.values(), equalTo(range(0, 4)));
         assertThat(read.first().get("query_status"), equalTo("cancelled"));
+        assertCancelledLastLine(read, 4);
+    }
+
+    /**
+     * A client that resumes from {@code next_offset} until the result is complete ends here. The error status and the error in the
+     * last line tell it to stop: without them every read would return at once with no rows and the same offset, for ever.
+     */
+    public void testCancelledStreamWithNoRowsAtTheOffsetHasTheErrorStatus() {
+        createStream("s").append(4);
+        // a wait must not hold the request either: a cancelled stream gets no more rows
+        GetStreamResultRequest request = new GetStreamResultRequest(
+            "s",
+            4,
+            GetStreamResultRequest.NO_LIMIT,
+            GetStreamResultRequest.NO_LIMIT,
+            TimeValue.timeValueHours(1)
+        );
+        Read read = read(service(cancelledStorage()), request);
+        assertThat(read.httpStatus(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(read.rows(), equalTo(List.of()));
+        assertThat(read.first().get("query_status"), equalTo("cancelled"));
+        assertCancelledLastLine(read, 4);
+    }
+
+    public void testCancelledStreamStatusOnlyIsNotAnHttpError() {
+        createStream("s").append(4);
+        Read read = read(service(cancelledStorage()), request("s", 0, 0, GetStreamResultRequest.NO_LIMIT));
+        assertThat(read.httpStatus(), equalTo(RestStatus.OK));
+        assertThat(read.first().get("query_status"), equalTo("cancelled"));
+        assertCancelledLastLine(read, 0);
+    }
+
+    private static void assertCancelledLastLine(Read read, int nextOffset) {
+        assertThat(read.last().get("status"), equalTo(400));
         assertThat(read.last().get("complete"), equalTo(false));
-        assertThat(read.last(), not(hasKey("error")));
+        assertThat(read.last().get("is_partial"), equalTo(true));
+        assertThat(read.last().get("next_offset"), equalTo(nextOffset));
+        Map<?, ?> error = (Map<?, ?>) read.last().get("error");
+        assertThat(error.get("type"), equalTo("task_cancelled_exception"));
+        assertThat(error.get("reason"), equalTo("stream [s] was cancelled"));
     }
 
     public void testWarningsAreReturnedInTheLastLine() {

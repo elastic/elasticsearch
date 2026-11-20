@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -171,8 +172,8 @@ public abstract class AbstractStreamTestCase extends ESTestCase {
         return new GetStreamResultRequest(id, offset, maxRows, maxBytes, null);
     }
 
-    /** What a client sees: the first line, every row, and the last line. */
-    protected record Read(Map<String, Object> first, List<List<Object>> rows, Map<String, Object> last) {
+    /** What a client sees: the HTTP status, the first line, every row, and the last line. */
+    protected record Read(RestStatus httpStatus, Map<String, Object> first, List<List<Object>> rows, Map<String, Object> last) {
         List<Long> values() {
             List<Long> values = new ArrayList<>();
             for (List<Object> row : rows) {
@@ -198,6 +199,7 @@ public abstract class AbstractStreamTestCase extends ESTestCase {
         FakeRestChannel channel = new FakeRestChannel(new FakeRestRequest(), true);
         StreamNdjsonBody body = new StreamNdjsonBody(channel, response);
         try {
+            RestStatus httpStatus = body.httpStatus();
             List<String> lines = new ArrayList<>();
             ChunkedRestResponseBodyPart part = body.firstPart();
             while (true) {
@@ -221,7 +223,7 @@ public abstract class AbstractStreamTestCase extends ESTestCase {
             for (String line : lines.subList(1, lines.size() - 1)) {
                 rows.add(parseList(line));
             }
-            return new Read(first, rows, last);
+            return new Read(httpStatus, first, rows, last);
         } catch (IOException e) {
             throw new AssertionError(e);
         } finally {

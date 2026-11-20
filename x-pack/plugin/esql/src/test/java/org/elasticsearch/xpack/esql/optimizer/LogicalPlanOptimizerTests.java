@@ -3270,6 +3270,16 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(plan.output()), equalTo(List.of("x")));
     }
 
+    /**
+     * A {@link NullCast} can't be serialized, so the verification of the optimized plan reports one the optimizer left behind.
+     */
+    public void testNullCastLeftByTheOptimizerIsReported() {
+        Row row = new Row(EMPTY, List.of(new Alias(EMPTY, "x", new NullCast(EMPTY, Literal.integer(EMPTY, 1), IP))));
+        Failures failures = LogicalVerifier.INSTANCE.verify(row, row.output());
+        assertTrue(failures.hasFailures());
+        assertThat(failures.toString(), containsString("was not replaced with null by the optimizer"));
+    }
+
     public void testImpossibleCastOfGroupingKeyIsNullPerGroup() {
         assumeTrue("Impossible casts are null on current nodes", versionMode == VersionMode.CURRENT);
         var plan = optimizedPlan("FROM test | STATS x = languages::ip BY languages");

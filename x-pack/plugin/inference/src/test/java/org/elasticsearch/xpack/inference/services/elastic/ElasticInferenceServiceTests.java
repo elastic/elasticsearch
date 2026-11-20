@@ -55,6 +55,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentObject;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage;
 import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl;
 import org.elasticsearch.inference.completion.ContentObjects;
@@ -88,6 +89,8 @@ import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.InferencePreferencesCache;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -110,10 +113,10 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidationResult;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -157,7 +160,6 @@ import static org.hamcrest.Matchers.isA;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -858,12 +860,12 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testChatCompletionValidation_SkipsProbeForImageOnlyModel() throws IOException {
+    public void testChatCompletionValidation_SendsTextAndImageProbeForImageOnlyModel() throws IOException {
         var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        // jina-ocr-v1 rejects text-only requests, so validation must not send a probe request
+        // jina-ocr-v1 rejects text-only requests, so the probe must include an image
         var model = ElasticInferenceServiceCompletionModelTests.createModel(
             "http://localhost",
             "inference-id",
@@ -874,11 +876,16 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
         try (var service = createService(factory)) {
             var validator = ModelValidatorBuilder.buildModelValidator(TaskType.CHAT_COMPLETION, service);
-            var listener = new TestPlainActionFuture<ModelValidationResult>();
-            validator.validate(service, model, TEST_REQUEST_TIMEOUT, listener);
+            validator.validate(service, model, TEST_REQUEST_TIMEOUT, new TestPlainActionFuture<>());
 
-            assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT).model(), is(model));
-            verify(sender, never()).send(any(), any(), any(), any());
+            var inputsCaptor = ArgumentCaptor.forClass(InferenceInputs.class);
+            verify(sender, times(1)).send(any(), inputsCaptor.capture(), any(), any());
+            var inputs = (UnifiedChatInput) inputsCaptor.getValue();
+            var content = inputs.getRequest().messages().getFirst().content();
+            assertTrue(content.containsMultimodalContent());
+            assertThat(content, instanceOf(ContentObjects.class));
+            var types = ((ContentObjects) content).contentObjects().stream().map(ContentObject::type).toList();
+            assertThat(types, is(List.of(ContentObject.ContentObjectType.TEXT, ContentObject.ContentObjectType.IMAGE_URL)));
         }
     }
 
@@ -901,7 +908,10 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var validator = ModelValidatorBuilder.buildModelValidator(TaskType.CHAT_COMPLETION, service);
             validator.validate(service, model, TEST_REQUEST_TIMEOUT, new TestPlainActionFuture<>());
 
-            verify(sender, times(1)).send(any(), any(), any(), any());
+            var inputsCaptor = ArgumentCaptor.forClass(InferenceInputs.class);
+            verify(sender, times(1)).send(any(), inputsCaptor.capture(), any(), any());
+            var inputs = (UnifiedChatInput) inputsCaptor.getValue();
+            assertFalse(inputs.getRequest().messages().getFirst().content().containsMultimodalContent());
         }
     }
 

@@ -2,5 +2,5 @@ area: Machine Learning
 issues:
  - 166844
 pr: 166854
-summary: Skip text-only validation probe for the image-only EIS chat completion model jina-ocr-v1
+summary: Send a text and image validation probe for the image-only EIS chat completion model jina-ocr-v1
 type: bug

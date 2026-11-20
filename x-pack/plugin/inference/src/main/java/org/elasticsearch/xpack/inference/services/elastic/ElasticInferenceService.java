@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.validation.ImageChatCompletionServiceIntegrationValidator;
 import org.elasticsearch.xpack.inference.services.validation.SimpleChatCompletionServiceIntegrationValidator;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
@@ -225,16 +226,18 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
 
     /**
      * The default chat completion validation sends a text-only request, which image-only models reject. EIS doesn't tell Elasticsearch
-     * which input types a model accepts, so skip the probe for the known image-only model and validate all others as usual.
+     * which input types a model accepts, so send a text and image probe for the known image-only model and the default probe for all
+     * others.
      * TODO replace the model ID check once EIS advertises the input types each model accepts
      */
     @Override
     public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
         if (taskType == CHAT_COMPLETION) {
             var defaultValidator = new SimpleChatCompletionServiceIntegrationValidator();
+            var imageValidator = new ImageChatCompletionServiceIntegrationValidator();
             return (service, model, timeout, listener) -> {
                 if (IMAGE_ONLY_CHAT_COMPLETION_MODEL_ID.equals(model.getServiceSettings().modelId())) {
-                    listener.onResponse(null);
+                    imageValidator.validate(service, model, timeout, listener);
                 } else {
                     defaultValidator.validate(service, model, timeout, listener);
                 }

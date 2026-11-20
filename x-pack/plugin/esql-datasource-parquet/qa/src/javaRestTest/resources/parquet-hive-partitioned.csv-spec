@@ -89,6 +89,34 @@ count:long
 63
 ;
 
+// An OR of two values on the partition column narrows the listing to lang IN (1, 3): the lang=1 (15) and
+// lang=3 (17) buckets. The lang=null rows match neither branch and must not appear.
+hivePartitionOrSameColumn
+required_capability: dataset_in_from_command
+dataset: employees_hive: "{{employees_hive}}"
+
+FROM employees_hive
+| WHERE lang == 1 OR lang == 3
+| STATS count = COUNT(*);
+
+count:long
+32
+;
+
+// Both branches pin `lang`, so the listing narrows to lang IN (1, 3) while each branch keeps its own gender:
+// lang=1 M rows (9) plus lang=3 F rows (6).
+hivePartitionOrAcrossColumnsSharingTheKey
+required_capability: dataset_in_from_command
+dataset: employees_hive: "{{employees_hive}}"
+
+FROM employees_hive
+| WHERE (lang == 1 AND gender == "M") OR (lang == 3 AND gender == "F")
+| STATS count = COUNT(*);
+
+count:long
+15
+;
+
 // NOT (lang == 3 OR gender == "M") survives when both sides are FALSE. The
 // employees fixture has blank gender cells which read as "" on a keyword column.
 // "" != "M", so those rows pass alongside the F rows in lang {1,2,4,5}.

@@ -15,8 +15,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.BeforeClass;
@@ -80,12 +83,40 @@ public class ParamAnyValueParserTests extends ESTestCase {
         assertThat(TEST_PARSER.anyParamValue(Map.of(QuerySettings.PARAM_ANY_VALUE, "custom")), equalTo("custom"));
     }
 
-    public void testEmptyRequestValueIsRejectedBeforeParsing() {
+    public void testEmptyRequestValueDoesNotStartTheParser() {
+        assertThat(TEST_PARSER.anyParamValue(Map.of(QuerySettings.PARAM_ANY_VALUE, "")), equalTo("__ANY__"));
+    }
+
+    public void testEmptyRequestValueIsRejectedWhenResolvingTheSettings() {
+        Map<QuerySettingDef<?>, Object> requestSettings = Map.of(QuerySettings.PARAM_ANY_VALUE, "");
+        EsqlStatement statement = TEST_PARSER.parse(
+            "ROW x = 1",
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS,
+            requestSettings
+        );
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> parse(TEST_PARSER, "ROW x = 1", new QueryParams(), Map.of(QuerySettings.PARAM_ANY_VALUE, ""))
+            () -> QuerySettings.resolve(requestSettings, statement, new SettingsValidationContext(false, true))
         );
         assertThat(e.getMessage(), containsString("Error validating setting [param_any_value]: must not be empty"));
+    }
+
+    public void testSetOverridesAnEmptyRequestValue() {
+        Map<QuerySettingDef<?>, Object> requestSettings = Map.of(QuerySettings.PARAM_ANY_VALUE, "");
+        QueryParams params = new QueryParams(List.of(paramAsConstant("x", "custom")));
+        EsqlStatement statement = TEST_PARSER.parse(
+            "SET param_any_value = \"custom\"; ROW a = 1 | WHERE a == ?x",
+            params,
+            new InferenceSettings(Settings.EMPTY),
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS,
+            requestSettings
+        );
+        ResolvedSettings resolved = QuerySettings.resolve(requestSettings, statement, new SettingsValidationContext(false, true));
+        assertThat(QuerySettings.PARAM_ANY_VALUE.get(resolved), equalTo("custom"));
     }
 
     public void testContextValueIsKeptWithoutSet() {

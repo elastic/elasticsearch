@@ -109,3 +109,12 @@ IS NOT NULL returns the same rows pushed down and evaluated on a keyword field:
           query: 'FROM test METADATA _id | LIMIT 100 | WHERE kwd IS NOT NULL | SORT _id | KEEP _id'
 
   - match: { values: $pushed }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS docs = COUNT(*) | LIMIT 1'
+
+  - match: { values: [ [ 10 ] ] }

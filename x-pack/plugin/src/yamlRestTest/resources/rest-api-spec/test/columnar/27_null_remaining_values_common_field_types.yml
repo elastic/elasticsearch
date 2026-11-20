@@ -1417,3 +1417,68 @@ synthetic source keeps the order and the duplicates of the values that remain af
 
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.date_nanos: ["2026-01-02T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }

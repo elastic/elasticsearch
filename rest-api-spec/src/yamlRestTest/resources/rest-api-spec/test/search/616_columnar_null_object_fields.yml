@@ -77,3 +77,14 @@ exists matches only objects with a non-null long value:
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: value }
   - match: { hits.hits.1._id: objects_null_then_value }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 6 }

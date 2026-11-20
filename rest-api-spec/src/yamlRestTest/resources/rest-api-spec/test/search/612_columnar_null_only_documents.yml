@@ -98,6 +98,8 @@ exists in the default index mode matches only documents with a non-null value:
           - '{ "index": { "_id": "both_ends_null" } }'
           - '{ "kwd": [ null, "a", null ], "lng": [ null, 1, null ] }'
 
+  - match: { errors: false }
+
   - do:
       search:
         index: control
@@ -1031,3 +1033,14 @@ synthetic source drops the null elements of a date field:
   - match: { hits.hits.7._source.dt: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.8._source.dt: "2026-01-01T00:00:00.000Z" }
   - match: { hits.hits.9._source.dt: "2026-01-01T00:00:00.000Z" }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }

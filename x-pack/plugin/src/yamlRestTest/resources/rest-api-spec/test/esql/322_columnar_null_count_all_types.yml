@@ -64,3 +64,12 @@ COUNT counts only the values of each field type after a LIMIT:
           query: 'FROM test | LIMIT 100 | STATS kwd = COUNT(kwd), kwd_indexed = COUNT(kwd_indexed), txt = COUNT(txt), mot = COUNT(mot), lng = COUNT(lng), dt = COUNT(dt), addr = COUNT(addr), flag = COUNT(flag)'
 
   - match: { values: [ [ 2, 2, 2, 2, 2, 2, 2, 2 ] ] }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS docs = COUNT(*) | LIMIT 1'
+
+  - match: { values: [ [ 3 ] ] }

@@ -257,3 +257,41 @@ synthetic source keeps the order and the duplicates of the values that remain af
 
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.unsigned_long: [2, 1, 2] }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }

@@ -4348,3 +4348,68 @@ synthetic source drops the null elements of a geo_point field in columnar and lo
   - match: { hits.hits.7._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.8._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
   - match: { hits.hits.9._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }

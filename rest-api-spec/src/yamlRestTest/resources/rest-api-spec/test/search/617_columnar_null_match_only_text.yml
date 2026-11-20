@@ -339,3 +339,14 @@ synthetic source drops the null elements of a match_only_text field:
   - match: { hits.hits.7._source.mot: a }
   - match: { hits.hits.8._source.mot: a }
   - match: { hits.hits.9._source.mot: a }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }

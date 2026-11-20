@@ -247,3 +247,32 @@ columnar_stored drops the null elements of every field type on the row indexing 
         - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
         - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
         - _source: { kwd: a, txt: a, mot: a, lng: 1, dt: "2026-01-01T00:00:00.000Z", addr: "192.168.0.1", flag: true }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: synthetic_source
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: stored_source
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }
+
+  - do:
+      search:
+        index: stored_source_rows
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }

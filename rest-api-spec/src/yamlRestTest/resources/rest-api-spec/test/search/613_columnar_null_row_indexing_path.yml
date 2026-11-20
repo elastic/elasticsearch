@@ -160,3 +160,14 @@ synthetic source drops the null elements of a long field:
   - match: { hits.hits.7._source.lng: 1 }
   - match: { hits.hits.8._source.lng: 1 }
   - match: { hits.hits.9._source.lng: 1 }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }

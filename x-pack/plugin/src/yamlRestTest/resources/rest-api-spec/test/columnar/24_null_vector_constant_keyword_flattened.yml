@@ -663,3 +663,32 @@ exists on a constant_keyword field matches every document in every strict column
   - match: { hits.hits.9._id: empty_object }
   - match: { hits.hits.10._id: missing }
   - match: { hits.hits.11._id: vectors }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 12 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 12 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 12 }

@@ -168,3 +168,14 @@ value_count counts only the values of an ip field and a boolean field:
 
   - match: { aggregations.ip.value: 6 }
   - match: { aggregations.boolean.value: 6 }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 10 }

@@ -171,3 +171,14 @@ synthetic source drops the null elements of a keyword field that also holds an e
   - length: { hits.hits: 9 }
   - match: { hits.hits.6._source: { kwd: "" } }
   - match: { hits.hits.7._source: {} }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 9 }

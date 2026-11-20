@@ -136,6 +136,8 @@ exists matches only documents with a non-null value on an indexed keyword field 
           - '{ "delete": { "_id": "missing" } }'
           - '{ "delete": { "_id": "bare_null" } }'
 
+  - match: { errors: false }
+
   - do:
       indices.forcemerge:
         index: test
@@ -210,3 +212,14 @@ synthetic source drops the null elements of a long field:
   - match: { hits.hits.4._source.lng: 1 }
   - match: { hits.hits.5._source.lng: 1 }
   - match: { hits.hits.6._source: {} }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }

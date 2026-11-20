@@ -717,11 +717,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testClosingNodeShouldWaitForOngoingMerge
   issue: https://github.com/elastic/elasticsearch/issues/166623
-- class: org.elasticsearch.xpack.search.AsyncSearchAggregationChargeIT
-  tasks:
-  - :x-pack:plugin:async-search:internalClusterTest
-  method: testChargeIsReleasedOnceTheTaskStoredItsResponse
-  issue: https://github.com/elastic/elasticsearch/issues/166638
 - class: org.elasticsearch.xpack.stateless.lucene.GenerationalDocValuesIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

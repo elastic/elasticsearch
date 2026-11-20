@@ -117,6 +117,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.FlushMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -152,7 +153,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
+import org.elasticsearch.plugins.internal.RestoreProjectCustomUpdater;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -792,6 +793,7 @@ public class SnapshotResiliencyTestHelper {
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .mergeMetrics(MergeMetrics.NOOP)
+                    .flushMetrics(FlushMetrics.NOOP)
                     .throttlingRecoveryService(throttlingRecoveryService)
                     .build();
 
@@ -1025,7 +1027,7 @@ public class SnapshotResiliencyTestHelper {
                     false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
                     featureService,
-                    RestoreLifecycleListener.NOOP
+                    RestoreProjectCustomUpdater.NOOP
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

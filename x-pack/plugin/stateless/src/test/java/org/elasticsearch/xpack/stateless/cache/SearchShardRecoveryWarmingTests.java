@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SearchRecoveryTimeout.TimeoutContext;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.SearchRecoveryWaitOutcome;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
-import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BccBlob;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -333,7 +332,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
                 SourceShardWarmingInfo.NOT_REQUESTED,
@@ -393,7 +392,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mock(WarmingRatioProvider.class),
                 Map.of(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
+                    new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
                     WarmTarget.withUnknownTimestamp(1L, 1L)
                 ),
                 SourceShardWarmingInfo.NOT_REQUESTED,
@@ -454,10 +453,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 mockDirectory(),
                 mock(WarmingRatioProvider.class),
-                Map.of(
-                    new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)),
-                    new WarmTarget(1L, 1L, 1L)
-                ),
+                Map.of(new BccBlob(BccBlob.blobNameFromGeneration(1), new PrimaryTermAndGeneration(0, 1)), new WarmTarget(1L, 1L, 1L)),
                 SourceShardWarmingInfo.NOT_REQUESTED,
                 resume
             );
@@ -676,6 +672,32 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, SharedBlobCacheWarmingService.SEARCH_RECOVERY_WAIT_DURATION_METRIC);
         assertThat(measurements, hasSize(1));
         assertWaitOutcome(measurements.getFirst(), SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+    }
+
+    public void testSearchRecoveryWarmingListenerRegistersShardOnlyWhileRecoveryAwaitsWarming() {
+        try (var threadPool = new CapturingScheduleThreadPool(getTestName())) {
+            var service = newWarmingService(threadPool);
+            var indexShard = randomMockIndexShard();
+            PlainActionFuture<Void> resume = new PlainActionFuture<>();
+            var warmingListener = service.searchRecoveryWarmingListener(
+                new SearchRecoveryTimeout(TimeValue.timeValueMillis(randomLongBetween(1, 100_000)), TimeoutContext.RESHARD_SPLIT_TARGET),
+                () -> null, // unused in this test case: re-evaluation is disabled, so the cluster state is never read
+                indexShard,
+                mockDirectory(),
+                randomNonNegativeLong(),
+                resume
+            );
+            assertTrue(service.shardsAwaitingRecoveryWarming.contains(indexShard));
+
+            switch (between(0, 2)) {
+                case 0 -> warmingListener.onResponse(null);
+                case 1 -> warmingListener.onFailure(new ElasticsearchException(randomAlphaOfLength(10)));
+                case 2 -> threadPool.scheduledCommand.get().run();
+                default -> throw new AssertionError("unexpected case");
+            }
+            assertFalse(service.shardsAwaitingRecoveryWarming.contains(indexShard));
+            assertTrue(service.shardsAwaitingRecoveryWarming.isEmpty());
+        }
     }
 
     /// A warming failure that beats the timeout must propagate to the resume listener and still record the wait metric (attributed

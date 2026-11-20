@@ -332,6 +332,14 @@ public class NdJsonFormatReaderTests extends ESTestCase {
             e.getMessage(),
             containsString("NDJSON schema inference of [wide-first-line.ndjson] reached the decoded-byte sample limit")
         );
+        // Naming the object is why this refusal is typed, and typing it moved what a client reads: it answered an
+        // untyped argument error before, so error.type was illegal_argument_exception and the reason carried this
+        // diagnosis alone. Pinned here because the error-surface IT has no failing NDJSON probe, so nothing else
+        // would show the move. CsvFormatReaderTests pins the same boundary for the CSV refusals.
+        assertTrue(
+            "a typed refusal must open with the condition's prefix, got: " + e.getMessage(),
+            e.getMessage().startsWith("Malformed external data: ")
+        );
     }
 
     /**

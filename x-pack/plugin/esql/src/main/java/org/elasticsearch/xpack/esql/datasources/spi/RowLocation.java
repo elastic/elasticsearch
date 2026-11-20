@@ -25,9 +25,12 @@ import org.elasticsearch.core.Strings;
  * is the last path segment by design — it never returns the full URI, failing closed rather than leaking a
  * bucket or prefix — so a glob over objects sharing a basename names every one of them the same, and that
  * collision survives this class. What the byte clause does fix is two chunks of ONE object failing at the same
- * ordinal, which is every gzip read, since the stream is segmented and each segment's decoder counts from
- * zero; {@code InformationalWarningBudget} deduplicates by exact string, so those previously collapsed into
- * one warning with nothing to say a second record had failed.
+ * ordinal, which a stream-compressed object reaches once it is read in more than one chunk, each chunk's
+ * decoder counting from zero. Whether it is read that way is decided above this class, and not every such read
+ * is: {@code AsyncExternalSourceOperatorFactory.openWithParallelism} returns no parallel source when a
+ * {@code LIMIT} was pushed or {@code external_parsing_parallelism} is 1, and a single-chunk read counts from
+ * the file's own start. {@code InformationalWarningBudget} deduplicates by exact string, so two chunks that
+ * did collide previously collapsed into one warning with nothing to say a second record had failed.
  */
 public final class RowLocation {
 

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166927
+summary: "[Nested] Add snapshot NESTED_FLATTEN"
+type: feature

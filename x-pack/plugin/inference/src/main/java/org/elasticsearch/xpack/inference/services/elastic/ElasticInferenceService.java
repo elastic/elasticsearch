@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.validation.SimpleChatCompletionServiceIntegrationValidator;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
@@ -116,6 +117,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         DECISION
     );
     private static final String SERVICE_NAME = "Elastic";
+    static final String IMAGE_ONLY_CHAT_COMPLETION_MODEL_ID = "jina-ocr-v1";
 
     // TODO: revisit this value once EIS supports dense models
     // The default maximum batch size for dense text embeddings is proactively set to 16.
@@ -222,14 +224,21 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     /**
-     * EIS chat completion models can have input requirements that a generic text-only probe can't satisfy (for example, image-only
-     * models such as jina-ocr-v1 reject requests that don't contain an image). EIS doesn't tell Elasticsearch which input types a model
-     * accepts, so skip the probe request for chat completion endpoints rather than reject valid models.
+     * The default chat completion validation sends a text-only request, which image-only models reject. EIS doesn't tell Elasticsearch
+     * which input types a model accepts, so skip the probe for the known image-only model and validate all others as usual.
+     * TODO replace the model ID check once EIS advertises the input types each model accepts
      */
     @Override
     public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
         if (taskType == CHAT_COMPLETION) {
-            return (service, model, timeout, listener) -> listener.onResponse(null);
+            var defaultValidator = new SimpleChatCompletionServiceIntegrationValidator();
+            return (service, model, timeout, listener) -> {
+                if (IMAGE_ONLY_CHAT_COMPLETION_MODEL_ID.equals(model.getServiceSettings().modelId())) {
+                    listener.onResponse(null);
+                } else {
+                    defaultValidator.validate(service, model, timeout, listener);
+                }
+            };
         }
         return null;
     }

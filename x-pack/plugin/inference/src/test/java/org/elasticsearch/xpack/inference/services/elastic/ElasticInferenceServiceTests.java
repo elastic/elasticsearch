@@ -106,11 +106,12 @@ import org.elasticsearch.xpack.inference.services.elastic.documentextraction.Ela
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidationResult;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.EnforcingEmptyTaskSettings;
+import org.elasticsearch.xpack.inference.services.settings.ImmutableEmptyTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidationResult;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 
@@ -857,24 +858,50 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testChatCompletionValidation_DoesNotSendTextOnlyProbeRequest() throws IOException {
+    public void testChatCompletionValidation_SkipsProbeForImageOnlyModel() throws IOException {
         var sender = createMockSender();
-
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        // Image-only models such as jina-ocr-v1 reject text-only requests, so validation must not send a probe request
-        var model = getInvalidModel("jina-ocr-v1", "elastic", TaskType.CHAT_COMPLETION);
+        // jina-ocr-v1 rejects text-only requests, so validation must not send a probe request
+        var model = ElasticInferenceServiceCompletionModelTests.createModel(
+            "http://localhost",
+            "inference-id",
+            ElasticInferenceService.IMAGE_ONLY_CHAT_COMPLETION_MODEL_ID,
+            TaskType.CHAT_COMPLETION,
+            ImmutableEmptyTaskSettings.INSTANCE
+        );
 
         try (var service = createService(factory)) {
-            assertNull(service.getServiceIntegrationValidator(TaskType.TEXT_EMBEDDING));
-
             var validator = ModelValidatorBuilder.buildModelValidator(TaskType.CHAT_COMPLETION, service);
             var listener = new TestPlainActionFuture<ModelValidationResult>();
             validator.validate(service, model, TEST_REQUEST_TIMEOUT, listener);
 
             assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT).model(), is(model));
             verify(sender, never()).send(any(), any(), any(), any());
+        }
+    }
+
+    public void testChatCompletionValidation_SendsProbeForOtherModels() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var model = ElasticInferenceServiceCompletionModelTests.createModel(
+            "http://localhost",
+            "inference-id",
+            "rainbow-sprinkles",
+            TaskType.CHAT_COMPLETION,
+            ImmutableEmptyTaskSettings.INSTANCE
+        );
+
+        try (var service = createService(factory)) {
+            assertNull(service.getServiceIntegrationValidator(TaskType.TEXT_EMBEDDING));
+
+            var validator = ModelValidatorBuilder.buildModelValidator(TaskType.CHAT_COMPLETION, service);
+            validator.validate(service, model, TEST_REQUEST_TIMEOUT, new TestPlainActionFuture<>());
+
+            verify(sender, times(1)).send(any(), any(), any(), any());
         }
     }
 

@@ -97,6 +97,11 @@ public final class ListingWalkHarness implements StorageProvider {
         return listObjectPages.get() + listChildrenRequests.get();
     }
 
+    /** Prefixes passed to {@link #listObjects}, in call order. */
+    public List<String> listedPrefixes() {
+        return List.copyOf(listedPrefixes);
+    }
+
     /** Sep–Oct 2026, unpadded {@code year}/{@code month}/{@code day}, {@link #FILES_PER_DAY} files per day. */
     public static List<StorageEntry> fieldShapedTree() {
         return calendarTree(LOGS_PREFIX, FILES_PER_DAY);

@@ -1,0 +1,6 @@
+pr: 165880
+summary: Use parsed zone for ingest dates without a year
+area: Ingest Node
+type: bug
+issues:
+ - 82370

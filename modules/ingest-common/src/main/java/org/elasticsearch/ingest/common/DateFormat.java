@@ -20,6 +20,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.time.temporal.TemporalQueries;
 import java.time.temporal.WeekFields;
 import java.util.Arrays;
 import java.util.List;
@@ -114,7 +115,9 @@ enum DateFormat {
                         }
                     }
 
-                    accessor = newTime.withZoneSameLocal(zoneId);
+                    // a zone or offset parsed from the input takes precedence over the processor timezone, as in DateFormatters#from
+                    ZoneId parsedZone = accessor.query(TemporalQueries.zone());
+                    accessor = newTime.withZoneSameLocal(parsedZone != null ? parsedZone : zoneId);
                 }
 
                 return DateFormatters.from(accessor, locale, zoneId).withZoneSameInstant(zoneId);

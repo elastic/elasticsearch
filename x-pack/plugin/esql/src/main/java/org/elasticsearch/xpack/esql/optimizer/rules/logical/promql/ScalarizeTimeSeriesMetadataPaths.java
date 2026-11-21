@@ -56,7 +56,11 @@ import java.util.Map;
  *     <li>A read of the container the time-series aggregate groups by is the source's dimension field, which the aggregate
  *     groups by too: the series determines its dimensions, so the groups stay, and the aggregate reads a dimension once per
  *     series, whole, as it reads a label the query groups by. The fields of a column of semi-structured data are read the
- *     same way in Sinew and JSON Tiles. A label the container leaves out, or that no field holds, is null.</li>
+ *     same way in Sinew and JSON Tiles. A label the container leaves out, or that no field holds, is null. The container
+ *     is loaded from {@code _source} and the field from its doc values, so a label of several values reads sorted and
+ *     without repeats, and a normalized one normalized, as a label grouped by {@code by(...)} reads; {@code PromQL} labels
+ *     have one value and no normalizer, so they read the same. Only keyword dimensions are read: the source text of any
+ *     other type, such as {@code 1.0} coerced into a {@code long}, is not in its doc values.</li>
  *     <li>The value gets a temporary name where it is defined and goes up to the read as Trino's dereference pushdown carries
  *     a field: a {@link Project} on the way projects it, a node that keeps its input's output passes it, and either side of a
  *     {@link HashJoin} passes it, the temporary name keeping it apart from the other side's labels. A plain {@link Aggregate}

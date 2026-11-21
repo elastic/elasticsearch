@@ -26,12 +26,19 @@ public class CreateDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8));
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, randomAlphaOfLength(8), randomNonNegativeLong());
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String name = instance.getName();
+        long startTime = instance.getStartTime();
+        switch (between(0, 1)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(8));
+            case 1 -> startTime = randomValueOtherThan(startTime, () -> randomNonNegativeLong());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name, startTime);
     }
 
     public void testValidateRequest() {

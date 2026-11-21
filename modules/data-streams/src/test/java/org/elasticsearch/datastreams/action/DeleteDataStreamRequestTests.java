@@ -11,8 +11,11 @@ package org.elasticsearch.datastreams.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction.Request;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -26,12 +29,50 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
 
     @Override
     protected Request createTestInstance() {
-        return new Request(TEST_REQUEST_TIMEOUT, randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6)));
+        String[] names = randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6));
+        Request request = new Request(TEST_REQUEST_TIMEOUT, names);
+        if (randomBoolean()) {
+            // Also cover a non-default wildcard flag and indices options, so serialization round-trips them
+            request = request(names, randomBoolean(), randomIndicesOptions());
+        }
+        return request;
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        // getNames() returns the request's own array, so copy it to keep the mutation from sharing it with the input
+        String[] names = instance.getNames().clone();
+        boolean wildcardExpressionsOriginallySpecified = instance.isWildcardExpressionsOriginallySpecified();
+        IndicesOptions indicesOptions = instance.indicesOptions();
+        switch (between(0, 2)) {
+            case 0 -> names = randomValueOtherThanMany(
+                n -> Arrays.equals(n, instance.getNames()),
+                () -> randomArray(1, 3, String[]::new, () -> randomAlphaOfLength(6))
+            );
+            case 1 -> wildcardExpressionsOriginallySpecified = wildcardExpressionsOriginallySpecified == false;
+            case 2 -> indicesOptions = randomValueOtherThan(indicesOptions, DeleteDataStreamRequestTests::randomIndicesOptions);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return request(names, wildcardExpressionsOriginallySpecified, indicesOptions);
+    }
+
+    /**
+     * Builds a request with any combination of names and wildcard flag. The flag is final and derived from
+     * the names passed to the constructor, so the constructor is seeded with a wildcard or a concrete name to
+     * get the wanted flag, then the real names are swapped in, the same way security rewrites wildcard
+     * expressions into concrete names.
+     */
+    private static Request request(String[] names, boolean wildcardExpressionsOriginallySpecified, IndicesOptions indicesOptions) {
+        Request request = new Request(TEST_REQUEST_TIMEOUT, wildcardExpressionsOriginallySpecified ? "*" : "concrete-name");
+        // Fail fast if the constructor ever stops deriving the flag from wildcard names
+        assertThat(request.isWildcardExpressionsOriginallySpecified(), equalTo(wildcardExpressionsOriginallySpecified));
+        request.indices(names);
+        request.indicesOptions(indicesOptions);
+        return request;
+    }
+
+    private static IndicesOptions randomIndicesOptions() {
+        return IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
     }
 
     public void testValidateRequest() {

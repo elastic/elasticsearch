@@ -832,8 +832,3 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testWokenDriverRunsBeforeQueuedDrivers
   issue: https://github.com/elastic/elasticsearch/issues/165298
-- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
-  tasks:
-  - :x-pack:plugin:security:internalClusterTest
-  method: testSuggestProfilesWithHint
-  issue: https://github.com/elastic/elasticsearch/issues/166973

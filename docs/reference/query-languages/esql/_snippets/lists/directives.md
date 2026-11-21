@@ -1,1 +1,2 @@
 - [`SET`](/reference/query-languages/esql/directives/set.md) {applies_to}`stack: preview =9.3, ga 9.4+`
+- [`LET`](/reference/query-languages/esql/directives/let.md) {applies_to}`stack: ga 9.7+`

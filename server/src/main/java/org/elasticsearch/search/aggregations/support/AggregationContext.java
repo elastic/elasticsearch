@@ -278,6 +278,13 @@ public abstract class AggregationContext implements Releasable {
     public abstract CircuitBreaker breaker();
 
     /**
+     * Charges heap an aggregator keeps until the request ends, such as a compiled include/exclude pattern. Released with
+     * the search context, as the query path releases its compiled automata; {@link #breaker()} charges must be released
+     * by whoever made them.
+     */
+    public abstract void addCircuitBreakerMemory(long bytes, String label);
+
+    /**
      * Return the index-time analyzer for the current index
      * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
      */
@@ -591,6 +598,11 @@ public abstract class AggregationContext implements Releasable {
         public CircuitBreaker breaker() {
             // preallocatedBreakerService may be null if we haven't preallocated so use the one in bigArrays.
             return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        }
+
+        @Override
+        public void addCircuitBreakerMemory(long bytes, String label) {
+            context.addCircuitBreakerMemory(bytes, label);
         }
 
         @Override

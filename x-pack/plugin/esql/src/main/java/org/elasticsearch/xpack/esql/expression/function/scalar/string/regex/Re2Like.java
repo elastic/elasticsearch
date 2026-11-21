@@ -21,9 +21,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -154,13 +156,19 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         return this;
     }
 
-    private static boolean sameLanguage(Re2Pattern re2, RLikePattern lucene) {
+    /**
+     * Whether both syntaxes give the pattern the same strings. The automata and the differences between them are built
+     * within a fold budget, as a label matcher's automaton is, so that the check is bounded on the coordinator; a pattern
+     * past it is taken to differ.
+     */
+    private boolean sameLanguage(Re2Pattern re2, RLikePattern lucene) {
+        CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source());
         try {
-            Automaton a = re2.createAutomaton(false);
+            Automaton a = re2.createAutomaton(false, breaker, NAME);
             Automaton b = lucene.createAutomaton(false);
-            int limit = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
-            return Operations.isEmpty(Operations.minus(a, b, limit)) && Operations.isEmpty(Operations.minus(b, a, limit));
-        } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
+            return Operations.isEmpty(CircuitBreakingOperations.minus(a, b, breaker, NAME))
+                && Operations.isEmpty(CircuitBreakingOperations.minus(b, a, breaker, NAME));
+        } catch (IllegalArgumentException | TooComplexToDeterminizeException | FoldContext.FoldTooMuchMemoryException e) {
             return false;
         }
     }

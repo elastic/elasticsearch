@@ -31,7 +31,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -284,18 +286,31 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
     static final class Replacement {
         private final byte[] template;
         private final int groupCount;
-        /** The name of each group by index, so that a name used more than once expands to the first of its groups that matched. */
-        private final String[] groupNames;
+        /** The groups of each name, by index, so that a name used more than once expands to the first of them that matched. */
+        private final Map<String, int[]> namedGroups;
 
-        private Replacement(byte[] template, int groupCount, String[] groupNames) {
+        private Replacement(byte[] template, int groupCount, Map<String, int[]> namedGroups) {
             this.template = template;
             this.groupCount = groupCount;
-            this.groupNames = groupNames;
+            this.namedGroups = namedGroups;
         }
 
         /** Binds {@code template} to {@code pattern}'s group metadata, holding it as UTF-8 bytes for per-row expansion. */
         static Replacement of(String template, Pattern pattern) {
-            return new Replacement(template.getBytes(StandardCharsets.UTF_8), pattern.groupCount(), pattern.groupNames());
+            return new Replacement(template.getBytes(StandardCharsets.UTF_8), pattern.groupCount(), namedGroups(pattern.groupNames()));
+        }
+
+        private static Map<String, int[]> namedGroups(String[] groupNames) {
+            Map<String, int[]> groups = new HashMap<>();
+            for (int g = 1; g < groupNames.length; g++) {
+                if (groupNames[g] != null) {
+                    int[] previous = groups.get(groupNames[g]);
+                    int[] indices = previous == null ? new int[1] : Arrays.copyOf(previous, previous.length + 1);
+                    indices[indices.length - 1] = g;
+                    groups.put(groupNames[g], indices);
+                }
+            }
+            return groups;
         }
 
         /**
@@ -360,11 +375,14 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
                     }
                 } else {
                     String name = new String(t, nameStart, nameEnd - nameStart, StandardCharsets.UTF_8);
+                    int[] groups = namedGroups.get(name);
                     // As in Go, the first group of that name that matched; an unknown named reference expands to "".
-                    for (int g = 1; g < groupNames.length; g++) {
-                        if (name.equals(groupNames[g]) && matcher.start(g) >= 0) {
-                            appendGroup(matcher, input, out, g);
-                            break;
+                    if (groups != null) {
+                        for (int g : groups) {
+                            if (matcher.start(g) >= 0) {
+                                appendGroup(matcher, input, out, g);
+                                break;
+                            }
                         }
                     }
                 }

@@ -31,10 +31,12 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,11 +65,22 @@ public class UnicodeTablesGenerator {
 
   private final SortedMap<Integer, Integer> sortedOrbits = generateCaseFoldOrbits();
 
-  // ES: writes the tables to the file given, which the Gradle task declares as its output
+  // ES: writes the tables to the file given, replacing it only once they are generated and written whole
   public static void main(String[] args) throws IOException {
-    try (PrintStream out = new PrintStream(new FileOutputStream(args[0]), true, StandardCharsets.UTF_8)) {
-      System.setOut(out);
-      new UnicodeTablesGenerator();
+    Path target = Path.of(args[0]);
+    Path temp = Files.createTempFile(target.toAbsolutePath().getParent(), "UnicodeTables", ".tmp");
+    try {
+      try (PrintStream out = new PrintStream(Files.newOutputStream(temp), false, StandardCharsets.UTF_8)) {
+        System.setOut(out);
+        new UnicodeTablesGenerator();
+        out.flush();
+        if (out.checkError()) {
+          throw new IOException("failed to write " + temp);
+        }
+      }
+      Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+    } finally {
+      Files.deleteIfExists(temp);
     }
   }
 

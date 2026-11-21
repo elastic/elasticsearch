@@ -75,7 +75,7 @@ Time durations, such as `1h30m`, and duration arithmetic, such as `x[5m + 1m]`.
 
 A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_requests_total{job="api", code=~"5.."}`.
 
-{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The regex of `=~` and `!~` in RE2 syntax, as in {{prom}}, such as `{code=~"\\d{3}"}` and `{path=~"(?i)/api/.*"}`.
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The regex of `=~` and `!~` in RE2 syntax, as in {{prom}}, such as `{code=~"\\d{3}"}` and `{path=~"(?i)/api/.*"}`. During an upgrade from an earlier version, a pattern that Lucene regexp syntax reads differently, such as `(?i)/api/.*`, is rejected until every node is upgraded.
 
 **Not supported yet**
 

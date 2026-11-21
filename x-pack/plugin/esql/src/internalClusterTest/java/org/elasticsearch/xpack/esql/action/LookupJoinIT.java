@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -59,6 +61,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
@@ -409,6 +412,48 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         updateClusterSettings(Settings.builder().put(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey(), false));
         try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).profile(true))) {
             assertLookupOperator(response, false);
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey()));
+        }
+    }
+
+    /**
+     * The non-streaming lookup decides by itself whether an expression join can seek its keys in the terms dictionary,
+     * which finds nothing for a {@code keyword} with {@code index: false}.
+     */
+    public void testExpressionJoinOnKeyWithoutTermsStreamingDisabled() {
+        assertExpressionJoinStreamingDisabled("ip", "ip", "type=keyword,index=false");
+    }
+
+    public void testExpressionJoinOnAliasKeyStreamingDisabled() {
+        // without doc values term queries find nothing, so only seeking the terms of the alias's target passes
+        assertExpressionJoinStreamingDisabled("ip_real", "ip_real", "type=keyword,doc_values=false", "ip", "type=alias,path=ip_real");
+    }
+
+    private void assertExpressionJoinStreamingDisabled(String indexedAs, String... keyMapping) {
+        assertAcked(prepareCreate("firewall").setMapping("ip", "type=keyword"));
+        assertAcked(
+            prepareCreate("threats").setSettings(Settings.builder().put("index.mode", "lookup").put("index.number_of_shards", 1))
+                .setMapping(ArrayUtils.concat(keyMapping, new String[] { "threat_level", "type=keyword" }))
+        );
+        indexRandom(
+            true,
+            prepareIndex("firewall").setSource("ip", "192.0.2.1"),
+            prepareIndex("firewall").setSource("ip", "203.0.113.5"),
+            prepareIndex("threats").setSource(indexedAs, "203.0.113.5", "threat_level", "high")
+        );
+
+        String query = """
+            FROM firewall
+            | RENAME ip AS left_ip
+            | LOOKUP JOIN threats ON left_ip == ip
+            | KEEP left_ip, threat_level
+            | SORT left_ip
+            """;
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey(), false));
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).profile(true))) {
+            assertLookupOperator(response, false);
+            assertThat(getValuesList(response), equalTo(List.of(Arrays.asList("192.0.2.1", null), List.of("203.0.113.5", "high"))));
         } finally {
             updateClusterSettings(Settings.builder().putNull(EsqlPlugin.LOOKUP_JOIN_STREAMING.getKey()));
         }

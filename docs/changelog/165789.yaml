@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 152545
+pr: 165789
+summary: Fix LOOKUP JOIN on keyword keys without terms
+type: bug

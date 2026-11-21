@@ -276,6 +276,18 @@ public class Regexp {
     }
   }
 
+  // ES: the name of each capture by index, as Go's Regexp.SubexpNames has them, for expanding a name used more than once
+  void capNames(String[] names) {
+    if (op == Op.CAPTURE) {
+      names[cap] = name;
+    }
+    if (subs != null) {
+      for (Regexp sub : subs) {
+        sub.capNames(names);
+      }
+    }
+  }
+
   // maxCap() walks the regexp to find the maximum capture index.
   int maxCap() {
     int m = 0;

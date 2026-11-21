@@ -144,6 +144,12 @@ public class RegexExpandTests extends ESTestCase {
         assertThat(replace("(?P<foo_1>.*)", "$foo_1", "hi"), equalTo("hi"));
     }
 
+    public void testNameUsedMoreThanOnceExpandsToFirstGroupThatMatched() {
+        // As Go's Regexp.Expand: the first group of the name that took part in the match, by index.
+        assertThat(replace("(?P<n>a)(?P<n>b)", "$n", "ab"), equalTo("a"));
+        assertThat(replace("(?P<n>a)|(?P<n>b)", "${n}", "b"), equalTo("b"));
+    }
+
     // --- UTF-8 / byte-offset correctness: matching is on raw bytes and groups are sliced by byte offset ---
 
     public void testGroupAfterMultiByteRegionUsesByteOffsets() {

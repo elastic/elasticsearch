@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
@@ -142,6 +143,25 @@ public class LabelMatcherTests extends ESTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, matcher::automaton);
             assertThat(e.getMessage(), equalTo("Cannot parse regex " + regex));
             assertThat(e.getCause().getMessage(), containsString("repe"));
+        }
+    }
+
+    /**
+     * Repeats one after the other pass the parser's bound on nested repeats, but a wide class adds a transition per range
+     * per copy: the build is charged to the fold budget and refused when it runs out, or past the bound on its size.
+     */
+    public void testWideRepeatsAreRefusedWhileBuilt() {
+        String regex = "\\pL{1000}".repeat(100);
+        for (LabelMatcher matcher : List.of(
+            new LabelMatcher("l", regex, Matcher.REG),
+            new LabelMatcher("l", List.of("a", regex), Matcher.NREG)
+        )) {
+            Exception e = expectThrows(Exception.class, matcher::automaton);
+            if (e instanceof IllegalArgumentException) {
+                assertThat(e.getMessage(), equalTo("The regex used in a label matcher is too complex to determinize"));
+            } else {
+                assertThat(e, instanceOf(FoldContext.FoldTooMuchMemoryException.class));
+            }
         }
     }
 

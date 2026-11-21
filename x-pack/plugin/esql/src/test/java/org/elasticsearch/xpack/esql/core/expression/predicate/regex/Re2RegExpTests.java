@@ -12,6 +12,9 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Pattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
@@ -396,6 +399,63 @@ public class Re2RegExpTests extends ESTestCase {
         for (String value : values) {
             assertTrue("[" + regex + "] should match [" + value + "]", run.run(value));
         }
+    }
+
+    /**
+     * Repeats of a class with many ranges, one after the other, pass the parser's bound on nested repeats but add a
+     * transition per range per copy, so the build is charged to the breaker as it grows and stops when it trips, with
+     * nothing left reserved.
+     */
+    public void testBuildIsChargedToTheBreaker() {
+        String regex = "\\pL{1000}".repeat(100);
+        Re2RegExp regExp = new Re2RegExp(regex, FLAGS);
+        LimitedBreaker breaker = new LimitedBreaker(ByteSizeValue.ofMb(1).getBytes());
+        expectThrows(CircuitBreakingException.class, () -> regExp.toAutomaton(breaker, "test"));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A breaker that trips past a limit without keeping what it refused, as the request breaker does; the fold budget
+     * keeps the bytes of a refused reservation, so it can't show that the build released all it reserved.
+     */
+    private static final class LimitedBreaker extends NoopCircuitBreaker {
+        private final long limit;
+        private long used;
+
+        LimitedBreaker(long limit) {
+            super("limited");
+            this.limit = limit;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            if (used + bytes > limit) {
+                throw new CircuitBreakingException("[" + label + "] would be too large", used + bytes, limit, Durability.TRANSIENT);
+            }
+            used += bytes;
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            used += bytes;
+        }
+
+        @Override
+        public long getUsed() {
+            return used;
+        }
+    }
+
+    /** Without a breaker, the size of the build is still bounded. */
+    public void testBuildIsBoundedWithoutBreaker() {
+        // 1,000 copies of a class of 4,000 ranges, each a single rune, take 4,000,000 transitions, past the bound
+        StringBuilder alternate = new StringBuilder("[");
+        for (int i = 0; i < 4000; i++) {
+            alternate.append("\\x{").append(Integer.toHexString(0x1000 + 2 * i)).append('}');
+        }
+        alternate.append("]{1000}");
+        Re2RegExp regExp = new Re2RegExp(alternate.toString(), FLAGS);
+        expectThrows(TooComplexToDeterminizeException.class, regExp::toAutomaton);
     }
 
     private static void assertDoesNotMatch(String regex, String... values) {

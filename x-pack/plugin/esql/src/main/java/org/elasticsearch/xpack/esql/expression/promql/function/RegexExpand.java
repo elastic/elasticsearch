@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -285,17 +284,18 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
     static final class Replacement {
         private final byte[] template;
         private final int groupCount;
-        private final Map<String, Integer> namedGroups;
+        /** The name of each group by index, so that a name used more than once expands to the first of its groups that matched. */
+        private final String[] groupNames;
 
-        private Replacement(byte[] template, int groupCount, Map<String, Integer> namedGroups) {
+        private Replacement(byte[] template, int groupCount, String[] groupNames) {
             this.template = template;
             this.groupCount = groupCount;
-            this.namedGroups = namedGroups;
+            this.groupNames = groupNames;
         }
 
         /** Binds {@code template} to {@code pattern}'s group metadata, holding it as UTF-8 bytes for per-row expansion. */
         static Replacement of(String template, Pattern pattern) {
-            return new Replacement(template.getBytes(StandardCharsets.UTF_8), pattern.groupCount(), pattern.namedGroups());
+            return new Replacement(template.getBytes(StandardCharsets.UTF_8), pattern.groupCount(), pattern.groupNames());
         }
 
         /**
@@ -359,10 +359,13 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
                         appendGroup(matcher, input, out, num);
                     }
                 } else {
-                    Integer group = namedGroups.get(new String(t, nameStart, nameEnd - nameStart, StandardCharsets.UTF_8));
-                    // An unknown named reference expands to "", i.e. contributes nothing.
-                    if (group != null) {
-                        appendGroup(matcher, input, out, group);
+                    String name = new String(t, nameStart, nameEnd - nameStart, StandardCharsets.UTF_8);
+                    // As in Go, the first group of that name that matched; an unknown named reference expands to "".
+                    for (int g = 1; g < groupNames.length; g++) {
+                        if (name.equals(groupNames[g]) && matcher.start(g) >= 0) {
+                            appendGroup(matcher, input, out, g);
+                            break;
+                        }
                     }
                 }
             }

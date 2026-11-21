@@ -31,9 +31,14 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
@@ -58,8 +63,12 @@ public class UnicodeTablesGenerator {
 
   private final SortedMap<Integer, Integer> sortedOrbits = generateCaseFoldOrbits();
 
-  public static void main(String[] args) {
-    new UnicodeTablesGenerator();
+  // ES: writes the tables to the file given, which the Gradle task declares as its output
+  public static void main(String[] args) throws IOException {
+    try (PrintStream out = new PrintStream(new FileOutputStream(args[0]), true, StandardCharsets.UTF_8)) {
+      System.setOut(out);
+      new UnicodeTablesGenerator();
+    }
   }
 
   public UnicodeTablesGenerator() {
@@ -524,7 +533,8 @@ public class UnicodeTablesGenerator {
           builder.append(",\n");
         }
         // gotta start a new set
-        builder.append(String.format("{0x%04X, 0x%04X, %d}", setStart, lastInSet, setStride));
+        // ES: in the root locale, whose digits are ASCII whatever the machine's locale
+        builder.append(String.format(Locale.ROOT, "{0x%04X, 0x%04X, %d}", setStart, lastInSet, setStride));
         setStart = codepoint;
         setStride = -1;
         first = false;
@@ -545,6 +555,7 @@ public class UnicodeTablesGenerator {
         }
         builder.append(
             String.format(
+                Locale.ROOT,
                 "{0x%04X, 0x%04X, %d}", setStart, lastInSet, setStride == -1 ? 1 : setStride));
       }
       builder.append("}");

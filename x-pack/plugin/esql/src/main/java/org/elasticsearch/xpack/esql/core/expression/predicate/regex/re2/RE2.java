@@ -131,6 +131,9 @@ public class RE2 {
 
   public Map<String, Integer> namedGroups;
 
+  // ES: the name of each group by index, null if it has none; group 0 is the whole match
+  String[] groupNames;
+
   // This is visible for testing.
   RE2(String expr) {
     RE2 re2 = RE2.compile(expr);
@@ -195,6 +198,9 @@ public class RE2 {
   static RE2 compileImpl(String expr, int mode, boolean longest) throws PatternSyntaxException {
     Regexp re = Parser.parse(expr, mode);
     int maxCap = re.maxCap(); // (may shrink during simplify)
+    // ES: read before simplify, which drops the captures of x{0}
+    String[] groupNames = new String[maxCap + 1];
+    re.capNames(groupNames);
     re = Simplify.simplify(re);
     Prog prog = Compiler.compileRegexp(re);
     RE2 re2 = new RE2(expr, prog, maxCap, longest);
@@ -210,6 +216,7 @@ public class RE2 {
       re2.prefixRune = re2.prefix.codePointAt(0);
     }
     re2.namedGroups = re.namedGroups;
+    re2.groupNames = groupNames;
     return re2;
   }
 

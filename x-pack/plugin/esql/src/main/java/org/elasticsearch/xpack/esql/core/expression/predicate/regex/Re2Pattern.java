@@ -33,12 +33,19 @@ public class Re2Pattern extends AbstractStringPattern {
     }
 
     /**
-     * The automaton of {@link #createAutomaton}, determinized with its memory accounted on {@code circuitBreaker}, as a
-     * shard builds the automaton of a {@code regexp} query.
+     * The automaton of {@link #createAutomaton}, built and determinized with its memory accounted on {@code circuitBreaker},
+     * as a shard builds the automaton of a {@code regexp} query. Nothing stays reserved once it returns; the caller
+     * accounts the automaton it gets.
      */
     public Automaton createAutomaton(boolean ignoreCase, CircuitBreaker circuitBreaker, String label) {
-        Automaton automaton = new Re2RegExp(regex, flags(ignoreCase)).toAutomaton();
-        return CircuitBreakingOperations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, circuitBreaker, label);
+        Automaton nfa = new Re2RegExp(regex, flags(ignoreCase)).toAutomaton(circuitBreaker, label);
+        long held = nfa.ramBytesUsed();
+        circuitBreaker.addEstimateBytesAndMaybeBreak(held, label);
+        try {
+            return CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, circuitBreaker, label);
+        } finally {
+            circuitBreaker.addWithoutBreaking(-held);
+        }
     }
 
     private static int flags(boolean ignoreCase) {

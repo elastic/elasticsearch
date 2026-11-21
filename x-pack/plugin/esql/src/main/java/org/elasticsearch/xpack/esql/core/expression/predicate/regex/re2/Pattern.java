@@ -339,6 +339,14 @@ public final class Pattern implements Serializable {
     return Collections.unmodifiableMap(re2.namedGroups);
   }
 
+  /**
+   * ES: the name of each capturing group by index, null for a group without one; index 0 is the whole match. Unlike
+   * {@link #namedGroups()}, it keeps every group of a name used more than once, as Go's {@code Regexp.SubexpNames} does.
+   */
+  public String[] groupNames() {
+    return re2.groupNames.clone();
+  }
+
   Object readResolve() {
     // The deserialized version will be missing the RE2 instance, so we need to create a new,
     // compiled version.

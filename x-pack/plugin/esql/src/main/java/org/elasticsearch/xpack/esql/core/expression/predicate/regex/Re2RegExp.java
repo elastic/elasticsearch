@@ -13,6 +13,9 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Compiler;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Inst;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Parser;
@@ -56,9 +59,35 @@ public final class Re2RegExp {
     }
 
     /**
+     * Most states and transitions one build may make: as many as {@link CircuitBreakingRegExp#DEFAULT_WORK_LIMIT} lets a
+     * Lucene regular expression build. Concatenated repeats of a class with many ranges, such as {@code \pL{1000}\pL{1000}},
+     * pass the parser's limit on nested repeats and add a transition per range per copy.
+     */
+    static final long MAX_BUILT_STATES_AND_TRANSITIONS = CircuitBreakingRegExp.DEFAULT_WORK_LIMIT / 64L;
+
+    /**
+     * Peak bytes per state and per transition while building: the builder's entries with growth headroom, the finished
+     * automaton's copy, and the reversed copy that trimming dead states makes.
+     */
+    static final long BYTES_PER_STATE = 64L;
+    static final long BYTES_PER_TRANSITION = 72L;
+    /** Reserve in steps of this size rather than on every transition. */
+    private static final long CHARGE_STEP = 64 * 1024L;
+
+    /**
      * The automaton accepting the strings the expression matches whole; it is not determinized.
+     *
+     * @throws TooComplexToDeterminizeException if it has more than {@link #MAX_BUILT_STATES_AND_TRANSITIONS}
      */
     public Automaton toAutomaton() {
+        return toAutomaton(null, null);
+    }
+
+    /**
+     * {@link #toAutomaton()}, with the memory of the build reserved on {@code breaker} while it runs and released before
+     * it returns; the caller accounts the automaton it gets.
+     */
+    public Automaton toAutomaton(CircuitBreaker breaker, String label) {
         if (literals != null) {
             if (literals.size() == 1) {
                 return Automata.makeString(literals.getFirst());
@@ -66,16 +95,20 @@ public final class Re2RegExp {
             List<BytesRef> sorted = literals.stream().map(BytesRef::new).sorted().toList();
             return Automata.makeStringUnion(sorted);
         }
-        Builder builder = new Builder(prog);
-        Automaton automaton = builder.build();
-        if (builder.mayHaveDeadStates == false) {
-            return automaton;
+        Builder builder = new Builder(prog, breaker, label);
+        try {
+            Automaton automaton = builder.build();
+            if (builder.mayHaveDeadStates == false) {
+                return automaton;
+            }
+            // the states past a rune that no match follows are dead, as Lucene's operations leave none
+            automaton = Operations.removeDeadStates(automaton);
+            // none is live if the expression matches nothing: then the empty automaton, as Lucene's RegExp has it, so
+            // that a run automaton can be built from the determinized one
+            return automaton.getNumStates() == 0 ? Automata.makeEmpty() : automaton;
+        } finally {
+            builder.release();
         }
-        // the states past a rune that no match follows are dead, as Lucene's operations leave none
-        automaton = Operations.removeDeadStates(automaton);
-        // none is live if the expression matches nothing: then the empty automaton, as Lucene's RegExp has it, so
-        // that a run automaton can be built from the determinized one
-        return automaton.getNumStates() == 0 ? Automata.makeEmpty() : automaton;
     }
 
     /** The runes that aren't literals in RE2, outside a class. */
@@ -149,7 +182,7 @@ public final class Re2RegExp {
         private final boolean contextual;
         private final Automaton.Builder automaton = new Automaton.Builder();
         /** The state of each program counter and class of the rune before, at {@code pc * CLASSES + class}, or -1. */
-        private final int[] states;
+        private final int[] stateOf;
         private final IntArrayList pending = new IntArrayList();
         /**
          * The closure being built, which every array below is of, is the {@code closure}-th: an entry of an earlier one
@@ -171,9 +204,17 @@ public final class Re2RegExp {
          * that cuts a way off can leave one.
          */
         private boolean mayHaveDeadStates;
+        /** Accounts the build, or null if nothing does; only the bound on its size holds then. */
+        private final CircuitBreaker breaker;
+        private final String label;
+        private long states;
+        private long transitions;
+        private long reserved;
 
-        Builder(Prog prog) {
+        Builder(Prog prog, CircuitBreaker breaker, String label) {
             this.prog = prog;
+            this.breaker = breaker;
+            this.label = label;
             int n = prog.numInst();
             this.holds = new boolean[n];
             BitSet afterRune = null;
@@ -200,8 +241,8 @@ public final class Re2RegExp {
             }
             this.contextual = contextual;
             this.mayHaveDeadStates = contextual;
-            this.states = new int[prog.numInst() * CLASSES];
-            Arrays.fill(states, -1);
+            this.stateOf = new int[prog.numInst() * CLASSES];
+            Arrays.fill(stateOf, -1);
             this.reachedIn = new int[prog.numInst()];
             this.next = new int[prog.numInst()];
             this.visitedIn = new int[prog.numInst() << 4];
@@ -211,20 +252,50 @@ public final class Re2RegExp {
             state(prog.start, EDGE);
             for (int p = 0; p < pending.size(); p++) {
                 int key = pending.get(p);
-                closure(states[key], key / CLASSES, key % CLASSES);
+                closure(stateOf[key], key / CLASSES, key % CLASSES);
             }
             return automaton.finish();
         }
 
         private int state(int pc, int previous) {
             int key = pc * CLASSES + (contextual ? previous : EDGE);
-            int state = states[key];
+            int state = stateOf[key];
             if (state < 0) {
+                states++;
+                charge();
                 state = automaton.createState();
-                states[key] = state;
+                stateOf[key] = state;
                 pending.add(key);
             }
             return state;
+        }
+
+        private void addTransition(int from, int to, int min, int max) {
+            transitions++;
+            charge();
+            automaton.addTransition(from, to, min, max);
+        }
+
+        /** Stops the build past its bound, and reserves what it has grown by on the breaker. */
+        private void charge() {
+            if (states + transitions > MAX_BUILT_STATES_AND_TRANSITIONS) {
+                throw new TooComplexToDeterminizeException(Automata.makeEmpty(), CircuitBreakingRegExp.DEFAULT_WORK_LIMIT);
+            }
+            if (breaker == null) {
+                return;
+            }
+            long bytes = states * BYTES_PER_STATE + transitions * BYTES_PER_TRANSITION;
+            if (bytes - reserved >= CHARGE_STEP) {
+                breaker.addEstimateBytesAndMaybeBreak(bytes - reserved, label);
+                reserved = bytes;
+            }
+        }
+
+        void release() {
+            if (reserved > 0) {
+                breaker.addWithoutBreaking(-reserved);
+                reserved = 0;
+            }
         }
 
         /**
@@ -287,14 +358,14 @@ public final class Re2RegExp {
 
         private void transitions(int from, Inst inst, int next) {
             if (contextual == false && inst.op == Inst.RUNE1) {
-                automaton.addTransition(from, state(inst.out, EDGE), inst.runes[0]);
+                addTransition(from, state(inst.out, EDGE), inst.runes[0], inst.runes[0]);
                 return;
             }
             int[] runes = runes(inst);
             if (contextual == false) {
                 int to = state(inst.out, EDGE);
                 for (int i = 0; i < runes.length; i += 2) {
-                    automaton.addTransition(from, to, runes[i], runes[i + 1]);
+                    addTransition(from, to, runes[i], runes[i + 1]);
                 }
                 return;
             }
@@ -323,7 +394,7 @@ public final class Re2RegExp {
                     if (to < 0) {
                         to = state(pc, cls);
                     }
-                    automaton.addTransition(from, to, lo, hi);
+                    addTransition(from, to, lo, hi);
                 }
                 if (a[i + 1] < b[j + 1]) {
                     i += 2;

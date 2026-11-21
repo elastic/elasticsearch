@@ -10,11 +10,15 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
@@ -32,6 +36,8 @@ import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * Whether a string matches a regular expression in RE2 syntax as a whole, which is what a PromQL label matcher asks.
@@ -93,6 +99,24 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         MultiTermQuery.RewriteMethod constantScoreRewrite,
         SearchExecutionContext context
     ) {
+        // the checks a regexp query makes on the shard, which the RE2 automaton bypasses
+        int maxRegexLength = context.getIndexSettings().getMaxRegexLength();
+        if (pattern().pattern().length() > maxRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of regex ["
+                    + pattern().pattern().length()
+                    + "] used in a label matcher has exceeded the allowed maximum of ["
+                    + maxRegexLength
+                    + "]. This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
+        if (fieldType.indexType().hasTerms() && context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException(
+                "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
+        }
         // accounted on the breaker of the shard, as a regexp query's automaton is
         CircuitBreaker circuitBreaker = context.getCircuitBreaker();
         Automaton automaton = circuitBreaker == null
@@ -109,14 +133,36 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
 
     /**
      * A node that predates this expression can't read it, so while there is one the pattern is matched as {@link RLike}
-     * matches it, in Lucene's regexp syntax, as PromQL label matchers were matched before.
+     * matches it, in Lucene's regexp syntax, as PromQL label matchers were matched before. That is only done when both
+     * syntaxes give the pattern the same strings, as they do for the usual {@code a|b} or {@code prefix.*}; any other
+     * pattern is refused rather than matched in a way the query didn't ask for.
      */
     @Override
     public Expression forTransportVersion(TransportVersion minTransportVersion) {
         if (minTransportVersion.supports(ESQL_RE2_LIKE) == false) {
-            return new RLike(source(), field(), new RLikePattern(pattern().pattern()));
+            RLikePattern lucene = new RLikePattern(pattern().pattern());
+            if (sameLanguage(pattern(), lucene) == false) {
+                throw new IllegalArgumentException(
+                    "regex ["
+                        + pattern().pattern()
+                        + "] can't be matched until every node is upgraded: nodes on older versions read it as a Lucene regexp,"
+                        + " which matches different strings"
+                );
+            }
+            return new RLike(source(), field(), lucene);
         }
         return this;
+    }
+
+    private static boolean sameLanguage(Re2Pattern re2, RLikePattern lucene) {
+        try {
+            Automaton a = re2.createAutomaton(false);
+            Automaton b = lucene.createAutomaton(false);
+            int limit = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
+            return Operations.isEmpty(Operations.minus(a, b, limit)) && Operations.isEmpty(Operations.minus(b, a, limit));
+        } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
+            return false;
+        }
     }
 
     /**

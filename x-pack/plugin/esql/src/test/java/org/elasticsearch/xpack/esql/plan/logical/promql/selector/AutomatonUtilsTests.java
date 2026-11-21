@@ -190,6 +190,9 @@ public class AutomatonUtilsTests extends ESTestCase {
         // \Q...\E quotes the pipe, so this is the literal a|b rather than an alternation
         assertThat(extractFragments("\\Qa|b"), nullValue());
         assertThat(extractFragments("x|\\Q|\\E"), nullValue());
+        // a class holds its runes, | included, so the split isn't known to be at the top
+        assertThat(extractFragments("[\\pL|]"), nullValue());
+        assertThat(extractFragments("a|[|]b"), nullValue());
     }
 
     public void testExtractFragments_RegexMetacharactersInAlternation() {

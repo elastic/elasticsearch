@@ -18,12 +18,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Re2L
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * A node that predates {@link Re2Like} can't read it, so while one is in the cluster the expression falls back to
- * {@link RLike} over the same pattern.
+ * {@link RLike} over the same pattern, if Lucene's syntax reads it as RE2 does.
  */
 public class Re2LikeTransportVersionTests extends ESTestCase {
 
@@ -43,6 +44,18 @@ public class Re2LikeTransportVersionTests extends ESTestCase {
         assertThat(rLike.field(), equalTo(re2Like.field()));
         assertThat(rLike.pattern().pattern(), equalTo(re2Like.pattern().pattern()));
         assertFalse(rLike.caseInsensitive());
+    }
+
+    /**
+     * Lucene's syntax gives these runes meanings that RE2 doesn't ({@code ~ & @ < > "}) or can't parse RE2's groups, so
+     * matching them on an older node would select other series, or fail there.
+     */
+    public void testRefusesPatternTheSyntaxesReadDifferently() {
+        String regex = randomFrom("a~b", "a&b", "a@", "<1-5>", "\"a\"", "(?:a|b)c");
+        Re2Like re2Like = new Re2Like(Source.EMPTY, getFieldAttribute("label"), new Re2Pattern(regex));
+        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(ESQL_RE2_LIKE);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> re2Like.forTransportVersion(version));
+        assertThat(e.getMessage(), containsString("[" + regex + "] can't be matched until every node is upgraded"));
     }
 
     private static Re2Like re2Like() {

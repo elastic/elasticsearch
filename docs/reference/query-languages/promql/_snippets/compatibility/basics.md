@@ -75,6 +75,8 @@ Time durations, such as `1h30m`, and duration arithmetic, such as `x[5m + 1m]`.
 
 A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_requests_total{job="api", code=~"5.."}`.
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The regex of `=~` and `!~` in RE2 syntax, as in {{prom}}, such as `{code=~"\\d{3}"}` and `{path=~"(?i)/api/.*"}`.
+
 **Not supported yet**
 
 :::{table}
@@ -94,6 +96,7 @@ A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_r
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
 | 6 | Negative matcher on `__name__` | `{__name__!="up", job="node"}` | No results | Every other matching metric | [#146977]({{es-issue}}146977) |
+| 7 | Regex matcher syntax {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `{path=~"a~b"}`, `{v=~"<1-5>"}` | Lucene regexp syntax, where `~`, `&`, `@`, `"` and `<1-5>` are operators | RE2 syntax, where they are literals | - |
 :::
 
 #### Range vector selectors [prometheus-compatibility-range-vector-selectors]
@@ -109,7 +112,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 7 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
+| 8 | `anchored` and `smoothed` modifiers ({{prom}}: `promql-extended-range-selectors` feature flag) | `increase(x[5m] anchored)` | - | [#164222]({{es-issue}}164222) |
 :::
 
 #### Offset modifier [prometheus-compatibility-offset-modifier]
@@ -125,7 +128,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 8 | Negative offset at the end of the query range | `x offset -5m` | No value at the last steps. Samples after the query end aren't read | Reads samples after the query end | - |
+| 9 | Negative offset at the end of the query range | `x offset -5m` | No value at the last steps. Samples after the query end aren't read | Reads samples after the query end | - |
 :::
 
 #### @ modifier [prometheus-compatibility-at-modifier]
@@ -137,7 +140,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 9 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
+| 10 | `@` modifier | `x @ 1700000000`, `x @ end()` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Subquery [prometheus-compatibility-subquery]
@@ -149,7 +152,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 10 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
+| 11 | Subquery | `max_over_time(rate(x[5m])[1h:1m])` | - | [#164139]({{es-issue}}164139) |
 :::
 
 ### Gotchas [prometheus-compatibility-gotchas]
@@ -167,7 +170,7 @@ A selector without a range, such as `http_requests_total`, returns the latest sa
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 11 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
-| 12 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
-| 13 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
+| 12 | Lookback in instant queries | `/api/v1/query` | Five minutes, fixed | Five minutes by default, configurable with `lookback_delta` | [#149939]({{es-issue}}149939) |
+| 13 | Lookback in range queries | `/api/v1/query_range` | One `step`. A series disappears at the first step without its own sample | Five minutes. The last sample repeats until then | - |
+| 14 | Staleness markers | - | Ignored. A series disappears once its samples leave the lookback window | A series disappears at its staleness marker | - |
 :::

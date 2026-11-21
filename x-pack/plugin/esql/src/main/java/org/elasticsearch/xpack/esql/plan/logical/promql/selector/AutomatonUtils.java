@@ -230,6 +230,40 @@ public final class AutomatonUtils {
      * @param pattern the regex pattern string
      * @return list of pattern fragments, or null if any part cannot be optimized
      */
+    /**
+     * Whether a {@code |} is inside a character class of the RE2 pattern, such as {@code [\pL|]}. A class may start with
+     * a literal {@code ]}, as in {@code []a]}, and holds POSIX classes such as {@code [[:alpha:]]}.
+     */
+    static boolean hasPipeInClass(String pattern) {
+        boolean inClass = false;
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\') {
+                i++;
+            } else if (inClass == false) {
+                if (c == '[') {
+                    inClass = true;
+                    if (i + 1 < pattern.length() && pattern.charAt(i + 1) == '^') {
+                        i++;
+                    }
+                    if (i + 1 < pattern.length() && pattern.charAt(i + 1) == ']') {
+                        i++;
+                    }
+                }
+            } else if (c == '|') {
+                return true;
+            } else if (c == '[' && pattern.startsWith(":", i + 1)) {
+                int end = pattern.indexOf(":]", i + 2);
+                if (end >= 0) {
+                    i = end + 1;
+                }
+            } else if (c == ']') {
+                inClass = false;
+            }
+        }
+        return false;
+    }
+
     public static List<PatternFragment> extractFragments(String pattern) {
         if (pattern == null || pattern.length() > MAX_PATTERN_LENGTH) {
             return null;
@@ -256,6 +290,11 @@ public final class AutomatonUtils {
 
         // \Q...\E quotes its text, | included
         if (normalized.contains("\\Q")) {
+            return null;
+        }
+
+        // a class holds its runes, | included, so the split would not be at the top
+        if (hasPipeInClass(normalized)) {
             return null;
         }
 

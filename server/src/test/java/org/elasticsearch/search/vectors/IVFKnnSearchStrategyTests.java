@@ -71,10 +71,10 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
      */
     public void testTiedScoreInAnotherLeafStaysCompetitive() {
         SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
-        IVFKnnSearchStrategy strategyA = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore);
+        IVFKnnSearchStrategy strategyA = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE);
         MaxScoreTopKnnCollector leafA = new MaxScoreTopKnnCollector(2, 1000, strategyA);
         strategyA.setCollector(leafA);
-        IVFKnnSearchStrategy strategyB = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore);
+        IVFKnnSearchStrategy strategyB = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE);
         MaxScoreTopKnnCollector leafB = new MaxScoreTopKnnCollector(2, 1000, strategyB);
         strategyB.setCollector(leafB);
 

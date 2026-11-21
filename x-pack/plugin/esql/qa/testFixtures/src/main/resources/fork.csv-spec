@@ -1540,3 +1540,67 @@ fork2         | prod            | cost_max            | 3
 fork2         | qa              | cost_max            | 3
 fork2         | staging         | cost_max            | 3
 ;
+
+// A runtime MATCH stays above the FORK when every branch ends in a pipeline breaker, so it is not pushed into the
+// branches. It must still add its score to the _score the branches produced.
+forkFollowedByRuntimeMatchAddsScore
+required_capability: fork_v9
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fork_merge_keeps_metadata_score
+
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| FORK (WHERE year >= 2005 | LIMIT 1000) (WHERE year < 2005 | LIMIT 1000)
+| WHERE MATCH(content, "Karenina Tolstoy")
+| KEEP book_no, _score, _fork
+| SORT book_no
+;
+
+book_no:keyword | _score:double | _fork:keyword
+2776            | 1.0           | fork2
+6818            | 1.0           | fork1
+7400            | 2.0           | fork1
+;
+
+// A branch that computed its own _score keeps the merged column out of scoring, so the runtime MATCH adds nothing.
+forkWithUserDefinedScoreFollowedByRuntimeMatchDoesNotAddScore
+required_capability: fork_v9
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fork_merge_keeps_metadata_score
+
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| FORK (WHERE year >= 2005 | EVAL _score = 100.0 | LIMIT 1000) (WHERE year < 2005 | LIMIT 1000)
+| WHERE MATCH(content, "Karenina Tolstoy")
+| KEEP book_no, _score, _fork
+| SORT book_no
+;
+
+book_no:keyword | _score:double | _fork:keyword
+2776            | 0.0           | fork2
+6818            | 100.0         | fork1
+7400            | 100.0         | fork1
+;
+
+// One of the FORK branches drops _score column; runtime MATCH should still add its score to the other branch's _score.
+forkFollowedByRuntimeMatchAddsScoreWithOneBranchDroppingScore
+required_capability: fork_v9
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: fork_merge_keeps_metadata_score
+
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| FORK (WHERE year >= 2005 | LIMIT 1000) (WHERE year < 2005 | DROP _score | LIMIT 1000)
+| WHERE MATCH(content, "Karenina Tolstoy")
+| KEEP book_no, _score, _fork
+| SORT book_no
+;
+
+book_no:keyword | _score:double | _fork:keyword
+2776            | null          | fork2
+6818            | 1.0           | fork1
+7400            | 2.0           | fork1
+;

@@ -2736,9 +2736,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // The output has to be populated even when no branch changes: view resolution builds a BranchPlan with an empty
             // output and relies on this rule to fill it in.
             newSubPlans = changed ? newSubPlans : mergePlan.children();
-            List<Attribute> newOutput = mergePlan.mergesScoreAsMetadata()
-                ? MergePlan.toReferenceAttributesPreservingIds(newSubPlans, outputUnion, mergePlan.output())
-                : Expressions.toReferenceAttributesPreservingIds(outputUnion, mergePlan.output());
+            List<Attribute> newOutput = MergePlan.toReferenceAttributesPreservingIds(newSubPlans, outputUnion, mergePlan.output());
             if (unmappedResolution.loadsAllUnmappedFields()) {
                 newOutput = keepExistingUnsupportedAttributes(newOutput, mergePlan.output());
             }

@@ -5022,6 +5022,13 @@ public class EsqlCapabilities {
          */
         FIX_TS_FIRST_LAST_SAMPLES,
 
+        /**
+         * The {@code _score} column merged by {@code FORK} stays as live score, classified from the branches as it is for a
+         * subquery union (see {@link #FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE}), so a scoring search that stays above the
+         * {@code FORK}, such as a runtime {@code MATCH}, adds to it instead of being dropped.
+         */
+        FORK_MERGE_KEEPS_METADATA_SCORE,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

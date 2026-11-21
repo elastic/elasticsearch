@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -41,6 +42,9 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecatedMessage;
+import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -57,6 +61,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -213,6 +218,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
     private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
+    private static final RoleDescriptor SHARED_ROLE = new RoleDescriptor("shared-role", new String[] { "monitor" }, null, null);
 
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
     private final String concreteSecurityIndexName = randomFrom(
@@ -527,6 +533,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         Consumer<ActionListener<RoleRetrievalResult>> rolesHandler,
         Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler
     ) {
+        return setupRolesStore(SECURITY_ENABLED_SETTINGS, new ThreadContext(SECURITY_ENABLED_SETTINGS), rolesHandler, privilegesHandler);
+    }
+
+    private CompositeRolesStore setupRolesStore(
+        Settings settings,
+        ThreadContext threadContext,
+        Consumer<ActionListener<RoleRetrievalResult>> rolesHandler,
+        Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler
+    ) {
+        // Control async callbacks without starting security-index or file-watcher infrastructure.
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
@@ -534,35 +550,35 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final NativeRolesStore nativeRolesStore = mock(NativeRolesStore.class);
         doCallRealMethod().when(nativeRolesStore).accept(anySet(), anyActionListener());
         doAnswer((invocationOnMock) -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
-            rolesHandler.accept(callback);
+            rolesHandler.accept(invocationOnMock.getArgument(1));
             return null;
         }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
 
         final ReservedRolesStore reservedRolesStore = spy(new ReservedRolesStore());
         final NativePrivilegeStore nativePrivilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
-                Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[3];
-            privilegesHandler.accept(callback);
+            privilegesHandler.accept(invocationOnMock.getArgument(3));
             return null;
         }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), eq(false), anyActionListener());
 
-        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
-            SECURITY_ENABLED_SETTINGS,
-            fileRolesStore,
-            nativeRolesStore,
-            reservedRolesStore,
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        return new CompositeRolesStore(
+            settings,
+            mock(ClusterService.class),
+            buildRolesProvider(fileRolesStore, nativeRolesStore, reservedRolesStore, null, licenseState),
             nativePrivilegeStore,
-            null,
-            null,
-            null,
-            null,
-            null
+            threadContext,
+            licenseState,
+            cache,
+            mock(ApiKeyService.class),
+            mock(ServiceAccountService.class),
+            TestProjectResolvers.singleProject(ProjectId.DEFAULT),
+            buildBitsetCache(),
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            mockRoleBuildingExecutor,
+            descriptors -> {},
+            List.of()
         );
-        return compositeRolesStore;
     }
 
     private void trySuccessfullyLoadSuperuserRole(CompositeRolesStore compositeRolesStore) {
@@ -607,6 +623,418 @@ public class CompositeRolesStoreTests extends ESTestCase {
         getRoleForRoleNames(compositeRolesStore, roles, future);
         final Exception exception = expectThrows(Exception.class, future::actionGet);
         assertThat(exception, exceptionMatcher);
+    }
+
+    /** Concurrent lookups share one load and reuse its completed role. */
+    public void testConcurrentRoleLookupsShareResolution() {
+        final AtomicInteger retrievals = new AtomicInteger();
+        final AtomicReference<ActionListener<RoleRetrievalResult>> retrieval = new AtomicReference<>();
+        final AtomicReference<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privileges = new AtomicReference<>();
+        final CompositeRolesStore store = setupRolesStore(listener -> {
+            retrievals.incrementAndGet();
+            assertTrue(retrieval.compareAndSet(null, listener));
+        }, listener -> assertTrue(privileges.compareAndSet(null, listener)));
+        final List<PlainActionFuture<Role>> futures = new ArrayList<>();
+        for (int i = randomIntBetween(2, 8); i > 0; i--) {
+            futures.add(new PlainActionFuture<>());
+        }
+
+        startInParallel(futures.size(), i -> getRoleForRoleNames(store, Set.of("shared-role"), futures.get(i)));
+        assertEquals(1, retrievals.get());
+        futures.forEach(future -> assertFalse(future.isDone()));
+
+        retrieval.get().onResponse(RoleRetrievalResult.success(Set.of(roleWithApplicationPrivilege("shared-role", "app", "read"))));
+        futures.forEach(future -> assertFalse(future.isDone()));
+        final PlainActionFuture<Role> duringBuild = startRoleLookup(store, Set.of("shared-role"));
+        assertFalse(duringBuild.isDone());
+        privileges.get().onResponse(List.of());
+
+        final Role role = duringBuild.actionGet();
+        futures.forEach(future -> assertSame(role, future.actionGet()));
+        assertSame(role, getRoleForRoleNames(store, "shared-role"));
+        assertEquals(1, retrievals.get());
+        verify(mockRoleBuildingExecutor).execute(any(Runnable.class));
+    }
+
+    /** Failure callbacks can retry before the remaining subscribers are notified. */
+    public void testFailedSharedRoleLookupCanBeRetried() {
+        final List<ActionListener<RoleRetrievalResult>> retrievals = new ArrayList<>();
+        final CompositeRolesStore store = setupRolesStore(retrievals::add, listener -> fail("unexpected application privileges"));
+        final PlainActionFuture<Role> first = new PlainActionFuture<>();
+        final PlainActionFuture<Role> second = new PlainActionFuture<>();
+        final PlainActionFuture<Role> retry = new PlainActionFuture<>();
+        getRoleForRoleNames(store, Set.of("shared-role"), first.delegateResponse((listener, failure) -> {
+            getRoleForRoleNames(store, Set.of("shared-role"), retry);
+            listener.onFailure(failure);
+        }));
+        getRoleForRoleNames(store, Set.of("shared-role"), second);
+        assertThat(retrievals, hasSize(1));
+
+        final IllegalStateException failure = new IllegalStateException("role retrieval failed");
+        retrievals.getFirst().onFailure(failure);
+        assertSame(failure, expectThrows(IllegalStateException.class, first::actionGet));
+        assertSame(failure, expectThrows(IllegalStateException.class, second::actionGet));
+
+        assertThat(retrievals, hasSize(2));
+        retrievals.get(1).onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE)));
+        assertSame(retry.actionGet(), getRoleForRoleNames(store, "shared-role"));
+    }
+
+    /** Synchronous failures clear the shared entry so later requests can retry. */
+    public void testSynchronousRoleLookupFailureCanBeRetried() {
+        final AtomicInteger retrievals = new AtomicInteger();
+        final IllegalStateException failure = new IllegalStateException("synchronous retrieval failure");
+        final CompositeRolesStore store = setupRolesStore(listener -> {
+            if (retrievals.getAndIncrement() == 0) {
+                throw failure;
+            }
+            listener.onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE)));
+        }, listener -> fail("unexpected application privileges"));
+        assertSame(failure, expectThrows(IllegalStateException.class, () -> getRoleForRoleNames(store, "shared-role")));
+        final Role role = getRoleForRoleNames(store, "shared-role");
+        assertSame(role, getRoleForRoleNames(store, "shared-role"));
+        assertEquals(2, retrievals.get());
+    }
+
+    /** Partial retrieval results are returned without populating either cache. */
+    public void testPartialSharedRoleLookupIsNotCached() {
+        final List<ActionListener<RoleRetrievalResult>> retrievals = new ArrayList<>();
+        final CompositeRolesStore store = setupRolesStore(retrievals::add, listener -> fail("unexpected application privileges"));
+        final PlainActionFuture<Role> first = startRoleLookup(store, Set.of("shared-role"));
+        final PlainActionFuture<Role> second = startRoleLookup(store, Set.of("shared-role"));
+        assertThat(retrievals, hasSize(1));
+        retrievals.getFirst().onResponse(RoleRetrievalResult.failure(new IllegalStateException("provider unavailable")));
+        assertSame(Role.EMPTY, first.actionGet());
+        assertSame(Role.EMPTY, second.actionGet());
+        assertFalse(store.isValueInNegativeLookupCache("shared-role", ProjectId.DEFAULT));
+
+        final PlainActionFuture<Role> retry = startRoleLookup(store, Set.of("shared-role"));
+        assertThat(retrievals, hasSize(2));
+        retrievals.get(1).onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE)));
+        assertSame(retry.actionGet(), getRoleForRoleNames(store, "shared-role"));
+    }
+
+    /** Invalidated lookups cannot remove newer entries or restore stale negative markers. */
+    public void testInvalidationDetachesPendingRoleLookups() {
+        for (Consumer<CompositeRolesStore> invalidate : List.<Consumer<CompositeRolesStore>>of(
+            store -> store.invalidate("shared-role"),
+            store -> store.invalidate("missing-role"),
+            CompositeRolesStore::invalidateProject,
+            store -> store.removeProject(ProjectId.DEFAULT),
+            store -> store.invalidateClusterScopedRoles(Set.of("shared-role")),
+            CompositeRolesStore::invalidateAll
+        )) {
+            final List<ActionListener<RoleRetrievalResult>> retrievals = new ArrayList<>();
+            final CompositeRolesStore store = setupRolesStore(retrievals::add, listener -> fail("unexpected application privileges"));
+            final Set<String> names = Set.of("shared-role", "missing-role");
+            final PlainActionFuture<Role> old = startRoleLookup(store, names);
+            invalidate.accept(store);
+            final PlainActionFuture<Role> fresh = startRoleLookup(store, names);
+            assertThat(retrievals, hasSize(2));
+
+            retrievals.getFirst().onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE)));
+            assertThat(old.actionGet().names(), arrayContaining("shared-role"));
+            assertFalse(fresh.isDone());
+            assertFalse(store.isValueInNegativeLookupCache("missing-role", ProjectId.DEFAULT));
+
+            final PlainActionFuture<Role> joined = startRoleLookup(store, names);
+            assertThat(retrievals, hasSize(2));
+            retrievals.get(1)
+                .onResponse(
+                    RoleRetrievalResult.success(
+                        Set.of(SHARED_ROLE, new RoleDescriptor("missing-role", new String[] { "monitor" }, null, null))
+                    )
+                );
+            assertSame(fresh.actionGet(), joined.actionGet());
+            assertSame(fresh.actionGet(), getRoleForRoleNames(store, names.toArray(String[]::new)));
+            assertFalse(store.isValueInNegativeLookupCache("missing-role", ProjectId.DEFAULT));
+        }
+    }
+
+    /** Unrelated invalidations retain the role but suppress late negative-cache writes. */
+    public void testUnrelatedInvalidationPreservesPendingRoleResult() {
+        for (Consumer<CompositeRolesStore> invalidate : List.<Consumer<CompositeRolesStore>>of(
+            store -> store.invalidate("another-role"),
+            store -> store.invalidateClusterScopedRoles(Set.of("another-role")),
+            store -> store.removeProject(randomUniqueProjectId())
+        )) {
+            final List<ActionListener<RoleRetrievalResult>> retrievals = new ArrayList<>();
+            final CompositeRolesStore store = setupRolesStore(retrievals::add, listener -> fail("unexpected application privileges"));
+            final Set<String> names = Set.of("shared-role", "missing-role");
+            final PlainActionFuture<Role> first = startRoleLookup(store, names);
+            invalidate.accept(store);
+
+            final PlainActionFuture<Role> joined = startRoleLookup(store, names);
+            assertThat(retrievals, hasSize(1));
+            retrievals.getFirst().onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE)));
+            final Role role = first.actionGet();
+            assertSame(role, joined.actionGet());
+            assertFalse(store.isValueInNegativeLookupCache("missing-role", ProjectId.DEFAULT));
+
+            final PlainActionFuture<Role> cached = startRoleLookup(store, names);
+            assertTrue("unrelated invalidation must preserve the completed role", cached.isDone());
+            assertSame(role, cached.actionGet());
+            assertThat(retrievals, hasSize(1));
+        }
+    }
+
+    /** Evicted lookups finish without removing replacement loads. */
+    public void testEvictionDoesNotCancelPendingRoleLookups() {
+        final Settings settings = Settings.builder()
+            .put(SECURITY_ENABLED_SETTINGS)
+            .put("xpack.security.authz.store.roles.cache.max_size", 1)
+            .build();
+        final ThreadContext threadContext = new ThreadContext(settings);
+        try (ThreadContext.StoredContext ignoredContext = threadContext.stashContext()) {
+            final List<ActionListener<RoleRetrievalResult>> retrievals = new ArrayList<>();
+            final CompositeRolesStore store = setupRolesStore(
+                settings,
+                threadContext,
+                retrievals::add,
+                listener -> fail("unexpected application privileges")
+            );
+            final PlainActionFuture<Role> old = startRoleLookup(store, Set.of("shared-role"));
+            final PlainActionFuture<Role> other = startRoleLookup(store, Set.of("other-role"));
+            final PlainActionFuture<Role> fresh = startRoleLookup(store, Set.of("shared-role"));
+            assertThat(retrievals, hasSize(3));
+
+            final IllegalStateException failure = new IllegalStateException("evicted lookup failed");
+            retrievals.getFirst().onFailure(failure);
+            assertSame(failure, expectThrows(IllegalStateException.class, old::actionGet));
+            final PlainActionFuture<Role> joined = startRoleLookup(store, Set.of("shared-role"));
+            assertThat(retrievals, hasSize(3));
+
+            retrievals.get(1)
+                .onResponse(RoleRetrievalResult.success(Set.of(new RoleDescriptor("other-role", new String[] { "monitor" }, null, null))));
+            assertThat(other.actionGet().names(), arrayContaining("other-role"));
+            retrievals.get(2).onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE)));
+            assertSame(fresh.actionGet(), joined.actionGet());
+            assertSame(fresh.actionGet(), getRoleForRoleNames(store, "shared-role"));
+        }
+    }
+
+    /**
+     * Only the request that starts a lookup logs role deprecations, with its own attribution; requests that join the lookup or hit
+     * the cache do not, and the thread completing the lookup neither contributes nor receives headers.
+     */
+    public void testOnlyRequestStartingLookupLogsRoleDeprecations() {
+        final String warning = "The role [deprecated-role] is deprecated and will be removed in a future version of Elasticsearch."
+            + " Use another role instead.";
+        final AtomicReference<RoleDescriptor> descriptor = new AtomicReference<>(
+            new RoleDescriptor(
+                "deprecated-role",
+                new String[] { "monitor" },
+                null,
+                null,
+                null,
+                null,
+                MetadataUtils.getDeprecatedReservedMetadata("Use another role instead."),
+                null
+            )
+        );
+        final ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        final AtomicInteger retrievals = new AtomicInteger();
+        final AtomicReference<ActionListener<RoleRetrievalResult>> retrieval = new AtomicReference<>();
+        final CompositeRolesStore store = setupRolesStore(SECURITY_ENABLED_SETTINGS, threadContext, listener -> {
+            retrievals.incrementAndGet();
+            assertTrue(retrieval.compareAndSet(null, listener));
+        }, listener -> fail("unexpected application privileges"));
+        final List<String> loggedFor = new ArrayList<>();
+        HeaderWarning.setThreadContext(threadContext);
+        try (var mockLog = MockLog.capture("org.elasticsearch.deprecation.xpack.security.authz.store.CompositeRolesStore")) {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getMessage() instanceof ESLogMessage message
+                        && "deprecated_role-deprecated-role".equals(message.get(DeprecatedMessage.KEY_FIELD_NAME))) {
+                        loggedFor.add(
+                            message.get(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME)
+                                + "/"
+                                + message.get(DeprecatedMessage.ELASTIC_ORIGIN_FIELD_NAME)
+                        );
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertEquals(List.of("first/first-client"), loggedFor);
+                }
+            });
+            final PlainActionFuture<Role> first = getRoleExpectingWarnings(
+                store,
+                threadContext,
+                "first",
+                List.of(HeaderWarning.formatWarning(warning))
+            );
+            final PlainActionFuture<Role> joined = getRoleExpectingWarnings(store, threadContext, "joined", List.of());
+            assertFalse(first.isDone());
+            assertFalse(joined.isDone());
+            try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+                threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "completion");
+                threadContext.addResponseHeader("Warning", "unrelated completion warning");
+                retrieval.getAndSet(null).onResponse(RoleRetrievalResult.success(Set.of(descriptor.get())));
+                assertEquals(Map.of("Warning", List.of("unrelated completion warning")), threadContext.getResponseHeaders());
+            }
+            final Role role = first.actionGet();
+            assertSame(role, joined.actionGet());
+            assertSame(role, getRoleExpectingWarnings(store, threadContext, "cached", List.of()).actionGet());
+            assertEquals(1, retrievals.get());
+            assertEquals(List.of("first/first-client"), loggedFor);
+
+            // Invalidation starts a new lookup; a role that is no longer deprecated must not generate a warning.
+            descriptor.set(new RoleDescriptor("deprecated-role", new String[] { "all" }, null, null));
+            store.invalidate("deprecated-role");
+            final PlainActionFuture<Role> updated = getRoleExpectingWarnings(store, threadContext, "updated", List.of());
+            retrieval.getAndSet(null).onResponse(RoleRetrievalResult.success(Set.of(descriptor.get())));
+            assertNotSame(role, updated.actionGet());
+            assertEquals(2, retrievals.get());
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+        assertWarnings(warning);
+    }
+
+    /** Requests the deprecated role from a fresh, attributed context and asserts the Warning headers the caller receives. */
+    private PlainActionFuture<Role> getRoleExpectingWarnings(
+        CompositeRolesStore store,
+        ThreadContext threadContext,
+        String request,
+        List<String> expectedWarnings
+    ) {
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, request);
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, request + "-client");
+            getRoleForRoleNames(store, Set.of("deprecated-role"), ActionListener.runBefore(future, () -> {
+                assertEquals(expectedWarnings, threadContext.getResponseHeaders().getOrDefault("Warning", List.of()));
+            }));
+        }
+        return future;
+    }
+
+    /** Deprecations also reach callers when role building fails or descriptors are retrieved directly. */
+    public void testDeprecatedRoleWarningsOnBuildFailureAndDescriptorRetrieval() {
+        final String warning = "The role [deprecated-role] is deprecated and will be removed in a future version of Elasticsearch."
+            + " Use another role instead.";
+        final RoleDescriptor descriptor = new RoleDescriptor(
+            "deprecated-role",
+            null,
+            null,
+            roleWithApplicationPrivilege("deprecated-role", "app", "read").getApplicationPrivileges(),
+            null,
+            null,
+            MetadataUtils.getDeprecatedReservedMetadata("Use another role instead."),
+            null
+        );
+        final ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        final IllegalStateException failure = new IllegalStateException("application privileges unavailable");
+        final CompositeRolesStore store = setupRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            threadContext,
+            listener -> listener.onResponse(RoleRetrievalResult.success(Set.of(descriptor))),
+            listener -> listener.onFailure(failure)
+        );
+        HeaderWarning.setThreadContext(threadContext);
+        try {
+            final PlainActionFuture<Role> future = new PlainActionFuture<>();
+            getRoleForRoleNames(store, Set.of("deprecated-role"), ActionListener.runBefore(future, () -> {
+                assertEquals(Map.of("Warning", List.of(HeaderWarning.formatWarning(warning))), threadContext.getResponseHeaders());
+            }));
+            assertSame(failure, expectThrows(IllegalStateException.class, future::actionGet));
+
+            final PlainActionFuture<Set<RoleDescriptor>> descriptors = new PlainActionFuture<>();
+            store.getRoleDescriptors(
+                buildSubjectWithRoles(new String[] { "deprecated-role" }),
+                descriptors.delegateFailureAndWrap((listener, roleDescriptors) -> {
+                    assertEquals(Map.of("Warning", List.of(HeaderWarning.formatWarning(warning))), threadContext.getResponseHeaders());
+                    listener.onResponse(roleDescriptors);
+                })
+            );
+            assertEquals(Set.of(descriptor), descriptors.actionGet());
+        } finally {
+            HeaderWarning.removeThreadContext(threadContext);
+        }
+        assertWarnings(warning);
+    }
+
+    /**
+     * The shared load runs without caller authentication but keeps the project. Subscribers are completed inline under another
+     * request's context, yet each runs in its own context, and its changes to that context are visible neither to the next
+     * subscriber nor to the completing thread.
+     */
+    public void testSharedRoleLookupPreservesSubscriberContexts() throws IOException {
+        final ThreadContext threadContext = new ThreadContext(SECURITY_ENABLED_SETTINGS);
+        for (boolean failLoad : new boolean[] { false, true }) {
+            try (ThreadContext.StoredContext ignoredContext = threadContext.newEmptyContext()) {
+                final String projectId = randomUniqueProjectId().id();
+                final AtomicReference<ActionListener<RoleRetrievalResult>> retrieval = new AtomicReference<>();
+                final CompositeRolesStore store = setupRolesStore(SECURITY_ENABLED_SETTINGS, threadContext, listener -> {
+                    assertNull(threadContext.getHeader("request"));
+                    assertNull(threadContext.getTransient("request-transient"));
+                    assertNull(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY));
+                    assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+                    assertEquals(projectId, threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+                    assertEquals(Map.of(), threadContext.getResponseHeaders());
+                    assertTrue(retrieval.compareAndSet(null, listener));
+                }, listener -> fail("unexpected application privileges"));
+                final List<PlainActionFuture<Role>> futures = new ArrayList<>();
+                for (String request : List.of("first", "second")) {
+                    final PlainActionFuture<Role> future = new PlainActionFuture<>();
+                    futures.add(future);
+                    final Authentication authentication = AuthenticationTestHelper.builder().build();
+                    try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+                        authentication.writeToContext(threadContext);
+                        threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
+                        threadContext.putHeader("request", request);
+                        threadContext.putTransient("request-transient", request);
+                        threadContext.addResponseHeader("request-response", request);
+                        getRoleForRoleNames(store, Set.of("shared-role"), ActionListener.runBefore(future, () -> {
+                            assertEquals(request, threadContext.getHeader("request"));
+                            assertEquals(request, threadContext.getTransient("request-transient"));
+                            assertSame(authentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+                            assertEquals(projectId, threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+                            assertEquals(Map.of("request-response", List.of(request)), threadContext.getResponseHeaders());
+                            assertNull("another subscriber's mutation leaked", threadContext.getTransient("leaked-transient"));
+                            // Deliberately mutate without restoring; the next subscriber and the completer must not observe this.
+                            threadContext.putHeader("leaked", request);
+                            threadContext.putTransient("leaked-transient", request);
+                            threadContext.addResponseHeader("leaked-response", request);
+                        }));
+                        assertEquals(request, threadContext.getHeader("request"));
+                        assertSame(authentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+                        assertEquals(Map.of("request-response", List.of(request)), threadContext.getResponseHeaders());
+                    }
+                }
+                final Authentication completingAuthentication = AuthenticationTestHelper.builder().build();
+                completingAuthentication.writeToContext(threadContext);
+                threadContext.putHeader("request", "completion");
+                threadContext.addResponseHeader("completion-response", "completion");
+                final IllegalStateException failure = new IllegalStateException("role retrieval failed");
+                // Complete under another request's context without restoring the provider's context.
+                if (failLoad) {
+                    retrieval.get().onFailure(failure);
+                    futures.forEach(future -> assertSame(failure, expectThrows(IllegalStateException.class, future::actionGet)));
+                } else {
+                    retrieval.get().onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE)));
+                    final Role role = futures.getFirst().actionGet();
+                    futures.forEach(future -> assertSame(role, future.actionGet()));
+                    final PlainActionFuture<Role> cached = new PlainActionFuture<>();
+                    getRoleForRoleNames(store, Set.of("shared-role"), cached.delegateFailureAndWrap((listener, cachedRole) -> {
+                        assertEquals("completion", threadContext.getHeader("request"));
+                        assertSame(completingAuthentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+                        assertEquals(Map.of("completion-response", List.of("completion")), threadContext.getResponseHeaders());
+                        listener.onResponse(cachedRole);
+                    }));
+                    assertSame(role, cached.actionGet());
+                }
+                assertEquals("completion", threadContext.getHeader("request"));
+                assertSame(completingAuthentication, threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+                assertEquals(Map.of("completion-response", List.of("completion")), threadContext.getResponseHeaders());
+                assertNull(threadContext.getHeader("leaked"));
+                assertNull(threadContext.getTransient("leaked-transient"));
+            }
+        }
     }
 
     public void testNegativeLookupsAreCached() {
@@ -735,6 +1163,65 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         assertFalse(compositeRolesStore.isValueInNegativeLookupCache(roleName, Metadata.DEFAULT_PROJECT_ID));
         verifyNoMoreInteractions(fileRolesStore, reservedRolesStore, nativeRolesStore);
+    }
+
+    /** Negative caching works independently of role caching. */
+    public void testNegativeLookupsWithDisabledRoleCache() {
+        final Settings settings = Settings.builder()
+            .put(SECURITY_ENABLED_SETTINGS)
+            .put("xpack.security.authz.store.roles.cache.max_size", 0)
+            .build();
+        final List<ActionListener<RoleRetrievalResult>> retrievals = new ArrayList<>();
+        final CompositeRolesStore store = setupRolesStore(
+            settings,
+            new ThreadContext(settings),
+            retrievals::add,
+            listener -> fail("unexpected application privileges")
+        );
+        final PlainActionFuture<Role> first = startRoleLookup(store, Set.of("missing-role"));
+        assertThat(retrievals, hasSize(1));
+        retrievals.getFirst().onResponse(RoleRetrievalResult.success(Set.of()));
+        assertSame(Role.EMPTY, first.actionGet());
+        assertFalse(store.cachedRoles().iterator().hasNext());
+        assertTrue(store.isValueInNegativeLookupCache("missing-role", ProjectId.DEFAULT));
+
+        final PlainActionFuture<Role> second = startRoleLookup(store, Set.of("missing-role"));
+        assertTrue(second.isDone());
+        assertSame(Role.EMPTY, second.actionGet());
+        assertThat(retrievals, hasSize(1));
+    }
+
+    /** Creating a role clears its negative marker and every cached combination using its name. */
+    public void testCreatingMissingRoleInvalidatesCachedRoleCombinations() {
+        final List<ActionListener<RoleRetrievalResult>> retrievals = new ArrayList<>();
+        final CompositeRolesStore store = setupRolesStore(retrievals::add, listener -> fail("unexpected application privileges"));
+        final PlainActionFuture<Role> missing = startRoleLookup(store, Set.of("missing-role"));
+        retrievals.getFirst().onResponse(RoleRetrievalResult.success(Set.of()));
+        assertSame(Role.EMPTY, missing.actionGet());
+        assertTrue(store.isValueInNegativeLookupCache("missing-role", ProjectId.DEFAULT));
+
+        final Set<String> names = Set.of("shared-role", "missing-role");
+        final PlainActionFuture<Role> combination = startRoleLookup(store, names);
+        assertThat(retrievals, hasSize(2));
+        retrievals.get(1).onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE)));
+        assertThat(combination.actionGet().names(), arrayContaining("shared-role"));
+
+        store.invalidate("missing-role");
+        assertFalse(store.isValueInNegativeLookupCache("missing-role", ProjectId.DEFAULT));
+        assertFalse(store.cachedRoles().iterator().hasNext());
+
+        final RoleDescriptor createdDescriptor = new RoleDescriptor("missing-role", new String[] { "all" }, null, null);
+        final PlainActionFuture<Role> created = startRoleLookup(store, Set.of("missing-role"));
+        assertThat(retrievals, hasSize(3));
+        retrievals.get(2).onResponse(RoleRetrievalResult.success(Set.of(createdDescriptor)));
+        assertThat(created.actionGet().names(), arrayContaining("missing-role"));
+
+        final PlainActionFuture<Role> refreshedCombination = startRoleLookup(store, names);
+        assertThat(retrievals, hasSize(4));
+        retrievals.get(3).onResponse(RoleRetrievalResult.success(Set.of(SHARED_ROLE, createdDescriptor)));
+        assertThat(refreshedCombination.actionGet().names(), arrayContainingInAnyOrder("shared-role", "missing-role"));
+        assertSame(refreshedCombination.actionGet(), getRoleForRoleNames(store, names.toArray(String[]::new)));
+        assertFalse(store.isValueInNegativeLookupCache("missing-role", ProjectId.DEFAULT));
     }
 
     public void testShouldForkRoleBuilding() {
@@ -4143,21 +4630,17 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
         Collections.shuffle(descriptors, random());
 
-        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
-            SECURITY_ENABLED_SETTINGS,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            mock(ServiceAccountService.class),
-            null,
-            null
+        final Set<RoleDescriptor> expectedDescriptors = new LinkedHashSet<>(descriptors);
+        final CompositeRolesStore compositeRolesStore = setupRolesStore(
+            listener -> listener.onResponse(RoleRetrievalResult.success(expectedDescriptors)),
+            listener -> fail("unexpected application privileges")
         );
-
-        // Use a LHS so that the random-shufle-order of the list is preserved
-        compositeRolesStore.getRoleReferenceResolver().logDeprecatedRoles(new LinkedHashSet<>(descriptors));
+        final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
+        compositeRolesStore.getRoleDescriptors(
+            buildSubjectWithRoles(descriptors.stream().map(RoleDescriptor::getName).toArray(String[]::new)),
+            future
+        );
+        assertEquals(expectedDescriptors, future.actionGet());
 
         assertWarnings(
             "The role ["
@@ -4642,6 +5125,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(store, Set.of(roleNames), future);
         return future.actionGet();
+    }
+
+    /** Starts a role lookup without waiting for it, so tests can control when and how it completes. */
+    private PlainActionFuture<Role> startRoleLookup(CompositeRolesStore store, Set<String> roleNames) {
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(store, roleNames, future);
+        return future;
     }
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {

@@ -14,8 +14,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
@@ -26,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult.RoleDeprecation;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
@@ -51,7 +50,6 @@ import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL
 public class RoleDescriptorStore implements RoleReferenceResolver {
 
     private static final Logger logger = LogManager.getLogger(RoleDescriptorStore.class);
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RoleDescriptorStore.class);
 
     private final RoleProviders roleProviders;
     private final ApiKeyService apiKeyService;
@@ -204,7 +202,6 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
 
     private void resolveRoleNames(Set<String> roleNames, ProjectId projectId, ActionListener<RolesRetrievalResult> listener) {
         roleDescriptors(roleNames, projectId, ActionListener.wrap(rolesRetrievalResult -> {
-            logDeprecatedRoles(rolesRetrievalResult.getRoleDescriptors());
             final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
             if (missingRoles) {
                 logger.debug(() -> format("Could not find roles with names %s", rolesRetrievalResult.getMissingRoles()));
@@ -218,6 +215,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
 
             // TODO: replace with a class that better represent the result, e.g. carry info for disabled role
             final RolesRetrievalResult finalResult = new RolesRetrievalResult();
+            finalResult.setRoleDeprecations(getRoleDeprecations(rolesRetrievalResult.getRoleDescriptors()));
             finalResult.addDescriptors(effectiveDescriptors);
             finalResult.setMissingRoles(rolesRetrievalResult.getMissingRoles());
             if (false == rolesRetrievalResult.isSuccess()) {
@@ -263,20 +261,16 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         loadRoleDescriptorsAsync(filteredRoleNames, rolesResultListener);
     }
 
-    void logDeprecatedRoles(Set<RoleDescriptor> roleDescriptors) {
-        roleDescriptors.stream()
+    private static List<RoleDeprecation> getRoleDeprecations(Set<RoleDescriptor> roleDescriptors) {
+        return roleDescriptors.stream()
             .filter(rd -> Boolean.TRUE.equals(rd.getMetadata().get(MetadataUtils.DEPRECATED_METADATA_KEY)))
-            .forEach(rd -> {
-                String reason = Objects.toString(
-                    rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY),
-                    "Please check the documentation"
-                );
-                deprecationLogger.critical(
-                    DeprecationCategory.SECURITY,
-                    "deprecated_role-" + rd.getName(),
-                    "The role [" + rd.getName() + "] is deprecated and will be removed in a future version of Elasticsearch. " + reason
-                );
-            });
+            .map(
+                rd -> new RoleDeprecation(
+                    rd.getName(),
+                    Objects.toString(rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY), "Please check the documentation")
+                )
+            )
+            .toList();
     }
 
     private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {

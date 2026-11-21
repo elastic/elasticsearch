@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectDeletedListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -19,6 +21,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -55,6 +59,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult.RoleDeprecation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -75,8 +80,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -104,6 +111,7 @@ public class CompositeRolesStore {
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CompositeRolesStore.class);
     /**
      * See {@link #shouldForkRoleBuilding(Set)}
      */
@@ -114,7 +122,7 @@ public class CompositeRolesStore {
     private final NativePrivilegeStore privilegeStore;
     private final ProjectResolver projectResolver;
     private final FieldPermissionsCache fieldPermissionsCache;
-    private final Cache<ProjectScoped<RoleKey>, Role> roleCache;
+    private final Cache<ProjectScoped<RoleKey>, SubscribableListener<Role>> roleCache;
     private final Cache<ProjectScoped<String>, Boolean> negativeLookupCache;
     private final ReleasableLock cacheUpdateLock;
     private final ReleasableLock cacheInvalidationLock;
@@ -168,7 +176,7 @@ public class CompositeRolesStore {
         this.projectResolver = projectResolver;
         this.dlsBitsetCache = Objects.requireNonNull(dlsBitsetCache);
         this.fieldPermissionsCache = Objects.requireNonNull(fieldPermissionsCache);
-        CacheBuilder<ProjectScoped<RoleKey>, Role> builder = CacheBuilder.builder();
+        CacheBuilder<ProjectScoped<RoleKey>, SubscribableListener<Role>> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
         if (cacheSize >= 0) {
             builder.setMaximumWeight(cacheSize);
@@ -287,13 +295,37 @@ public class CompositeRolesStore {
         }
 
         final var cacheKey = new ProjectScoped<>(projectId, roleKey);
-        final Role existing = roleCache.get(cacheKey);
-        if (existing == null) {
-            final InvalidationCounters invalidationCounters = new InvalidationCounters(
-                numInvalidation.getOrDefault(projectId, 0L),
-                numGlobalInvalidation.get()
-            );
-            final Consumer<Exception> failureHandler = e -> {
+        final SubscribableListener<Role> newLookup = new SubscribableListener<>();
+        final SubscribableListener<Role> sharedLookup;
+        final InvalidationCounters invalidationCounters;
+        try (ReleasableLock ignored = cacheUpdateLock.acquire()) {
+            invalidationCounters = new InvalidationCounters(numInvalidation.getOrDefault(projectId, 0L), numGlobalInvalidation.get());
+            // Register the listener before resolution can complete synchronously.
+            sharedLookup = roleCache.computeIfAbsent(cacheKey, key -> newLookup);
+        } catch (ExecutionException e) {
+            roleActionListener.onFailure(e);
+            return;
+        }
+        // Callers restore their own context without merging response headers from the completing thread.
+        if (sharedLookup != newLookup) {
+            // Joiners do not log role deprecations, like cache hits.
+            sharedLookup.addListener(new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), roleActionListener));
+            return;
+        }
+        // Only the request that starts the lookup logs role deprecations, in its own context.
+        final AtomicReference<List<RoleDeprecation>> roleDeprecations = new AtomicReference<>(List.of());
+        sharedLookup.addListener(
+            new ContextPreservingActionListener<>(
+                threadContext.newRestorableContext(false),
+                ActionListener.runBefore(roleActionListener, () -> logRoleDeprecations(roleDeprecations.get()))
+            )
+        );
+
+        // Detach the shared lookup from caller authentication while preserving project and tracing headers.
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            final ActionListener<Role> lookupResultListener = sharedLookup.delegateResponse((subscribers, e) -> {
+                // Evict before notifying subscribers so a retry starts a fresh lookup instead of joining the failed one.
+                invalidateRoleCache(cacheKey, sharedLookup);
                 // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
                 // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
                 // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
@@ -308,46 +340,45 @@ public class CompositeRolesStore {
                         ),
                         e
                     );
-                    roleActionListener.onResponse(superuserRole);
+                    subscribers.onResponse(superuserRole);
                 } else {
-                    roleActionListener.onFailure(e);
+                    subscribers.onFailure(e);
                 }
-            };
-            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
-                if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
-                    roleActionListener.onResponse(Role.EMPTY);
-                } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
-                    roleActionListener.onResponse(superuserRole);
+            });
+            ActionListener.run(lookupResultListener.<RolesRetrievalResult>delegateFailureAndWrap((resultListener, rolesRetrievalResult) -> {
+                roleDeprecations.set(rolesRetrievalResult.getRoleDeprecations());
+                if (rolesRetrievalResult == RolesRetrievalResult.EMPTY) {
+                    invalidateRoleCache(cacheKey, sharedLookup);
+                    resultListener.onResponse(Role.EMPTY);
+                    return;
+                }
+                if (rolesRetrievalResult == RolesRetrievalResult.SUPERUSER) {
+                    invalidateRoleCache(cacheKey, sharedLookup);
+                    resultListener.onResponse(superuserRole);
+                    return;
+                }
+                if (rolesRetrievalResult.isSuccess() == false) {
+                    // Partial results are returned to current subscribers but not kept in the cache.
+                    invalidateRoleCache(cacheKey, sharedLookup);
+                }
+
+                final ActionRunnable<Role> buildRole = ActionRunnable.wrap(
+                    resultListener,
+                    buildListener -> buildRoleAndCacheMissingRoles(cacheKey, rolesRetrievalResult, invalidationCounters, buildListener)
+                );
+                if (shouldForkRoleBuilding(rolesRetrievalResult.getRoleDescriptors())) {
+                    roleBuildingExecutor.execute(buildRole);
                 } else {
-                    final ActionListener<Role> wrapped = ActionListener.wrap(roleActionListener::onResponse, failureHandler);
-                    if (shouldForkRoleBuilding(rolesRetrievalResult.getRoleDescriptors())) {
-                        roleBuildingExecutor.execute(
-                            ActionRunnable.wrap(
-                                wrapped,
-                                l -> buildThenMaybeCacheRole(
-                                    cacheKey,
-                                    rolesRetrievalResult.getRoleDescriptors(),
-                                    rolesRetrievalResult.getMissingRoles(),
-                                    rolesRetrievalResult.isSuccess(),
-                                    invalidationCounters,
-                                    l
-                                )
-                            )
-                        );
-                    } else {
-                        buildThenMaybeCacheRole(
-                            cacheKey,
-                            rolesRetrievalResult.getRoleDescriptors(),
-                            rolesRetrievalResult.getMissingRoles(),
-                            rolesRetrievalResult.isSuccess(),
-                            invalidationCounters,
-                            wrapped
-                        );
-                    }
+                    buildRole.run();
                 }
-            }, failureHandler));
-        } else {
-            roleActionListener.onResponse(existing);
+            }), retrievalListener -> roleReference.resolve(roleReferenceResolver, retrievalListener));
+        }
+    }
+
+    private void invalidateRoleCache(ProjectScoped<RoleKey> cacheKey, SubscribableListener<Role> sharedLookup) {
+        try (ReleasableLock ignored = cacheUpdateLock.acquire()) {
+            // Remove only this lookup's entry, leaving any replacement intact.
+            roleCache.invalidate(cacheKey, sharedLookup);
         }
     }
 
@@ -391,19 +422,25 @@ public class CompositeRolesStore {
         }
     }
 
-    // package private for testing
-    RoleDescriptorStore getRoleReferenceResolver() {
-        return roleReferenceResolver;
+    private static void logRoleDeprecations(List<RoleDeprecation> roleDeprecations) {
+        for (RoleDeprecation deprecation : roleDeprecations) {
+            deprecationLogger.critical(
+                DeprecationCategory.SECURITY,
+                "deprecated_role-" + deprecation.name(),
+                "The role [{}] is deprecated and will be removed in a future version of Elasticsearch. {}",
+                deprecation.name(),
+                deprecation.reason()
+            );
+        }
     }
 
-    private void buildThenMaybeCacheRole(
+    private void buildRoleAndCacheMissingRoles(
         ProjectScoped<RoleKey> cacheKey,
-        Collection<RoleDescriptor> roleDescriptors,
-        Set<String> missing,
-        boolean tryCache,
+        RolesRetrievalResult rolesRetrievalResult,
         InvalidationCounters invalidationCounters,
         ActionListener<Role> listener
     ) {
+        final Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
         logger.trace(
             "Building role from descriptors [{}] for names [{}] from source [{}] in project [{}] on [{}]",
             roleDescriptors,
@@ -418,21 +455,21 @@ public class CompositeRolesStore {
             privilegeStore,
             restrictedIndices,
             listener.delegateFailureAndWrap((delegate, role) -> {
-                if (role != null && tryCache) {
+                if (rolesRetrievalResult.isSuccess() && rolesRetrievalResult.getMissingRoles().isEmpty() == false) {
+                    // Counter changes guard negative-cache writes; matching role listeners are removed by invalidation.
                     try (ReleasableLock ignored = cacheUpdateLock.acquire()) {
                         /* The role was built asynchronously, so an invalidation may have completed since this resolution
                          * captured the invalidation counters. Holding the read side of the shared cache lock makes this
                          * check-then-write atomic with respect to invalidations, which clear both caches and bump the
                          * counters under the write side (see invalidateCachesThenBumpCounter): if an invalidation
-                         * completed after the counters were captured, the check below fails and we skip caching rather
-                         * than cache a potentially stale role.
+                         * completed after the counters were captured, the check below fails and we skip writing the
+                         * missing-role markers rather than cache a potentially stale negative lookup.
                          *
                          * Per-project invalidation counter and the global invalidation counter must be unchanged before we cache
                          */
                         if (invalidationCounters.projectInvalidation() == numInvalidation.getOrDefault(cacheKey.projectId(), 0L)
                             && invalidationCounters.globalInvalidation() == numGlobalInvalidation.get()) {
-                            roleCache.computeIfAbsent(cacheKey, (s) -> role);
-                            for (String missingRole : missing) {
+                            for (String missingRole : rolesRetrievalResult.getMissingRoles()) {
                                 negativeLookupCache.computeIfAbsent(
                                     new ProjectScoped<>(cacheKey.projectId(), missingRole),
                                     s -> Boolean.TRUE
@@ -454,6 +491,7 @@ public class CompositeRolesStore {
             assert roleReferences.size() == 1; // we only handle the singleton case today, but that may change with derived API keys
 
             ActionListener.run(listener.<RolesRetrievalResult>map(rolesRetrievalResult -> {
+                logRoleDeprecations(rolesRetrievalResult.getRoleDeprecations());
                 if (rolesRetrievalResult.isSuccess() == false) {
                     throw new ElasticsearchException("role retrieval had one or more failures");
                 }
@@ -848,7 +886,11 @@ public class CompositeRolesStore {
         invalidateCachesThenBumpCounter(
             () -> roleCache.removeIf(key -> key.projectId().equals(projectId)),
             () -> negativeLookupCache.removeIf(key -> key.projectId().equals(projectId)),
-            () -> numInvalidation.remove(projectId)
+            () -> {
+                numInvalidation.remove(projectId);
+                // Prevent old lookups from treating the removed project counter as unchanged.
+                numGlobalInvalidation.incrementAndGet();
+            }
         );
     }
 
@@ -883,12 +925,7 @@ public class CompositeRolesStore {
      * counter, holding {@link #cacheInvalidationLock} (the exclusive/write side of the shared cache lock) for the entire
      * operation and bumping the counter <em>last</em>.
      * <p>
-     * Role resolution performs its invalidation-counter check and its writes to both caches under {@link #cacheUpdateLock} (the
-     * shared/read side of the same lock; see {@link #buildThenMaybeCacheRole}). Because the read and write sides are mutually
-     * exclusive, running every invalidation under the write side - with the counter bump as the final step - guarantees that a
-     * concurrent resolution observes an invalidation atomically: it either completes entirely before the invalidation (so its
-     * just-written entries are cleared by it) or entirely after it (so its counter check fails and it does not repopulate the
-     * caches with stale data).
+     * Register pending listeners and guard negative-cache writes under {@link #cacheUpdateLock} to serialize with invalidation.
      * <p>
      * Without this, a resolution could observe a half-applied invalidation - for example the role cache cleared but the negative
      * cache not yet cleared - read a stale negative-cache entry, and re-cache an empty role that survives indefinitely, because
@@ -1065,6 +1102,6 @@ public class CompositeRolesStore {
         }
     }
 
-    // Snapshot of invalidation counters to guard against cache invalidation during cache write
+    // Guards negative-cache writes against invalidation during role resolution.
     private record InvalidationCounters(long projectInvalidation, long globalInvalidation) {}
 }

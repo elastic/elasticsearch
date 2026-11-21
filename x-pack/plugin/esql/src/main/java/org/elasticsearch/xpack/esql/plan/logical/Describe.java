@@ -34,14 +34,16 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * {@code DESCRIBE} returns one row per column of its input: what the column is, where it comes from,
  * and what the mappings say about it.
  * <p>
- * It is resolved during analysis into a {@link LocalRelation} and reads no data, so it costs a field
- * caps call and works after any command. Unlike {@code LIMIT 0}, the result is a table that the rest of
+ * Analysis computes the {@link LocalRelation} that describes its input and replaces the node with it once
+ * the whole query is verified, so the input is verified like any other query. It reads no data, so it costs
+ * a field caps call and works after any command. Unlike {@code LIMIT 0}, the result is a table that the rest of
  * the query can filter, and it carries the semantics that field caps reports and ES|QL otherwise drops.
  * The node never escapes the coordinator.
  */
@@ -63,14 +65,40 @@ public class Describe extends UnaryPlan implements TelemetryAware {
     private record Column(String name, DataType type) {}
 
     private final List<Attribute> output;
+    @Nullable
+    private final LocalRelation table;
 
     public Describe(Source source, LogicalPlan child) {
-        this(source, child, COLUMNS.stream().map(c -> (Attribute) new ReferenceAttribute(source, null, c.name(), c.type())).toList());
+        this(source, child, null);
     }
 
-    private Describe(Source source, LogicalPlan child, List<Attribute> output) {
+    public Describe(Source source, LogicalPlan child, @Nullable LocalRelation table) {
+        this(
+            source,
+            child,
+            table != null
+                ? table.output()
+                : COLUMNS.stream().map(c -> (Attribute) new ReferenceAttribute(source, null, c.name(), c.type())).toList(),
+            table
+        );
+    }
+
+    private Describe(Source source, LogicalPlan child, List<Attribute> output, @Nullable LocalRelation table) {
         super(source, child);
         this.output = output;
+        this.table = table;
+    }
+
+    /**
+     * The table that describes the child, once analysis computed it.
+     */
+    @Nullable
+    public LocalRelation table() {
+        return table;
+    }
+
+    public Describe withTable(LocalRelation newTable) {
+        return new Describe(source(), child(), output, newTable);
     }
 
     @Override
@@ -80,7 +108,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
 
     @Override
     public Describe replaceChild(LogicalPlan newChild) {
-        return new Describe(source(), newChild, output);
+        return new Describe(source(), newChild, output, table);
     }
 
     @Override
@@ -90,7 +118,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<Describe> info() {
-        return NodeInfo.create(this, Describe::new, child());
+        return NodeInfo.create(this, Describe::new, child(), table);
     }
 
     @Override
@@ -211,6 +239,16 @@ public class Describe extends UnaryPlan implements TelemetryAware {
 
     private static boolean isMetadata(Attribute column) {
         return column instanceof MetadataAttribute || column instanceof ExternalMetadataAttribute;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), table);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(table, ((Describe) obj).table);
     }
 
     @Override

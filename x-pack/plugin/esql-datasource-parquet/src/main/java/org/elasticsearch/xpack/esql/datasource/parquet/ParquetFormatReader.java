@@ -29,6 +29,7 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.ColumnOrder;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -1920,6 +1921,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // min and max are unservable. The null count, however, is tracked independently and stays valid
         // wherever every row group recorded it — COUNT is unaffected by this poison.
         Set<String> poisonedBounds = new HashSet<>();
+        Set<String> poisonedMinBounds = new HashSet<>();
+        Set<String> poisonedMaxBounds = new HashSet<>();
 
         for (BlockMetaData rowGroup : rowGroups) {
             totalRows += rowGroup.getRowCount();
@@ -1984,14 +1987,30 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     if (minVal == null || maxVal == null) {
                         poisonedTemporalStats.add(colName);
                     } else {
-                        mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
-                            if (compareStatExtremum(a[0], b[0]) > 0) a[0] = b[0];
-                            return a;
-                        });
-                        maxs.merge(colName, new Comparable[] { (Comparable) maxVal }, (a, b) -> {
-                            if (compareStatExtremum(a[0], b[0]) < 0) a[0] = b[0];
-                            return a;
-                        });
+                        if (isUnservableMinBound(minVal, maxVal, pt)) {
+                            poisonedMinBounds.add(colName);
+                        } else {
+                            mins.merge(colName, new Comparable[] { (Comparable) minVal }, (a, b) -> {
+                                if (isNaNBound(a[0])) {
+                                    a[0] = b[0];
+                                } else if (isNaNBound(b[0]) == false && compareStatExtremum(a[0], b[0]) > 0) {
+                                    a[0] = b[0];
+                                }
+                                return a;
+                            });
+                        }
+                        if (isUnservableMaxBound(minVal, maxVal, pt)) {
+                            poisonedMaxBounds.add(colName);
+                        } else {
+                            maxs.merge(colName, new Comparable[] { (Comparable) maxVal }, (a, b) -> {
+                                if (isNaNBound(a[0])) {
+                                    a[0] = b[0];
+                                } else if (isNaNBound(b[0]) == false && compareStatExtremum(a[0], b[0]) < 0) {
+                                    a[0] = b[0];
+                                }
+                                return a;
+                            });
+                        }
                     }
                 } else {
                     // Null count is set but no min/max recorded (e.g. a writer that omits bounds for
@@ -2045,8 +2064,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 final OptionalLong nullCount = nc != null && unknownNullCounts.contains(name) == false && poisoned == false
                     ? OptionalLong.of(nc[0])
                     : OptionalLong.empty();
-                final Object minVal = mn != null && poisoned == false && boundsUnknown == false ? mn[0] : null;
-                final Object maxVal = mx != null && poisoned == false && boundsUnknown == false ? mx[0] : null;
+                final boolean minServable = poisoned == false && boundsUnknown == false && poisonedMinBounds.contains(name) == false;
+                final boolean maxServable = poisoned == false && boundsUnknown == false && poisonedMaxBounds.contains(name) == false;
+                final Object minVal = mn != null && minServable && isNaNBound(mn[0]) == false ? mn[0] : null;
+                final Object maxVal = mx != null && maxServable && isNaNBound(mx[0]) == false ? mx[0] : null;
                 final long colSize = cs != null ? cs[0] : -1;
                 columnStats.put(name, new SourceStatistics.ColumnStatistics() {
                     @Override
@@ -2360,12 +2381,87 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     // null anyway (Map.copyOf below rejects nulls).
                     stats.remove(SourceStatisticsSerializer.columnNullCountKey(colName));
                 } else {
-                    stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
-                    stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
+                    if (isUnservableFloatingBound(minVal, pt) == false) {
+                        stats.put(SourceStatisticsSerializer.columnMinKey(colName), minVal);
+                    }
+                    if (isUnservableFloatingBound(maxVal, pt) == false) {
+                        stats.put(SourceStatisticsSerializer.columnMaxKey(colName), maxVal);
+                    }
                 }
             }
         }
         return Map.copyOf(stats);
+    }
+
+    /**
+     * True when a floating-point footer bound cannot stand for the scan's {@code MIN}/{@code MAX}, which skip NaN and
+     * order {@code -0.0} below {@code 0.0}. A NaN bound says nothing about the finite values. Outside
+     * {@code IEEE_754_TOTAL_ORDER} a writer may record a zero with either sign regardless of the data, and parquet-java
+     * rewrites a zero minimum to {@code -0.0} and a zero maximum to {@code 0.0} on read, so a zero bound is not exact.
+     * Covers {@code Double} (double, float16) and {@code Float} bounds.
+     */
+    static boolean isUnservableFloatingBound(Object bound, PrimitiveType primitiveType) {
+        if (isFloatingPointColumn(primitiveType) == false) {
+            return false;
+        }
+        double value;
+        if (bound instanceof Double d) {
+            value = d;
+        } else if (bound instanceof Float f) {
+            value = f;
+        } else {
+            return false;
+        }
+        if (Double.isNaN(value)) {
+            return true;
+        }
+        return value == 0.0 && isTotalOrder(primitiveType) == false;
+    }
+
+    /**
+     * True when a row group's footer minimum cannot stand for the scan's {@code MIN}. As
+     * {@link #isUnservableFloatingBound} for the minimum alone, except that under {@code IEEE_754_TOTAL_ORDER} a minimum
+     * and a maximum that are both NaN of the same sign describe a row group holding only NaN, which {@code MIN} skips.
+     * That row group stays servable so that the fold across row groups can pass over it. A NaN on one side only, or NaN
+     * bounds of opposite signs, may hide finite values and are not servable.
+     */
+    static boolean isUnservableMinBound(Object minBound, Object maxBound, PrimitiveType primitiveType) {
+        return isOnlyNaNRowGroup(minBound, maxBound, primitiveType) == false && isUnservableFloatingBound(minBound, primitiveType);
+    }
+
+    /** The {@code MAX} counterpart of {@link #isUnservableMinBound}; the two bounds are judged independently. */
+    static boolean isUnservableMaxBound(Object minBound, Object maxBound, PrimitiveType primitiveType) {
+        return isOnlyNaNRowGroup(minBound, maxBound, primitiveType) == false && isUnservableFloatingBound(maxBound, primitiveType);
+    }
+
+    private static boolean isOnlyNaNRowGroup(Object minBound, Object maxBound, PrimitiveType primitiveType) {
+        return isFloatingPointColumn(primitiveType)
+            && isTotalOrder(primitiveType)
+            && isNaNBound(minBound)
+            && isNaNBound(maxBound)
+            && isNegativeNaN(minBound) == isNegativeNaN(maxBound);
+    }
+
+    private static boolean isFloatingPointColumn(PrimitiveType primitiveType) {
+        return primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT
+            || primitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE
+            || primitiveType.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation;
+    }
+
+    private static boolean isNaNBound(Object bound) {
+        return (bound instanceof Double d && d.isNaN()) || (bound instanceof Float f && f.isNaN());
+    }
+
+    private static boolean isNegativeNaN(Object nanBound) {
+        if (nanBound instanceof Float f) {
+            return Float.floatToRawIntBits(f) < 0;
+        }
+        return Double.doubleToRawLongBits((Double) nanBound) < 0;
+    }
+
+    private static boolean isTotalOrder(PrimitiveType primitiveType) {
+        ColumnOrder order = primitiveType.columnOrder();
+        return order != null && order.getColumnOrderName() == ColumnOrder.ColumnOrderName.IEEE_754_TOTAL_ORDER;
     }
 
     /**

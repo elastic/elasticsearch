@@ -33,6 +33,7 @@ import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.ColumnOrder;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
@@ -11634,6 +11635,54 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testZeroMinimumOfFloat16IsNotServedAndZeroMinimumOfBinaryDecimalIs() throws Exception {
+        assertFloat16AndDecimalZeroMinimum(ColumnOrder.typeDefined(), null);
+    }
+
+    public void testZeroMinimumOfFloat16IsServedUnderTotalOrder() throws Exception {
+        assertFloat16AndDecimalZeroMinimum(ColumnOrder.ieee754TotalOrder(), 0.0);
+    }
+
+    private void assertFloat16AndDecimalZeroMinimum(ColumnOrder float16Order, Double expectedFloat16Min) throws Exception {
+        MessageType schema = Types.buildMessage()
+            .addField(
+                Types.required(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+                    .length(2)
+                    .as(LogicalTypeAnnotation.float16Type())
+                    .columnOrder(float16Order)
+                    .named("f16")
+            )
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.decimalType(2, 10))
+            .named("dec")
+            .named("test_schema");
+        float[] halves = { 0.0f, 1.5f, 2.0f };
+        long[] decimals = { 0, 250, 700 };
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int i = 0; i < halves.length; i++) {
+                Group g = factory.newGroup();
+                g.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(halves[i])));
+                g.add("dec", Binary.fromConstantByteArray(BigInteger.valueOf(decimals[i]).toByteArray()));
+                rows.add(g);
+            }
+            return rows;
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        var colStats = reader.metadata(createStorageObject(parquetData)).statistics().get().columnStatistics().get();
+        assertEquals(Optional.ofNullable(expectedFloat16Min), colStats.get("f16").minValue());
+        assertEquals(Optional.of(2.0), colStats.get("f16").maxValue());
+        assertEquals(Optional.of(0.0), colStats.get("dec").minValue());
+        assertEquals(Optional.of(7.0), colStats.get("dec").maxValue());
+
+        Map<String, Object> stats = reader.discoverSplitRanges(createStorageObject(parquetData)).getFirst().statistics();
+        assertEquals(expectedFloat16Min, stats.get("_stats.columns.f16.min"));
+        assertEquals(2.0, stats.get("_stats.columns.f16.max"));
+        assertEquals(0.0, stats.get("_stats.columns.dec.min"));
+        assertEquals(7.0, stats.get("_stats.columns.dec.max"));
+    }
+
     /**
      * Verifies that Parquet footer statistics for INT32/INT64-backed DECIMAL columns are scale-decoded
      * to {@code double}, matching the scan-path decode.
@@ -12546,6 +12595,391 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertTrue(decoder + ": a UUID's hex form is not a timestamp, so the scalar value is refused", l.isNull(0));
             }
         }
+    }
+
+    public void testFileStatisticsForDoubleColumnsFollowSkipNaNRule() throws Exception {
+        PrimitiveType.PrimitiveTypeName dbl = PrimitiveType.PrimitiveTypeName.DOUBLE;
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("zeros"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.ieee754TotalOrder()).named("zeros_total_order"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("mixed"))
+            .addField(Types.optional(dbl).columnOrder(ColumnOrder.typeDefined()).named("only_nan"))
+            .named("test");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            double[] zeros = { 0.0, 0.0 };
+            double[] mixed = { 1.0, Double.NaN, 2.0 };
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                if (r < zeros.length) {
+                    g.add("zeros", zeros[r]);
+                    g.add("zeros_total_order", zeros[r]);
+                }
+                g.add("mixed", mixed[r]);
+                g.add("only_nan", Double.NaN);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        Map<String, SourceStatistics.ColumnStatistics> cols = metadata.statistics().get().columnStatistics().get();
+
+        assertEquals(Optional.empty(), cols.get("zeros").minValue());
+        assertEquals(Optional.empty(), cols.get("zeros").maxValue());
+        assertEquals(Optional.of(0.0), cols.get("zeros_total_order").minValue());
+        assertEquals(Optional.of(0.0), cols.get("zeros_total_order").maxValue());
+        assertEquals(Optional.of(1.0), cols.get("mixed").minValue());
+        assertEquals(Optional.of(2.0), cols.get("mixed").maxValue());
+        assertEquals(Optional.empty(), cols.get("only_nan").minValue());
+        assertEquals(Optional.empty(), cols.get("only_nan").maxValue());
+    }
+
+    public void testFloatingBoundsThatCannotMatchAScanAreUnservable() {
+        for (PrimitiveType.PrimitiveTypeName name : new PrimitiveType.PrimitiveTypeName[] {
+            PrimitiveType.PrimitiveTypeName.DOUBLE,
+            PrimitiveType.PrimitiveTypeName.FLOAT }) {
+            boolean isFloat = name == PrimitiveType.PrimitiveTypeName.FLOAT;
+            Object nan = isFloat ? (Object) Float.NaN : (Object) Double.NaN;
+            Object zero = isFloat ? (Object) 0.0f : (Object) 0.0d;
+            Object negZero = isFloat ? (Object) (-0.0f) : (Object) (-0.0d);
+            Object finite = isFloat ? (Object) 1.5f : (Object) 1.5d;
+
+            PrimitiveType typeDefined = Types.optional(name).columnOrder(ColumnOrder.typeDefined()).named("x");
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(nan, typeDefined));
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(zero, typeDefined));
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(negZero, typeDefined));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(finite, typeDefined));
+
+            PrimitiveType totalOrder = Types.optional(name).columnOrder(ColumnOrder.ieee754TotalOrder()).named("x");
+            assertTrue(ParquetFormatReader.isUnservableFloatingBound(nan, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(zero, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(negZero, totalOrder));
+            assertFalse(ParquetFormatReader.isUnservableFloatingBound(finite, totalOrder));
+        }
+        PrimitiveType longType = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("x");
+        assertFalse(ParquetFormatReader.isUnservableFloatingBound(0L, longType));
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnWithAllNaNRowGroupAreNotServedUnderDefaultOrder() throws Exception {
+        assertAllNaNRowGroupColumnHasNoFileBounds();
+    }
+
+    public void testFileBoundsServeTheMaximumWhenOnlyAnEarlyRowGroupHasAZeroMinimum() throws Exception {
+        double[] values = new double[3000];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.of(2999.0), d.maxValue());
+    }
+
+    public void testFileBoundsServeTheMinimumWhenOnlyALateRowGroupHasAZeroMaximum() throws Exception {
+        double[] values = new double[3000];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i - 2999.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(-2999.0), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnSkipAllNaNRowGroupUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int phase = 2 * rowsPerGroup;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the phases", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(1.0), d.minValue());
+        assertEquals(Optional.of((double) values.length), d.maxValue());
+    }
+
+    public void testFileBoundsOfMultiRowGroupColumnSkipLeadingAllNaNRowGroupUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int nanRows = 2 * rowsPerGroup;
+        double[] values = new double[3 * nanRows];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i < nanRows ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the NaN rows", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(nanRows + 1.0), d.minValue());
+        assertEquals(Optional.of((double) values.length), d.maxValue());
+    }
+
+    public void testFileBoundsOfTotalOrderColumnOfOnlyNaNAreNotServed() throws Exception {
+        double[] values = new double[2400];
+        Arrays.fill(values, Double.NaN);
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    public void testSplitBoundsOfTotalOrderColumnOfOnlyNaNAreNotPublished() throws Exception {
+        double[] values = new double[2400];
+        Arrays.fill(values, Double.NaN);
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+
+        List<RangeAwareFormatReader.SplitRange> ranges = new ParquetFormatReader(blockFactory).discoverSplitRanges(
+            createStorageObject(parquetData)
+        );
+
+        assertThat(ranges.size(), greaterThan(0));
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            Map<String, Object> stats = range.statistics();
+            assertFalse(stats.containsKey("_stats.columns.d.min"));
+            assertFalse(stats.containsKey("_stats.columns.d.max"));
+            assertNotNull(stats.get("_stats.columns.d.null_count"));
+        }
+    }
+
+    public void testSplitBoundsOfAnAllNaNRowGroupDoNotPoisonTheFiniteSplitsUnderTotalOrder() throws Exception {
+        int rowsPerGroup = rowGroupRowCounts(createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), new double[4800])).get(0).intValue();
+        int phase = 2 * rowsPerGroup;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.ieee754TotalOrder(), values);
+        assertThat("row groups must align with the phases", rowGroupRowCounts(parquetData), everyItem(equalTo((long) rowsPerGroup)));
+
+        List<RangeAwareFormatReader.SplitRange> ranges = new ParquetFormatReader(blockFactory).discoverSplitRanges(
+            createStorageObject(parquetData)
+        );
+
+        List<RangeAwareFormatReader.SplitRange> byOffset = ranges.stream()
+            .sorted(Comparator.comparingLong(RangeAwareFormatReader.SplitRange::offset))
+            .toList();
+        assertThat("one split per row group", byOffset.size(), equalTo(rowGroupRowCounts(parquetData).size()));
+        for (int i = 0; i < byOffset.size(); i++) {
+            Map<String, Object> stats = byOffset.get(i).statistics();
+            Object min = stats.get("_stats.columns.d.min");
+            Object max = stats.get("_stats.columns.d.max");
+            assertNotNull(stats.get("_stats.columns.d.null_count"));
+            boolean allNaN = i * rowsPerGroup >= phase && (i + 1) * rowsPerGroup <= 2 * phase;
+            if (allNaN) {
+                assertNull("an all-NaN row group publishes no minimum", min);
+                assertNull("an all-NaN row group publishes no maximum", max);
+            } else {
+                assertEquals("minimum of row group " + i, i * (double) rowsPerGroup + 1.0, min);
+                assertEquals("maximum of row group " + i, (i + 1) * (double) rowsPerGroup, max);
+            }
+        }
+    }
+
+    public void testFileBoundsServeTheMaximumWhenOnlyTheMinimumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { 0.0, 5.0, 100.0 });
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.of(100.0), d.maxValue());
+    }
+
+    public void testFileBoundsServeTheMinimumWhenOnlyTheMaximumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { -100.0, -5.0, 0.0 });
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(-100.0), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    public void testSplitBoundsServeTheMaximumWhenOnlyTheMinimumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { 0.0, 5.0, 100.0 });
+
+        Map<String, Object> stats = new ParquetFormatReader(blockFactory).discoverSplitRanges(createStorageObject(parquetData))
+            .getFirst()
+            .statistics();
+
+        assertFalse(stats.containsKey("_stats.columns.d.min"));
+        assertEquals(100.0, stats.get("_stats.columns.d.max"));
+        assertEquals(0L, stats.get("_stats.columns.d.null_count"));
+    }
+
+    public void testSplitBoundsServeTheMinimumWhenOnlyTheMaximumIsAZero() throws Exception {
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), new double[] { -100.0, -5.0, 0.0 });
+
+        Map<String, Object> stats = new ParquetFormatReader(blockFactory).discoverSplitRanges(createStorageObject(parquetData))
+            .getFirst()
+            .statistics();
+
+        assertEquals(-100.0, stats.get("_stats.columns.d.min"));
+        assertFalse(stats.containsKey("_stats.columns.d.max"));
+        assertEquals(0L, stats.get("_stats.columns.d.null_count"));
+    }
+
+    public void testZeroBoundOfADecimalColumnIsServable() {
+        PrimitiveType decimal = Types.optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.decimalType(2, 10))
+            .named("x");
+
+        assertFalse(ParquetFormatReader.isUnservableFloatingBound(0.0, decimal));
+        assertFalse(ParquetFormatReader.isUnservableMinBound(0.0, 5.0, decimal));
+        assertFalse(ParquetFormatReader.isUnservableMaxBound(-5.0, 0.0, decimal));
+    }
+
+    public void testRowGroupBoundsOfOnlyNaNAreServableOnlyUnderTotalOrderAndOneSign() {
+        double negativeNaN = Double.longBitsToDouble(0xfff8000000000000L);
+        float negativeFloatNaN = Float.intBitsToFloat(0xffc00000);
+        PrimitiveType totalOrder = Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .columnOrder(ColumnOrder.ieee754TotalOrder())
+            .named("x");
+        PrimitiveType typeDefined = Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .columnOrder(ColumnOrder.typeDefined())
+            .named("x");
+
+        assertUnservable(Double.NaN, Double.NaN, totalOrder, false, false);
+        assertUnservable(negativeNaN, negativeNaN, totalOrder, false, false);
+        assertUnservable(Float.NaN, Float.NaN, totalOrder, false, false);
+        assertUnservable(negativeFloatNaN, negativeFloatNaN, totalOrder, false, false);
+        assertUnservable(negativeNaN, Double.NaN, totalOrder, true, true);
+        assertUnservable(negativeFloatNaN, Float.NaN, totalOrder, true, true);
+        assertUnservable(1.0, Double.NaN, totalOrder, false, true);
+        assertUnservable(Double.NaN, 1.0, totalOrder, true, false);
+        assertUnservable(Double.NaN, Double.NaN, typeDefined, true, true);
+        assertUnservable(1.0, Double.NaN, typeDefined, false, true);
+        assertUnservable(1.0, 2.0, totalOrder, false, false);
+        assertUnservable(1.0, 2.0, typeDefined, false, false);
+        assertUnservable(0.0, 2.0, typeDefined, true, false);
+        assertUnservable(-2.0, 0.0, typeDefined, false, true);
+        assertUnservable(0.0, 2.0, totalOrder, false, false);
+    }
+
+    private static void assertUnservable(Object min, Object max, PrimitiveType type, boolean minUnservable, boolean maxUnservable) {
+        String label = "min=" + min + " max=" + max + " order=" + type.columnOrder();
+        assertEquals("min of " + label, minUnservable, ParquetFormatReader.isUnservableMinBound(min, max, type));
+        assertEquals("max of " + label, maxUnservable, ParquetFormatReader.isUnservableMaxBound(min, max, type));
+    }
+
+    public void testFileBoundsSkipNaNWhenEveryRowGroupHoldsAFiniteValue() throws Exception {
+        double[] values = new double[2400];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i % 2 == 0 ? Double.NaN : i;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+        assertThat("the fixture must span several row groups", rowGroupRowCounts(parquetData).size(), greaterThan(2));
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.of(1.0), d.minValue());
+        assertEquals(Optional.of(2399.0), d.maxValue());
+    }
+
+    public void testFileBoundsOfFloatColumnWithNaNAreNotServedWhenEveryValueIsNaN() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(PrimitiveType.PrimitiveTypeName.FLOAT).columnOrder(ColumnOrder.typeDefined()).named("f"))
+            .named("test");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> rows = new ArrayList<>();
+            for (int r = 0; r < 3; r++) {
+                Group g = factory.newGroup();
+                g.add("f", Float.NaN);
+                rows.add(g);
+            }
+            return rows;
+        });
+
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        SourceStatistics.ColumnStatistics f = metadata.statistics().get().columnStatistics().get().get("f");
+
+        assertEquals(Optional.empty(), f.minValue());
+        assertEquals(Optional.empty(), f.maxValue());
+    }
+
+    private void assertAllNaNRowGroupColumnHasNoFileBounds() throws Exception {
+        int phase = 1200;
+        double[] values = new double[3 * phase];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i >= phase && i < 2 * phase ? Double.NaN : i + 1.0;
+        }
+        byte[] parquetData = createDoubleColumnFile(ColumnOrder.typeDefined(), values);
+
+        long start = 0;
+        boolean sawAllNaNRowGroup = false;
+        boolean sawFiniteRowGroup = false;
+        for (long rows : rowGroupRowCounts(parquetData)) {
+            sawAllNaNRowGroup |= start >= phase && start + rows <= 2 * phase;
+            sawFiniteRowGroup |= start + rows <= phase || start >= 2 * phase;
+            start += rows;
+        }
+        assertTrue("the fixture must hold a row group of only NaN", sawAllNaNRowGroup);
+        assertTrue("the fixture must hold a row group of only finite values", sawFiniteRowGroup);
+
+        SourceStatistics.ColumnStatistics d = fileColumnStatistics(parquetData);
+
+        assertEquals(Optional.empty(), d.minValue());
+        assertEquals(Optional.empty(), d.maxValue());
+    }
+
+    private SourceStatistics.ColumnStatistics fileColumnStatistics(byte[] parquetData) throws IOException {
+        SourceMetadata metadata = new ParquetFormatReader(blockFactory).metadata(createStorageObject(parquetData));
+        return metadata.statistics().get().columnStatistics().get().get("d");
+    }
+
+    private List<Long> rowGroupRowCounts(byte[] parquetData) throws IOException {
+        try (
+            ParquetFileReader pfr = ParquetFileReader.open(
+                new ParquetStorageObjectAdapter(createStorageObject(parquetData), footerByteCache, blockFactory.breaker()),
+                ParquetReadOptions.builder(new PlainParquetConfiguration()).build()
+            )
+        ) {
+            List<Long> counts = new ArrayList<>();
+            for (BlockMetaData rowGroup : pfr.getRowGroups()) {
+                counts.add(rowGroup.getRowCount());
+            }
+            return counts;
+        }
+    }
+
+    private byte[] createDoubleColumnFile(ColumnOrder order, double[] values) throws IOException {
+        MessageType schema = Types.buildMessage()
+            .addField(Types.optional(PrimitiveType.PrimitiveTypeName.DOUBLE).columnOrder(order).named("d"))
+            .named("test");
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(createOutputFile(outputStream))
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withDictionaryEncoding(false)
+                .withRowGroupSize(1024L)
+                .withMinRowCountForPageSizeCheck(1)
+                .withMaxRowCountForPageSizeCheck(1)
+                .build()
+        ) {
+            for (double value : values) {
+                Group group = groupFactory.newGroup();
+                group.add("d", value);
+                writer.write(group);
+            }
+        }
+        return outputStream.toByteArray();
     }
 
     // The deferred route decodes a fused pair natively, so it has to carry what the eager readers' view carries:

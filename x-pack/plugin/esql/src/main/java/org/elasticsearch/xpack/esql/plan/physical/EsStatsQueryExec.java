@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.ElementType;
@@ -69,6 +70,7 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
             return List.of(switch (queryBuilderAndTags.getFirst().tags().getFirst()) {
                 case Integer i -> ElementType.INT;
                 case Long l -> ElementType.LONG;
+                case BytesRef b -> ElementType.BYTES_REF;
                 default -> throw new IllegalStateException(
                     "Unsupported tag type in ByStat: " + queryBuilderAndTags.getFirst().tags().getFirst()
                 );

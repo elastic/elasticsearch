@@ -51,7 +51,7 @@ public class RestoreClusterStateListener {
             public void onNewClusterState(ClusterState state) {
                 var restoreState = restoreInProgress(state, uuid);
                 if (restoreState == null) {
-                    // we are too late and the restore is gone from the cluster state already
+                    // The restore entry disappeared before we observed its outcome. This can happen during a master change.
                     listener.onResponse(new RestoreSnapshotResponse((RestoreInfo) null));
                     return;
                 }

@@ -897,7 +897,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
         }
 
         assertThat(safeResult(deleteSnapshotStepListener).isAcknowledged(), is(true));
-        assertThat(safeResult(restoreSnapshotResponseListener).getRestoreInfo().failedShards(), is(0));
+        final var restoreInfo = safeResult(restoreSnapshotResponseListener).getRestoreInfo();
+        if (restoreInfo != null) {
+            assertThat(restoreInfo.failedShards(), is(0));
+        }
 
         final Repository repository = masterNode.repositoriesService().repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
@@ -2075,10 +2078,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
     ) {
         final SubscribableListener<ClusterHealthResponse> clusterHealthResponseListener = new SubscribableListener<>();
         continueOrDie(restoreListener, restoreSnapshotResponse -> {
-            assertEquals(expectedNumShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+            final var restoreInfo = restoreSnapshotResponse.getRestoreInfo();
+            if (restoreInfo != null) {
+                assertEquals(expectedNumShards, restoreInfo.totalShards());
+            }
 
             // Wait for green index when the node is stateless, otherwise subsequent search may fail
-            if (DiscoveryNode.isStateless(testClusterNodes.nodes().values().iterator().next().settings)) {
+            if (restoreInfo == null || DiscoveryNode.isStateless(testClusterNodes.nodes().values().iterator().next().settings)) {
                 client().admin()
                     .cluster()
                     .prepareHealth(TimeValue.MINUS_ONE, indexName)

@@ -291,6 +291,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     if (param == null) {
                         throw new ParsingException(valueSource, "Parameter [{}] value not found", paramName);
                     }
+                    ExpressionBuilder.rejectAnyParam(params(), param, valueSource, paramName);
 
                     var v = param.value();
                     if (v == null) {

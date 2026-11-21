@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.AnyParam;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -97,6 +98,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
@@ -168,25 +170,63 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
+    ExpressionBuilder(ParsingContext context) {
+        this.context = context;
+        context.params().anyParamValue(context.anyParamValue());
+    }
+
     /**
      * The value of {@code param_any_value} that applies to the statement being built: the one in the {@link ParsingContext}, or
      * the one a {@code SET} in the statement set, which {@code LogicalPlanBuilder#visitStatements} applies before it visits
-     * the query. {@code null} when no reserved value is recognized.
+     * the query. {@code null} when no reserved value is recognized. It is kept in the {@link QueryParams}, so that the PromQL
+     * parser, which only has them, recognizes it too.
      */
-    private String anyParamValue;
-
-    ExpressionBuilder(ParsingContext context) {
-        this.context = context;
-        this.anyParamValue = context.anyParamValue();
-    }
-
     @Nullable
     String anyParamValue() {
-        return anyParamValue;
+        return context.params().anyParamValue();
     }
 
     void anyParamValue(@Nullable String anyParamValue) {
-        this.anyParamValue = anyParamValue;
+        context.params().anyParamValue(anyParamValue);
+    }
+
+    /**
+     * Throws the error for a parameter with the reserved value where nothing could replace it.
+     *
+     * @param where what to say about the position, such as {@code "in this position"}
+     */
+    static ParsingException anyParamError(QueryParams params, Source source, String parameterText, String where) {
+        return new ParsingException(source, AnyParam.errorMessage(parameterText, params.anyParamValue(), where));
+    }
+
+    /** Rejects {@code param} if it stands for "Any", where only a normal value makes sense, like in a PromQL query. */
+    public static void rejectAnyParam(QueryParams params, @Nullable QueryParam param, Source source, String parameterText) {
+        if (params.isAny(param)) {
+            throw anyParamError(params, source, parameterText, "in a PromQL query");
+        }
+    }
+
+    /**
+     * A parameter can stand for "Any" only where an expression is allowed, as that is the only place where the
+     * parser can still drop it or the analyzer can replace it. The same {@code ?param} is a plain constant elsewhere, in a
+     * {@code LIMIT}, an option or a name, and nothing handles "Any" there.
+     */
+    private static boolean isExpressionPosition(EsqlBaseParser.ParameterContext ctx) {
+        return ctx.getParent() instanceof EsqlBaseParser.InputParameterContext constant
+            && constant.getParent() instanceof EsqlBaseParser.ConstantDefaultContext;
+    }
+
+    private Expression visitParameter(EsqlBaseParser.ParameterContext ctx, QueryParam param) {
+        Source source = source(ctx);
+        if (context.params().isAny(param)) {
+            if (isExpressionPosition(ctx) == false) {
+                boolean name = ctx.getParent() instanceof EsqlBaseParser.IdentifierPatternContext
+                    || ctx.getParent() instanceof EsqlBaseParser.IdentifierOrParameterContext;
+                throw anyParamError(context.params(), source, source.text(), name ? "as an identifier or pattern" : "in this position");
+            }
+            return new AnyParam(source, source.text(), anyParamValue(), param.classification() == IDENTIFIER);
+        }
+        return visitParam(source, param);
     }
 
     /**
@@ -756,8 +796,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public UnresolvedAttribute visitDereference(EsqlBaseParser.DereferenceContext ctx) {
-        return visitQualifiedName(ctx.qualifiedName());
+    public Expression visitDereference(EsqlBaseParser.DereferenceContext ctx) {
+        EsqlBaseParser.QualifiedNameContext qualifiedName = ctx.qualifiedName();
+        List<EsqlBaseParser.IdentifierOrParameterContext> parts = qualifiedName.fieldName().identifierOrParameter();
+        if (qualifiedName.qualifier == null && parts.size() == 1 && parts.getFirst().doubleParameter() != null) {
+            // A lone ??param is where one with the reserved value can stand for a field; anywhere else in a name it is an error
+            Expression param = expression(parts.getFirst().doubleParameter());
+            if (param instanceof AnyParam) {
+                return param;
+            }
+            String name = unresolvedAttributeNameInParam(qualifiedName.fieldName(), param);
+            return new UnresolvedAttribute(source(qualifiedName), null, name, null);
+        }
+        return visitQualifiedName(qualifiedName);
     }
 
     @Override
@@ -882,9 +933,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // below and would call expression() twice, turning deep inline cast chains (e.g. ::long::int repeated)
             // into O(n^2) work.
             if (DataType.COUNTER_CAST_NAME.equals(typeName)) {
-                return new ToCounter(source, expression(parseTree));
+                return new ToCounter(source, castOperand(parseTree));
             } else if (DataType.GAUGE_CAST_NAME.equals(typeName)) {
-                return new ToGauge(source, expression(parseTree));
+                return new ToGauge(source, castOperand(parseTree));
             }
         }
         DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);
@@ -892,12 +943,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (converterToFactory == null) {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
-        Expression expr = expression(parseTree);
+        Expression expr = castOperand(parseTree);
         var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
         if (Build.current().isSnapshot() == false && EsqlFunctionRegistry.isSnapshotOnly(convertFunction.getClass())) {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }
         return convertFunction;
+    }
+
+    /** The operand of a cast, where a parameter that stands for "Any" has nothing to be replaced with: it would have no type. */
+    private Expression castOperand(ParseTree parseTree) {
+        Expression operand = expression(parseTree);
+        if (operand instanceof AnyParam any) {
+            throw anyParamError(context.params(), any.source(), any.parameterText(), "in a cast");
+        }
+        return operand;
     }
 
     @Override
@@ -984,6 +1044,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         Expression left = expression(valueExpr);
         Expression right = expression(patternCtx);
+        if (right instanceof AnyParam any) {
+            throw anyParamError(context.params(), source, any.parameterText(), "as a pattern");
+        }
         // Fast path: single-value string literal known at parse time → validate and build concrete pattern immediately
         if (right instanceof Literal lit && lit.dataType() == DataType.KEYWORD && (lit.value() instanceof List<?>) == false) {
             String patternString = BytesRefs.toString(lit.value());
@@ -1132,6 +1195,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             } else {
                 throw new ParsingException(expressionSource, "Unsupported parameter context");
             }
+            if (context.params().isAny(param)) {
+                throw anyParamError(context.params(), expressionSource, parameterSource.text(), "as a pattern");
+            }
         }
 
         boolean isInvalidList() {
@@ -1235,6 +1301,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         ParseTree paramCtx = ctx.parameter();
         ParseTree doubleParamsCtx = ctx.doubleParameter();
         Expression exp = expression(paramCtx != null ? paramCtx : doubleParamsCtx);
+        if (exp instanceof AnyParam any) {
+            throw anyParamError(context.params(), src, any.parameterText(), "as an identifier or pattern");
+        }
         if (exp instanceof Literal lit) {
             if (lit.value() != null) {
                 throw new ParsingException(
@@ -1365,7 +1434,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitInputParam(EsqlBaseParser.InputParamContext ctx) {
         QueryParam param = paramByToken(ctx.PARAM());
-        return visitParam(source(ctx), param);
+        return visitParameter(ctx, param);
     }
 
     @Override
@@ -1374,7 +1443,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (param == null) {
             return MISSING_PARAMETER;
         }
-        return visitParam(source(ctx), param);
+        return visitParameter(ctx, param);
     }
 
     private Expression visitParam(Source parameterSource, QueryParam param) {
@@ -1464,6 +1533,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 ctx.getText(),
                 "[" + up.name() + "] declared as a pattern"
             );
+            case AnyParam any -> throw anyParamError(context.params(), source(ctx), any.parameterText(), "as an identifier or pattern");
             case UnresolvedAttribute ua -> {
                 if (ua.name() != null) {
                     return ua.name();
@@ -1498,6 +1568,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * is returned regardless how the param is specified in the request.
      */
     private Expression visitDoubleParam(EsqlBaseParser.DoubleParameterContext ctx, QueryParam param) {
+        if (context.params().isAny(param)) {
+            // Where it is not an expression, the code that reads the name of the identifier rejects it
+            Source source = source(ctx);
+            return new AnyParam(source, source.text(), anyParamValue(), true);
+        }
         if (param.classification() == PATTERN) {
             context.params.addParsingError(
                 new ParsingException(

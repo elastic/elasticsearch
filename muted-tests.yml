@@ -235,7 +235,7 @@ tests:
   tasks:
   - :x-pack:plugin:inference:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackFieldsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testFetchTooManyBigFields
@@ -322,7 +322,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackStringFunctionsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testManyDissectFromRow
@@ -849,3 +849,18 @@ tests:
   - :x-pack:plugin:esql:test
   method: testLimitOnTheWire
   issue: https://github.com/elastic/elasticsearch/issues/166946
+- class: org.elasticsearch.xpack.esql.plan.logical.TsInfoSerializationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLimitNotOnTheWire
+  issue: https://github.com/elastic/elasticsearch/issues/166968
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testOnPageFetchedSeesEveryArrivingPage
+  issue: https://github.com/elastic/elasticsearch/issues/166977
+- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithoutPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166996

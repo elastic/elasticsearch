@@ -24,6 +24,7 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -68,6 +69,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -101,6 +103,8 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     private static final String ES_README_P12 = "es-readme-p12.txt";
     private static final String ES_YML_P12 = "es-sample-p12.yml";
     private static final String CA_README_P12 = "ca-readme-p12.txt";
+    private static final String HTTP_KEYSTORE_BASENAME = "http";
+    private static final String CA_KEYSTORE_BASENAME = "ca";
     private static final String KIBANA_README = "kibana-readme.txt";
     private static final String KIBANA_YML = "kibana-sample.yml";
 
@@ -121,6 +125,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     enum FileType {
         PKCS12,
         JKS,
+        BCFKS,
         PEM_CERT,
         PEM_KEY,
         PEM_CERT_CHAIN,
@@ -155,8 +160,15 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
+    private final CliKeyStoreFormat keyStoreFormat;
+
     HttpCertificateCommand() {
+        this(CliKeyStoreFormat.forRuntime());
+    }
+
+    HttpCertificateCommand(CliKeyStoreFormat keyStoreFormat) {
         super("generate a new certificate (or certificate request) for the Elasticsearch HTTP interface");
+        this.keyStoreFormat = keyStoreFormat;
     }
 
     @Override
@@ -222,14 +234,30 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             terminal.println("We recommend that you protect your private keys with a password");
             terminal.println("");
             terminal.println("If you do not wish to use a password, simply press <enter> at the prompt below.");
-            password = readPassword(terminal, "Provide a password for the private key: ", true);
+            password = readPassword(terminal, "Provide a password for the private key: ", true, null);
         } else {
-            terminal.println("Your private key(s) will be stored in a PKCS#12 keystore file named \"http.p12\".");
+            terminal.println(
+                "Your private key(s) will be stored in a "
+                    + keyStoreFormat.description()
+                    + " keystore file named \""
+                    + HTTP_KEYSTORE_BASENAME
+                    + keyStoreFormat.extension()
+                    + "\"."
+            );
+            final String compatibilityNote = keyStoreFormat.compatibilityNote();
+            if (compatibilityNote != null) {
+                terminal.println(compatibilityNote);
+            }
             terminal.println("This type of keystore is always password protected, but it is possible to use a");
             terminal.println("blank password.");
             terminal.println("");
             terminal.println("If you wish to use a blank password, simply press <enter> at the prompt below.");
-            password = readPassword(terminal, "Provide a password for the \"http.p12\" file: ", true);
+            password = readPassword(
+                terminal,
+                "Provide a password for the \"" + HTTP_KEYSTORE_BASENAME + keyStoreFormat.extension() + "\" file: ",
+                true,
+                keyStoreFormat
+            );
         }
 
         printHeader("Where should we save the generated files?", terminal);
@@ -394,14 +422,20 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     Set.of(KeyPurpose.SERVER_AUTH)
                 );
 
-                final String p12Name = "http.p12";
+                final String keyStoreName = HTTP_KEYSTORE_BASENAME + keyStoreFormat.extension();
                 final String ymlFile = "sample-elasticsearch.yml";
                 final Map<String, String> substitutions = buildSubstitutions(
                     env,
-                    Map.ofEntries(Map.entry("P12", p12Name), Map.entry("YML", ymlFile), Map.entry("PASSWORD", hasPassword ? "*" : ""))
+                    Map.ofEntries(
+                        Map.entry("KEYSTORE", keyStoreName),
+                        Map.entry("KEYSTORE_FORMAT", keyStoreFormat.description()),
+                        Map.entry("KEYSTORE_TYPE", Objects.requireNonNullElse(keyStoreFormat.settingsType(), "")),
+                        Map.entry("YML", ymlFile),
+                        Map.entry("PASSWORD", hasPassword ? "*" : "")
+                    )
                 );
                 writeTextFile(zip, dirName + "/README.txt", ES_README_P12, substitutions);
-                writeKeyStore(zip, dirName + "/" + p12Name, certificate, keyPair.getPrivate(), password, ca.certAndKey.cert);
+                writeKeyStore(zip, dirName + "/" + keyStoreName, certificate, keyPair.getPrivate(), password, ca.certAndKey.cert);
                 writeTextFile(zip, dirName + "/" + ymlFile, ES_YML_P12, substitutions);
             }
         } catch (IOException | GeneralSecurityException e) {
@@ -413,6 +447,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         assert ca != null;
         assert ca.generated;
 
+        final String keyStoreName = CA_KEYSTORE_BASENAME + keyStoreFormat.extension();
         try {
             writeTextFile(
                 zip,
@@ -421,8 +456,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 buildSubstitutions(
                     env,
                     Map.of(
-                        "P12",
-                        "ca.p12",
+                        "KEYSTORE",
+                        keyStoreName,
+                        "KEYSTORE_FORMAT",
+                        keyStoreFormat.description(),
                         "DN",
                         ca.certAndKey.cert.getSubjectX500Principal().getName(),
                         "PASSWORD",
@@ -430,11 +467,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     )
                 )
             );
-            final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
-            pkcs12.load(null);
-            pkcs12.setKeyEntry("ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });
-            try (ZipEntryStream entry = new ZipEntryStream(zip, dirName + "/ca.p12")) {
-                pkcs12.store(entry, ca.password);
+            final KeyStore keyStore = keyStoreFormat.newKeyStore();
+            keyStore.setKeyEntry("ca", ca.certAndKey.key, ca.password, new Certificate[] { ca.certAndKey.cert });
+            try (ZipEntryStream entry = new ZipEntryStream(zip, dirName + "/" + keyStoreName)) {
+                keyStore.store(entry, ca.password);
             }
         } catch (KeyStoreException | IOException | CertificateException | NoSuchAlgorithmException e) {
             throw new ElasticsearchException("Failed to write CA to ZIP file", e);
@@ -540,14 +576,16 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         char[] password,
         X509Certificate caCert
     ) throws IOException, GeneralSecurityException {
-        final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
-        pkcs12.load(null);
-        pkcs12.setKeyEntry("http", key, password, new Certificate[] { certificate });
-        if (caCert != null) {
-            pkcs12.setCertificateEntry("ca", caCert);
+        final KeyStore keyStore = keyStoreFormat.newKeyStore();
+        if (caCert == null) {
+            keyStore.setKeyEntry("http", key, password, new Certificate[] { certificate });
+        } else {
+            // not every keystore format rebuilds the key entry's chain from other entries, so include the CA explicitly
+            keyStore.setKeyEntry("http", key, password, new Certificate[] { certificate, caCert });
+            keyStore.setCertificateEntry("ca", caCert);
         }
         try (ZipEntryStream entry = new ZipEntryStream(zip, name)) {
-            pkcs12.store(entry, password);
+            keyStore.store(entry, password);
         }
     }
 
@@ -719,7 +757,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             if (csr) {
                 terminal.println("This will be included in the name of the files that are generated");
             } else {
-                terminal.println("This will be the entry name in the PKCS#12 keystore that is generated");
+                terminal.println("This will be the entry name in the " + keyStoreFormat.description() + " keystore that is generated");
             }
             terminal.println("It is helpful to have a meaningful name for this key");
             terminal.println("");
@@ -828,18 +866,26 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return terminal.promptYesNo("Generate a CSR?", false);
     }
 
-    private static CertificateTool.CAInfo findExistingCA(Terminal terminal, Environment env) throws UserException {
+    private CertificateTool.CAInfo findExistingCA(Terminal terminal, Environment env) throws UserException {
         printHeader("What is the path to your CA?", terminal);
 
         terminal.println("Please enter the full pathname to the Certificate Authority that you wish to");
-        terminal.println("use for signing your new http certificate. This can be in PKCS#12 (.p12), JKS");
-        terminal.println("(.jks) or PEM (.crt, .key, .pem) format.");
+        terminal.println("use for signing your new http certificate. This can be in " + supportedKeyStores());
+        terminal.println("or PEM (.crt, .key, .pem) format.");
 
         final Path caPath = requestPath("CA Path: ", terminal, env, true);
         final FileType fileType = guessFileType(caPath, terminal);
         switch (fileType) {
-            case PKCS12, JKS -> {
+            case PKCS12, JKS, BCFKS -> {
                 terminal.println(Terminal.Verbosity.VERBOSE, "CA file " + caPath + " appears to be a " + fileType + " keystore");
+                if (canReadKeyStore(fileType) == false) {
+                    terminal.println(
+                        Terminal.Verbosity.SILENT,
+                        "The file at " + caPath + " is a " + fileType + " keystore, which this tool does not support on this JVM."
+                    );
+                    terminal.println("Please try again with a CA in " + supportedKeyStores() + " or PEM format");
+                    throw new UserException(ExitCodes.DATA_ERROR, caPath + ": Unsupported keystore type (" + fileType + ")");
+                }
                 return readKeystoreCA(caPath, fileType, terminal);
             }
             case PEM_KEY -> {
@@ -868,7 +914,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             }
             default -> {
                 terminal.println(Terminal.Verbosity.SILENT, "The file at " + caPath + " isn't a file type that this tool recognises.");
-                terminal.println("Please try again with a CA in PKCS#12, JKS or PEM format");
+                terminal.println("Please try again with a CA in " + supportedKeyStores() + " or PEM format");
                 throw new UserException(ExitCodes.DATA_ERROR, caPath + ": Unrecognized file type");
             }
         }
@@ -974,7 +1020,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             terminal.println("");
             terminal.println("IT IS IMPORTANT THAT YOU REMEMBER THIS PASSWORD AND KEEP IT SECURE");
             terminal.println("");
-            final char[] password = readPassword(terminal, "CA password: ", true);
+            final char[] password = readPassword(terminal, "CA password: ", true, keyStoreFormat);
             return new CertificateTool.CAInfo(caCert, keyPair.getPrivate(), true, password);
         } catch (GeneralSecurityException | IOException e) {
             throw new IllegalArgumentException("Cannot generate CA key pair", e);
@@ -1058,38 +1104,71 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         });
     }
 
-    private static char[] readPassword(Terminal terminal, String prompt, boolean confirm) {
+    /**
+     * @param keyStoreFormat The format of the keystore that the password protects, or {@code null} if it protects a PEM private key.
+     */
+    private static char[] readPassword(Terminal terminal, String prompt, boolean confirm, @Nullable CliKeyStoreFormat keyStoreFormat) {
         while (true) {
             final char[] password = terminal.readSecret(prompt + " [<ENTER> for none]");
             if (password.length == 0) {
                 return password;
             }
-            if (CertificateTool.isAscii(password)) {
-                if (confirm) {
-                    final char[] again = terminal.readSecret("Repeat password to confirm: ");
-                    if (Arrays.equals(password, again) == false) {
-                        terminal.println("Passwords do not match");
-                        continue;
-                    }
-                }
-                if (CertificateTool.checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, confirm) == false) {
+            final String passwordError = keyStoreFormat == null
+                ? (CertificateTool.isAscii(password) ? null : "Passwords must be plain ASCII")
+                : keyStoreFormat.passwordError(password);
+            if (passwordError != null) {
+                terminal.println(Terminal.Verbosity.SILENT, passwordError);
+                continue;
+            }
+            if (confirm) {
+                final char[] again = terminal.readSecret("Repeat password to confirm: ");
+                if (Arrays.equals(password, again) == false) {
+                    terminal.println("Passwords do not match");
                     continue;
                 }
-                return password;
-            } else {
-                terminal.println(Terminal.Verbosity.SILENT, "Passwords must be plain ASCII");
             }
+            if (CertificateTool.checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, confirm) == false) {
+                continue;
+            }
+            return password;
         }
     }
 
-    private static CertificateTool.CAInfo readKeystoreCA(Path ksPath, FileType fileType, Terminal terminal) throws UserException {
-        final String storeType = fileType == FileType.PKCS12 ? "PKCS12" : "jks";
+    /**
+     * Whether a CA keystore of the given type can be used with the {@link #keyStoreFormat} that this command writes.
+     */
+    private boolean canReadKeyStore(FileType fileType) {
+        return switch (keyStoreFormat.type()) {
+            case "PKCS12" -> fileType == FileType.PKCS12 || fileType == FileType.JKS;
+            case "BCFKS" -> fileType == FileType.BCFKS;
+            default -> throw new IllegalStateException("unexpected keystore type [" + keyStoreFormat.type() + "]");
+        };
+    }
+
+    private String supportedKeyStores() {
+        return switch (keyStoreFormat.type()) {
+            case "PKCS12" -> "PKCS#12 (.p12), JKS (.jks)";
+            case "BCFKS" -> "BCFKS (.bcfks)";
+            default -> throw new IllegalStateException("unexpected keystore type [" + keyStoreFormat.type() + "]");
+        };
+    }
+
+    private CertificateTool.CAInfo readKeystoreCA(Path ksPath, FileType fileType, Terminal terminal) throws UserException {
+        assert canReadKeyStore(fileType) : fileType;
+        final String storeType = switch (fileType) {
+            case PKCS12 -> "PKCS12";
+            case JKS -> "jks";
+            case BCFKS -> "BCFKS";
+            default -> throw new IllegalArgumentException("not a keystore [" + fileType + "]");
+        };
         terminal.println("Reading a " + storeType + " keystore requires a password.");
         terminal.println("It is possible for the keystore's password to be blank,");
         terminal.println("in which case you can simply press <ENTER> at the prompt");
         final char[] password = terminal.readSecret("Password for " + ksPath.getFileName() + ":");
         try {
-            final Map<Certificate, Key> keys = CertParsingUtils.readKeyPairsFromKeystore(ksPath, storeType, password, alias -> password);
+            final Map<Certificate, Key> keys = fileType == FileType.BCFKS
+                ? keyStoreFormat.readKeyPairs(ksPath, password, alias -> password)
+                : CertParsingUtils.readKeyPairsFromKeystore(ksPath, storeType, password, alias -> password);
 
             if (keys.size() != 1) {
                 if (keys.isEmpty()) {
@@ -1231,6 +1310,10 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
         if (fileName.endsWith(".jks")) {
             return FileType.JKS;
+        }
+        // BCFKS files have the same leading bytes as PKCS#12, so they can only be recognised by extension
+        if (fileName.endsWith(".bcfks")) {
+            return FileType.BCFKS;
         }
         // Sniff the file. We could just try loading them, but then we need to catch a variety of exceptions
         // and guess what they mean. For example, loading a PKCS#12 needs a password, so we would need to

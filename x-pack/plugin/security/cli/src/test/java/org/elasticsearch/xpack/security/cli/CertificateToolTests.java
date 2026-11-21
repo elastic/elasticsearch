@@ -104,6 +104,7 @@ import javax.security.auth.x500.X500Principal;
 import static org.elasticsearch.common.ssl.KeyStoreUtil.createKeyManager;
 import static org.elasticsearch.common.ssl.KeyStoreUtil.createTrustManager;
 import static org.elasticsearch.test.FileMatchers.pathExists;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -954,6 +955,61 @@ public class CertificateToolTests extends ESTestCase {
         checkTrust(node2KeyStore, new char[0], node1TrustStore, true);
     }
 
+    /**
+     * Creates a CA as a BCFKS keystore, then signs a certificate with that CA, reading it back through {@code --ca}, and writes the
+     * certificate to another BCFKS keystore.
+     */
+    public void testCreateCaAndCertificateWithBcfks() throws Exception {
+        final Path tempDir = initTempDir();
+        final MockTerminal terminal = MockTerminal.create();
+        final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+        final CliKeyStoreFormat format = CliKeyStoreFormatTests.bcfks();
+
+        final Path caFile = tempDir.resolve("ca.bcfks");
+        final String caPassword = randomBcfksPassword();
+        final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile, format);
+        caCommand.execute(
+            terminal,
+            caCommand.getParser().parse("-ca-dn", "CN=BCFKS CA", "-pass", caPassword, "-out", "<ca>"),
+            env,
+            processInfo
+        );
+        assertThat(caFile, pathExists());
+        assertThat(terminal.getOutput(), containsString(format.compatibilityNote()));
+
+        final Path nodeFile = tempDir.resolve("node01.bcfks");
+        final String nodePassword = randomBcfksPassword();
+        final GenerateCertificateCommand genCommand = new PathAwareGenerateCertificateCommand(Map.of("ca", caFile), nodeFile, format);
+        final OptionSet genOptions = genCommand.getParser()
+            .parse("-ca", "<ca>", "-ca-pass", caPassword, "-pass", nodePassword, "-out", "<node>", "-name", "node01");
+        genCommand.execute(terminal, genOptions, env, processInfo);
+        assertThat(nodeFile, pathExists());
+
+        final X509Certificate caCert = (X509Certificate) readKeyStore(format, caFile, caPassword).getCertificate("ca");
+        final KeyStore nodeKeyStore = readKeyStore(format, nodeFile, nodePassword);
+        final X509Certificate nodeCert = (X509Certificate) nodeKeyStore.getCertificate("node01");
+        assertThat(nodeCert.getIssuerX500Principal(), equalTo(caCert.getSubjectX500Principal()));
+        nodeCert.verify(caCert.getPublicKey());
+        assertThat(nodeKeyStore.getCertificate("ca"), equalTo(caCert));
+        assertThat(nodeKeyStore.getCertificateChain("node01"), arrayContaining(nodeCert, caCert));
+    }
+
+    /**
+     * Unlike PKCS#12, BCFKS accepts blank and non-ASCII passwords.
+     */
+    private static String randomBcfksPassword() {
+        return randomFrom("", "pässwörd", randomAlphaOfLengthBetween(1, 40));
+    }
+
+    private static KeyStore readKeyStore(CliKeyStoreFormat format, Path path, String password) throws Exception {
+        final KeyStore keyStore = format.newKeyStore();
+        try (InputStream in = Files.newInputStream(path)) {
+            keyStore.load(in, password.toCharArray());
+        }
+        return keyStore;
+    }
+
     public void testZipOutputFromCommandLineOptions() throws Exception {
         final Path tempDir = initTempDir();
 
@@ -1220,6 +1276,8 @@ public class CertificateToolTests extends ESTestCase {
         final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
         caCommand.execute(terminal, caOptions, env, processInfo);
 
+        assertThat(terminal.getOutput(), not(containsString("Bouncy Castle FIPS")));
+
         // Check output for OpenSSL compatibility version
         if (caPassword.length() > 50) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
@@ -1240,6 +1298,11 @@ public class CertificateToolTests extends ESTestCase {
         private final Path caFile;
 
         private PathAwareCertificateAuthorityCommand(Path caFile) {
+            this(caFile, CliKeyStoreFormat.PKCS12);
+        }
+
+        private PathAwareCertificateAuthorityCommand(Path caFile, CliKeyStoreFormat keyStoreFormat) {
+            super(keyStoreFormat);
             this.caFile = caFile;
         }
 
@@ -1263,6 +1326,11 @@ public class CertificateToolTests extends ESTestCase {
         }
 
         PathAwareGenerateCertificateCommand(Map<String, Path> inputPaths, Path outFile) {
+            this(inputPaths, outFile, CliKeyStoreFormat.PKCS12);
+        }
+
+        PathAwareGenerateCertificateCommand(Map<String, Path> inputPaths, Path outFile, CliKeyStoreFormat keyStoreFormat) {
+            super(keyStoreFormat);
             this.inputPaths = Map.copyOf(inputPaths);
             this.outFile = outFile;
         }

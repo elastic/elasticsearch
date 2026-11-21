@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -925,6 +926,83 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             var branchLimit = as(branchProject.child(), Limit.class);
             var relation = as(branchLimit.child(), EsRelation.class);
             assertThat(relation.output().stream().map(Attribute::name).collect(Collectors.toSet()), hasItems("emp_no", "first_name"));
+        }
+    }
+
+    /** A branch-local filter must retain its input alias even when the FORK no longer returns it. */
+    public void testPruneForkOutputPreservesFilterReferences() {
+        var relation = defaultAnalyzer().query("FROM employees").collect(EsRelation.class).getFirst();
+        var salary = relation.output().stream().filter(a -> a.name().equals("salary")).findFirst().orElseThrow();
+        var empNo = relation.output().stream().filter(a -> a.name().equals("emp_no")).findFirst().orElseThrow();
+        var alias = new Alias(EMPTY, "s", salary);
+        var project = new Project(EMPTY, relation, List.of(empNo, alias));
+        var filter = new Filter(EMPTY, project, new LessThan(EMPTY, alias.toAttribute(), new Literal(EMPTY, 50000, INTEGER)));
+        var fork = new Fork(EMPTY, List.of(filter), filter.output());
+
+        var result = new PruneColumns().apply(new Project(EMPTY, fork, List.of(empNo)));
+        var prunedFork = as(as(result, Project.class).child(), Fork.class);
+        assertThat(Expressions.names(prunedFork.output()), contains("emp_no"));
+        var branchProject = as(prunedFork.children().getFirst(), Project.class);
+        assertThat(Expressions.names(branchProject.output()), contains("emp_no"));
+        var branchFilter = as(branchProject.child(), Filter.class);
+        assertEquals(filter.condition(), branchFilter.condition());
+        assertTrue(branchFilter.child().outputSet().containsAll(branchFilter.references()));
+    }
+
+    /** Regression for a filter pushed into FORK after a plain alias is removed from the query output. */
+    public void testFilterOnPlainAliasBeforeForkNotInOutput() {
+        var plan = optimizedPlan("""
+            FROM employees
+            | EVAL s = salary
+            | FORK (WHERE emp_no < 10050) (WHERE emp_no >= 10050)
+            | WHERE s < 50000
+            | STATS c = COUNT(*)
+            """);
+
+        assertThat(Expressions.names(plan.output()), contains("c"));
+        assertForkAliasFilter(plan, List.of());
+    }
+
+    /** Keeping the alias must preserve the requested output and valid filters in both branches. */
+    public void testFilterOnPlainAliasBeforeForkInOutput() {
+        var plan = optimizedPlan("""
+            FROM employees
+            | EVAL s = salary
+            | FORK (WHERE emp_no < 10050) (WHERE emp_no >= 10050)
+            | WHERE s < 50000
+            | KEEP s
+            """);
+
+        assertForkAliasFilter(plan, List.of("s"));
+    }
+
+    /** A branch limit prevents further filter pushdown, so its input alias must survive pruning. */
+    public void testFilterOnPlainAliasBeforeForkWithBranchLimit() {
+        var plan = optimizedPlan("""
+            FROM employees
+            | EVAL s = salary
+            | FORK (WHERE emp_no < 10050 | LIMIT 10) (WHERE emp_no >= 10050)
+            | WHERE s < 50000
+            | KEEP emp_no
+            """);
+
+        assertForkAliasFilter(plan, List.of("emp_no"));
+    }
+
+    private static void assertForkAliasFilter(LogicalPlan plan, List<String> outputNames) {
+        var forks = plan.collect(Fork.class);
+        assertThat(forks, hasSize(1));
+        var fork = forks.getFirst();
+        assertEquals(outputNames, Expressions.names(fork.output()));
+        assertThat(fork.children(), hasSize(2));
+        for (LogicalPlan branch : fork.children()) {
+            assertEquals(outputNames, Expressions.names(branch.output()));
+            var filters = branch.collect(Filter.class);
+            assertFalse(filters.isEmpty());
+            assertTrue(filters.stream().anyMatch(f -> f.references().names().contains("salary") || f.references().names().contains("s")));
+            for (Filter filter : filters) {
+                assertTrue(filter.child().outputSet().containsAll(filter.references()));
+            }
         }
     }
 

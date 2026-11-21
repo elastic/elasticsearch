@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -138,6 +140,11 @@ public class ProjectEncryptionKeyMixedPasswordsIT extends ESIntegTestCase {
             // Each node has its own active password plus all the other nodes' passwords.
             for (int j = 0; j < nodeNames.length; j++) {
                 secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "id-" + j, BASE_PASSWORD + "-id-" + j);
+            }
+            // Keep the password the on-disk copy is wrapped with, otherwise the reload is rejected
+            Settings nodeSettings = internalCluster().getInstance(Environment.class, nodeNames[i]).settings();
+            try (SecureString original = ProjectEncryptionKeyPasswordSettings.getPassword(nodeSettings, PASSWORD_ID)) {
+                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, original.toString());
             }
             Settings reloadSettings = Settings.builder().setSecureSettings(secure).build();
             internalCluster().getInstance(PluginsService.class, nodeNames[i])

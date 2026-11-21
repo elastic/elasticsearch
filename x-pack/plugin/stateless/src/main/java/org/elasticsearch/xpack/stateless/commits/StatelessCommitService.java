@@ -954,8 +954,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
         // todo: reevaluate this.
         blobReference.incRef();
-        final TimeValue hotThreadsLogInterval = clusterService.getClusterSettings()
-            .get(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
         var bccUpload = new BatchedCompoundCommitUploadTask(
             threadPool,
             cacheWarmingService,
@@ -965,7 +963,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             commitState::runUploadWhenCommitIsReady,
             virtualBcc,
             TimeValue.timeValueMillis(50),
-            hotThreadsLogInterval,
             newUploadTaskListener(commitState, virtualBcc, blobReference)
         );
         metrics.recordBccUpload(

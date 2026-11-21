@@ -1,0 +1,137 @@
+# One agentic pass after umbrella PR CI is red on a lucene_snapshot_* bot PR.
+# Does not fire per failing part. Must live on the default branch (`main`) so
+# GitHub delivers `status` events. Starts lucene-snapshot-pr-ci-fix (same-branch Lucene
+# repair), not generic fix-pr.
+name: Trigger lucene snapshot PR CI fix
+
+on:
+  status:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  trigger-lucene-snapshot-pr-fix:
+    name: Trigger Buildkite lucene snapshot PR fix
+    if: |
+      github.repository == 'elastic/elasticsearch' &&
+      github.event.context == 'elasticsearch-ci' &&
+      github.event.state == 'failure'
+    concurrency:
+      group: lucene-snapshot-pr-fix-${{ github.event.sha }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find matching lucene_snapshot bot PR
+        id: match
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.sha;
+            const pulls = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: sha,
+            });
+
+            const headOk = (ref) =>
+              typeof ref === 'string' &&
+              (/^lucene_snapshot[\w.-]*-merge-/.test(ref) || /^lucene_snapshot[\w.-]*-snapshot-/.test(ref));
+
+            const pr = pulls.find((item) =>
+              item.state === 'open' &&
+              item.user?.login === 'elasticsearchmachine' &&
+              item.base?.ref?.startsWith('lucene_snapshot') &&
+              item.head?.ref &&
+              headOk(item.head.ref) &&
+              item.head?.repo?.full_name === 'elastic/elasticsearch'
+            );
+
+            if (!pr) {
+              core.info(`No open elasticsearchmachine lucene_snapshot work-branch PR for ${sha}; skipping`);
+              core.setOutput('matched', 'false');
+              return;
+            }
+
+            core.info(`Matched PR #${pr.number} (${pr.head.ref} → ${pr.base.ref})`);
+            core.setOutput('matched', 'true');
+            core.setOutput('number', String(pr.number));
+            core.setOutput('url', pr.html_url);
+            core.setOutput('title', pr.title);
+            core.setOutput('base', pr.base.ref);
+
+      - name: Check if a fix was already triggered
+        id: check-processed
+        if: steps.match.outputs.matched == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const number = Number(process.env.PR_NUMBER);
+            const reactionContent = 'eyes';
+            const reactions = await github.paginate(github.rest.reactions.listForIssue, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+            });
+            const alreadyReacted = reactions.some(
+              (reaction) =>
+                reaction.content === reactionContent &&
+                (reaction.user?.login === 'github-actions[bot]' || reaction.user?.type === 'Bot')
+            );
+            if (alreadyReacted) {
+              core.info(`PR #${number} already has a :${reactionContent}: reaction from a bot; skipping`);
+            }
+            core.setOutput('alreadyProcessed', alreadyReacted);
+        env:
+          PR_NUMBER: ${{ steps.match.outputs.number }}
+
+      - name: Trigger Buildkite pipeline
+        if: steps.match.outputs.matched == 'true' && steps.check-processed.outputs.alreadyProcessed != 'true'
+        env:
+          BUILDKITE_API_TOKEN: ${{ secrets.BUILDKITE_API_TOKEN }}
+          PR_URL: ${{ steps.match.outputs.url }}
+          PR_TITLE: ${{ steps.match.outputs.title }}
+          PR_NUMBER: ${{ steps.match.outputs.number }}
+          PR_BASE: ${{ steps.match.outputs.base }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(jq -n \
+            --arg url "$PR_URL" \
+            --arg title "$PR_TITLE" \
+            --arg num "$PR_NUMBER" \
+            --arg base "$PR_BASE" \
+            '{
+              branch:  "main",
+              commit:  "HEAD",
+              message: ("lucene snapshot PR CI fix for #" + $num + ": " + $title),
+              env: {
+                PR_URL: $url,
+                WORKFLOW: "lucene-snapshot-pr-ci-fix",
+                TARGET_BRANCH: $base
+              }
+            }')
+
+          curl --fail --silent --show-error \
+            --request POST \
+            --url "https://api.buildkite.com/v2/organizations/elastic/pipelines/elasticsearch-agentic-workflow/builds" \
+            --header "Authorization: Bearer ${BUILDKITE_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$BODY"
+
+      - name: "Mark PR as processed (:eyes: reaction)"
+        if: steps.match.outputs.matched == 'true' && steps.check-processed.outputs.alreadyProcessed != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const number = Number(process.env.PR_NUMBER);
+            await github.rest.reactions.createForIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              content: 'eyes',
+            });
+            core.info(`Added :eyes: reaction to PR #${number}`);
+        env:
+          PR_NUMBER: ${{ steps.match.outputs.number }}

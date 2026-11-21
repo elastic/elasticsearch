@@ -16,8 +16,11 @@ import org.apache.parquet.hadoop.ColumnChunkPageWriteStore;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.Type;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +44,13 @@ import java.util.Map;
  *       the merge, which encodes the rows again. It gets the cheapest encoding: no dictionary (the hashing of the values was 45% of the
  *       CPU of the write of a bulk in a profile), and ZSTD at {@link #LOCAL_ZSTD_LEVEL}.</li>
  * </ul>
+ *
+ * <p>The columns can be split into groups, each with its own page store, column store and column writers, so that several threads can
+ * encode different columns of the same row group (see {@code ParquetMerger}). A row group is still one block of the file: the groups
+ * are flushed into it one after the other in the order of the columns, so the file is the same as one that a single group writes. With
+ * one group, which is what every other use has, the writer is what it was before the groups existed.
  */
+
 final class ColumnarParquetWriter implements AutoCloseable {
     /** The ZSTD level of the local files of the bulks, and so of their staged copies. */
     static final int LOCAL_ZSTD_LEVEL = 1;
@@ -50,15 +59,61 @@ final class ColumnarParquetWriter implements AutoCloseable {
     private static final long MIN_RECORDS_BETWEEN_CHECKS = 100;
     private static final long MAX_RECORDS_BETWEEN_CHECKS = 10_000;
 
-    private final MessageType schema;
-    private final List<ColumnDescriptor> columns;
+    /**
+     * The page store, the column store and the column writers of a range of the columns of the output (all of them, or the columns that
+     * one thread of a parallel merge encodes). A group is used by one thread at a time.
+     */
+    private static final class Group {
+        final MessageType schema;
+        final List<ColumnDescriptor> columns;
+        final CompressionCodecFactory.BytesInputCompressor compressor;
+        ColumnChunkPageWriteStore pageStore;
+        ColumnWriteStore store;
+        ColumnWriter[] writers;
+
+        Group(MessageType schema, CompressionCodecFactory.BytesInputCompressor compressor) {
+            this.schema = schema;
+            this.columns = schema.getColumns();
+            this.compressor = compressor;
+        }
+
+        void start(ParquetProperties properties) {
+            pageStore = new ColumnChunkPageWriteStore(
+                compressor,
+                schema,
+                properties.getAllocator(),
+                properties.getColumnIndexTruncateLength(),
+                properties.getPageWriteChecksumEnabled()
+            );
+            store = properties.newColumnWriteStore(schema, pageStore);
+            writers = new ColumnWriter[columns.size()];
+            for (int i = 0; i < writers.length; i++) {
+                writers[i] = store.getColumnWriter(columns.get(i));
+            }
+        }
+
+        /** Writes the columns of the group into the block that the file writer has started, and releases the group's buffers. */
+        void flushTo(ParquetFileWriter fileWriter) throws IOException {
+            store.flush();
+            pageStore.flushToFileWriter(fileWriter);
+        }
+
+        void release() {
+            if (store != null) {
+                store.close();
+                pageStore.close();
+                store = null;
+                pageStore = null;
+            }
+        }
+    }
+
     private final long rowGroupBytes;
     private final ParquetProperties properties;
     private final CompressionCodecFactory codecs;
-    private final CompressionCodecFactory.BytesInputCompressor compressor;
     private final ParquetFileWriter fileWriter;
-    private ColumnChunkPageWriteStore pageStore;
-    private ColumnWriteStore store;
+    private final List<Group> groups = new ArrayList<>();
+    /** The writers of all the groups, in the order of the columns of the schema. */
     private ColumnWriter[] writers;
     private long recordCount;
     private long recordCountForNextCheck = MIN_RECORDS_BETWEEN_CHECKS;
@@ -73,10 +128,25 @@ final class ColumnarParquetWriter implements AutoCloseable {
         CompressionCodecName codec,
         long rowGroupBytes
     ) throws IOException {
+        return forRowGroups(file, schema, codec, rowGroupBytes, List.of(schema));
+    }
+
+    /**
+     * The same writer as {@link #forRows}, with the columns in groups: {@code groupSchemas} are the schemas of the groups, which together
+     * have the fields of {@code schema} in the same order. The caller fills a group with {@link #columnWriter} and {@link #endRecord(int)},
+     * one thread for each group, and calls {@link #inputDone} when all the groups have the rows of one input.
+     */
+    static ColumnarParquetWriter forRowGroups(
+        BatchParquetWriter.IndexOutputFile file,
+        MessageType schema,
+        CompressionCodecName codec,
+        long rowGroupBytes,
+        List<MessageType> groupSchemas
+    ) throws IOException {
         final ParquetProperties properties = ParquetProperties.builder()
             .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
             .build();
-        return new ColumnarParquetWriter(file, schema, codec, rowGroupBytes, properties, new ParquetCodecs());
+        return new ColumnarParquetWriter(file, schema, codec, rowGroupBytes, properties, new ParquetCodecs(), groupSchemas);
     }
 
     /**
@@ -97,7 +167,15 @@ final class ColumnarParquetWriter implements AutoCloseable {
             .withPageSize(Integer.MAX_VALUE)
             .withPageRowCountLimit(Integer.MAX_VALUE)
             .build();
-        return new ColumnarParquetWriter(file, schema, codec, Long.MAX_VALUE, properties, new ParquetCodecs(LOCAL_ZSTD_LEVEL));
+        return new ColumnarParquetWriter(
+            file,
+            schema,
+            codec,
+            Long.MAX_VALUE,
+            properties,
+            new ParquetCodecs(LOCAL_ZSTD_LEVEL),
+            List.of(schema)
+        );
     }
 
     private ColumnarParquetWriter(
@@ -106,45 +184,58 @@ final class ColumnarParquetWriter implements AutoCloseable {
         CompressionCodecName codec,
         long rowGroupBytes,
         ParquetProperties properties,
-        CompressionCodecFactory codecs
+        CompressionCodecFactory codecs,
+        List<MessageType> groupSchemas
     ) throws IOException {
         this.properties = properties;
         this.codecs = codecs;
-        this.schema = schema;
-        this.columns = schema.getColumns();
         this.rowGroupBytes = rowGroupBytes;
-        this.compressor = codecs.getCompressor(codec);
+        int fields = 0;
+        for (MessageType groupSchema : groupSchemas) {
+            // a compressor for each group: the groups are used by different threads
+            groups.add(new Group(groupSchema, codecs.getCompressor(codec)));
+            for (Type field : groupSchema.getFields()) {
+                if (field.equals(schema.getType(fields++)) == false) {
+                    throw new IllegalArgumentException("the groups do not have the fields of the schema in its order: [" + field + "]");
+                }
+            }
+        }
+        if (fields != schema.getFieldCount()) {
+            throw new IllegalArgumentException("the groups have [" + fields + "] fields and the schema [" + schema.getFieldCount() + "]");
+        }
         this.fileWriter = new ParquetFileWriter(file, schema, ParquetFileWriter.Mode.CREATE, rowGroupBytes, 0, null, properties);
         fileWriter.start();
         startRowGroup();
     }
 
     private void startRowGroup() {
-        pageStore = new ColumnChunkPageWriteStore(
-            compressor,
-            schema,
-            properties.getAllocator(),
-            properties.getColumnIndexTruncateLength(),
-            properties.getPageWriteChecksumEnabled()
-        );
-        store = properties.newColumnWriteStore(schema, pageStore);
-        writers = new ColumnWriter[columns.size()];
-        for (int i = 0; i < writers.length; i++) {
-            writers[i] = store.getColumnWriter(columns.get(i));
+        final List<ColumnWriter> all = new ArrayList<>();
+        for (Group group : groups) {
+            group.start(properties);
+            all.addAll(Arrays.asList(group.writers));
         }
+        writers = all.toArray(new ColumnWriter[0]);
         recordCount = 0;
         recordCountForNextCheck = MIN_RECORDS_BETWEEN_CHECKS;
     }
 
+    /** The writer of a column, by its place among the columns of the whole schema. */
     ColumnWriter columnWriter(int index) {
         return writers[index];
     }
 
+    /** The writer of a column of a group, by its place among the columns of the group. */
+    ColumnWriter columnWriter(int group, int index) {
+        return groups.get(group).writers[index];
+    }
+
+    /** Ends a record, for a writer with one group: it cuts a row group when the buffered data is large enough. */
     void endRecord() throws IOException {
-        store.endRecord();
+        assert groups.size() == 1 : "a writer with groups ends the records of a group";
+        groups.get(0).store.endRecord();
         recordCount++;
         if (recordCount >= recordCountForNextCheck) {
-            final long buffered = store.getBufferedSize();
+            final long buffered = groups.get(0).store.getBufferedSize();
             final long recordSize = Math.max(1, buffered / recordCount);
             if (buffered > rowGroupBytes - 2 * recordSize) {
                 endRowGroup();
@@ -158,6 +249,30 @@ final class ColumnarParquetWriter implements AutoCloseable {
         }
     }
 
+    /** Ends a record of one group. Different threads may do it for different groups. It never cuts a row group (see {@link #inputDone}). */
+    void endRecord(int group) {
+        groups.get(group).store.endRecord();
+    }
+
+    /**
+     * For a writer with groups: every group has written the {@code rows} rows of one input. This is the only place where a row group is
+     * cut, because the groups run on their own threads and the buffered size of all of them is only known when none is running. The
+     * rule is the one of {@link #endRecord()}, applied at the end of an input: a row group is cut when the buffered data of all the groups
+     * is within two records of the target, so it can be at most one input larger.
+     */
+    void inputDone(long rows) throws IOException {
+        recordCount += rows;
+        long buffered = 0;
+        for (Group group : groups) {
+            buffered += group.store.getBufferedSize();
+        }
+        final long recordSize = Math.max(1, buffered / Math.max(1, recordCount));
+        if (buffered > rowGroupBytes - 2 * recordSize) {
+            endRowGroup();
+            startRowGroup();
+        }
+    }
+
     /**
      * For a caller that wrote each column of all the rows on its own, with {@link #forColumns}: the row group has {@code rows}
      * more rows. The records end now, because the store writes the last page of a column only when it has counted the rows of it. No row
@@ -165,7 +280,7 @@ final class ColumnarParquetWriter implements AutoCloseable {
      */
     void rowsWrittenByColumns(long rows) {
         for (long i = 0; i < rows; i++) {
-            store.endRecord();
+            groups.get(0).store.endRecord();
         }
         recordCount += rows;
     }
@@ -173,14 +288,14 @@ final class ColumnarParquetWriter implements AutoCloseable {
     private void endRowGroup() throws IOException {
         if (recordCount > 0) {
             fileWriter.startBlock(recordCount);
-            store.flush();
-            pageStore.flushToFileWriter(fileWriter);
+            for (Group group : groups) {
+                group.flushTo(fileWriter); // in the order of the columns
+            }
             fileWriter.endBlock();
         }
-        store.close();
-        pageStore.close();
-        store = null;
-        pageStore = null;
+        for (Group group : groups) {
+            group.release();
+        }
     }
 
     /** Writes the last row group and the footer, which closes the output. */
@@ -192,9 +307,8 @@ final class ColumnarParquetWriter implements AutoCloseable {
     @Override
     public void close() {
         // after finish() the stores are gone; after a failure they are still open
-        if (store != null) {
-            store.close();
-            pageStore.close();
+        for (Group group : groups) {
+            group.release();
         }
         codecs.release();
     }

@@ -155,6 +155,8 @@ public class ParquetFlushIT extends ESIntegTestCase {
                         .put("index.parquet.repository", REPOSITORY)
                         .put("index.parquet.durability", randomFrom("local", "staged"))
                         .put("index.parquet.local_compression", randomFrom("uncompressed", "snappy", "zstd"))
+                        // the columns of a merge are encoded by one to four threads: the files are the same
+                        .put("index.parquet.flush_merge_parallelism", between(1, 4))
                         .put(extra.build())
                 )
                 .setMapping(mapping)

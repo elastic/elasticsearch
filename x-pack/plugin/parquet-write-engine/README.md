@@ -105,6 +105,7 @@ fields of the types above before the bulk (not tested here).
 | `index.parquet.flush_threshold_age` | `30m` | Age of the oldest local file at which the periodic flush uploads. |
 | `index.parquet.max_local_size` | `4gb` | Local bytes at which batches of at most 5,000 documents get a 429, for each document, until a flush frees space. A bulk can be accepted in part. |
 | `index.parquet.max_file_size` | `1gb` | The most **local bytes** that one uploaded file is merged from. With `zstd` local files (the default) the local files are about 1.1 times as large as the uploaded file (345 and 310 bytes for each row in a test with 105 fields and distinct documents); with `uncompressed` local files an uploaded file is about 0.4 times as large. A compaction merges at most this many bytes of uploaded files. |
+| `index.parquet.flush_merge_parallelism` | `4` | The threads that encode the columns of one run of a flush (1 to 16): the thread of the flush and tasks of the `parquet_merge` pool. It is lowered to the thread of the flush plus the size of that pool (at most half the processors of the node), so more than that does not help. 1 merges on the thread of the flush alone. The threads compete with the bulks for CPU. Dynamic. |
 | `index.parquet.row_group_size` | `128mb` | Buffered data at which a row group is written. |
 | `index.parquet.compaction.enabled` | `true` | Merge small uploaded files in the background. |
 | `index.parquet.compaction.target_file_size` | `1gb` | A file below half of it is small and is merged with its neighbours. |
@@ -142,7 +143,26 @@ and definition levels, so no row is ever assembled (the merge before it built a 
 type and so the same levels in every file, and a column that an earlier file lacks becomes nulls. On 600,000 rows of 105 columns like
 ClickBench's (68 integers, 10 longs, 27 keywords) with ZSTD, one thread on a laptop, the merge took 6.2 s where the row-wise merge took
 11.2 s, and the files had the same size. The rest of the time is parquet-mr itself: the dictionaries, the min/max statistics of the
-binary columns, and the compression (about 14% of the samples). A merge of the columns on several threads is not built.
+binary columns, and the compression (about 14% of the samples).
+
+The merge can encode the columns on several threads (`index.parquet.flush_merge_parallelism`, 4 by default, 1 is the old behaviour).
+The columns are split into contiguous groups of about the same estimated cost (30 ns for each value and 3 ns for each byte before compression), and for each local file every group is a task: the
+thread of the flush runs the first, the `parquet_merge` pool runs the others, each task reads only the columns of its group from the
+file and encodes them into a page store of its own. The groups meet after each local file, and that is the only place where a row group
+is cut, so a row group is at most one local file (5,000 rows) larger than `row_group_size`. The page stores are then written to the row
+group one after the other in the order of the columns. The uploaded file therefore has the same row groups, encodings, compression and
+page indexes as a serial merge makes. It is not byte for byte the same, because parquet-mr decides when to cut a page from the
+columns of a store, and a store has fewer columns now: on 600,000 real ClickBench rows the file is 44,469,596 bytes with one thread and
+44,472,769 with four (+0.007%). A merge falls back to the serial path when the parallelism is 1, when the schema has one field, and when
+an input has a row group of more than 100,000 rows (a compacted file), because the cut would be too coarse then.
+
+The thread of the flush waits for the tasks, so they run on a pool of their own and a failed task makes the others stop and the merge
+throw only after all of them have ended (nothing may write to the output or read an input that the caller closes after the merge
+returns). On 600,000 ClickBench rows (105 columns, 120 local files of 5,000 rows) on a 12-core laptop the merge took 4.4 to 4.7 s with one
+thread, 2.4 s with two, 1.1 s with four (4.1 times as fast) and 0.85 s with eight. The groups must be balanced by the cost of encoding
+and not by the compressed size: with the compressed size, two groups took 0.9 s (14 columns) and 3.2 s (91 columns), so 2 threads were only
+1.3 times as fast, and in a full run on S3 (4 threads) the thread of the flush waited 63 s at the barrier in a final flush of 130 s.
+The columns of the other merges (the compaction, and the adoption of staged files) are still encoded on one thread.
 
 The local file of a bulk is written the same way, column by column: each mapped column is read from its cursor of Lucene's column
 batch and written to the column writer of parquet-mr, with no `Group` for each row. A bulk is one row group with one page for each
@@ -428,8 +448,8 @@ loses its local rows. A real handoff (flush and block writes before the move, or
   4 shards that compact together in `ParquetCompactorTests`, 2 shards on one node in the cluster tests). The protocol does not depend on where
   the shards run, but a cluster with several data nodes is not tested.
 - Not tested: data streams, ILM and rollover, index sorting, shrink, split and clone, reindex into such an index, cross-cluster replication.
-- All shards of a node share two small thread pools (`parquet_flush` and `parquet_compaction`, at most half the processors each), so many
-  shards that flush at once queue for them.
+- All shards of a node share three small thread pools (`parquet_flush`, `parquet_compaction` and `parquet_merge`, at most half the processors
+  each), so many shards that flush at once queue for them.
 - A clean shutdown does not upload. The local files stay on the disk, and the shard finds them when it starts again. With `local`
   durability the rows are not safe against the loss of the disk before their flush; with `staged` they are in the staging files.
 - No relocation. A shard cannot move (the allocation decider refuses it, see "Placement: the shard is pinned"), a node shutdown of type

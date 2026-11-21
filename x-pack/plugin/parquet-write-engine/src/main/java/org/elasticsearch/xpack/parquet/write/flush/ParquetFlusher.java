@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -79,7 +80,12 @@ public final class ParquetFlusher {
     }
 
     /** The settings that a flush reads when it starts, so that a dynamic update applies to the next flush. */
-    public record Settings(long maxFileBytes, long rowGroupBytes, CompressionCodecName codec, boolean staged) {}
+    public record Settings(long maxFileBytes, long rowGroupBytes, CompressionCodecName codec, boolean staged, int mergeParallelism) {
+        /** Settings for a merge on the thread of the flush. */
+        public Settings(long maxFileBytes, long rowGroupBytes, CompressionCodecName codec, boolean staged) {
+            this(maxFileBytes, rowGroupBytes, codec, staged, 1);
+        }
+    }
 
     /** What a flush did. */
     public record Result(int files, long rows, long bytes) {}
@@ -109,6 +115,8 @@ public final class ParquetFlusher {
     private final LongSupplier completeThroughSeqNo;
     private final Hooks hooks;
     private final RunListener runListener;
+    /** Runs the tasks of the groups of a merge, see {@link ParquetMerger}; null merges on the thread of the flush. */
+    private final Executor mergeExecutor;
 
     /**
      * @param completeThroughSeqNo the highest sequence number {@code n} such that every bulk with a range up to {@code n} has finished
@@ -138,6 +146,24 @@ public final class ParquetFlusher {
         Hooks hooks,
         RunListener runListener
     ) {
+        this(directory, commits, table, settings, completeThroughSeqNo, hooks, runListener, null);
+    }
+
+    /**
+     * @param mergeExecutor runs the tasks of the groups of a merge when {@link Settings#mergeParallelism} is more than 1. It must not be
+     *                      the executor that the flush runs on, because the flush waits for the tasks.
+     */
+    public ParquetFlusher(
+        Directory directory,
+        ShardCommitData commits,
+        ShardTable table,
+        Supplier<Settings> settings,
+        LongSupplier completeThroughSeqNo,
+        Hooks hooks,
+        RunListener runListener,
+        Executor mergeExecutor
+    ) {
+        this.mergeExecutor = mergeExecutor;
         this.directory = directory;
         this.commits = commits;
         this.table = table;
@@ -233,7 +259,25 @@ public final class ParquetFlusher {
         final MessageType schema = ShardTable.withFieldIds(union, table.ensureColumns(union));
         final String mergedName = LocalParquetFiles.mergedName(from, to);
         delete(mergedName); // the leftover of an earlier try of this range that did not get to the pending marker
-        final ParquetMerger.Merged merged = ParquetMerger.merge(directory, run, schema, mergedName, now.codec(), now.rowGroupBytes());
+        final long mergeStart = System.nanoTime();
+        final ParquetMerger.Merged merged = ParquetMerger.merge(
+            directory,
+            run,
+            schema,
+            mergedName,
+            now.codec(),
+            now.rowGroupBytes(),
+            mergeExecutor,
+            now.mergeParallelism()
+        );
+        logger.debug(
+            "merged [{}] local files with [{}] rows into [{}] bytes in [{}] ms with up to [{}] threads",
+            run.size(),
+            merged.rows(),
+            merged.length(),
+            (System.nanoTime() - mergeStart) / 1_000_000,
+            now.mergeParallelism()
+        );
         hooks.reached("merged");
 
         // 2. the pending marker

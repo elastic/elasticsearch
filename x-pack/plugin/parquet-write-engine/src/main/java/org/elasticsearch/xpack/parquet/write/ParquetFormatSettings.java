@@ -177,6 +177,21 @@ public final class ParquetFormatSettings {
         Property.Dynamic
     );
 
+    /**
+     * The number of threads that encode the columns of one run of a flush: the thread of the flush and tasks of the {@code parquet_merge}
+     * pool. The columns are split into that many groups, and the file that is written is the same as the one that one thread writes.
+     * 1 merges on the thread of the flush alone. The tasks come from a pool of at most half the processors of the node, so a larger
+     * value than the pool has threads for does not make the merge faster.
+     */
+    public static final Setting<Integer> FLUSH_MERGE_PARALLELISM = Setting.intSetting(
+        "index.parquet.flush_merge_parallelism",
+        4,
+        1,
+        16,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     /** The size of the buffered data at which the writer of an uploaded file starts a new row group. */
     public static final Setting<ByteSizeValue> ROW_GROUP_SIZE = Setting.byteSizeSetting(
         "index.parquet.row_group_size",
@@ -249,6 +264,7 @@ public final class ParquetFormatSettings {
             FLUSH_THRESHOLD_AGE,
             MAX_LOCAL_SIZE,
             MAX_FILE_SIZE,
+            FLUSH_MERGE_PARALLELISM,
             ROW_GROUP_SIZE,
             COMPACTION_ENABLED,
             COMPACTION_TARGET_FILE_SIZE,

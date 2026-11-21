@@ -11,6 +11,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
@@ -20,10 +21,15 @@ import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.ColumnIOFactory;
+import org.apache.parquet.io.DelegatingSeekableInputStream;
+import org.apache.parquet.io.InputFile;
 import org.apache.parquet.io.MessageColumnIO;
 import org.apache.parquet.io.RecordReader;
+import org.apache.parquet.io.SeekableInputStream;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
@@ -40,7 +46,14 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -82,6 +95,112 @@ public class ParquetMergerDifferentialTests extends ESTestCase {
     }
 
     public void testMatchesTheRowWiseMergeOnRandomFiles() throws Exception {
+        assertMatchesTheRowWiseMerge(null, 1);
+    }
+
+    /** The columns in groups, each encoded by its own thread: the same rows and schema, and every column chunk keeps its page indexes. */
+    public void testTheParallelMergeMatchesTheRowWiseMergeOnRandomFiles() throws Exception {
+        final ExecutorService executor = Executors.newFixedThreadPool(between(1, 4));
+        try {
+            // more groups than columns happens, and then there are fewer groups
+            assertMatchesTheRowWiseMerge(executor, between(2, 8));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    /** A task that the executor rejects runs on the thread of the merge, so a full pool never fails or stalls a flush. */
+    public void testTheParallelMergeRunsATaskThatTheExecutorRejects() throws Exception {
+        assertMatchesTheRowWiseMerge(command -> { throw new RejectedExecutionException("full"); }, between(2, 8));
+    }
+
+    /**
+     * A failure of one group stops the merge with that failure, leaves no output behind, and returns only when no task runs any more:
+     * the files of the merge are closed by the caller, and a task that still reads from them would read a closed file.
+     */
+    public void testAFailedGroupLeavesNoFileAndNoRunningTask() throws Exception {
+        final List<Col> pool = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            pool.add(new Col("c" + i, randomFrom(Kind.values()), randomBoolean()));
+        }
+        final List<LocalParquetFiles.LocalFile> files = new ArrayList<>();
+        for (int f = 0; f < 6; f++) {
+            files.add(writeFile(pool, f * 100L, 100));
+        }
+        final MessageType schema = ParquetMerger.unionSchema(directory, files);
+        final int failingOpen = between(3, 20);
+        final AtomicInteger opens = new AtomicInteger();
+        final AtomicInteger running = new AtomicInteger();
+        final List<ParquetMerger.Input> inputs = new ArrayList<>();
+        for (LocalParquetFiles.LocalFile file : files) {
+            final IndexInputFile real = new IndexInputFile(directory, file.name());
+            inputs.add(new ParquetMerger.Input(file.name(), new InputFile() {
+                @Override
+                public long getLength() throws IOException {
+                    return real.getLength();
+                }
+
+                @Override
+                public SeekableInputStream newStream() throws IOException {
+                    if (opens.incrementAndGet() == failingOpen) {
+                        throw new IOException("injected");
+                    }
+                    running.incrementAndGet();
+                    final SeekableInputStream stream = real.newStream();
+                    return new DelegatingSeekableInputStream(stream) {
+                        @Override
+                        public void close() throws IOException {
+                            running.decrementAndGet();
+                            super.close();
+                        }
+
+                        @Override
+                        public long getPos() throws IOException {
+                            return stream.getPos();
+                        }
+
+                        @Override
+                        public void seek(long newPos) throws IOException {
+                            stream.seek(newPos);
+                        }
+                    };
+                }
+            }));
+        }
+        final ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            final IOException e = expectThrows(
+                IOException.class,
+                () -> ParquetMerger.mergeInputs(
+                    directory,
+                    inputs,
+                    schema,
+                    "pqmerged_x.parquet",
+                    CompressionCodecName.ZSTD,
+                    1L << 20,
+                    executor,
+                    4
+                )
+            );
+            assertThat(e.getMessage(), containsString("injected"));
+            assertThat("no reader is left open", running.get(), equalTo(0));
+            for (String name : directory.listAll()) {
+                assertFalse(
+                    "no temporary or merged file: " + name,
+                    name.startsWith(LocalParquetFiles.TEMP_PREFIX) || name.startsWith("pqmerged_")
+                );
+            }
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    private static void terminate(ExecutorService executor) throws InterruptedException {
+        executor.shutdown();
+        assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+    }
+
+    private void assertMatchesTheRowWiseMerge(Executor executor, int parallelism) throws Exception {
         final List<Col> pool = new ArrayList<>();
         final int columns = between(1, 14);
         for (int i = 0; i < columns; i++) {
@@ -106,7 +225,9 @@ public class ParquetMergerDifferentialTests extends ESTestCase {
         );
         final long rowGroupBytes = randomFrom(4_096L, 20_000L, 100_000L, 1L << 20);
 
-        final ParquetMerger.Merged actual = ParquetMerger.merge(directory, inputs, schema, "pqmerged_actual.parquet", codec, rowGroupBytes);
+        final ParquetMerger.Merged actual = executor == null
+            ? ParquetMerger.merge(directory, inputs, schema, "pqmerged_actual.parquet", codec, rowGroupBytes)
+            : ParquetMerger.merge(directory, inputs, schema, "pqmerged_actual.parquet", codec, rowGroupBytes, executor, parallelism);
         final List<ParquetMerger.Input> oracleInputs = new ArrayList<>();
         for (LocalParquetFiles.LocalFile file : inputs) {
             oracleInputs.add(new ParquetMerger.Input(file.name(), new IndexInputFile(directory, file.name())));
@@ -127,6 +248,11 @@ public class ParquetMergerDifferentialTests extends ESTestCase {
         assertThat(actualContents.rows().size(), equalTo(expectedContents.rows().size()));
         for (int i = 0; i < actualContents.rows().size(); i++) {
             assertThat("row " + i, actualContents.rows().get(i).toString(), equalTo(expectedContents.rows().get(i).toString()));
+        }
+        final int[] actualIndexes = pageIndexes("pqmerged_actual.parquet");
+        final int[] expectedIndexes = pageIndexes("pqmerged_expected.parquet");
+        if (expectedIndexes[0] == expectedIndexes[1]) {
+            assertThat("every column chunk has its page indexes", actualIndexes[1], equalTo(actualIndexes[0]));
         }
         if (actual.rows() > 5_000 && rowGroupBytes <= 20_000) {
             assertThat("small row groups were cut", actualContents.rowGroups(), greaterThan(1));
@@ -194,6 +320,34 @@ public class ParquetMergerDifferentialTests extends ESTestCase {
             // few distinct values (a dictionary) or mostly unique ones (the writer falls back to plain)
             case STRING -> group.add(field, Binary.fromString(randomBoolean() ? "k" + between(0, 20) : randomAlphaOfLengthBetween(1, 60)));
         }
+    }
+
+    /** The number of column chunks of a file, and the number of those that have a column index and an offset index. */
+    private int[] pageIndexes(String name) throws IOException {
+        int chunks = 0;
+        int indexed = 0;
+        try (
+            ParquetFileReader reader = ParquetFileReader.open(
+                new IndexInputFile(directory, name),
+                PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+            )
+        ) {
+            final List<ColumnDescriptor> columns = reader.getFooter().getFileMetaData().getSchema().getColumns();
+            for (BlockMetaData block : reader.getFooter().getBlocks()) {
+                assertThat(block.getColumns().size(), equalTo(columns.size()));
+                for (int i = 0; i < columns.size(); i++) {
+                    final ColumnChunkMetaData chunk = block.getColumns().get(i);
+                    // readers find a chunk by its path, so the order is not needed for the rows, but a file that is read from the
+                    // start to the end needs the chunks in the order of the columns
+                    assertArrayEquals(columns.get(i).getPath(), chunk.getPath().toArray());
+                    chunks++;
+                    if (reader.readColumnIndex(chunk) != null && reader.readOffsetIndex(chunk) != null) {
+                        indexed++;
+                    }
+                }
+            }
+        }
+        return new int[] { chunks, indexed };
     }
 
     private record Contents(MessageType schema, List<Group> rows, int rowGroups) {}

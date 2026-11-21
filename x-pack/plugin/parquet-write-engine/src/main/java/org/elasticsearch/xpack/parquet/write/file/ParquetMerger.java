@@ -18,6 +18,8 @@ import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.io.InputFile;
@@ -28,11 +30,18 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Merges the small local Parquet files that bulks wrote into one large file with row groups of the configured size and a real
@@ -46,6 +55,12 @@ import java.util.Map;
  *
  * <p>The files of one index come from one mapping that only grows, so a later file can have columns that an earlier file does not have.
  * The merged schema has all of them, and the rows of an earlier file get a null for the columns that it lacks.
+ *
+ * <p>The merge can use several threads without changing the file. The columns are split into contiguous groups and each thread encodes
+ * the columns of one group of the same row group into its own page store (see {@link ColumnarParquetWriter}); the stores are written to
+ * the block one after the other, in the order of the columns. The groups meet after each input, which is the only place where the row
+ * group can be cut, so a row group is at most one input row group larger than the target. The inputs are read once for each group, and
+ * each reader reads only the columns of its group.
  */
 public final class ParquetMerger {
 
@@ -144,6 +159,23 @@ public final class ParquetMerger {
         return mergeInputs(directory, inputsOf(directory, inputs), outputSchema, outputName, codec, rowGroupBytes);
     }
 
+    /**
+     * {@link #merge} with up to {@code parallelism} threads, see
+     * {@link #mergeInputs(Directory, List, MessageType, String, CompressionCodecName, long, Executor, int)}.
+     */
+    public static Merged merge(
+        Directory directory,
+        List<LocalParquetFiles.LocalFile> inputs,
+        MessageType outputSchema,
+        String outputName,
+        CompressionCodecName codec,
+        long rowGroupBytes,
+        Executor executor,
+        int parallelism
+    ) throws IOException {
+        return mergeInputs(directory, inputsOf(directory, inputs), outputSchema, outputName, codec, rowGroupBytes, executor, parallelism);
+    }
+
     /** {@link #merge} for any files; the output is always a file of the directory, because the upload needs its length. */
     public static Merged mergeInputs(
         Directory directory,
@@ -153,21 +185,45 @@ public final class ParquetMerger {
         CompressionCodecName codec,
         long rowGroupBytes
     ) throws IOException {
+        return mergeInputs(directory, inputs, outputSchema, outputName, codec, rowGroupBytes, null, 1);
+    }
+
+    /**
+     * {@link #mergeInputs} with up to {@code parallelism} threads: the calling thread and tasks that it hands to {@code executor}, and it
+     * waits for all of them. The merge is serial, as with the method above, when the parallelism is 1, when the schema has one field, or
+     * when an input has a row group that is too large for the groups to meet after it (a row group of a compacted file).
+     *
+     * <p>The executor must not be one that the caller runs on, or the tasks may never get a thread. A task that the executor rejects runs
+     * on the calling thread.
+     */
+    public static Merged mergeInputs(
+        Directory directory,
+        List<Input> inputs,
+        MessageType outputSchema,
+        String outputName,
+        CompressionCodecName codec,
+        long rowGroupBytes,
+        Executor executor,
+        int parallelism
+    ) throws IOException {
+        final List<MessageType> groups = executor == null ? List.of(outputSchema) : planGroups(inputs, outputSchema, parallelism);
         long rows = 0;
         String tempName = null;
         boolean success = false;
         try (IndexOutput out = directory.createTempOutput(LocalParquetFiles.TEMP_PREFIX, "parquet", IOContext.DEFAULT)) {
             tempName = out.getName();
+            final BatchParquetWriter.IndexOutputFile file = new BatchParquetWriter.IndexOutputFile(out);
             try (
-                ColumnarParquetWriter writer = ColumnarParquetWriter.forRows(
-                    new BatchParquetWriter.IndexOutputFile(out),
-                    outputSchema,
-                    codec,
-                    rowGroupBytes
-                )
+                ColumnarParquetWriter writer = groups.size() == 1
+                    ? ColumnarParquetWriter.forRows(file, outputSchema, codec, rowGroupBytes)
+                    : ColumnarParquetWriter.forRowGroups(file, outputSchema, codec, rowGroupBytes, groups)
             ) {
-                for (Input input : inputs) {
-                    rows += copyRows(input, outputSchema, writer);
+                if (groups.size() == 1) {
+                    for (Input input : inputs) {
+                        rows += copyRows(input, outputSchema, writer);
+                    }
+                } else {
+                    rows = copyInParallel(inputs, groups, writer, executor);
                 }
                 writer.finish();
             }
@@ -185,6 +241,227 @@ public final class ParquetMerger {
         directory.rename(tempName, outputName);
         directory.syncMetaData();
         return new Merged(outputName, directory.fileLength(outputName), rows);
+    }
+
+    /**
+     * The estimated cost of encoding a value, and of a byte of it, in nanoseconds. The columns are balanced by the cost of encoding them,
+     * which is not the compressed size: a column of high-entropy numbers is large when compressed and cheap to encode, and a column of
+     * text that compresses well is small and costs much (the statistics, the dictionary and the compression all work on the bytes that
+     * the column had before it was compressed).
+     */
+    private static final long NANOS_PER_VALUE = 30;
+    private static final long NANOS_PER_BYTE = 3;
+
+    /** The footers that are read to balance the groups. */
+    private static final int MAX_SAMPLED_FOOTERS = 8;
+
+    /**
+     * The largest input row group for which the groups meet after each input. The row group of the output is cut there, so this is how far
+     * a row group can overshoot, in rows. A local file of a bulk has at most 5,000 rows.
+     */
+    private static final long MAX_PARALLEL_INPUT_ROWS = 100_000;
+
+    /**
+     * Splits the fields of the output into at most {@code parallelism} contiguous groups of about the same cost, or returns the whole
+     * schema as the only group when the merge has to be serial. The cost of a field is an estimate of the time to encode its column
+     * chunks in a sample of the inputs, from the number of values and the bytes that they had before compression.
+     */
+    static List<MessageType> planGroups(List<Input> inputs, MessageType outputSchema, int parallelism) throws IOException {
+        final int fields = outputSchema.getFieldCount();
+        final int wanted = Math.min(parallelism, fields);
+        if (wanted < 2 || inputs.isEmpty()) {
+            return List.of(outputSchema);
+        }
+        final long[] weight = new long[fields];
+        Arrays.fill(weight, 1); // a field that the sample lacks still costs something
+        final int samples = Math.min(inputs.size(), MAX_SAMPLED_FOOTERS);
+        for (int sample = 0; sample < samples; sample++) {
+            final Input input = inputs.get((int) ((long) sample * inputs.size() / samples));
+            try (ParquetFileReader reader = ParquetFileReader.open(input.file(), readOptions())) {
+                for (BlockMetaData block : reader.getFooter().getBlocks()) {
+                    if (block.getRowCount() > MAX_PARALLEL_INPUT_ROWS) {
+                        return List.of(outputSchema);
+                    }
+                    for (ColumnChunkMetaData chunk : block.getColumns()) {
+                        final String field = chunk.getPath().toArray()[0];
+                        if (outputSchema.containsField(field)) {
+                            weight[outputSchema.getFieldIndex(field)] += chunk.getValueCount() * NANOS_PER_VALUE + chunk
+                                .getTotalUncompressedSize() * NANOS_PER_BYTE;
+                        }
+                    }
+                }
+            }
+        }
+        long remaining = 0;
+        for (long w : weight) {
+            remaining += w;
+        }
+        final List<MessageType> groups = new ArrayList<>(wanted);
+        int start = 0;
+        for (int group = 0; group < wanted; group++) {
+            final int groupsLeft = wanted - group;
+            int end;
+            if (groupsLeft == 1) {
+                end = fields;
+            } else {
+                // at least one field, and at least one for each group that follows
+                final long target = remaining / groupsLeft;
+                final int maxEnd = fields - (groupsLeft - 1);
+                end = start;
+                long taken = 0;
+                do {
+                    taken += weight[end++];
+                } while (end < maxEnd && taken < target);
+                remaining -= taken;
+            }
+            groups.add(new MessageType(outputSchema.getName(), outputSchema.getFields().subList(start, end)));
+            start = end;
+        }
+        return groups;
+    }
+
+    /**
+     * Copies the inputs one after the other. For each input every group is a task: the calling thread runs the first and the executor the
+     * others, and all are done before the next input starts, because the writer cuts a row group only between inputs. A failure of one
+     * task makes the others stop at their next row group, and the method waits for all of them before it throws, because nothing may
+     * write to the output (or read a stream that the caller closes) after it returns.
+     */
+    private static long copyInParallel(List<Input> inputs, List<MessageType> groups, ColumnarParquetWriter writer, Executor executor)
+        throws IOException {
+        final AtomicBoolean failed = new AtomicBoolean();
+        long rows = 0;
+        for (Input input : inputs) {
+            final List<FutureTask<Long>> tasks = new ArrayList<>(groups.size());
+            final List<FutureTask<Long>> notStarted = new ArrayList<>();
+            for (int group = 1; group < groups.size(); group++) {
+                final int g = group;
+                final FutureTask<Long> task = new FutureTask<>(() -> copyGroup(input, g, groups.get(g), writer, failed));
+                tasks.add(task);
+                try {
+                    executor.execute(task);
+                } catch (RejectedExecutionException e) {
+                    notStarted.add(task);
+                }
+            }
+            final FutureTask<Long> first = new FutureTask<>(() -> copyGroup(input, 0, groups.get(0), writer, failed));
+            first.run();
+            tasks.add(0, first);
+            for (FutureTask<Long> task : notStarted) {
+                task.run();
+            }
+            final long copied = await(tasks, failed);
+            writer.inputDone(copied); // the one place where a row group can be cut
+            rows += copied;
+        }
+        return rows;
+    }
+
+    /** Waits for all tasks of one input, uninterruptibly, and returns the rows that every one of them copied. */
+    private static long await(List<FutureTask<Long>> tasks, AtomicBoolean failed) throws IOException {
+        Throwable failure = null;
+        boolean interrupted = false;
+        long rows = -1;
+        for (FutureTask<Long> task : tasks) {
+            while (true) {
+                try {
+                    final long copied = task.get();
+                    if (rows >= 0 && copied != rows && failure == null) {
+                        failure = new IllegalStateException("the groups copied [" + rows + "] and [" + copied + "] rows of one input");
+                        failed.set(true);
+                    }
+                    rows = copied;
+                    break;
+                } catch (ExecutionException e) {
+                    failed.set(true);
+                    if (failure == null) {
+                        failure = e.getCause();
+                    } else {
+                        failure.addSuppressed(e.getCause());
+                    }
+                    break;
+                } catch (InterruptedException e) {
+                    // the task still runs, and nothing may be released until it ends: wait again and report the interrupt at the end
+                    interrupted = true;
+                    failed.set(true);
+                }
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+            final InterruptedIOException e = new InterruptedIOException("interrupted while the groups of a merge ran");
+            if (failure != null) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+        if (failure != null) {
+            switch (failure) {
+                case IOException e -> throw e;
+                case RuntimeException e -> throw e;
+                case Error e -> throw e;
+                default -> throw new IOException(failure);
+            }
+        }
+        return rows;
+    }
+
+    /** The values of the columns of one group in the row groups of an input, to the page stores of that group. */
+    private static long copyGroup(Input input, int group, MessageType groupSchema, ColumnarParquetWriter writer, AtomicBoolean failed)
+        throws IOException {
+        if (failed.get()) {
+            return 0;
+        }
+        long rows = 0;
+        try (ParquetFileReader reader = ParquetFileReader.open(input.file(), readOptions())) {
+            final FileMetaData metaData = reader.getFooter().getFileMetaData();
+            final MessageType fileSchema = metaData.getSchema();
+            final List<Type> present = new ArrayList<>();
+            for (Type field : groupSchema.getFields()) {
+                if (fileSchema.containsField(field.getName())) {
+                    present.add(fileSchema.getType(field.getName()));
+                }
+            }
+            final List<ColumnDescriptor> outputColumns = groupSchema.getColumns();
+            if (present.isEmpty()) {
+                // an earlier file that has none of the columns of the group: a null in each, and nothing to read
+                final long count = reader.getRecordCount();
+                for (long row = 0; row < count; row++) {
+                    for (int i = 0; i < outputColumns.size(); i++) {
+                        writer.columnWriter(group, i).writeNull(0, 0);
+                    }
+                    writer.endRecord(group);
+                }
+                return count;
+            }
+            final MessageType requested = new MessageType(fileSchema.getName(), present);
+            reader.setRequestedSchema(requested);
+            final Map<String, ColumnDescriptor> inputColumns = new HashMap<>();
+            for (ColumnDescriptor column : requested.getColumns()) {
+                inputColumns.put(String.join(".", column.getPath()), column);
+            }
+            final GroupConverter converter = new GroupRecordConverter(requested).getRootConverter();
+            PageReadStore pages;
+            while (failed.get() == false && (pages = reader.readNextRowGroup()) != null) {
+                final ColumnReadStoreImpl readStore = new ColumnReadStoreImpl(pages, converter, requested, metaData.getCreatedBy());
+                final ColumnCopier[] copiers = new ColumnCopier[outputColumns.size()];
+                for (int i = 0; i < copiers.length; i++) {
+                    final ColumnDescriptor target = outputColumns.get(i);
+                    final ColumnDescriptor source = inputColumns.get(String.join(".", target.getPath()));
+                    copiers[i] = source == null
+                        ? new ColumnCopier(writer, group, i, null, target, input.name())
+                        : new ColumnCopier(writer, group, i, readStore.getColumnReader(source), target, input.name());
+                }
+                final long count = pages.getRowCount();
+                for (long row = 0; row < count; row++) {
+                    for (ColumnCopier copier : copiers) {
+                        copier.copyRecord();
+                    }
+                    writer.endRecord(group);
+                }
+                rows += count;
+            }
+        }
+        return rows;
     }
 
     private static long copyRows(Input input, MessageType outputSchema, ColumnarParquetWriter writer) throws IOException {
@@ -208,8 +485,8 @@ public final class ParquetMerger {
                     final ColumnDescriptor source = inputColumns.get(String.join(".", target.getPath()));
                     // a column that an earlier file lacks (added later by a mapping update) is a null in every row
                     copiers[i] = source == null
-                        ? new ColumnCopier(writer, i, null, target, input.name())
-                        : new ColumnCopier(writer, i, readStore.getColumnReader(source), target, input.name());
+                        ? new ColumnCopier(writer, 0, i, null, target, input.name())
+                        : new ColumnCopier(writer, 0, i, readStore.getColumnReader(source), target, input.name());
                 }
                 final long count = pages.getRowCount();
                 for (long row = 0; row < count; row++) {
@@ -230,6 +507,7 @@ public final class ParquetMerger {
      */
     private static final class ColumnCopier {
         private final ColumnarParquetWriter writer;
+        private final int group;
         private final int index;
         /** Null when the input file has no such column. */
         private final ColumnReader reader;
@@ -237,8 +515,9 @@ public final class ParquetMerger {
         private final PrimitiveType.PrimitiveTypeName type;
         private long remaining;
 
-        ColumnCopier(ColumnarParquetWriter writer, int index, ColumnReader reader, ColumnDescriptor target, String inputName) {
+        ColumnCopier(ColumnarParquetWriter writer, int group, int index, ColumnReader reader, ColumnDescriptor target, String inputName) {
             this.writer = writer;
+            this.group = group;
             this.index = index;
             this.reader = reader;
             this.maxDefinitionLevel = target.getMaxDefinitionLevel();
@@ -258,7 +537,7 @@ public final class ParquetMerger {
         }
 
         void copyRecord() {
-            final ColumnWriter out = writer.columnWriter(index);
+            final ColumnWriter out = writer.columnWriter(group, index);
             if (reader == null) {
                 out.writeNull(0, 0);
                 return;

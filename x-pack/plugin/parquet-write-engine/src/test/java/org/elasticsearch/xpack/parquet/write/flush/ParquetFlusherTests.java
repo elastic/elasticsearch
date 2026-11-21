@@ -34,6 +34,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -65,6 +68,9 @@ public class ParquetFlusherTests extends ESTestCase {
     private Directory directory;
     private InMemoryCommitData commits;
     private ParquetFlusher.Settings settings;
+    /** The threads of the merges of all the tests, and how many of them a merge uses (1 is the thread of the flush alone). */
+    private ExecutorService mergeExecutor;
+    private int mergeParallelism;
     /** What the engine reports as complete: every bulk with a range up to this has finished writing its local file. */
     private long completeThrough;
 
@@ -90,18 +96,42 @@ public class ParquetFlusherTests extends ESTestCase {
         commits = new InMemoryCommitData();
         settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, CompressionCodecName.SNAPPY, false);
         completeThrough = Long.MAX_VALUE;
+        mergeExecutor = Executors.newFixedThreadPool(3);
+        mergeParallelism = between(1, 4);
     }
 
     @After
     public void closeFixtures() throws Exception {
+        mergeExecutor.shutdown();
+        assertTrue(mergeExecutor.awaitTermination(30, TimeUnit.SECONDS));
         store.close();
         directory.close();
+    }
+
+    /** The settings of the test, with the parallelism of the merges that this run of the test uses. */
+    private ParquetFlusher.Settings flushSettings() {
+        return new ParquetFlusher.Settings(
+            settings.maxFileBytes(),
+            settings.rowGroupBytes(),
+            settings.codec(),
+            settings.staged(),
+            mergeParallelism
+        );
     }
 
     /** What a restart does: the temporary files of unfinished writes go, and the table is opened again. */
     private ParquetFlusher newFlusher(ParquetFlusher.Hooks hooks) throws IOException {
         LocalParquetFiles.deleteTemporaryFiles(directory);
-        return new ParquetFlusher(directory, commits, TestTables.open(store, LOCATION, 0), () -> settings, () -> completeThrough, hooks);
+        return new ParquetFlusher(
+            directory,
+            commits,
+            TestTables.open(store, LOCATION, 0),
+            this::flushSettings,
+            () -> completeThrough,
+            hooks,
+            ParquetFlusher.RunListener.NONE,
+            mergeExecutor
+        );
     }
 
     /** A flusher with a listener, which is told after each committed run. */
@@ -111,10 +141,11 @@ public class ParquetFlusherTests extends ESTestCase {
             directory,
             commits,
             TestTables.open(store, LOCATION, 0),
-            () -> settings,
+            this::flushSettings,
             () -> completeThrough,
             hooks,
-            listener
+            listener,
+            mergeExecutor
         );
     }
 
@@ -489,7 +520,16 @@ public class ParquetFlusherTests extends ESTestCase {
 
         ParquetFlusher flusher(ParquetFlusher.Hooks hooks) throws IOException {
             LocalParquetFiles.deleteTemporaryFiles(directory);
-            return new ParquetFlusher(directory, commits, table(), () -> settings, () -> Long.MAX_VALUE, hooks);
+            return new ParquetFlusher(
+                directory,
+                commits,
+                table(),
+                ParquetFlusherTests.this::flushSettings,
+                () -> Long.MAX_VALUE,
+                hooks,
+                ParquetFlusher.RunListener.NONE,
+                mergeExecutor
+            );
         }
 
         ShardTable table() {

@@ -692,7 +692,8 @@ public class ParquetWriteEngine extends Engine {
                     ParquetFlusher.Hooks.NONE,
                     // the space of a run that is uploaded is free at once: a flush of several runs takes minutes, and bulks must not be
                     // rejected for the whole time because of a counter that counts the files that are already gone
-                    this::refreshLocalFiles
+                    this::refreshLocalFiles,
+                    engineConfig.getThreadPool().executor(ParquetThreadPools.MERGE)
                 );
                 flusher = current;
             }
@@ -923,8 +924,18 @@ public class ParquetWriteEngine extends Engine {
             ParquetFormatSettings.MAX_FILE_SIZE.get(settings).getBytes(),
             ParquetFormatSettings.ROW_GROUP_SIZE.get(settings).getBytes(),
             CompressionCodecName.valueOf(ParquetFormatSettings.COMPRESSION.get(settings).name()),
-            isStaged()
+            isStaged(),
+            mergeParallelism(settings)
         );
+    }
+
+    /**
+     * The threads of a merge: the setting, but no more than the thread of the flush and the threads that the merge pool can have, because
+     * a group that waits in the queue of the pool for a thread only delays the groups that run.
+     */
+    private int mergeParallelism(Settings settings) {
+        final int poolMax = engineConfig.getThreadPool().info(ParquetThreadPools.MERGE).getMax();
+        return Math.min(ParquetFormatSettings.FLUSH_MERGE_PARALLELISM.get(settings), 1 + poolMax);
     }
 
     /** Whether a bulk is acknowledged only after a copy of its file is in the repository. */

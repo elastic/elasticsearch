@@ -24,11 +24,16 @@ import java.util.List;
  *
  * <p>The pools are small, because every task of them holds a row group of a file in memory: half the processors of the node, as the
  * pools of the snapshots are.
+ *
+ * <p>The columns of a merge are encoded on a third pool. The thread of a flush or of a compaction waits for those tasks, so they cannot
+ * run on the pool of the waiter: a pool in which every thread is a flush that waits would have no thread left for the tasks.
  */
 public final class ParquetThreadPools {
 
     public static final String FLUSH = "parquet_flush";
     public static final String COMPACTION = "parquet_compaction";
+    /** The tasks that encode a group of the columns of a merge, for the thread of a flush that waits for them. */
+    public static final String MERGE = "parquet_merge";
 
     private ParquetThreadPools() {}
 
@@ -36,7 +41,8 @@ public final class ParquetThreadPools {
         final int max = Math.max(1, EsExecutors.allocatedProcessors(settings) / 2);
         return List.of(
             new ScalingExecutorBuilder(FLUSH, 1, max, TimeValue.timeValueSeconds(30), false),
-            new ScalingExecutorBuilder(COMPACTION, 1, max, TimeValue.timeValueSeconds(30), false)
+            new ScalingExecutorBuilder(COMPACTION, 1, max, TimeValue.timeValueSeconds(30), false),
+            new ScalingExecutorBuilder(MERGE, 1, max, TimeValue.timeValueSeconds(30), false)
         );
     }
 }

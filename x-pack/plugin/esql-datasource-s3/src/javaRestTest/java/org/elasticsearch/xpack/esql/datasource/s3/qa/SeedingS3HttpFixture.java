@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -100,6 +101,34 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         deniedKeys.put("/" + bucket + "/" + key, message);
     }
 
+    /** Object paths ({@code /bucket/key}) served as SSE-KMS objects, mapped to whether the object uses an S3 Bucket Key. */
+    private final Map<String, Boolean> kmsObjects = new ConcurrentHashMap<>();
+
+    /** Every {@code x-amz-server-side-encryption*} request header received, as {@code "<METHOD> <path>: <header>"}. */
+    private final List<String> serverSideEncryptionRequestHeaders = Collections.synchronizedList(new ArrayList<>());
+
+    /** Every response answered with SSE-KMS headers, as {@code "<METHOD> <path> bucket-key=<true|false>"}. */
+    private final List<String> kmsResponses = Collections.synchronizedList(new ArrayList<>());
+
+    /**
+     * Makes GET and HEAD of {@code key} answer the way S3 answers an SSE-KMS object whose reader may decrypt it: the bytes in
+     * the clear, plus the {@code x-amz-server-side-encryption: aws:kms} response headers naming the key. S3 decrypts on the
+     * server, so a read has to send nothing for it; the fixture stores plain bytes and cannot prove KMS itself.
+     */
+    public void markKmsEncrypted(String key, boolean bucketKeyEnabled) {
+        kmsObjects.put("/" + bucket + "/" + key, bucketKeyEnabled);
+    }
+
+    /** Every response answered with SSE-KMS headers, as {@code "<METHOD> <path> bucket-key=<true|false>"}, in arrival order. */
+    public List<String> kmsResponses() {
+        return List.copyOf(kmsResponses);
+    }
+
+    /** Every {@code x-amz-server-side-encryption*} request header received, as {@code "<METHOD> <path>: <header>"}, in arrival order. */
+    public List<String> serverSideEncryptionRequestHeaders() {
+        return List.copyOf(serverSideEncryptionRequestHeaders);
+    }
+
     /** Every request the fixture received, as {@code "<METHOD> <path>"}, in arrival order. */
     public List<String> requestLog() {
         return List.copyOf(requestLog);
@@ -115,6 +144,13 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         return exchange -> {
             try {
                 requestLog.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
+                for (String header : exchange.getRequestHeaders().keySet()) {
+                    if (header.toLowerCase(Locale.ROOT).startsWith("x-amz-server-side-encryption")) {
+                        serverSideEncryptionRequestHeaders.add(
+                            exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + ": " + header
+                        );
+                    }
+                }
                 // Region-validating mode: simulate a custom endpoint that rejects wrong-region signing.
                 final String cr = correctRegion;
                 if (cr != null) {
@@ -149,6 +185,24 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
                             return;
                         }
                     }
+                    Boolean bucketKey = kmsObjects.get(exchange.getRequestURI().getPath());
+                    if (bucketKey != null && ("GET".equals(exchange.getRequestMethod()) || "HEAD".equals(exchange.getRequestMethod()))) {
+                        exchange.getResponseHeaders().add("x-amz-server-side-encryption", "aws:kms");
+                        exchange.getResponseHeaders()
+                            .add(
+                                "x-amz-server-side-encryption-aws-kms-key-id",
+                                "arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555"
+                            );
+                        if (bucketKey) {
+                            exchange.getResponseHeaders().add("x-amz-server-side-encryption-bucket-key-enabled", "true");
+                        }
+                        kmsResponses.add(
+                            exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + " bucket-key=" + bucketKey
+                        );
+                    }
+                    if ("DELETE".equals(exchange.getRequestMethod())) {
+                        kmsObjects.remove(exchange.getRequestURI().getPath());
+                    }
                     if (addressesAnotherBucket(exchange.getRequestURI().getPath())) {
                         // S3 answers a request for a bucket that does not exist with 404 NoSuchBucket;
                         // the shared handler answers 500, which would make a probe measure the fixture.
@@ -182,6 +236,7 @@ public class SeedingS3HttpFixture extends S3HttpFixture {
         if (handler == null) {
             throw new IllegalStateException("S3 fixture has not been started yet; call seedBlob from @BeforeClass");
         }
+        kmsObjects.remove("/" + bucket + "/" + key);
         handler.blobs().put("/" + bucket + "/" + key, new BlobEntry(new BytesArray(content), storageClass));
     }
 

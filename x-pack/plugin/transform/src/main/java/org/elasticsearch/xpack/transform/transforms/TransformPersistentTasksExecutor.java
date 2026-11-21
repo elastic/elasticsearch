@@ -19,14 +19,21 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -34,6 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -43,6 +51,7 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
@@ -64,11 +73,15 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.common.notifications.Level.ERROR;
 import static org.elasticsearch.xpack.core.common.notifications.Level.INFO;
+import static org.elasticsearch.xpack.core.common.notifications.Level.WARNING;
 import static org.elasticsearch.xpack.core.transform.TransformField.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.transform.TransformField.RESET_IN_PROGRESS;
 import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
@@ -79,6 +92,19 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     // The amount of time we wait for the cluster state to respond when being marked as failed
     private static final int MARK_AS_FAILED_TIMEOUT_SEC = 90;
+
+    /**
+     * {@code isTransient} for the checkpoint loads in {@link #nodeOperation}: treat every failure as retryable. Unlike the
+     * stored-doc load -- which excludes {@link ResourceNotFoundException} because a missing doc is the "new transform" signal,
+     * not a failure -- a checkpoint load has no such not-a-failure case. We deliberately do NOT try to fail fast on a
+     * "permanent-looking" exception at this reassignment-time site: the transient errors this retry exists to absorb (a
+     * {@code .transform-internal} shard still recovering onto another node) can surface with the same status codes
+     * (e.g. 404/503) that {@code ExceptionRootCauseFinder#isExceptionIrrecoverable} would treat as permanent, so classifying
+     * here would risk failing the transform on exactly the transient condition we are trying to survive. Attended transforms
+     * are still bounded -- they fail once their {@code num_failure_retries} budget is exhausted; unattended transforms retry
+     * indefinitely by contract, now observably (see {@link #auditReassignmentLoadRetry}).
+     */
+    private static final Predicate<Exception> RETRY_ANY_CHECKPOINT_LOAD_FAILURE = e -> true;
     private final Client client;
     private final TransformServices transformServices;
     private final ThreadPool threadPool;
@@ -223,24 +249,29 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             .setTransformServices(transformServices);
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
+        // Set once the config has loaded (step <4> below); read by the checkpoint/state-load listeners further down so they can
+        // retry transient failures up to this transform's configured limit instead of failing outright (-1 == unattended,
+        // retry indefinitely). Unknowable any earlier in this pipeline (e.g. for the internal-index-creation step <1>), same
+        // constraint documented on getTransformConfig's retry, below.
+        final SetOnce<Integer> numFailureRetriesHolder = new SetOnce<>();
 
         // <8> log the start result
-        ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(
-            response -> logger.info("[{}] successfully completed and scheduled task in node operation", transformId),
-            failure -> {
-                // If the transform is failed then there is no need to log an error on every node restart as the error had already been
-                // logged when the transform first failed.
-                boolean logErrorAsInfo = failure instanceof CannotStartFailedTransformException;
-                auditor.audit(
-                    logErrorAsInfo ? INFO : ERROR,
-                    transformId,
-                    "Failed to start transform. Please stop and attempt to start again. Failure: " + failure.getMessage()
-                );
-                logger.atLevel(logErrorAsInfo ? Level.INFO : Level.ERROR)
-                    .withThrowable(failure)
-                    .log("[{}] Failed to start task in node operation", transformId);
-            }
-        );
+        ActionListener<StartTransformAction.Response> startTaskListener = ActionListener.wrap(response -> {
+            logger.info("[{}] successfully completed and scheduled task in node operation", transformId);
+            transformServices.scheduler().registerTransform(params, buildTask);
+        }, failure -> {
+            // If the transform is failed then there is no need to log an error on every node restart as the error had already been
+            // logged when the transform first failed.
+            boolean logErrorAsInfo = failure instanceof CannotStartFailedTransformException;
+            auditor.audit(
+                logErrorAsInfo ? INFO : ERROR,
+                transformId,
+                "Failed to start transform. Please stop and attempt to start again. Failure: " + failure.getMessage()
+            );
+            logger.atLevel(logErrorAsInfo ? Level.INFO : Level.ERROR)
+                .withThrowable(failure)
+                .log("[{}] Failed to start task in node operation", transformId);
+        });
 
         // <7> load next checkpoint
         ActionListener<TransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(nextCheckpoint -> {
@@ -259,7 +290,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             final long lastCheckpoint = stateHolder.get().getCheckpoint();
             final AuthorizationState authState = stateHolder.get().getAuthState();
 
-            startTask(buildTask, indexerBuilder, authState, lastCheckpoint, startTaskListener);
+            startTask(buildTask, params, indexerBuilder, authState, lastCheckpoint, startTaskListener);
         }, error -> {
             // TODO: do not use the same error message as for loading the last checkpoint
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
@@ -273,8 +304,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             indexerBuilder.setLastCheckpoint(lastCheckpoint);
             logger.trace("[{}] Loaded last checkpoint [{}], looking for next checkpoint", transformId, lastCheckpoint.getCheckpoint());
-            transformServices.configManager()
-                .getTransformCheckpoint(transformId, lastCheckpoint.getCheckpoint() + 1, getTransformNextCheckpointListener);
+            retryTransientLoad(
+                buildTask,
+                params,
+                numFailureRetriesHolder.get(),
+                RETRY_ANY_CHECKPOINT_LOAD_FAILURE,
+                al -> transformServices.configManager().getTransformCheckpoint(transformId, lastCheckpoint.getCheckpoint() + 1, al),
+                getTransformNextCheckpointListener
+            );
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
             logger.error(msg, error);
@@ -311,12 +348,24 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
                 if (lastCheckpoint == 0) {
                     logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);
-                    transformServices.configManager()
-                        .getTransformCheckpoint(transformId, lastCheckpoint + 1, getTransformNextCheckpointListener);
+                    retryTransientLoad(
+                        buildTask,
+                        params,
+                        numFailureRetriesHolder.get(),
+                        RETRY_ANY_CHECKPOINT_LOAD_FAILURE,
+                        al -> transformServices.configManager().getTransformCheckpoint(transformId, lastCheckpoint + 1, al),
+                        getTransformNextCheckpointListener
+                    );
                 } else {
                     logger.trace("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
-                    transformServices.configManager()
-                        .getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);
+                    retryTransientLoad(
+                        buildTask,
+                        params,
+                        numFailureRetriesHolder.get(),
+                        RETRY_ANY_CHECKPOINT_LOAD_FAILURE,
+                        al -> transformServices.configManager().getTransformCheckpoint(transformId, lastCheckpoint, al),
+                        getTransformLastCheckpointListener
+                    );
                 }
             },
             error -> {
@@ -326,7 +375,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     markAsFailed(buildTask, error, msg);
                 } else {
                     logger.trace("[{}] No stats found (new transform), starting the task", transformId);
-                    startTask(buildTask, indexerBuilder, null, null, startTaskListener);
+                    startTask(buildTask, params, indexerBuilder, null, null, startTaskListener);
                 }
             }
         );
@@ -351,7 +400,17 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                transformServices.configManager().getTransformStoredDoc(transformId, false, l);
+                numFailureRetriesHolder.set(TransformEffectiveSettings.getNumFailureRetries(config.getSettings(), numFailureRetries));
+                // ResourceNotFoundException means no stored doc exists yet (new transform) and must not be retried: `l`'s
+                // failure handler special-cases it to start the transform fresh, below.
+                retryTransientLoad(
+                    buildTask,
+                    params,
+                    numFailureRetriesHolder.get(),
+                    e -> (e instanceof ResourceNotFoundException) == false,
+                    al -> transformServices.configManager().getTransformStoredDoc(transformId, false, al),
+                    l
+                );
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
@@ -425,6 +484,104 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
     }
 
+    /**
+     * Retries a transient reassignment-time load — the transform's stored state/stats or a checkpoint doc — instead of letting
+     * a transient failure (e.g. a `.transform-internal` shard still recovering right after the node previously hosting this
+     * task left the cluster) reach {@code markAsFailed} on the first attempt. An unattended transform (
+     * {@code numFailureRetries == -1}) retries indefinitely, mirroring the unattended-never-fails contract
+     * {@link TransformFailureHandler} already enforces for indexer run-time failures. An attended transform retries up to its
+     * configured {@code settings.num_failure_retries} limit (see {@link TransformEffectiveSettings#getNumFailureRetries}, which
+     * already folds unattended into {@code -1}), then fails permanently — mirroring {@link TransformFailureHandler#retry}'s
+     * "tolerate N, fail on N+1" behavior for the indexer run-time path, applied here to the startup/reassignment pipeline.
+     * <p>
+     * Try {@code action} directly first, and only hand off
+     * to the transform scheduler on failure. This call runs nested inside another listener's own scheduler-triggered
+     * callback (config load, and possibly a caller of this method too) — registering with the scheduler unconditionally
+     * (i.e. even for the very first attempt, before knowing whether it's needed) would nest a second
+     * {@code TransformScheduler#registerTransform} call inside the first's still-active {@code processScheduledTasksInternal},
+     * which the scheduler's reentrancy guard silently no-ops; the newly-added task then only becomes eligible one full
+     * {@code frequency} interval later instead of immediately. Trying directly first avoids the scheduler entirely for the
+     * (common) case where the load just succeeds.
+     *
+     * @param numFailureRetries the transform's effective retry limit; {@code -1} means unattended/infinite (should always be
+     *                          resolved by the time this is called, see {@code numFailureRetriesHolder} in {@link #nodeOperation})
+     * @param isTransient tested against a failure to decide whether it's transient at all (retryable in principle) or should
+     *                    still reach {@code listener.onFailure} unmodified without consuming any retry budget — e.g.
+     *                    {@code ResourceNotFoundException} for a stored doc that genuinely doesn't exist yet, which is not a
+     *                    failure but the "new transform" signal
+     */
+    private <Response> void retryTransientLoad(
+        TransformTask task,
+        TransformTaskParams params,
+        int numFailureRetries,
+        Predicate<Exception> isTransient,
+        Consumer<ActionListener<Response>> action,
+        ActionListener<Response> listener
+    ) {
+        var transformId = params.getId();
+        var attempts = new AtomicInteger();
+        // Stateful by necessity: TransformRetryableStartUpListener bounds retries only via this predicate's return value, so
+        // the attempt count and audit have to live here. The same predicate instance is shared by the direct first attempt
+        // below and the scheduler-registered listener, so the retry budget is continuous across both.
+        Predicate<Exception> shouldRetry = e -> {
+            if (isTransient.test(e) == false) {
+                return false;
+            }
+            int count = attempts.incrementAndGet();
+            if (numFailureRetries == -1) {
+                // Unattended transforms retry indefinitely (they must never fail; mirrors TransformFailureHandler). We still
+                // surface the retry periodically -- throttled, because this path re-fires every scheduler frequency -- so a
+                // transform wedged on a persistently-failing load stays observable instead of looping silently forever.
+                if (count == 1 || count % TransformFailureHandler.LOG_FAILURE_EVERY == 0) {
+                    auditReassignmentLoadRetry(transformId, e, count, numFailureRetries);
+                }
+                return true;
+            }
+            boolean retry = count <= numFailureRetries;
+            if (retry) {
+                auditReassignmentLoadRetry(transformId, e, count, numFailureRetries);
+            }
+            return retry;
+        };
+        action.accept(listener.delegateResponse((l, e) -> {
+            if (shouldRetry.test(e) == false) {
+                l.onFailure(e);
+                return;
+            }
+            var scheduler = transformServices.scheduler();
+            scheduler.registerTransform(
+                params,
+                new TransformRetryableStartUpListener<>(
+                    transformId,
+                    action,
+                    ActionListener.runBefore(l, () -> scheduler.deregisterTransform(transformId)),
+                    retryListener(task),
+                    shouldRetry,
+                    task.getContext()
+                )
+            );
+        }));
+    }
+
+    /**
+     * Audits and logs a reassignment-load retry, mirroring {@code TransformFailureHandler.logRetry}'s convention and message
+     * shape for the indexer run-time retry path: WARNING for attended transforms (once per tolerated attempt), INFO for
+     * unattended transforms. Unattended transforms retry indefinitely, so {@link #retryTransientLoad} throttles how often it
+     * calls this. The {@code [count/limit]} suffix shows {@code -1} as the limit for unattended, exactly as
+     * {@code TransformFailureHandler.logRetry} does.
+     */
+    private void auditReassignmentLoadRetry(String transformId, Exception e, int count, int numFailureRetries) {
+        boolean unattended = numFailureRetries == -1;
+        String message = Strings.format(
+            "Transform encountered an exception while reloading state after reassignment: [%s]; Will automatically retry [%d/%d]",
+            e.getMessage(),
+            count,
+            numFailureRetries
+        );
+        logger.atLevel(unattended ? Level.INFO : Level.WARN).withThrowable(e).log("[{}] {}", transformId, message);
+        auditor.audit(unattended ? INFO : WARNING, transformId, message);
+    }
+
     private ActionListener<Void> getTransformConfig(
         TransformTask task,
         TransformTaskParams params,
@@ -442,7 +599,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                     l -> transformServices.configManager().getTransformConfiguration(transformId, l),
                     ActionListener.runBefore(listener, () -> scheduler.deregisterTransform(transformId)),
                     retryListener(task),
-                    () -> true, // because we can't determine if this is an unattended transform yet, retry indefinitely
+                    // because we can't determine if this is an unattended transform yet, retry indefinitely.
+                    e -> true,
                     task.getContext()
                 )
             );
@@ -485,18 +643,93 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     private void startTask(
         TransformTask buildTask,
+        TransformTaskParams params,
         ClientTransformIndexerBuilder indexerBuilder,
         AuthorizationState authState,
         Long previousCheckpoint,
         ActionListener<StartTransformAction.Response> listener
     ) {
+        // if we fail the first request with a retryable error, we are going to start retrying until we succeed. when start fails with
+        // a retryable error, it is because the cluster state is not handling updates yet, but the cluster will eventually recover on
+        // its own. Permanent failures (e.g. the task is in a FAILED state, or its indexer can't be started) are not retried here: they
+        // won't resolve on their own, and looping on them just spams the audit log until the user force-stops the transform.
+        var startRetriesOnFirstFailureListener = listener.delegateResponse((l, e) -> {
+            if (isRetryablePersistStateError(e) == false) {
+                l.onFailure(e);
+                return;
+            }
+            // copy the params but replace the frequency, this is to prevent every transform from starting and retrying every second,
+            // potentially sending many cluster state updates at once. instead, add randomness to spread out the retry requests after the
+            // first retry
+            var retryTimer = TimeValue.timeValueSeconds(45 + Randomness.get().nextInt(15, 45));
+            var paramsWithExtendedTimer = new TransformTaskParams(
+                params.getId(),
+                params.getVersion(),
+                params.from(),
+                retryTimer,
+                params.requiresRemote()
+            );
+            logger.debug("Failed to start Transform, retrying in [{}] seconds.", retryTimer.seconds());
+            // tell the user when and why the retries are happening and how to stop them
+            // force stopping will eventually deregister this retry task from the scheduler
+            auditor.warning(
+                params.getId(),
+                Strings.format(
+                    "Failed while starting Transform. Automatically retrying every [%s] seconds. "
+                        + "To cancel retries, use [_transform/%s/_stop?force] to force stop this transform. Failure: [%s]",
+                    retryTimer.seconds(),
+                    params.getId(),
+                    e.getMessage()
+                )
+            );
+            var scheduler = transformServices.scheduler();
+            scheduler.registerTransform(
+                paramsWithExtendedTimer,
+                new TransformRetryableStartUpListener<>(
+                    paramsWithExtendedTimer.getId(),
+                    ll -> buildTask.start(previousCheckpoint, ll),
+                    ActionListener.runBefore(l, () -> scheduler.deregisterTransform(paramsWithExtendedTimer.getId())),
+                    ActionListener.noop(),
+                    TransformPersistentTasksExecutor::isRetryablePersistStateError,
+                    buildTask.getContext()
+                )
+            );
+        });
         // switch the threadpool to generic, because the caller is on the system_read threadpool
         threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);
             buildTask.setAuthState(authState);
             // TransformTask#start will fail if the task state is FAILED
-            buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, listener);
+            buildTask.setNumFailureRetries(numFailureRetries).start(previousCheckpoint, startRetriesOnFirstFailureListener);
         });
+    }
+
+    /**
+     * Classes of exception that are known to be transient failures at the cluster-state/master layer
+     * — the kind the retry loop in {@link #startTask} was originally designed for ("cluster state is
+     * not handling updates yet, but the cluster will eventually recover on its own"). Checked via
+     * {@link ExceptionsHelper#unwrap}, so a wrapped cause (e.g. {@code TransformTask#start}'s
+     * persist-failure branch) is still matched.
+     */
+    private static final Class<?>[] RETRYABLE_PERSIST_STATE_EXCEPTIONS = new Class<?>[] {
+        NotMasterException.class,
+        FailedToCommitClusterStateException.class,
+        ProcessClusterEventTimeoutException.class,
+        ConnectTransportException.class };
+
+    /**
+     * Decides whether a failure from starting a transform's persistent task should be retried.
+     * Defaults to false (whitelist): only known-transient cluster-state/master failures are retried.
+     * Permanent failures — e.g. {@code CannotStartFailedTransformException} (the task is in a FAILED
+     * state) or the indexer refusing to start — must not be retried, or the transform loops forever
+     * emitting "Failed while starting Transform. Automatically retrying..." until force-stopped.
+     */
+    private static boolean isRetryablePersistStateError(Exception e) {
+        if (ExceptionsHelper.unwrap(e, RETRYABLE_PERSIST_STATE_EXCEPTIONS) != null) {
+            return true;
+        }
+        ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(e, ClusterBlockException.class);
+        return clusterBlockException != null && clusterBlockException.retryable();
     }
 
     private void setNumFailureRetries(int numFailureRetries) {

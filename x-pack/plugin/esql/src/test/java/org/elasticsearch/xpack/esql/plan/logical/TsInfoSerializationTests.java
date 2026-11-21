@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerializationTests;
 
 import java.io.IOException;
@@ -57,17 +59,37 @@ public class TsInfoSerializationTests extends AbstractLogicalPlanSerializationTe
     }
 
     public void testLimitOnTheWire() throws IOException {
-        TsInfo instance = new TsInfo(randomSource(), LocalRelationSerializationTests.randomLocalRelation(), between(1, 100_000));
+        TsInfo instance = limitedInstance();
         for (TransportVersion version : LIMIT_ON_THE_WIRE) {
             assertEquals(version.toString(), instance.limit(), copyInstance(instance, version).limit());
         }
     }
 
     public void testLimitNotOnTheWire() throws IOException {
-        TsInfo instance = new TsInfo(randomSource(), LocalRelationSerializationTests.randomLocalRelation(), between(1, 100_000));
+        TsInfo instance = limitedInstance();
         for (TransportVersion version : LIMIT_NOT_ON_THE_WIRE) {
             assertNull(version.toString(), copyInstance(instance, version).limit());
         }
+    }
+
+    /**
+     * Whether every listed version can read these attributes. Newer data types can't be sent to older nodes,
+     * and these tests are about the limit, not the attributes.
+     */
+    public static boolean readableByAllListedVersions(List<Attribute> attributes) {
+        return attributes.stream()
+            .allMatch(
+                a -> LIMIT_NOT_ON_THE_WIRE.stream().allMatch(v -> a.dataType().supportedVersion().supportedOn(v, false))
+                    && LIMIT_ON_THE_WIRE.stream().allMatch(v -> a.dataType().supportedVersion().supportedOn(v, false))
+            );
+    }
+
+    private static TsInfo limitedInstance() {
+        LocalRelation child = randomValueOtherThanMany(
+            r -> readableByAllListedVersions(r.output()) == false,
+            LocalRelationSerializationTests::randomLocalRelation
+        );
+        return new TsInfo(randomSource(), child, between(1, 100_000));
     }
 
     private static Integer randomLimit() {

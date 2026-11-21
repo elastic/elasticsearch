@@ -15,7 +15,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.plan.logical.TsInfoSerializationTests.LIMIT_NOT_ON_THE_WIRE;
 import static org.elasticsearch.xpack.esql.plan.logical.TsInfoSerializationTests.LIMIT_ON_THE_WIRE;
-import static org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExecSerializationTests.randomExchangeSourceExec;
+import static org.elasticsearch.xpack.esql.plan.logical.TsInfoSerializationTests.readableByAllListedVersions;
 
 public class TsInfoExecSerializationTests extends AbstractPhysicalPlanSerializationTests<TsInfoExec> {
 
@@ -69,15 +69,15 @@ public class TsInfoExecSerializationTests extends AbstractPhysicalPlanSerializat
     }
 
     private static TsInfoExec limitedInstance() {
-        List<Attribute> attributes = randomFieldAttributes(1, 7, false);
-        return new TsInfoExec(
-            randomSource(),
-            randomExchangeSourceExec(),
-            attributes,
-            attributes,
-            randomFrom(TsInfoExec.Mode.values()),
-            between(1, 100_000)
+        List<Attribute> attributes = randomValueOtherThanMany(
+            a -> readableByAllListedVersions(a) == false,
+            () -> randomFieldAttributes(1, 7, false)
         );
+        ExchangeSourceExec child = randomValueOtherThanMany(
+            c -> readableByAllListedVersions(c.output()) == false,
+            ExchangeSourceExecSerializationTests::randomExchangeSourceExec
+        );
+        return new TsInfoExec(randomSource(), child, attributes, attributes, randomFrom(TsInfoExec.Mode.values()), between(1, 100_000));
     }
 
     private static Integer randomLimit() {

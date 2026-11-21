@@ -104,12 +104,13 @@ public class ViewValidationRestIT extends ESRestTestCase {
     }
 
     /**
-     * A JOIN on a subquery cannot run yet. Creating a view that holds one warns about it, as running the same query fails.
+     * A JOIN on a subquery cannot run yet. Creating a view that holds one warns about it, as running the same query fails. The left
+     * key is null, so the optimizer removes the join: only the check right after analysis, not the {@code Mapper}'s, can reject it.
      */
     public void testJoinOnSubqueryEmitsWarning() throws IOException {
         assumeTrue("LEFT OUTER JOIN requires snapshot builds", Build.current().isSnapshot());
         createIndex("view-validation-index", null, "\"properties\": {\"k\": {\"type\": \"keyword\"}}");
-        String query = "FROM view-validation-index | LEFT OUTER JOIN (FROM view-validation-index) ON k";
+        String query = "FROM view-validation-index | EVAL k = null | LEFT OUTER JOIN (FROM view-validation-index) ON k";
 
         Response response = putView("view-validation-subquery-join", query, true);
         assertThat(response.getWarnings(), hasSize(1));

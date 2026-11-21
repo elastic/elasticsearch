@@ -74,6 +74,22 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
     }
 
     /**
+     * A row without a match gets null for the subquery's columns, so a constant the subquery defines must not replace its column
+     * above the join. Folding {@code flag} to {@code true} would turn the filter into {@code false} and drop every row.
+     */
+    public void testSubqueryConstantIsNotFoldedAboveJoin() {
+        LogicalPlan plan = optimizedJoinPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (FROM languages | EVAL flag = true) ON language_code
+            | WHERE flag IS NULL
+            """);
+        SubqueryJoin join = findJoin(plan);
+        Filter filter = findParent(plan, join, Filter.class);
+        assertThat(filter.condition().references().stream().map(Attribute::name).toList(), equalTo(List.of("flag")));
+    }
+
+    /**
      * A {@code LIMIT} after the join is copied to the left side only: limiting the subquery would drop matches.
      */
     public void testLimitIsNotPushedIntoSubquery() {

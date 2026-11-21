@@ -176,8 +176,9 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
 
     /**
      * Same as {@code LOOKUP JOIN}: numeric keys of different types match by value, with one exception. An {@code unsigned_long}
-     * only matches another {@code unsigned_long}, because a common floating-point type would round it. For now, though,
-     * {@link AbstractSubqueryJoin#isSubqueryJoinUnsupported} rejects every {@code unsigned_long} key.
+     * only matches another {@code unsigned_long}: its common type with a signed integer cannot hold negative values, and a common
+     * floating-point type would round it. For now, though, {@link AbstractSubqueryJoin#isSubqueryJoinUnsupported} rejects every
+     * {@code unsigned_long} key.
      */
     static boolean comparableKeyTypes(DataType leftType, DataType rightType) {
         if (leftType == NULL) {
@@ -185,7 +186,6 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
             return true;
         }
         if (leftType.isNumeric() && rightType.isNumeric()) {
-            // TODO: the hash join compares keys by element type, so running the join must first cast both keys to a common type.
             return areTypesCompatible(leftType, rightType);
         }
         return leftType.noText() == rightType.noText();

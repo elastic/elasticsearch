@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -412,7 +413,8 @@ public abstract class FullTextFunction extends Function
             if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
                 return;
             }
-            plan.forEachDown(LogicalPlan.class, lp -> {
+            // A joined subquery runs on its own, so its commands do not come before this one.
+            IndependentSubqueryJoin.forEachDownInMainScope(plan, lp -> {
                 if (commandCheck.test(lp) == false) {
                     if (lp instanceof ExternalRelation externalRelation) {
                         // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)

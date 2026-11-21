@@ -258,6 +258,26 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
         assertTrue(findJoin(plan).resolved());
     }
 
+    /**
+     * A {@code LIMIT} in the subquery limits only the subquery, so a full-text function may follow the join. A {@code LIMIT} on the
+     * left side still counts.
+     */
+    public void testFullTextFunctionAfterLimitInSubquery() {
+        findJoin(analyzer().query("""
+            FROM test
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (FROM languages | LIMIT 5) ON language_code
+            | WHERE MATCH(first_name, "x")
+            """));
+        analyzer().error("""
+            FROM test
+            | LIMIT 5
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (FROM languages) ON language_code
+            | WHERE MATCH(first_name, "x")
+            """, containsString("[MATCH] function cannot be used after LIMIT"));
+    }
+
     public void testRemoteIndicesAreRejected() {
         TestAnalyzer analyzer = analyzer().addIndex("remote:languages", remoteLanguages());
         analyzer.error("""

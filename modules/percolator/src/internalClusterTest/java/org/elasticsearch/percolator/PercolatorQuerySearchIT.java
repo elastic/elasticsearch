@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -57,8 +58,10 @@ import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -360,6 +363,64 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
                 assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
             }
+        );
+    }
+
+    public void testPercolatorGeoBoundingBoxQueries() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setMapping("id", "type=keyword", "location", "type=geo_point", "rooms", "type=integer", "query", "type=percolator")
+        );
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject().field("query", geoBoundingBoxQuery("location").setCorners(52.3, 4.4, 52.1, 4.6)).endObject()
+            )
+            .get();
+        prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field(
+                        "query",
+                        boolQuery().filter(geoBoundingBoxQuery("location").setCorners(56.0, 37.3, 55.5, 37.9))
+                            .filter(termsQuery("rooms", new int[] { 1, 2, 3 }))
+                    )
+                    .endObject()
+            )
+            .get();
+        // crosses the dateline
+        prepareIndex("test").setId("3")
+            .setSource(
+                jsonBuilder().startObject().field("query", geoBoundingBoxQuery("location").setCorners(10, 170, -10, -170)).endObject()
+            )
+            .get();
+        refresh();
+
+        assertPercolatedIds(jsonBuilder().startObject().field("location", "52.2,4.5").endObject(), "1");
+        assertPercolatedIds(jsonBuilder().startObject().field("location", "55.75,37.6").field("rooms", 2).endObject(), "2");
+        assertPercolatedIds(jsonBuilder().startObject().field("location", "55.75,37.6").field("rooms", 5).endObject());
+        assertPercolatedIds(jsonBuilder().startObject().field("location", "0,175").endObject(), "3");
+        assertPercolatedIds(jsonBuilder().startObject().field("location", "0,-175").endObject(), "3");
+        assertPercolatedIds(jsonBuilder().startObject().field("location", "30,0").endObject());
+        assertPercolatedIds(jsonBuilder().startObject().array("location", "30,0", "52.2,4.5", "0,175").endObject(), "1", "3");
+
+        // several documents at once are read from a regular index rather than from a MemoryIndex
+        List<BytesReference> documents = List.of(
+            BytesReference.bytes(jsonBuilder().startObject().field("location", "30,0").endObject()),
+            BytesReference.bytes(jsonBuilder().startObject().field("location", "52.2,4.5").endObject()),
+            BytesReference.bytes(jsonBuilder().startObject().field("location", "0,-175").endObject())
+        );
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(new PercolateQueryBuilder("query", documents, XContentType.JSON)),
+            response -> assertSearchHits(response, "1", "3")
+        );
+    }
+
+    private void assertPercolatedIds(XContentBuilder document, String... expectedIds) {
+        BytesReference source = BytesReference.bytes(document);
+        assertNoFailuresAndResponse(
+            prepareSearch("test").setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)),
+            response -> assertSearchHits(response, expectedIds)
         );
     }
 

@@ -26,7 +26,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
@@ -219,33 +218,37 @@ final class QueryAnalyzer {
     }
 
     private static Result pointRangeQuery(PointRangeQuery query) {
-        if (query.getNumDims() != 1) {
+        int numDims = query.getNumDims();
+        int bytesPerDim = query.getBytesPerDim();
+        if (numDims > 1 && supportsMultiDimensionalRanges(bytesPerDim) == false) {
             return Result.UNKNOWN;
         }
-
         byte[] lowerPoint = query.getLowerPoint();
         byte[] upperPoint = query.getUpperPoint();
 
-        // Need to check whether upper is not smaller than lower, otherwise NumericUtils.subtract(...) fails IAE
-        // If upper is really smaller than lower then we deal with like MatchNoDocsQuery. (verified and no extractions)
-        if (new BytesRef(lowerPoint).compareTo(new BytesRef(upperPoint)) > 0) {
-            return new Result(true, Collections.emptySet(), 0);
+        // A point is in a multi-dimensional range (the box of a geo_bounding_box query on a geo_point field) only if each of its
+        // dimensions is in the range of that dimension, so all the ranges are required. Documents provide the [min, max] of every
+        // indexed dimension of their points, see PercolatorFieldType#extractTermsAndRanges(...).
+        Set<QueryExtraction> extractions = new HashSet<>();
+        for (int dim = 0; dim < numDims; dim++) {
+            byte[] lower = Arrays.copyOfRange(lowerPoint, dim * bytesPerDim, (dim + 1) * bytesPerDim);
+            byte[] upper = Arrays.copyOfRange(upperPoint, dim * bytesPerDim, (dim + 1) * bytesPerDim);
+            // If upper is smaller than lower the range matches nothing: deal with it like MatchNoDocsQuery (verified, no extractions)
+            if (new BytesRef(lower).compareTo(new BytesRef(upper)) > 0) {
+                return new Result(true, Collections.emptySet(), 0);
+            }
+            RangeField rangeField = numDims == 1 ? new RangeField(query.getField()) : new RangeField(query.getField(), dim);
+            extractions.add(new QueryExtraction(new Range(rangeField, lower, upper)));
         }
-
-        byte[] interval = new byte[16];
-        NumericUtils.subtract(16, 0, prepad(upperPoint), prepad(lowerPoint), interval);
-        return new Result(
-            false,
-            Collections.singleton(new QueryExtraction(new Range(query.getField(), lowerPoint, upperPoint, interval))),
-            1
-        );
+        return new Result(false, extractions, extractions.size());
     }
 
-    private static byte[] prepad(byte[] original) {
-        int offset = BinaryRange.BYTES - original.length;
-        byte[] result = new byte[BinaryRange.BYTES];
-        System.arraycopy(original, 0, result, offset, original.length);
-        return result;
+    /**
+     * Values of 16 bytes leave no room for the field hash in an encoded range, see {@link PercolatorFieldMapper#encodeRange}, so the
+     * ranges of their dimensions would intersect with those of other fields. {@code ip_range} has such values, geo fields don't.
+     */
+    static boolean supportsMultiDimensionalRanges(int bytesPerDim) {
+        return bytesPerDim < BinaryRange.BYTES;
     }
 
     private static Result handleConjunction(List<Result> conjunctionsWithUnknowns) {
@@ -268,7 +271,7 @@ final class QueryAnalyzer {
         boolean verified = conjunctionsWithUnknowns.size() == conjunctions.size();
         boolean matchAllDocs = true;
         Set<QueryExtraction> extractions = new HashSet<>();
-        Set<String> seenRangeFields = new HashSet<>();
+        Set<RangeField> seenRangeFields = new HashSet<>();
         for (Result result : conjunctions) {
 
             int resultMsm = result.minimumShouldMatch;
@@ -279,7 +282,7 @@ final class QueryAnalyzer {
                     // so that can lead to more false positives for percolator queries with range queries
                     // than term based queries.
                     // This is because the way number fields are extracted from the document to be
-                    // percolated. Per field a single range is extracted and if a percolator query has two or
+                    // percolated. Per field (or dimension, see RangeField) a single range is extracted and if a percolator query has two or
                     // more range queries on the same field, then the minimum should match can be higher than clauses
                     // in the CoveringQuery. Therefore right now the minimum should match is only incremented once per
                     // number field when processing the percolator query at index time.
@@ -287,7 +290,7 @@ final class QueryAnalyzer {
                     // then this will already have been taken care of, so we only check against fieldnames from
                     // previously processed extractions, and don't add to the seenRangeFields list until all
                     // extractions from this result are processed
-                    if (seenRangeFields.contains(queryExtraction.range.fieldName)) {
+                    if (seenRangeFields.contains(queryExtraction.range.rangeField())) {
                         resultMsm = Math.max(0, resultMsm - 1);
                         verified = false;
                     }
@@ -307,7 +310,7 @@ final class QueryAnalyzer {
 
             // add range fields from this Result to the seenRangeFields set so that minimumShouldMatch is correctly
             // calculated for subsequent Results
-            result.extractions.stream().map(e -> e.range).filter(Objects::nonNull).map(e -> e.fieldName).forEach(seenRangeFields::add);
+            result.extractions.stream().map(e -> e.range).filter(Objects::nonNull).map(Range::rangeField).forEach(seenRangeFields::add);
 
             if (result.verified == false
                 // If some inner extractions are optional, the result can't be verified
@@ -533,19 +536,36 @@ final class QueryAnalyzer {
         }
     }
 
+    /**
+     * A one-dimensional point field, or one dimension of a multi-dimensional point field such as the latitude of a
+     * {@code geo_point}. The encoded ranges of different range fields don't intersect, except for 16-byte values, see
+     * {@link PercolatorFieldMapper#encodeRange}.
+     */
+    record RangeField(String name, int dimension) {
+
+        static final int ONE_DIMENSIONAL = -1;
+
+        RangeField(String name) {
+            this(name, ONE_DIMENSIONAL);
+        }
+    }
+
     static class Range {
 
         final String fieldName;
+        final int dimension;
         final byte[] lowerPoint;
         final byte[] upperPoint;
-        final BytesRef interval;
 
-        Range(String fieldName, byte[] lowerPoint, byte[] upperPoint, byte[] interval) {
-            this.fieldName = fieldName;
+        Range(RangeField rangeField, byte[] lowerPoint, byte[] upperPoint) {
+            this.fieldName = rangeField.name();
+            this.dimension = rangeField.dimension();
             this.lowerPoint = lowerPoint;
             this.upperPoint = upperPoint;
-            // using BytesRef here just to make use of its compareTo method.
-            this.interval = new BytesRef(interval);
+        }
+
+        RangeField rangeField() {
+            return new RangeField(fieldName, dimension);
         }
 
         @Override
@@ -554,6 +574,7 @@ final class QueryAnalyzer {
             if (o == null || getClass() != o.getClass()) return false;
             Range range = (Range) o;
             return Objects.equals(fieldName, range.fieldName)
+                && dimension == range.dimension
                 && Arrays.equals(lowerPoint, range.lowerPoint)
                 && Arrays.equals(upperPoint, range.upperPoint);
         }
@@ -562,6 +583,7 @@ final class QueryAnalyzer {
         public int hashCode() {
             int result = 1;
             result += 31 * fieldName.hashCode();
+            result += dimension;
             result += Arrays.hashCode(lowerPoint);
             result += Arrays.hashCode(upperPoint);
             return result;
@@ -569,7 +591,7 @@ final class QueryAnalyzer {
 
         @Override
         public String toString() {
-            return "Range{" + ", fieldName='" + fieldName + '\'' + ", interval=" + interval + '}';
+            return "Range{" + ", fieldName='" + fieldName + '\'' + ", dimension=" + dimension + '}';
         }
     }
 

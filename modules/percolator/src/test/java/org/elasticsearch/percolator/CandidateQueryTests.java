@@ -13,9 +13,11 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
@@ -50,6 +52,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -745,6 +748,189 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         assertEquals(1, topDocs.totalHits.value());
         assertEquals(1, topDocs.scoreDocs.length);
         assertEquals(5, topDocs.scoreDocs[0].doc);
+    }
+
+    public void testDuelGeoBoundingBoxQueries() throws Exception {
+        List<LuceneDocument> documents = new ArrayList<>();
+        List<double[]> boxes = new ArrayList<>();
+        int numQueries = randomIntBetween(8, 32);
+        for (int i = 0; i < numQueries; i++) {
+            Query box = randomBoxQuery(boxes);
+            int from = randomIntBetween(0, 10);
+            Query numericRange = IntPoint.newRangeQuery("int_field", from, randomIntBetween(from, 10));
+            Query term = new TermQuery(new Term("field", "value" + randomInt(3)));
+            BooleanQuery.Builder builder = new BooleanQuery.Builder();
+            switch (randomInt(7)) {
+                case 0 -> addQuery(box, documents);
+                case 1 -> {
+                    builder.add(box, Occur.FILTER);
+                    builder.add(numericRange, Occur.FILTER);
+                    addQuery(builder.build(), documents);
+                }
+                case 2 -> {
+                    builder.add(box, Occur.FILTER);
+                    builder.add(numericRange, Occur.FILTER);
+                    builder.add(term, Occur.MUST);
+                    addQuery(builder.build(), documents);
+                }
+                case 3 -> {
+                    builder.add(box, Occur.SHOULD);
+                    builder.add(numericRange, Occur.SHOULD);
+                    addQuery(builder.build(), documents);
+                }
+                // Two constraints on the same field and dimension, for which QueryAnalyzer lowers the msm
+                case 4 -> {
+                    builder.add(box, Occur.FILTER);
+                    builder.add(randomBoxQuery(boxes), Occur.FILTER);
+                    addQuery(builder.build(), documents);
+                }
+                case 5 -> {
+                    builder.add(box, Occur.FILTER);
+                    builder.add(numericRange, Occur.FILTER);
+                    builder.add(IntPoint.newRangeQuery("int_field", randomIntBetween(0, 5), randomIntBetween(5, 10)), Occur.FILTER);
+                    addQuery(builder.build(), documents);
+                }
+                case 6 -> {
+                    BooleanQuery.Builder inner = new BooleanQuery.Builder();
+                    inner.add(randomBoxQuery(boxes), Occur.SHOULD);
+                    inner.add(numericRange, Occur.SHOULD);
+                    inner.add(term, Occur.SHOULD);
+                    builder.add(box, Occur.FILTER);
+                    builder.add(inner.build(), Occur.FILTER);
+                    addQuery(builder.build(), documents);
+                }
+                case 7 -> {
+                    builder.add(box, Occur.SHOULD);
+                    builder.add(randomBoxQuery(boxes), Occur.SHOULD);
+                    builder.add(numericRange, Occur.SHOULD);
+                    builder.add(term, Occur.SHOULD);
+                    builder.setMinimumNumberShouldMatch(2);
+                    addQuery(builder.build(), documents);
+                }
+                default -> throw new AssertionError();
+            }
+        }
+
+        indexWriter.addDocuments(documents);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        // Disable query cache, because ControlQuery cannot be cached...
+        shardSearcher.setQueryCache(null);
+
+        int numDocs = randomIntBetween(32, 64);
+        for (int i = 0; i < numDocs; i++) {
+            Document document = new Document();
+            int numPoints = randomIntBetween(0, 3);
+            for (int j = 0; j < numPoints; j++) {
+                double[] box = randomFrom(boxes);
+                // Box edges are where a rounding difference between the two sides would lose a match
+                double lat = randomBoolean() ? randomFrom(box[0], box[1]) : randomDoubleBetween(-90, 90, true);
+                double lon = randomBoolean() ? randomFrom(box[2], box[3]) : randomDoubleBetween(-180, 180, true);
+                document.add(new LatLonPoint("geo_field", lat, lon));
+            }
+            int numValues = randomIntBetween(0, 2);
+            for (int j = 0; j < numValues; j++) {
+                document.add(new IntPoint("int_field", randomIntBetween(0, 10)));
+            }
+            if (randomBoolean()) {
+                document.add(new StringField("field", "value" + randomInt(3), Field.Store.NO));
+            }
+            MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
+            duelRun(queryStore, memoryIndex, shardSearcher);
+        }
+    }
+
+    private static Query randomBoxQuery(List<double[]> boxes) {
+        double minLat = randomDoubleBetween(-90, 90, true);
+        double maxLat = randomDoubleBetween(minLat, 90, true);
+        double minLon = randomDoubleBetween(-180, 180, true);
+        // max longitude below the min longitude: the box crosses the dateline
+        double maxLon = randomDoubleBetween(-180, 180, true);
+        boxes.add(new double[] { minLat, maxLat, minLon, maxLon });
+        return LatLonPoint.newBoxQuery("geo_field", minLat, maxLat, minLon, maxLon);
+    }
+
+    public void testGeoBoundingBoxCandidates() throws Exception {
+        List<LuceneDocument> docs = new ArrayList<>();
+        addQuery(LatLonPoint.newBoxQuery("geo_field", 52.1, 52.3, 4.4, 4.6), docs);
+        addQuery(LatLonPoint.newBoxQuery("geo_field", 55.5, 56.0, 37.3, 37.9), docs);
+        addQuery(LatLonPoint.newBoxQuery("geo_field", -10, 10, 170, -170), docs);
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        assertCandidates(shardSearcher, new LatLonPoint("geo_field", 52.2, 4.5), 0);
+        assertCandidates(shardSearcher, new LatLonPoint("geo_field", 55.75, 37.6), 1);
+        assertCandidates(shardSearcher, new LatLonPoint("geo_field", 0, 175), 2);
+        assertCandidates(shardSearcher, new LatLonPoint("geo_field", 0, -175), 2);
+        assertCandidates(shardSearcher, new LatLonPoint("geo_field", 30, 0));
+    }
+
+    public void testPointRangeQueryOnFieldThatStoresMoreDimensionsThanItIndexes() throws Exception {
+        // MemoryIndex reports every stored dimension as indexed, so a point range query can't run against this field there.
+        // The document goes into a regular index instead, as when several documents are percolated at once.
+        FieldType type = new FieldType();
+        type.setDimensions(3, 2, Integer.BYTES);
+        type.freeze();
+        List<LuceneDocument> docs = new ArrayList<>();
+        addQuery(new PointRangeQuery("xy_field", packInts(0, 0), packInts(10, 10), 2) {
+            @Override
+            protected String toString(int dimension, byte[] value) {
+                return Integer.toString(IntPoint.decodeDimension(value, 0));
+            }
+        }, docs);
+        indexWriter.addDocuments(docs);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        shardSearcher.setQueryCache(null);
+
+        for (boolean inside : new boolean[] { true, false }) {
+            Field field = new Field("xy_field", inside ? packInts(5, 5, 42) : packInts(50, 5, 42), type);
+            try (Directory documentDirectory = newDirectory()) {
+                try (IndexWriter documentWriter = new IndexWriter(documentDirectory, new IndexWriterConfig(new WhitespaceAnalyzer()))) {
+                    documentWriter.addDocument(Collections.singleton(field));
+                }
+                try (DirectoryReader documentReader = DirectoryReader.open(documentDirectory)) {
+                    IndexSearcher percolateSearcher = new IndexSearcher(documentReader);
+                    assertCandidates(shardSearcher, percolateSearcher, inside ? new Integer[] { 0 } : new Integer[0]);
+                    Query percolateQuery = fieldType.percolateQuery(
+                        "_name",
+                        queryStore,
+                        Collections.singletonList(new BytesArray("{}")),
+                        percolateSearcher,
+                        false,
+                        newSearchExecutionContext()
+                    );
+                    assertEquals(inside ? 1L : 0L, shardSearcher.search(percolateQuery, 10).totalHits.value());
+                }
+            }
+        }
+    }
+
+    private static byte[] packInts(int... values) {
+        byte[] packed = new byte[values.length * Integer.BYTES];
+        for (int i = 0; i < values.length; i++) {
+            IntPoint.encodeDimension(values[i], packed, i * Integer.BYTES);
+        }
+        return packed;
+    }
+
+    private void assertCandidates(IndexSearcher shardSearcher, IndexableField field, Integer... expectedDocs) throws IOException {
+        MemoryIndex memoryIndex = MemoryIndex.fromDocument(Collections.singleton(field), new WhitespaceAnalyzer());
+        assertCandidates(shardSearcher, memoryIndex.createSearcher(), expectedDocs);
+        duelRun(queryStore, memoryIndex, shardSearcher);
+    }
+
+    private void assertCandidates(IndexSearcher shardSearcher, IndexSearcher percolateSearcher, Integer... expectedDocs)
+        throws IOException {
+        IndexReader percolateReader = percolateSearcher.getIndexReader();
+        Query candidateQuery = fieldType.createCandidateQuery(percolateReader, newSearchExecutionContext()).v1();
+        TopDocs topDocs = shardSearcher.search(candidateQuery, 10, new Sort(SortField.FIELD_DOC));
+        assertThat(Arrays.stream(topDocs.scoreDocs).map(scoreDoc -> scoreDoc.doc).toList(), equalTo(List.of(expectedDocs)));
     }
 
     public void testDuelRangeQueries() throws Exception {

@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex.management;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -30,6 +31,9 @@ import static org.elasticsearch.rest.Scope.PUBLIC;
 
 @ServerlessScope(PUBLIC)
 public class RestGetReindexAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("wait_for_completion", RestUtils.REST_TIMEOUT_PARAM);
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "task_id");
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
@@ -64,6 +68,16 @@ public class RestGetReindexAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         return Set.of(CAPABILITY_REINDEX_MANAGEMENT_API);
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

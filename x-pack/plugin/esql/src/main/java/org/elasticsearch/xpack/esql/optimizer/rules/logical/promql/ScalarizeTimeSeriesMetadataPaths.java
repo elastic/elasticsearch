@@ -27,10 +27,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -65,8 +67,10 @@ import java.util.Map;
  *     other type, such as {@code 1.0} coerced into a {@code long}, is not in its doc values.</li>
  *     <li>The value gets a temporary name where it is defined and goes up to the read as Trino's dereference pushdown carries
  *     a field: a {@link Project} on the way projects it, a node that keeps its input's output passes it, and either side of a
- *     {@link HashJoin} passes it, the temporary name keeping it apart from the other side's labels. A plain {@link Aggregate}
- *     stops it, as a key of several values would split the aggregate's rows; so does any other node.</li>
+ *     {@link HashJoin} passes it, the temporary name keeping it apart from the other side's labels. An aggregate keyed by a
+ *     {@link PackDims} of the container passes it as one more input of that pack and output of its {@link UnpackDims}: the
+ *     container determines the label, so the groups stay, and no pack is added. Any other {@link Aggregate} stops it, as a
+ *     key of several values would split the aggregate's rows; so does any other node.</li>
  *     <li>A read of a {@link UnionAll}'s container is a read of each branch's container at the same position, as a projection
  *     commutes with a union (the commuting conversions of query normalisation, Spark's projection pushdown through a union):
  *     when every branch has the value, the union outputs it as one more column, which its branches give under its name.</li>
@@ -107,6 +111,8 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
         private final Map<LogicalPlan, Map<String, Attribute>> columns = new IdentityHashMap<>();
         /** The value each branch of a union gives each of the union's added columns, in their order. */
         private final Map<LogicalPlan, List<Expression>> branches = new IdentityHashMap<>();
+        /** The values each pack packs, and its unpack returns, in addition. */
+        private final Map<LogicalPlan, List<Attribute>> packed = new IdentityHashMap<>();
 
         /** The nodes crossed while following the current read, from the read down; committed only when the read has a value. */
         private List<LogicalPlan> crossed;
@@ -248,6 +254,12 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                     }
                     return null;
                 }
+                case UnpackDims unpack -> {
+                    crossed.removeLast();
+                    return unpack.dims().stream().anyMatch(d -> d.id().equals(attribute.id()))
+                        ? unpacked(unpack, attribute, label)
+                        : definition(unpack.child(), attribute, label);
+                }
                 case UnionAll union -> {
                     crossed.removeLast();
                     for (int position = 0; position < union.output().size(); position++) {
@@ -359,6 +371,42 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
             return known;
         }
 
+        /**
+         * The value of label {@code label} of {@code container}, which {@code unpack} returns from the key of the aggregate below
+         * it, packed by the pack below that: one more input of the pack and output of the unpack. The container determines the
+         * label, so the groups stay, and the pack keys a label of several values whole; no pack is added.
+         */
+        private Expression unpacked(UnpackDims unpack, Attribute container, String label) {
+            if (unpack.child() instanceof Aggregate keyed
+                && keyed.child() instanceof PackDims pack
+                && pack.dims().stream().anyMatch(d -> d.id().equals(container.id()))
+                && keyed.groupings()
+                    .stream()
+                    .anyMatch(g -> Alias.unwrap(g) instanceof Attribute key && key.id().equals(pack.packed().id()))) {
+                List<LogicalPlan> above = crossed;
+                crossed = new ArrayList<>();
+                aggregate = null;
+                origin = null;
+                Expression value = definition(pack.child(), container, label);
+                if (value == null || value instanceof Literal) {
+                    crossed = above;
+                    return value;
+                }
+                Attribute carried = carry(value, unpack);
+                for (LogicalPlan node : List.of(pack, unpack)) {
+                    List<Attribute> added = packed.computeIfAbsent(node, k -> new ArrayList<>());
+                    if (added.contains(carried) == false) {
+                        added.add(carried);
+                    }
+                }
+                crossed = above;
+                aggregate = null;
+                origin = unpack;
+                return carried;
+            }
+            return null;
+        }
+
         /** Records the value of {@code read}: a literal as it is, any other value under a temporary name carried up to the read. */
         private void commit(TimeSeriesMetadataPath read, Expression value) {
             values.put(read, value instanceof Literal ? value : carry(value, read));
@@ -375,7 +423,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                     added.add((FieldAttribute) value);
                 }
             }
-            Attribute named = origin instanceof UnionAll && value instanceof Attribute attribute
+            Attribute named = (origin instanceof UnionAll || origin instanceof UnpackDims) && value instanceof Attribute attribute
                 ? attribute
                 : names.computeIfAbsent(origin, k -> new LinkedHashMap<>())
                     .computeIfAbsent(
@@ -426,6 +474,19 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                 List<Attribute> output = new ArrayList<>(union.output());
                 output.addAll(unionColumns.values());
                 rewritten = union.replaceSubPlansAndOutput(subPlans, output);
+            }
+            List<Attribute> packs = packed.get(node);
+            if (packs != null) {
+                if (rewritten instanceof PackDims pack) {
+                    List<Attribute> dims = new ArrayList<>(pack.dims());
+                    dims.addAll(packs);
+                    rewritten = new PackDims(pack.source(), pack.child(), dims, pack.packed());
+                } else {
+                    UnpackDims unpack = (UnpackDims) rewritten;
+                    List<Attribute> dims = new ArrayList<>(unpack.dims());
+                    dims.addAll(packs);
+                    rewritten = new UnpackDims(unpack.source(), unpack.child(), unpack.packed(), dims);
+                }
             }
             List<FieldAttribute> grouped = keys.get(node);
             if (grouped != null) {

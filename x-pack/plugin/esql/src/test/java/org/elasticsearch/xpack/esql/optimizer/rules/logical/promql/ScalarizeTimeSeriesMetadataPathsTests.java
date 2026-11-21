@@ -371,6 +371,36 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         assertThat(scalarize(plan), sameInstance(plan));
     }
 
+    /**
+     * An aggregate keyed by a packed container returns the container unpacked. A label read above it is one more input of
+     * the pack, and one more output of the unpack: the container determines the label, so the groups stay, and a pack keys
+     * a label of several values whole. No pack is added.
+     */
+    public void testReadAboveAnAggregateKeyedByAPackedContainer() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        Attribute last = aggregate.output().getFirst();
+        Attribute packed = new ReferenceAttribute(SOURCE, null, "$packed", DataType.KEYWORD);
+        PackDims pack = new PackDims(SOURCE, aggregate, List.of(labels.toAttribute()), packed);
+        Alias key = new Alias(SOURCE, "$key", packed);
+        Aggregate regroup = new Aggregate(
+            SOURCE,
+            pack,
+            List.of(key),
+            List.of(new Alias(SOURCE, "value", new Values(SOURCE, last)), key.toAttribute())
+        );
+        UnpackDims unpack = new UnpackDims(SOURCE, regroup, key.toAttribute(), List.of(labels.toAttribute()));
+        LogicalPlan plan = scalarize(new Eval(SOURCE, unpack, List.of(read("pod", labels.toAttribute(), "pod"))));
+
+        assertThat(reads(plan), empty());
+        assertEquals(pod, valueOf(plan, "pod"));
+        PackDims packs = plan.collect(PackDims.class).getFirst();
+        UnpackDims unpacks = plan.collect(UnpackDims.class).getFirst();
+        assertThat(packs.dims(), hasSize(2));
+        assertEquals(packs.dims(), unpacks.dims());
+        assertEquals(labels.toAttribute(), packs.dims().getFirst());
+    }
+
     /** A plan reading no label is returned as it is. */
     public void testPlanWithoutReads() {
         Alias labels = labels();

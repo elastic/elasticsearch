@@ -59,6 +59,22 @@ public final class ExternalSourceCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Whether this node does external-source cache work at all. It governs both halves: the node neither serves
+     * from the cache nor measures for it, because a row-format read harvests statistics for this cache and
+     * nothing else — see {@code FileSourceFactory}, which resolves the flag once per read.
+     * <p>
+     * It is node-scoped, so an asymmetric setting is a real configuration, and it cuts both ways. Off on a data
+     * node and on at the coordinator, reads on that node measure nothing, so the coordinator never warms for the
+     * files those nodes read. The reverse — on at the data node, off at the coordinator — is the one case where
+     * the rule this setting otherwise keeps does not hold: those reads still measure, and the coordinator
+     * discards what they send, which is the cost this flag exists to avoid. Both follow from the node scope, and
+     * closing either would mean the coordinator deciding and shipping the decision with the plan, which is a wire
+     * field. Set it cluster-wide and the two halves agree on every node that observes the update.
+     * <p>
+     * It does not reach the footer caches, which are built per format reader from {@link #FOOTER_CACHE_SIZE} and
+     * {@link #FOOTER_PARSED_CACHE_SIZE}; bound those with their own budgets.
+     */
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
         "esql.external.cache.enabled",
         CACHE_ENABLED_OLD,

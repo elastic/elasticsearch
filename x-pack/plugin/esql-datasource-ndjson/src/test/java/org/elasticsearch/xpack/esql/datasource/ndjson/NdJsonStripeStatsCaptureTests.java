@@ -39,6 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -47,6 +48,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Exact-stat validation for the orthogonal per-stripe stats path of the NDJSON reader. These are the
@@ -680,6 +684,91 @@ public class NdJsonStripeStatsCaptureTests extends ESTestCase {
             @Override
             public StoragePath path() {
                 return StoragePath.of(uniquePath);
+            }
+        };
+    }
+
+    /**
+     * The NDJSON half of the probe check — the CSV reader has the same gate and its own test. A read that
+     * harvests nothing must not probe the object's mtime: the probe exists only to key statistics, and on a
+     * store with no last-modified hint it costs a round trip per file. Counting it is the only assertion that
+     * discriminates, because the capture sink is empty under NONE either way.
+     */
+    public void testNoneDoesNotProbeTheObjectMtime() throws Exception {
+        byte[] full = ndjson(0, 10);
+
+        AtomicInteger noneProbes = new AtomicInteger();
+        readCounting(countingObject(full, noneProbes), StripeColumnScope.NONE);
+        assertEquals("a read that harvests nothing must not probe lastModified()", 0, noneProbes.get());
+
+        AtomicInteger projectedProbes = new AtomicInteger();
+        readCounting(countingObject(full, projectedProbes), StripeColumnScope.PROJECTED);
+        assertThat("a harvesting read pins the mtime, so it must probe", projectedProbes.get(), greaterThan(0));
+    }
+
+    private void readCounting(StorageObject o, StripeColumnScope scope) throws Exception {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .batchSize(1000)
+            .recordAligned(true)
+            .firstSplit(true)
+            .lastSplit(true)
+            .stats(0L, 64L, true)
+            .statsColumnScope(scope)
+            .build();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)
+        ) {
+            while (it.hasNext()) {
+                it.next().releaseBlocks();
+            }
+        }
+    }
+
+    /** Delegates to the in-memory object, counting every mtime probe. */
+    private StorageObject countingObject(byte[] bytes, AtomicInteger probes) {
+        StorageObject delegate = memoryObject(bytes);
+        return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {
+                delegate.attachMetrics(metrics, scheme);
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return delegate.storageIdentity();
+            }
+
+            @Override
+            public InputStream newStream() throws IOException {
+                return delegate.newStream();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) throws IOException {
+                return delegate.newStream(position, length);
+            }
+
+            @Override
+            public long length() throws IOException {
+                return delegate.length();
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                probes.incrementAndGet();
+                return delegate.lastModified();
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return delegate.exists();
+            }
+
+            @Override
+            public StoragePath path() {
+                return delegate.path();
             }
         };
     }

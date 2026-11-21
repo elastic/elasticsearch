@@ -12552,6 +12552,13 @@ public class CsvFormatReaderTests extends ESTestCase {
      * newline boundaries {@code RecordBoundaryProbe} returns is seeded with {@code 0L}, so the split
      * {@code buildNewlineMacroSplits} stamps {@code _first_split} on is always the one at byte zero,
      * and a record-aligned first split at a non-zero offset is a cell production never builds.
+     * That reaches only the two context builders keyed on the macro-split stamp. The other two --
+     * {@code ParallelParsingCoordinator.readSegment} and
+     * {@code StreamingParallelParsingCoordinator.parseChunk} -- write {@code recordAligned(true)} as a
+     * literal, so no boundary list speaks for them; there the invariant rests on segment and chunk zero
+     * beginning at their object's start, which leaves {@code splitStartByte} equal to the base offset the
+     * dispatcher passed in. Letting either of those see a non-zero base offset rebuilds this cell without
+     * touching the producer named above.
      */
     public void testTheFirstSplitOfABlockAlignedObjectNeedsNoWindowClause() throws IOException {
         List<Attribute> schema = splitSchema();

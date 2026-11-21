@@ -185,12 +185,13 @@ public final class RowLocation {
      * <p>
      * What this does not buy is a bound on width, and that is the honest cost. A key may be any length a store
      * permits, and in the warning text each escaped character costs six where the original cost one. On the
-     * wire it costs seven, and against a baseline that is not one byte per character either:
-     * {@code HeaderWarning#escapeAndEncode} doubles the escape's one backslash and leaves the five characters
-     * after it alone, all of them in its no-encoding set, while of the characters this escapes a bracket rides
-     * the header as itself and a control character other than tab is percent-encoded and already costs three.
-     * So the growth is one byte to seven for a bracket and three to seven for a control character, not a
-     * uniform sixfold. Nothing downstream re-bounds it: {@code http.max_warning_header_size} and {@code http.max_warning_header_count}
+     * wire it costs more again, by a factor this javadoc deliberately does not state:
+     * {@code HeaderWarning#escapeAndEncode} doubles the escape's one backslash, and the baseline it is measured
+     * against is not one byte per character but whatever that class makes of the character that was escaped --
+     * its no-encoding set admits both brackets unencoded and cuts across the range {@link Character#isISOControl}
+     * covers, percent-encoding part of that range and passing the rest. So the multiple depends on which
+     * character was escaped, and {@code HeaderWarning.doesNotNeedEncoding} read against {@code impersonates} is
+     * where it lands. Nothing downstream re-bounds it: {@code http.max_warning_header_size} and {@code http.max_warning_header_count}
      * default to unbounded, and the informational channel caps the NUMBER of distinct warnings
      * ({@code SkipWarnings#MAX_ADDED_WARNINGS}) rather than the length of any one. The merge base embedded the
      * same location raw and uncapped, so what this adds to the width is the expansion, not the absence of a
@@ -255,9 +256,12 @@ public final class RowLocation {
      * the same escape. A name is store-supplied
      * text — an S3 key may hold any UTF-8, newline included, and this class's parser keeps the last path segment
      * verbatim — and the console and legacy log layouts write a message as it stands, so an embedded newline
-     * would let a key counterfeit a second log line. The response channel is already safe and stays so:
-     * {@code HeaderWarning.encode} leaves the C0 range out of its unencoded set, so a newline travels as
-     * {@code %0A} with or without this. Where that stops is {@code Character.isISOControl}, which is U+0000
+     * would let a key counterfeit a second log line. The response channel is safe against a line feed either
+     * way -- {@code HeaderWarning.encode} percent-encodes U+000A, so it travels as {@code %0A} with or without
+     * this -- but it is not safe against every character a consumer may break a line on: that method's
+     * unencoded set keeps tab and the whole of U+0080 through U+00FF, and {@code HeaderWarning}'s own source
+     * flags U+0085 in that range as a new line. So the escape buys something on this channel too, not only in
+     * the log. Where the escape stops is {@code Character.isISOControl}, which is U+0000
      * through U+001F and U+007F through U+009F and nothing else, so U+2028 and U+2029 stay raw: a consumer
      * that breaks lines on those can still be fed a forged one through the log. The response channel is not
      * exposed to them either, {@code HeaderWarning}'s unencoded set stopping at U+00FF, and widening the

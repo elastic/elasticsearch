@@ -68,7 +68,7 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
 
     @Override
     protected long size() {
-        return a.getSize();
+        return Math.max(a.getSize(), b.getSize());
     }
 
     @Override

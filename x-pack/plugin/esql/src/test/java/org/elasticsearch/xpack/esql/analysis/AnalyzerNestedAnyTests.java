@@ -234,6 +234,10 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         nestedAnalyzer().error("FROM ne | WHERE NESTED_ANY(id == \"1\")", containsString("Field [id] is outside the nested scope"));
     }
 
+    public void testChildDroppedByKeepIsNotInScope() {
+        nestedAnalyzer().error("FROM ne | KEEP id | WHERE NESTED_ANY(items.sku == \"a\")", containsString("Unknown column [items.sku]"));
+    }
+
     public void testPredicateWithoutAnyFieldIsRejected() {
         nestedAnalyzer().error("FROM ne | WHERE NESTED_ANY(true)", containsString("NESTED_ANY requires a mapped nested field"));
     }

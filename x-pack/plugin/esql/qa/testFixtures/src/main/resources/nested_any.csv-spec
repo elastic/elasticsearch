@@ -115,6 +115,19 @@ id:keyword
 1
 ;
 
+stackedFiltersEachReadTheChildren
+required_capability: fn_nested_any
+
+FROM nested_orders
+| WHERE NESTED_ANY(items.sku == "a")
+| WHERE NESTED_ANY(items.qty > 1)
+| KEEP id
+;
+
+id:keyword
+1
+;
+
 inADisjunctionWithAParentCondition
 required_capability: fn_nested_any
 

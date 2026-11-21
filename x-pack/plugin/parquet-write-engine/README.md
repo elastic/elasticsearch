@@ -5,7 +5,11 @@ Apache Iceberg table, so other readers (the ES|QL data sources, Spark, DuckDB, p
 
 This is a **prototype**. It tests whether the design works and what it costs. It is not for release builds: the engine needs batch
 indexing, and that feature flag (`batch_indexing`) is off in release builds. Names and settings can change with no compatibility promise.
-The read side is a separate prototype (`parquet_doc_value_format_2`). This plugin only writes.
+
+The plugin also reads. The read code is copied from the reader prototype (#165092, `parquet_doc_value_format_2`): stub segments that
+reference Parquet files, and a Lucene doc values format that reads them through the ES|QL Parquet reader. It serves three kinds of index:
+the search replicas of an index of this format (see "Search replicas"), and indices that the mount API creates over Parquet files or over
+an Iceberg table that someone else wrote (see "Mounting files and tables").
 
 ## What an index of this format does
 
@@ -13,7 +17,8 @@ The read side is a separate prototype (`parquet_doc_value_format_2`). This plugi
 - A flush merges the complete local files, uploads the result to a snapshot repository (`s3`, or `fs` for tests), and appends it to the
   Iceberg table of the index.
 - After an upload, a background compaction merges small uploaded files into larger ones with one atomic Iceberg commit.
-- The index cannot be searched. There is no refresh, no `GET` by id, no search. A read of the data goes through the files.
+- The primary cannot be searched, and no read ever reaches it. Its **search replicas** follow the Iceberg table and serve every uploaded
+  row: search, aggregations, ES|QL and `GET`. A row is searchable after the flush that uploads it and the refresh that follows.
 
 ## A short example
 
@@ -40,6 +45,10 @@ PUT /logs-parquet
 
 POST /logs-parquet/_bulk          // auto-generated ids only, index or create items only
 POST /logs-parquet/_flush         // uploads the local files and lists them in the table
+POST /logs-parquet/_refresh       // the search replicas read the new version of the table
+
+PUT /logs-parquet/_settings
+{ "index.number_of_replicas": 1 } // a search replica; without one, a search finds no shard
 ```
 
 After the flush, `<repository>/logs-parquet/<index uuid>/` holds the table: `metadata/v<N>.metadata.json`,
@@ -50,8 +59,9 @@ After the flush, `<repository>/logs-parquet/<index uuid>/` holds the table: `met
 The settings provider checks these when the index is created and refuses the index with a message that names the problem.
 
 - `index.mode` must be `columnar`. No field is indexed: every field is doc values only. `index.mapping.source.mode` must be `synthetic`.
-- No replicas. The provider sets `number_of_replicas` to 0, and `auto_expand_replicas` and any other number are refused. A later settings
-  update is not checked by the provider, and the allocation decider keeps such a replica unassigned (see "Placement: the shard is pinned").
+- Replicas are **search replicas** (see "Search replicas"). The provider sets `number_of_replicas` to 0 when the request does not name it,
+  and refuses `auto_expand_replicas` at creation; a later settings update can set either. `index.mapping.id_field.indexed` is `false`:
+  a search replica synthesizes the `_id`, which has no postings.
 - `index.parquet.repository` is required, and the repository must keep conditional writes (see "The table commit" below).
 - The supported field types are `long`, `integer`, `short`, `byte`, `date`, `keyword`, `double`, `float` and `boolean`, and objects of them
   (a dotted name is one flat column). A field is single-valued, a flat column, unless its mapping says `"multi_value": true`, and then it is a
@@ -108,6 +118,7 @@ fields of the types above before the bulk (not tested here).
 | `index.parquet.compaction.min_files` | `2` | The fewest adjacent small files that a compaction merges. |
 | `index.parquet.compaction.delete_delay` | `1h` | How long replaced files stay for readers of an older snapshot. |
 | `index.parquet.compaction.interval` | `5m` | How often a shard looks for files to compact when no flush asks for it (after a restart, or after a dropped compaction). Not dynamic. |
+| `index.refresh_interval` | `10s` | The setting of the server, with another default (set at creation when the request has none). Each scheduled refresh of a search replica reads the table, which costs a listing and a few reads of the repository, so the server's default of `1s` would mostly cost object store requests: the primary tells its replicas of each upload anyway (see "Search replicas"). `-1` turns the scheduled reads off. |
 
 A flush also runs when the shard is idle. The thresholds are in bytes and not in rows, because the size of a row is very different from
 one data set to the next.
@@ -199,15 +210,90 @@ follows `v<N+1>.metadata.json` while that file exists (`RepositoryCatalog#load` 
 not fail the commit or the flush. The format is ours and not an Iceberg standard: pyiceberg opens a table with
 `StaticTable.from_metadata(<metadata_location>)` after it reads the entry.
 
-## Reading the data
+## Search replicas
+
+The copies of an index of this format have separate roles (`ParquetShardRoutingRoleStrategy`, a `ClusterPlugin` hook): the primary is
+`INDEX_ONLY` and every replica is `SEARCH_ONLY`. **No read ever reaches the primary.** Every read action chooses the copies of a shard
+through `ShardRouting#isSearchable()`, which is false for `INDEX_ONLY`, whatever its `preference`: search, count, msearch, PIT,
+field_caps, validate_query, ES|QL (and its lookups), get, mget, explain and term vectors. A preference that names only the primary's node
+finds no copy (`NoShardAvailableActionException`); without a search replica, a search finds none. As a second layer the write engine still
+refuses `acquireSearcher` and `get`.
+
+A search replica never receives an operation (replication skips unpromotable copies) and has no local state that matters, so it is
+allocated, moved and rebalanced like any shard. Its engine, `ParquetTableFollowEngine`, follows the table:
+
+- Its store holds one stub segment for each data file of its shard (`data/shard-<n>/`, of every history of the shard, ordered by history
+  and sequence number). The commit of the store records the files that the stubs reference. A read of the table that finds only new files
+  appends their stubs, and the readers of the other segments stay; one that finds a file gone (a compaction) or a change of the mapping
+  builds all the stubs again.
+- **The primary tells its replicas of each upload.** When a flush uploads files, or a compaction replaces them, the primary sends its
+  search replicas the refresh of the unpromotable copies (`TransportUnpromotableShardRefreshAction`, the request that `_refresh` sends)
+  with the new version of the table (the `N` of `v<N>.metadata.json`) as the generation. Each replica reads the table until it shows that
+  version or a later one. So an upload becomes searchable without a refresh of the index, as a new commit does in stateless. A plugin
+  cannot send that request itself, so a local action of the plugin (`indices:admin/refresh/parquet_table`) sends it, as the internal user
+  of the `post_write_refresh` origin, which may run `indices:admin/refresh*`. The announcement is best effort: a failure is logged at
+  debug and costs only time.
+- **A refresh reads the table.** The primary answers `_refresh` with the version of the table that holds its uploads, and the server
+  forwards it to the replicas in the same way, so `_flush` then `_refresh` returns once the uploaded rows are searchable, and
+  `refresh=wait_for` uploads and waits as well (see below). The **scheduled refresh** (`index.refresh_interval`, `10s` by default for this
+  format) reads the table on every replica too; for a writer index it is the fallback for an announcement that was lost. Search-idle does
+  not save these reads: a replica is never active from indexing, and an explicit refresh interval turns search-idle off.
+- A replica reads only files of the table, so the rows in the local files of the primary are never visible.
+- A field binds to the column of the same name. A file that was written before a mapping update added a field has no value for it. A list
+  field (`multi_value`) is not served yet: it has no flat column, so it has no value on the replicas.
+- The `_id` of a document is its row number on the replica, as in the reader prototype: `GET /index/_doc/<row>`, `mget` and `ids`
+  queries look the row up. The `_id` that the bulk returned is not kept (the files have no `_id` column), and a compaction or a file of
+  another history can change the row number of a document.
+- A replaced file stays for `index.parquet.compaction.delete_delay`; a replica must read the new version within that delay, or its
+  searches fail on the deleted file until the next refresh.
+
+The server needed two changes for this, both small: `ShardRoutingRoleStrategy` gets methods that know the index (with defaults that keep
+every other strategy as it is), and `PeerRecoveryTargetService` recovers an unpromotable copy of a stateful cluster locally (an empty
+commit, then the engine) instead of sending the stateless relocation action. A node has one role strategy, so this plugin is
+`STATEFUL_ONLY`.
+
+## Mounting files and tables
+
+The mount API of the reader prototype creates read-only indices whose segments are stubs over Parquet files:
+
+```
+POST /_parquet/_preview           // what a mount would do: the files, the mapping, the unmapped columns
+POST /_parquet/_mount
+{ "repository": "lake", "paths": ["events/part-0001.parquet"], "index": "events" }
+```
+
+A mount can also follow an **Iceberg table**, for example one that Spark or pyiceberg wrote, or the table of a deleted index of this
+format:
+
+```
+POST /_parquet/_mount
+{ "repository": "lake", "table": "warehouse/events", "index": "events",
+  "fields": { "n": { "name": "number" } },
+  "index_settings": { "index.refresh_interval": "1m" } }
+```
+
+- `table` is the path of the table below the base path of the repository. The mapping comes from the footer of the newest data file of the
+  current snapshot, with the overrides of the request (`fields`, `exclude`, `timestamp_field`), so a table needs a data file to be mounted.
+- The index records the table (`index.parquet.table.path`) and its fields, not its files, and each copy follows the table with
+  `ParquetTableFollowEngine`: a refresh reads the current snapshot. No writer tells the index of its commits, so the scheduled refresh
+  is how it finds them: every `index.refresh_interval`, which a mount sets to `10s` unless `index_settings` names it. A file belongs to the shard that the hash of its location chooses, and
+  the files of a shard are ordered by the sequence number of the commit that added them, so an append adds stubs.
+- The table is found without a catalog, by listing `metadata/`. Both namings of the metadata files work: `v<N>.metadata.json` (the
+  tables of this format, and Hadoop tables) and `<NNNNN>-<uuid>.metadata.json` (the tables that pyiceberg, Spark or any other catalog
+  writes, whose version is then the number plus one). The highest number is the current version, so a metadata file that a failed
+  catalog commit left behind with a higher number would be read; and a commit to a table whose files a catalog named is refused.
+- A snapshot with delete files is refused (the shard keeps the files that it read before). Columns are bound by name, not by Iceberg field
+  id, so a renamed column is not followed. Data source tables (`s3://` without a repository) are not supported yet.
+
+The types that a mount maps are `long`, `integer`, `short`, `byte`, `date`, `date_nanos`, `keyword`, `double`, `float` and `boolean`. A
+`DOUBLE` or `FLOAT` column is encoded as the sortable long or int of its field type, and the column decides the field type; a `BOOLEAN`
+column is served as 0 and 1. Nested and repeated columns are unmapped.
+
+## Reading the data outside Elasticsearch
 
 - The table is plain Iceberg (format version 2), so pyiceberg and pyarrow read it. Find it by name through the entry of the catalog (see
   "The catalog") or by its path. A unit test (`IcebergFeasibilityTests`, run with
   `-Dtests.iceberg.export.dir=<dir>`) exports a small table that you can open with them.
-- The reader prototype (`parquet_doc_value_format_2`) mounts the data files with `POST /_parquet/_mount`. It does not read `float`,
-  `double` and `boolean` yet.
-  It does not read the list columns either: the preview lists them as unmapped ("it is inside a struct, list or map, which is not supported yet"),
-  and the flat columns of the same table are mapped.
 - The ES|QL Iceberg data source cannot read a table by its prefix yet: it sends a HEAD request for the table path first, which is always a
   404 for a prefix, and the Iceberg QA suite of the repository is disabled. `EXTERNAL "s3://bucket/<table>/data/*/*/*.parquet"` reads the
   data files with the Parquet reader, but not through the manifest.
@@ -223,11 +309,15 @@ not fail the commit or the flush. The format is ours and not an Iceberg standard
 | `.file` | the local files, the batch writer, the merger, the codecs, input files for a directory and for a blob |
 | `.flush` | the flusher and its crash protocol |
 | `.compaction` | the compactor and its policy |
-| `.table` | the Iceberg table of a shard, its `FileIO` and `TableOperations` over a blob store, the metrics of a file, the table location |
+| `.table` | the Iceberg table of a shard, its `FileIO` and `TableOperations` over a blob store, the metrics of a file, the table location, and `TableReader`, which reads a table without writing it |
+| `org.elasticsearch.xpack.parquet.read.dv` | (copied from the reader) the doc values format of the stubs, its producer, windows, skippers and page cache |
+| `org.elasticsearch.xpack.parquet.read.engine` | the read-only engine of mounted files (copied), `ParquetEngineFactory`, and `ParquetTableFollowEngine`, which follows a table |
+| `org.elasticsearch.xpack.parquet.read.mount` | (copied) the preview and mount actions, with the mount of a table added |
+| `org.elasticsearch.xpack.parquet.read.repository` | (copied) the locations of files in repositories and data sources, and the node-local disk cache |
 
-The plugin extends only `esql-datasource-iceberg`. A node refuses a plugin that extends both the Parquet reader plugin and the Iceberg
-plugin, because both contain `parquet-hadoop-bundle`. So the plugin has its own read options and codecs.
-`IcebergDataSourcePlugin` is an `ExtensiblePlugin` for this reason.
+The plugin extends `x-pack-esql`, `esql-datasource-parquet` (the Parquet reader and `parquet-hadoop-bundle`) and `blob-cache`, and bundles
+`iceberg-core` itself. It cannot extend `esql-datasource-iceberg` as well: that plugin carries its own copy of `parquet-hadoop-bundle`, and a
+node refuses a plugin that sees two copies. Iceberg's static worker pool needs the `manage_threads` entitlement in this plugin.
 
 ## Tests
 
@@ -285,14 +375,15 @@ upload is a put-if-absent (`failIfAlreadyExists`):
 
 Peer recovery copies only the Lucene commit of a shard, which has no segments, so the local Parquet files (`pqlocal_*`) do not move with a
 shard. They hold rows that are acknowledged and not uploaded yet, so a relocated primary would start with an empty store and lose them
-without an error, and a replica would be an empty copy of a shard that never receives an operation. `ParquetAllocationDecider` (a
-`ClusterPlugin` hook) therefore pins the primary of an index with `index.storage_format: parquet` to its node and refuses its replicas. It
-leaves every other index alone.
+without an error. `ParquetAllocationDecider` (a `ClusterPlugin` hook) therefore pins the primary of an index with
+`index.storage_format: parquet` to its node. Its search replicas read the table and have no local state, so the decider lets them go
+anywhere; a replica with another role (which the role strategy never creates) is refused. It leaves every other index alone.
 
-- `canAllocate` says no to every replica, and to a started primary that asks for another node. That covers the balancer, the desired
-  balance, the `move` and `allocate_replica` reroute commands, and the replica that `number_of_replicas` creates. An unassigned primary stays
-  allocatable: a new index needs a node, and after a restart the gateway allocator picks the node that holds the copy.
-- `canRebalance` and `shouldAutoExpandToNode` say no, so the balancer does not try and auto-expansion adds nothing.
+- `canAllocate` says no to a started primary that asks for another node. That covers the balancer, the desired balance and the `move`
+  reroute command. An unassigned primary stays allocatable: a new index needs a node, and after a restart the gateway allocator picks the
+  node that holds the copy. It says yes to a search replica on any node.
+- `canRebalance` says no for the primary, so the balancer does not try, and yes for a search replica. `shouldAutoExpandToNode` says yes:
+  the replicas that auto-expansion adds are search replicas.
 - `canForceAllocateDuringReplace` says no. Its default is yes, and it overrides every other no when a node is being replaced.
 
 What a user sees: a primary whose node has to go (a shutdown of type remove or replace, an allocation filter, a disk watermark) cannot
@@ -309,7 +400,7 @@ loses its local rows. A real handoff (flush and block writes before the move, or
   that points into other data of the repository is not.
 - Whether the repository enforces conditional writes is not checked. On a store that ignores `If-None-Match` the commits of two shards can
   replace each other without an error (see "The table commit"). The `fs` repository and AWS S3 enforce it.
-- Tested on one data node. Writers that commit at the same moment are tested in one JVM (6 concurrent writers in `IcebergFeasibilityTests`, 2 to
+- The write path is tested on one data node; the search replicas on two and three. Writers that commit at the same moment are tested in one JVM (6 concurrent writers in `IcebergFeasibilityTests`, 2 to
   4 shards that compact together in `ParquetCompactorTests`, 2 shards on one node in the cluster tests). The protocol does not depend on where
   the shards run, but a cluster with several data nodes is not tested.
 - Not tested: data streams, ILM and rollover, index sorting, shrink, split and clone, reindex into such an index, cross-cluster replication.
@@ -317,9 +408,9 @@ loses its local rows. A real handoff (flush and block writes before the move, or
   shards that flush at once queue for them.
 - A clean shutdown does not upload. The local files stay on the disk, and the shard finds them when it starts again. The rows are not safe
   against the loss of the disk before their flush.
-- No relocation. A shard cannot move (the allocation decider refuses it, see "Placement: the shard is pinned"), a node shutdown of type
-  remove or replace stalls on such a primary, and the loss of a node loses the rows that are not uploaded yet (there is no translog and no
-  replica). Snapshots of such an index copy only the empty commit, and a restore gives a new history (see "Shard histories and the names of
+- No relocation of the primary. It cannot move (the allocation decider refuses it, see "Placement: the shard is pinned"), a node shutdown of
+  type remove or replace stalls on such a primary, and the loss of a node loses the rows that are not uploaded yet (there is no translog,
+  and a search replica cannot be promoted). Search replicas move freely. Snapshots of such an index copy only the empty commit, and a restore gives a new history (see "Shard histories and the names of
   data files").
 - A lossless handoff of the primary is not built. Without it, the decider pins the shard (see "Placement: the shard is pinned"). To let
   a primary move, the old node must upload every local row after it blocks writes and before it hands off to the new node. The server gives
@@ -344,3 +435,8 @@ loses its local rows. A real handoff (flush and block writes before the move, or
 - Whether `index.storage_format` is the final name, and when its definition moves from the plugin to `server`.
 - Whether to register the `parquet` extension in `LuceneFilesExtensions` and not rely on the test property.
 - Whether to delete the files of an index when the index is deleted (a data lake keeps them today).
+- Search replicas: list fields are not served; `_segments` and the segment stats of a replica are empty; a skip index of a numeric field
+  must be the same in every file of a shard (a file whose footer lacks the statistics of a column that the others have would fail to
+  attach), not tested; the memory limits of the reader prototype apply (no circuit breaker in the iterators).
+- Mounts of tables: the table mount test runs on one data node. On two nodes a preview right after the repository was registered did not
+  find the repository on the second node (`RepositoryMissingException`); not investigated.

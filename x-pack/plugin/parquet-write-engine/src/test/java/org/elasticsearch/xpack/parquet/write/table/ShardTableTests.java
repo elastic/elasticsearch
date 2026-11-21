@@ -18,8 +18,12 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.GraalVMThreadsFilter;
@@ -33,15 +37,19 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -267,6 +275,93 @@ public class ShardTableTests extends ESTestCase {
             files.get(1).location(),
             startsWith(table.historyLocation() + String.format(java.util.Locale.ROOT, "%019d-%019d-", 100, 249))
         );
+    }
+
+    public void testAReaderSeesTheFilesAndTheVersionThatTheWritersCommitted() throws Exception {
+        final TableReader reader = TableReader.open(store, LOCATION);
+        // the table does not exist yet, and the reader does not create it
+        assertThat(reader.read(), equalTo(TableReader.Contents.NONE));
+        assertThat(store.blobContainer(LOCATION.blobPath().add("metadata")).listBlobs(RepositoryFileIO.PURPOSE).keySet(), hasSize(0));
+
+        final ShardTable shard0 = open(0);
+        final ShardTable shard1 = open(1);
+        uploadAndAppend(shard0, mergedFile(shard0, 0, 49, false));
+        final long afterShard0 = shard0.metadataVersion();
+        uploadAndAppend(shard1, mergedFile(shard1, 0, 199, false));
+        final long afterShard1 = shard1.metadataVersion();
+        assertThat(afterShard1, greaterThan(afterShard0));
+
+        final TableReader.Contents contents = reader.read();
+        assertThat(contents.version(), equalTo(afterShard1));
+        assertThat(TableReader.ownerIndexUuid(contents.properties()), equalTo(TestTables.INDEX_UUID));
+        assertThat(contents.files(), hasSize(2));
+        long rows = 0;
+        for (TableReader.DataFileEntry file : contents.files()) {
+            final TableReader.ShardFileName name = TableReader.parseShardFileName(file.location());
+            assertThat(name.historyUuid(), equalTo(TestTables.HISTORY));
+            assertThat(name.fromSeqNo(), equalTo(0L));
+            assertThat(file.rows(), equalTo(name.shard() == 0 ? 50L : 200L));
+            assertThat(file.pathInTable(LOCATION), startsWith("data/shard-" + name.shard() + "/" + TestTables.HISTORY + "/"));
+            rows += file.rows();
+        }
+        assertThat(rows, equalTo(250L));
+        // a writer that has committed version N knows that a reader of version N or later sees its files
+        assertThat(contents.version(), greaterThanOrEqualTo(shard0.metadataVersion()));
+    }
+
+    /**
+     * A table that another tool wrote through a catalog names its metadata files {@code <NNNNN>-<uuid>.metadata.json}, starting at 0. The
+     * test gives the files of a table of ours those names, as pyiceberg would have written them, and the reader must see the same files,
+     * with the version of the last file plus one. A writer refuses to commit to such a table.
+     */
+    public void testAReaderReadsATableWhoseMetadataFilesACatalogNamed() throws Exception {
+        final ShardTable shard0 = open(0);
+        uploadAndAppend(shard0, mergedFile(shard0, 0, 49, false));
+        uploadAndAppend(shard0, mergedFile(shard0, 50, 149, false));
+        final TableReader reader = TableReader.open(store, LOCATION);
+        final TableReader.Contents expected = reader.read();
+        assertThat(expected.files(), hasSize(2));
+
+        final BlobContainer metadata = store.blobContainer(LOCATION.blobPath().add("metadata"));
+        final List<String> renamed = new ArrayList<>();
+        for (String name : metadata.listBlobs(RepositoryFileIO.PURPOSE).keySet()) {
+            final int version = RepositoryTableOperations.versionOfMetadataFile(name);
+            if (name.startsWith("v") && version > 0) {
+                final String catalogName = Strings.format("%05d-%s.metadata.json", version - 1, UUID.randomUUID());
+                final byte[] bytes;
+                try (InputStream in = metadata.readBlob(RepositoryFileIO.PURPOSE, name)) {
+                    bytes = in.readAllBytes();
+                }
+                metadata.writeBlob(RepositoryFileIO.PURPOSE, catalogName, new BytesArray(bytes), true);
+                metadata.deleteBlobsIgnoringIfNotExists(RepositoryFileIO.PURPOSE, List.of(name).iterator());
+                renamed.add(catalogName);
+            }
+        }
+        assertThat(renamed, hasSize((int) expected.version()));
+
+        final TableReader.Contents contents = TableReader.open(store, LOCATION).read();
+        assertThat(contents.version(), equalTo(expected.version()));
+        // the order of the manifests is not fixed from one read to the next
+        assertThat(contents.files(), containsInAnyOrder(expected.files().toArray()));
+        assertThat(contents.properties(), equalTo(expected.properties()));
+
+        // the catalog of the other tool decides which file is current, so we never write to its table
+        final Exception e = expectThrows(Exception.class, () -> uploadAndAppend(open(0), mergedFile(shard0, 150, 199, false)));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("was written through a catalog"));
+    }
+
+    public void testTheVersionOfAMetadataFile() {
+        assertThat(RepositoryTableOperations.versionOfMetadataFile("v1.metadata.json"), equalTo(1));
+        assertThat(RepositoryTableOperations.versionOfMetadataFile("v12.metadata.json"), equalTo(12));
+        assertThat(RepositoryTableOperations.versionOfMetadataFile("00000-6f5c8a3e-2b1d-4c7e-9a0f-1d2e3f4a5b6c.metadata.json"), equalTo(1));
+        assertThat(
+            RepositoryTableOperations.versionOfMetadataFile("00041-6f5c8a3e-2b1d-4c7e-9a0f-1d2e3f4a5b6c.gz.metadata.json"),
+            equalTo(42)
+        );
+        assertThat(RepositoryTableOperations.versionOfMetadataFile("version-hint.text"), equalTo(-1));
+        assertThat(RepositoryTableOperations.versionOfMetadataFile("snap-1-1-6f5c8a3e.avro"), equalTo(-1));
+        assertThat(TableReader.versionOf("file:///t/metadata/00002-6f5c8a3e-2b1d-4c7e-9a0f-1d2e3f4a5b6c.metadata.json"), equalTo(3L));
+        assertThat(TableReader.versionOf("s3://b/t/metadata/v7.metadata.json"), equalTo(7L));
     }
 
     public void testShardsSeeOnlyTheirOwnFiles() throws Exception {

@@ -16,21 +16,27 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 
 /**
- * Pins the primary shard of an index with {@code index.storage_format: parquet} to its node, and refuses replicas.
+ * Pins the primary shard of an index with {@code index.storage_format: parquet} to its node, lets its search replicas go anywhere, and
+ * refuses any other replica.
  *
  * <p>Peer recovery copies only the Lucene commit of a shard, which has no segments, so the local Parquet files ({@code pqlocal_*}) do
  * not move with a shard. They hold rows that are acknowledged and not uploaded yet, so a relocated primary would start with an empty
- * store and lose them without an error. A replica would be an empty copy of a shard that never receives an operation. A real handoff
- * (flush and block writes, or ship the local files) is future work, and until then the shard must stay where it is.
+ * store and lose them without an error. A real handoff (flush and block writes, or ship the local files) is future work, and until then
+ * the primary must stay where it is.
  *
- * <p>Every hook that can decide where a shard goes says no, for a parquet index only:
+ * <p>The replicas of such an index are {@link ShardRouting.Role#SEARCH_ONLY} (see {@link ParquetShardRoutingRoleStrategy}): they never
+ * receive an operation and read the uploaded files of the Iceberg table, so they have no local state and may be allocated, moved and
+ * rebalanced like any shard. A replica with another role (which the role strategy never creates) would be an empty copy of a shard that
+ * never receives an operation, and is refused.
+ *
+ * <p>For the primary, every hook that can decide where a shard goes says no:
  * <ul>
- *   <li>{@code canAllocate} covers the balancer, the reconciler of the desired balance, the {@code move} and {@code allocate_replica}
- *       reroute commands, and the replica that a settings update creates. An <em>unassigned</em> primary stays allocatable: a new index
- *       needs a node, and after a restart the gateway allocator picks the node that holds the copy of the shard;</li>
+ *   <li>{@code canAllocate} covers the balancer, the reconciler of the desired balance, the {@code move} reroute command, and the
+ *       allocators. An <em>unassigned</em> primary stays allocatable: a new index needs a node, and after a restart the gateway allocator
+ *       picks the node that holds the copy of the shard;</li>
  *   <li>{@code canForceAllocateDuringReplace} defaults to yes and overrides every other {@code NO} when a node is being replaced, so
  *       this decider opts out as its documentation asks;</li>
- *   <li>{@code canRebalance} and {@code shouldAutoExpandToNode} keep the balancer from trying, and auto-expansion from asking.</li>
+ *   <li>{@code canRebalance} keeps the balancer from trying.</li>
  * </ul>
  *
  * <p>A primary whose node has to go (a shutdown of type remove or replace, an allocation filter, a disk watermark) therefore cannot
@@ -48,8 +54,7 @@ public final class ParquetAllocationDecider extends AllocationDecider {
     }
 
     private static boolean isParquet(IndexMetadata indexMetadata) {
-        return indexMetadata != null
-            && ParquetFormatSettings.INDEX_FORMAT.get(indexMetadata.getSettings()) == ParquetFormatSettings.IndexFormat.PARQUET;
+        return ParquetFormatSettings.isParquet(indexMetadata);
     }
 
     @Override
@@ -58,7 +63,7 @@ public final class ParquetAllocationDecider extends AllocationDecider {
             return YES_OTHER_FORMAT;
         }
         if (shardRouting.primary() == false) {
-            return noReplicas(allocation, shardRouting);
+            return replica(allocation, shardRouting);
         }
         if (shardRouting.currentNodeId() == null || shardRouting.currentNodeId().equals(node.nodeId())) {
             return allocation.decision(Decision.YES, NAME, "the primary of a parquet index is not assigned yet, or stays on its node");
@@ -71,7 +76,7 @@ public final class ParquetAllocationDecider extends AllocationDecider {
         if (isParquet(allocation, shardRouting) == false) {
             return YES_OTHER_FORMAT;
         }
-        return shardRouting.primary() ? pinned(allocation, shardRouting) : noReplicas(allocation, shardRouting);
+        return shardRouting.primary() ? pinned(allocation, shardRouting) : replica(allocation, shardRouting);
     }
 
     @Override
@@ -85,15 +90,25 @@ public final class ParquetAllocationDecider extends AllocationDecider {
         if (isParquet(indexMetadata) == false) {
             return YES_OTHER_FORMAT;
         }
-        return allocation.decision(Decision.NO, NAME, "an index with the parquet format does not support replicas");
+        // auto-expansion adds replicas, which the role strategy makes search replicas
+        return allocation.decision(Decision.YES, NAME, "the replicas of an index with the parquet format are search replicas");
     }
 
-    private static Decision noReplicas(RoutingAllocation allocation, ShardRouting shardRouting) {
+    private static Decision replica(RoutingAllocation allocation, ShardRouting shardRouting) {
+        if (shardRouting.role() == ShardRouting.Role.SEARCH_ONLY) {
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "a search replica of a parquet index reads the uploaded files of its table, and has no local state that pins it"
+            );
+        }
         return allocation.decision(
             Decision.NO,
             NAME,
-            "[%s] uses the parquet format, which does not support replicas: the engine has no operations that a replica could recover",
-            shardRouting.index().getName()
+            "[%s] uses the parquet format, whose replicas must be search replicas: a replica with the role [%s] would never receive an "
+                + "operation",
+            shardRouting.index().getName(),
+            shardRouting.role()
         );
     }
 

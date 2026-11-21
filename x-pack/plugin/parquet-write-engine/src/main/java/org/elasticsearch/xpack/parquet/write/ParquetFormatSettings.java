@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.parquet.write;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.List;
@@ -205,6 +208,24 @@ public final class ParquetFormatSettings {
         TimeValue.timeValueSeconds(1),
         Property.IndexScope
     );
+
+    /**
+     * The {@code index.refresh_interval} that an index of this format, and an index that mounts a table, get when the request does not
+     * set one. Every scheduled refresh of a copy that follows a table reads the table (a listing and a few small reads of the repository),
+     * so the default of the server, one second, would cost requests to the object store for little: the search replicas of the write
+     * engine hear of each upload from their primary, and a mount of a table that another tool writes rarely needs it sooner.
+     */
+    public static final TimeValue DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(10);
+
+    /** Whether the index stores its documents with the write engine of this plugin. */
+    public static boolean isParquet(Settings indexSettings) {
+        return INDEX_FORMAT.get(indexSettings) == IndexFormat.PARQUET;
+    }
+
+    /** Whether the index stores its documents with the write engine of this plugin; {@code false} for {@code null}. */
+    public static boolean isParquet(@Nullable IndexMetadata indexMetadata) {
+        return indexMetadata != null && isParquet(indexMetadata.getSettings());
+    }
 
     public static List<Setting<?>> settings() {
         return List.of(

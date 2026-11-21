@@ -14,12 +14,15 @@ versions << [
 
 esplugin {
   name = 'parquet-write-engine'
-  description = 'An append-only engine that stores the documents of an index only as Parquet files in an object store'
+  description = 'Stores the documents of an index only as Parquet files in an Iceberg table, and serves Parquet files as read-only indices'
   classname = 'org.elasticsearch.xpack.parquet.write.ParquetWriteEnginePlugin'
-  // The Iceberg plugin provides Iceberg and parquet-hadoop-bundle (the Parquet writer is in the same jar), and it extends the compression
-  // plugin that provides Snappy and ZSTD. A plugin's class loader only sees the plugins it names directly. This plugin cannot also
-  // extend the ES|QL Parquet reader plugin: both contain the Parquet classes, and the node refuses to load a plugin with that jar hell.
-  extendedPlugins = ['esql-datasource-iceberg']
+  // The ES|QL plugin provides the compute blocks and the data source SPI, esql-datasource-parquet provides the Parquet reader and the
+  // parquet-hadoop-bundle classes (the writer is in the same jar), and blob-cache provides the shared disk cache of file ranges. A plugin's
+  // class loader only sees the plugins it names directly, so all of them are listed. The plugin bundles Iceberg itself: extending the
+  // Iceberg plugin as well would give the node two copies of the Parquet classes, which it refuses.
+  extendedPlugins = ['x-pack-esql', 'esql-datasource-parquet', 'blob-cache']
+  // The plugin installs a shard routing role strategy (read-only replicas of the indices it writes), and stateless has one of its own.
+  deploymentTarget = 'STATEFUL_ONLY'
 }
 
 base {
@@ -29,9 +32,16 @@ base {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
-  // Snappy and ZSTD are provided at runtime by the compression plugin that the Iceberg plugin extends.
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(xpackModule('esql:compute'))
+  // The reader and its parquet-hadoop-bundle classes are provided at runtime by the esql-datasource-parquet class loader.
+  compileOnly project(path: xpackModule('esql-datasource-parquet'))
+  // Snappy and ZSTD are provided at runtime by the compression plugin that the reader plugin extends.
   compileOnly project(path: xpackModule('esql-datasource-compression-libs'))
   compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  // the local disk cache for the byte ranges of the files (the same cache that searchable snapshots and stateless use)
+  compileOnly project(xpackModule('blob-cache'))
   // The bundle's API surface references Hadoop types, so the Hadoop jars are needed at compile time only.
   compileOnly "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   compileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
@@ -41,32 +51,8 @@ dependencies {
     transitive = false
   }
 
-  // Apache Iceberg (spike S0). At runtime a node would get these from esql-datasource-iceberg through the class loader chain.
-  compileOnly("org.apache.iceberg:iceberg-api:${versions.iceberg}") {
-    exclude group: 'org.checkerframework', module: 'checker-qual'
-  }
-  compileOnly("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
-    exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
-    exclude group: 'org.checkerframework', module: 'checker-qual'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
-  }
-
-  testImplementation project(':test:framework')
-  testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(path: xpackModule('esql-datasource-parquet'))
-  testImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
-  testImplementation "org.locationtech.jts:jts-core:${versions.jts}"
-  testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
-  // ZSTD for the merged file: PanamaZstd lives in the compression plugin that the reader plugin extends.
-  testImplementation project(path: xpackModule('esql-datasource-compression-libs'))
-  testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
-  testImplementation project(path: xpackModule('esql'))
-  testImplementation project(path: xpackModule('esql-core'))
-  testImplementation project(xpackModule('esql:compute'))
-  // The same Iceberg modules and exclusions as the esql-datasource-iceberg plugin, to avoid jar hell on a flat class path.
-  testImplementation("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
+  // Apache Iceberg, for the table. The exclusions are the jars that the extended plugins (and x-pack-esql) already provide.
+  implementation("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
     exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
     exclude group: 'org.apache.httpcomponents.client5', module: 'httpclient5'
     exclude group: 'commons-codec', module: 'commons-codec'
@@ -77,6 +63,27 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
     exclude group: 'io.airlift', module: 'aircompressor'
   }
+  implementation("com.github.ben-manes.caffeine:caffeine:${versions.caffeine}") {
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    exclude group: 'com.google.errorprone', module: 'error_prone_annotations'
+  }
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  // Unit tests have no plugin class loaders, so they need the classes that the extended plugins provide at runtime.
+  testImplementation project(path: xpackModule('esql'))
+  testImplementation project(path: xpackModule('esql-core'))
+  testImplementation project(xpackModule('esql:compute'))
+  testImplementation project(path: xpackModule('esql-datasource-parquet'))
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
+  testImplementation project(xpackModule('blob-cache'))
+  testImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  testImplementation "org.locationtech.jts:jts-core:${versions.jts}"
+  testImplementation "io.airlift:aircompressor:${versions.aircompressor}"
+  // ZSTD for the merged file: PanamaZstd lives in the compression plugin that the reader plugin extends.
+  testImplementation project(path: xpackModule('esql-datasource-compression-libs'))
+  testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  // Iceberg's Parquet support, to read the tables back in the tests (the plugin itself reads its files with parquet-hadoop-bundle).
   testImplementation("org.apache.iceberg:iceberg-parquet:${versions.iceberg}") {
     exclude group: 'org.apache.httpcomponents.client5', module: 'httpclient5'
     exclude group: 'org.apache.parquet'
@@ -97,11 +104,16 @@ dependencies {
   }
 
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation project(xpackModule('blob-cache'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))
-  // The read options and the codec factory of the reader plugin use the data source SPI of the ES|QL plugin.
   internalClusterTestImplementation project(path: xpackModule('esql'))
   internalClusterTestImplementation project(path: xpackModule('esql-core'))
   internalClusterTestImplementation project(xpackModule('esql:compute'))
+  // the integration test that mounts a file through an ES|QL data source loads the ES|QL plugin, in the way that the prometheus module does
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql')), 'internalClusterTest'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('esql'))))
+  // the type `local` of data source and the file:// scheme
+  internalClusterTestImplementation project(xpackModule('esql-datasource-http'))
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
   // The Parquet writer (1.18) loads the JTS classes for geospatial statistics. A node gets them through the class loader chain of
   // the reader plugin, but the flat class path of a test needs them.
@@ -109,7 +121,7 @@ dependencies {
   // The codec factory of the reader plugin loads the compression libraries, which a node gets from esql-datasource-compression-libs.
   internalClusterTestImplementation "io.airlift:aircompressor:${versions.aircompressor}"
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
-  // the integration tests read the files with the helpers of the unit tests
+  // the integration tests read and write files with the helpers of the unit tests
   internalClusterTestImplementation sourceSets.test.output
   internalClusterTestImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
   internalClusterTestCompileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
@@ -118,6 +130,77 @@ dependencies {
   internalClusterTestCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
     transitive = false
   }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /iceberg-.*/, to: 'iceberg'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  // classes of optional dependencies of Iceberg, Avro and commons-compress that the plugin never loads
+  ignoreMissingClasses()
+  ignoreViolations(
+    // Caffeine cache uses sun.misc.Unsafe (the same list as the esql-datasource-iceberg plugin)
+    'com.github.benmanes.caffeine.SCQHeader$HeadAndTailRef',
+    'com.github.benmanes.caffeine.SingleConsumerQueue',
+    'com.github.benmanes.caffeine.SingleConsumerQueue$Node',
+    'com.github.benmanes.caffeine.base.UnsafeAccess',
+    'com.github.benmanes.caffeine.cache.BBHeader$ReadAndWriteCounterRef',
+    'com.github.benmanes.caffeine.cache.BBHeader$ReadCounterRef',
+    'com.github.benmanes.caffeine.cache.BLCHeader$DrainStatusRef',
+    'com.github.benmanes.caffeine.cache.BaseMpscLinkedArrayQueue',
+    'com.github.benmanes.caffeine.cache.FD',
+    'com.github.benmanes.caffeine.cache.FDA',
+    'com.github.benmanes.caffeine.cache.FDAR',
+    'com.github.benmanes.caffeine.cache.FDAW',
+    'com.github.benmanes.caffeine.cache.FDAWR',
+    'com.github.benmanes.caffeine.cache.FDR',
+    'com.github.benmanes.caffeine.cache.FDW',
+    'com.github.benmanes.caffeine.cache.FDWR',
+    'com.github.benmanes.caffeine.cache.FS',
+    'com.github.benmanes.caffeine.cache.FSA',
+    'com.github.benmanes.caffeine.cache.FSAR',
+    'com.github.benmanes.caffeine.cache.FSAW',
+    'com.github.benmanes.caffeine.cache.FSAWR',
+    'com.github.benmanes.caffeine.cache.FSR',
+    'com.github.benmanes.caffeine.cache.FSW',
+    'com.github.benmanes.caffeine.cache.FSWR',
+    'com.github.benmanes.caffeine.cache.FW',
+    'com.github.benmanes.caffeine.cache.FWA',
+    'com.github.benmanes.caffeine.cache.FWAR',
+    'com.github.benmanes.caffeine.cache.FWAW',
+    'com.github.benmanes.caffeine.cache.FWAWR',
+    'com.github.benmanes.caffeine.cache.FWR',
+    'com.github.benmanes.caffeine.cache.FWW',
+    'com.github.benmanes.caffeine.cache.FWWR',
+    'com.github.benmanes.caffeine.cache.PD',
+    'com.github.benmanes.caffeine.cache.PDA',
+    'com.github.benmanes.caffeine.cache.PDAR',
+    'com.github.benmanes.caffeine.cache.PDAW',
+    'com.github.benmanes.caffeine.cache.PDAWR',
+    'com.github.benmanes.caffeine.cache.PDR',
+    'com.github.benmanes.caffeine.cache.PDW',
+    'com.github.benmanes.caffeine.cache.PDWR',
+    'com.github.benmanes.caffeine.cache.PS',
+    'com.github.benmanes.caffeine.cache.PSA',
+    'com.github.benmanes.caffeine.cache.PSAR',
+    'com.github.benmanes.caffeine.cache.PSAW',
+    'com.github.benmanes.caffeine.cache.PSAWR',
+    'com.github.benmanes.caffeine.cache.PSR',
+    'com.github.benmanes.caffeine.cache.PSW',
+    'com.github.benmanes.caffeine.cache.PSWR',
+    'com.github.benmanes.caffeine.cache.PW',
+    'com.github.benmanes.caffeine.cache.PWA',
+    'com.github.benmanes.caffeine.cache.PWAR',
+    'com.github.benmanes.caffeine.cache.PWAW',
+    'com.github.benmanes.caffeine.cache.PWAWR',
+    'com.github.benmanes.caffeine.cache.PWR',
+    'com.github.benmanes.caffeine.cache.PWW',
+    'com.github.benmanes.caffeine.cache.PWWR',
+    'com.github.benmanes.caffeine.cache.StripedBuffer',
+    'com.github.benmanes.caffeine.cache.UnsafeAccess',
+    'com.github.benmanes.caffeine.cache.UnsafeRefArrayAccess'
+  )
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -134,4 +217,8 @@ tasks.named("test").configure {
 tasks.named("internalClusterTest").configure {
   systemProperty 'es.allow_unknown_lucene_file_extensions', 'true'
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Local file:// access is on by default in snapshot builds; in release builds the local flag is off unless it is enabled here.
+  systemProperty 'es.esql_external_datasources_local_feature_flag_enabled', 'true'
+  // Data sources require the project encryption key feature (the ES|QL plugin fails fast otherwise).
+  systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
 }

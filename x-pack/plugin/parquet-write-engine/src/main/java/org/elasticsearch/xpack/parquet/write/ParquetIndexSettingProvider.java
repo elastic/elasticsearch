@@ -25,10 +25,18 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Adds the settings that an index with {@code index.storage_format: parquet} needs and that the user should not have to repeat: no replicas
- * (the format does not support them), batch indexing (the only write path of the engine), single-valued doc values (until the engine
- * writes Parquet lists), and synthetic source. Settings that the user or a template sets explicitly win, and then the validator of
- * {@link ParquetFormatSettings#INDEX_FORMAT} rejects the ones that the format cannot accept.
+ * Adds the settings that an index with {@code index.storage_format: parquet} needs and that the user should not have to repeat:
+ * <ul>
+ *   <li>no replicas unless the request asks for them (a replica is a search replica, see {@link ParquetShardRoutingRoleStrategy});</li>
+ *   <li>batch indexing, the only write path of the engine;</li>
+ *   <li>single-valued doc values, until the request asks for lists;</li>
+ *   <li>an {@code _id} without postings, which the search replicas synthesize from the row number;</li>
+ *   <li>a refresh interval of {@link ParquetFormatSettings#DEFAULT_REFRESH_INTERVAL}, because each scheduled refresh of a search replica
+ *       reads the table, and the primary tells its replicas of each upload anyway;</li>
+ *   <li>and synthetic source.</li>
+ * </ul>
+ * Settings that the user or a template sets explicitly win, and then the validator of {@link ParquetFormatSettings#INDEX_FORMAT}
+ * rejects the ones that the format cannot accept.
  */
 final class ParquetIndexSettingProvider implements IndexSettingProvider {
 
@@ -56,8 +64,19 @@ final class ParquetIndexSettingProvider implements IndexSettingProvider {
             indexTemplateAndCreateRequestSettings.hasValue(multiValueKey)
                 && Booleans.parseBoolean(indexTemplateAndCreateRequestSettings.get(multiValueKey))
         );
-        requireSetting(indexTemplateAndCreateRequestSettings, additionalSettings, IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        // a replica is a search replica, which reads the uploaded files, so it is the user's choice; the default is none
+        if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == false) {
+            additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
+        }
+        if (indexTemplateAndCreateRequestSettings.hasValue(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()) == false) {
+            additionalSettings.put(
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
+                ParquetFormatSettings.DEFAULT_REFRESH_INTERVAL.getStringRep()
+            );
+        }
         requireSetting(indexTemplateAndCreateRequestSettings, additionalSettings, IndexSettings.BATCH_INDEXING.getKey(), true);
+        // the files have no _id: a search replica synthesizes it from the row number, so a query on it scans the doc values
+        requireSetting(indexTemplateAndCreateRequestSettings, additionalSettings, IndexSettings.ID_FIELD_INDEXED.getKey(), false);
         // Fields are flat columns unless the user asks for lists: a field with "multi_value": true, or the index default set to true.
         if (indexTemplateAndCreateRequestSettings.hasValue(multiValueKey) == false) {
             additionalSettings.put(multiValueKey, false);
@@ -113,17 +132,10 @@ final class ParquetIndexSettingProvider implements IndexSettingProvider {
         if (mode != IndexMode.COLUMNAR) {
             throw new IllegalArgumentException(format + " requires [index.mode] [columnar] but was [" + mode + "]");
         }
-        if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings) != 0
-            && IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(settings)) {
-            throw new IllegalArgumentException(
-                format
-                    + " does not support replicas, but [index.number_of_replicas] was ["
-                    + IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings)
-                    + "]"
-            );
-        }
         if (IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).enabled()) {
-            throw new IllegalArgumentException(format + " does not support replicas, but [index.auto_expand_replicas] was enabled");
+            throw new IllegalArgumentException(
+                format + " does not support [index.auto_expand_replicas], set [index.number_of_replicas] to the search replicas it needs"
+            );
         }
         if (ParquetFormatSettings.REPOSITORY.get(settings).isEmpty()) {
             throw new IllegalArgumentException(format + " requires [" + ParquetFormatSettings.REPOSITORY.getKey() + "]");
@@ -134,7 +146,9 @@ final class ParquetIndexSettingProvider implements IndexSettingProvider {
     public Set<String> affectedSettings() {
         return Set.of(
             IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(),
             IndexSettings.BATCH_INDEXING.getKey(),
+            IndexSettings.ID_FIELD_INDEXED.getKey(),
             FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey()
         );
     }

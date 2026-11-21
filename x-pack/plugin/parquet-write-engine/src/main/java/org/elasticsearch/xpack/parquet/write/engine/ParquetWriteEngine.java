@@ -13,6 +13,7 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.action.ActionListener;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineBatch;
@@ -53,6 +55,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.parquet.write.ParquetFormatSettings;
 import org.elasticsearch.xpack.parquet.write.ParquetThreadPools;
+import org.elasticsearch.xpack.parquet.write.TableVersionPublisher;
 import org.elasticsearch.xpack.parquet.write.compaction.ParquetCompactor;
 import org.elasticsearch.xpack.parquet.write.file.BatchParquetWriter;
 import org.elasticsearch.xpack.parquet.write.file.LocalParquetFiles;
@@ -102,6 +105,7 @@ public class ParquetWriteEngine extends Engine {
     private final AtomicLong uploadedRows = new AtomicLong();
     private final AtomicLong flushGeneration = new AtomicLong();
     private final ShardTables tables;
+    private final TableVersionPublisher publisher;
     private final ReentrantLock flushLock = new ReentrantLock();
     /**
      * The flushes that were started and have not completed. The shard schedules a periodic flush and releases its own guard as soon
@@ -109,6 +113,13 @@ public class ParquetWriteEngine extends Engine {
      * would start a new flush for the same local files in a loop for as long as the first one runs.
      */
     private final AtomicInteger activeFlushes = new AtomicInteger();
+    /**
+     * The listeners of {@link #addFlushListener}: a bulk with {@code refresh=wait_for} waits until its last sequence number is uploaded,
+     * and then until the search replicas show the version of the table that lists it. Guarded by itself.
+     */
+    private final List<Tuple<Long, ActionListener<Long>>> flushListeners = new ArrayList<>();
+    /** The highest sequence number that is uploaded, from the commit data after the last flush. */
+    private volatile long uploadedThroughSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
     /** The flusher, created at the first flush because it needs the repository. */
     private volatile ParquetFlusher flusher;
     /** The table of the index, opened with the flusher; the compactor works on the same table. */
@@ -126,10 +137,18 @@ public class ParquetWriteEngine extends Engine {
     private final List<ReferenceManager.RefreshListener> internalRefreshListeners;
     private volatile Translog.Location lastWriteLocation = new Translog.Location(0, 0, 0);
 
-    @SuppressWarnings("this-escape")
     public ParquetWriteEngine(EngineConfig config, ShardTables tables) {
+        this(config, tables, TableVersionPublisher.NONE);
+    }
+
+    /**
+     * @param publisher told of each version of the table that this primary commits, so that its search replicas read it at once
+     */
+    @SuppressWarnings("this-escape")
+    public ParquetWriteEngine(EngineConfig config, ShardTables tables, TableVersionPublisher publisher) {
         super(config);
         this.tables = tables;
+        this.publisher = publisher;
         this.externalRefreshListeners = config.getExternalRefreshListener();
         this.internalRefreshListeners = config.getInternalRefreshListener();
         store.incRef();
@@ -143,6 +162,7 @@ public class ParquetWriteEngine extends Engine {
             // The sequence numbers of the server in the commit are never changed (they stay at their start value), so the engine
             // finds its own: the largest end of a range that was uploaded, and of the local files that are not uploaded yet.
             final long uploadedThrough = ShardCommitData.uploadedThroughSeqNo(userData);
+            this.uploadedThroughSeqNo = uploadedThrough;
             uploadedRows.set(ShardCommitData.uploadedRows(userData));
             long maxSeqNo = Math.max(commitInfo.maxSeqNo(), uploadedThrough);
             for (LocalParquetFiles.LocalFile file : LocalParquetFiles.list(directory)) {
@@ -352,7 +372,7 @@ public class ParquetWriteEngine extends Engine {
         throw notReadable();
     }
 
-    // ---- refresh and flush: nothing is searchable, but the listeners of the shard must still run ----
+    // ---- refresh and flush: nothing on the primary is searchable, but the listeners of the shard must still run ----
 
     @Override
     public RefreshResult refresh(String source) throws EngineException {
@@ -372,7 +392,14 @@ public class ParquetWriteEngine extends Engine {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new RefreshResult(false, config().getPrimaryTermSupplier().getAsLong(), 0);
+        // The generation is the version of the table that holds every upload of this shard so far: the search replicas wait until
+        // they have read that version (see TransportUnpromotableShardRefreshAction), so a refresh after a flush makes its rows searchable.
+        final ShardTable shardTable = table;
+        return new RefreshResult(
+            false,
+            config().getPrimaryTermSupplier().getAsLong(),
+            shardTable == null ? 0 : shardTable.metadataVersion()
+        );
     }
 
     @Override
@@ -459,11 +486,100 @@ public class ParquetWriteEngine extends Engine {
                 );
                 scheduleCompaction();
             }
+            refreshLocalFiles();
+            completeFlushListeners();
+            if (result.files() > 0) {
+                publishTableVersion();
+            }
         } catch (LinkageError e) {
             // see the comment at the write: an Error here would never complete the listener of the flush
             throw LinkageFailures.asException("flush the local Parquet files", e);
         }
-        refreshLocalFiles();
+    }
+
+    /** Tells the search replicas of the version of the table that this primary committed last. */
+    private void publishTableVersion() {
+        try {
+            publisher.publish(shardId, config().getPrimaryTermSupplier().getAsLong(), tableVersion());
+        } catch (Exception e) {
+            // the replicas still read the table on their scheduled refresh
+            logger.debug(() -> "failed to announce the version of the table of " + shardId, e);
+        }
+    }
+
+    /**
+     * Completes the listener once the operation at {@code location} is uploaded, with the version of the table that lists it: the server
+     * then waits until the search replicas show that version (see {@code PostWriteRefresh}). This is how {@code refresh=wait_for} works
+     * on an index whose primary is not searchable. The call starts a flush, because the rows of the operation are only in local files.
+     */
+    @Override
+    public void addFlushListener(Translog.Location location, ActionListener<Long> listener) {
+        // the location of an operation of this engine holds its sequence number, see ParquetIndexResult
+        final long seqNo = location.translogLocation();
+        if (seqNo <= uploadedThroughSeqNo) {
+            listener.onResponse(tableVersion());
+            return;
+        }
+        synchronized (flushListeners) {
+            flushListeners.add(Tuple.tuple(seqNo, listener));
+        }
+        requestFlushForListeners();
+    }
+
+    private void requestFlushForListeners() {
+        engineConfig.getThreadPool().generic().execute(() -> {
+            try {
+                flush(false, false, ActionListener.wrap(r -> {}, this::failFlushListeners));
+            } catch (Exception e) {
+                failFlushListeners(e);
+            }
+        });
+    }
+
+    private long tableVersion() {
+        final ShardTable shardTable = table;
+        return shardTable == null ? 0 : shardTable.metadataVersion();
+    }
+
+    /** Completes the listeners whose operations are uploaded, and starts another flush for the others. */
+    private void completeFlushListeners() throws IOException {
+        final long uploaded = ShardCommitData.uploadedThroughSeqNo(new StoreCommitData(store).userData());
+        uploadedThroughSeqNo = uploaded;
+        final List<ActionListener<Long>> done = new ArrayList<>();
+        final boolean pending;
+        // without local rows there is nothing left to upload for any listener, so another flush could not help
+        final boolean nothingLocal = localBytes.get() == 0;
+        synchronized (flushListeners) {
+            flushListeners.removeIf(entry -> {
+                if (entry.v1() <= uploaded || nothingLocal) {
+                    done.add(entry.v2());
+                    return true;
+                }
+                return false;
+            });
+            pending = flushListeners.isEmpty() == false;
+        }
+        final long version = tableVersion();
+        for (ActionListener<Long> listener : done) {
+            listener.onResponse(version);
+        }
+        if (pending) {
+            // rows that a bulk wrote while this flush ran: the next flush uploads them
+            requestFlushForListeners();
+        }
+    }
+
+    private void failFlushListeners(Exception e) {
+        final List<ActionListener<Long>> failed = new ArrayList<>();
+        synchronized (flushListeners) {
+            for (Tuple<Long, ActionListener<Long>> entry : flushListeners) {
+                failed.add(entry.v2());
+            }
+            flushListeners.clear();
+        }
+        for (ActionListener<Long> listener : failed) {
+            listener.onFailure(e);
+        }
     }
 
     /** The mapping source and the fields of it that are lists, for the last mapping that a batch saw. */
@@ -580,6 +696,10 @@ public class ParquetWriteEngine extends Engine {
                     this::compactionSettings,
                     ParquetCompactor.Hooks.NONE
                 ).compact();
+                if (result.runs() > 0) {
+                    // the replicas move to the merged files, before the replaced ones are deleted
+                    publishTableVersion();
+                }
                 if (result.runs() > 0 || result.orphansDeleted() > 0) {
                     logger.debug(
                         "compacted [{}] files into [{}] ones with [{}] rows, deleted [{}] orphans",
@@ -930,6 +1050,7 @@ public class ParquetWriteEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
+                failFlushListeners(new AlreadyClosedException("[" + shardId + "] is closed: " + reason));
                 final Scheduler.Cancellable timer = compactionTimer;
                 if (timer != null) {
                     timer.cancel();

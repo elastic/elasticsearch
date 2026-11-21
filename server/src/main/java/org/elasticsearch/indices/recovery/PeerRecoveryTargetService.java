@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -224,6 +225,41 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
+    /**
+     * Recovers an unpromotable shard copy of a stateful cluster without a source: such a copy never receives operations and holds no data
+     * that a peer could send, because its engine reads the data from elsewhere (for example from an object store). The shard opens its
+     * engine over the commit of its store, and an empty store gets an empty commit first. Stateless recovers its unpromotable copies with
+     * {@link StatelessUnpromotableRelocationAction} instead.
+     */
+    private void recoverUnpromotableLocally(
+        long recoveryId,
+        IndexShard indexShard,
+        RecoveryState recoveryState,
+        ActionListener<Object> cleanupOnly
+    ) {
+        SubscribableListener.<Void>newForked(l -> {
+            indexShard.ensureRecoveryNotCancelled();
+            indexShard.preRecovery(l);
+        }).<Void>andThenApply(ignored -> {
+            logger.trace("{} preparing unpromotable shard for local recovery", indexShard.shardId());
+            indexShard.ensureRecoveryNotCancelled();
+            indexShard.prepareForIndexRecovery();
+            if (Lucene.indexExists(indexShard.store().directory()) == false) {
+                indexShard.store().createEmpty();
+            }
+            // skip the stages that copy files and replay operations: an unpromotable copy has neither
+            recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
+            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            indexShard.openEngineAndSkipTranslogRecovery();
+            recoveryState.getIndex().setFileDetailsComplete();
+            recoveryState.setStage(RecoveryState.Stage.FINALIZE);
+            return null;
+        }).addListener(cleanupOnly.delegateFailure((l, ignored) -> ActionListener.completeWith(l, () -> {
+            onGoingRecoveries.markRecoveryAsDone(recoveryId);
+            return null;
+        })));
+    }
+
     public void startRecovery(
         final IndexShard indexShard,
         final DiscoveryNode sourceNode,
@@ -294,6 +330,10 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
             assert preExistingRequest == null;
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
+            if (DiscoveryNode.isStateless(indexShard.indexSettings().getNodeSettings()) == false) {
+                recoverUnpromotableLocally(recoveryId, indexShard, recoveryState, cleanupOnly);
+                return;
+            }
             client.execute(
                 StatelessUnpromotableRelocationAction.TYPE,
                 new StatelessUnpromotableRelocationAction.Request(

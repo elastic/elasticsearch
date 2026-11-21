@@ -37,7 +37,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * The decider pins the primary of a parquet index and refuses its replicas, and leaves every other index alone. The local files of a
- * parquet shard do not move with the shard, so every hook that decides where a shard goes must say no.
+ * parquet shard do not move with the shard, so every hook that decides where the primary goes must say no. Its search replicas have no
+ * local state and go anywhere.
  */
 public class ParquetAllocationDeciderTests extends ESAllocationTestCase {
 
@@ -73,16 +74,26 @@ public class ParquetAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private static ShardRouting started(Index index, String nodeId, boolean primary) {
-        return TestShardRouting.newShardRouting(new ShardId(index, 0), nodeId, primary, ShardRoutingState.STARTED);
+        return started(index, nodeId, primary, ShardRouting.Role.DEFAULT);
+    }
+
+    private static ShardRouting started(Index index, String nodeId, boolean primary, ShardRouting.Role role) {
+        return TestShardRouting.shardRoutingBuilder(new ShardId(index, 0), nodeId, primary, ShardRoutingState.STARTED)
+            .withRole(role)
+            .build();
     }
 
     private static ShardRouting unassigned(Index index, boolean primary) {
+        return unassigned(index, primary, ShardRouting.Role.DEFAULT);
+    }
+
+    private static ShardRouting unassigned(Index index, boolean primary, ShardRouting.Role role) {
         return ShardRouting.newUnassigned(
             new ShardId(index, 0),
             primary,
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "index created"),
-            ShardRouting.Role.DEFAULT,
+            role,
             primary ? RecoveryPriority.UNASSIGNED_NEW_PRIMARY : RecoveryPriority.UNASSIGNED_EXPECTED
         );
     }
@@ -113,29 +124,46 @@ public class ParquetAllocationDeciderTests extends ESAllocationTestCase {
         assertYes(decider.canAllocate(primary, node(NODE_B), allocation));
     }
 
-    public void testAReplicaIsRefusedEverywhere() {
+    public void testASearchReplicaGoesAnywhere() {
+        // a search replica reads the uploaded files of the table and has no local state
+        for (ShardRouting replica : new ShardRouting[] {
+            unassigned(PARQUET_INDEX, false, ShardRouting.Role.SEARCH_ONLY),
+            started(PARQUET_INDEX, NODE_B.getId(), false, ShardRouting.Role.SEARCH_ONLY) }) {
+            assertYes(decider.canAllocate(replica, node(NODE_A), allocation));
+            assertYes(decider.canAllocate(replica, node(NODE_B), allocation));
+            assertYes(decider.canForceAllocateDuringReplace(replica, node(NODE_A), allocation));
+        }
+        assertYes(decider.canRebalance(started(PARQUET_INDEX, NODE_B.getId(), false, ShardRouting.Role.SEARCH_ONLY), allocation));
+    }
+
+    public void testAReplicaThatIsNotASearchReplicaIsRefusedEverywhere() {
+        // the role strategy never creates one, but a replica that could be promoted would hold none of the rows of the primary
         for (ShardRouting replica : new ShardRouting[] {
             unassigned(PARQUET_INDEX, false),
             started(PARQUET_INDEX, NODE_B.getId(), false) }) {
-            assertNo(decider.canAllocate(replica, node(NODE_A), allocation), "does not support replicas");
-            assertNo(decider.canAllocate(replica, node(NODE_B), allocation), "does not support replicas");
+            assertNo(decider.canAllocate(replica, node(NODE_A), allocation), "must be search replicas");
+            assertNo(decider.canAllocate(replica, node(NODE_B), allocation), "must be search replicas");
         }
+        assertNo(decider.canRebalance(started(PARQUET_INDEX, NODE_B.getId(), false), allocation), "must be search replicas");
     }
 
-    public void testTheBalancerIsNotAskedToMoveAnything() {
+    public void testTheBalancerIsNotAskedToMoveThePrimary() {
         assertNo(decider.canRebalance(started(PARQUET_INDEX, NODE_A.getId(), true), allocation), "cannot move");
-        assertNo(decider.canRebalance(started(PARQUET_INDEX, NODE_B.getId(), false), allocation), "does not support replicas");
+        assertNo(
+            decider.canRebalance(started(PARQUET_INDEX, NODE_A.getId(), true, ShardRouting.Role.INDEX_ONLY), allocation),
+            "cannot move"
+        );
     }
 
     public void testANodeReplacementCannotForceThePrimaryAway() {
         // the default of this hook is yes, and it overrides every no of canAllocate when the node of the shard is being replaced
-        final ShardRouting primary = started(PARQUET_INDEX, NODE_A.getId(), true);
+        final ShardRouting primary = started(PARQUET_INDEX, NODE_A.getId(), true, ShardRouting.Role.INDEX_ONLY);
 
         assertNo(decider.canForceAllocateDuringReplace(primary, node(NODE_B), allocation), "cannot move");
     }
 
-    public void testAutoExpandNeverAddsAReplica() {
-        assertNo(decider.shouldAutoExpandToNode(allocation.metadata().indexMetadata(PARQUET_INDEX), NODE_B, allocation), "replicas");
+    public void testAutoExpandAddsSearchReplicas() {
+        assertYes(decider.shouldAutoExpandToNode(allocation.metadata().indexMetadata(PARQUET_INDEX), NODE_B, allocation));
     }
 
     public void testOtherIndicesAreNotAffected() {

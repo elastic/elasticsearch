@@ -43,12 +43,19 @@ import java.util.regex.Pattern;
  * {@link CommitFailedException}, and Iceberg then refreshes and applies its change again, so shards can commit to the same table
  * concurrently with no coordination. The version hint is only a pointer for readers that do not list; it is written after the commit
  * with an overwrite, and a reader must never trust it over the listing.
+ *
+ * <p>A table that another tool wrote through a catalog (pyiceberg, Spark) names its metadata files {@code <NNNNN>-<uuid>.metadata.json}.
+ * Such a table can be read: its current version is the highest number that the listing shows, plus one, so that the version of a table
+ * that exists is never 0. It is never committed to, because the catalog of that tool decides which file is current, and this class does
+ * not know it. A metadata file of a failed catalog commit with a higher number than the current one would be read as current.
  */
 public final class RepositoryTableOperations implements TableOperations {
 
     private static final Logger logger = LogManager.getLogger(RepositoryTableOperations.class);
 
     private static final Pattern VERSION_FILE = Pattern.compile("v(\\d+)\\.metadata\\.json");
+    /** The name that Iceberg's catalogs give a metadata file: the sequence number of the version and a random uuid. */
+    private static final Pattern CATALOG_FILE = Pattern.compile("(\\d+)-[0-9a-fA-F-]+(?:\\.gz)?\\.metadata\\.json");
     private static final String VERSION_HINT = "version-hint.text";
     private static final String PREVIOUS_VERSIONS_MAX = "write.metadata.previous-versions-max";
     private static final int DEFAULT_PREVIOUS_VERSIONS_MAX = 100;
@@ -80,25 +87,61 @@ public final class RepositoryTableOperations implements TableOperations {
         return io.containerOf(metadataLocation(VERSION_HINT));
     }
 
-    /** The highest version in the listing of {@code metadata/}, or 0 when the table does not exist yet. */
-    private int latestVersion() {
+    /**
+     * A metadata file of the table.
+     *
+     * @param version     the version that the name gives (see {@link #versionOfMetadataFile})
+     * @param name        the name of the file in {@code metadata/}
+     * @param catalogFile whether a catalog named the file ({@code <NNNNN>-<uuid>.metadata.json}), rather than this class
+     */
+    private record MetadataFile(int version, String name, boolean catalogFile) {}
+
+    /**
+     * The version of a table that the name of a metadata file gives: {@code N} for {@code v<N>.metadata.json}, and {@code N + 1} for the
+     * {@code <N>-<uuid>.metadata.json} of a catalog, whose first version is 0.
+     *
+     * @return the version, or -1 if the name is not the name of a metadata file
+     */
+    public static int versionOfMetadataFile(String fileName) {
+        final Matcher versionFile = VERSION_FILE.matcher(fileName);
+        if (versionFile.matches()) {
+            return Integer.parseInt(versionFile.group(1));
+        }
+        final Matcher catalogFile = CATALOG_FILE.matcher(fileName);
+        if (catalogFile.matches()) {
+            return Integer.parseInt(catalogFile.group(1)) + 1;
+        }
+        return -1;
+    }
+
+    /** The metadata file with the highest version in the listing of {@code metadata/}, or null when the table does not exist yet. */
+    @Nullable
+    private MetadataFile latestMetadata() {
+        final Map<String, BlobMetadata> blobs;
         try {
-            final Map<String, BlobMetadata> blobs = metadataContainer().listBlobsByPrefix(RepositoryFileIO.PURPOSE, "v");
-            int latest = 0;
-            for (String name : blobs.keySet()) {
-                final Matcher matcher = VERSION_FILE.matcher(name);
-                if (matcher.matches()) {
-                    latest = Math.max(latest, Integer.parseInt(matcher.group(1)));
-                }
-            }
-            return latest;
+            // all of metadata/ and not the prefix "v": the files that a catalog names start with their number
+            blobs = metadataContainer().listBlobs(RepositoryFileIO.PURPOSE);
         } catch (IOException e) {
             throw new RuntimeIOException(e, "failed to list the metadata of [%s]", tableLocation);
         }
+        MetadataFile latest = null;
+        for (String name : blobs.keySet()) {
+            final int version = versionOfMetadataFile(name);
+            if (version > 0 && (latest == null || version > latest.version())) {
+                latest = new MetadataFile(version, name, VERSION_FILE.matcher(name).matches() == false);
+            }
+        }
+        return latest;
     }
 
-    private TableMetadata load(int version) {
-        return TableMetadataParser.read(io, metadataLocation("v" + version + ".metadata.json"));
+    /** The highest version in the listing of {@code metadata/}, or 0 when the table does not exist yet. */
+    private int latestVersion() {
+        final MetadataFile latest = latestMetadata();
+        return latest == null ? 0 : latest.version();
+    }
+
+    private TableMetadata load(MetadataFile file) {
+        return TableMetadataParser.read(io, metadataLocation(file.name()));
     }
 
     @Override
@@ -111,9 +154,9 @@ public final class RepositoryTableOperations implements TableOperations {
 
     @Override
     public TableMetadata refresh() {
-        final int version = latestVersion();
+        final MetadataFile latest = latestMetadata();
         try {
-            current = version == 0 ? null : load(version);
+            current = latest == null ? null : load(latest);
         } catch (NotFoundException e) {
             // the listing and the read are not one operation, and a version can be written between them: that is not an error
             current = null;
@@ -128,8 +171,15 @@ public final class RepositoryTableOperations implements TableOperations {
         if (base == metadata) {
             return;
         }
-        final int latestVersion = latestVersion();
-        final TableMetadata latest = latestVersion == 0 ? null : load(latestVersion);
+        final MetadataFile latestFile = latestMetadata();
+        if (latestFile != null && latestFile.catalogFile()) {
+            // not a CommitFailedException, which Iceberg retries: the table belongs to a catalog, and no retry changes that
+            throw new IllegalStateException(
+                "cannot commit to [" + tableLocation + "]: its metadata file [" + latestFile.name() + "] was written through a catalog"
+            );
+        }
+        final int latestVersion = latestFile == null ? 0 : latestFile.version();
+        final TableMetadata latest = latestFile == null ? null : load(latestFile);
         if (base == null) {
             if (latest != null) {
                 throw new CommitFailedException("cannot create the table [%s]: it exists", tableLocation);

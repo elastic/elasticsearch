@@ -202,7 +202,8 @@ public class ParquetWriteEngineIT extends ESIntegTestCase {
     )
     public void testRefreshAndStatsWork() throws Exception {
         createParquetIndex();
-        final BulkResponse response = bulk(0, 100, WriteRequest.RefreshPolicy.WAIT_UNTIL);
+        // refresh=wait_for uploads the rows (see ParquetSearchReplicaIT), and this index has no repository
+        final BulkResponse response = bulk(0, 100, WriteRequest.RefreshPolicy.NONE);
         assertFalse(response.buildFailureMessage(), response.hasFailures());
         assertNoFailures(indicesAdmin().prepareRefresh(INDEX).get());
         assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), equalTo(100L));
@@ -253,11 +254,12 @@ public class ParquetWriteEngineIT extends ESIntegTestCase {
         assertThat(readLocalRows().size(), equalTo(10));
     }
 
-    public void testSearchFailsWithAClearMessage() throws Exception {
+    public void testASearchNeverReachesThePrimary() throws Exception {
         createParquetIndex();
         bulk(0, 10, WriteRequest.RefreshPolicy.NONE);
+        // the primary is not searchable and the index has no search replica, so no copy answers
         final Exception e = expectThrows(Exception.class, () -> prepareSearch(INDEX).get());
-        assertThat(ExceptionsHelper.stackTrace(e), containsString("cannot be read or searched"));
+        assertThat(ExceptionsHelper.stackTrace(e), containsString("NoShardAvailableActionException"));
     }
 
     public void testFilesSurviveAFullRestart() throws Exception {
@@ -286,12 +288,12 @@ public class ParquetWriteEngineIT extends ESIntegTestCase {
                 )
                 .get()
         );
-        // replicas
+        // auto-expanded replicas (a fixed number of replicas is fine: they are search replicas)
         final Exception replicas = expectThrows(
             Exception.class,
-            () -> indicesAdmin().prepareCreate("replicas").setSettings(parquetSettings().put("index.number_of_replicas", 1)).get()
+            () -> indicesAdmin().prepareCreate("replicas").setSettings(parquetSettings().put("index.auto_expand_replicas", "0-1")).get()
         );
-        assertThat(ExceptionsHelper.stackTrace(replicas), containsString("does not support replicas"));
+        assertThat(ExceptionsHelper.stackTrace(replicas), containsString("does not support [index.auto_expand_replicas]"));
         // no repository
         expectThrows(
             Exception.class,

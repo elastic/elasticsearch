@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
+
 public interface ShardRoutingRoleStrategy {
 
     /**
@@ -28,6 +31,34 @@ public interface ShardRoutingRoleStrategy {
      */
     default ShardRouting.Role newRestoredRole(int copyIndex) {
         return newEmptyRole(copyIndex);
+    }
+
+    /**
+     * @return the role for a copy of a new empty shard of the given index. By default the role does not depend on the index; a strategy
+     * that gives the copies of some indices other roles than the copies of the others overrides this.
+     *
+     * @param indexMetadata the index of the shard
+     * @param copyIndex     the index of the copy ({@code 0} for the primary and {@code 1..N} for replicas)
+     */
+    default ShardRouting.Role newEmptyRole(IndexMetadata indexMetadata, int copyIndex) {
+        return newEmptyRole(copyIndex);
+    }
+
+    /**
+     * @return the role for a new replica copy of an existing shard of the given index, see {@link #newEmptyRole(IndexMetadata, int)}.
+     *
+     * @param indexMetadata the index of the shard, or {@code null} if the caller does not know it
+     */
+    default ShardRouting.Role newReplicaRole(@Nullable IndexMetadata indexMetadata) {
+        return newReplicaRole();
+    }
+
+    /**
+     * @return the role for a copy of a new shard of the given index being restored from snapshot, see
+     * {@link #newEmptyRole(IndexMetadata, int)}.
+     */
+    default ShardRouting.Role newRestoredRole(IndexMetadata indexMetadata, int copyIndex) {
+        return newRestoredRole(copyIndex);
     }
 
     /**

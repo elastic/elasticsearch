@@ -415,7 +415,7 @@ public class AllocationService {
             final String[] indices = entry.getValue().toArray(Strings.EMPTY_ARRAY);
             // we do *not* update the in sync allocation ids as they will be removed upon the first index
             // operation which make these copies stale
-            routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+            routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices, project::index);
             projectBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
             // update settings version for each index
             for (final String index : indices) {

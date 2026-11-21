@@ -71,7 +71,7 @@ import java.util.regex.Pattern;
  */
 public final class ShardTable {
 
-    private static final Pattern DATA_FILE = Pattern.compile(".*/data/shard-(\\d+)/([^/]+)/(\\d{19})-(\\d{19})-([^/]+)\\.parquet");
+    static final Pattern DATA_FILE = Pattern.compile(".*/data/shard-(\\d+)/([^/]+)/(\\d{19})-(\\d{19})-([^/]+)\\.parquet");
 
     /** Table properties that name the index that owns the table. */
     static final String OWNER_INDEX_UUID = "elasticsearch.index_uuid";
@@ -332,13 +332,27 @@ public final class ShardTable {
             .build();
     }
 
-    /** Publishes the file: from this commit on, readers of the table see its rows. */
-    public void append(DataFile file, long throughSeqNo) {
+    /**
+     * Publishes the file: from this commit on, readers of the table see its rows.
+     *
+     * @return the version of the table that the commit wrote, see {@link #metadataVersion()}
+     */
+    public long append(DataFile file, long throughSeqNo) {
         table.newAppend()
             .appendFile(file)
             .set("parquet.shard", Integer.toString(shard))
             .set("parquet.through_seq_no", Long.toString(throughSeqNo))
             .commit();
+        return metadataVersion();
+    }
+
+    /**
+     * The version of the table ({@code N} of {@code v<N>.metadata.json}) that this object last committed or read. A reader that has read
+     * this version or a later one sees every file that this object committed up to now.
+     */
+    public long metadataVersion() {
+        final TableMetadata current = ((BaseTable) table).operations().current();
+        return current == null ? 0 : TableReader.versionOf(current.metadataFileLocation());
     }
 
     /** The files of this shard and history in the current snapshot. */

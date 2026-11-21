@@ -36,10 +36,9 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -86,7 +85,7 @@ public class ParquetPlacementIT extends ESIntegTestCase {
 
     @Override
     protected int numberOfReplicas() {
-        // the random index template of the base class would add a replica, which this format does not support
+        // the tests choose the search replicas that they need
         return 0;
     }
 
@@ -221,41 +220,38 @@ public class ParquetPlacementIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"), INDEX);
     }
 
-    public void testAReplicaThatASettingsUpdateAsksForStaysUnassigned() throws Exception {
+    public void testAReplicaThatASettingsUpdateAsksForIsASearchReplica() throws Exception {
         createIndexWithLocalRows();
 
         updateIndexSettings(Settings.builder().put("index.number_of_replicas", 1), INDEX);
 
-        ensureYellow(INDEX);
+        // the search replica has no local state, so it is allocated on the other node, and the primary stays where it is
+        ensureGreen(INDEX);
         final IndexShardRoutingTable table = clusterService().state().routingTable().index(INDEX).shard(0);
         assertThat(table.replicaShards(), hasSize(1));
-        assertThat("the replica is not allocated", table.replicaShards().get(0).unassigned(), equalTo(true));
-        assertThat(table.activeShards(), hasSize(1));
-        final var allocate = explain(false).getShardAllocationDecision().getAllocateDecision();
-        assertThat(allocate.getNodeDecisions(), notNullValue());
-        assertThat(allocate.getNodeDecisions(), hasSize(2));
-        for (NodeAllocationResult node : allocate.getNodeDecisions()) {
-            final List<Decision> parquet = parquetDecisions(node.getCanAllocateDecision());
-            assertThat(parquet, hasSize(1));
-            assertThat(parquet.get(0).type(), equalTo(Decision.Type.NO));
-            assertThat(parquet.get(0).getExplanation(), containsString("does not support replicas"));
-        }
+        final ShardRouting replica = table.replicaShards().get(0);
+        assertThat(replica.role(), equalTo(ShardRouting.Role.SEARCH_ONLY));
+        assertThat(table.primaryShard().role(), equalTo(ShardRouting.Role.INDEX_ONLY));
+        assertThat(replica.currentNodeId(), not(equalTo(table.primaryShard().currentNodeId())));
+        // the rows are only in the local files of the primary, which the search replica does not see
         assertThat(docCount(), equalTo((long) ROWS));
 
         updateIndexSettings(Settings.builder().put("index.number_of_replicas", 0), INDEX);
         ensureGreen(INDEX);
     }
 
-    public void testAutoExpandDoesNotAddAReplica() throws Exception {
+    public void testAutoExpandAddsASearchReplica() throws Exception {
         createIndexWithLocalRows();
 
+        // a creation request cannot ask for it, but a settings update can: the replicas it adds are search replicas
         updateIndexSettings(Settings.builder().put("index.auto_expand_replicas", "0-1"), INDEX);
 
         ensureGreen(INDEX);
-        assertThat(clusterService().state().metadata().getProject().index(INDEX).getNumberOfReplicas(), equalTo(0));
-        assertThat(clusterService().state().routingTable().index(INDEX).shard(0).replicaShards(), empty());
+        final IndexShardRoutingTable table = clusterService().state().routingTable().index(INDEX).shard(0);
+        assertThat(table.replicaShards(), hasSize(1));
+        assertThat(table.replicaShards().get(0).role(), equalTo(ShardRouting.Role.SEARCH_ONLY));
         assertThat(docCount(), equalTo((long) ROWS));
-        updateIndexSettings(Settings.builder().put("index.auto_expand_replicas", "false"), INDEX);
+        updateIndexSettings(Settings.builder().put("index.auto_expand_replicas", "false").put("index.number_of_replicas", 0), INDEX);
     }
 
     public void testOtherIndicesStillGetTheirReplicas() throws Exception {

@@ -369,6 +369,11 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/166989
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testStopQueryInlineStats
+  issue: https://github.com/elastic/elasticsearch/issues/166991
 
 # Examples:
 #

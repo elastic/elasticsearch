@@ -685,6 +685,9 @@ public class WildcardFieldMapper extends FieldMapper {
                 Set<String> normalized = new HashSet<>();
                 for (int c : r.from) {
                     normalized.add(ngrams.normalizeLeaf(Character.toString(c)));
+                    if (normalized.size() > 1) {
+                        break;
+                    }
                 }
                 if (normalized.size() == 1) {
                     return new TermQuery(new Term("", normalized.iterator().next()));

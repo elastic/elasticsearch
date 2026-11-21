@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
@@ -379,9 +380,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 Expression localKey = keyed.keys().get(keyPosition);
+                // a missing optional key is always null; inside a filter it has to be a literal (as the Analyzer does for filters)
+                // since the attribute itself cannot be translated into a query
+                Expression replacement = localKey instanceof OptionalMissingAttribute
+                    ? new Literal(localKey.source(), null, DataTypes.NULL)
+                    : localKey;
                 Expression key = keyedFilter.keys().get(keyPosition);
 
-                Expression newCond = condition.transformDown(e -> key.semanticEquals(e) ? localKey : e);
+                Expression newCond = condition.transformDown(e -> key.semanticEquals(e) ? replacement : e);
                 return newCond;
             }
 

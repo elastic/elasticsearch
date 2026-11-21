@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.rules.DetermineUnmappedFieldsToKeep;
+import org.elasticsearch.xpack.esql.analysis.rules.ReplaceAnyParams;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveFunctions;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlight;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightFieldMappings;
@@ -358,6 +359,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // Must be after ResolveRefs: derivation reads the resolved child output and the resolved upstream WHERE predicates.
                 new ResolveHighlight(),
                 new ImplicitCasting(),
+                // After ImplicitCasting, so the values of an IN are already cast when the condition is type checked.
+                new ReplaceAnyParams(),
                 new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
                 new ResolveUnionTypesInUnionAll(),
                 new ResolveUnmapped(),
@@ -368,6 +371,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                // Once the casting rules of the resolution have had their chance, a condition with an "Any" parameter that still
+                // doesn't type check is given the type error it would have for any value of the parameter.
+                ReplaceAnyParams.lastResort(),
                 new HideNestedScopeFields(),
                 new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),

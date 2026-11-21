@@ -67,6 +67,12 @@ public class AnyParam extends LeafExpression implements Unresolvable {
         return field;
     }
 
+    /** Why it can't be used where it is, or {@code null} if the position is the only thing wrong. */
+    @Nullable
+    public String reason() {
+        return reason;
+    }
+
     public AnyParam withReason(String reason) {
         return new AnyParam(source(), parameterText, reservedValue, field, reason);
     }

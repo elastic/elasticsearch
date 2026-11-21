@@ -75,6 +75,8 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -112,6 +114,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.sameInstance;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.greaterThan;
@@ -277,6 +280,8 @@ public class BulkOperationTests extends ESTestCase {
     };
 
     private TestThreadPool threadPool;
+    private final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+    private final FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(meterRegistry);
 
     @Before
     public void setupThreadpool() {
@@ -298,7 +303,7 @@ public class BulkOperationTests extends ESTestCase {
     /**
      * A document whose {@code @timestamp} falls outside all backing index time ranges of a TSDB data stream with a failure store enabled
      * should be redirected to the failure store during pre-routing, exercising the {@code catch (DataStream.TimestampError)} path in
-     * {@code groupRequestsByShards}.
+     * {@code groupRequestsByShards}. Too-new timestamps are counted under dedicated error types in the failure store metric.
      */
     public void testTsdbTimestampErrorDuringRoutingRedirectsToFailureStore() throws Exception {
         Instant start = Instant.parse("2020-01-01T00:00:00Z");
@@ -341,22 +346,36 @@ public class BulkOperationTests extends ESTestCase {
             )
             .build();
 
-        // The @timestamp value is outside the backing index time range [2020, 2021), so getConcreteWriteIndex
-        // throws DataStream.TimestampError, which should be caught and redirect the document to the failure store.
+        // The @timestamp values are outside the backing index time range [2020, 2021), so getConcreteWriteIndex
+        // throws DataStream.TimestampError, which should be caught and redirect the documents to the failure store.
+        // In order, they are at the end of the newest backing index (in the past), in the future, and before the oldest backing index.
+        List<String> timestamps = List.of("2021-01-01T00:00:00Z", "2100-01-01T00:00:00Z", "2019-01-01T00:00:00Z");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(
-            new IndexRequest(tsdbStreamName).opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", "2025-01-01T00:00:00Z"))
-        );
+        for (String timestamp : timestamps) {
+            bulkRequest.add(new IndexRequest(tsdbStreamName).opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", timestamp)));
+        }
 
         NodeClient client = getNodeClient(acceptAllShardWrites());
         BulkResponse response = safeAwait(l -> newBulkOperation(client, bulkRequest, tsdbState, mockObserver(tsdbState), l).run());
 
         assertThat(response.hasFailures(), is(false));
-        BulkItemResponse redirectedItem = Arrays.stream(response.getItems())
-            .filter(item -> item.getIndex().equals(tsdbFailureStore.getIndex().getName()))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Could not find item redirected to the failure store"));
-        assertThat(redirectedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+        for (BulkItemResponse item : response.getItems()) {
+            assertThat(item.getIndex(), equalTo(tsdbFailureStore.getIndex().getName()));
+            assertThat(item.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
+        }
+        List<Object> errorTypes = meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, FailureStoreMetrics.METRIC_FAILURE_STORE)
+            .stream()
+            .map(measurement -> measurement.attributes().get("error_type"))
+            .toList();
+        assertThat(
+            errorTypes,
+            contains(
+                FailureStoreMetrics.ERROR_TYPE_TIMESTAMP_TOO_NEW_PAST,
+                FailureStoreMetrics.ERROR_TYPE_TIMESTAMP_TOO_NEW_FUTURE,
+                "timestamp_error"
+            )
+        );
     }
 
     /**
@@ -1981,7 +2000,7 @@ public class BulkOperationTests extends ESTestCase {
             listener,
             observer,
             failureStoreDocumentConverter,
-            FailureStoreMetrics.NOOP,
+            failureStoreMetrics,
             dataStreamFailureStoreSettings,
             failureStoreNodeFeatureEnabled,
             batchIndexingEnabled,

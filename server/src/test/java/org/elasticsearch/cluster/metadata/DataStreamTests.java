@@ -9,10 +9,12 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfigurationTests;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1317,6 +1319,38 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
+    }
+
+    /**
+     * Only timestamps at or after the end of the newest backing index are reported as too new. Timestamps in a gap between backing
+     * indices or before the oldest backing index are timestamp errors too, but without a too-new timestamp.
+     */
+    public void testGetWriteIndexTimestampErrorTooNewTimestamp() {
+        Instant start1 = Instant.parse("2020-01-01T00:00:00Z");
+        Instant end1 = start1.plus(1, ChronoUnit.HOURS);
+        Instant start2 = end1.plus(1, ChronoUnit.HOURS);
+        Instant end2 = start2.plus(1, ChronoUnit.HOURS);
+
+        String dataStreamName = "metrics-my-app-prod";
+        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+        ).getMetadata().getProject();
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
+
+        for (Instant tooNew : List.of(end2, end2.plusSeconds(1), Instant.parse("2100-01-01T00:00:00Z"))) {
+            var e = expectThrows(DataStream.TimestampError.class, () -> dataStream.getWriteIndex(timestampedRequest(tooNew), project));
+            assertThat(e.tooNewTimestamp(), equalTo(tooNew));
+        }
+        for (Instant notTooNew : List.of(end1, start2.minusMillis(1), start1.minusMillis(1))) {
+            var e = expectThrows(DataStream.TimestampError.class, () -> dataStream.getWriteIndex(timestampedRequest(notTooNew), project));
+            assertThat(e.tooNewTimestamp(), nullValue());
+        }
+        assertThat(dataStream.getWriteIndex(timestampedRequest(end2.minusMillis(1)), project), equalTo(dataStream.getIndices().get(1)));
+    }
+
+    private static IndexRequest timestampedRequest(Instant timestamp) {
+        return new IndexRequest().opType(DocWriteRequest.OpType.CREATE).source(Map.of("@timestamp", timestamp.toString()));
     }
 
     public void testSelectTimeSeriesWriteIndices() {

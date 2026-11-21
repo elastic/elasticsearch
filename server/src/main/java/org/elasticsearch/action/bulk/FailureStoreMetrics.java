@@ -29,6 +29,19 @@ public class FailureStoreMetrics {
     public static final String METRIC_FAILURE_STORE = "es.data_stream.ingest.documents.failure_store.total";
     public static final String METRIC_REJECTED = "es.data_stream.ingest.documents.rejected.total";
 
+    /**
+     * Error type for a TSDB document whose timestamp is newer than every backing index's time range but not after the current time
+     * of the coordinating node (past includes the present). This typically means that the {@code index.time_series.end_time} of the
+     * newest backing index was not updated in time, e.g. by the master node.
+     */
+    public static final String ERROR_TYPE_TIMESTAMP_TOO_NEW_PAST = "timestamp_too_new_past";
+    /**
+     * Error type for a TSDB document whose timestamp is newer than every backing index's time range and after the current time of the
+     * coordinating node. This is typically caused by the sender's clock being ahead, but can also be caused by a stale
+     * {@code index.time_series.end_time} if the timestamp is less than the look-ahead time into the future.
+     */
+    public static final String ERROR_TYPE_TIMESTAMP_TOO_NEW_FUTURE = "timestamp_too_new_future";
+
     private final LongCounter totalCounter;
     private final LongCounter failureStoreCounter;
     private final LongCounter rejectedCounter;
@@ -57,7 +70,8 @@ public class FailureStoreMetrics {
      * This counter tracks the number of documents that we <i>tried</i> to store into a failure store. This includes both pipeline and
      * shard-level failures.
      * @param dataStream the name of the data stream
-     * @param errorType the error type (i.e. the name of the exception that was thrown)
+     * @param errorType the error type: the name of the exception that was thrown, except for TSDB timestamps that are too new, see
+     *                  {@link #ERROR_TYPE_TIMESTAMP_TOO_NEW_PAST} and {@link #ERROR_TYPE_TIMESTAMP_TOO_NEW_FUTURE}
      * @param errorLocation where this failure occurred
      */
     public void incrementFailureStore(String dataStream, String errorType, ErrorLocation errorLocation) {
@@ -71,7 +85,8 @@ public class FailureStoreMetrics {
      * This counter tracks the number of documents that failed to get stored in Elasticsearch. Meaning, any document that did not get
      * stored in the data stream or in its failure store.
      * @param dataStream the name of the data stream
-     * @param errorType the error type (i.e. the name of the exception that was thrown)
+     * @param errorType the error type: the name of the exception that was thrown, except for TSDB timestamps that are too new, see
+     *                  {@link #ERROR_TYPE_TIMESTAMP_TOO_NEW_PAST} and {@link #ERROR_TYPE_TIMESTAMP_TOO_NEW_FUTURE}
      * @param errorLocation where this failure occurred
      * @param failureStore whether this failure occurred while trying to ingest into a failure store (<code>true</code>) or in the data
      * stream itself (<code>false</code>)

@@ -1934,6 +1934,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         Instant timestamp = getTimeSeriesTimestamp(request);
         Index result = selectTimeSeriesWriteIndex(timestamp, project);
         if (result == null) {
+            boolean tooNew = getIndices().stream()
+                .map(project::index)
+                .filter(index -> IndexMode.isTsdb(index.getIndexMode()))
+                .map(IndexMetadata::getTimeSeriesEnd)
+                .max(Comparator.naturalOrder())
+                .map(end -> timestamp.compareTo(end) >= 0)
+                .orElse(false);
             String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
             String writeableIndicesString = getIndices().stream()
                 .map(project::index)
@@ -1947,6 +1954,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 )
                 .collect(Collectors.joining());
             throw new TimestampError(
+                tooNew ? timestamp : null,
                 "the document timestamp ["
                     + timestampAsString
                     + "] is outside of ranges of currently writable indices ["
@@ -2386,12 +2394,31 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public static class TimestampError extends IllegalArgumentException {
 
+        @Nullable
+        private final Instant tooNewTimestamp;
+
         public TimestampError(String message, Exception cause) {
             super(message, cause);
+            this.tooNewTimestamp = null;
         }
 
         public TimestampError(String message) {
+            this(null, message);
+        }
+
+        private TimestampError(@Nullable Instant tooNewTimestamp, String message) {
             super(message);
+            this.tooNewTimestamp = tooNewTimestamp;
+        }
+
+        /**
+         * The document timestamp if it is at or after the end of the newest TSDB backing index's time range, i.e. the document is too
+         * new to be written to any existing backing index. {@code null} for any other timestamp error (unparsable or missing timestamp,
+         * a timestamp before the oldest backing index, or a timestamp that falls into a gap between backing indices).
+         */
+        @Nullable
+        public Instant tooNewTimestamp() {
+            return tooNewTimestamp;
         }
     }
 

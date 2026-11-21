@@ -65,6 +65,7 @@ import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -396,7 +397,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             } catch (DataStream.TimestampError timestampError) {
                 String name = ia != null ? ia.getName() : docWriteRequest.index();
                 BulkItemResponse.Failure failure = new BulkItemResponse.Failure(name, docWriteRequest.id(), timestampError);
-                IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, failure);
+                String errorType = timestampErrorType(timestampError, threadPool.absoluteTimeInMillis());
+                IndexDocFailureStoreStatus failureStoreStatus = processFailure(bulkItemRequest, project, failure, errorType);
                 if (IndexDocFailureStoreStatus.USED.equals(failureStoreStatus) == false) {
                     failure.setFailureStoreStatus(failureStoreStatus);
                     addFailure(BulkItemResponse.failure(bulkItemRequest.id(), docWriteRequest.opType(), failure));
@@ -412,6 +414,21 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             }
         }
         return batchRouter != null ? batchRouter.buildGrouping(requestsByShard, this::onBatchRoutingFailure) : requestsByShard;
+    }
+
+    /**
+     * Returns the {@code error_type} metric attribute for a {@link DataStream.TimestampError}. Too-new timestamps are split by whether
+     * they are in the future according to this node's clock, as the two cases call for different remediation; any other timestamp error
+     * is reported under its exception name.
+     */
+    private static String timestampErrorType(DataStream.TimestampError error, long nowMillis) {
+        Instant tooNewTimestamp = error.tooNewTimestamp();
+        if (tooNewTimestamp == null) {
+            return ElasticsearchException.getExceptionName(error);
+        }
+        return tooNewTimestamp.isAfter(Instant.ofEpochMilli(nowMillis))
+            ? FailureStoreMetrics.ERROR_TYPE_TIMESTAMP_TOO_NEW_FUTURE
+            : FailureStoreMetrics.ERROR_TYPE_TIMESTAMP_TOO_NEW_PAST;
     }
 
     /**
@@ -684,7 +701,20 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         BulkItemResponse.Failure failure
     ) {
         var error = ExceptionsHelper.unwrapCause(failure.getCause());
-        var errorType = ElasticsearchException.getExceptionName(error);
+        return processFailure(bulkItemRequest, projectMetadata, failure, ElasticsearchException.getExceptionName(error));
+    }
+
+    /**
+     * Same as {@link #processFailure(BulkItemRequest, ProjectMetadata, BulkItemResponse.Failure)}, but records the failure in the
+     * metrics under the given {@code metricErrorType} instead of the name of the exception.
+     */
+    private IndexDocFailureStoreStatus processFailure(
+        BulkItemRequest bulkItemRequest,
+        ProjectMetadata projectMetadata,
+        BulkItemResponse.Failure failure,
+        String metricErrorType
+    ) {
+        var error = ExceptionsHelper.unwrapCause(failure.getCause());
         DocWriteRequest<?> docWriteRequest = bulkItemRequest.request();
         DataStream failureStoreCandidate = getRedirectTargetCandidate(docWriteRequest, projectMetadata);
         // If the candidate is not null, the BulkItemRequest targets a data stream, but we'll still have to check if
@@ -699,12 +729,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 // Enqueue the redirect to failure store.
                 boolean added = addDocumentToRedirectRequests(bulkItemRequest, failure, failureStoreCandidate.getName());
                 if (added) {
-                    failureStoreMetrics.incrementFailureStore(bulkItemRequest.index(), errorType, FailureStoreMetrics.ErrorLocation.SHARD);
+                    failureStoreMetrics.incrementFailureStore(
+                        bulkItemRequest.index(),
+                        metricErrorType,
+                        FailureStoreMetrics.ErrorLocation.SHARD
+                    );
                     return IndexDocFailureStoreStatus.USED;
                 } else {
                     failureStoreMetrics.incrementRejected(
                         bulkItemRequest.index(),
-                        errorType,
+                        metricErrorType,
                         FailureStoreMetrics.ErrorLocation.SHARD,
                         isFailureStoreRequest
                     );
@@ -716,7 +750,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 // such as a version conflict or a load rejection we increment the rejected counter.
                 failureStoreMetrics.incrementRejected(
                     bulkItemRequest.index(),
-                    errorType,
+                    metricErrorType,
                     FailureStoreMetrics.ErrorLocation.SHARD,
                     isFailureStoreRequest
                 );

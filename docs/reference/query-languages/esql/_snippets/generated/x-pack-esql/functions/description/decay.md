@@ -4,16 +4,31 @@
 
 Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value from a target origin, using configurable decay functions.
 
-`DECAY` calculates a score between 0 and 1 based on how far a field value is from a specified origin point (called distance).
-The distance can be a numeric distance, spatial distance or temporal distance depending on the specific data type.
+`DECAY` calculates a score between 0 and 1 based on how far a value is from an origin (called distance).
+The distance is numeric, spatial or temporal depending on the type of the value.
+Up to `offset` from the origin the score is 1. At `offset` plus `scale` the score equals `decay`,
+and further away it keeps decreasing towards 0 along the `linear`, `exp` or `gauss` curve.
 
-`DECAY` can use [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) to specify additional `options`
-for the decay function.
+`DECAY` uses [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) for the optional `type` (defaults to `linear`),
+`decay` (defaults to `0.5`) and `offset` (defaults to `0`). `origin` and `scale` must be constants.
+`scale` must be greater than 0, `decay` must be greater than 0 and less than 1, and `offset` must not be negative.
+Any other value is an error.
 
-For spatial queries, scale and offset for geo points use distance units (e.g., "10km", "5mi"),
-while cartesian points use numeric values. For date queries, scale and offset use time_duration values,
-or date_period values made only of days and weeks.
-For numeric queries you also use numeric values.
+The unit of `scale` and `offset` depends on the type of the value:
+
+* numeric values and `cartesian_point` use numbers.
+* `geo_point` uses distance strings such as `"200km"` or `"5mi"`. The origin is a point such as `TO_GEOPOINT("POINT(lon lat)")`.
+* `date` and `date_nanos` use time durations such as `12 hours`, or periods of days and weeks such as `7 days`.
+  Months and years have no fixed length and are rejected.
+
+A `null` value scores `null`. A multivalued value scores `null` and adds a warning.
+To score the nearest of several values, `MV_EXPAND` the field and take the `MAX` of `DECAY` for each document.
+
+To boost relevance, combine `DECAY` with `_score`, for example `_score * DECAY(...)`, `_score + DECAY(...)`
+or `GREATEST(_score, DECAY(...))`. Use `COALESCE(DECAY(...), 0.5)` to give documents without the field a fixed score.
+
+Compared to the decay functions of the `function_score` query, a missing value scores `null` instead of 1,
+there is no `multi_value_mode`, and `origin` has no default of `now`.
 
 :::{tip}
 Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).

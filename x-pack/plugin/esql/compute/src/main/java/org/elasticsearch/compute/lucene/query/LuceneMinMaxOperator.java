@@ -12,8 +12,10 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -58,6 +60,12 @@ final class LuceneMinMaxOperator extends LuceneOperator {
          * meaning the entire leaf can be skipped without scanning any documents.
          */
         boolean canSkipLeaf(DocValuesSkipper skipper, long currentResult);
+
+        /**
+         * Return true if no value between {@code rangeMin} and {@code rangeMax}, such as the bounds of a block of documents, can
+         * improve {@code currentResult}.
+         */
+        boolean canSkipRange(long rangeMin, long rangeMax, long currentResult);
 
         /** Wraps the provided {@link SortedNumericDocValues} with a {@link MultiValueMode} */
         LongValues multiValueMode(SortedNumericDocValues sortedNumericDocValues);
@@ -208,31 +216,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 }
                 if (scorer.isDone() == false) {
                     // could not apply shortcut, trigger the search
-                    // one doc values iterator per function: the multi value mode wrappers are stateful and must not share one
-                    final LongValues[] values = new LongValues[numberTypes.length];
-                    for (int i = 0; i < numberTypes.length; i++) {
-                        values[i] = numberTypes[i].multiValueMode(DocValues.getSortedNumeric(reader, field));
-                    }
-                    final LeafCollector leafCollector = new LeafCollector() {
-                        @Override
-                        public void setScorer(Scorable scorer) {}
-
-                        @Override
-                        public void collect(int doc) throws IOException {
-                            assert remainingDocs > 0;
-                            // keep the no-limit marker: counting down from it would disable the shortcut for later segments
-                            if (remainingDocs != NO_LIMIT) {
-                                remainingDocs--;
-                            }
-                            for (int i = 0; i < values.length; i++) {
-                                if (values[i].advanceExact(doc)) {
-                                    seen = true;
-                                    results[i] = numberTypes[i].evaluate(results[i], values[i].longValue());
-                                }
-                            }
-                        }
-                    };
-                    scorer.scoreNextRange(leafCollector, reader.getLiveDocs(), remainingDocs);
+                    scorer.scoreNextRange(newCollector(reader, field), reader.getLiveDocs(), remainingDocs);
                 }
             }
 
@@ -258,6 +242,94 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+    }
+
+    /**
+     * Collects the values of the documents the query matches. Without a limit, documents in blocks that cannot improve any result
+     * are not read: the skipper bounds of a block cover every document of the block, matching or not, so the check is conservative.
+     */
+    private LeafCollector newCollector(LeafReader reader, String field) throws IOException {
+        final SortedNumericDocValues sorted = DocValues.getSortedNumeric(reader, field);
+        // a single valued field is read once per document for all functions
+        final NumericDocValues single = DocValues.unwrapSingleton(sorted);
+        final LongValues[] perFunction;
+        if (single == null) {
+            // the multi value mode wrappers are stateful and must not share one iterator
+            perFunction = new LongValues[numberTypes.length];
+            for (int i = 0; i < numberTypes.length; i++) {
+                perFunction[i] = numberTypes[i].multiValueMode(i == 0 ? sorted : DocValues.getSortedNumeric(reader, field));
+            }
+        } else {
+            perFunction = null;
+        }
+        // a limit counts the documents that are visited, so no document can be skipped then
+        final DocValuesSkipper blockSkipper = remainingDocs == NO_LIMIT ? reader.getDocValuesSkipper(field) : null;
+        return new LeafCollector() {
+            private int blockMin = -1;
+            private int blockMax = -1;
+            private boolean blockSkippable;
+
+            @Override
+            public void setScorer(Scorable scorer) {}
+
+            @Override
+            public void collect(int doc) throws IOException {
+                assert remainingDocs > 0;
+                // keep the no-limit marker: counting down from it would disable the shortcut for later segments
+                if (remainingDocs != NO_LIMIT) {
+                    remainingDocs--;
+                }
+                if (blockSkipper != null && skipsBlockOf(doc)) {
+                    return;
+                }
+                if (single != null) {
+                    if (single.advanceExact(doc)) {
+                        seen = true;
+                        final long value = single.longValue();
+                        for (int i = 0; i < numberTypes.length; i++) {
+                            results[i] = numberTypes[i].evaluate(results[i], value);
+                        }
+                    }
+                    return;
+                }
+                for (int i = 0; i < perFunction.length; i++) {
+                    if (perFunction[i].advanceExact(doc)) {
+                        seen = true;
+                        results[i] = numberTypes[i].evaluate(results[i], perFunction[i].longValue());
+                    }
+                }
+            }
+
+            /** Whether the document has no value or sits in a block that cannot improve any result. */
+            private boolean skipsBlockOf(int doc) throws IOException {
+                if (doc > blockMax) {
+                    blockSkipper.advance(doc);
+                    blockMin = blockSkipper.minDocID(0);
+                    if (blockMin == DocIdSetIterator.NO_MORE_DOCS) {
+                        // no block is left: no later document has a value
+                        blockMax = Integer.MAX_VALUE;
+                    } else {
+                        blockMax = blockSkipper.maxDocID(0);
+                        blockSkippable = seen && canSkipBlock(blockSkipper);
+                    }
+                }
+                if (blockMin == DocIdSetIterator.NO_MORE_DOCS) {
+                    return true;
+                }
+                // a document before the block is in a gap without values
+                return doc < blockMin || blockSkippable;
+            }
+        };
+    }
+
+    /** A block can be skipped only when no function can improve its current result with the values of the block. */
+    private boolean canSkipBlock(DocValuesSkipper skipper) {
+        for (int i = 0; i < numberTypes.length; i++) {
+            if (numberTypes[i].canSkipRange(skipper.minValue(0), skipper.maxValue(0), results[i]) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Whether the segment holds no value at all for the field: it is not in the segment, or no document has a value. */

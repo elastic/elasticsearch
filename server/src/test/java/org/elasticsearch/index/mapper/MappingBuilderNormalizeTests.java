@@ -308,7 +308,7 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
               "_doc": {
                 "properties": {
                   "foo": {
-                    "dynamic": "false", "subobjects": false,
+                    "dynamic": "strict", "subobjects": false,
                     "properties": {
                       "bar": { "dynamic": "true", "properties": { "x": { "type": "keyword" } } }
                     }
@@ -322,7 +322,7 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
             .build(MergeReason.MAPPING_UPDATE)
             .getRoot();
 
-        assertThat(root.getPrefixProperties().get("foo").dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
+        assertThat(root.getPrefixProperties().get("foo").dynamic(), equalTo(ObjectMapper.Dynamic.STRICT));
         assertThat(root.getPrefixProperties().get("foo.bar").dynamic(), equalTo(ObjectMapper.Dynamic.TRUE));
     }
 

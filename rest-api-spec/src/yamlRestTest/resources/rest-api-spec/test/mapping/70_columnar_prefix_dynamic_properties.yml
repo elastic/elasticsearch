@@ -47,55 +47,46 @@ setup:
   - is_true: test_columnar_root_only_dynamic.mappings.properties.version
 
 ---
-"columnar: single sub-object with dynamic false is serialized under prefix_properties":
+"columnar: dynamic false is rejected on a sub-object and as a prefix_properties dynamic value":
+  - requires:
+      cluster_features: ["mapper.columnar_rejects_dynamic_false"]
+      reason: "strict columnar modes reject dynamic:false from this version on"
   - do:
+      catch: bad_request
       indices.create:
-        index: test_columnar_single_prefix
+        index: test_columnar_dynamic_false_rejected
         body:
           settings:
             index.mode: columnar
           mappings:
-            dynamic: "true"
             properties:
               attributes:
                 dynamic: "false"
                 properties:
                   host:
                     type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/dynamic.\\[false\\].is.not.supported.in.strict.columnar.mode/" }
 
   - do:
-      indices.get_mapping:
-        index: test_columnar_single_prefix
-  - match: { test_columnar_single_prefix.mappings.dynamic: "true" }
-  - match: { test_columnar_single_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
-  - is_true: test_columnar_single_prefix.mappings.properties.attributes\.host
-
-  # Unknown field under dynamic:false prefix is silently dropped; known field is indexed
-  - do:
-      index:
-        index: test_columnar_single_prefix
-        refresh: true
+      catch: bad_request
+      indices.create:
+        index: test_columnar_dynamic_false_rejected
         body:
-          attributes:
-            host: "es-node-1"
-            region: "us-east"
-
-  - do:
-      search:
-        index: test_columnar_single_prefix
-        body:
-          query:
-            term:
-              attributes.host: "es-node-1"
-  - match: { hits.total.value: 1 }
-
-  - do:
-      indices.get_mapping:
-        index: test_columnar_single_prefix
-  - is_false: test_columnar_single_prefix.mappings.properties.attributes\.region
+          settings:
+            index.mode: columnar
+          mappings:
+            prefix_properties:
+              attributes:
+                dynamic: "false"
+            properties:
+              attributes.host:
+                type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/\\[prefix_properties\\.attributes\\.dynamic\\].does.not.support.\\[false\\]/" }
 
 ---
-"columnar: multiple sub-objects with all three supported dynamic values":
+"columnar: multiple sub-objects with dynamic strict and true":
   - do:
       indices.create:
         index: test_columnar_multi_prefix
@@ -105,11 +96,6 @@ setup:
           mappings:
             dynamic: "true"
             properties:
-              attributes:
-                dynamic: "false"
-                properties:
-                  host:
-                    type: keyword
               resource:
                 dynamic: "strict"
                 properties:
@@ -125,19 +111,15 @@ setup:
       indices.get_mapping:
         index: test_columnar_multi_prefix
   - match: { test_columnar_multi_prefix.mappings.dynamic: "true" }
-  - match: { test_columnar_multi_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
   - match: { test_columnar_multi_prefix.mappings.prefix_properties.resource.dynamic: "strict" }
   - match: { test_columnar_multi_prefix.mappings.prefix_properties.metrics.dynamic: "true" }
 
-  # dynamic:false drops unknown; dynamic:true auto-maps unknown; known fields always indexed
+  # dynamic:true auto-maps unknown; known fields always indexed
   - do:
       index:
         index: test_columnar_multi_prefix
         refresh: true
         body:
-          attributes:
-            host: "es-node-1"
-            region: "us-east"
           resource:
             service: "my-service"
           metrics:
@@ -160,7 +142,6 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_multi_prefix
-  - is_false: test_columnar_multi_prefix.mappings.properties.attributes\.region
   - is_true: test_columnar_multi_prefix.mappings.properties.metrics\.memory
 
   # dynamic:strict rejects an unknown field under the resource prefix
@@ -286,7 +267,7 @@ setup:
             dynamic: "true"
             properties:
               attributes:
-                dynamic: "false"
+                dynamic: "true"
                 properties:
                   host:
                     type: keyword
@@ -305,34 +286,8 @@ setup:
   - do:
       indices.get_mapping:
         index: test_columnar_merge_prefix
-  - match: { test_columnar_merge_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
+  - match: { test_columnar_merge_prefix.mappings.prefix_properties.attributes.dynamic: "true" }
   - match: { test_columnar_merge_prefix.mappings.prefix_properties.resource.dynamic: "strict" }
-
-  # dynamic:false drops unknown under attributes after merge
-  - do:
-      index:
-        index: test_columnar_merge_prefix
-        refresh: true
-        body:
-          attributes:
-            host: "es-node-1"
-            region: "us-east"
-          resource:
-            service: "my-service"
-
-  - do:
-      search:
-        index: test_columnar_merge_prefix
-        body:
-          query:
-            term:
-              attributes.host: "es-node-1"
-  - match: { hits.total.value: 1 }
-
-  - do:
-      indices.get_mapping:
-        index: test_columnar_merge_prefix
-  - is_false: test_columnar_merge_prefix.mappings.properties.attributes\.region
 
   # dynamic:strict rejects unknown under resource after merge
   - do:
@@ -387,60 +342,29 @@ setup:
   - is_true: test_logsdb_columnar_root_only_dynamic.mappings.properties.version
 
 ---
-"logsdb_columnar: single sub-object with dynamic false is serialized under prefix_properties":
+"logsdb_columnar: dynamic false is rejected on a sub-object":
+  - requires:
+      cluster_features: ["mapper.columnar_rejects_dynamic_false"]
+      reason: "strict columnar modes reject dynamic:false from this version on"
   - do:
+      catch: bad_request
       indices.create:
-        index: test_logsdb_columnar_single_prefix
+        index: test_logsdb_columnar_dynamic_false_rejected
         body:
           settings:
             index.mode: logsdb_columnar
           mappings:
-            dynamic: "true"
             properties:
               attributes:
                 dynamic: "false"
                 properties:
                   host:
                     type: keyword
-
-  - do:
-      indices.get_mapping:
-        index: test_logsdb_columnar_single_prefix
-  - match: { test_logsdb_columnar_single_prefix.mappings.dynamic: "true" }
-  - match: { test_logsdb_columnar_single_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
-
-  # Unknown field under dynamic:false prefix is silently dropped; known field is indexed
-  - do:
-      index:
-        index: test_logsdb_columnar_single_prefix
-        refresh: true
-        body:
-          "@timestamp": "2024-01-01T00:00:00Z"
-          attributes:
-            host: "es-node-1"
-            region: "us-east"
-
-  - do:
-      search:
-        index: test_logsdb_columnar_single_prefix
-        body:
-          query:
-            term:
-              attributes.host: "es-node-1"
-  - match: { hits.total.value: 1 }
-
-  - do:
-      cluster.health:
-        wait_for_events: languid
-
-  - do:
-      indices.get_mapping:
-        index: test_logsdb_columnar_single_prefix
-  - is_true: test_logsdb_columnar_single_prefix.mappings.properties.@timestamp
-  - is_false: test_logsdb_columnar_single_prefix.mappings.properties.attributes\.region
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "/dynamic.\\[false\\].is.not.supported.in.strict.columnar.mode/" }
 
 ---
-"logsdb_columnar: multiple sub-objects with all three supported dynamic values":
+"logsdb_columnar: multiple sub-objects with dynamic strict and true":
   - do:
       indices.create:
         index: test_logsdb_columnar_multi_prefix
@@ -450,11 +374,6 @@ setup:
           mappings:
             dynamic: "true"
             properties:
-              attributes:
-                dynamic: "false"
-                properties:
-                  host:
-                    type: keyword
               resource:
                 dynamic: "strict"
                 properties:
@@ -470,20 +389,16 @@ setup:
       indices.get_mapping:
         index: test_logsdb_columnar_multi_prefix
   - match: { test_logsdb_columnar_multi_prefix.mappings.dynamic: "true" }
-  - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.attributes.dynamic: "false" }
   - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.resource.dynamic: "strict" }
   - match: { test_logsdb_columnar_multi_prefix.mappings.prefix_properties.metrics.dynamic: "true" }
 
-  # dynamic:false drops unknown; dynamic:true auto-maps unknown; known fields always indexed
+  # dynamic:true auto-maps unknown; known fields always indexed
   - do:
       index:
         index: test_logsdb_columnar_multi_prefix
         refresh: true
         body:
           "@timestamp": "2024-01-01T00:00:00Z"
-          attributes:
-            host: "es-node-1"
-            region: "us-east"
           resource:
             service: "my-service"
           metrics:
@@ -507,7 +422,6 @@ setup:
       indices.get_mapping:
         index: test_logsdb_columnar_multi_prefix
   - is_true: test_logsdb_columnar_multi_prefix.mappings.properties.@timestamp
-  - is_false: test_logsdb_columnar_multi_prefix.mappings.properties.attributes\.region
   - is_true: test_logsdb_columnar_multi_prefix.mappings.properties.metrics\.memory
 
   # dynamic:strict rejects an unknown field under the resource prefix
@@ -534,13 +448,9 @@ setup:
           mappings:
             dynamic: "true"
             prefix_properties:
-              attributes:
-                dynamic: "false"
               resource:
                 dynamic: "strict"
             properties:
-              attributes.host:
-                type: keyword
               resource.service:
                 type: keyword
 
@@ -548,34 +458,7 @@ setup:
       indices.get_mapping:
         index: test_columnar_prefix_props_input
   - match: { test_columnar_prefix_props_input.mappings.dynamic: "true" }
-  - match: { test_columnar_prefix_props_input.mappings.prefix_properties.attributes.dynamic: "false" }
   - match: { test_columnar_prefix_props_input.mappings.prefix_properties.resource.dynamic: "strict" }
-
-  # dynamic:false drops unknown under attributes
-  - do:
-      index:
-        index: test_columnar_prefix_props_input
-        refresh: true
-        body:
-          attributes:
-            host: "es-node-1"
-            region: "us-east"
-          resource:
-            service: "my-service"
-
-  - do:
-      search:
-        index: test_columnar_prefix_props_input
-        body:
-          query:
-            term:
-              attributes.host: "es-node-1"
-  - match: { hits.total.value: 1 }
-
-  - do:
-      indices.get_mapping:
-        index: test_columnar_prefix_props_input
-  - is_false: test_columnar_prefix_props_input.mappings.properties.attributes\.region
 
   # dynamic:strict rejects unknown under resource
   - do:

@@ -22,10 +22,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -55,6 +58,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class DocumentParserTests extends MapperServiceTestCase {
+
+    /** The last index version whose strict columnar indices accept {@code dynamic: false}. */
+    private static final IndexVersion BEFORE_COLUMNAR_REJECTS_DYNAMIC_FALSE = IndexVersionUtils.getPreviousVersion(
+        IndexVersions.COLUMNAR_REJECTS_DYNAMIC_FALSE
+    );
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -976,10 +984,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertEquals(0, doc.rootDoc().getFields("bar").size());
     }
 
-    // In columnar mode, unmapped fields with dynamic:false must be dropped entirely rather than
-    // stored in _ignored_source (documented data loss, not a bug).
+    // In columnar indices created before dynamic:false was rejected, unmapped fields with dynamic:false must be dropped entirely
+    // rather than stored in _ignored_source (documented data loss, not a bug).
     public void testColumnarDynamicFalseValueDropped() throws Exception {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            BEFORE_COLUMNAR_REJECTS_DYNAMIC_FALSE,
+            topMapping(b -> b.field("dynamic", "false"))
+        );
         ParsedDocument doc = mapper.parse(source(b -> b.field("unmapped_field", "some_value")));
         assertEquals(0, doc.rootDoc().getFields("unmapped_field").size());
         assertNull(
@@ -989,7 +1000,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarDynamicFalseObjectDropped() throws Exception {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            BEFORE_COLUMNAR_REJECTS_DYNAMIC_FALSE,
+            topMapping(b -> b.field("dynamic", "false"))
+        );
         ParsedDocument doc = mapper.parse(source(b -> b.startObject("unmapped_obj").field("key", "value").endObject()));
         assertEquals(0, doc.rootDoc().getFields("unmapped_obj.key").size());
         assertNull(
@@ -999,7 +1013,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testColumnarDynamicFalseArrayDropped() throws Exception {
-        DocumentMapper mapper = createColumnarModeDocumentMapper(topMapping(b -> b.field("dynamic", "false")));
+        DocumentMapper mapper = createColumnarModeDocumentMapper(
+            BEFORE_COLUMNAR_REJECTS_DYNAMIC_FALSE,
+            topMapping(b -> b.field("dynamic", "false"))
+        );
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("unmapped_arr").value(1).value(2).endArray()));
         assertEquals(0, doc.rootDoc().getFields("unmapped_arr").size());
         assertNull(
@@ -1018,7 +1035,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         String leafType
     ) throws Exception {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-        return createMapperService(settings, mapping(b -> {
+        // dynamic: false is only accepted on indices created before it was rejected
+        IndexVersion version = prefixDynamic.equals("false") ? BEFORE_COLUMNAR_REJECTS_DYNAMIC_FALSE : IndexVersion.current();
+        return createMapperService(version, settings, mapping(b -> {
             // LOGSDB_COLUMNAR is a data-stream mode that requires @timestamp to be mapped.
             b.startObject("@timestamp").field("type", "date").endObject();
             b.startObject(prefix);
@@ -1117,7 +1136,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             // foo dynamic=false, foo.bar dynamic=true — longer prefix wins
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            DocumentMapper mapper = createMapperService(BEFORE_COLUMNAR_REJECTS_DYNAMIC_FALSE, settings, mapping(b -> {
                 // LOGSDB_COLUMNAR is a data-stream mode that requires @timestamp to be mapped.
                 b.startObject("@timestamp").field("type", "date").endObject();
                 b.startObject("foo");
@@ -3174,9 +3193,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
      */
     public void testSubobjectsFalseArrayOfObjectsUnderMappedPrefixNonDynamic() throws Exception {
         String dynamic = randomFrom("false", "strict");
+        IndexVersion version = dynamic.equals("false") ? BEFORE_COLUMNAR_REJECTS_DYNAMIC_FALSE : IndexVersion.current();
         for (IndexMode indexMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            DocumentMapper mapper = createMapperService(settings, topMapping(b -> {
+            DocumentMapper mapper = createMapperService(version, settings, topMapping(b -> {
                 b.field("dynamic", dynamic);
                 if (indexMode == IndexMode.STANDARD) {
                     b.field("subobjects", false);

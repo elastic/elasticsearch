@@ -17,6 +17,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractShardBatchMapperResolveTestCase;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ColumnGroupResolver;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -51,6 +53,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolveTestCase {
+
+    /** A strict columnar index created before {@code dynamic: false} was rejected there, for the batch path's handling of such indices. */
+    private MapperService columnarMapperServiceAcceptingDynamicFalse(Settings extra, XContentBuilder mapping) throws IOException {
+        return createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_DYNAMIC_FALSE),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).put(extra).build(),
+            mapping
+        );
+    }
 
     /** A mapping whose root sets {@code dynamic: flattened}, so unmapped leaves are absorbed by the {@code _unmapped} sink. */
     private static XContentBuilder dynamicFlattened(CheckedConsumer<XContentBuilder, IOException> properties) throws IOException {
@@ -161,7 +172,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     @TestLogging(reason = "asserts the fallback reason", value = "org.elasticsearch.index.mapper.ShardBatchMapper:DEBUG")
     public void testUnmappedLeafUnderDynamicFalseFallsBack() throws IOException {
         final String value = Long.toString(randomLong());
-        final MapperService rootFalse = columnarMapperService(topMapping(b -> {
+        final MapperService rootFalse = columnarMapperServiceAcceptingDynamicFalse(Settings.EMPTY, topMapping(b -> {
             b.field("dynamic", "false");
             b.startObject("properties");
             b.startObject("obj").startObject("properties");
@@ -198,7 +209,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
         );
 
         // dynamic: false on the object only, with the root left at its default.
-        final MapperService objectFalse = columnarMapperService(mapping(b -> {
+        final MapperService objectFalse = columnarMapperServiceAcceptingDynamicFalse(Settings.EMPTY, mapping(b -> {
             b.startObject("obj").field("dynamic", "false");
             b.startObject("properties").startObject("field").field("type", "long").endObject().endObject();
             b.endObject();
@@ -228,7 +239,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     @TestLogging(reason = "asserts the fallback reason", value = "org.elasticsearch.index.mapper.ShardBatchMapper:DEBUG")
     public void testUnmappedLeafUnderEnabledFalseFallsBack() throws IOException {
         final boolean rootFalse = randomBoolean();
-        final MapperService ms = columnarMapperService(topMapping(b -> {
+        final XContentBuilder mapping = topMapping(b -> {
             if (rootFalse) {
                 b.field("dynamic", "false");
             }
@@ -236,7 +247,10 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
             b.startObject("known").field("type", "keyword").endObject();
             b.startObject("off").field("type", "object").field("enabled", false).endObject();
             b.endObject();
-        }));
+        });
+        final MapperService ms = rootFalse
+            ? columnarMapperServiceAcceptingDynamicFalse(Settings.EMPTY, mapping)
+            : columnarMapperService(mapping);
         final String value = randomAlphanumericOfLength(5);
         for (String json : List.of(
             "{\"known\":\"" + value + "\",\"off\":{\"x\":\"" + value + "\",\"y\":{\"z\":\"" + value + "\"}}}",
@@ -574,7 +588,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     public void testNestedLeafUnderNestedDynamicFalseFallsBack() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> {
+        MapperService ms = columnarMapperServiceAcceptingDynamicFalse(Settings.EMPTY, mapping(b -> {
             b.startObject("outer");
             b.field("dynamic", "false");
             b.startObject("properties");
@@ -982,7 +996,7 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     /** The sink exists on every new strict columnar index, but a root {@code dynamic: false} falls back rather than absorbing the leaf. */
     public void testRootDynamicFalseDoesNotAbsorb() throws IOException {
         assumeUnmappedSinkAvailable();
-        MapperService ms = columnarMapperService(topMapping(b -> {
+        MapperService ms = columnarMapperServiceAcceptingDynamicFalse(Settings.EMPTY, topMapping(b -> {
             b.field("dynamic", "false");
             b.startObject("properties");
             b.startObject("host").field("type", "keyword").endObject();
@@ -1019,23 +1033,26 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     @TestLogging(reason = "asserts the fallback reason", value = "org.elasticsearch.index.mapper.ShardBatchMapper:DEBUG")
     public void testUnmappedObjectMatchingDynamicTemplateFallsBack() throws IOException {
         for (boolean disabledObject : new boolean[] { true, false }) {
-            final MapperService ms = columnarMapperService(
-                Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName()).build(),
-                topMapping(b -> {
-                    if (disabledObject == false) {
-                        b.field("dynamic", "false");
-                    }
-                    b.startArray("dynamic_templates").startObject().startObject("objects_under_off_as_flattened");
-                    b.field("path_match", "off.*").field("match_mapping_type", "object");
-                    b.startObject("mapping").field("type", "flattened").endObject();
-                    b.endObject().endObject().endArray();
-                    b.startObject("properties");
-                    if (disabledObject) {
-                        b.startObject("off").field("type", "object").field("enabled", false).endObject();
-                    }
-                    b.endObject();
-                })
-            );
+            final Settings logsdbColumnar = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+                .build();
+            final XContentBuilder mapping = topMapping(b -> {
+                if (disabledObject == false) {
+                    b.field("dynamic", "false");
+                }
+                b.startArray("dynamic_templates").startObject().startObject("objects_under_off_as_flattened");
+                b.field("path_match", "off.*").field("match_mapping_type", "object");
+                b.startObject("mapping").field("type", "flattened").endObject();
+                b.endObject().endObject().endArray();
+                b.startObject("properties");
+                if (disabledObject) {
+                    b.startObject("off").field("type", "object").field("enabled", false).endObject();
+                }
+                b.endObject();
+            });
+            final MapperService ms = disabledObject
+                ? columnarMapperService(logsdbColumnar, mapping)
+                : columnarMapperServiceAcceptingDynamicFalse(logsdbColumnar, mapping);
             assertTrue(ms.getIndexSettings().getMode().isStrictColumnar());
             final String object = randomAlphaOfLength(5);
             final String json = "{\"@timestamp\":"

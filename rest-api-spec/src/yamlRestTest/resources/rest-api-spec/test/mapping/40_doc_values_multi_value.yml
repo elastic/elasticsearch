@@ -369,7 +369,7 @@
             index:
               mode: columnar
           mappings:
-            dynamic: false
+            dynamic: strict
             properties:
               kw:
                 type: keyword

@@ -19,9 +19,11 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -1180,6 +1182,231 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             assertEquals(expectedMax, stats.max(d));
         } finally {
             IOUtils.close(pointsReader, skipperReader, pointsService, skipperService, pointsDir, skipperDir);
+        }
+    }
+
+    /** The types the exact bounds support, with the range their values come from. */
+    private record ExactType(String name, long lowest, long highest, boolean intPoints) {}
+
+    private static final List<ExactType> EXACT_TYPES = List.of(
+        new ExactType("date", -10_000_000_000L, 10_000_000_000L, false),
+        new ExactType("date_nanos", 0L, 10_000_000_000L, false),
+        new ExactType("long", Long.MIN_VALUE, Long.MAX_VALUE, false),
+        new ExactType("integer", Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+        new ExactType("short", Short.MIN_VALUE, Short.MAX_VALUE, true),
+        new ExactType("byte", Byte.MIN_VALUE, Byte.MAX_VALUE, true)
+    );
+
+    private static final Settings SKIPPER_SETTINGS = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+
+    private static final FieldAttribute.FieldName F = new FieldAttribute.FieldName("f");
+
+    /** Documents of values, each document holding one or more of them. */
+    private static List<List<Long>> randomDocuments(ExactType type) {
+        List<List<Long>> docs = new ArrayList<>();
+        for (int i = randomIntBetween(1, 30); i > 0; i--) {
+            List<Long> values = new ArrayList<>();
+            for (int v = randomIntBetween(1, 3); v > 0; v--) {
+                values.add(randomLongBetween(type.lowest, type.highest));
+            }
+            docs.add(values);
+        }
+        return docs;
+    }
+
+    private static List<IndexableField> pointsDocument(ExactType type, List<Long> values) {
+        List<IndexableField> fields = new ArrayList<>();
+        for (long value : values) {
+            fields.add(type.intPoints ? new IntField("f", (int) value, Field.Store.NO) : new LongField("f", value, Field.Store.NO));
+        }
+        return fields;
+    }
+
+    private static List<IndexableField> skipperDocument(List<Long> values) {
+        List<IndexableField> fields = new ArrayList<>();
+        for (long value : values) {
+            fields.add(SortedNumericDocValuesField.indexedField("f", value));
+        }
+        return fields;
+    }
+
+    private static long min(List<List<Long>> docs) {
+        return docs.stream().flatMap(List::stream).mapToLong(Long::longValue).min().getAsLong();
+    }
+
+    private static long max(List<List<Long>> docs) {
+        return docs.stream().flatMap(List::stream).mapToLong(Long::longValue).max().getAsLong();
+    }
+
+    /** A shard holding the documents, in as many segments as the random writer makes of them. */
+    private record Shard(MapperService mapperService, Directory dir, DirectoryReader reader) implements Closeable {
+        SearchExecutionContext context(MapperServiceTestCase helper) throws IOException {
+            return helper.createSearchExecutionContext(mapperService, newSearcher(reader));
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    private Shard shard(Settings settings, String mapping, List<List<IndexableField>> docs, boolean deleteFirst) throws IOException {
+        MapperService mapperService = createMapperService(settings, mapping);
+        Directory dir = newDirectory();
+        DirectoryReader reader;
+        // no merge, so that a deleted document stays a deletion of its segment
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            for (int i = 0; i < docs.size(); i++) {
+                List<IndexableField> withId = new ArrayList<>(docs.get(i));
+                withId.add(new StringField("_id_for_delete", "x" + i, Field.Store.NO));
+                writer.addDocument(withId);
+            }
+            if (deleteFirst) {
+                writer.deleteDocuments(new Term("_id_for_delete", "x0"));
+            }
+            reader = writer.getReader();
+        }
+        return new Shard(mapperService, dir, reader);
+    }
+
+    private static String mapping(String type, boolean index) {
+        return "{ \"doc\": { \"properties\": { \"f\": { \"type\": \"" + type + "\", \"index\": " + index + " } } } }";
+    }
+
+    public void testExactMinMaxFromPoints() throws IOException {
+        for (ExactType type : EXACT_TYPES) {
+            List<List<Long>> docs = randomDocuments(type);
+            try (
+                Shard shard = shard(
+                    Settings.EMPTY,
+                    mapping(type.name, true),
+                    docs.stream().map(d -> pointsDocument(type, d)).toList(),
+                    false
+                )
+            ) {
+                SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
+                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs)), stats.exactMinMax(F));
+            }
+        }
+    }
+
+    public void testExactMinMaxFromSkipper() throws IOException {
+        for (ExactType type : EXACT_TYPES) {
+            List<List<Long>> docs = randomDocuments(type);
+            try (
+                Shard shard = shard(SKIPPER_SETTINGS, mapping(type.name, false), docs.stream().map(d -> skipperDocument(d)).toList(), false)
+            ) {
+                assertNotNull(shard.reader.leaves().get(0).reader().getDocValuesSkipper("f"));
+                SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
+                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs)), stats.exactMinMax(F));
+            }
+        }
+    }
+
+    public void testExactMinMaxOfFieldWithoutValues() throws IOException {
+        List<List<IndexableField>> docs = List.of(List.of(), List.of());
+        try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, false)) {
+            SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
+            assertEquals(SearchStats.ExactMinMax.NO_VALUES, stats.exactMinMax(F));
+        }
+    }
+
+    public void testNoExactMinMaxWithDeletions() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<IndexableField>> docs = List.of(
+            pointsDocument(type, List.of(1L)),
+            pointsDocument(type, List.of(2L)),
+            pointsDocument(type, List.of(3L))
+        );
+        try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, true)) {
+            assertTrue(shard.reader.leaves().stream().anyMatch(leaf -> leaf.reader().hasDeletions()));
+            assertNull(SearchContextStats.from(List.of(shard.context(this))).exactMinMax(F));
+        }
+    }
+
+    public void testNoExactMinMaxWithoutPointsOrSkipper() throws IOException {
+        List<List<IndexableField>> docs = List.of(List.of(new SortedNumericDocValuesField("f", 1L)));
+        try (Shard shard = shard(Settings.EMPTY, mapping("long", false), docs, false)) {
+            assertNull(SearchContextStats.from(List.of(shard.context(this))).exactMinMax(F));
+        }
+    }
+
+    public void testNoExactMinMaxOfFloatingPoint() throws IOException {
+        for (String type : List.of("double", "float", "half_float")) {
+            List<List<IndexableField>> docs = List.of(List.of(new DoubleField("f", 1.5, Field.Store.NO)));
+            try (Shard shard = shard(Settings.EMPTY, mapping(type, true), docs, false)) {
+                assertNull(type, SearchContextStats.from(List.of(shard.context(this))).exactMinMax(F));
+            }
+        }
+    }
+
+    public void testNoExactMinMaxWithShardFilters() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<IndexableField>> docs = List.of(pointsDocument(type, List.of(1L)));
+        try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, false)) {
+            assertNotNull(SearchContextStats.from(List.of(shard.context(this)), false).exactMinMax(F));
+            assertNull(SearchContextStats.from(List.of(shard.context(this)), true).exactMinMax(F));
+        }
+    }
+
+    public void testExactMinMaxAcrossShards() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<Long>> first = randomDocuments(type);
+        List<List<Long>> second = randomDocuments(type);
+        List<List<Long>> all = new ArrayList<>(first);
+        all.addAll(second);
+        // the first shard has points, the second a skipper, and a third shard does not map the field
+        try (
+            Shard pointsShard = shard(
+                Settings.EMPTY,
+                mapping("long", true),
+                first.stream().map(d -> pointsDocument(type, d)).toList(),
+                false
+            );
+            Shard skipperShard = shard(
+                SKIPPER_SETTINGS,
+                mapping("long", false),
+                second.stream().map(d -> skipperDocument(d)).toList(),
+                false
+            );
+            Shard otherShard = shard(
+                Settings.EMPTY,
+                "{ \"doc\": { \"properties\": { \"other\": { \"type\": \"long\" } } } }",
+                List.of(),
+                false
+            )
+        ) {
+            SearchStats stats = SearchContextStats.from(
+                List.of(pointsShard.context(this), skipperShard.context(this), otherShard.context(this))
+            );
+            assertEquals(new SearchStats.ExactMinMax(true, min(all), max(all)), stats.exactMinMax(F));
+        }
+    }
+
+    /** One shard that cannot tell makes the whole answer unavailable, whichever shard comes first. */
+    public void testNoExactMinMaxWhenOneShardHasNoMetadata() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<IndexableField>> docs = List.of(pointsDocument(type, List.of(1L)));
+        List<List<IndexableField>> docValuesOnly = List.of(List.of(new SortedNumericDocValuesField("f", 5L)));
+        try (
+            Shard withMetadata = shard(Settings.EMPTY, mapping("long", true), docs, false);
+            Shard withoutMetadata = shard(Settings.EMPTY, mapping("long", false), docValuesOnly, false)
+        ) {
+            assertNull(SearchContextStats.from(List.of(withMetadata.context(this), withoutMetadata.context(this))).exactMinMax(F));
+            assertNull(SearchContextStats.from(List.of(withoutMetadata.context(this), withMetadata.context(this))).exactMinMax(F));
+        }
+    }
+
+    public void testNoExactMinMaxWhenShardsMapDifferentTypes() throws IOException {
+        List<List<IndexableField>> longDocs = List.of(pointsDocument(EXACT_TYPES.get(2), List.of(1L)));
+        List<List<IndexableField>> intDocs = List.of(pointsDocument(EXACT_TYPES.get(3), List.of(2L)));
+        try (
+            Shard longShard = shard(Settings.EMPTY, mapping("long", true), longDocs, false);
+            Shard intShard = shard(Settings.EMPTY, mapping("integer", true), intDocs, false)
+        ) {
+            assertNull(SearchContextStats.from(List.of(longShard.context(this), intShard.context(this))).exactMinMax(F));
         }
     }
 

@@ -2213,8 +2213,14 @@ public class ComputeService {
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
                 // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
                 List<SearchExecutionContext> localContexts = new ArrayList<>();
-                shardContexts.iterable()
-                    .forEach(shardContext -> localContexts.add(((DefaultShardContext) shardContext).executionContext()));
+                // A shard filter, such as an index alias filter, is applied to the queries but not to the segments the stats read
+                boolean shardFilters = false;
+                for (var shardContext : shardContexts.iterable()) {
+                    var defaultShardContext = (DefaultShardContext) shardContext;
+                    localContexts.add(defaultShardContext.executionContext());
+                    shardFilters |= defaultShardContext.hasAliasFilter();
+                }
+                SearchStats localStats = SearchContextStats.from(localContexts, shardFilters);
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,
@@ -2222,7 +2228,7 @@ public class ComputeService {
                         context.configuration(),
                         context.foldCtx(),
                         plan,
-                        SearchContextStats.from(localContexts),
+                        localStats,
                         formatReaderRegistry,
                         coordinatorExternalSplits,
                         planTimeProfile,
@@ -2235,10 +2241,10 @@ public class ComputeService {
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
                         plannerSettings,
                         context.flags(),
-                        localContexts,
                         context.configuration(),
                         context.foldCtx(),
                         plan,
+                        localStats,
                         planTimeProfile
                     );
                     localPlan = localPlanResult.physicalPlan();

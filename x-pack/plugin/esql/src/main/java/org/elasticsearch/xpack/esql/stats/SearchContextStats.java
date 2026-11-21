@@ -64,6 +64,12 @@ public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
 
+    /**
+     * Whether a shard applies a filter to its queries that the segments of {@link #contexts} do not reflect, such as an index alias
+     * filter. Statistics read from the segments then describe more documents than a query sees.
+     */
+    private final boolean shardFilters;
+
     /** Computed on first use: it inspects the segments of every shard. */
     private Boolean mayHoldUnmappedFields;
 
@@ -76,6 +82,8 @@ public class SearchContextStats implements SearchStats {
     private static class FieldStats {
         private Long count;
         private Object min, max;
+        private ExactMinMax exactMinMax;
+        private boolean exactMinMaxComputed;
         private Boolean singleValue;
         private FieldConfig config;
     }
@@ -91,14 +99,23 @@ public class SearchContextStats implements SearchStats {
     };
 
     public static SearchStats from(List<SearchExecutionContext> contexts) {
+        return from(contexts, false);
+    }
+
+    /**
+     * @param shardFilters whether a shard applies a filter to its queries, such as an index alias filter, that the segments do not
+     *                     reflect. Statistics that would otherwise describe documents the filter hides are then not reported as exact.
+     */
+    public static SearchStats from(List<SearchExecutionContext> contexts, boolean shardFilters) {
         if (contexts == null || contexts.isEmpty()) {
             return SearchStats.EMPTY;
         }
-        return new SearchContextStats(contexts);
+        return new SearchContextStats(contexts, shardFilters);
     }
 
-    private SearchContextStats(List<SearchExecutionContext> contexts) {
+    private SearchContextStats(List<SearchExecutionContext> contexts, boolean shardFilters) {
         this.contexts = contexts;
+        this.shardFilters = shardFilters;
         assert contexts != null && contexts.isEmpty() == false;
     }
 
@@ -406,6 +423,122 @@ public class SearchContextStats implements SearchStats {
             stat.max = result[0];
         }
         return stat.max;
+    }
+
+    @Override
+    public ExactMinMax exactMinMax(FieldName field) {
+        if (shardFilters) {
+            return null;
+        }
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
+        if (stat.exactMinMaxComputed == false) {
+            stat.exactMinMax = computeExactMinMax(field);
+            stat.exactMinMaxComputed = true;
+        }
+        return stat.exactMinMax;
+    }
+
+    private ExactMinMax computeExactMinMax(FieldName field) {
+        final String name = field.string();
+        if (mayHoldUnmappedField(field)) {
+            // a scan would read the field from the source of a shard that does not map it
+            return null;
+        }
+        String typeName = null;
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        try {
+            for (SearchExecutionContext context : contexts) {
+                if (isExtractableMappedField(context, name) == false) {
+                    // reads as null in this shard, as it does in a scan
+                    continue;
+                }
+                MappedFieldType type = context.getFieldType(name);
+                if (isExactMinMaxType(type) == false || type.hasDocValues() == false) {
+                    return null;
+                }
+                var indexType = type.indexType();
+                if (indexType.hasDocValuesSkipper() == false && indexType.hasPoints() == false) {
+                    return null;
+                }
+                if (typeName == null) {
+                    typeName = type.typeName();
+                } else if (typeName.equals(type.typeName()) == false) {
+                    // the shards disagree on how to read the field
+                    return null;
+                }
+                for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                    LeafReader reader = leafContext.reader();
+                    if (reader.hasDeletions()) {
+                        return null;
+                    }
+                    long[] leafBounds = leafBounds(indexType.hasDocValuesSkipper(), reader, name);
+                    if (leafBounds == null) {
+                        return null;
+                    }
+                    if (leafBounds.length > 0) {
+                        min = Math.min(min, leafBounds[0]);
+                        max = Math.max(max, leafBounds[1]);
+                    }
+                }
+            }
+        } catch (IOException ex) {
+            throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
+        }
+        return min > max ? ExactMinMax.NO_VALUES : new ExactMinMax(true, min, max);
+    }
+
+    /**
+     * The types whose segment metadata is the sortable form of a {@code long}, which is the value itself.
+     * The floating point types encode theirs differently and are not supported.
+     */
+    private static boolean isExactMinMaxType(MappedFieldType type) {
+        if (type instanceof DateFieldType) {
+            return true;
+        }
+        if (type instanceof NumberFieldType numberType) {
+            return switch (numberType.numberType()) {
+                case LONG, INTEGER, SHORT, BYTE -> true;
+                case HALF_FLOAT, FLOAT, DOUBLE -> false;
+            };
+        }
+        return false;
+    }
+
+    /**
+     * The smallest and largest value of the field in the segment, an empty array if no document of it holds a value, or
+     * {@code null} if the metadata of the segment cannot tell.
+     */
+    private static long[] leafBounds(boolean skipper, LeafReader reader, String name) throws IOException {
+        final long[] noValues = new long[0];
+        if (skipper) {
+            DocValuesSkipper docValuesSkipper = reader.getDocValuesSkipper(name);
+            if (docValuesSkipper == null) {
+                return reader.getFieldInfos().fieldInfo(name) == null ? noValues : null;
+            }
+            return docValuesSkipper.docCount() == 0 ? noValues : new long[] { docValuesSkipper.minValue(), docValuesSkipper.maxValue() };
+        }
+        PointValues points = reader.getPointValues(name);
+        if (points == null) {
+            return reader.getFieldInfos().fieldInfo(name) == null ? noValues : null;
+        }
+        if (points.getNumDimensions() != 1) {
+            return null;
+        }
+        if (points.size() == 0) {
+            return noValues;
+        }
+        byte[] minPacked = points.getMinPackedValue();
+        byte[] maxPacked = points.getMaxPackedValue();
+        return switch (points.getBytesPerDimension()) {
+            case Long.BYTES -> new long[] {
+                NumericUtils.sortableBytesToLong(minPacked, 0),
+                NumericUtils.sortableBytesToLong(maxPacked, 0) };
+            case Integer.BYTES -> new long[] {
+                NumericUtils.sortableBytesToInt(minPacked, 0),
+                NumericUtils.sortableBytesToInt(maxPacked, 0) };
+            default -> null;
+        };
     }
 
     private static Long nullableMin(final Long a, final Long b) {

@@ -15,6 +15,9 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
@@ -3853,6 +3856,102 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     private boolean isMultiTypeEsField(Expression e) {
         return e instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField;
+    }
+
+    private static SearchStats exactMinMaxStats(SearchStats.ExactMinMax bounds) {
+        return new TestSearchStats() {
+            @Override
+            public SearchStats.ExactMinMax exactMinMax(FieldAttribute.FieldName field) {
+                return bounds;
+            }
+        };
+    }
+
+    private static LocalSourceExec singleLocalSource(PhysicalPlan plan) {
+        List<LocalSourceExec> found = new ArrayList<>();
+        plan.forEachDown(LocalSourceExec.class, found::add);
+        assertThat(found, hasSize(1));
+        return found.get(0);
+    }
+
+    /** MIN and MAX of dates become one row of the segment bounds, and the index is not read at all. */
+    public void testMinMaxAnsweredFromExactStats() {
+        var plan = plannerOptimizer.plan(
+            "from test | stats min(hire_date), max(hire_date)",
+            exactMinMaxStats(new SearchStats.ExactMinMax(true, 100L, 900L))
+        );
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(false));
+        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+        var page = singleLocalSource(plan).supplier().peek();
+        // the intermediate state of each aggregate: the value and whether a value was seen
+        assertThat(page.getBlockCount(), equalTo(4));
+        assertThat(as(page.getBlock(0), LongBlock.class).getLong(0), equalTo(100L));
+        assertThat(as(page.getBlock(1), BooleanBlock.class).getBoolean(0), is(true));
+        assertThat(as(page.getBlock(2), LongBlock.class).getLong(0), equalTo(900L));
+        assertThat(as(page.getBlock(3), BooleanBlock.class).getBoolean(0), is(true));
+    }
+
+    public void testMinMaxOfIntegerAnsweredFromExactStats() {
+        var plan = plannerOptimizer.plan("from test | stats max(salary)", exactMinMaxStats(new SearchStats.ExactMinMax(true, -5L, 77L)));
+        var page = singleLocalSource(plan).supplier().peek();
+        assertThat(as(page.getBlock(0), IntBlock.class).getInt(0), equalTo(77));
+    }
+
+    /** A {@code byte} field is read as an integer. */
+    public void testMinMaxOfByteAnsweredFromExactStats() {
+        var plan = plannerOptimizer.plan("from test | stats min(languages)", exactMinMaxStats(new SearchStats.ExactMinMax(true, 1L, 5L)));
+        assertThat(as(singleLocalSource(plan).supplier().peek().getBlock(0), IntBlock.class).getInt(0), equalTo(1));
+    }
+
+    public void testMinMaxOfFieldWithoutValuesIsNotSeen() {
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date)", exactMinMaxStats(SearchStats.ExactMinMax.NO_VALUES));
+        var page = singleLocalSource(plan).supplier().peek();
+        assertThat(as(page.getBlock(1), BooleanBlock.class).getBoolean(0), is(false));
+    }
+
+    /** With a field that is not indexed there is no filter on the documents that hold a value, so every document is read. */
+    public void testMinMaxAnsweredFromStatsWhenNoNonNullFilterIsInferred() {
+        var stats = new TestSearchStats() {
+            @Override
+            public SearchStats.ExactMinMax exactMinMax(FieldAttribute.FieldName field) {
+                return new SearchStats.ExactMinMax(true, 1L, 2L);
+            }
+
+            @Override
+            public boolean isIndexed(FieldAttribute.FieldName field) {
+                return field.string().equals("salary") == false;
+            }
+        };
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(salary)", stats);
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(false));
+        singleLocalSource(plan);
+    }
+
+    /** Without exact statistics the query reads the index, as it always did. */
+    public void testMinMaxNotAnsweredWithoutExactStats() {
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)");
+        assertThat(plan.anyMatch(LocalSourceExec.class::isInstance), is(false));
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    public void testMinMaxNotAnsweredFromStatsWhenTheQueryNarrowsTheDocuments() {
+        var stats = exactMinMaxStats(new SearchStats.ExactMinMax(true, 1L, 2L));
+        for (String query : List.of(
+            "from test | where salary > 1000 | stats min(hire_date)",
+            "from test | limit 5 | stats min(hire_date)",
+            "from test | stats min(hire_date) by languages",
+            "from test | stats min(hire_date) where salary > 1000",
+            "from test | stats min(hire_date) where salary > emp_no",
+            "from test | stats min(hire_date) where salary > emp_no, max(hire_date)",
+            "from test | sort salary | limit 5 | stats min(hire_date)",
+            "from test | stats min(hire_date), sum(salary)",
+            "from test | stats min(hire_date), count(*)",
+            "from test | stats min(first_name)",
+            "from test | stats min(to_double(salary))"
+        )) {
+            var plan = plannerOptimizer.plan(query, stats);
+            assertThat(query, plan.anyMatch(LocalSourceExec.class::isInstance), is(false));
+        }
     }
 
     private Stat queryStatsFor(PhysicalPlan plan) {

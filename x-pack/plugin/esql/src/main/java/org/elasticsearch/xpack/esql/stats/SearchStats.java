@@ -59,6 +59,40 @@ public interface SearchStats {
 
     Object max(FieldName field);
 
+    /**
+     * The smallest and largest value of {@code field}, as the segment metadata (points or a doc values skipper) reports them,
+     * for the case where that answer is exactly what a scan of the field would give.
+     * <p>
+     * Unlike {@link #min} and {@link #max}, which are estimates good enough to choose between plans, this is exact. It is
+     * therefore {@code null}, meaning "ask the data instead", unless all of the following hold:
+     * <ul>
+     *   <li>the field is a {@code date}, {@code date_nanos}, {@code long}, {@code integer}, {@code short} or {@code byte}, mapped
+     *       as the same type by every shard that maps it, with doc values and with points or a doc values skipper;</li>
+     *   <li>no segment has deleted documents: the metadata still covers a deleted document, and document level security hides
+     *       documents the same way;</li>
+     *   <li>no shard may hold the field outside of its mapping, where a scan would still read it;</li>
+     *   <li>no shard applies a filter to its queries, such as an index alias filter, which the segments do not reflect.</li>
+     * </ul>
+     * Multi-valued fields are fine: the metadata covers every value, as do the minimum and maximum of a multi-valued field.
+     */
+    default ExactMinMax exactMinMax(FieldName field) {
+        return null;
+    }
+
+    /**
+     * The bounds {@link #exactMinMax} reports. Dates are the milliseconds or nanoseconds since the epoch.
+     *
+     * @param hasValues {@code false} when no document holds a value, which makes {@code MIN} and {@code MAX} {@code null}
+     */
+    record ExactMinMax(boolean hasValues, long min, long max) {
+        public static final ExactMinMax NO_VALUES = new ExactMinMax(false, 0L, 0L);
+
+        public ExactMinMax {
+            assert hasValues || (min == 0L && max == 0L) : "bounds of a field without values must be zero";
+            assert min <= max;
+        }
+    }
+
     boolean isSingleValue(FieldName field);
 
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);

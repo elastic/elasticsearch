@@ -17,6 +17,8 @@ DEDUP
 
 A multivalued column is compared as a whole: two values are equal only if they hold the same values in the same order. `[a, b]`, `[b, a]` and `[a, a, b]` are three different values, so `DEDUP` keeps a row for each of them. This differs from [`STATS ... BY`](/reference/query-languages/esql/commands/stats-by.md), which puts a row with a multivalued grouping key into one group for each of its values.
 
+`_source` and spatial shapes (`geo_shape`, `cartesian_shape`) are compared by their stored byte representation. The same logical value encoded differently, such as the same `_source` document with another key order, or the same shape listing its vertices from another starting point, is a different value to `DEDUP`.
+
 After a [`SORT`](/reference/query-languages/esql/commands/sort.md), the rows that `DEDUP` keeps stay in sort order, each at the position of its first occurrence. Without a `SORT`, the order of the output rows is not defined.
 
 `DEDUP` is equivalent to `LIMIT 1 BY <all columns>`.
@@ -53,7 +55,7 @@ Every column in scope is part of the comparison, so `DEDUP` reads every column o
 
 ## Limitations
 
-`DEDUP` cannot be used when any column in scope has one of the following types: `aggregate_metric_double`, counter fields (`counter_long`, `counter_integer`, `counter_double`), `date_range`, `exponential_histogram`, `tdigest`, `date_period`, or `time_duration`. Attempting to do so results in a validation error. Use `KEEP` or `DROP` before `DEDUP` to remove such columns.
+`DEDUP` cannot be used when any column in scope has one of the following types: `aggregate_metric_double`, `date_range`, `exponential_histogram`, `tdigest`, `date_period`, or `time_duration`. Attempting to do so results in a validation error. Use `KEEP` or `DROP` before `DEDUP` to remove such columns. {applies_to}`stack: preview =9.6` Counter fields (`counter_long`, `counter_integer`, `counter_double`) are also rejected.
 
 Columns of an `unsupported` type are ignored when comparing rows, and `DEDUP` does not fail because of them. This includes fields mapped to incompatible types across the indices of a `FROM` (a union type): such a field is returned as `null` until it is converted, so it cannot tell rows apart. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` returns a single row. A later conversion such as `EVAL e = emp_no::long` does not bring the removed rows back. To deduplicate on the value of such a field, convert it first and then `DEDUP`: `EVAL e = emp_no::long | DROP emp_no | DEDUP`.
 

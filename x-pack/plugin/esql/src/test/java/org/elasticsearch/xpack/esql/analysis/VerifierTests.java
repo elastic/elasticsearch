@@ -937,21 +937,27 @@ public class VerifierTests extends AnalyzerTestCase {
             .stripErrorPrefix(true)
             .error(
                 "FROM k8s | LIMIT 1 BY network.eth0.tx",
-                equalTo("1:23: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+                equalTo(
+                    "1:23: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]; "
+                        + "convert it to a groupable type or drop it"
+                )
             );
         analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
             .stripErrorPrefix(true)
             .error(
                 "FROM exp_histo_sample | LIMIT 1 BY responseTime",
-                equalTo("1:36: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+                equalTo(
+                    "1:36: cannot group by on [exponential_histogram] type for grouping [responseTime]; "
+                        + "convert it to a groupable type or drop it"
+                )
             );
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
-            .error("FROM decades | LIMIT 1 BY date_range", equalTo("1:27: cannot group by on [date_range] type for grouping [date_range]"));
-        tsdb().error(
-            "FROM test | LIMIT 1 BY network.bytes_in",
-            equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
-        );
+            .error(
+                "FROM decades | LIMIT 1 BY date_range",
+                equalTo("1:27: cannot group by on [date_range] type for grouping [date_range]; convert it to a groupable type or drop it")
+            );
+        tsdb().query("FROM test | LIMIT 1 BY network.bytes_in");
     }
 
     public void testUnsupportedGroupKeyTypesNotAllowedInStatsBy() {
@@ -959,19 +965,25 @@ public class VerifierTests extends AnalyzerTestCase {
             .stripErrorPrefix(true)
             .error(
                 "FROM k8s | STATS count(*) BY network.eth0.tx",
-                equalTo("1:30: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+                equalTo(
+                    "1:30: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]; "
+                        + "convert it to a groupable type or drop it"
+                )
             );
         analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
             .stripErrorPrefix(true)
             .error(
                 "FROM exp_histo_sample | STATS count(*) BY responseTime",
-                equalTo("1:43: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+                equalTo(
+                    "1:43: cannot group by on [exponential_histogram] type for grouping [responseTime]; "
+                        + "convert it to a groupable type or drop it"
+                )
             );
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
             .error(
                 "FROM decades | STATS count(*) BY date_range",
-                equalTo("1:34: cannot group by on [date_range] type for grouping [date_range]")
+                equalTo("1:34: cannot group by on [date_range] type for grouping [date_range]; convert it to a groupable type or drop it")
             );
         analyzer().addIndex("test", "mapping-all-types.json")
             .stripErrorPrefix(true)
@@ -1471,13 +1483,17 @@ public class VerifierTests extends AnalyzerTestCase {
         for (var unit : TIME_DURATIONS) {
             defaultAnalyzer().error(
                 "ROW x = 1 | STATS COUNT(*) BY 1 " + unit,
-                equalTo("1:31: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+                equalTo(
+                    "1:31: cannot group by on [time_duration] type for grouping [1 " + unit + "]; convert it to a groupable type or drop it"
+                )
             );
         }
         for (var unit : DATE_PERIODS) {
             defaultAnalyzer().error(
                 "ROW x = 1 | STATS COUNT(*) BY 1 " + unit,
-                equalTo("1:31: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+                equalTo(
+                    "1:31: cannot group by on [date_period] type for grouping [1 " + unit + "]; convert it to a groupable type or drop it"
+                )
             );
         }
     }
@@ -1495,13 +1511,17 @@ public class VerifierTests extends AnalyzerTestCase {
         for (var unit : TIME_DURATIONS) {
             defaultAnalyzer().error(
                 "ROW x = 1 | LIMIT 1 BY 1 " + unit,
-                equalTo("1:24: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+                equalTo(
+                    "1:24: cannot group by on [time_duration] type for grouping [1 " + unit + "]; convert it to a groupable type or drop it"
+                )
             );
         }
         for (var unit : DATE_PERIODS) {
             defaultAnalyzer().error(
                 "ROW x = 1 | LIMIT 1 BY 1 " + unit,
-                equalTo("1:24: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+                equalTo(
+                    "1:24: cannot group by on [date_period] type for grouping [1 " + unit + "]; convert it to a groupable type or drop it"
+                )
             );
         }
     }
@@ -1511,13 +1531,17 @@ public class VerifierTests extends AnalyzerTestCase {
         for (var unit : TIME_DURATIONS) {
             defaultAnalyzer().error(
                 "ROW x = 1 | INLINE STATS COUNT(*) BY 1 " + unit,
-                equalTo("1:38: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+                equalTo(
+                    "1:38: cannot group by on [time_duration] type for grouping [1 " + unit + "]; convert it to a groupable type or drop it"
+                )
             );
         }
         for (var unit : DATE_PERIODS) {
             defaultAnalyzer().error(
                 "ROW x = 1 | INLINE STATS COUNT(*) BY 1 " + unit,
-                equalTo("1:38: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+                equalTo(
+                    "1:38: cannot group by on [date_period] type for grouping [1 " + unit + "]; convert it to a groupable type or drop it"
+                )
             );
         }
     }
@@ -1767,15 +1791,8 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     public void testGroupByCounter() {
-        tsdb().error(
-            "FROM test | STATS count(*) BY network.bytes_in",
-            equalTo("1:31: cannot group by on [counter_long] type for grouping [network.bytes_in]")
-        );
-
-        tsdb().error(
-            "FROM test | STATS present(name) BY network.bytes_in",
-            equalTo("1:36: cannot group by on [counter_long] type for grouping [network.bytes_in]")
-        );
+        tsdb().query("FROM test | STATS count(*) BY network.bytes_in");
+        tsdb().query("FROM test | STATS present(name) BY network.bytes_in");
     }
 
     public void testRenameOrDropTimestmapWithRate() {
@@ -5369,13 +5386,15 @@ public class VerifierTests extends AnalyzerTestCase {
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         k8sDownsampled().error(
             "FROM k8s | KEEP network.eth0.tx | DEDUP",
-            containsString("cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            containsString(
+                "cannot dedup on [aggregate_metric_double] type for column [network.eth0.tx]; convert it to a groupable type or drop it"
+            )
         );
     }
 
     public void testDedupRejectsAggregateMetricDoubleWhenInSchema() {
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
-        k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
+        k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot dedup on [aggregate_metric_double] type for column"));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

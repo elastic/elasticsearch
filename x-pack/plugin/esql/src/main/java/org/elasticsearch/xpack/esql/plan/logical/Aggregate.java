@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -43,14 +42,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
-import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
@@ -258,20 +250,22 @@ public class Aggregate extends UnaryPlan
     }
 
     static void checkUnsupportedGroupingType(Expression e, Failures failures) {
-        if ((e instanceof FieldAttribute f && f.dataType().isCounter())
-            || e.dataType() == AGGREGATE_METRIC_DOUBLE
-            || e.dataType() == DATE_PERIOD
-            || e.dataType() == DATE_RANGE
-            || e.dataType() == EXPONENTIAL_HISTOGRAM
-            || e.dataType() == PARTIAL_AGG
-            || e.dataType() == TDIGEST
-            || e.dataType() == TIME_DURATION) {
-            failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
+        if (e.dataType().isGroupable() == false) {
+            failures.add(
+                fail(
+                    e,
+                    "cannot group by on [{}] type for grouping [{}]; convert it to a groupable type or drop it",
+                    e.dataType().typeName(),
+                    e.sourceText()
+                )
+            );
         }
     }
 
     private static void checkUnsupportedStatsGroupingType(Expression e, Failures failures) {
         checkUnsupportedGroupingType(e, failures);
+        // BlockHash cannot group dense_vector values. LIMIT BY and DEDUP encode their keys row by row, which can,
+        // so the type stays groupable and only STATS rejects it. Remove this exception when BlockHash supports it.
         if (e.dataType() == DENSE_VECTOR) {
             failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
         }

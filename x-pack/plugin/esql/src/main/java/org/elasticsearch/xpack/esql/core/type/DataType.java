@@ -196,6 +196,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *     <li>
  *         If appropriate, remove the type from the ESQL limitations list of
  *         unsupported types.</li>
+ *     <li>
+ *         Decide whether the type can be a grouping key and declare it via
+ *         {@link Builder#groupable()}; see {@link #isGroupable()} for the contract.
+ *         Without it, STATS BY, LIMIT BY and DEDUP reject the type.</li>
  * </ul>
  */
 public enum DataType implements Writeable {
@@ -208,49 +212,62 @@ public enum DataType implements Writeable {
      * Fields that are always {@code null}, usually created with constant
      * {@code null} values.
      */
-    NULL(builder().esType("null").estimatedSize(0).supportedOnAllNodes()),
+    NULL(builder().esType("null").estimatedSize(0).groupable().supportedOnAllNodes()),
     /**
      * Fields that can either be {@code true} or {@code false}.
      */
-    BOOLEAN(builder().esType("boolean").estimatedSize(1).supportedOnAllNodes()),
+    BOOLEAN(builder().esType("boolean").estimatedSize(1).groupable().supportedOnAllNodes()),
 
     /**
      * 64-bit signed numbers labeled as metric counters in time-series indices.
      * Although stored internally as numeric fields, they represent cumulative
      * metrics and must not be treated as regular numeric fields. Therefore,
      * we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate
-     * aggregation, and casting to their parent numeric type.
+     * These fields can be retrieved from indices, used in rate aggregations,
+     * cast to their parent numeric type, and used as grouping keys
+     * ({@code STATS BY}, {@code INLINE STATS BY}, {@code LIMIT BY}, {@code DEDUP}).
      */
-    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter().supportedOnAllNodes()),
+    COUNTER_LONG(builder().esType("counter_long").estimatedSize(Long.BYTES).docValues().counter().groupable().supportedOnAllNodes()),
     /**
      * 32-bit signed numbers labeled as metric counters in time-series indices.
      * Although stored internally as numeric fields, they represent cumulative
      * metrics and must not be treated as regular numeric fields. Therefore,
      * we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate
-     * aggregation, and casting to their parent numeric type.
+     * These fields can be retrieved from indices, used in rate aggregations,
+     * cast to their parent numeric type, and used as grouping keys
+     * ({@code STATS BY}, {@code INLINE STATS BY}, {@code LIMIT BY}, {@code DEDUP}).
      */
-    COUNTER_INTEGER(builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter().supportedOnAllNodes()),
+    COUNTER_INTEGER(
+        builder().esType("counter_integer").estimatedSize(Integer.BYTES).docValues().counter().groupable().supportedOnAllNodes()
+    ),
     /**
      * 64-bit floating point numbers labeled as metric counters in time-series indices.
      * Although stored internally as numeric fields, they represent cumulative
      * metrics and must not be treated as regular numeric fields. Therefore,
      * we define them differently and separately from their parent numeric field.
-     * These fields are strictly for use in retrieval from indices, rate
-     * aggregation, and casting to their parent numeric type.
+     * These fields can be retrieved from indices, used in rate aggregations,
+     * cast to their parent numeric type, and used as grouping keys
+     * ({@code STATS BY}, {@code INLINE STATS BY}, {@code LIMIT BY}, {@code DEDUP}).
      */
-    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter().supportedOnAllNodes()),
+    COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter().groupable().supportedOnAllNodes()),
 
     /**
      * 64-bit signed numbers loaded as a java {@code long}.
      */
-    LONG(builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG).supportedOnAllNodes()),
+    LONG(
+        builder().esType("long").estimatedSize(Long.BYTES).wholeNumber().docValues().counter(COUNTER_LONG).groupable().supportedOnAllNodes()
+    ),
     /**
      * 32-bit signed numbers loaded as a java {@code int}.
      */
     INTEGER(
-        builder().esType("integer").estimatedSize(Integer.BYTES).wholeNumber().docValues().counter(COUNTER_INTEGER).supportedOnAllNodes()
+        builder().esType("integer")
+            .estimatedSize(Integer.BYTES)
+            .wholeNumber()
+            .docValues()
+            .counter(COUNTER_INTEGER)
+            .groupable()
+            .supportedOnAllNodes()
     ),
     /**
      * 64-bit unsigned numbers packed into a java {@code long}. ESQL stores {@code unsigned_long} inside a signed {@code LongBlock}
@@ -260,12 +277,18 @@ public enum DataType implements Writeable {
      *
      * @see org.elasticsearch.xpack.esql.core.util.NumericUtils#unsignedLongAsNumber(long)
      */
-    UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues().supportedOnAllNodes()),
+    UNSIGNED_LONG(builder().esType("unsigned_long").estimatedSize(Long.BYTES).wholeNumber().docValues().groupable().supportedOnAllNodes()),
     /**
      * 64-bit floating point number loaded as a java {@code double}.
      */
     DOUBLE(
-        builder().esType("double").estimatedSize(Double.BYTES).rationalNumber().docValues().counter(COUNTER_DOUBLE).supportedOnAllNodes()
+        builder().esType("double")
+            .estimatedSize(Double.BYTES)
+            .rationalNumber()
+            .docValues()
+            .counter(COUNTER_DOUBLE)
+            .groupable()
+            .supportedOnAllNodes()
     ),
 
     /**
@@ -321,7 +344,7 @@ public enum DataType implements Writeable {
      * Generally ESQL uses {@code keyword} fields as raw strings. So things like
      * {@code TO_STRING} will make a {@code keyword} field.
      */
-    KEYWORD(builder().esType("keyword").estimatedSize(50).docValues().supportedOnAllNodes()),
+    KEYWORD(builder().esType("keyword").estimatedSize(50).docValues().groupable().supportedOnAllNodes()),
     /**
      * String fields that are analyzed when the document is received and may be
      * cut into more than one token. Generally ESQL only sees {@code text} fields
@@ -329,15 +352,15 @@ public enum DataType implements Writeable {
      * <strong>without</strong> analysis. The {@code MATCH} operator can be used
      * to query these fields with analysis.
      */
-    TEXT(builder().esType("text").estimatedSize(1024).supportedOnAllNodes()),
+    TEXT(builder().esType("text").estimatedSize(1024).groupable().supportedOnAllNodes()),
     /**
      * Millisecond precision date, stored as a 64-bit signed number.
      */
-    DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
+    DATETIME(builder().esType("date").typeName("DATETIME").estimatedSize(Long.BYTES).docValues().groupable().supportedOnAllNodes()),
     /**
      * Nanosecond precision date, stored as a 64-bit signed number.
      */
-    DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues().supportedOnAllNodes()),
+    DATE_NANOS(builder().esType("date_nanos").estimatedSize(Long.BYTES).docValues().groupable().supportedOnAllNodes()),
     /**
      * Represents a half-inclusive range between two dates.
      */
@@ -354,6 +377,7 @@ public enum DataType implements Writeable {
         builder().esType("double_range")
             .estimatedSize(2 * Double.BYTES)
             .docValues()
+            .groupable()
             .supportedSince(DataTypesTransportVersions.ESQL_DOUBLE_RANGE_UNDER_CONSTRUCTION, ESQL_DOUBLE_RANGES)
     ),
     /**
@@ -362,22 +386,22 @@ public enum DataType implements Writeable {
      * in IPv6. These flow through the compute engine as fixed length, 16 byte
      * {@link BytesRef}s.
      */
-    IP(builder().esType("ip").estimatedSize(16).docValues().supportedOnAllNodes()),
+    IP(builder().esType("ip").estimatedSize(16).docValues().groupable().supportedOnAllNodes()),
     /**
      * A version encoded in a way that sorts using semver.
      */
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
-    VERSION(builder().esType("version").estimatedSize(15).docValues().supportedOnAllNodes()),
+    VERSION(builder().esType("version").estimatedSize(15).docValues().groupable().supportedOnAllNodes()),
     OBJECT(builder().esType("object").estimatedSize(1024).supportedOnAllNodes()),
-    SOURCE(builder().esType(SourceFieldMapper.NAME).estimatedSize(10 * 1024).supportedOnAllNodes()),
+    SOURCE(builder().esType(SourceFieldMapper.NAME).estimatedSize(10 * 1024).groupable().supportedOnAllNodes()),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES).supportedOnAllNodes()),
     TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES).supportedOnAllNodes()),
     // WKB for points is typically 21 bytes.
-    GEO_POINT(builder().esType("geo_point").estimatedSize(21).docValues().supportedOnAllNodes()),
-    CARTESIAN_POINT(builder().esType("cartesian_point").estimatedSize(21).docValues().supportedOnAllNodes()),
+    GEO_POINT(builder().esType("geo_point").estimatedSize(21).docValues().groupable().supportedOnAllNodes()),
+    CARTESIAN_POINT(builder().esType("cartesian_point").estimatedSize(21).docValues().groupable().supportedOnAllNodes()),
     // wild estimate for size, based on some test data (airport_city_boundaries)
-    CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues().supportedOnAllNodes()),
-    GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues().supportedOnAllNodes()),
+    CARTESIAN_SHAPE(builder().esType("cartesian_shape").estimatedSize(200).docValues().groupable().supportedOnAllNodes()),
+    GEO_SHAPE(builder().esType("geo_shape").estimatedSize(200).docValues().groupable().supportedOnAllNodes()),
     // We use INDEX_SOURCE because it's already on Serverless at the time of writing, and it's not in stateful versions before 9.2.0.
     // NOTE: If INDEX_SOURCE somehow gets backported to a version that doesn't actually support these types, we'll be missing validation for
     // mixed/multi clusters with remotes that don't support these types. This is low-ish risk because these types require specific
@@ -386,18 +410,21 @@ public enum DataType implements Writeable {
         builder().esType("geohash")
             .typeName("GEOHASH")
             .estimatedSize(Long.BYTES)
+            .groupable()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
     GEOTILE(
         builder().esType("geotile")
             .typeName("GEOTILE")
             .estimatedSize(Long.BYTES)
+            .groupable()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
     GEOHEX(
         builder().esType("geohex")
             .typeName("GEOHEX")
             .estimatedSize(Long.BYTES)
+            .groupable()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
 
@@ -426,6 +453,7 @@ public enum DataType implements Writeable {
         builder().esType("_tsid")
             .estimatedSize(Long.BYTES * 2)
             .docValues()
+            .groupable()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
     /**
@@ -474,6 +502,7 @@ public enum DataType implements Writeable {
         builder().esType("histogram")
             .estimatedSize(16 * 160)// guess 160 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
             .docValues()
+            .groupable()
             .supportedSince(DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE, DataTypesTransportVersions.ESQL_HISTOGRAM_DATATYPE_RELEASE)
     ),
 
@@ -483,6 +512,7 @@ public enum DataType implements Writeable {
     DENSE_VECTOR(
         builder().esType("dense_vector")
             .estimatedSize(4096)
+            .groupable()
             .supportedSince(
                 DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION,
                 DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
@@ -520,6 +550,7 @@ public enum DataType implements Writeable {
         builder().esType("flattened")
             .estimatedSize(1024)
             .docValues()
+            .groupable()
             .supportedSince(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE, DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE_RELEASE)
     );
 
@@ -556,6 +587,11 @@ public enum DataType implements Writeable {
     private final boolean isCounter;
 
     /**
+     * {@code true} if values of this type can be a grouping key, {@code false} otherwise.
+     */
+    private final boolean isGroupable;
+
+    /**
      * If this is a "small" numeric type this contains the type ESQL will
      * widen it into, otherwise this is {@code null}.
      */
@@ -582,6 +618,7 @@ public enum DataType implements Writeable {
         this.isRationalNumber = builder.isRationalNumber;
         this.docValues = builder.docValues;
         this.isCounter = builder.isCounter;
+        this.isGroupable = builder.groupable;
         this.widenSmallNumeric = builder.widenSmallNumeric;
         this.counter = builder.counter;
         assert (builder.supportedVersion != null) : "version from when a data type is supported is required";
@@ -1010,6 +1047,25 @@ public enum DataType implements Writeable {
     }
 
     /**
+     * {@code true} if values of this type can be a grouping key: a {@code STATS BY}, {@code INLINE STATS BY}
+     * or {@code LIMIT BY} grouping, or a {@code DEDUP} column.
+     * <p>
+     * Grouping keys follow the type's own equality: group keys compare encoded values, so every path that
+     * produces a value of a groupable type (block loaders, evaluators, conversions, deserialization) must
+     * encode equal values as identical bits. {@code null} keys equal each other. {@code STATS BY} expands a
+     * multivalue into one key per value, while {@code LIMIT BY} and {@code DEDUP} compare a multivalue as one
+     * key with list semantics, sensitive to order and repeats. {@code _source}, {@code _tsid} and spatial
+     * shapes compare by their encoded bytes.
+     * <p>
+     * New types reject grouping until this is deliberately enabled. Since {@code LIMIT BY} is GA, the set of
+     * groupable types can only grow, and a type that becomes groupable later needs a transport version gate
+     * when its key encoding is new, so a key never reaches a node that cannot encode it.
+     */
+    public boolean isGroupable() {
+        return isGroupable;
+    }
+
+    /**
      * If this is a "small" numeric type this contains the type ESQL will
      * widen it into, otherwise this returns {@code this}.
      */
@@ -1154,6 +1210,11 @@ public enum DataType implements Writeable {
         private boolean isCounter;
 
         /**
+         * {@code true} if values of this type can be a grouping key, {@code false} otherwise.
+         */
+        private boolean groupable;
+
+        /**
          * If this is a "small" numeric type this contains the type ESQL will
          * widen it into, otherwise this is {@code null}. "Small" numeric types
          * aren't supported by ESQL proper and are "widened" on load.
@@ -1209,6 +1270,11 @@ public enum DataType implements Writeable {
 
         Builder counter() {
             this.isCounter = true;
+            return this;
+        }
+
+        Builder groupable() {
+            this.groupable = true;
             return this;
         }
 

@@ -56,3 +56,69 @@ FROM k8s | WHERE cluster == "none" | STATS p = present(network.total_bytes_in), 
 p:boolean | a:boolean
 false     | true
 ;
+
+statsByCounterLong
+required_capability: group_by_counters
+FROM k8s | STATS c = count(*) BY network.total_bytes_in | STATS keys = count(*);
+
+keys:long
+198
+;
+
+statsByCounterLongMatchesGroupingByCastBaseType
+required_capability: group_by_counters
+FROM k8s | STATS c = count(*) BY to_long(network.total_bytes_in) | STATS keys = count(*);
+
+keys:long
+198
+;
+
+statsByCounterDouble
+required_capability: group_by_counters
+FROM k8s | STATS c = count(*) BY network.total_cost | STATS keys = count(*);
+
+keys:long
+180
+;
+
+statsByCounterDoubleMatchesGroupingByCastBaseType
+required_capability: group_by_counters
+FROM k8s | STATS c = count(*) BY to_double(network.total_cost) | STATS keys = count(*);
+
+keys:long
+180
+;
+
+limitByCounterLong
+required_capability: group_by_counters
+FROM k8s | LIMIT 1 BY network.total_bytes_in | STATS keys = count(*);
+
+keys:long
+198
+;
+
+limitByCounterLongMatchesGroupingByCastBaseType
+required_capability: group_by_counters
+FROM k8s | EVAL b = to_long(network.total_bytes_in) | LIMIT 1 BY b | STATS keys = count(*);
+
+keys:long
+198
+;
+
+dedupOverCounterLong
+required_capability: dedup_command
+required_capability: group_by_counters
+FROM k8s | KEEP cluster, pod, network.total_bytes_in | DEDUP | STATS keys = count(*);
+
+keys:long
+199
+;
+
+dedupOverCounterLongMatchesGroupingByCastBaseType
+required_capability: dedup_command
+required_capability: group_by_counters
+FROM k8s | EVAL b = to_long(network.total_bytes_in) | KEEP cluster, pod, b | DEDUP | STATS keys = count(*);
+
+keys:long
+199
+;

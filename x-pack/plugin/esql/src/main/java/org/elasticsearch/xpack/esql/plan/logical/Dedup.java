@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
 /**
  * Removes duplicate rows from the result set (similar in spirit to SQL {@code DISTINCT}).
  * <p>
@@ -61,14 +63,9 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
         Literal one = new Literal(source(), 1, DataType.INTEGER);
         List<Expression> groupings = new ArrayList<>();
         for (Attribute attr : child().output()) {
-            // The query never names the column LOAD_ALL adds, so it is not a key; a _unmapped_fields the query names is an ordinary one.
-            if (attr.dataType() == DataType.DOC_DATA_TYPE
-                || attr instanceof UnsupportedAttribute
-                || attr.synthetic()
-                || attr instanceof UnmappedFieldsAttribute) {
-                continue;
+            if (isDedupKey(attr)) {
+                groupings.add(attr);
             }
-            groupings.add(attr);
         }
         if (groupings.isEmpty()) {
             return new Limit(source(), one, child());
@@ -76,13 +73,31 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
         return new LimitBy(source(), one, child(), groupings);
     }
 
+    /**
+     * The columns DEDUP compares. Synthetic attributes (e.g. union-type conversions pushed into UnionAll branches)
+     * are dropped before the final output, so the user never dedups on them. Unsupported columns are always null,
+     * so they cannot tell rows apart. The query never names the column LOAD_ALL adds, so it is not a key; a
+     * _unmapped_fields the query names is an ordinary one. {@code _doc} is internal and implicitly dropped.
+     */
+    private static boolean isDedupKey(Attribute attr) {
+        return attr.dataType() != DataType.DOC_DATA_TYPE
+            && attr instanceof UnsupportedAttribute == false
+            && attr.synthetic() == false
+            && attr instanceof UnmappedFieldsAttribute == false;
+    }
+
     @Override
     public void postAnalysisVerification(Failures failures) {
         for (Attribute attr : child().output()) {
-            // Synthetic attributes (e.g. union-type conversions pushed into UnionAll branches) are dropped before the final output,
-            // so the user never groups by them.
-            if (attr.synthetic() == false) {
-                Aggregate.checkUnsupportedGroupingType(attr, failures);
+            if (isDedupKey(attr) && attr.dataType().isGroupable() == false) {
+                failures.add(
+                    fail(
+                        attr,
+                        "cannot dedup on [{}] type for column [{}]; convert it to a groupable type or drop it",
+                        attr.dataType().typeName(),
+                        attr.name()
+                    )
+                );
             }
         }
     }

@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -58,6 +61,9 @@ import java.util.Map;
  *     a field: a {@link Project} on the way projects it, a node that keeps its input's output passes it, and either side of a
  *     {@link HashJoin} passes it, the temporary name keeping it apart from the other side's labels. A plain {@link Aggregate}
  *     stops it, as a key of several values would split the aggregate's rows; so does any other node.</li>
+ *     <li>A read of a {@link UnionAll}'s container is a read of each branch's container at the same position, as a projection
+ *     commutes with a union (the commuting conversions of query normalisation, Spark's projection pushdown through a union):
+ *     when every branch has the value, the union outputs it as one more column, which its branches give under its name.</li>
  * </ul>
  * A container that is still used as a whole - a key of an aggregate, a join or a pack, or the output - stays as it is. Where
  * nothing uses it anymore, column pruning removes it.
@@ -91,6 +97,10 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
         private final Map<LogicalPlan, Map<Attribute, Alias>> names = new IdentityHashMap<>();
         /** The values each projection projects, or each join adds of its right side, in addition. */
         private final Map<LogicalPlan, List<Attribute>> carried = new IdentityHashMap<>();
+        /** The columns each union outputs in addition, by the position and label they read. */
+        private final Map<LogicalPlan, Map<String, Attribute>> columns = new IdentityHashMap<>();
+        /** The value each branch of a union gives each of the union's added columns, in their order. */
+        private final Map<LogicalPlan, List<Expression>> branches = new IdentityHashMap<>();
 
         /** The nodes crossed while following the current read, from the read down; committed only when the read has a value. */
         private List<LogicalPlan> crossed;
@@ -230,6 +240,15 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                     }
                     return null;
                 }
+                case UnionAll union -> {
+                    crossed.removeLast();
+                    for (int position = 0; position < union.output().size(); position++) {
+                        if (union.output().get(position).id().equals(attribute.id())) {
+                            return column(union, position, label);
+                        }
+                    }
+                    return null;
+                }
                 case HashJoin join -> {
                     if (join.left().outputSet().contains(attribute)) {
                         crossed.removeLast();
@@ -283,42 +302,121 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
             return dimension;
         }
 
+        /**
+         * The value of label {@code label} of the container {@code union} outputs at {@code position}: a column the union
+         * outputs in addition, which each branch gives the value of the label of its container at that position. A projection
+         * of a union is the union of the projections of its branches; a branch that has no value leaves the union without one.
+         */
+        private Expression column(UnionAll union, int position, String label) {
+            String key = position + ":" + label;
+            Attribute known = columns.getOrDefault(union, Map.of()).get(key);
+            if (known == null) {
+                List<LogicalPlan> above = crossed;
+                List<Expression> found = new ArrayList<>();
+                List<List<LogicalPlan>> paths = new ArrayList<>();
+                List<LogicalPlan> origins = new ArrayList<>();
+                List<TimeSeriesAggregate> aggregates = new ArrayList<>();
+                for (LogicalPlan branch : union.children()) {
+                    crossed = new ArrayList<>();
+                    aggregate = null;
+                    origin = null;
+                    Expression value = definition(branch, branch.output().get(position), label);
+                    if (value == null) {
+                        crossed = above;
+                        return null;
+                    }
+                    found.add(value);
+                    paths.add(crossed);
+                    origins.add(origin);
+                    aggregates.add(aggregate);
+                }
+                for (int i = 0; i < found.size(); i++) {
+                    crossed = paths.get(i);
+                    origin = origins.get(i);
+                    aggregate = aggregates.get(i);
+                    Expression value = found.get(i) instanceof Attribute attribute ? carry(attribute, union) : found.get(i);
+                    branches.computeIfAbsent(union.children().get(i), k -> new ArrayList<>()).add(value);
+                }
+                known = new ReferenceAttribute(
+                    union.source(),
+                    null,
+                    Attribute.rawTemporaryName("promql_label", label, String.valueOf(count())),
+                    DataType.KEYWORD
+                );
+                columns.computeIfAbsent(union, k -> new LinkedHashMap<>()).put(key, known);
+                crossed = above;
+            }
+            aggregate = null;
+            origin = union;
+            return known;
+        }
+
         /** Records the value of {@code read}: a literal as it is, an attribute under a temporary name carried up to the read. */
         private void commit(TimeSeriesMetadataPath read, Expression value) {
-            if (value instanceof Attribute attribute) {
+            values.put(read, value instanceof Attribute attribute ? carry(attribute, read) : value);
+        }
+
+        /**
+         * {@code attribute} under a temporary name given right above the node whose output holds it, carried up through the
+         * nodes crossed to reach it. A column a union adds has a name of its own already.
+         */
+        private Attribute carry(Attribute attribute, Node<?> at) {
+            {
                 if (aggregate != null) {
                     List<FieldAttribute> added = keys.computeIfAbsent(aggregate, k -> new ArrayList<>());
                     if (added.contains(attribute) == false) {
                         added.add((FieldAttribute) attribute);
                     }
                 }
-                Alias named = names.computeIfAbsent(origin, k -> new LinkedHashMap<>())
-                    .computeIfAbsent(
-                        attribute,
-                        a -> new Alias(read.source(), Attribute.rawTemporaryName("promql_label", a.name(), String.valueOf(count())), a)
-                    );
+                Attribute named = origin instanceof UnionAll
+                    ? attribute
+                    : names.computeIfAbsent(origin, k -> new LinkedHashMap<>())
+                        .computeIfAbsent(
+                            attribute,
+                            a -> new Alias(at.source(), Attribute.rawTemporaryName("promql_label", a.name(), String.valueOf(count())), a)
+                        )
+                        .toAttribute();
                 for (LogicalPlan node : crossed) {
                     if (node != origin) {
                         List<Attribute> added = carried.computeIfAbsent(node, k -> new ArrayList<>());
-                        if (added.contains(named.toAttribute()) == false) {
-                            added.add(named.toAttribute());
+                        if (added.contains(named) == false) {
+                            added.add(named);
                         }
                     }
                 }
-                values.put(read, named.toAttribute());
-            } else {
-                values.put(read, value);
+                return named;
             }
         }
 
         private int count() {
-            return names.values().stream().mapToInt(Map::size).sum();
+            return names.values().stream().mapToInt(Map::size).sum() + columns.values().stream().mapToInt(Map::size).sum();
         }
 
         /** Rebuilds {@code node} from the leaves up. */
         private LogicalPlan rewrite(LogicalPlan node) {
             List<LogicalPlan> children = node.children().stream().map(this::rewrite).toList();
             LogicalPlan rewritten = children.equals(node.children()) ? node : node.replaceChildrenSameSize(children);
+            Map<String, Attribute> unionColumns = columns.get(node);
+            if (unionColumns != null) {
+                // each branch gives its values after its own output, under the names of the union's columns, which a union
+                // pairs with its branches' columns by
+                UnionAll union = (UnionAll) rewritten;
+                List<Attribute> added = List.copyOf(unionColumns.values());
+                List<LogicalPlan> subPlans = new ArrayList<>();
+                for (int i = 0; i < union.children().size(); i++) {
+                    LogicalPlan branch = node.children().get(i);
+                    List<Alias> given = new ArrayList<>();
+                    for (Expression value : branches.get(branch)) {
+                        given.add(new Alias(value.source(), added.get(given.size()).name(), value));
+                    }
+                    List<NamedExpression> output = new ArrayList<>(branch.output());
+                    given.forEach(alias -> output.add(alias.toAttribute()));
+                    subPlans.add(new Project(branch.source(), new Eval(branch.source(), union.children().get(i), given), output));
+                }
+                List<Attribute> output = new ArrayList<>(union.output());
+                output.addAll(unionColumns.values());
+                rewritten = union.replaceSubPlansAndOutput(subPlans, output);
+            }
             List<FieldAttribute> grouped = keys.get(node);
             if (grouped != null) {
                 TimeSeriesAggregate timeSeriesAggregate = (TimeSeriesAggregate) rewritten;

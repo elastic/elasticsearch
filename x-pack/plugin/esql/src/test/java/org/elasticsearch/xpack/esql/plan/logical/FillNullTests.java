@@ -48,6 +48,11 @@ public class FillNullTests extends ESTestCase {
         return new LocalRelation(Source.EMPTY, output, EmptyLocalSupplier.EMPTY);
     }
 
+    /** A union of one branch, as the child that makes the attributes of {@code output} the ones a union produces. */
+    private static UnionAll unionWith(List<Attribute> output) {
+        return new UnionAll(Source.EMPTY, List.of(childWith(output)), output);
+    }
+
     private static FillNull allFields(List<Attribute> childOutput) {
         return new FillNull(Source.EMPTY, childWith(childOutput), null, List.of());
     }
@@ -120,6 +125,47 @@ public class FillNullTests extends ESTestCase {
 
         assertEquals("only the numeric and string columns should be filled", Set.of("i", "s"), filledNames(materialized));
         assertTrue("the fill alias wraps a COALESCE", aliasFor(materialized, "i").child() instanceof Coalesce);
+    }
+
+    /**
+     * A union turns a metadata column into a reference attribute, which is not internal, so for an attribute that a union produces
+     * the name of the column decides whether a {@code *} leaves it alone.
+     */
+    public void testAllColumnsLeaveAReferenceWithAMetadataNameThatAUnionProducesAlone() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute metadata = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+            List<Attribute> output = List.of(metadata, other);
+
+            FillNull defaults = allFields(output).replaceChild(unionWith(output)).withConfiguration(TEST_CFG);
+            assertEquals(Set.of("k"), filledNames(defaults));
+            assertEquals("a column left alone is not reported either", Set.of(), unfillableNames(defaults));
+
+            FillNull value = new FillNull(Source.EMPTY, unionWith(output), keyword("x"), List.of()).withConfiguration(TEST_CFG);
+            assertEquals(Set.of("k"), filledNames(value));
+        }
+    }
+
+    /** A column that the query creates with a metadata name, such as {@code EVAL _score = ROUND(_score, 4)}, is an ordinary one. */
+    public void testAllColumnsFillAReferenceWithAMetadataNameThatNoUnionProduces() {
+        for (String name : List.of("_index", "_id", "_score")) {
+            Attribute created = new ReferenceAttribute(Source.EMPTY, name, DataType.KEYWORD);
+            Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+            List<Attribute> output = List.of(created, other);
+
+            FillNull materialized = materialize(allFields(output), output, TEST_CFG);
+            assertEquals(Set.of(name, "k"), filledNames(materialized));
+        }
+    }
+
+    public void testNamedReferenceWithAMetadataNameIsFilled() {
+        Attribute metadata = new ReferenceAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+        Attribute other = getFieldAttribute("k", DataType.KEYWORD);
+        List<Attribute> output = List.of(metadata, other);
+        for (List<NamedExpression> targets : List.of(List.<NamedExpression>of(metadata), List.<NamedExpression>of(other, metadata))) {
+            FillNull fillNull = new FillNull(Source.EMPTY, unionWith(output), keyword("x"), targets).withConfiguration(TEST_CFG);
+            assertTrue("naming _index fills it", filledNames(fillNull).contains("_index"));
+        }
     }
 
     public void testOutputKeepsTheChildIdsAndTurnsFilledColumnsIntoReferences() {

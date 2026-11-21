@@ -211,6 +211,42 @@ final class PrefetchedPageReader implements PageReader, Releasable {
     }
 
     /**
+     * The number of values of the next data page, read from its header, or {@code -1} when no page is left. The page is not
+     * decompressed. For a flat column (no repetition levels) every value is one row, nulls included, so a caller that wants to
+     * skip rows can tell from this whether the next page lies wholly inside the skip.
+     */
+    int nextPageValueCount() {
+        CompressedPage next = compressedPages.peek();
+        return next == null ? -1 : next.page().getValueCount();
+    }
+
+    /**
+     * The index in the row group of the first row of the next data page, as its offset index or header says, or {@code -1} when it
+     * is not known or no page is left. The page is not decompressed.
+     */
+    long nextPageFirstRowIndex() {
+        CompressedPage next = compressedPages.peek();
+        if (next == null) {
+            return -1L;
+        }
+        if (next.page() instanceof DataPageV1 v1) {
+            return v1.getFirstRowIndex().orElse(-1L);
+        }
+        return next.firstRowIndex();
+    }
+
+    /**
+     * Drops the next data page without decompressing it. Reading a page decompresses it, and a reader that skips a whole page does
+     * not need its values, so on a column of compressed strings this saves most of the cost of the skip.
+     */
+    void skipNextPage() {
+        if (closed.get()) {
+            throw new ParquetDecodingException("PrefetchedPageReader closed");
+        }
+        compressedPages.poll();
+    }
+
+    /**
      * Returns the lazily decompressed dictionary page, or {@code null} when this column has none.
      * Once the reader is closed this method throws {@link ParquetDecodingException}, including
      * when the column never had a dictionary page.

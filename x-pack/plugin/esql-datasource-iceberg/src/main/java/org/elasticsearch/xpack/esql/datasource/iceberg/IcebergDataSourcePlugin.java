@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.iceberg;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
@@ -38,16 +37,13 @@ import java.util.Set;
  * <p>Heavy dependencies (Iceberg, Arrow, Parquet, AWS SDK) are isolated in this module
  * to avoid jar hell issues in the core ESQL plugin.
  *
- * <p>The plugin is extensible so that another plugin can use the Iceberg and Parquet classes that it carries (for example a plugin that
- * writes Iceberg tables) without a second copy of them: a node refuses to load a plugin that extends two plugins with the same classes.
- *
  * <p>Iceberg is not in the released ship set yet, so catalog registration is gated on
  * {@link #ESQL_EXTERNAL_ICEBERG_FEATURE_FLAG}: the catalog is available in snapshot/development
  * builds and disabled in release. When the gate is off neither {@code supportedCatalogs()} nor
  * {@code tableCatalogs()} return any entry, so no extensionless S3 object path is claimed by the
  * Iceberg catalog and the resolver applies the standard file-format check instead.
  */
-public class IcebergDataSourcePlugin extends Plugin implements DataSourcePlugin, ExtensiblePlugin {
+public class IcebergDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     /**
      * Gates the Iceberg table catalog. Snapshot-on, release-off; override in release with

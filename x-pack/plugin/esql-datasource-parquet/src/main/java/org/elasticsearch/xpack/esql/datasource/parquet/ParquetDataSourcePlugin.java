@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -44,7 +45,7 @@ import java.util.Set;
  * <p>Heavy dependencies (Parquet, Hadoop, Iceberg, Arrow) are isolated in this module
  * to avoid jar hell issues in the core ESQL plugin.
  */
-public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin {
+public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin, ExtensiblePlugin {
 
     /**
      * Must list every extension {@code ParquetFormatReader#fileExtensions()} accepts. Spec extensions register

@@ -16,18 +16,23 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -155,6 +160,71 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertFalse("_id should not be stored in columnar mode", idField.fieldType().stored());
         assertThat(idField, instanceOf(ProvidedIdFieldMapper.ColumnarIdField.class));
         assertEquals(Uid.encodeId(id), idField.binaryValue());
+    }
+
+    private static Settings notIndexedIdSettings() {
+        return Settings.builder().put(IndexSettings.ID_FIELD_INDEXED.getKey(), false).build();
+    }
+
+    public void testNotIndexedColumnarIdHasOnlyDocValues() throws IOException {
+        DocumentMapper mapper = createMapperService(
+            notIndexedIdSettings(),
+            topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject())
+        ).documentMapper();
+        String id = randomAlphaOfLength(12);
+        ParsedDocument document = mapper.parse(source(id, b -> {}, null));
+
+        List<IndexableField> idFields = document.rootDoc().getFields(IdFieldMapper.NAME);
+        assertEquals(1, idFields.size());
+        IndexableField idField = idFields.get(0);
+        assertEquals(IndexOptions.NONE, idField.fieldType().indexOptions());
+        assertEquals(DocValuesType.BINARY, idField.fieldType().docValuesType());
+        assertFalse(idField.fieldType().stored());
+        assertEquals(Uid.encodeId(id), idField.binaryValue());
+
+        MappedFieldType fieldType = mapper.mappers().getFieldType(IdFieldMapper.NAME);
+        assertFalse(fieldType.indexType().hasTerms());
+        assertTrue(fieldType.indexType().hasDocValues());
+    }
+
+    public void testNotIndexedIdInStrictColumnarIndexMode() throws IOException {
+        // the columnar _id mode is the default of a strictly columnar index mode, so the setting is all that is needed
+        Settings settings = Settings.builder()
+            .put(notIndexedIdSettings())
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        assertFalse(mapperService.fieldType(IdFieldMapper.NAME).indexType().hasTerms());
+    }
+
+    public void testNotIndexedColumnarIdQueriesScanTheDocValues() throws IOException {
+        MapperService mapperService = createMapperService(
+            notIndexedIdSettings(),
+            topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject())
+        );
+        MappedFieldType fieldType = mapperService.fieldType(IdFieldMapper.NAME);
+        assertEquals(
+            new ScanningBinaryDocValuesTermQuery(IdFieldMapper.NAME, Uid.encodeId("a"), BinaryDocValuesFormat.SEPARATE_COUNT),
+            fieldType.termQuery("a", null)
+        );
+        Query terms = fieldType.termsQuery(List.of("a", "b"), null);
+        assertThat(terms, instanceOf(BooleanQuery.class));
+        assertEquals(2, ((BooleanQuery) terms).clauses().size());
+    }
+
+    public void testNotIndexedIdRequiresColumnarMode() {
+        Exception e = expectThrows(Exception.class, () -> createMapperService(notIndexedIdSettings(), mapping(b -> {})));
+        assertThat(e.getMessage(), containsString("can only be false when the mode of [_id] is [columnar]"));
+    }
+
+    public void testNotIndexedIdIsRejectedForTimeSeries() {
+        Settings settings = Settings.builder()
+            .put(notIndexedIdSettings())
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .build();
+        Exception e = expectThrows(Exception.class, () -> createMapperService(settings, mapping(b -> {})));
+        assertThat(e.getMessage(), containsString("[index.mapping.id_field.indexed] can only be false"));
     }
 
     public void testColumnarModeMappingSerialization() throws IOException {

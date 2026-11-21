@@ -2458,6 +2458,31 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      */
     @Override
     public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
+        return readRange(object, context, 0L);
+    }
+
+    /**
+     * Like {@link #readRange(StorageObject, RangeReadContext)}, and the first row group of the range is read from its row
+     * {@code skipRowsInFirstGroup}: the iterator does not emit the rows before it, and does not decompress the pages that lie
+     * wholly before it. A caller that reads a slice of a row group, on a file without a column index, uses this to avoid decoding
+     * the start of the group.
+     *
+     * @throws UnsupportedOperationException if the read is not a plain scan of flat columns with the optimized iterator
+     */
+    CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context, long skipRowsInFirstGroup) throws IOException {
+        CloseableIterator<Page> iterator = readRangeFromStart(object, context);
+        if (skipRowsInFirstGroup > 0) {
+            if (iterator instanceof OptimizedParquetColumnIterator optimized) {
+                optimized.skipRowsInFirstGroup(skipRowsInFirstGroup);
+            } else {
+                iterator.close();
+                throw new UnsupportedOperationException("rows can be skipped only by the optimized iterator, not by [" + iterator + "]");
+            }
+        }
+        return iterator;
+    }
+
+    private CloseableIterator<Page> readRangeFromStart(StorageObject object, RangeReadContext context) throws IOException {
         long rangeStart = context.rangeStart();
         long rangeEnd = context.rangeEnd();
         ParquetReaderCounters counters = context.readCounters() instanceof ParquetReaderCounters c ? c : null;

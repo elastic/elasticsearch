@@ -380,13 +380,8 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         if (exclude != null && excludeValues != null) {
             throw new IllegalArgumentException();
         }
-<<<<<<< HEAD
-        this.include = include == null ? null : new RegExp(include, RegExp.ALL);
-        this.exclude = exclude == null ? null : new RegExp(exclude, RegExp.ALL);
-=======
         this.include = include;
         this.exclude = exclude;
->>>>>>> a16e127d2b61270965ee2b492c9e0950d8667b50
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
         this.incZeroBasedPartition = 0;
@@ -541,7 +536,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return incNumPartitions > 0;
     }
 
-    private static final int REGEX_FLAGS = RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT;
+    private static final int REGEX_FLAGS = RegExp.ALL;
 
     /**
      * Rejects a pattern the shard could never compile, before the aggregator is built. An unmapped field builds no

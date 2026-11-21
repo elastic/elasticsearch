@@ -209,11 +209,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                 term,
                 syntaxFlags,
                 matchFlags,
-<<<<<<< HEAD
-                DEFAULT_PROVIDER,
-                method == null ? CONSTANT_SCORE_REWRITE : method
-            ) {
-=======
                 maxDeterminizedStates,
                 context.getCircuitBreaker()
             );
@@ -223,7 +218,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                 public String toString(String field) {
                     return (term.field().equals(field) ? "" : term.field() + ":") + "/" + term.text() + "/";
                 }
->>>>>>> a16e127d2b61270965ee2b492c9e0950d8667b50
 
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {

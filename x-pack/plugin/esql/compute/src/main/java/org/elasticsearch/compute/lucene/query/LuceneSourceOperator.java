@@ -383,67 +383,6 @@ public class LuceneSourceOperator extends LuceneOperator {
                 || query instanceof PointInSetQuery;
         }
 
-<<<<<<< HEAD
-        /**
-         * {@code true} when {@code query} contains an indexed spatial clause. Same walk as
-         * {@link #containsCostlyClause}, including {@link QueryVisitor#getSubVisitor}, so the check sees through
-         * {@link ConstantScoreQuery}, {@link org.apache.lucene.search.BooleanQuery}, and
-         * {@link org.apache.lucene.search.IndexOrDocValuesQuery} (which visits both the index query and the
-         * doc-values query).
-         */
-        static boolean containsIndexedSpatialQuery(Query query) {
-            boolean[] found = { false };
-            query.visit(new QueryVisitor() {
-                @Override
-                public void consumeTerms(Query q, Term... terms) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunnable> automaton) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public void visitLeaf(Query q) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                    if (isIndexedSpatialQuery(parent)) {
-                        found[0] = true;
-                    }
-                    return this;
-                }
-            });
-            return found[0];
-        }
-
-        /**
-         * Indexed BKD spatial queries. The Lucene classes are package-private, so this matches
-         * {@link Class#getName()} (see {@code GeoDistanceQueryBuilderTestCase}). Doc-values siblings
-         * ({@code LatLonDocValuesQuery}, {@code LatLonDocValuesBoxQuery}) are excluded so an {@code index: false}
-         * field still follows the cost check, and {@code LatLonPointDistanceFeatureQuery} is a scoring feature
-         * query, not one of these filters.
-         */
-        static boolean isIndexedSpatialQuery(Query query) {
-            return switch (query.getClass().getName()) {
-                case "org.apache.lucene.document.LatLonPointDistanceQuery", "org.apache.lucene.document.LatLonPointQuery",
-                    "org.apache.lucene.document.LatLonShapeQuery", "org.apache.lucene.document.XYPointInGeometryQuery",
-                    "org.apache.lucene.document.XYShapeQuery" -> true;
-                default -> false;
-            };
-        }
-
-=======
->>>>>>> a16e127d2b61270965ee2b492c9e0950d8667b50
         static Query unwrapQuery(Query query) {
             while (true) {
                 switch (query) {

@@ -142,8 +142,7 @@ public final class CircuitBreakingRegExp {
         return switch (re.kind) {
             case REGEXP_UNION, REGEXP_CONCATENATION -> leaves(re);
             case REGEXP_INTERSECTION -> new RegExp[] { re.exp1, re.exp2 };
-            case REGEXP_OPTIONAL, REGEXP_REPEAT, REGEXP_REPEAT_MIN, REGEXP_REPEAT_MINMAX, REGEXP_COMPLEMENT, REGEXP_DEPRECATED_COMPLEMENT ->
-                new RegExp[] { re.exp1 };
+            case REGEXP_OPTIONAL, REGEXP_REPEAT, REGEXP_REPEAT_MIN, REGEXP_REPEAT_MINMAX, REGEXP_COMPLEMENT -> new RegExp[] { re.exp1 };
             case REGEXP_CHAR, REGEXP_CHAR_RANGE, REGEXP_CHAR_CLASS, REGEXP_ANYCHAR, REGEXP_EMPTY, REGEXP_STRING, REGEXP_ANYSTRING,
                 REGEXP_AUTOMATON, REGEXP_INTERVAL -> NO_OPERANDS;
         };
@@ -245,7 +244,6 @@ public final class CircuitBreakingRegExp {
                 case REGEXP_INTERSECTION -> intersection(in[0], in[1]);
                 // Lucene complements a negated character class with no work limit, and any other complement with the default
                 case REGEXP_COMPLEMENT -> complement(in[0], Integer.MAX_VALUE);
-                case REGEXP_DEPRECATED_COMPLEMENT -> complement(in[0], Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
                 // A leaf, no larger than the pattern text that names it
                 case REGEXP_CHAR, REGEXP_CHAR_RANGE, REGEXP_CHAR_CLASS, REGEXP_ANYCHAR, REGEXP_EMPTY, REGEXP_STRING, REGEXP_ANYSTRING,
                     REGEXP_AUTOMATON, REGEXP_INTERVAL -> leaf(re);
@@ -344,9 +342,9 @@ public final class CircuitBreakingRegExp {
         };
     }
 
-    @SuppressWarnings("deprecation") // RegExp.toAutomaton honours ASCII_CASE_INSENSITIVE as well as CASE_INSENSITIVE
+    @SuppressWarnings("deprecation") // RegExp.toAutomaton honours CASE_INSENSITIVE
     private boolean caseInsensitive() {
-        return (matchFlags & (RegExp.ASCII_CASE_INSENSITIVE | RegExp.CASE_INSENSITIVE)) != 0;
+        return (matchFlags & RegExp.CASE_INSENSITIVE) != 0;
     }
 
     /**

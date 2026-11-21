@@ -355,49 +355,25 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             DenseVectorFieldMapper.ElementType.BFLOAT16
         );
         KnnVectorsFormat format = randomFrom(
-            new ES920DiskBBQVectorsFormat(
-                DEFAULT_VECTORS_PER_CLUSTER,
-                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                elementType,
-                randomBoolean(),
-                null,
-                1
-            ),
-<<<<<<< HEAD
+            new ES920DiskBBQVectorsFormat(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, elementType, null, 1),
             new ES93BinaryQuantizedVectorsFormat(elementType),
             new ES93HnswBinaryQuantizedVectorsFormat(elementType),
-            new ES93ScalarQuantizedVectorsFormat(elementType),*/
-=======
-            new ES93BinaryQuantizedVectorsFormat(elementType, randomBoolean(), randomBoolean()),
-            new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
-            new ES93ScalarQuantizedVectorsFormat(elementType, null, 7, randomBoolean(), randomBoolean()),
->>>>>>> a16e127d2b61270965ee2b492c9e0950d8667b50
+            new ES93ScalarQuantizedVectorsFormat(elementType),
             new ES93HnswScalarQuantizedVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
                 null,
                 7,
-<<<<<<< HEAD
                 false
-=======
-                false,
-                randomBoolean()
             ),
-            new ES94ScalarQuantizedVectorsFormat(elementType, 7, randomBoolean(), randomBoolean()),
-            new ES94HnswScalarQuantizedVectorsFormat(
-                DEFAULT_VECTORS_PER_CLUSTER,
-                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                elementType,
-                7,
-                randomBoolean()
-            ),
+            new ES94ScalarQuantizedVectorsFormat(elementType, 7),
+            new ES94HnswScalarQuantizedVectorsFormat(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, elementType, 7),
             new ES940DiskBBQVectorsFormat(
                 ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC,
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
-                randomBoolean(),
                 null,
                 1,
                 false,
@@ -408,12 +384,10 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
-                randomBoolean(),
                 null,
                 1,
                 false,
                 ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
->>>>>>> a16e127d2b61270965ee2b492c9e0950d8667b50
             )
         );
         iwc.setCodec(new Elasticsearch93Lucene104Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {

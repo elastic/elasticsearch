@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("unused") // invoked by JMH
 public class CircuitBreakingRegExpBenchmark {
 
-    private static final int FLAGS = RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT;
+    private static final int FLAGS = RegExp.ALL;
 
     /**
      * Patterns covering the node kinds the build dispatches on and the shapes its bounds model. Sizes are kept small enough

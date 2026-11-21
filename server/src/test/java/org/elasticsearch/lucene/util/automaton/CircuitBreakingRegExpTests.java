@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CircuitBreakingRegExpTests extends ESTestCase {
 
-    private static final int FLAGS = RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT;
+    private static final int FLAGS = RegExp.ALL;
 
     /** One pattern per kind of parse-tree node, and the combinations whose sizes the costs model. */
     public void testSameLanguageAsLuceneForEveryKind() {
@@ -101,7 +101,7 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
     public void testSameLanguageAsLuceneOnComposedRegexps() {
         for (RegExp.Kind kind : List.of(
             RegExp.Kind.REGEXP_INTERSECTION,
-            RegExp.Kind.REGEXP_DEPRECATED_COMPLEMENT,
+            RegExp.Kind.REGEXP_COMPLEMENT,
             RegExp.Kind.REGEXP_REPEAT_MINMAX,
             RegExp.Kind.REGEXP_REPEAT_MIN,
             RegExp.Kind.REGEXP_UNION,
@@ -123,7 +123,7 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
         int min = between(0, 3);
         return switch (kind) {
             case REGEXP_INTERSECTION -> left + "&" + right;
-            case REGEXP_DEPRECATED_COMPLEMENT -> "~" + left;
+            case REGEXP_COMPLEMENT -> "~" + left;
             case REGEXP_REPEAT_MINMAX -> left + "{" + min + "," + (min + between(0, 3)) + "}";
             case REGEXP_REPEAT_MIN -> left + "{" + min + ",}";
             case REGEXP_UNION -> left + "|" + right;

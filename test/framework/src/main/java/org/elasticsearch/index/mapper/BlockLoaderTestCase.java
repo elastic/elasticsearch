@@ -76,7 +76,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             IndexMode.COLUMNAR,
             IndexMode.LOGSDB,
             IndexMode.LOGSDB_COLUMNAR,
-            IndexMode.TIME_SERIES
+            IndexMode.TIME_SERIES,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT,
+            IndexMode.VECTORDB_COLUMNAR
         );
 
         for (IndexMode indexMode : modes) {

@@ -12511,36 +12511,6 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The byte expression's first arm asks whether this is the file's own first split, not whether the offset is
-     * zero, and the two disagree in production: {@code FileSplitProvider.isFirstInFile} is a disjunction, so a
-     * split stamped {@code _first_split} is the first one at whatever offset it begins, and the first macro-split
-     * of a block-aligned compressed object begins at the first block boundary rather than at byte zero. Every
-     * other fixture here sets the two together, which leaves the arm pinned by luck. This builds the disagreeing
-     * cell directly: first split, non-zero offset. A byte counted from the file's start is zero whatever the
-     * split's offset says.
-     */
-    public void testTheFirstSplitCountsFromZeroEvenAtANonZeroOffset() throws IOException {
-        List<Attribute> schema = splitSchema();
-        FormatReadContext ctx = FormatReadContext.builder()
-            .batchSize(10)
-            .errorPolicy(new ErrorPolicy(100, true))
-            .firstSplit(true)
-            .lastSplit(true)
-            .recordAligned(true)
-            .splitStartByte(4096L)
-            .readSchema(schema)
-            .fileHeaderColumns(List.of("id", "name"))
-            .build();
-        String detail = soleDetailWarning(
-            new CsvFormatReader(blockFactory).withSchema(schema),
-            createStorageObject("id,name\nbad_id,Carol\n4,Dan\n"),
-            ctx
-        );
-        assertThat("the file's first split counts from zero, so no byte clause is printed", detail, not(containsString("byte [4096]")));
-        assertThat("and it is not reported as counted inside a split", detail, not(containsString("counted within a split")));
-    }
-
-    /**
      * On a block-aligned split of a splittable compressed object the reader is handed {@code recordAligned=false}:
      * the split offset is a boundary in the COMPRESSED file while the ordinal counts decompressed records, and this
      * reader additionally discards a leading partial record the previous split already reported. A byte printed
@@ -12578,7 +12548,10 @@ public class CsvFormatReaderTests extends ESTestCase {
      * needs no qualifier. Keying the decision on the offset instead printed
      * {@code counted within a split} here, qualifying an ordinal that was never relative.
      * This is the only cell in which the two predicates differ, so it is the only test that fails if
-     * the condition is put back.
+     * the condition is put back. A record-aligned macro-split cannot stand in for it: every list of
+     * newline boundaries {@code RecordBoundaryProbe} returns is seeded with {@code 0L}, so the split
+     * {@code buildNewlineMacroSplits} stamps {@code _first_split} on is always the one at byte zero,
+     * and a record-aligned first split at a non-zero offset is a cell production never builds.
      */
     public void testTheFirstSplitOfABlockAlignedObjectNeedsNoWindowClause() throws IOException {
         List<Attribute> schema = splitSchema();

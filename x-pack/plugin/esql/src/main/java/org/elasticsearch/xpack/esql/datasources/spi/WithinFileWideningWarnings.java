@@ -26,6 +26,13 @@ public final class WithinFileWideningWarnings {
     private WithinFileWideningWarnings() {}
 
     /**
+     * @param sourceLocation the object this sample came from, ALREADY escaped by the caller -- CSV through
+     *                       {@link RowLocation#displayObjectName}, NDJSON through
+     *                       {@link RowLocation#escapedForDisplay} -- because it is printed inside a bracketed
+     *                       clause this method builds by concatenation and a store-supplied path is free to
+     *                       close that bracket. The column name beside it is escaped HERE instead, so the two
+     *                       store-supplied fields of this detail are escaped on opposite sides of the call;
+     *                       a third caller handing this one a raw path reopens the forgery
      * @param columnNoun     "column" or "field", used only in the summary line (e.g. "A field's
      *                       inferred type changed..."); the per-widening detail always says "column"
      *                       regardless, matching both readers' existing wording

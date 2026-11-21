@@ -1,0 +1,6 @@
+area: Data streams
+issues:
+ - 165205
+pr: 165593
+summary: Reject data stream names that match an existing index
+type: bug

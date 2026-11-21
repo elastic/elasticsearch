@@ -877,6 +877,16 @@ public class QueryTranslatorTests extends ESTestCase {
         }
     }
 
+    public void testTooComplexLikeAndRLikePatterns() {
+        for (String condition : new String[] { "k RLIKE '(a|b)*a(a|b){13}'", "k LIKE '%a_____________'" }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> optimizeAndPlan("SELECT keyword k FROM test WHERE " + condition)
+            );
+            assertEquals(condition, "Pattern was too complex to determinize", e.getMessage());
+        }
+    }
+
     private void assertDifferentRLikeAndNotRLikePatterns(String firstPattern, String secondPattern) {
         LogicalPlan p = plan("SELECT keyword k FROM test WHERE k RLIKE '" + firstPattern + "' AND k NOT RLIKE '" + secondPattern + "'");
         assertTrue(p instanceof Project);

@@ -1,0 +1,5 @@
+area: EQL
+issues: []
+pr: 164533
+summary: Gracefully handle complex regex
+type: bug

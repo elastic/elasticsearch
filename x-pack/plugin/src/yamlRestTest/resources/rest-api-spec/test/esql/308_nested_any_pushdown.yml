@@ -128,22 +128,35 @@ setup:
                 type: nested
                 properties:
                   dbl: { type: double }
+                  sku: { type: keyword }
   - do:
       bulk:
         refresh: true
         body:
           - { "index": { "_index": "na_recheck", "_id": "on_bound" } }
-          - { "id": "on_bound", "items": [ { "dbl": 1.0 }, { "dbl": 1.5 } ] }
+          - { "id": "on_bound", "items": [ { "dbl": 1.0, "sku": "x" }, { "dbl": 1.5, "sku": "x" } ] }
           - { "index": { "_index": "na_recheck", "_id": "above" } }
-          - { "id": "above", "items": [ { "dbl": 2.0 } ] }
+          - { "id": "above", "items": [ { "dbl": 2.0, "sku": "x" } ] }
+          - { "index": { "_index": "na_recheck", "_id": "other_sku" } }
+          - { "id": "other_sku", "items": [ { "dbl": 2.0, "sku": "y" } ] }
           - { "index": { "_index": "na_recheck", "_id": "below" } }
-          - { "id": "below", "items": [ { "dbl": 1.0 } ] }
+          - { "id": "below", "items": [ { "dbl": 1.0, "sku": "x" } ] }
   - match: { errors: false }
   - do:
       esql.query:
         allow_partial_results: false
         body:
           query: 'FROM na_recheck | WHERE NESTED_ANY(MV_GREATER(items.dbl, 1.5)) | KEEP id | SORT id | LIMIT 10'
+  - match:
+      values:
+      - ["above"]
+      - ["other_sku"]
+  - match: { documents_found: 3 }
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_recheck | WHERE NESTED_ANY(MV_GREATER(items.dbl, 1.5)) AND NESTED_ANY(items.sku == "x") | KEEP id | SORT id | LIMIT 10'
   - match:
       values:
       - ["above"]

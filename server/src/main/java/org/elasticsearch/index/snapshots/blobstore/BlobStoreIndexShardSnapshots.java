@@ -11,6 +11,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -292,65 +293,97 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         if (token == null) { // New parser
             token = parser.nextToken();
         }
-        // list of tuples of snapshot name and file ids in the snapshot
-        List<Tuple<String, List<String>>> snapshotsAndFiles = new ArrayList<>();
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+        List<Tuple<String, List<FileInfo>>> resolvedSnapshots = new ArrayList<>();
+        List<Tuple<String, List<String>>> unresolvedSnapshots = new ArrayList<>();
         Map<String, String> historyUUIDs = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        String currentFieldName;
-        while ((currentFieldName = parser.nextFieldName()) != null) {
+        boolean fileTableRead = false;
+        String field;
+        while ((field = parser.nextFieldName()) != null) {
             token = parser.nextToken();
             switch (token) {
                 case START_ARRAY -> {
-                    if (Fields.FILES.equals(currentFieldName) == false) {
-                        XContentParserUtils.throwUnknownField(currentFieldName, parser);
+                    if (Fields.FILES.equals(field) == false) {
+                        XContentParserUtils.throwUnknownField(field, parser);
                     }
-                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        FileInfo fileInfo = FileInfo.fromXContent(parser);
-                        files.put(fileInfo.name(), fileInfo);
-                    }
+                    readFileTable(parser, files);
+                    fileTableRead = true;
                 }
                 case START_OBJECT -> {
-                    if (Fields.SNAPSHOTS.equals(currentFieldName) == false) {
-                        XContentParserUtils.throwUnknownField(currentFieldName, parser);
+                    if (Fields.SNAPSHOTS.equals(field) == false) {
+                        XContentParserUtils.throwUnknownField(field, parser);
                     }
-                    String snapshot;
-                    while ((snapshot = parser.nextFieldName()) != null) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                        while ((currentFieldName = parser.nextFieldName()) != null) {
-                            token = parser.nextToken();
-                            if (Fields.FILES.equals(currentFieldName)) {
-                                if (token == XContentParser.Token.START_ARRAY) {
-                                    snapshotsAndFiles.add(
-                                        Tuple.tuple(snapshot, XContentParserUtils.parseList(parser, XContentParser::text))
-                                    );
-                                }
-                            } else if (Fields.SHARD_STATE_ID.equals(currentFieldName)) {
-                                historyUUIDs.put(snapshot, parser.text());
-                            }
-                        }
+                    if (fileTableRead) {
+                        readSnapshotEntries(parser, resolvedSnapshots, historyUUIDs, p -> resolveFile(files, p.text()));
+                    } else {
+                        readSnapshotEntries(parser, unresolvedSnapshots, historyUUIDs, XContentParser::text);
                     }
                 }
                 default -> XContentParserUtils.throwUnknownToken(token, parser);
             }
         }
+        return new BlobStoreIndexShardSnapshots(files, buildSnapshots(files, resolvedSnapshots, unresolvedSnapshots, historyUUIDs));
+    }
 
-        List<SnapshotFiles> snapshots = new ArrayList<>(snapshotsAndFiles.size());
-        for (Tuple<String, List<String>> entry : snapshotsAndFiles) {
-            List<FileInfo> fileInfosBuilder = new ArrayList<>();
-            for (String file : entry.v2()) {
-                FileInfo fileInfo = files.get(file);
-                if (fileInfo == null) {
-                    // could happen in production if the repo contents are corrupted
-                    final var exception = new IllegalStateException("shard index inconsistent at file [" + file + "]");
-                    assert INTEGRITY_ASSERTIONS_ENABLED == false : exception;
-                    throw exception;
-                }
-                fileInfosBuilder.add(fileInfo);
-            }
-            snapshots.add(new SnapshotFiles(entry.v1(), Collections.unmodifiableList(fileInfosBuilder), historyUUIDs.get(entry.v1())));
+    private static void readFileTable(XContentParser parser, Map<String, FileInfo> files) throws IOException {
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            FileInfo file = FileInfo.fromXContent(parser);
+            files.put(file.name(), file);
         }
-        return new BlobStoreIndexShardSnapshots(files, snapshots);
+    }
+
+    private static <T> void readSnapshotEntries(
+        XContentParser parser,
+        List<Tuple<String, List<T>>> entries,
+        Map<String, String> historyUUIDs,
+        CheckedFunction<XContentParser, T, IOException> readFileReference
+    ) throws IOException {
+        String snapshot;
+        while ((snapshot = parser.nextFieldName()) != null) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            String field;
+            while ((field = parser.nextFieldName()) != null) {
+                final var token = parser.nextToken();
+                if (Fields.FILES.equals(field) && token == XContentParser.Token.START_ARRAY) {
+                    entries.add(Tuple.tuple(snapshot, XContentParserUtils.parseList(parser, readFileReference)));
+                } else if (Fields.SHARD_STATE_ID.equals(field)) {
+                    historyUUIDs.put(snapshot, parser.text());
+                }
+            }
+        }
+    }
+
+    private static List<SnapshotFiles> buildSnapshots(
+        Map<String, FileInfo> files,
+        List<Tuple<String, List<FileInfo>>> resolvedSnapshots,
+        List<Tuple<String, List<String>>> unresolvedSnapshots,
+        Map<String, String> historyUUIDs
+    ) {
+        List<SnapshotFiles> snapshots = new ArrayList<>(resolvedSnapshots.size() + unresolvedSnapshots.size());
+        for (Tuple<String, List<String>> entry : unresolvedSnapshots) {
+            List<FileInfo> snapshotFiles = new ArrayList<>(entry.v2().size());
+            for (String file : entry.v2()) {
+                snapshotFiles.add(resolveFile(files, file));
+            }
+            snapshots.add(new SnapshotFiles(entry.v1(), Collections.unmodifiableList(snapshotFiles), historyUUIDs.get(entry.v1())));
+        }
+        for (Tuple<String, List<FileInfo>> entry : resolvedSnapshots) {
+            snapshots.add(new SnapshotFiles(entry.v1(), Collections.unmodifiableList(entry.v2()), historyUUIDs.get(entry.v1())));
+        }
+        return snapshots;
+    }
+
+    private static FileInfo resolveFile(Map<String, FileInfo> files, String name) {
+        final FileInfo file = files.get(name);
+        if (file == null) {
+            // could happen in production if the repo contents are corrupted
+            final var exception = new IllegalStateException("shard index inconsistent at file [" + name + "]");
+            assert INTEGRITY_ASSERTIONS_ENABLED == false : exception;
+            throw exception;
+        }
+        return file;
     }
 
 }

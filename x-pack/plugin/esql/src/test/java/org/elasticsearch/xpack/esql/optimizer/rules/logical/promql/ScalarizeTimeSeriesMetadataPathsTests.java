@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnpackDims;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 
@@ -251,6 +253,87 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         assertTrue(scalarized.left().outputSet().contains(carried.get(0)));
         // a join executes only what it adds of its right side
         assertThat(scalarized.addedFields(), hasItem(carried.get(1)));
+    }
+
+    /**
+     * A read of a union's container is a read of each branch's container at the same position, as a projection commutes
+     * with a union: when every branch has the value, the union outputs it as one more column.
+     */
+    public void testReadAboveAUnion() {
+        Alias excluded = new Alias(SOURCE, MetadataAttribute.TIMESERIES, new TimeSeriesWithout(SOURCE, List.of(cluster)));
+        LogicalPlan plan = scalarize(
+            new Eval(SOURCE, union(branch(labels()), branch(excluded)), List.of(readOfUnion("pod"), readOfUnion("cluster")))
+        );
+
+        assertThat(reads(plan), empty());
+        UnionAll scalarized = plan.collect(UnionAll.class).getFirst();
+        assertThat(scalarized.output(), hasSize(4));
+        Attribute pods = scalarized.output().get(2);
+        Attribute clusters = scalarized.output().get(3);
+        assertEquals(pods, valueOf(plan, "pod"));
+        assertEquals(clusters, valueOf(plan, "cluster"));
+        for (LogicalPlan branch : scalarized.children()) {
+            assertThat(branch.output(), hasSize(4));
+            assertEquals(pod, valueOf(branch, branch.output().get(2)));
+            // a union pairs the columns of its branches by name, as the translation names them
+            assertEquals(pods.name(), branch.output().get(2).name());
+            assertEquals(clusters.name(), branch.output().get(3).name());
+        }
+        assertEquals(cluster, valueOf(scalarized.children().get(0), scalarized.children().get(0).output().get(3)));
+        assertNullLiteral(valueOf(scalarized.children().get(1), scalarized.children().get(1).output().get(3)));
+    }
+
+    /** A read of a union's container stays when a branch doesn't have the value: the union has no column for it. */
+    public void testReadAboveAUnionWithoutTheValueInABranchStays() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        Attribute last = aggregate.output().getFirst();
+        Aggregate regroup = new Aggregate(
+            SOURCE,
+            aggregate,
+            List.of(labels.toAttribute()),
+            List.of(new Alias(SOURCE, "value", new Values(SOURCE, last)), labels.toAttribute())
+        );
+        LogicalPlan plan = new Eval(SOURCE, union(branch(labels()), regroup), List.of(readOfUnion("pod")));
+        assertThat(scalarize(plan), sameInstance(plan));
+    }
+
+    private UnionAll union;
+
+    /** A union of {@code branches}, each returning a value then a label container, the way the translation unions `or`. */
+    private UnionAll union(LogicalPlan... branches) {
+        union = new UnionAll(
+            SOURCE,
+            List.of(branches),
+            List.of(
+                new ReferenceAttribute(SOURCE, null, "$prom_value", DataType.DOUBLE),
+                new ReferenceAttribute(SOURCE, null, "$prom_labels", DataType.KEYWORD)
+            )
+        );
+        return union;
+    }
+
+    private Alias readOfUnion(String label) {
+        return read(label, union.output().get(1), label);
+    }
+
+    /** A branch returning the last value of the series then their labels {@code labels}. */
+    private LogicalPlan branch(Alias labels) {
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels);
+        return new Project(SOURCE, aggregate, List.of(aggregate.output().getFirst(), labels.toAttribute()));
+    }
+
+    /** What the output {@code attribute} of {@code plan} evaluates to, looked through aliases. */
+    private static Expression valueOf(LogicalPlan plan, Attribute attribute) {
+        Expression value = attribute;
+        while (value instanceof Attribute named) {
+            Expression defined = definition(plan, named);
+            if (defined == null) {
+                return named;
+            }
+            value = defined;
+        }
+        return value;
     }
 
     /**

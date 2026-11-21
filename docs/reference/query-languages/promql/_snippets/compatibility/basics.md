@@ -75,7 +75,7 @@ Time durations, such as `1h30m`, and duration arithmetic, such as `x[5m + 1m]`.
 
 A metric name with the label matchers `=`, `!=`, `=~`, and `!~`, such as `http_requests_total{job="api", code=~"5.."}`.
 
-{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The regex of `=~` and `!~` in RE2 syntax, as in {{prom}}, such as `{code=~"\\d{3}"}` and `{path=~"(?i)/api/.*"}`. While the cluster has nodes on an earlier version, a matcher that still needs a regex after rewriting and that Lucene regexp syntax reads differently, such as `(?i)/api/.*`, is rejected, even when every queried shard is on an upgraded node. Requests coordinated by a node on an earlier version still use Lucene regexp syntax.
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` The regex of `=~` and `!~` in RE2 syntax, as in {{prom}}, such as `{code=~"\\d{3}"}` and `{path=~"(?i)/api/.*"}`. While the cluster, or a remote cluster the query reads, has nodes on an earlier version, a matcher that still needs a regex after rewriting and that Lucene regexp syntax reads differently, such as `(?i)/api/.*`, is rejected, even when every queried shard is on an upgraded node. Requests coordinated by a node on an earlier version still use Lucene regexp syntax.
 
 **Not supported yet**
 

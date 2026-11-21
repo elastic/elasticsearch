@@ -21,7 +21,14 @@ public class PhaseProgressTests extends AbstractXContentSerializingTestCase<Phas
 
     @Override
     protected PhaseProgress mutateInstance(PhaseProgress instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        String phase = instance.getPhase();
+        int progressPercent = instance.getProgressPercent();
+        switch (between(0, 1)) {
+            case 0 -> phase = randomValueOtherThan(phase, () -> randomAlphaOfLength(10));
+            case 1 -> progressPercent = randomValueOtherThan(progressPercent, () -> randomIntBetween(0, 100));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new PhaseProgress(phase, progressPercent);
     }
 
     public static PhaseProgress createRandom() {

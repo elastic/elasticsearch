@@ -114,15 +114,17 @@ public class FlattenedColumnarArrayOrderFieldDataTests extends MapperServiceTest
     }
 
     public void testKeyIsolation() throws IOException {
-        // Values for key "a" must not appear under key "z" and vice versa.
+        // Values for key "a" must not appear under key "z" and vice versa. Key "ab" starts with "a" and must not leak into it.
         CheckedConsumer<XContentBuilder, IOException> doc = b -> b.startObject("field")
             .startArray("a")
             .value("banana")
             .value("apple")
             .endArray()
+            .field("ab", "prefixed")
             .field("z", "other")
             .endObject();
         assertEquals(List.of("apple", "banana"), fielddataValues("a", doc));
+        assertEquals(List.of("prefixed"), fielddataValues("ab", doc));
         assertEquals(List.of("other"), fielddataValues("z", doc));
     }
 

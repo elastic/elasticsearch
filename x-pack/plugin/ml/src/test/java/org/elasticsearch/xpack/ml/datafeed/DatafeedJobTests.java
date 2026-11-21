@@ -728,6 +728,83 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
+    public void testEsqlLookBackFromResumePointShouldStartRightAfterIt() throws Exception {
+        long hour = 3_600_000L;
+        currentTime = 20 * hour;
+        long queryDelayMs = 500;
+        // Either a bucket-boundary resume point (aggregating query) or a raw row resume point: DatafeedJob does not branch on it.
+        long resumeEnd = randomFrom(7 * hour - 1, 6 * hour + 30 * 60_000L);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, resumeEnd, true);
+        datafeedJob.runLookBack(0L, null);
+
+        verify(dataExtractorFactory).newExtractor(resumeEnd + 1, currentTime - queryDelayMs);
+    }
+
+    public void testEsqlRealtimeFromResumePointShouldStartRightAfterIt() throws Exception {
+        long hour = 3_600_000L;
+        currentTime = 20 * hour;
+        long queryDelayMs = 500;
+        long resumeEnd = randomFrom(7 * hour - 1, 6 * hour + 30 * 60_000L);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, resumeEnd, true);
+        datafeedJob.runRealtime();
+
+        verify(dataExtractorFactory).newExtractor(resumeEnd + 1, (currentTime - queryDelayMs) / 1000 * 1000);
+    }
+
+    public void testEsqlLookBackWithEmptyWindowShouldAdvanceLastEndTimeToWindowEnd() throws Exception {
+        long hour = 3_600_000L;
+        when(dataExtractor.hasNext()).thenReturn(false);
+        when(dataExtractor.getEndTime()).thenReturn(10 * hour);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, true);
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 10 * hour));
+
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(10 * hour - 1));
+    }
+
+    public void testEsqlRealtimeAfterLookBackShouldContinueAtLookBackWindowEnd() throws Exception {
+        long hour = 3_600_000L;
+        long queryDelayMs = 500;
+        long resumeEnd = 7 * hour - 1;
+        currentTime = 20 * hour;
+        long lookBackEnd = currentTime - queryDelayMs;
+        // The lookback posts nothing, so only the window end can move lastEndTimeMs.
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(new DataCounts(jobId)));
+        when(dataExtractor.getEndTime()).thenReturn(lookBackEnd);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, resumeEnd, true);
+        // An empty window is reported after lastEndTimeMs has advanced.
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, null));
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(lookBackEnd - 1));
+
+        currentTime = 21 * hour;
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        verify(dataExtractorFactory).newExtractor(7 * hour, lookBackEnd);
+        verify(dataExtractorFactory).newExtractor(lookBackEnd, (currentTime - queryDelayMs) / 1000 * 1000);
+    }
+
+    public void testEsqlLookBackPostingRawRowsShouldNotMoveLastEndTimeBeforeWindowEnd() throws Exception {
+        long hour = 3_600_000L;
+        long queryDelayMs = 500;
+        currentTime = 20 * hour;
+        long lookBackEnd = currentTime - queryDelayMs;
+        long postedRow = 9 * hour + 14 * 60_000L;
+        DataCounts postedCounts = new DataCounts(jobId);
+        postedCounts.incrementProcessedRecordCount(1);
+        postedCounts.setLatestRecordTimeStamp(new Date(postedRow));
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(postedCounts));
+        when(dataExtractor.getEndTime()).thenReturn(lookBackEnd);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, queryDelayMs, -1, 6 * hour, true);
+        datafeedJob.runLookBack(0L, null);
+
+        // The latest posted row only sets lastEndTimeMs transiently; the completed window then moves it to the window end.
+        assertThat(datafeedJob.lastEndTimeMs(), equalTo(lookBackEnd - 1));
+    }
+
     public void testEsqlTruncatedChunkShouldAuditWarningAndAdvancePastInterval() throws Exception {
         when(dataExtractor.getEndTime()).thenReturn(1000L);
         when(dataExtractor.getIncompleteSearchInterval()).thenReturn(Optional.of(new SearchInterval(100L, 200L)));

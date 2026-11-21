@@ -42,14 +42,19 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     @Override
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
+        boolean hasEsqlQuery = datafeedConfig.getEsqlQuery() != null;
+        long alignedStart = alignStart(timeAligner, start);
         // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
         long alignedEnd = timeAligner.alignToFloor(end);
-        boolean hasEsqlQuery = datafeedConfig.getEsqlQuery() != null;
+        if (hasEsqlQuery) {
+            // An unaligned raw-row start can be past the floored end; keep the window empty rather than inverted.
+            alignedEnd = Math.max(alignedEnd, alignedStart);
+        }
         boolean injectsEsqlRowLimit = hasEsqlQuery && EsqlDataExtractor.injectsRowLimit(datafeedConfig.getEsqlQuery());
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),
-            alignStart(timeAligner, start),
+            alignedStart,
             alignedEnd,
             datafeedConfig.getChunkingConfig().getTimeSpan(),
             timeAligner,
@@ -62,11 +67,17 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     }
 
     /**
-     * ES|QL floors start so the bucket containing an unaligned job start is kept (row time = bucket floor). DSL ceils start to skip
-     * the partial first histogram bucket. Example: 10:30 start, 1h interval — ES|QL from 10:00, DSL from 11:00.
+     * Aggregating ES|QL floors start so the bucket containing an unaligned job start is kept (row time = bucket floor). Raw ES|QL rows
+     * keep their source timestamps, so start stays as given: flooring it would re-read rows already posted before a restart.
+     * DSL ceils start to skip the partial first histogram bucket. Example: 10:30 start, 1h interval — aggregating ES|QL from 10:00,
+     * DSL from 11:00.
      */
     private long alignStart(ChunkedDataExtractorContext.TimeAligner timeAligner, long start) {
-        return datafeedConfig.getEsqlQuery() != null ? timeAligner.alignToFloor(start) : timeAligner.alignToCeil(start);
+        String esqlQuery = datafeedConfig.getEsqlQuery();
+        if (esqlQuery == null) {
+            return timeAligner.alignToCeil(start);
+        }
+        return EsqlDataExtractor.rowsAreBucketStamped(esqlQuery) ? timeAligner.alignToFloor(start) : start;
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorF
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.RestartTimeInfo;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.List;
@@ -95,6 +96,19 @@ public class DatafeedJobBuilder {
             .addSettingsUpdateConsumer(CCS_STABILIZATION_FLOOR, v -> this.ccsStabilizationFloorMs = v.millis());
     }
 
+    private static long latestRecordTimeMs(DatafeedConfig datafeedConfig, RestartTimeInfo restartTimeInfo) {
+        if (restartTimeInfo.getLatestRecordTimeMs() == null) {
+            return -1;
+        }
+        long recordMs = restartTimeInfo.getLatestRecordTimeMs();
+        if (EsqlDataExtractor.rowsAreBucketStamped(datafeedConfig.getEsqlQuery())) {
+            // Aggregating ES|QL emits bucket-floor timestamps; {@link ChunkedDataExtractorFactory} floors the window start on
+            // restart, so advance past the last fully emitted grouping bucket. Raw {@code FROM} rows keep source timestamps.
+            recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
+        }
+        return recordMs;
+    }
+
     private void setDelayedDataCheckFreq(TimeValue value) {
         this.delayedDataCheckFreq = value.millis();
     }
@@ -106,18 +120,7 @@ public class DatafeedJobBuilder {
         final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
             : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs;
-        if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
-            latestRecordTimeMs = -1;
-        } else {
-            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
-            if (datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery())) {
-                // Aggregating ES|QL emits bucket-floor timestamps; {@link ChunkedDataExtractorFactory} floors the window start on
-                // restart, so advance past the last fully emitted grouping bucket. Raw {@code FROM} rows keep source timestamps.
-                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-            }
-            latestRecordTimeMs = recordMs;
-        }
+        final long latestRecordTimeMs = latestRecordTimeMs(datafeedConfig, context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats
@@ -197,16 +200,7 @@ public class DatafeedJobBuilder {
         final long latestFinalBucketEndMs = context.restartTimeInfo().getLatestFinalBucketTimeMs() == null
             ? -1
             : context.restartTimeInfo().getLatestFinalBucketTimeMs() + job.getAnalysisConfig().getBucketSpan().millis() - 1;
-        final long latestRecordTimeMs;
-        if (context.restartTimeInfo().getLatestRecordTimeMs() == null) {
-            latestRecordTimeMs = -1;
-        } else {
-            long recordMs = context.restartTimeInfo().getLatestRecordTimeMs();
-            if (datafeedConfig.getEsqlQuery() != null && EsqlDataExtractor.hasAggregation(datafeedConfig.getEsqlQuery())) {
-                recordMs += datafeedConfig.getGroupingInterval().millis() - 1;
-            }
-            latestRecordTimeMs = recordMs;
-        }
+        final long latestRecordTimeMs = latestRecordTimeMs(datafeedConfig, context.restartTimeInfo());
         final DatafeedTimingStatsReporter timingStatsReporter = new DatafeedTimingStatsReporter(
             context.timingStats(),
             jobResultsPersister::persistDatafeedTimingStats

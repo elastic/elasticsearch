@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
@@ -56,8 +57,15 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
     static final String QUERY_TAIL = " | INLINE STATS c = COUNT(*) BY k | STATS n = COUNT(*), s = SUM(c)";
     /** The breaker label of the transport's serialized outbound messages. */
     static final String SERIALIZED_REQUEST_LABEL = "RecyclerBytesStreamOutput";
-    /** Well below the sub-plan result of {@link #NUM_DOCS} {@link #key keys}, and above what the rest of the query allocates. */
-    private static final ByteSizeValue HEADROOM = ByteSizeValue.ofMb(1);
+    /**
+     * Well below the sub-plan result of {@link #NUM_DOCS} {@link #key keys}, and above what the rest of the query allocates.
+     * A serialized request is charged whole {@link PageCacheRecycler#BYTE_PAGE_SIZE pages}, so one byte short of a page more than
+     * whole pages makes it trip while almost a page is still free. A worker that already has its main plan meanwhile sends back
+     * pages that are charged as they arrive. They are small, so they fit in what is left and don't trip before the request.
+     */
+    private static final ByteSizeValue HEADROOM = ByteSizeValue.ofBytes(
+        ByteSizeValue.ofMb(1).getBytes() + PageCacheRecycler.BYTE_PAGE_SIZE - 1
+    );
 
     /**
      * A unique key with a random suffix. The test cluster sometimes compresses transport messages, and only the compressed bytes

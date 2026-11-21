@@ -604,6 +604,21 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertTrue(mid.mayContain(Map.of("year", "2024", "month", "6", "day", "15")));
     }
 
+    /**
+     * ES|QL reads {@code "2024-06"} as 2024-06-01, but the projection cannot parse it. An {@code IN} holding it must not
+     * narrow to the values that do parse, or June's folders drop out. {@code ts == "2024-06"} alone already restricts
+     * nothing, and the {@code IN} must do the same.
+     */
+    public void testInWithAValueThatDoesNotConvertRestrictsNothing() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        List<PartitionFilterHint> hints = List.of(hint("ts", Operator.IN, "2024-01-15", "2024-06"));
+
+        assertTrue(spec.overlaps(folder(2024, 6, 1), hints));
+        assertTrue(spec.overlaps(folder(2024, 1, 15), hints));
+        assertNull(spec.folderRangePredicate(hints));
+        assertEquals("no year, month or day hint may be derived", hints, spec.projectListingHints(hints));
+    }
+
     public void testQuantizeRangeAgreesWithRawOnGrainFoldersIncludingLagLead() {
         Instant min = Instant.parse("2000-01-01T00:00:00Z");
         Instant max = Instant.parse("2030-12-31T23:00:00Z");

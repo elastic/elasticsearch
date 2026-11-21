@@ -45,9 +45,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
- * The dictionary path of {@link TimeSeriesMetadataFunctionEvaluator}. A label container is loaded once per series and page, so a
- * page holds it dictionary encoded: a function of the label container alone runs once per dictionary entry. Every case here is
- * asserted to give, position for position, what the same values give through the per-row path.
+ * The dictionary path of {@link AbstractTimeSeriesMetadataFunction.AbstractEvaluator}. A label container is loaded once per
+ * series and page, so a page holds it dictionary encoded: a function of the label container alone runs once per dictionary
+ * entry. Every case here is asserted to give, position for position, what the same values give through the per-row path.
  */
 public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
 

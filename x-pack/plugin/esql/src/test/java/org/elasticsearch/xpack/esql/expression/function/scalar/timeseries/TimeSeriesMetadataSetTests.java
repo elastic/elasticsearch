@@ -85,9 +85,7 @@ public class TimeSeriesMetadataSetTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String evaluator(String label) {
-        return "TimeSeriesMetadataFunctionEvaluator[operation=SET, names=["
-            + label
-            + "], labelContainer=Attribute[channel=0], value=Attribute[channel=1]]";
+        return "TimeSeriesMetadataSetEvaluator[labelContainer=Attribute[channel=0], label=" + label + ", value=Attribute[channel=1]]";
     }
 
     private static TestCaseSupplier set(String name, String labelContainer, String label, String value, String expected) {

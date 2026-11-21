@@ -71,6 +71,7 @@ import org.junit.Before;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
@@ -9220,7 +9221,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertEquals(List.of(1L, 2L), ids);
         assertEquals("only the row stream is opened", 1, object.opened);
-        assertEquals(0, object.aborted);
+        assertEquals("row stream is closed once after a full read", 1, object.aborted);
     }
 
     /**
@@ -9290,7 +9291,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertEquals(2, rows);
         assertEquals("only the row stream is opened", 1, object.opened);
-        assertEquals(0, object.aborted);
+        assertEquals("row stream is closed once after a full read", 1, object.aborted);
     }
 
     /**
@@ -9355,18 +9356,34 @@ public class CsvFormatReaderTests extends ESTestCase {
         @Override
         public InputStream newStream() {
             opened++;
-            return new ByteArrayInputStream(bytes);
+            return new FilterInputStream(new ByteArrayInputStream(bytes)) {
+                private boolean closed;
+
+                @Override
+                public void close() throws IOException {
+                    if (closed == false) {
+                        closed = true;
+                        aborted++;
+                    }
+                    super.close();
+                }
+            };
         }
 
         @Override
         public InputStream newStream(long position, long length) {
-            return new ByteArrayInputStream(bytes, (int) position, (int) length);
-        }
+            return new FilterInputStream(new ByteArrayInputStream(bytes, (int) position, (int) length)) {
+                private boolean closed;
 
-        @Override
-        public void abortStream(InputStream stream) throws IOException {
-            aborted++;
-            stream.close();
+                @Override
+                public void close() throws IOException {
+                    if (closed == false) {
+                        closed = true;
+                        aborted++;
+                    }
+                    super.close();
+                }
+            };
         }
 
         @Override

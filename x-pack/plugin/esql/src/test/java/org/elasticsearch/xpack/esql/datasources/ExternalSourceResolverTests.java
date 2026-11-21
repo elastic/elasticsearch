@@ -11446,8 +11446,9 @@ public class ExternalSourceResolverTests extends ESTestCase {
         assertEquals(4, ExternalSourceResolver.schemaSampleShare(3));
         assertEquals(4, ExternalSourceResolver.schemaSampleShare(4));
         assertEquals(8, ExternalSourceResolver.schemaSampleShare(5));
-        // No overflow clamp is needed: MAX_DISCOVERED_FILES caps a resolved listing at 1,000,000 files.
+        // No overflow clamp is needed: MAX_DISCOVERED_FILES caps a resolved listing at 10,000,000 files.
         assertEquals(1 << 20, ExternalSourceResolver.schemaSampleShare(1_000_000));
+        assertEquals(1 << 24, ExternalSourceResolver.schemaSampleShare(10_000_000));
     }
 
     /**

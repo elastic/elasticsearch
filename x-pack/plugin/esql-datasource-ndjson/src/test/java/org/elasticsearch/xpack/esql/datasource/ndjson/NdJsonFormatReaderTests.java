@@ -458,9 +458,14 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         AtomicLong abortCount = new AtomicLong();
         StorageObject object = new BytesObject("{\"id\":1}\n".getBytes(StandardCharsets.UTF_8)) {
             @Override
-            public void abortStream(InputStream stream) throws IOException {
-                abortCount.incrementAndGet();
-                stream.close();
+            public InputStream newStream() {
+                return new FilterInputStream(super.newStream()) {
+                    @Override
+                    public void close() throws IOException {
+                        abortCount.incrementAndGet();
+                        super.close();
+                    }
+                };
             }
         };
 
@@ -495,12 +500,12 @@ public class NdJsonFormatReaderTests extends ESTestCase {
                     public int read(byte[] buf, int off, int len) throws IOException {
                         throw scanFailure;
                     }
-                };
-            }
 
-            @Override
-            public void abortStream(InputStream stream) {
-                aborted.set(true);
+                    @Override
+                    public void close() {
+                        aborted.set(true);
+                    }
+                };
             }
         };
 

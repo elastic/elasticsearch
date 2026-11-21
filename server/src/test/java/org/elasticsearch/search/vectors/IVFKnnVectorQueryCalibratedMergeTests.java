@@ -382,10 +382,10 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
         protected IVFCollectorManager getKnnCollectorManager(
             int k,
             SharedMinCompetitiveScore sharedScore,
-            SharedQueryTransforms sharedQueryTransforms
+            QueryTransformCache queryTransformCache
         ) {
             captured.add(new CollectorManagerArgs(k, sharedScore));
-            return super.getKnnCollectorManager(k, sharedScore, sharedQueryTransforms);
+            return super.getKnnCollectorManager(k, sharedScore, queryTransformCache);
         }
     }
 }

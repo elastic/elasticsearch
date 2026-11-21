@@ -44,7 +44,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
-import org.elasticsearch.search.vectors.SharedQueryTransforms;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -579,7 +579,7 @@ public class ES940DiskBBQVectorsFormatTests extends ESBaseKnnVectorsFormatTestCa
                         collector = new TopKnnCollector(
                             random().nextInt(2 * matchingDocs, 3 * matchingDocs),
                             Integer.MAX_VALUE,
-                            new IVFKnnSearchStrategy(0.25f, 10, 10, null, SharedQueryTransforms.NONE)
+                            new IVFKnnSearchStrategy(0.25f, 10, 10, null, QueryTransformCache.NONE)
                         );
                     }
                     if (leafReader.postings(new Term("k", new BytesRef("B"))) == null) {

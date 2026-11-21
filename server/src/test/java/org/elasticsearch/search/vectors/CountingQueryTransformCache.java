@@ -13,17 +13,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * {@link SharedQueryTransforms#perQuery()} that counts the transformations it computes, so tests can check how many
+ * {@link QueryTransformCache#perQuery()} that counts the transformations it computes, so tests can check how many
  * times a query was transformed across the searches sharing it.
  */
-public final class CountingSharedQueryTransforms implements SharedQueryTransforms {
+public final class CountingQueryTransformCache implements QueryTransformCache {
 
-    private final SharedQueryTransforms delegate = SharedQueryTransforms.perQuery();
+    private final QueryTransformCache delegate = QueryTransformCache.perQuery();
     private final AtomicInteger computed = new AtomicInteger();
 
     @Override
-    public <V> V computeIfAbsent(Key<V> key, Supplier<V> supplier) {
-        return delegate.computeIfAbsent(key, () -> {
+    public <V> V getSharedQuery(Object key, Supplier<V> supplier) {
+        return delegate.getSharedQuery(key, () -> {
             computed.incrementAndGet();
             return supplier.get();
         });

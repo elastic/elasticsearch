@@ -19,7 +19,7 @@ public class MaxScoreTopKnnCollectorTests extends ESTestCase {
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(
             2,
             1000,
-            new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, SharedQueryTransforms.NONE)
+            new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE)
         );
         long competitiveScore = NeighborQueue.encodeRaw(1, 0.9f);
 
@@ -51,7 +51,7 @@ public class MaxScoreTopKnnCollectorTests extends ESTestCase {
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(
             2,
             1000,
-            new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, SharedQueryTransforms.NONE)
+            new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE)
         );
         collector.collect(2, 2.0f);
 

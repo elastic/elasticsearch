@@ -73,9 +73,9 @@ public class DiversifyingChildrenIVFKnnByteSlicedVectorQuery extends IVFKnnByteS
     protected IVFCollectorManager getKnnCollectorManager(
         int k,
         SharedMinCompetitiveScore sharedScore,
-        SharedQueryTransforms sharedQueryTransforms
+        QueryTransformCache queryTransformCache
     ) {
-        return new DiversifiedIVFKnnCollectorManager(k, sharedScore, sharedQueryTransforms, parentsFilter);
+        return new DiversifiedIVFKnnCollectorManager(k, sharedScore, queryTransformCache, parentsFilter);
     }
 
     @Override

@@ -24,27 +24,25 @@ import java.util.function.Supplier;
  * An instance holds the transformations of a single vector, so keys need to capture everything else a transformation
  * depends on, but not the vector.
  */
-public interface SharedQueryTransforms {
+public interface QueryTransformCache {
 
-    /** Key of a transformation whose value has type {@code V}. Implementations must implement equals and hashCode. */
-    interface Key<V> {}
-
-    /** Shares nothing: every transformation is computed by the search that needs it. */
-    SharedQueryTransforms NONE = new SharedQueryTransforms() {
+    /** Caches nothing: every transformation is computed by the search that needs it. */
+    QueryTransformCache NONE = new QueryTransformCache() {
         @Override
-        public <V> V computeIfAbsent(Key<V> key, Supplier<V> supplier) {
+        public <V> V getSharedQuery(Object key, Supplier<V> supplier) {
             return supplier.get();
         }
     };
 
     /**
-     * Returns the transformation for {@code key}, computing it with {@code supplier} unless it is shared and another search
-     * of the query already has. Suppliers for the same key must compute the same value, which must not be modified.
+     * Returns the transformed query for {@code key}, computing it with {@code supplier} unless it is cached and another
+     * search of the query already has. Keys must implement equals and hashCode, and each kind of key must be used with a
+     * single type of value. Suppliers for the same key must compute the same value, which must not be modified.
      */
-    <V> V computeIfAbsent(Key<V> key, Supplier<V> supplier);
+    <V> V getSharedQuery(Object key, Supplier<V> supplier);
 
     /** Returns a new instance that computes each transformation once, to share across the searches of one query. */
-    static SharedQueryTransforms perQuery() {
-        return new PerQuerySharedQueryTransforms();
+    static QueryTransformCache perQuery() {
+        return new PerQueryTransformCache();
     }
 }

@@ -26,9 +26,9 @@ import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
-import org.elasticsearch.search.vectors.CountingSharedQueryTransforms;
+import org.elasticsearch.search.vectors.CountingQueryTransformCache;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
-import org.elasticsearch.search.vectors.SharedQueryTransforms;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Reuse of a query's projection across the segments of a query that share the ASH projection matrix W, through
- * {@link SharedQueryTransforms}.
+ * {@link QueryTransformCache}.
  */
 public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
 
@@ -119,8 +119,8 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
             try (DirectoryReader reader = DirectoryReader.open(w)) {
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 float[] query = VectorTestUtils.randomFloatVector(DIMS);
-                TopDocs expected = search(leafReader, query, SharedQueryTransforms.NONE);
-                CountingSharedQueryTransforms transforms = new CountingSharedQueryTransforms();
+                TopDocs expected = search(leafReader, query, QueryTransformCache.NONE);
+                CountingQueryTransformCache transforms = new CountingQueryTransformCache();
                 int searches = randomIntBetween(2, 5);
                 for (int i = 0; i < searches; i++) {
                     assertSameResults(expected, search(leafReader, query, transforms));
@@ -134,15 +134,15 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
     private static void assertProjectedOncePerDistinctMatrix(DirectoryReader reader, int distinctMatrices) throws IOException {
         for (int q = 0; q < 5; q++) {
             float[] query = VectorTestUtils.randomFloatVector(DIMS);
-            CountingSharedQueryTransforms transforms = new CountingSharedQueryTransforms();
+            CountingQueryTransformCache transforms = new CountingQueryTransformCache();
             for (LeafReaderContext ctx : reader.leaves()) {
-                assertSameResults(search(ctx.reader(), query, SharedQueryTransforms.NONE), search(ctx.reader(), query, transforms));
+                assertSameResults(search(ctx.reader(), query, QueryTransformCache.NONE), search(ctx.reader(), query, transforms));
             }
             assertThat(transforms.computed(), equalTo(distinctMatrices));
         }
     }
 
-    private static TopDocs search(LeafReader leafReader, float[] query, SharedQueryTransforms transforms) throws IOException {
+    private static TopDocs search(LeafReader leafReader, float[] query, QueryTransformCache transforms) throws IOException {
         int k = 10;
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(1.0f, k, k, null, transforms);
         TopKnnCollector collector = new TopKnnCollector(k, Integer.MAX_VALUE, strategy);

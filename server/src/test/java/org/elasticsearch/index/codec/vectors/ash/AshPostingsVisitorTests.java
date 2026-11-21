@@ -16,7 +16,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
-import org.elasticsearch.search.vectors.CountingSharedQueryTransforms;
+import org.elasticsearch.search.vectors.CountingQueryTransformCache;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -53,7 +53,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
         IndexInput input,
         int bitsPerDim,
         int queryBitsPerDim,
-        CountingSharedQueryTransforms transforms
+        CountingQueryTransformCache transforms
     ) throws IOException {
         float[] centroid = new float[ORIGINAL_DIM];
         return AshPostingsVisitor.create(
@@ -73,7 +73,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
         try (Directory dir = new ByteBuffersDirectory(); IndexInput input = emptyInput(dir)) {
             AshProjectionMatrix matrix = randomMatrix();
             float[] query = VectorTestUtils.randomFloatVector(ORIGINAL_DIM);
-            CountingSharedQueryTransforms transforms = new CountingSharedQueryTransforms();
+            CountingQueryTransformCache transforms = new CountingQueryTransformCache();
 
             AshPostingsVisitor<?> first = visitor(matrix, query, input, 1, 0, transforms);
             // segments with the same matrix but other document bits project the query the same way
@@ -91,7 +91,7 @@ public class AshPostingsVisitorTests extends ESTestCase {
         try (Directory dir = new ByteBuffersDirectory(); IndexInput input = emptyInput(dir)) {
             AshProjectionMatrix matrix = randomMatrix();
             float[] query = VectorTestUtils.randomFloatVector(ORIGINAL_DIM);
-            CountingSharedQueryTransforms transforms = new CountingSharedQueryTransforms();
+            CountingQueryTransformCache transforms = new CountingQueryTransformCache();
             int queryBits = 4;
 
             AshPostingsVisitor<?> first = visitor(matrix, query, input, 1, queryBits, transforms);

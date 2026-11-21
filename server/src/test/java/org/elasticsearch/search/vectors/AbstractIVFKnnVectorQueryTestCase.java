@@ -928,7 +928,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
     }
 
     /**
-     * Every leaf of a query must share a single {@link SharedQueryTransforms}, so that a query transformation one segment
+     * Every leaf of a query must share a single {@link QueryTransformCache}, so that a query transformation one segment
      * computes can be reused by the others. The named slices a sliced query searches within a leaf go through the leaf's
      * collector manager, so share it too.
      */
@@ -942,10 +942,10 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
             );
             query.rewrite(newSearcher(reader));
 
-            List<SharedQueryTransforms> captured = query.capturedTransforms;
+            List<QueryTransformCache> captured = query.capturedTransforms;
             assertEquals("one collector manager per leaf", reader.leaves().size(), captured.size());
             assertNotNull(captured.get(0));
-            for (SharedQueryTransforms transforms : captured) {
+            for (QueryTransformCache transforms : captured) {
                 assertSame("all leaves must share a single instance", captured.get(0), transforms);
             }
         }
@@ -1006,7 +1006,7 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
      */
     private static class AccumulatorCapturingQuery extends AbstractIVFKnnVectorQuery {
         private final List<SharedMinCompetitiveScore> captured;
-        private final List<SharedQueryTransforms> capturedTransforms = Collections.synchronizedList(new ArrayList<>());
+        private final List<QueryTransformCache> capturedTransforms = Collections.synchronizedList(new ArrayList<>());
 
         AccumulatorCapturingQuery(String field, int k, TestIvfQueryConfigResolver resolver, List<SharedMinCompetitiveScore> captured) {
             super(field, 0f, k, k, null, resolver, false);
@@ -1027,13 +1027,13 @@ public abstract class AbstractIVFKnnVectorQueryTestCase<V> extends LuceneTestCas
         protected IVFCollectorManager getKnnCollectorManager(
             int k,
             SharedMinCompetitiveScore sharedScore,
-            SharedQueryTransforms sharedQueryTransforms
+            QueryTransformCache queryTransformCache
         ) {
             captured.add(sharedScore);
-            IVFCollectorManager manager = super.getKnnCollectorManager(k, sharedScore, sharedQueryTransforms);
-            assertSame(sharedQueryTransforms, manager.newSearchStrategy(1f, k, k, true).getSharedQueryTransforms());
-            assertSame(SharedQueryTransforms.NONE, manager.newSearchStrategy(1f, k, k, false).getSharedQueryTransforms());
-            capturedTransforms.add(sharedQueryTransforms);
+            IVFCollectorManager manager = super.getKnnCollectorManager(k, sharedScore, queryTransformCache);
+            assertSame(queryTransformCache, manager.newSearchStrategy(1f, k, k, true).getQueryTransformCache());
+            assertSame(QueryTransformCache.NONE, manager.newSearchStrategy(1f, k, k, false).getQueryTransformCache());
+            capturedTransforms.add(queryTransformCache);
             return manager;
         }
 

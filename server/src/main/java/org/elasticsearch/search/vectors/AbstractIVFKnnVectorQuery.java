@@ -189,7 +189,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // Also shared by the named slices a sliced query searches within a single leaf, so created even when only one
         // leaf has the field. Formats that do not transform the query, and byte queries, leave it unused, which costs
         // only this allocation.
-        final SharedQueryTransforms sharedQueryTransforms = SharedQueryTransforms.perQuery();
+        final QueryTransformCache queryTransformCache = QueryTransformCache.perQuery();
         final int maxLeafBudget = leafCollectorBudget(maxRescoreOversampleAcrossLeaves);
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
@@ -211,7 +211,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             SharedMinCompetitiveScore leafSharedScore = sharedScore == null || leafBudget >= maxLeafBudget
                 ? sharedScore
                 : sharedScore.readOnly();
-            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(leafBudget, leafSharedScore, sharedQueryTransforms);
+            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(leafBudget, leafSharedScore, queryTransformCache);
 
             // Preconditioning might differ per segment when they are calibrated, so, potentially,
             // each carries its own preconditioner. The transform is therefore applied inside
@@ -427,9 +427,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected IVFCollectorManager getKnnCollectorManager(
         int k,
         SharedMinCompetitiveScore sharedScore,
-        SharedQueryTransforms sharedQueryTransforms
+        QueryTransformCache queryTransformCache
     ) {
-        return new IVFCollectorManager(k, sharedScore, sharedQueryTransforms);
+        return new IVFCollectorManager(k, sharedScore, queryTransformCache);
     }
 
     /** Per-leaf collector size for a segment with the given rescore oversample. */
@@ -445,25 +445,25 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     static class IVFCollectorManager implements KnnCollectorManager {
         private final int k;
         private final SharedMinCompetitiveScore sharedScore;
-        private final SharedQueryTransforms sharedQueryTransforms;
+        private final QueryTransformCache queryTransformCache;
 
         /**
          * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
-         * @param sharedQueryTransforms transformations of the query vector shared across leaves, or
-         *                              {@link SharedQueryTransforms#NONE} when there is nothing to share. Only handed to
+         * @param queryTransformCache cache of transformations of the query vector shared across leaves, or
+         *                              {@link QueryTransformCache#NONE} when there is nothing to share. Only handed to
          *                              the search strategies of leaves that search with the query's own vector, see
          *                              {@link #newSearchStrategy}.
          */
-        IVFCollectorManager(int k, @Nullable SharedMinCompetitiveScore sharedScore, SharedQueryTransforms sharedQueryTransforms) {
+        IVFCollectorManager(int k, @Nullable SharedMinCompetitiveScore sharedScore, QueryTransformCache queryTransformCache) {
             this.k = k;
             this.sharedScore = sharedScore;
-            this.sharedQueryTransforms = Objects.requireNonNull(sharedQueryTransforms);
+            this.queryTransformCache = Objects.requireNonNull(queryTransformCache);
         }
 
         /**
          * Creates the search strategy for this leaf, wired to the cross-leaf shared score and, if the leaf searches with the
-         * query's own vector, the query transforms. A leaf that searches with another vector, such as one preconditioned for
-         * its segment, cannot share the transforms of the query's vector.
+         * query's own vector, the query transform cache. A leaf that searches with another vector, such as one preconditioned
+         * for its segment, cannot share the transformations of the query's vector.
          *
          * @param searchesQueryVector whether the leaf searches with the query's own vector
          */
@@ -473,7 +473,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 numCands,
                 queryK,
                 sharedScore,
-                searchesQueryVector ? sharedQueryTransforms : SharedQueryTransforms.NONE
+                searchesQueryVector ? queryTransformCache : QueryTransformCache.NONE
             );
         }
 

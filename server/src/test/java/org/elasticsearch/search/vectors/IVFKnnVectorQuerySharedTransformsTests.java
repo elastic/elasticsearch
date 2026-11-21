@@ -152,9 +152,9 @@ public class IVFKnnVectorQuerySharedTransformsTests extends ESTestCase {
             for (int q = 0; q < 5; q++) {
                 float[] query = VectorTestUtils.randomFloatVector(DIMS);
                 BytesRef[] slices = randomSliceIds();
-                CountingSharedQueryTransforms transforms = new CountingSharedQueryTransforms();
+                CountingQueryTransformCache transforms = new CountingQueryTransformCache();
                 TopDocs shared = searcher.search(query(query, k, sliced, slices, transforms), k);
-                TopDocs unshared = searcher.search(query(query, k, sliced, slices, SharedQueryTransforms.NONE), k);
+                TopDocs unshared = searcher.search(query(query, k, sliced, slices, QueryTransformCache.NONE), k);
 
                 assertThat("the comparison needs hits", shared.scoreDocs.length, greaterThan(0));
                 assertThat(shared.scoreDocs.length, equalTo(unshared.scoreDocs.length));
@@ -186,7 +186,7 @@ public class IVFKnnVectorQuerySharedTransformsTests extends ESTestCase {
             DirectoryReader reader = DirectoryReader.open(dir)
         ) {
             float[] query = VectorTestUtils.randomFloatVector(DIMS);
-            CountingSharedQueryTransforms transforms = new CountingSharedQueryTransforms();
+            CountingQueryTransformCache transforms = new CountingQueryTransformCache();
             // every leaf searches with a copy of the query vector, as a preconditioned segment does with its own vector
             Query copying = sliced ? new SlicedQuery(query, 10, transforms, randomSliceIds()) {
                 @Override
@@ -205,15 +205,15 @@ public class IVFKnnVectorQuerySharedTransformsTests extends ESTestCase {
         }
     }
 
-    private static Query query(float[] query, int k, boolean sliced, BytesRef[] slices, SharedQueryTransforms transforms) {
+    private static Query query(float[] query, int k, boolean sliced, BytesRef[] slices, QueryTransformCache transforms) {
         return sliced ? new SlicedQuery(query, k, transforms, slices) : new LeafQuery(query, k, transforms);
     }
 
     /** Searches with the given transforms in place of the query's own, and without the cutoff shared across leaves. */
     private static class LeafQuery extends IVFKnnFloatVectorQuery {
-        private final SharedQueryTransforms transforms;
+        private final QueryTransformCache transforms;
 
-        LeafQuery(float[] query, int k, SharedQueryTransforms transforms) {
+        LeafQuery(float[] query, int k, QueryTransformCache transforms) {
             super(FIELD, query, k, k, null, 0.1f, resolver());
             this.transforms = transforms;
         }
@@ -222,7 +222,7 @@ public class IVFKnnVectorQuerySharedTransformsTests extends ESTestCase {
         protected IVFCollectorManager getKnnCollectorManager(
             int k,
             SharedMinCompetitiveScore sharedScore,
-            SharedQueryTransforms sharedQueryTransforms
+            QueryTransformCache queryTransformCache
         ) {
             return new IVFCollectorManager(k, null, transforms);
         }
@@ -230,9 +230,9 @@ public class IVFKnnVectorQuerySharedTransformsTests extends ESTestCase {
 
     /** As {@link LeafQuery}, for the given named slices. */
     private static class SlicedQuery extends IVFKnnFloatSlicedVectorQuery {
-        private final SharedQueryTransforms transforms;
+        private final QueryTransformCache transforms;
 
-        SlicedQuery(float[] query, int k, SharedQueryTransforms transforms, BytesRef... slices) {
+        SlicedQuery(float[] query, int k, QueryTransformCache transforms, BytesRef... slices) {
             super(FIELD, query, k, k, null, 0.1f, resolver(), SLICE_FIELD, slices);
             this.transforms = transforms;
         }
@@ -241,7 +241,7 @@ public class IVFKnnVectorQuerySharedTransformsTests extends ESTestCase {
         protected IVFCollectorManager getKnnCollectorManager(
             int k,
             SharedMinCompetitiveScore sharedScore,
-            SharedQueryTransforms sharedQueryTransforms
+            QueryTransformCache queryTransformCache
         ) {
             return new IVFCollectorManager(k, null, transforms);
         }

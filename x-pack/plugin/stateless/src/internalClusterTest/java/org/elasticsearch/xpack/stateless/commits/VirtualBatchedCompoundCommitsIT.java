@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -60,6 +61,7 @@ import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkMetrics;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
@@ -884,6 +886,162 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             evictSearchShardCache(indexName);
         }
         validateSearchResponse(indexName, testSearchType, indexedDocs);
+    }
+
+    public void testGetVirtualBatchedCompoundCommitChunkRequestMetrics() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+        final var searchNode = startSearchNode();
+        final var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
+        final var metricsPlugin = findPlugin(searchNode, TestTelemetryPlugin.class);
+
+        // Empty cache on search node, to ensure requests are sent to the indexing node (the VBCC is not uploaded yet)
+        evictSearchShardCache(indexName);
+        metricsPlugin.resetMeter();
+
+        validateSearchResponse(indexName, randomFrom(TestSearchType.values()), indexedDocs);
+
+        assertBusy(() -> {
+            final var attempts = metricsPlugin.getLongCounterMeasurement(GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_TOTAL_METRIC);
+            final var attemptDurations = metricsPlugin.getLongHistogramMeasurement(
+                GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_DURATION_HISTOGRAM_METRIC
+            );
+            final var executions = metricsPlugin.getLongCounterMeasurement(
+                GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_TOTAL_METRIC
+            );
+            final var executionDurations = metricsPlugin.getLongHistogramMeasurement(
+                GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_DURATION_HISTOGRAM_METRIC
+            );
+
+            final long numberOfAttempts = sumOfMeasurements(attempts);
+            assertThat(numberOfAttempts, greaterThan(0L));
+            assertThat(sumOfMeasurements(executions), equalTo(numberOfAttempts));
+            assertThat((long) attemptDurations.size(), equalTo(numberOfAttempts));
+            assertThat((long) executionDurations.size(), equalTo(numberOfAttempts));
+
+            for (var measurements : List.of(attempts, attemptDurations, executions, executionDurations)) {
+                for (Measurement measurement : measurements) {
+                    assertThat(
+                        measurement.attributes(),
+                        equalTo(
+                            Map.of(
+                                GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_ATTRIBUTE,
+                                GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_SUCCESS
+                            )
+                        )
+                    );
+                }
+            }
+            attemptDurations.forEach(m -> assertThat(m.getLong(), greaterThanOrEqualTo(0L)));
+            executionDurations.forEach(m -> assertThat(m.getLong(), greaterThanOrEqualTo(0L)));
+        });
+    }
+
+    public void testGetVirtualBatchedCompoundCommitChunkRequestMetricsWithRetries() throws Exception {
+        startMasterOnlyNode();
+        final var indexNode = startIndexNode();
+        final var searchNode = startSearchNode();
+        final var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
+        final var metricsPlugin = findPlugin(searchNode, TestTelemetryPlugin.class);
+
+        // Fail the first requests with a retryable exception, they must be recorded as failed attempts but not as failed executions.
+        // Each failure is delayed by a known amount so that the recorded durations can be checked against it.
+        final int failedAttempts = between(1, 3);
+        final long failureDelayInMillis = 50L;
+        final AtomicInteger counter = new AtomicInteger(0);
+        final var transportService = MockTransportService.getInstance(indexNode);
+        transportService.addRequestHandlingBehavior(
+            TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+            (handler, request, channel, task) -> {
+                if (counter.getAndIncrement() < failedAttempts) {
+                    transportService.getThreadPool()
+                        .schedule(
+                            () -> channel.sendResponse(new ConnectTransportException(transportService.getLocalNode(), "simulated")),
+                            TimeValue.timeValueMillis(failureDelayInMillis),
+                            EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        );
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            }
+        );
+
+        evictSearchShardCache(indexName);
+        metricsPlugin.resetMeter();
+
+        validateSearchResponse(indexName, randomFrom(TestSearchType.values()), indexedDocs);
+
+        assertBusy(() -> {
+            final var attempts = metricsPlugin.getLongCounterMeasurement(GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_TOTAL_METRIC);
+            final var attemptDurations = metricsPlugin.getLongHistogramMeasurement(
+                GetVirtualBatchedCompoundCommitChunkMetrics.REQUESTS_DURATION_HISTOGRAM_METRIC
+            );
+            final var executions = metricsPlugin.getLongCounterMeasurement(
+                GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_TOTAL_METRIC
+            );
+            final var executionDurations = metricsPlugin.getLongHistogramMeasurement(
+                GetVirtualBatchedCompoundCommitChunkMetrics.OPERATIONS_DURATION_HISTOGRAM_METRIC
+            );
+
+            // Every failed attempt was retried: they are all counted per attempt, none per execution
+            assertThat(
+                sumOfMeasurements(attempts, GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_FAILURE),
+                equalTo((long) failedAttempts)
+            );
+            assertThat(sumOfMeasurements(executions, GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_FAILURE), equalTo(0L));
+
+            final long successfulExecutions = sumOfMeasurements(executions, GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_SUCCESS);
+            assertThat(successfulExecutions, greaterThan(0L));
+            assertThat(
+                sumOfMeasurements(attempts, GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_SUCCESS),
+                equalTo(successfulExecutions)
+            );
+
+            // One duration sample per counter increment, for both views
+            assertThat((long) attemptDurations.size(), equalTo(sumOfMeasurements(attempts)));
+            assertThat((long) executionDurations.size(), equalTo(sumOfMeasurements(executions)));
+
+            // Each failed attempt lasted at least the delay applied by the indexing node
+            final var failedAttemptDurations = attemptDurations.stream()
+                .filter(
+                    m -> GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_FAILURE.equals(
+                        m.attributes().get(GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_ATTRIBUTE)
+                    )
+                )
+                .toList();
+            assertThat(failedAttemptDurations.size(), equalTo(failedAttempts));
+            // durations are measured with a millisecond clock, so allow 1ms of truncation error per measurement
+            failedAttemptDurations.forEach(m -> assertThat(m.getLong(), greaterThanOrEqualTo(failureDelayInMillis - 1)));
+
+            // The execution durations include the failed attempts (and the backoff between them), not just the last attempt: the failed
+            // attempts are sequential and part of one execution, and the retry backoff is only accounted for in the execution durations
+            final long totalAttemptDuration = sumOfMeasurements(attemptDurations);
+            final long totalExecutionDuration = sumOfMeasurements(executionDurations);
+            assertThat(totalExecutionDuration, greaterThanOrEqualTo(failedAttempts * (failureDelayInMillis - 1)));
+            assertThat(
+                totalExecutionDuration + attemptDurations.size() + executionDurations.size(),
+                greaterThanOrEqualTo(totalAttemptDuration)
+            );
+        });
+    }
+
+    private static long sumOfMeasurements(List<Measurement> measurements) {
+        return measurements.stream().mapToLong(Measurement::getLong).sum();
+    }
+
+    private static long sumOfMeasurements(List<Measurement> measurements, String outcome) {
+        return measurements.stream()
+            .filter(m -> outcome.equals(m.attributes().get(GetVirtualBatchedCompoundCommitChunkMetrics.OUTCOME_ATTRIBUTE)))
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 
     public void testGetVirtualBatchedCompoundCommitChunkFileError() throws Exception {

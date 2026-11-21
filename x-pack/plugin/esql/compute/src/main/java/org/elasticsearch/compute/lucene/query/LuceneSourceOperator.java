@@ -47,6 +47,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
+import org.elasticsearch.lucene.search.IndexedSpatialQueries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -227,7 +228,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             // Indexed spatial scorers walk the BKD tree inside scorerSupplier.get(). A DOC split repeats that walk
             // per slice, which is slower when LIMIT matches early. Keep those queries on SHARD without marking them
             // costly: the no-limit path still parallelizes a large circle with DOC.
-            if (containsCostlyClause(query) || containsIndexedSpatialQuery(query)) {
+            if (containsCostlyClause(query) || IndexedSpatialQueries.containsIndexedSpatialQuery(query)) {
                 return SHARD;
             }
             Query unwrapped = unwrapQuery(query);
@@ -380,64 +381,6 @@ public class LuceneSourceOperator extends LuceneOperator {
             return CostlyMultiTermQueries.isCostlyMultiTermQuery(query)
                 || query instanceof PointRangeQuery
                 || query instanceof PointInSetQuery;
-        }
-
-        /**
-         * {@code true} when {@code query} contains an indexed spatial clause. Same walk as
-         * {@link #containsCostlyClause}, including {@link QueryVisitor#getSubVisitor}, so the check sees through
-         * {@link ConstantScoreQuery}, {@link org.apache.lucene.search.BooleanQuery}, and
-         * {@link org.apache.lucene.search.IndexOrDocValuesQuery} (which visits both the index query and the
-         * doc-values query).
-         */
-        static boolean containsIndexedSpatialQuery(Query query) {
-            boolean[] found = { false };
-            query.visit(new QueryVisitor() {
-                @Override
-                public void consumeTerms(Query q, Term... terms) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunnable> automaton) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public void visitLeaf(Query q) {
-                    if (isIndexedSpatialQuery(q)) {
-                        found[0] = true;
-                    }
-                }
-
-                @Override
-                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
-                    if (isIndexedSpatialQuery(parent)) {
-                        found[0] = true;
-                    }
-                    return this;
-                }
-            });
-            return found[0];
-        }
-
-        /**
-         * Indexed BKD spatial queries. The Lucene classes are package-private, so this matches
-         * {@link Class#getName()} (see {@code GeoDistanceQueryBuilderTestCase}). Doc-values siblings
-         * ({@code LatLonDocValuesQuery}, {@code LatLonDocValuesBoxQuery}) are excluded so an {@code index: false}
-         * field still follows the cost check, and {@code LatLonPointDistanceFeatureQuery} is a scoring feature
-         * query, not one of these filters.
-         */
-        static boolean isIndexedSpatialQuery(Query query) {
-            return switch (query.getClass().getName()) {
-                case "org.apache.lucene.document.LatLonPointDistanceQuery", "org.apache.lucene.document.LatLonPointQuery",
-                    "org.apache.lucene.document.LatLonShapeQuery", "org.apache.lucene.document.XYPointInGeometryQuery",
-                    "org.apache.lucene.document.XYShapeQuery" -> true;
-                default -> false;
-            };
         }
 
         static Query unwrapQuery(Query query) {

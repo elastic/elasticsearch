@@ -1825,8 +1825,8 @@ public final class PartitionSpec {
                         range = range.intersect(new InstantRange(null, increment(millis)));
                     }
                 }
-                case NOT_EQUALS -> {
-                    // A single excluded instant cannot drop a folder.
+                case NOT_EQUALS, LIKE -> {
+                    // A single excluded instant cannot drop a folder. LIKE is a file-name pattern, not a time bound.
                 }
             }
         }

@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -25,7 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 
 /**
  * Golden (characterization) tests for the analyzed plans produced by LET-prefix named-subquery scenarios.
- * LET bindings are resolved by {@link LetResolver} before view and IN-subquery expansion, mirroring
+ * LET named subqueries are resolved by {@link LetResolver} before view and IN-subquery expansion, mirroring
  * the ordering in {@code EsqlSession#execute}.
  */
 public class AnalyzerLetGoldenTests extends GoldenTestCase {
@@ -41,14 +40,9 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS);
 
-    private static void requireLetSupport() {
-        assumeTrue("Requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
-    }
-
-    // -- basic LET: single binding used as FROM source --
+    // -- basic LET: single named subquery used as FROM source --
 
     public void testLetSingleBindingAsFromSource() {
-        requireLetSupport();
         runGoldenTest("""
             LET top_langs = (FROM languages | WHERE language_code > 1 | KEEP language_name, language_code);
             FROM top_langs
@@ -57,22 +51,25 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- multiple LET bindings, second references first --
+    // -- multiple LET named subqueries, only the second one used --
 
-    public void testLetMultipleBindingsSecondUsed() {
-        requireLetSupport();
-        runGoldenTest("""
+    public void testLetMultipleBindingsSecondUsedRejected() {
+        var statement = EsqlTestUtils.TEST_PARSER.createStatement("""
             LET a = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
             LET b = (FROM languages | WHERE language_code > 2 | KEEP language_name, language_code);
             FROM b
             | SORT language_code
-            """, STAGES);
+            """);
+        expectThrows(
+            ParsingException.class,
+            containsString("LET subquery [a] is declared but never referenced"),
+            () -> LetResolver.resolve(statement.plan(), statement.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
+        );
     }
 
-    // -- chained LET: later binding references earlier one --
+    // -- chained LET: later named subquery references earlier one --
 
     public void testLetChainedBindings() {
-        requireLetSupport();
         runGoldenTest("""
             LET base = (FROM employees | WHERE emp_no > 10010 | KEEP emp_no, languages);
             LET top5 = (FROM base | LIMIT 5);
@@ -81,14 +78,13 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- LET binding beside an index in one FROM, without METADATA --
+    // -- LET named subquery beside an index in one FROM, without METADATA --
 
     /**
-     * A binding is a branch of the FROM in its own right: it carries the SUBQUERY identity of a subquery, while the index
+     * A named subquery is a branch of the FROM in its own right: it carries the SUBQUERY identity of a subquery, while the index
      * beside it is the bare INDEX branch.
      */
     public void testLetBindingBesideIndex() {
-        requireLetSupport();
         runGoldenTest("""
             LET top_langs = (FROM languages | WHERE language_code > 1 | KEEP language_name, language_code);
             FROM top_langs, languages
@@ -99,7 +95,6 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
     // -- LET body used as the right-hand side of an IN subquery --
 
     public void testLetBindingInsideInSubquery() {
-        requireLetSupport();
         runGoldenTest("""
             LET active_langs = (FROM languages | WHERE language_code > 1 | KEEP language_code);
             FROM employees
@@ -114,7 +109,6 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
     // so the analyzer rejects it as an unknown column. Correlated subqueries are not yet supported.
 
     public void testLetCorrelatedSubquery() {
-        requireLetSupport();
         var query = """
             LET same_lang = (FROM languages | WHERE language_code == outer_code | KEEP language_name);
             FROM languages
@@ -134,7 +128,6 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
     // -- LET with a view body: view is resolved after LET substitution --
 
     public void testLetBindingReferencingView() {
-        requireLetSupport();
         runGoldenTest("""
             LET top = (FROM view_langs | LIMIT 3);
             FROM top
@@ -142,15 +135,14 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
             """, STAGES, Map.of("view_langs", "FROM languages | WHERE language_code > 0"));
     }
 
-    // -- LET binding name referenced inside a view body is NOT visible to the view --
+    // -- LET subquery name referenced inside a view body is NOT visible to the view --
     // LetResolver runs on statement.plan() before ViewResolver expands view bodies.
-    // A view body that references a LET binding name treats it as an ES index, not
-    // as the binding, and fails with an index-not-found error.
+    // A view body that references a LET subquery name treats it as an ES index, not
+    // as the named subquery, and fails with an index-not-found error.
     public void testViewCannotReferenceLetBindingOutsideItsScope() {
-        requireLetSupport();
         var query = """
             LET subquery = (FROM languages | WHERE language_code > 1 | KEEP language_code, language_name);
-            FROM view
+            FROM view, subquery
             | KEEP language_code, language_name
             """;
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
@@ -163,10 +155,9 @@ public class AnalyzerLetGoldenTests extends GoldenTestCase {
         expectThrows(VerificationException.class, containsString("Unknown index [subquery]"), () -> ta.buildAnalyzer().analyze(parsedPlan));
     }
 
-    // -- a LET binding cannot be used as a TS source, like an inline subquery --
+    // -- a LET named subquery cannot be used as a TS source, like an inline subquery --
 
     public void testLetBindingAsTsSourceRejected() {
-        requireLetSupport();
         var statement = EsqlTestUtils.TEST_PARSER.createStatement("LET b = (FROM idx | LIMIT 3); TS b | STATS c = COUNT(*)");
         expectThrows(
             ParsingException.class,

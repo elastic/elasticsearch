@@ -122,6 +122,7 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
         }
         for (int i = 0; i < stats.columnCount(); i++) {
             size += COUNT_KEYS_PER_COLUMN;
+            // Neither this count nor flatten() applies a cap, so the two agree whatever the piece holds.
             if (stats.min(i) != null) {
                 size++;
             }
@@ -190,7 +191,9 @@ final class StagedStripeRecord extends AbstractMap<String, Object> {
      * <p>
      * A column whose extremum a fold found unservable is written with its counts and no extremum, which is the
      * only encoding a staged contribution has had: the reconciler reads a column that is present, carries
-     * non-null rows and offers no extremum as one it cannot answer, and poisons it as the marker would.
+     * non-null rows and offers no extremum as one it cannot answer, and poisons it as the marker would. A
+     * column whose extremum was too wide to publish arrives the same way, so a piece need not have published
+     * the value it held -- what the encoding rests on is that a value was there, not that it was written down.
      */
     private Map<String, Object> flatten() {
         builds++;

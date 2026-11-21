@@ -261,6 +261,31 @@ public class CsvStatsCaptureTests extends ESTestCase {
         assertEquals("control col value_count", 3L, stats.columnValueCount("col"));
     }
 
+    /**
+     * The whole-file publish is the CSV rail's own hop, distinct from the stripe harvest: the width reaches
+     * {@code TextFormatStats} through {@code publishToCaptureSink}. Every link that drops it yields the default,
+     * so a read that only ever passes the default cannot tell this hop from a hardcoded constant.
+     */
+    public void testTheWidthSettingReachesTheWholeFilePublish() throws Exception {
+        String csv = "a:integer,k:keyword\n1,alpha\n2,bravo\n";
+
+        Map<String, Object> atDefault = capture(
+            obj(csv),
+            FormatReadContext.builder().batchSize(10).projectedColumns(List.of("a", "k")).build()
+        );
+        assertNotNull("the default publishes a contribution", atDefault);
+        assertEquals("a five-byte extremum publishes under the default", new BytesRef("alpha"), SplitStats.of(atDefault).columnMin("k"));
+
+        Map<String, Object> narrowed = capture(
+            obj(csv),
+            FormatReadContext.builder().batchSize(10).projectedColumns(List.of("a", "k")).statsMaxExtremumBytes(4).build()
+        );
+        assertNotNull("the narrowed read still publishes", narrowed);
+        assertNull("four bytes withholds it", SplitStats.of(narrowed).columnMin("k"));
+        assertNull("four bytes withholds it", SplitStats.of(narrowed).columnMax("k"));
+        assertEquals("and the counts survive", 2L, SplitStats.of(narrowed).rowCount());
+    }
+
     private static org.elasticsearch.xpack.esql.core.expression.Attribute attr(
         String name,
         org.elasticsearch.xpack.esql.core.type.DataType type

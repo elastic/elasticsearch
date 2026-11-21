@@ -181,7 +181,7 @@ $$$esql-external-allowed-endpoint-hosts$$$
 
 ## Caching
 
-These settings control the external-source cache, which stores inferred schemas, file listings, and the footers of columnar files.
+These settings control the external-source cache, which stores inferred schemas, column statistics, file listings, and the footers of columnar files.
 
 $$$esql-external-cache-enabled$$$
 
@@ -228,6 +228,20 @@ $$$esql-external-cache-schema-ttl$$$
 
     - **Default:** `20m`
     - **Valid values:** A time value. `0` removes the limit on schemas, and the memoized dataset total stays on `esql.external.cache.listing.ttl`.
+
+$$$esql-external-cache-stats-max-extremum-size$$$
+
+`esql.external.cache.stats.max_extremum_size` {applies_to}`stack: preview 9.6+`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The widest minimum or maximum a CSV, TSV or NDJSON read stores for a `keyword`, `text` or `ip` column. A wider value isn't stored, and `MIN` or `MAX` over that column reads the file instead.
+
+    - **Default:** `1kb`
+    - **Valid values:** A byte size from `0b` to `1mb`. `0b` is the strictest setting rather than an unset one: it withholds every minimum and maximum carrying any bytes.
+
+    A column whose extremum isn't stored keeps its row and null counts, and no other column's stored minimum or maximum is affected. One `STATS` asking for both a withheld extremum and a stored one still reads the file for both. A read also measures each part of a file separately, so a part's own minimum can exceed the limit even when the file's minimum fits under it.
+
+    The limit is on the stored byte width, and an `ip` is stored encoded at 16 bytes, so a node set below that stores no minimum or maximum for any `ip` column it reads. Set the same value on every node, so what a column can answer doesn't depend on which node read the file.
+
+    Raise it to answer `MIN` and `MAX` without reading files whose text columns hold long values, but not far: a measurement too large for the statistics cache's per-entry budget, a few hundred kilobytes on a small heap, is dropped whole and the file then caches no statistics at all, row counts included. Lower it to keep long values out of the statistics cache; the value is still held while the file is read, whatever this is set to. Columnar formats such as Parquet read their statistics from the file itself and aren't affected.
 
 $$$esql-external-cache-footer-size$$$
 

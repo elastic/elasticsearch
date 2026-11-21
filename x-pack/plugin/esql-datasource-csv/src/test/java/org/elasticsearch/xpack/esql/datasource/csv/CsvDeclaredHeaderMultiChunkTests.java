@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordina
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -120,6 +121,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             )
         ) {
@@ -202,6 +204,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             )
         ) {
@@ -264,6 +267,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 StreamingParallelParsingCoordinator.WarningSinks.NONE
             )
         ) {
@@ -343,6 +347,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
                 null,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 new StreamingParallelParsingCoordinator.WarningSinks(null, warnings::add)
             )
         ) {
@@ -477,6 +482,7 @@ public class CsvDeclaredHeaderMultiChunkTests extends ESTestCase {
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 true,
                 ExternalSourceMetrics.NOOP,
                 null,

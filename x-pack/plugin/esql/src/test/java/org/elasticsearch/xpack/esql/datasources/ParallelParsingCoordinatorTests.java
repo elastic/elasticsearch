@@ -826,6 +826,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 stripeSize,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 false // not the file's final split, so the trailing chunk anchors no right grid line
             );
             try (outer) {
@@ -1398,6 +1399,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             -1L,
             StripeColumnScope.PROJECTED,
+            FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
             false,
             metrics
         );
@@ -2577,6 +2579,66 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertEquals(200, rows);
     }
 
+    /**
+     * The width a node configures has to reach each segment's own read context. Every other test here passes the
+     * default, which is what a dropped link falls back to, so none of them can tell a forwarded setting from a
+     * constant. The two arms are the two context builds: one per segment, and the single-segment fallback's.
+     */
+    public void testTheConfiguredExtremumWidthReachesEverySegmentContext() throws Exception {
+        int narrow = 64;
+
+        ContextCapturingLineReader segmented = new ContextCapturingLineReader(blockFactory());
+        readCapturingContexts(segmented, new InMemoryStorageObject(lines(200)), 4, narrow);
+        assertThat("fixture must drive the multi-segment path", segmented.contexts.size(), Matchers.greaterThanOrEqualTo(2));
+        for (FormatReadContext ctx : segmented.contexts) {
+            assertEquals("every segment reads at the configured width", narrow, ctx.statsMaxExtremumBytes());
+        }
+
+        ContextCapturingLineReader single = new ContextCapturingLineReader(blockFactory());
+        readCapturingContexts(single, new InMemoryStorageObject(lines(200)), 1, narrow);
+        assertEquals("the single-segment fallback reads once", 1, single.contexts.size());
+        assertEquals(narrow, single.contexts.get(0).statsMaxExtremumBytes());
+    }
+
+    private static void readCapturingContexts(ContextCapturingLineReader reader, StorageObject obj, int parallelism, int maxExtremumBytes)
+        throws Exception {
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                parallelism,
+                exec,
+                null,
+                true,
+                true,
+                SCHEMA,
+                0L,
+                ParallelParsingCoordinator.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                -1L,
+                StripeColumnScope.PROJECTED,
+                maxExtremumBytes,
+                true,
+                ExternalSourceMetrics.NOOP,
+                null,
+                ExternalReadCounters.NOOP,
+                null,
+                null,
+                null
+            )
+        ) {
+            while (iter.hasNext()) {
+                iter.next().releaseBlocks();
+            }
+        } finally {
+            exec.shutdown();
+        }
+    }
+
     private static byte[] lines(int count) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < count; i++) {
@@ -2610,6 +2672,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
                 -1L,
                 StripeColumnScope.PROJECTED,
+                FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES,
                 true,
                 ExternalSourceMetrics.NOOP,
                 null,
@@ -2937,7 +3000,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                         StripeStatsHarvester harvester = new StripeStatsHarvester(
                             context.statsStripeSize(),
                             context.statsFileFinal(),
-                            context.statsStripeSink()
+                            context.statsStripeSink(),
+                            context.statsMaxExtremumBytes()
                         );
                         harvester.getOrCreate(harvester.ordinalOf(context.statsBaseOffset())).rows = rows;
                         harvester.emit(path, context.statsBaseOffset(), chunkBytes, MTIME, "cfg", "read", true, SCHEMA);

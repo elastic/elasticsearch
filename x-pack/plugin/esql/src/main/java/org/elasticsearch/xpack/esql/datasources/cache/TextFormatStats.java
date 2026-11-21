@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
@@ -28,12 +29,16 @@ import java.util.OptionalLong;
  */
 public final class TextFormatStats {
 
+    /** {@link #harvested} is handed a harvest {@link #build} already capped, so it has nothing left to withhold. */
+    private static final int ALREADY_CAPPED = Integer.MAX_VALUE;
+
     private TextFormatStats() {}
 
     public static SourceStatistics build(
         Optional<ExternalStats.Stats> cachedStats,
         OptionalLong lengthDerivedSizeInBytes,
-        List<Attribute> schema
+        List<Attribute> schema,
+        int maxExtremumBytes
     ) {
         OptionalLong rowCount;
         OptionalLong sizeInBytes;
@@ -42,7 +47,7 @@ public final class TextFormatStats {
             ExternalStats.Stats s = cachedStats.get();
             rowCount = OptionalLong.of(s.rowCount());
             sizeInBytes = lengthDerivedSizeInBytes.isPresent() ? lengthDerivedSizeInBytes : s.bytesRead();
-            columns = buildColumns(s.columns(), schema);
+            columns = buildColumns(s.columns(), schema, maxExtremumBytes);
         } else {
             rowCount = OptionalLong.empty();
             sizeInBytes = lengthDerivedSizeInBytes;
@@ -52,16 +57,16 @@ public final class TextFormatStats {
     }
 
     /**
-     * The statistics of one already-filtered harvest, with no schema applied. The filter belongs at the
-     * harvest — {@link StripeStatsHarvester#emit} runs {@link #build} before a piece is handed on — so a
-     * consumer holding a filtered harvest has nothing left to filter and reads its columns from the harvest
-     * itself. Applying the schema a second time there would make the columns a record COUNTS and the columns
-     * it WRITES come from two different places.
+     * The statistics of one already-filtered harvest, with no schema applied. The schema filter belongs at
+     * the harvest — {@link StripeStatsHarvester#emit} runs {@link #build} before a piece is handed on — so a
+     * consumer holding a filtered harvest reads its columns from the harvest itself. Applying the schema a
+     * second time there would make the columns a record COUNTS and the columns it WRITES come from two
+     * different places.
      */
     static SourceStatistics harvested(long rowCount, Map<String, ExternalStats.ColumnStats> columns) {
         Map<String, SourceStatistics.ColumnStatistics> cols = new HashMap<>();
         for (Map.Entry<String, ExternalStats.ColumnStats> entry : columns.entrySet()) {
-            cols.put(entry.getKey(), toSpi(entry.getValue()));
+            cols.put(entry.getKey(), toSpi(entry.getValue(), ALREADY_CAPPED));
         }
         return statistics(OptionalLong.of(rowCount), OptionalLong.empty(), cols);
     }
@@ -94,7 +99,8 @@ public final class TextFormatStats {
 
     private static Map<String, SourceStatistics.ColumnStatistics> buildColumns(
         Map<String, ExternalStats.ColumnStats> cached,
-        List<Attribute> schema
+        List<Attribute> schema,
+        int maxExtremumBytes
     ) {
         if (cached.isEmpty() || schema == null || schema.isEmpty()) {
             return Map.of();
@@ -108,12 +114,12 @@ public final class TextFormatStats {
             if (cs == null) {
                 continue;
             }
-            out.put(a.name(), toSpi(cs));
+            out.put(a.name(), toSpi(cs, maxExtremumBytes));
         }
         return out;
     }
 
-    private static SourceStatistics.ColumnStatistics toSpi(ExternalStats.ColumnStats cs) {
+    private static SourceStatistics.ColumnStatistics toSpi(ExternalStats.ColumnStats cs, int maxExtremumBytes) {
         return new SourceStatistics.ColumnStatistics() {
             @Override
             public OptionalLong nullCount() {
@@ -132,13 +138,38 @@ public final class TextFormatStats {
 
             @Override
             public Optional<Object> minValue() {
-                return Optional.ofNullable(cs.min());
+                return Optional.ofNullable(publishable(cs.min(), maxExtremumBytes));
             }
 
             @Override
             public Optional<Object> maxValue() {
-                return Optional.ofNullable(cs.max());
+                return Optional.ofNullable(publishable(cs.max(), maxExtremumBytes));
             }
         };
+    }
+
+    /**
+     * {@code extremum}, or {@code null} when it is wider than {@code maxExtremumBytes}. The limit is on
+     * the stored {@link BytesRef}, so it covers {@code KEYWORD}, {@code TEXT} and {@code IP} alike; an
+     * address is 16 bytes and stays under the default. Counts are unaffected, and so is the other end of the same
+     * column — a withheld end is answered by a scan, and a fold marks that end unservable rather than
+     * answer it from the reads that did publish one.
+     * <p>
+     * This is the publish side. {@link #build} calls its parameter {@code cachedStats}, but what it is
+     * handed is a measurement the current read just made; a retained record is read back through
+     * {@code SourceStatisticsSerializer}'s flat map, which does not come through here. So a wide extremum
+     * already in the store is served until its entry turns over.
+     */
+    private static Object publishable(Object extremum, int maxExtremumBytes) {
+        assert extremum == null
+            || extremum instanceof BytesRef
+            || extremum instanceof Integer
+            || extremum instanceof Long
+            || extremum instanceof Double
+            || extremum instanceof Boolean
+            : "a harvested extremum must be one of ColumnStatTypeSupport's carriers; ["
+                + extremum.getClass().getName()
+                + "] would pass the cap uncapped";
+        return extremum instanceof BytesRef bytes && bytes.length > maxExtremumBytes ? null : extremum;
     }
 }

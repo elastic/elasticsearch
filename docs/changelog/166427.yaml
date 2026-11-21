@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166427
+summary: Omit an oversized minimum or maximum from external CSV, TSV and NDJSON column statistics
+type: bug

@@ -110,6 +110,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
      * page-capping needed.
      */
     private final long statsStripeSize;
+    private final int statsMaxExtremumBytes;
     /**
      * The file-global offset of the FIRST byte the decoder actually reads, i.e. this chunk's absolute
      * first-byte offset plus any leading partial record dropped by {@code skipFirstLine}. Both the per-record offset
@@ -225,6 +226,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         long statsStripeSize,
         boolean statsFileFinal,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         @Nullable StripeStatsSink statsStripeSink,
         @Nullable Consumer<String> warningSink
     ) throws IOException {
@@ -240,6 +242,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         String messageLocation = object.path().objectName();
         this.chunkMode = chunkMode;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+        this.statsMaxExtremumBytes = statsMaxExtremumBytes;
         // Per-stripe stats capture is for the chunk-parallel paths (recordAligned); a whole-file read
         // (parallelism=1) keeps the simpler authoritative WholeFile contribution. NONE scope disables
         // stripe harvest entirely (the warm aggregate then always re-scans). A rowLimit slice truncates a
@@ -251,7 +254,7 @@ final class NdJsonPageIterator extends BufferingPageIterator {
             : -1L;
         this.statsFileFinal = statsFileFinal;
         this.stripeHarvester = this.statsStripeSize > 0
-            ? new StripeStatsHarvester(this.statsStripeSize, statsFileFinal, statsStripeSink)
+            ? new StripeStatsHarvester(this.statsStripeSize, statsFileFinal, statsStripeSink, statsMaxExtremumBytes)
             : null;
         InputStream inputStream = object.newStream();
         NdJsonRecordSplitter recordSplitter = new NdJsonRecordSplitter(maxRecordBytes);
@@ -748,7 +751,12 @@ final class NdJsonPageIterator extends BufferingPageIterator {
         ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmitted, bytesRead, cols);
         // Surface to thread-bound capture sink so the contribution rides back to the
         // coordinator via DriverCompletionInfo for multi-JVM warm-path consumption.
-        SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), sizeInBytesFromLength(), fullSchema);
+        SourceStatistics sourceStats = TextFormatStats.build(
+            Optional.of(statsRecord),
+            sizeInBytesFromLength(),
+            fullSchema,
+            statsMaxExtremumBytes
+        );
         Map<String, Object> base = new HashMap<>();
         base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
         base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);

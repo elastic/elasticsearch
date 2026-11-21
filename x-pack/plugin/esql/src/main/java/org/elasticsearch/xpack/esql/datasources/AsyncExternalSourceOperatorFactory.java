@@ -254,6 +254,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final long statsStripeSize;
     /** How much per-stripe statistics a fresh scan harvests (row count only / + projected / + all / nothing). */
     private final StripeColumnScope statsColumnScope;
+    private final int statsMaxExtremumBytes;
     /**
      * Node-level gate bounding concurrent streaming (stream-only compressed) segmentators on the shared
      * {@code esql_external_io} pool so their per-chunk parser tasks are never starved of a thread. Shared across
@@ -382,6 +383,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int maxRecordBytes,
         long statsStripeSize,
         StripeColumnScope statsColumnScope,
+        int statsMaxExtremumBytes,
         StreamingSegmentatorAdmission streamingSegmentatorAdmission,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
@@ -472,6 +474,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.parsingParallelism = Math.max(1, parsingParallelism);
         this.statsStripeSize = statsStripeSize;
         this.statsColumnScope = statsColumnScope != null ? statsColumnScope : StripeColumnScope.PROJECTED;
+        this.statsMaxExtremumBytes = statsMaxExtremumBytes;
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.maxRecordBytes = maxRecordBytes;
         this.streamingSegmentatorAdmission = streamingSegmentatorAdmission;
@@ -554,6 +557,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private long statsStripeSize = -1L;
         private StripeColumnScope statsColumnScope = StripeColumnScope.PROJECTED;
+        private int statsMaxExtremumBytes = FormatReadContext.DEFAULT_MAX_EXTREMUM_BYTES;
         // Non-null default: test builders that never set one still get an (unbounded) controller, so the streaming
         // coordinator's admission is never null. Production (FileSourceFactory) overrides with the per-node gate.
         private StreamingSegmentatorAdmission streamingSegmentatorAdmission = StreamingSegmentatorAdmission.unbounded();
@@ -690,6 +694,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        /**
+         * The widest text extremum a harvest publishes, in bytes (see
+         * {@code ExternalSourceCacheSettings#STATS_MAX_EXTREMUM_SIZE}). Not normalised here: every path from
+         * this field ends in {@link FormatReadContext}, whose compact constructor owns the rule. A negative
+         * value restores the {@link FormatReadContext#DEFAULT_MAX_EXTREMUM_BYTES} default; zero withholds
+         * every text extremum that has any bytes.
+         */
+        public Builder statsMaxExtremumBytes(int statsMaxExtremumBytes) {
+            this.statsMaxExtremumBytes = statsMaxExtremumBytes;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -798,6 +814,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 maxRecordBytes,
                 statsStripeSize,
                 statsColumnScope,
+                statsMaxExtremumBytes,
                 streamingSegmentatorAdmission,
                 pushedExpressions,
                 pushdownSupport,
@@ -2774,6 +2791,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         // its trailing stripe to EOF).
                         .stats(fileSplit.offset(), statsStripeSize, splitIsFileFinal)
                         .statsColumnScope(statsColumnScope)
+                        .statsMaxExtremumBytes(statsMaxExtremumBytes)
                         .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                         .breaker(producerBreaker(state.producerBlockFactory))
                         .sharedErrorBudget(splitBudget)
@@ -3025,6 +3043,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .readSchema(PhysicalNames.translateSchema(perFileReadSchema, renames))
                     .maxRecordBytes(maxRecordBytes)
                     .statsColumnScope(statsColumnScope)
+                    .statsMaxExtremumBytes(statsMaxExtremumBytes)
                     .informationalWarningSink(bufferedInformationalWarningSink(state.buffer))
                     .breaker(producerBreaker(state.producerBlockFactory))
                     .sharedErrorBudget(fileBudget)
@@ -3133,6 +3152,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .errorPolicy(errorPolicy)
             .maxRecordBytes(maxRecordBytes)
             .statsColumnScope(statsColumnScope)
+            .statsMaxExtremumBytes(statsMaxExtremumBytes)
             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
             .readCounters(formatCounters)
             .build();
@@ -3223,6 +3243,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                             .errorPolicy(errorPolicy)
                             .maxRecordBytes(maxRecordBytes)
                             .statsColumnScope(statsColumnScope)
+                            .statsMaxExtremumBytes(statsMaxExtremumBytes)
                             .informationalWarningSink(bufferedInformationalWarningSink(buffer))
                             .breaker(producerBreaker(driverContext))
                             .readCounters(formatCounters)
@@ -3607,6 +3628,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     maxRecordBytes,
                     statsStripeSize,
                     statsColumnScope,
+                    statsMaxExtremumBytes,
                     splitIsFileFinal,
                     externalSourceMetrics,
                     warningSink,
@@ -3646,6 +3668,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         maxRecordBytes,
                         statsStripeSize,
                         statsColumnScope,
+                        statsMaxExtremumBytes,
                         splitIsFileFinal,
                         externalSourceMetrics,
                         warningSink,
@@ -3692,6 +3715,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     captureSink,
                     statsStripeSize,
                     statsColumnScope,
+                    statsMaxExtremumBytes,
                     new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                     streamingSegmentatorAdmission,
                     streamingBreaker(driverContext),
@@ -3742,6 +3766,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     captureSink,
                     statsStripeSize,
                     statsColumnScope,
+                    statsMaxExtremumBytes,
                     new StreamingParallelParsingCoordinator.WarningSinks(partialResultsWarningSink, warningSink),
                     streamingSegmentatorAdmission,
                     streamingBreaker,

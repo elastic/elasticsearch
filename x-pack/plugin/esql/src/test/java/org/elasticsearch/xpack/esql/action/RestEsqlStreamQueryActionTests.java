@@ -194,14 +194,18 @@ public class RestEsqlStreamQueryActionTests extends ESTestCase {
         );
     }
 
-    public void testStoreOtherThanNoneIsRejected() {
-        for (String store : new String[] { "overflow", "all", "bogus" }) {
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> parseStream("{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}")
-            );
-            assertThat(e.getMessage(), equalTo("[store] only supports [none] for now, got [" + store + "]"));
+    public void testValidStoreValuesAreAccepted() throws IOException {
+        for (StreamOptions.Store store : StreamOptions.Store.values()) {
+            assertThat(parseStream("{\"query\": \"FROM idx\", \"store\": \"" + store + "\"}").options().store(), equalTo(store));
         }
+    }
+
+    public void testUnknownStoreIsRejected() {
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> parseStream("{\"query\": \"FROM idx\", \"store\": \"bogus\"}")
+        );
+        assertThat(e.getCause().getMessage(), equalTo("[store] must be one of [none, overflow, all], got [bogus]"));
     }
 
     public void testInvalidLimitsAreRejected() {

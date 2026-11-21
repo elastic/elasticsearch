@@ -62,11 +62,13 @@ final class StreamMetadataDocument {
             .field(STREAM_ID_FIELD, metadata.streamId())
             .field(PAGE_SEQ_FIELD, METADATA_PAGE_SEQ)
             .field(STREAM_TASK, metadata.taskId().toString())
-            .field(STREAM_EXPIRATION_TIME_FIELD, metadata.expiration().toEpochMilli())
             .field(STREAM_STATUS, metadata.status().name())
             .field(STREAM_COLUMNS, Strings.toString(columns))
             .field(STREAM_HEADERS, Strings.toString(jsonBuilder().map(metadata.headers())))
             .field(STREAM_WARNINGS, Strings.toString(jsonBuilder().value(metadata.warnings())));
+        if (metadata.expiration() != null) {
+            source.field(STREAM_EXPIRATION_TIME_FIELD, metadata.expiration().toEpochMilli());
+        }
         StreamMetadata.StreamCompletionInfo completion = metadata.completionInfo();
         if (completion != null) {
             source.field(STREAM_PARTIAL, completion.partial()).field(STREAM_TOOK, completion.tookMillis());
@@ -117,7 +119,7 @@ final class StreamMetadataDocument {
         return new StreamMetadata(
             (String) source.get(STREAM_ID_FIELD),
             new TaskId((String) source.get(STREAM_TASK)),
-            Instant.ofEpochMilli(((Number) source.get(STREAM_EXPIRATION_TIME_FIELD)).longValue()),
+            source.get(STREAM_EXPIRATION_TIME_FIELD) instanceof Number expiration ? Instant.ofEpochMilli(expiration.longValue()) : null,
             columns,
             headers,
             warnings,

@@ -9,17 +9,23 @@
 
 package org.elasticsearch.ingest.attachment;
 
-import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
+import org.apache.tika.exception.WriteLimitReachedException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.mime.MediaType;
 import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
 import org.apache.tika.parser.html.JSoupParser;
+import org.apache.tika.sax.BodyContentHandler;
+import org.apache.tika.sax.WriteOutContentHandler;
+import org.xml.sax.SAXException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.Writer;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -59,18 +65,27 @@ final class TikaImpl {
         new org.apache.tika.parser.xml.DcXMLParser(),
         new org.apache.tika.parser.epub.EpubParser(), };
 
-    /** autodetector based on this subset */
-    private static final AutoDetectParser PARSER_INSTANCE = new AutoDetectParser(PARSERS);
-
-    /** singleton tika instance */
-    private static final Tika TIKA_INSTANCE = new Tika(PARSER_INSTANCE.getDetector(), PARSER_INSTANCE);
+    /** autodetector based on this subset; package-private for tests comparing against Tika's own extraction */
+    static final AutoDetectParser PARSER_INSTANCE = new AutoDetectParser(PARSERS);
 
     /**
-     * parses with tika, throwing any exception hit while parsing the document
+     * Parses with tika, writing at most {@code limit} chars to {@code writer} and throwing any exception hit while parsing. Equivalent to
+     * {@code Tika#parseToString(InputStream, Metadata, int)}, but lets the caller decide how the text is held in memory.
+     *
+     * @param limit the maximum number of chars to extract, or -1 for no limit
      */
-    static String parse(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
-        try {
-            return TIKA_INSTANCE.parseToString(new ByteArrayInputStream(content), metadata, limit);
+    static void parse(final byte[] content, final Metadata metadata, final int limit, final Writer writer) throws TikaException,
+        IOException {
+        WriteOutContentHandler handler = new WriteOutContentHandler(writer, limit);
+        ParseContext context = new ParseContext();
+        context.set(Parser.class, PARSER_INSTANCE);
+        try (InputStream stream = new ByteArrayInputStream(content)) {
+            PARSER_INSTANCE.parse(stream, new BodyContentHandler(handler), metadata, context);
+        } catch (SAXException e) {
+            if (WriteLimitReachedException.isWriteLimitReached(e) == false) {
+                // This should never happen with BodyContentHandler...
+                throw new TikaException("Unexpected SAX processing failure", e);
+            }
         } catch (LinkageError e) {
             if (e.getMessage().contains("bouncycastle")) {
                 /*

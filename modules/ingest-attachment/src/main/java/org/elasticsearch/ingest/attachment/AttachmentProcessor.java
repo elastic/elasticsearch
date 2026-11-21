@@ -12,6 +12,8 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.lucene.util.SetOnce;
 import org.apache.tika.exception.ZeroByteFileException;
 import org.apache.tika.langdetect.tika.LanguageIdentifier;
+import org.apache.tika.langdetect.tika.LanguageProfile;
+import org.apache.tika.langdetect.tika.ProfilingWriter;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -30,6 +32,8 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.EnumSet;
@@ -76,6 +80,25 @@ public final class AttachmentProcessor extends AbstractProcessor {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Detects the {@code language} of an attachment from only the first this many chars of its text, or from all of it if -1 (the
+     * default). A limit makes large attachments faster and cheaper to process; for an attachment that mixes languages, the detected
+     * language then reflects its beginning.
+     */
+    public static final Setting<Integer> LANGUAGE_DETECTION_MAX_CHARS_SETTING = Setting.intSetting(
+        "ingest.attachment.language_detection.max_chars",
+        -1,
+        -1,
+        value -> {
+            if (value == 0) {
+                throw new IllegalArgumentException(
+                    "[ingest.attachment.language_detection.max_chars] must be -1 or positive, but was [" + value + "]"
+                );
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
     private final String field;
     private final String targetField;
     private final Set<Property> properties;
@@ -90,6 +113,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final RelativeByteSizeValue maxFieldSizeFromNode;
     private final long maxFieldSizeFromNodeBytes;
     private final String maxFieldSizeExceededMessage;
+    // Chars used for language detection, or -1 for all.
+    private final int languageDetectionMaxChars;
     private final SetOnce<AttachmentIngestMetrics> attachmentMetrics;
 
     AttachmentProcessor(
@@ -106,6 +131,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         int maxFieldBytesFromProcessor,
         RelativeByteSizeValue maxFieldSizeFromNode,
         String maxFieldSizeExceededMessage,
+        int languageDetectionMaxChars,
         SetOnce<AttachmentIngestMetrics> attachmentMetrics
     ) {
         super(tag, description);
@@ -121,6 +147,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         this.maxFieldSizeFromNode = maxFieldSizeFromNode;
         this.maxFieldSizeFromNodeBytes = resolveMaxFieldSizeFromNode(maxFieldSizeFromNode);
         this.maxFieldSizeExceededMessage = maxFieldSizeExceededMessage;
+        this.languageDetectionMaxChars = languageDetectionMaxChars;
         this.attachmentMetrics = attachmentMetrics;
     }
 
@@ -262,26 +289,32 @@ public final class AttachmentProcessor extends AbstractProcessor {
         if (resourceNameInput != null) {
             metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, resourceNameInput);
         }
-        String parsedContent = "";
+        // Collects the text in chunks, so the full text only exists once, as the trimmed content.
+        ChunkedTextWriter text = new ChunkedTextWriter();
         try {
-            parsedContent = TikaImpl.parse(input, metadata, indexedCharsValue);
+            TikaImpl.parse(input, metadata, indexedCharsValue, text);
         } catch (ZeroByteFileException e) {
             // tika 1.17 throws an exception when the InputStream has 0 bytes.
             // previously, it did not mind. This is here to preserve that behavior.
+            text = new ChunkedTextWriter();
         } catch (Exception e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
         }
+        // No longer needed; drop so the decoded bytes can be reclaimed before the text is joined (the interpreter keeps them alive).
+        input = null;
+        fieldValue = null;
 
-        if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {
-            // somehow tika seems to append a newline at the end automatically, lets remove that again
-            additionalFields.put(Property.CONTENT.toLowerCase(), parsedContent.trim());
+        // Untrimmed length: the content_length fallback, and whether there is any content at all.
+        final long untrimmedLength = text.length();
+
+        if (properties.contains(Property.LANGUAGE) && untrimmedLength > 0) {
+            // Detect on the untrimmed chunks before joining, avoiding a full char[] copy.
+            additionalFields.put(Property.LANGUAGE.toLowerCase(), detectLanguage(text, languageDetectionMaxChars));
         }
 
-        if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-            // TODO: stop using LanguageIdentifier...
-            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
-            String language = identifier.getLanguage();
-            additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
+        if (properties.contains(Property.CONTENT) && untrimmedLength > 0) {
+            // somehow tika seems to append a newline at the end automatically, lets remove that again
+            additionalFields.put(Property.CONTENT.toLowerCase(), text.toTrimmedString());
         }
 
         addAdditionalField(additionalFields, Property.DATE, metadata.get(TikaCoreProperties.CREATED));
@@ -298,7 +331,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             if (Strings.hasLength(contentLength)) {
                 length = Long.parseLong(contentLength);
             } else {
-                length = parsedContent.length();
+                length = untrimmedLength;
             }
             additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
         }
@@ -336,6 +369,24 @@ public final class AttachmentProcessor extends AbstractProcessor {
             attachmentMetrics.get().recordRawBytesProcessed(rawBytes);
         }
         return ingestDocument;
+    }
+
+    /**
+     * Same result as {@code new LanguageIdentifier(text)}, but feeds the profile chunk by chunk instead of copying the text into a char[].
+     *
+     * @param maxChars number of leading chars to look at, or -1 for all
+     */
+    static String detectLanguage(ChunkedTextWriter text, int maxChars) {
+        LanguageProfile profile = new LanguageProfile();
+        // closing the writer ends the last word, as LanguageProfile(String) does
+        try (ProfilingWriter profilingWriter = new ProfilingWriter(profile)) {
+            text.writeTo(profilingWriter, maxChars);
+        } catch (IOException e) {
+            // neither writer does any I/O
+            throw new UncheckedIOException(e);
+        }
+        // TODO: stop using LanguageIdentifier...
+        return new LanguageIdentifier(profile).getLanguage();
     }
 
     /**
@@ -377,11 +428,13 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         private final RelativeByteSizeValue maxFieldSizeFromNode;
         private final String maxFieldSizeExceededMessage;
+        private final int languageDetectionMaxChars;
         private final SetOnce<AttachmentIngestMetrics> attachmentMetrics;
 
         public Factory(Settings nodeSettings, SetOnce<AttachmentIngestMetrics> attachmentMetrics) {
             this.maxFieldSizeFromNode = MAX_FIELD_SIZE_SETTING.get(nodeSettings);
             this.maxFieldSizeExceededMessage = MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING.get(nodeSettings);
+            this.languageDetectionMaxChars = LANGUAGE_DETECTION_MAX_CHARS_SETTING.get(nodeSettings);
             this.attachmentMetrics = attachmentMetrics;
         }
 
@@ -457,6 +510,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 maxFieldBytesFromProcessor,
                 maxFieldSizeFromNode,
                 maxFieldSizeExceededMessage,
+                languageDetectionMaxChars,
                 attachmentMetrics
             );
         }

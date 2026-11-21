@@ -119,9 +119,12 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
         assertThat(parse(Map.of("wait_timeout", "5m")).waitTimeout(), equalTo(GetStreamResultRequest.MAX_WAIT_TIMEOUT));
     }
 
-    /** A wait_timeout of 0 or -1 means no wait, as an unset one does. Any other negative value is rejected, see below. */
+    /**
+     * A wait_timeout of 0 or -1 means no wait, as an unset one does, and -1 is accepted with a unit too. Any other negative value is
+     * rejected, see below.
+     */
     public void testZeroAndMinusOneWaitTimeoutMeanNoWait() {
-        for (String value : new String[] { "0", "0s", "-1" }) {
+        for (String value : new String[] { "0", "0s", "-1", "-1s" }) {
             assertThat(value, parse(Map.of("wait_timeout", value)).waitTimeout().millis(), lessThanOrEqualTo(0L));
         }
     }

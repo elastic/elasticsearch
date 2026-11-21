@@ -66,7 +66,8 @@ public class RestEsqlGetStreamResultAction extends BaseRestHandler {
      * Reads the parameters. A limit that is not provided stays unlimited, and an unset {@code wait_timeout} means no wait, as an unset
      * {@code wait_for_completion_timeout} does for the async API. A value that cannot be parsed is a 400, and so is a negative offset or
      * limit, a {@code wait_timeout} above {@link GetStreamResultRequest#MAX_WAIT_TIMEOUT}, and a negative {@code wait_timeout}
-     * other than {@code -1}, which the time parser rejects, as it does for the async API.
+     * other than {@code -1}. The time parser accepts {@code -1} with or without a unit, such as {@code -1s}, and rejects every other
+     * negative duration, as it does for the async API.
      */
     static GetStreamResultRequest parseRequest(RestRequest request) {
         String streamId = request.param("id");

@@ -53,6 +53,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
 import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
@@ -78,9 +79,11 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -416,6 +419,135 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
                     ids.add(matrix.id());
                 }
                 assertEquals("every segment learned its own projection", docsPerSegment.length, ids.size());
+            }
+        }
+    }
+
+    /**
+     * A merge looks up each input segment's projection matrix with that segment's own field number, which can differ from
+     * the merged segment's: here {@code addIndexes} merges a segment that numbers the field differently. A warm start with
+     * too few vectors returns the inherited matrix unchanged, so the merged segment shows which matrix it inherited.
+     */
+    public void testMergeInheritsByFieldNameAcrossFieldNumbers() throws IOException {
+        int dims = 64;
+        int nDims = IvfSegmentConfig.AshConfig.defaults().projectedDims(dims);
+        int docs = 2 * nDims + 10;
+        try (Directory source = newDirectory(); Directory target = newDirectory()) {
+            IndexWriterConfig sourceConfig = newIndexWriterConfig();
+            sourceConfig.setCodec(TestUtil.alwaysKnnVectorsFormat(ashTestFormat()));
+            sourceConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+            // one segment
+            sourceConfig.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+            sourceConfig.setRAMBufferSizeMB(256);
+            try (IndexWriter w = new IndexWriter(source, sourceConfig)) {
+                for (int i = 0; i < docs; i++) {
+                    Document doc = new Document();
+                    // another ASH field of the same shape comes first, so it takes the field number the target gives "f": looked
+                    // up by the merged segment's field number, its learned matrix would be inherited instead of "f"'s
+                    doc.add(new KnnFloatVectorField("a", VectorTestUtils.randomFloatVector(dims), VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new KnnFloatVectorField("f", VectorTestUtils.randomFloatVector(dims), VectorSimilarityFunction.EUCLIDEAN));
+                    doc.add(new StringField("id", Integer.toString(i), Field.Store.NO));
+                    w.addDocument(doc);
+                }
+                w.commit();
+                // fewer live vectors than the merge needs to refine the inherited matrix, so it inherits it unchanged
+                for (int i = 0; i < docs - (2 * nDims - 1); i++) {
+                    w.deleteDocuments(new Term("id", Integer.toString(i)));
+                }
+                w.commit();
+            }
+            IndexWriterConfig targetConfig = newIndexWriterConfig();
+            targetConfig.setCodec(TestUtil.alwaysKnnVectorsFormat(ashTestFormat()));
+            targetConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+            try (DirectoryReader sourceReader = DirectoryReader.open(source); IndexWriter w = new IndexWriter(target, targetConfig)) {
+                assertThat(sourceReader.leaves(), hasSize(1));
+                LeafReader sourceLeaf = sourceReader.leaves().get(0).reader();
+                FieldInfo sourceField = sourceLeaf.getFieldInfos().fieldInfo("f");
+                AshProjectionMatrix sourceMatrix = ashReader(sourceLeaf, "f").getProjectionMatrix(sourceField);
+                assertThat(sourceMatrix.isLearned(), equalTo(true));
+
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", VectorTestUtils.randomFloatVector(dims), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+                w.commit();
+                w.addIndexes((CodecReader) sourceLeaf);
+                w.commit();
+                try (DirectoryReader reader = DirectoryReader.open(w)) {
+                    LeafReader merged = reader.leaves()
+                        .stream()
+                        .map(LeafReaderContext::reader)
+                        .filter(r -> r.maxDoc() > 1)
+                        .findFirst()
+                        .orElseThrow();
+                    FieldInfo mergedField = merged.getFieldInfos().fieldInfo("f");
+                    assertThat("the field is numbered differently", mergedField.number, not(equalTo(sourceField.number)));
+                    assertThat(
+                        "the source numbers another ASH field as the target numbers this one",
+                        sourceLeaf.getFieldInfos().fieldInfo(mergedField.number).name,
+                        equalTo("a")
+                    );
+                    AshProjectionMatrix mergedMatrix = ashReader(merged, "f").getProjectionMatrix(mergedField);
+                    assertThat("inherited the source segment's matrix of the field", mergedMatrix.id(), equalTo(sourceMatrix.id()));
+                }
+            }
+        }
+    }
+
+    /**
+     * Segments with fewer than twice as many vectors as projected dimensions use the seeded random projection: they store
+     * only its seed, and share its id, and the query projection searches use, with every other such segment.
+     */
+    public void testSmallSegmentsShareTheSeededProjection() throws IOException {
+        int dims = 64;
+        int nDims = IvfSegmentConfig.AshConfig.defaults().projectedDims(dims);
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(ashTestFormat()));
+            iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+            // one segment per commit
+            iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+            iwc.setRAMBufferSizeMB(256);
+            int smallSegments = randomIntBetween(2, 4);
+            int[] docsPerSegment = new int[smallSegments + 1];
+            for (int s = 0; s < smallSegments; s++) {
+                docsPerSegment[s] = randomIntBetween(1, 2 * nDims - 1);
+            }
+            docsPerSegment[smallSegments] = randomIntBetween(2 * nDims, 4 * nDims);
+            try (IndexWriter w = new IndexWriter(dir, iwc)) {
+                for (int docs : docsPerSegment) {
+                    for (int i = 0; i < docs; i++) {
+                        Document doc = new Document();
+                        doc.add(
+                            new KnnFloatVectorField("f", VectorTestUtils.randomFloatVector(dims), VectorSimilarityFunction.DOT_PRODUCT)
+                        );
+                        w.addDocument(doc);
+                    }
+                    w.commit();
+                }
+            }
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertThat(reader.leaves(), hasSize(docsPerSegment.length));
+                Set<UUID> seededIds = new HashSet<>();
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    LeafReader leafReader = ctx.reader();
+                    AshProjectionMatrix matrix = ashReader(leafReader, "f").getProjectionMatrix(leafReader.getFieldInfos().fieldInfo("f"));
+                    boolean small = leafReader.maxDoc() < 2 * nDims;
+                    assertThat("segment of " + leafReader.maxDoc() + " docs", matrix.isSeeded(), equalTo(small));
+                    assertThat(matrix.isLearned(), equalTo(small == false));
+                    if (small) {
+                        seededIds.add(matrix.id());
+                    }
+                    // searches work on both kinds of segment
+                    TopDocs topDocs = leafReader.searchNearestVectors(
+                        "f",
+                        VectorTestUtils.randomFloatVector(dims),
+                        5,
+                        AcceptDocs.fromLiveDocs(leafReader.getLiveDocs(), leafReader.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
+                    assertThat(topDocs.scoreDocs.length, greaterThan(0));
+                }
+                assertThat("the small segments share the seeded projection", seededIds, hasSize(1));
             }
         }
     }

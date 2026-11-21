@@ -405,13 +405,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         this.verifier = verifier;
     }
 
-    /**
-     * Runs the analysis rules and returns the plan without verification, so a test can record that plan.
-     */
-    public LogicalPlan analyzeWithoutVerification(LogicalPlan plan) {
-        return replaceDescribe(execute(plan));
-    }
-
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
         LogicalPlan analyzed = execute(plan);

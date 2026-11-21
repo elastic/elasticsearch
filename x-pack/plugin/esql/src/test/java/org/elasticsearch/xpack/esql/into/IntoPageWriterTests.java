@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -34,6 +35,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
@@ -368,6 +370,14 @@ public class IntoPageWriterTests extends ComputeTestCase {
         assertTrue(writer.isFinished());
         assertThat(sink.failure(), sameInstance(rejected));
         assertFalse(driverContext.hasPendingAsyncActions());
+    }
+
+    public void testDestinationNotFoundIsNotMistakenForMissingSourceShard() {
+        writer.consume(page("h1"));
+        client.fail(new IndexNotFoundException("dst"));
+        writer.finish();
+
+        assertFalse(TransportActions.isShardNotAvailableException(sink.failure()));
     }
 
     public void testEmptyPageSendsNothing() {

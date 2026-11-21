@@ -15,10 +15,13 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetRollupCapsAction extends BaseRestHandler {
+
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.of("id");
 
     public static final ParseField ID = new ParseField("id");
 
@@ -38,6 +41,16 @@ public class RestGetRollupCapsAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "get_rollup_caps";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

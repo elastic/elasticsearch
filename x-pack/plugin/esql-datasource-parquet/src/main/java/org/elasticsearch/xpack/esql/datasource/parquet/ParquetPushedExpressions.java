@@ -493,8 +493,8 @@ final class ParquetPushedExpressions {
                 return null;
             }
             BytesRef prefix = (BytesRef) prefixValue;
-            if (physicalPrimitiveIs(schema, ne.name(), PrimitiveType.PrimitiveTypeName.BINARY) == false) {
-                return null; // declared keyword over a non-BINARY physical: decline, let FilterExec re-apply
+            if (binaryStatsHoldKeyword(schema, ne.name()) == false) {
+                return null; // declared keyword over a non-string physical: decline, let FilterExec re-apply
             }
             var col = binaryColumn(schema, ne.name());
             FilterPredicate lower = FilterApi.gtEq(col, toBinary(prefix));
@@ -565,9 +565,12 @@ final class ParquetPushedExpressions {
                 }
                 yield orderedPredicate(doubleColumn(schema, columnName), boxed, op);
             }
-            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
-                ? orderedPredicate(binaryColumn(schema, columnName), value != null ? toBinary(value) : null, op)
-                : null;
+            // IS NULL / IS NOT NULL (value == null) only reads the null count, so the leaf's annotation is irrelevant.
+            case KEYWORD -> (value == null
+                ? physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+                : binaryStatsHoldKeyword(schema, columnName))
+                    ? orderedPredicate(binaryColumn(schema, columnName), value != null ? toBinary(value) : null, op)
+                    : null;
             case BOOLEAN -> {
                 if (physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN) == false) {
                     yield null;
@@ -615,6 +618,19 @@ final class ParquetPushedExpressions {
     private static boolean physicalPrimitiveIs(MessageType schema, String columnName, PrimitiveType.PrimitiveTypeName expected) {
         PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
         return primitive != null && primitive.getPrimitiveTypeName() == expected;
+    }
+
+    /**
+     * Whether the raw bytes of the {@code BINARY} leaf at {@code columnName} are the keyword the scan produces, so a
+     * keyword literal can be compared against its statistics. A {@code BINARY DECIMAL} is not: it infers as
+     * {@code double}, so a declared {@code keyword} over it reads the rendered number ({@code "12.34"}) while its
+     * statistics hold the unscaled two's-complement integer, and a pushed keyword bound would prune matching row groups.
+     */
+    private static boolean binaryStatsHoldKeyword(MessageType schema, String columnName) {
+        PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
+        return primitive != null
+            && primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY
+            && primitive.getLogicalTypeAnnotation() instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation == false;
     }
 
     /**
@@ -1235,7 +1251,7 @@ final class ParquetPushedExpressions {
                 }
                 yield inPredicate(doubleColumn(schema, columnName), rawValues, v -> ((Number) v).doubleValue());
             }
-            case KEYWORD -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BINARY)
+            case KEYWORD -> binaryStatsHoldKeyword(schema, columnName)
                 ? inPredicate(binaryColumn(schema, columnName), rawValues, ParquetPushedExpressions::toBinary)
                 : null;
             case BOOLEAN -> physicalPrimitiveIs(schema, columnName, PrimitiveType.PrimitiveTypeName.BOOLEAN)
@@ -2707,8 +2723,12 @@ final class ParquetPushedExpressions {
      * prevented at plan time by {@link ParquetFilterPushdownSupport#canPush}, which probes
      * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
      * up front and falls back to RECHECK if it throws. The Parquet KEYWORD reader always produces
-     * one of the two supported block types, so the block-type {@code null} sentinel is unreachable
-     * on the YES path in practice.
+     * one of the two supported block types for a column the file stores as a string, so the
+     * block-type {@code null} sentinel is reached only through a {@code union_by_name} file that
+     * stores the keyword-reconciled column at another type (the cast to keyword runs above the
+     * reader, and this method sees e.g. a {@code LongBlock}). For those columns
+     * {@code PushFiltersToSource} keeps the conjunct in the {@code FilterExec} on top of pushing
+     * it, so the all-survive answer is re-checked there and YES stays exact.
      */
     private WordMask evaluateWildcardLike(
         WildcardLike wl,
@@ -2776,8 +2796,10 @@ final class ParquetPushedExpressions {
      * output) and the pattern is determinizable (KEYWORD inputs guarantee valid UTF-8 and
      * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern}'s
      * automaton build only throws {@code TooComplexToDeterminize} for pathological patterns
-     * far beyond {@code "*google*"}). If a future change broadens the YES-eligible set, this
-     * contract must be revisited.
+     * far beyond {@code "*google*"}) -- or, for a {@code union_by_name} column some file stores
+     * at a non-string type, the planner has kept the conjunct in the {@code FilterExec} as well
+     * (see {@link #evaluateWildcardLike}). If a future change broadens the YES-eligible set,
+     * this contract must be revisited.
      *
      * <p>Unlike {@link #evaluateNotContains} / {@link #evaluateNotEndsWith}, this method is an
      * instance method because it delegates to {@link #evaluateWildcardLike}, which reads the

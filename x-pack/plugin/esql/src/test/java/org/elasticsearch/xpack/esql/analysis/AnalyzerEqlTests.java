@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -170,7 +171,7 @@ public class AnalyzerEqlTests extends ESTestCase {
     public void testUnconvertibleTypeBecomesUnsupportedColumn() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 
-        // date_nanos is not in EqlPageConverter.CONVERTIBLE_TYPES, so the column must surface as unsupported (like FROM).
+        // date_nanos is not in EqlRelation.CONVERTIBLE_TYPES, so the column must surface as unsupported (like FROM).
         IndexResolution resolution = indexWith(
             "eql_unconv",
             Map.of("name", field("name", KEYWORD), "ts_nanos", field("ts_nanos", DATE_NANOS))
@@ -444,6 +445,46 @@ public class AnalyzerEqlTests extends ESTestCase {
             .analyze(TEST_PARSER.parseQuery("EQL eql_test \"process where true\" | LOOKUP JOIN languages_lookup ON language_code"));
 
         assertThat(names(eqlLeafOutput(analyzed)), hasItem("language_code"));
+    }
+
+    public void testRemoteEnrichWithUnresolvedPolicyAfterEqlIsRejected() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .addEnrichError("languages", Enrich.Mode.REMOTE, "cannot find enrich policy [languages]")
+            .error(
+                "EQL eql_test \"process where true\" | ENRICH _remote:languages ON name",
+                containsString(
+                    "ENRICH with remote policy can't be executed after [EQL eql_test \"process where true\"]@1:1"
+                        + "; the EQL source command returns its events to the coordinating node and is incompatible with remote ENRICH"
+                )
+            );
+    }
+
+    public void testRemoteEnrichWithUnresolvedPolicyAfterEqlInWhereInSubqueryKeepsPolicyError() {
+        assumeTrue("requires EQL in subqueries", EsqlCapabilities.Cap.EQL_IN_SUBQUERY.isEnabled());
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        analyzer().addIndex(INDEX, "mapping-eql_test.json")
+            .addEnrichError("languages", Enrich.Mode.REMOTE, "cannot find enrich policy [languages]")
+            .error(
+                "FROM eql_test | WHERE pid IN (EQL eql_test \"process where true\" | KEEP pid) | ENRICH _remote:languages ON name",
+                containsString("cannot find enrich policy [languages]")
+            );
+    }
+
+    public void testNonRemoteEnrichWithUnresolvedPolicyAfterEqlKeepsPolicyError() {
+        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
+
+        for (Enrich.Mode mode : List.of(Enrich.Mode.ANY, Enrich.Mode.COORDINATOR)) {
+            String prefix = mode == Enrich.Mode.ANY ? "" : "_coordinator:";
+            analyzer().addIndex(INDEX, "mapping-eql_test.json")
+                .addEnrichError("languages", mode, "cannot find enrich policy [languages]")
+                .error(
+                    "EQL eql_test \"process where true\" | ENRICH " + prefix + "languages ON name",
+                    containsString("cannot find enrich policy [languages]")
+                );
+        }
     }
 
     public void testEmptyMappingMarkerReplacedOnNullify() {

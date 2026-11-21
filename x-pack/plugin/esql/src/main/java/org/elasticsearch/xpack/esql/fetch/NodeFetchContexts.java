@@ -8,7 +8,11 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOrigins;
+import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -21,6 +25,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryScheduler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transports;
@@ -30,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * The reader contexts that one data node request opens for the fetch phase, one per shard.
@@ -42,6 +48,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * coordinator finds the kept ones in the origins of those rows, and frees them once it fetched, or the reaper does once their
  * keep-alive passed. A failed request keeps them too: with partial results, the rows that left the node before the failure
  * can still need their fetch.
+ * <p>
+ * Rows that the sink of the request discarded never left, so they keep no context. The sink discards the pages it still
+ * buffers when the query is stopped, cancelled or fails, and the coordinator never hears of the contexts those pages name.
+ * A context is freed once the sink discarded every block of documents with its rows, also when the discard comes after the
+ * request ended, as on cancellation, where the sink fails before it discards. A context stays kept while any block with its
+ * rows may reach the coordinator.
  */
 public final class NodeFetchContexts implements Releasable {
     private static final Logger logger = LogManager.getLogger(NodeFetchContexts.class);
@@ -57,9 +69,10 @@ public final class NodeFetchContexts implements Releasable {
          */
         private final Releasable lease;
         /**
-         * Some rows read through the context left the node. Set by the drivers.
+         * The blocks of documents with rows of the context that went to the sink, less the ones the sink discarded. The
+         * drivers count up, the sink counts down.
          */
-        private volatile boolean contributing;
+        private final AtomicInteger leavingBlocks = new AtomicInteger();
 
         OpenContext(ReaderContext readerContext, DocOrigin origin, Releasable lease) {
             this.readerContext = readerContext;
@@ -80,9 +93,10 @@ public final class NodeFetchContexts implements Releasable {
     private final TimeValue keepAlive;
     private final Map<ShardSearchContextId, OpenContext> contexts = new ConcurrentHashMap<>();
     /**
-     * Guards against a context that opens after {@link #close}, which nobody would release.
+     * Guards against a context that opens after {@link #close}, which nobody would release. Once set, a discard frees the
+     * contexts whose last block it discards.
      */
-    private boolean closed;
+    private volatile boolean closed;
 
     /**
      * @param keepAlive the keep-alive of each context the request keeps. A context never gets less than
@@ -100,16 +114,19 @@ public final class NodeFetchContexts implements Releasable {
 
     /**
      * Opens a single-session reader context for the shard of {@code shardRequest}, and returns the search context the
-     * query phase reads it with. Every resource taken so far is released when it fails.
+     * query phase reads it with. That context charges the breaker of {@code part}, if given. On failure, everything
+     * taken so far is released, {@code part} included.
      */
-    public SearchContext open(ShardSearchRequest shardRequest) throws IOException {
+    public SearchContext open(ShardSearchRequest shardRequest, @Nullable QueryScheduler.QueryPart part) throws IOException {
         ReaderContext readerContext = null;
         SearchContext querySearchContext = null;
         Releasable lease = null;
         boolean success = false;
         try {
             readerContext = searchService.createOrGetReaderContext(shardRequest, task);
-            querySearchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT);
+            querySearchContext = searchService.createSearchContext(readerContext, shardRequest, SearchService.NO_TIMEOUT, part);
+            // the search context closes the part from here on
+            part = null;
             // taken last: the query search context already holds a reference, so the context can't be gone.
             // -1 leaves the keep-alive as it is, close sets it.
             lease = readerContext.markAsUsed(-1L);
@@ -118,7 +135,7 @@ public final class NodeFetchContexts implements Releasable {
             return querySearchContext;
         } finally {
             if (success == false) {
-                Releasables.closeWhileHandlingException(lease, querySearchContext);
+                Releasables.closeWhileHandlingException(lease, querySearchContext, part);
                 if (readerContext != null) {
                     searchService.freeReaderContext(readerContext.id());
                 }
@@ -140,8 +157,9 @@ public final class NodeFetchContexts implements Releasable {
     }
 
     /**
-     * The origin of the rows read through {@code searchContext}, for the rows that leave the node. Asking marks the context
-     * as one the request keeps.
+     * The origin of the rows read through {@code searchContext}, for a block of documents that leaves the node. Asked once
+     * for each such block ({@link DocVector#detach}), so the request keeps the context unless the sink discards every one of
+     * them ({@link #discarded}).
      */
     public DocOrigin originOf(SearchContext searchContext) {
         ShardSearchContextId id = searchContext.readerContext().id();
@@ -149,13 +167,75 @@ public final class NodeFetchContexts implements Releasable {
         if (open == null) {
             throw new IllegalStateException("[" + id + "] isn't an open fetch context of this request");
         }
-        open.contributing = true;
+        open.leavingBlocks.incrementAndGet();
         return open.origin;
     }
 
     /**
+     * The sink discarded {@code page} instead of sending it, so its blocks of documents no longer keep their contexts. Once
+     * the request ended no block goes to the sink anymore, so a context whose last block this discards is freed at once.
+     * The sink calls it, so it never throws.
+     */
+    public void discarded(Page page) {
+        List<OpenContext> unsent = new ArrayList<>();
+        for (int b = 0; b < page.getBlockCount(); b++) {
+            if (page.getBlock(b) instanceof DocBlock doc && doc.asVector().origins() != null) {
+                DocOrigins origins = doc.asVector().origins();
+                for (int o = 0; o < origins.size(); o++) {
+                    OpenContext open = contexts.get(origins.get(o).contextId());
+                    if (open == null) {
+                        assert false : "[" + origins.get(o).contextId() + "] isn't a fetch context of this request";
+                        continue;
+                    }
+                    int left = open.leavingBlocks.decrementAndGet();
+                    assert left >= 0 : "[" + open.readerContext.id() + "] discarded more blocks than went to the sink";
+                    // read after the count: a request that ends in between sees the count at zero, and frees the context itself
+                    if (left == 0 && closed) {
+                        unsent.add(open);
+                    }
+                }
+            }
+        }
+        if (unsent.isEmpty() == false) {
+            freeUnsent(unsent);
+        }
+    }
+
+    /**
+     * Frees the contexts that the request kept, but whose blocks the sink then discarded. Like {@link #close}, it runs on the
+     * free context executor.
+     */
+    private void freeUnsent(List<OpenContext> unsent) {
+        searchService.getFreeContextExecutor().execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                for (OpenContext context : unsent) {
+                    try {
+                        boolean found = searchService.freeReaderContext(context.readerContext.id());
+                        logger.debug(
+                            "freed fetch context [{}] of shard [{}], the sink discarded all of its rows{}",
+                            context.readerContext.id(),
+                            context.origin.shardId(),
+                            found ? "" : ", it was already gone"
+                        );
+                    } catch (Exception e) {
+                        // the others still need their free
+                        logger.warn(() -> "failed to free fetch context [" + context.readerContext.id() + "]", e);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("failed to free fetch contexts", e);
+            }
+        });
+    }
+
+    /**
      * Keeps the contexts some rows that left the node read, with the keep-alive of the request, and frees the others. Called
-     * last, once the request closed the search contexts of its query phase.
+     * last, once the request closed the search contexts of its query phase. The sink can still discard pages after that,
+     * see {@link #discarded}.
      * <p>
      * Runs on the free context executor of {@link SearchService}, like the frees of {@code _search}. Dropping the last
      * reference to a reader can unmap files and block, and a request can end on a transport thread, for example when the
@@ -169,8 +249,8 @@ public final class NodeFetchContexts implements Releasable {
                 return;
             }
             closed = true;
+            // the map stays, so a later discard finds the contexts it frees
             opened = new ArrayList<>(contexts.values());
-            contexts.clear();
         }
         if (opened.isEmpty()) {
             return;
@@ -198,13 +278,13 @@ public final class NodeFetchContexts implements Releasable {
 
     private void release(OpenContext context) {
         try (context.lease) {
-            if (context.contributing) {
+            if (context.leavingBlocks.get() > 0) {
                 // the request still holds its own reference, so this one is never the last
                 context.readerContext.markAsUsed(keepAlive.millis()).close();
             } else {
                 boolean found = searchService.freeReaderContext(context.readerContext.id());
                 logger.debug(
-                    "freed fetch context [{}] of shard [{}], no row read it{}",
+                    "freed fetch context [{}] of shard [{}], none of its rows left the node{}",
                     context.readerContext.id(),
                     context.origin.shardId(),
                     found ? "" : ", it was already gone"

@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -26,13 +28,17 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PatternPrefixBound;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvGreater;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLess;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvRLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -50,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -1518,8 +1525,10 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
      * temporal read at its range edge, or a format parse failure) makes the decoded null-set larger than the physical
      * one, so {@code eq(col, null)} would prune a row group whose {@code nullCount == 0}. What declines is narrower
      * than "anything that rescales": a narrowing is total, so only a read that can leave a value with no
-     * representation at all declines -- {@code TIMESTAMP(MICROS)}, whose out-of-nanos-range values the decode nulls,
-     * the millis-to-nanos widen of a bare {@code INT64}, and any format parse. Mutating {@code decodeCanNull} to
+     * representation at all declines -- the millis-to-nanos widen of a bare {@code INT64} and any format parse.
+     * {@code TIMESTAMP(MICROS)} declines too, but conservatively rather than necessarily: its declared-{@code date}
+     * decode is a fused pair now and cannot null, and the arm is keyed on the declared type rather than the file's,
+     * which is what a relaxation would have to change first. Mutating {@code decodeCanNull} to
      * {@code declaredFormat != null} reds this.
      */
     public void testIsNullPushdownGateMatchesDecodeCanNullTruthTable() {
@@ -1529,8 +1538,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         record Case(String name, MessageType schema, DataType declared, String format, boolean pushes) {}
         List<Case> cases = List.of(
             // DATETIME: the identity reads over bare / MILLIS push, and so does the NANOS narrowing -- floorDiv is
-            // total over the whole long domain. MICROS is the one decline: its out-of-nanos-range values are nulled in
-            // the decode, before any narrowing.
+            // total over the whole long domain. MICROS is the one decline, and a conservative one: see the javadoc.
             new Case("datetime / bare INT64", int64Ts(null), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATETIME, null, false),
@@ -3065,6 +3073,66 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    /**
+     * A prefix-bearing {@code mv_like} / {@code mv_rlike} has no statistics form; the range it implies
+     * ({@link PatternPrefixBound}, pushed beside it) builds a two-sided bound over a non-repeated BINARY leaf, with the
+     * exclusive upper pushed inclusive as for every {@code mv_in_range}. The pattern itself is NO, so beside it the
+     * pushed predicate is the bound alone.
+     */
+    public void testImpliedPatternPrefixRangeBuildsATwoSidedRangeOnABinaryLeaf() {
+        MessageType schema = Types.buildMessage().required(BINARY).as(stringType()).named("region").named("test");
+        Attribute region = attr("region", DataType.KEYWORD);
+        FilterPredicate expected = FilterApi.and(
+            FilterApi.gtEq(FilterApi.binaryColumn("region"), Binary.fromConstantByteArray("abc".getBytes(StandardCharsets.UTF_8))),
+            FilterApi.ltEq(FilterApi.binaryColumn("region"), Binary.fromConstantByteArray("abd".getBytes(StandardCharsets.UTF_8)))
+        );
+        ParquetFilterPushdownSupport support = new ParquetFilterPushdownSupport();
+        for (Expression pattern : List.of(
+            new MvLike(Source.EMPTY, region, lit(new BytesRef("abc*xyz"), DataType.KEYWORD)),
+            new MvRLike(Source.EMPTY, region, lit(new BytesRef("abc.*xyz"), DataType.KEYWORD))
+        )) {
+            MvInRange bound = PatternPrefixBound.of(pattern);
+            assertNotNull(pattern + " has a prefix", bound);
+            assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(bound));
+            assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(pattern));
+            assertEquals(expected.toString(), predicateFor(schema, bound).toString());
+            assertEquals(expected.toString(), new ParquetPushedExpressions(List.of(bound, pattern)).toFilterPredicate(schema).toString());
+        }
+    }
+
+    /**
+     * A {@code BINARY DECIMAL} infers as {@code double}; declared {@code keyword} it reads {@code "12.34"} while its
+     * statistics hold the unscaled integer bytes. No keyword bound compares against those, the implied range included.
+     */
+    public void testKeywordOverBinaryDecimalBuildsNoValueBound() {
+        MessageType schema = Types.buildMessage().required(BINARY).as(decimalType(2, 9)).named("amount").named("test");
+        Attribute amount = attr("amount", DataType.KEYWORD);
+        MvInRange bound = PatternPrefixBound.of(new MvLike(Source.EMPTY, amount, lit(new BytesRef("12*"), DataType.KEYWORD)));
+        assertNotNull(bound);
+        assertNull("implied range", predicateFor(schema, bound));
+        assertNull("equality", predicateFor(schema, eq("amount", DataType.KEYWORD, new BytesRef("12.34"))));
+        assertNull("IN", predicateFor(schema, new In(Source.EMPTY, amount, List.of(lit(new BytesRef("12.34"), DataType.KEYWORD)))));
+        assertNull("STARTS_WITH", predicateFor(schema, new StartsWith(Source.EMPTY, amount, lit(new BytesRef("12"), DataType.KEYWORD))));
+        assertNotNull("IS NULL reads only the null count", predicateFor(schema, new IsNull(Source.EMPTY, amount)));
+
+        MessageType stringSchema = Types.buildMessage().required(BINARY).as(stringType()).named("amount").named("test");
+        assertNotNull("a string leaf still pushes", predicateFor(stringSchema, bound));
+    }
+
+    /** Statistics are only reachable at a non-repeated leaf, so over a list the implied range builds nothing. */
+    public void testImpliedPatternPrefixRangeBuildsNothingOverAList() {
+        MvInRange overList = PatternPrefixBound.of(
+            new MvLike(Source.EMPTY, attr("tags", DataType.KEYWORD), lit(new BytesRef("abc*"), DataType.KEYWORD))
+        );
+        assertNotNull(overList);
+        assertNull("3-level LIST", predicateFor(stringListSchema(), overList));
+        MvInRange overRepeated = PatternPrefixBound.of(
+            new MvRLike(Source.EMPTY, attr("String_list", DataType.KEYWORD), lit(new BytesRef("abc.*"), DataType.KEYWORD))
+        );
+        assertNotNull(overRepeated);
+        assertNull("2-level repeated leaf", predicateFor(repeatedStringSchema(), overRepeated));
     }
 
     public void testListValuedKeywordBoundIsNotRenderedAsAString() {

@@ -17,6 +17,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
@@ -47,6 +48,13 @@ final class TrimLastPartialLineInputStream extends InputStream {
     private final ErrorPolicy errorPolicy;
     private final SkipWarnings skipWarnings;
     private final NdJsonRecordSplitter recordSplitter;
+
+    /**
+     * The bracketed object part of every message this stream emits, rendered once by
+     * {@link RowLocation#objectClause(String, String)} so the summary and the per-discard detail
+     * cannot drift apart. Empty when no object name was supplied.
+     */
+    private final String objectClause;
 
     /** Bytes after the last {@code '\n'} observed across all chunks read so far; discarded at EOF. */
     private byte[] carry;
@@ -110,6 +118,15 @@ final class TrimLastPartialLineInputStream extends InputStream {
         this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation, recordSplitter, warningSink);
     }
 
+    /**
+     * @param sourceLocation the object this stream is reading, already reduced for display by
+     *                       {@code RowLocation.displayObjectName} or {@code escapedForDisplay}. Every other
+     *                       constructor funnels here, so this is the one place the precondition holds: the
+     *                       messages below embed it inside brackets, and a caller handing this a raw path
+     *                       reopens the forgery those brackets were escaped to close. Production reaches it
+     *                       from {@code NdJsonPageIterator}, which passes its already-reduced
+     *                       {@code messageLocation}.
+     */
     TrimLastPartialLineInputStream(
         InputStream delegate,
         int chunkSize,
@@ -125,9 +142,10 @@ final class TrimLastPartialLineInputStream extends InputStream {
         this.errorPolicy = errorPolicy;
         Check.isTrue(recordSplitter != null, "recordSplitter must not be null");
         this.recordSplitter = recordSplitter;
+        this.objectClause = RowLocation.objectClause(" in", sourceLocation);
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
-            "Line in [" + sourceLocation + "] exceeds [" + ByteSizeValue.ofBytes(recordSplitter.maxRecordBytes()) + "]; skipping it",
+            "Line" + objectClause + " exceeds [" + ByteSizeValue.ofBytes(recordSplitter.maxRecordBytes()) + "]; skipping it",
             warningSink
         );
     }
@@ -264,11 +282,19 @@ final class TrimLastPartialLineInputStream extends InputStream {
 
     /** Same level choice as {@link NdJsonPageDecoder#onNdjsonLineParseError}. */
     private void logDiscardedOversizedPartial(long discardedBytes, String kind) {
-        skipWarnings.add("about [" + discardedBytes + "] bytes skipped");
+        skipWarnings.add("about [" + discardedBytes + "] bytes skipped" + objectClause);
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
+            // The object goes in the log line as well as in the warning: an operator reading the log over a glob
+            // otherwise cannot tell which object a discard came from, and the two channels report the same event.
+            // Already reduced, like every other use of this field. The prefix argument is passed explicitly
+            // because the clause after it is a String: left off, the call binds format(prefix, pattern, args)
+            // rather than format(pattern, args), the clause becomes the pattern, and a pattern carrying no
+            // placeholder is returned on its own -- so the operator gets the clause and no message.
             LoggerMessageFormat.format(
-                "Skipping NDJSON line of about [{}] bytes over [{}] at a split boundary ({})",
+                null,
+                "Skipping NDJSON line{} of about [{}] bytes over [{}] at a split boundary ({})",
+                objectClause,
                 discardedBytes,
                 recordSplitter.maxRecordBytes(),
                 kind

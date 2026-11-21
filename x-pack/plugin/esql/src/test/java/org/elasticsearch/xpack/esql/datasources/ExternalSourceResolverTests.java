@@ -6290,6 +6290,40 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
+     * The empty-object refusals pass this boundary carrying their diagnosis, where the untyped {@link IOException}
+     * they used to be lost it. {@code FileSourceFactory} re-raises an I/O failure from a reader as an untyped
+     * {@link IllegalArgumentException}, and the arm that handles one forwards its text only if the storage-path
+     * guard passes the whole of it -- so an object a user is entitled to call {@code logs.amazonaws.com.csv} was
+     * answered with the guard's replacement and nothing else, the remedy included. Typed, the same refusal is
+     * returned as it stands.
+     * <p>
+     * This is the half {@code CsvFormatReaderTests.testTheEmptyObjectDiagnosisSurvivesAStorageHostName} cannot
+     * reach: that test pins the guard's predicate and the read-path assertion, neither of which is what the
+     * resolver hands the user.
+     */
+    public void testTheEmptyObjectDiagnosisReachesTheUserOnceItIsTyped() {
+        ExternalSourceResolver resolver = createResolver(Map.of(), Map.of());
+        String diagnosis = "CSV file [logs.amazonaws.com.csv] has no schema line: the object is empty or contains only comments";
+
+        RuntimeException untyped = resolver.mapResolveFailure(
+            "s3://b/logs.amazonaws.com.csv",
+            new ExecutionException(new IllegalArgumentException(diagnosis))
+        );
+        assertEquals("Failed to resolve external source [logs.amazonaws.com.csv] (IllegalArgumentException)", untyped.getMessage());
+        assertThat(untyped.getMessage(), not(containsString("has no schema line")));
+
+        ExternalClientException typed = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
+        typed.setDetail(diagnosis);
+
+        RuntimeException mapped = resolver.mapResolveFailure("s3://b/logs.amazonaws.com.csv", new ExecutionException(typed));
+
+        assertThat(mapped, instanceOf(ExternalClientException.class));
+        assertEquals(typed.getMessage(), mapped.getMessage());
+        assertThat(mapped.getMessage(), containsString(diagnosis));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(mapped));
+    }
+
+    /**
      * A breaker trip keeps its 429 through a wrapper. It carries its own status like the outage and rejection
      * cases, so recovering only the client error would have left this one masked as a 500 the moment a cache
      * loader wrapped it.

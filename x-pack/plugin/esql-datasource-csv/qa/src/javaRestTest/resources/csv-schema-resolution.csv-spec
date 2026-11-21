@@ -92,6 +92,7 @@ FROM employees_type_drift_ffw_null
 | SORT id ASC;
 warningRegex:Some values in \[.*multifile_type_drift_b\.csv\] cannot be read; returning null, and skipping rows that cannot be parsed
 warningRegex:row \[\d+\], column \[col\]: cannot read \[.*\] as \[integer\]
+warningRegex:row \[\d+\] of \[[^\]]*\](?: counted (?:from byte \[\d+\] of the decoded stream|within a split))?, column \[col\]: cannot read \[.*\] as \[integer\]
 
 id:integer | col:integer | note:keyword
 1          | 123         | alpha
@@ -116,6 +117,7 @@ FROM employees_type_drift_ffw_null
 | SORT id ASC;
 warningRegex:Some values in \[.*multifile_type_drift_b\.csv\] cannot be read; returning null, and skipping rows that cannot be parsed
 warningRegex:row \[\d+\], column \[col\]: cannot read \[.*\] as \[integer\]
+warningRegex:row \[\d+\] of \[[^\]]*\](?: counted (?:from byte \[\d+\] of the decoded stream|within a split))?, column \[col\]: cannot read \[.*\] as \[integer\]
 
 id:integer | col:integer | note:keyword
 1          | 123         | alpha
@@ -136,6 +138,7 @@ FROM employees_type_drift_ffw_null
 | STATS count = COUNT(*), non_null_col = COUNT(col);
 warningRegex:Some values in \[.*multifile_type_drift_b\.csv\] cannot be read; returning null, and skipping rows that cannot be parsed
 warningRegex:row \[\d+\], column \[col\]: cannot read \[.*\] as \[integer\]
+warningRegex:row \[\d+\] of \[[^\]]*\](?: counted (?:from byte \[\d+\] of the decoded stream|within a split))?, column \[col\]: cannot read \[.*\] as \[integer\]
 
 count:long | non_null_col:long
 6          | 3

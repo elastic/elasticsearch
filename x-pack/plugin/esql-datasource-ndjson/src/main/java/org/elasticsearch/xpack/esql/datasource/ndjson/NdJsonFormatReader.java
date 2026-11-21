@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
@@ -33,12 +35,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 import org.elasticsearch.xpack.esql.datasources.spi.PassThroughRowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.RowPositionStrategy;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.WidenedColumn;
 import org.elasticsearch.xpack.esql.datasources.spi.WithinFileWideningWarnings;
 
@@ -416,12 +420,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker(),
                 widenings
             );
-            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count());
+            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count(), object);
             // No SourceMetadata reaches a reconciliation step from this read-time inference path (unlike
             // metadata(), which the coordinator consults during planning), so there is no widenedColumns()
             // for schema_resolution: strict to read here — only the warning, so a user reading through
             // this path is told the same thing a cold metadata() resolve would have told them.
-            reportWidenings(widenings, ExternalFailures.redactHttpUrl(object.path().toString()), warningSink);
+            reportWidenings(
+                widenings,
+                RowLocation.escapedForDisplay(ExternalFailures.redactHttpUrl(object.path().toString())),
+                warningSink
+            );
             return sampled.schema();
         }
     }
@@ -595,13 +603,36 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * A prefix that hits the decoded-byte sample cap without a complete record cannot infer a schema:
      * the first line is wider than the budget. Declaring the schema is the way out — retrying the
      * same request cannot succeed.
+     * <p>
+     * Names the object, because a glob fails on the first object that trips this and the user otherwise learns
+     * only that one of their files has an over-wide first line. The format is the literal {@code NDJSON} rather
+     * than {@link #formatName()}: that method returns the configuration-level id {@code ndjson}, while every
+     * user-facing message in this reader spells the format in capitals. CSV takes its name from a field for a
+     * reason that does not apply here -- one reader there serves both CSV and TSV.
+     * <p>
+     * Typed rather than raised through {@link Check#clientError}, which throws a plain
+     * {@link IllegalArgumentException}: the resolver forwards one of those only after
+     * {@code ExternalFailures.forwardableDetail} has passed the whole message through its storage-path guard,
+     * which matches a bare storage host anywhere in the text — so once this message names the object, an object
+     * legitimately called {@code logs.amazonaws.com.ndjson} loses the whole sentence and the remedy with it. An
+     * {@link ExternalClientException} is returned whole by that path instead. It is not safe everywhere: the
+     * same predicate is an assertion inside {@code ExternalFailures.classify}, so on the read path such a name
+     * is fatal under {@code -ea}. {@code CsvFormatReader.sampleLimitError} is the twin of this and carries the
+     * whole reasoning.
      */
-    private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead) {
-        Check.clientError(
-            sampleRows > 0 || bytesRead < schemaSampleBytes,
-            "schema inference reached the decoded-byte sample limit [{}] before reading a complete record; declare a schema",
-            ByteSizeValue.ofBytes(schemaSampleBytes)
+    private void refuseEmptySampleAtByteBudget(int sampleRows, long bytesRead, StorageObject object) {
+        if (sampleRows > 0 || bytesRead < schemaSampleBytes) {
+            return;
+        }
+        ExternalClientException limitEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
+        limitEx.setDetail(
+            "NDJSON schema inference"
+                + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
+                + " reached the decoded-byte sample limit ["
+                + ByteSizeValue.ofBytes(schemaSampleBytes)
+                + "] before reading a complete record; declare a schema"
         );
+        throw limitEx;
     }
 
     @Override
@@ -623,10 +654,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 blockFactory.breaker(),
                 widenings
             );
-            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count());
+            refuseEmptySampleAtByteBudget(sampled.sampleRows(), counted.count(), object);
             List<Attribute> schema = sampled.schema();
             String location = object.path().toString();
-            String sourceLocation = ExternalFailures.redactHttpUrl(location);
+            String sourceLocation = RowLocation.escapedForDisplay(ExternalFailures.redactHttpUrl(location));
             List<String> warnings = new ArrayList<>();
             List<WidenedColumn> widenedColumns = reportWidenings(widenings, sourceLocation, warnings::add);
             long mtimeMillis;
@@ -791,6 +822,27 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
             readConfig,
             chunkMode,
+            // From context.recordAligned(), not chunkMode: the latter is demoted above when the object has no
+            // last-modified time, which is about cache participation and not about the byte axis.
+            // Deliberately keyed on the offset rather than on firstSplit(), which is what CsvFormatReader keys
+            // on: a first macro-split of a block-aligned compressed object has a non-zero start on the
+            // COMPRESSED axis, and the flag below is binary -- not withholding would print that offset rather
+            // than print no clause, which is the cross-axis byte this whole clause exists to avoid. So such a
+            // split says "within a split" over an ordinal that is in fact the file's: a weaker statement than
+            // the truth, never a wrong one.
+            //
+            // The other cell they disagree in, firstSplit=false with splitStartByte==0, is unreachable, so the
+            // divergence costs only the weaker message above. AsyncExternalSourceOperatorFactory derives both
+            // from one FileSplit -- firstSplit from FileSplitProvider.isFirstInFile, whose body is
+            // ("true".equals(config.get(FIRST_SPLIT_KEY)) || split.offset() == 0), and splitStartByte from
+            // split.offset() -- so a split that is not the file's first has a non-zero offset, and the parallel
+            // coordinators are handed that same pair. Were it ever produced, this would print splitStartByte plus
+            // whatever skipFirstLine discarded, the file-global start of the first whole record, which is
+            // accurate; the invariant is the producer's, and the expression is written so that breaking it costs
+            // nothing here. Unifying the two readers means giving NdJsonPageIterator the same long
+            // messageStartByte CsvBatchIterator takes instead of this boolean, which changes that constructor's
+            // contract; it is sized with the rest of the row-ordinal work rather than carried here.
+            context.recordAligned() == false && context.splitStartByte() != 0L,
             context.readCounters() instanceof NdJsonReaderCounters c ? c : null,
             context.splitStartByte(),
             context.maxRecordBytes(),

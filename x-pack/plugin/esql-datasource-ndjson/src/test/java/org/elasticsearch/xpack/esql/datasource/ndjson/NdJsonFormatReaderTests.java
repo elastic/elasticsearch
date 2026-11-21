@@ -26,9 +26,11 @@ import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -49,6 +51,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -311,9 +315,46 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     public void testSchemaSampleBytesRefusesWhenFirstLineExceedsBudget() throws IOException {
         byte[] bytes = ("{\"blob\":\"" + "x".repeat(200) + "\"}\n").getBytes(StandardCharsets.UTF_8);
         FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(50);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> reader.metadata(new BytesObject(bytes)));
-        assertThat(e.getMessage(), containsString("decoded-byte sample limit"));
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.metadata(new BytesObject(bytes)));
+        // This fixture's path carries no last segment, so there is no object to name: the clause has to
+        // disappear whole rather than leave a dangling preposition or an empty bracket.
+        assertThat(e.getMessage(), containsString("NDJSON schema inference reached the decoded-byte sample limit"));
+        assertThat(e.getMessage(), not(containsString("of []")));
         assertThat(e.getMessage(), containsString("declare a schema"));
+    }
+
+    /**
+     * The same refusal over an object that does have a name. A glob fails on the first file whose first line is
+     * over-wide, so without this the user learns only that one of their files is too wide, not which.
+     */
+    public void testSchemaSampleBytesRefusalNamesTheObject() {
+        byte[] bytes = ("{\"blob\":\"" + "x".repeat(200) + "\"}\n").getBytes(StandardCharsets.UTF_8);
+        FormatReader reader = new NdJsonFormatReader(null, blockFactory).withSchemaSampleBytes(50);
+        ExternalClientException e = expectThrows(ExternalClientException.class, () -> reader.metadata(new NamedBytesObject(bytes)));
+        assertThat(
+            e.getMessage(),
+            containsString("NDJSON schema inference of [wide-first-line.ndjson] reached the decoded-byte sample limit")
+        );
+        // Naming the object is why this refusal is typed, and typing it moved what a client reads: it answered an
+        // untyped argument error before, so error.type was illegal_argument_exception and the reason carried this
+        // diagnosis alone.
+        //
+        // What this pins is the reader's own exception -- its condition prefix and its diagnosis -- and not the REST
+        // contract above it: it would still pass if a layer in between replaced the diagnosis with a generic 400.
+        // ExternalSourceResolverTests pins the hop that would do the replacing, for a typed refusal of any format.
+        // What ExternalErrorSurfaceIT pins for the CSV refusals is the HTTP status and error.type, not error.reason --
+        // so even there a changed diagnosis, or a lost condition prefix, would pass. For this refusal it pins nothing
+        // at all, having no failing NDJSON probe.
+        //
+        // Such a probe is not out of reach, only unwritten: the budget has no dataset setting to lower it, so over a
+        // single object it needs a first line past the 32 MiB default, but schema inference divides the budget across
+        // the files of a glob down to a floor of MIN_SHARED_SCHEMA_SAMPLE_BYTES (1 MiB), which a far smaller fixture
+        // clears. Either way nothing on the surface watches this condition today, which is why the move it made had
+        // to be caught by reading.
+        assertTrue(
+            "a typed refusal must open with the condition's prefix, got: " + e.getMessage(),
+            e.getMessage().startsWith("Malformed external data: ")
+        );
     }
 
     /**
@@ -524,6 +565,78 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Two objects of one glob whose locations differ only between the head and the tail a width cap would
+     * keep. The widening warning is the whole deduplication key on both sinks -- the coordinator's
+     * {@code NoticeBuffer} and the read path's {@code InformationalWarningBudget} both drop an exact repeat
+     * -- so reducing the location to a fixed width deletes the second object's warning outright rather than
+     * shortening it. The location is the one thing telling these two apart: they share a basename, which is
+     * the collision {@code displayObjectName} already accepts and the prefix exists to resolve.
+     */
+    public void testTwoObjectsOfAGlobKeepDistinctWideningWarnings() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        String east = "s3://acme-prod-logs/region=us-east-1/svc=checkout/part-00000.ndjson";
+        String west = "s3://acme-prod-logs/region=us-west-2/svc=checkout/part-00000.ndjson";
+
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+        String eastWarning = String.join(" ", reader.metadata(new LocatedBytesObject(bytes, east)).warnings());
+        String westWarning = String.join(" ", reader.metadata(new LocatedBytesObject(bytes, west)).warnings());
+
+        assertThat("the east object's warning must name it", eastWarning, containsString("us-east-1"));
+        assertThat("the west object's warning must name it", westWarning, containsString("us-west-2"));
+        assertThat(
+            "two objects of one glob must not reduce to one warning, or the second is deduplicated away",
+            eastWarning,
+            not(equalTo(westWarning))
+        );
+    }
+
+    /**
+     * The column name is printed first inside the same bracketed sentence as the location, and an NDJSON field
+     * name is an arbitrary JSON key taken verbatim from the data. So escaping only the location would leave the
+     * sentence forgeable by whoever writes the file: a key can spell a complete second detail line, which the
+     * exact-string deduplication then collapses against a real one.
+     */
+    public void testAFieldNameCannotForgeTheWideningDetail() throws IOException {
+        String hostileField = "x] at sample record [1] of [victim.ndjson]: value [0] forced type [keyword] (was [long]";
+        String json = "{\"" + hostileField + "\":1}\n{\"" + hostileField + "\":2}\n{\"" + hostileField + "\":\"oops\"}\n";
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(
+            new LocatedBytesObject(json.getBytes(StandardCharsets.UTF_8), "mem://bucket/real.ndjson")
+        );
+
+        String joined = String.join(" ", metadata.warnings());
+        assertFalse("the field must widen, or this test asserts nothing", metadata.warnings().isEmpty());
+        assertThat("the field name is escaped where it is printed", joined, containsString(RowLocation.escapedForDisplay(hostileField)));
+        assertThat("so it cannot close its own bracket", joined, not(containsString("[" + hostileField + "]")));
+        assertThat("and cannot forge another object's clause", joined, not(containsString("of [victim.ndjson]")));
+    }
+
+    /**
+     * The widening warning prints the source location inside a bracket and schema inference takes it straight
+     * from the store, so a key holding a bracket closes its own field and renders as another object's clause,
+     * which the deduplication then collapses into one warning. The escape closes that. The width cap does not
+     * come with it -- see {@link RowLocation#escapedForDisplay} and the glob case above, which a cap would break.
+     */
+    public void testSchemaWideningWarningEscapesTheLocationWithoutCuttingIt() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        HostileNameBytesObject object = new HostileNameBytesObject(bytes);
+        SourceMetadata metadata = new NdJsonFormatReader(null, blockFactory).metadata(object);
+
+        String rawLocation = object.path().toString();
+        String token = RowLocation.escapedForDisplay(rawLocation);
+        assertThat("the bracket is escaped, or this test is not exercising the escape", token, containsString("\\u005D"));
+        assertThat(
+            "and the location is kept whole, which is the contract a cap would break",
+            token.length(),
+            greaterThan(RowLocation.MAX_OBJECT_NAME_CHARS)
+        );
+
+        String joined = String.join(" ", metadata.warnings());
+        assertFalse("a field type disagreement must be reported as a warning", metadata.warnings().isEmpty());
+        assertThat("the widening warning carries the escaped location", joined, containsString("[" + token + "]"));
+        assertThat("so a name cannot close its own bracket", joined, not(containsString("a]b")));
+    }
+
+    /**
      * The fold to KEYWORD must be blamed on the row that actually completed it, not on whichever
      * distinct type happened to be seen last. {@code boolean} (row 1) then {@code integer} (row 2)
      * already fold to KEYWORD at row 2 — {@code TypeWidening.join} has no edge between them below
@@ -642,6 +755,33 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * The reader has two widening sites and they take their location from the same store-supplied path:
+     * {@code metadata()}, which planning calls, and the inline inference {@code read()} falls back to when the
+     * request carries no resolved schema. The case above pins the escape at the first; reverting the second on
+     * its own reddened nothing, because every other read-path fixture here uses a clean basename. A read served
+     * from a cold plan is the ordinary way a user meets this warning, so the escape is pinned at both.
+     */
+    public void testTheReadPathEscapesTheWideningLocationToo() throws IOException {
+        byte[] bytes = "{\"a\":1}\n{\"a\":2}\n{\"a\":\"oops\"}\n".getBytes(StandardCharsets.UTF_8);
+        HostileNameBytesObject object = new HostileNameBytesObject(bytes);
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+
+        List<String> warnings = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder().batchSize(100).informationalWarningSink(warnings::add).build();
+        try (CloseableIterator<Page> pages = reader.read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+
+        String joined = String.join(" ", warnings);
+        String token = RowLocation.escapedForDisplay(object.path().toString());
+        assertThat("the bracket is escaped, or this test is not exercising the escape", token, containsString("\\u005D"));
+        assertThat("the read path's widening warning carries the escaped location", joined, containsString("[" + token + "]"));
+        assertThat("so a key cannot close its own bracket", joined, not(containsString("a]b")));
+    }
+
+    /**
      * A sample shared by several files takes an even share of the configured lines from each, never fewer than the
      * floor, and keeps the harvest fingerprint: the data node reads with the unshared configuration, so its statistics
      * must still match the entry planning seeds from this read.
@@ -711,6 +851,72 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         return BlockFactory.builder(bigArrays).breaker(breaker).build();
     }
 
+    /**
+     * Which byte a message may quote is decided from {@code context.recordAligned()}, and the two arms have to be
+     * pinned together because the decision is one condition over two inputs. A record-aligned chunk's start byte is
+     * on the same axis as the records it counts, so the message quotes it. An unaligned later split's is not — it is
+     * a boundary in the compressed file — so the byte is withheld and the clause says only that the ordinal was
+     * counted inside a split.
+     * <p>
+     * The condition previously read {@code chunkMode}, which {@code read()} demotes to false when the object has no
+     * last-modified time; that is about whether the stats cache can participate and says nothing about the byte
+     * axis, so it suppressed a correct byte on an aligned chunk of an object served without one. Keyed as it is now,
+     * the aligned arm below keeps its byte whatever the object's metadata says.
+     */
+    public void testOnlyAnUnalignedLaterSplitWithholdsTheByte() throws IOException {
+        byte[] bytes = "{\"v\":1}\n{\"v\":\"nope\"}\n".getBytes(StandardCharsets.UTF_8);
+        List<Attribute> schema = List.of(NdJsonSchemaInferrer.attribute("v", DataType.LONG, true));
+
+        String unaligned = warningsFromSplit(bytes, schema, false).toString();
+        assertThat("an unaligned later split must say the ordinal is split-relative", unaligned, containsString("counted within a split"));
+        assertThat("a byte on the compressed axis must not be printed", unaligned, not(containsString("counted from byte")));
+
+        String aligned = warningsFromSplit(bytes, schema, true).toString();
+        assertThat("a record-aligned chunk's byte is on the records' own axis", aligned, containsString("counted from byte [9999]"));
+        assertThat(aligned, not(containsString("counted within a split")));
+
+        // An object served without a Last-Modified header is the case that made the old keying wrong: read() demotes
+        // chunkMode for it, so a condition reading chunkMode suppressed a byte that was never in doubt.
+        String undated = warningsFromSplit(new UndatedBytesObject(bytes), schema, true).toString();
+        assertThat("no mtime is about the stats cache, not about the byte axis", undated, containsString("counted from byte [9999]"));
+    }
+
+    /** An object the store serves with no Last-Modified, which {@code read()} treats as unable to join the stats cache. */
+    private static final class UndatedBytesObject extends BytesObject {
+        UndatedBytesObject(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+    }
+
+    private List<String> warningsFromSplit(byte[] bytes, List<Attribute> schema, boolean recordAligned) throws IOException {
+        return warningsFromSplit(new BytesObject(bytes), schema, recordAligned);
+    }
+
+    private List<String> warningsFromSplit(StorageObject object, List<Attribute> schema, boolean recordAligned) throws IOException {
+        List<String> warnings = new ArrayList<>();
+        FormatReadContext context = FormatReadContext.builder()
+            .batchSize(100)
+            .errorPolicy(ErrorPolicy.LENIENT)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(recordAligned)
+            .splitStartByte(9999L)
+            .readSchema(schema)
+            .informationalWarningSink(warnings::add)
+            .build();
+        try (CloseableIterator<Page> pages = new NdJsonFormatReader(null, blockFactory).read(object, context)) {
+            while (pages.hasNext()) {
+                pages.next().releaseBlocks();
+            }
+        }
+        return warnings;
+    }
+
     // -- helpers --
 
     private static class BytesObject extends AbstractTestStorageObject {
@@ -748,6 +954,57 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://test");
+        }
+    }
+
+    /**
+     * The other fixtures are all {@code mem://test}, whose path component is empty, so
+     * {@link StoragePath#objectName()} returns {@code ""} for them and any message that names the object
+     * renders without one. This carries a last path segment, so the object clause is exercised rather than
+     * silently skipped.
+     */
+    private static final class NamedBytesObject extends BytesObject {
+        NamedBytesObject(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("mem://bucket/wide-first-line.ndjson");
+        }
+    }
+
+    /** A fixture whose whole location the caller chooses, for the glob-distinctness cases. */
+    private static final class LocatedBytesObject extends BytesObject {
+        private final String location;
+
+        LocatedBytesObject(byte[] bytes, String location) {
+            super(bytes);
+            this.location = location;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of(location);
+        }
+    }
+
+    /**
+     * A name that is both over the display cap and able to close the bracket it is printed inside. Schema
+     * inference hands the whole location to the widening warnings, so the hostile part has to survive
+     * {@link StoragePath} parsing as the last path segment, which is why it sits in the basename rather than
+     * in the bucket.
+     */
+    private static final class HostileNameBytesObject extends BytesObject {
+        static final String OBJECT_NAME = "a]b" + "p".repeat(RowLocation.MAX_OBJECT_NAME_CHARS * 3) + ".ndjson";
+
+        HostileNameBytesObject(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("mem://bucket/" + OBJECT_NAME);
         }
     }
 

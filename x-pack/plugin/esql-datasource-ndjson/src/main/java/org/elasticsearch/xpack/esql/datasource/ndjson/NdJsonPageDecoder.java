@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.RowLocation;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -176,6 +177,14 @@ public class NdJsonPageDecoder implements Closeable {
      * caller via {@link #setRecordOffsetBase(long)} before the first {@link #decodePage()}.
      */
     private long recordOffsetBase = 0L;
+    /**
+     * The byte a message may tell the user the ordinal was counted from, or {@link RowLocation#BYTE_UNKNOWN} once
+     * {@link #withholdMessageStartByte()} is called. Tracks {@link #recordOffsetBase} by default and diverges only
+     * on a block-aligned split of a splittable compressed object, where the split offset is a boundary in the
+     * compressed file while this decoder counts decompressed records. {@code _rowPosition} keeps using
+     * {@link #recordOffsetBase} either way.
+     */
+    private long messageOffsetBase = 0L;
 
     /**
      * Per-record {@code external_max_record_size} byte cap. Enforced inside the decode loop on the same pass
@@ -689,6 +698,10 @@ public class NdJsonPageDecoder implements Closeable {
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
+        // Cut here rather than at each message; RowLocation.displayObjectName says why. The parameter is
+        // reassigned, not merely copied into the field, because the summaries a few lines below read the local:
+        // cutting only on the way to the field would leave them naming the object the uncut way.
+        sourceLocation = RowLocation.displayObjectName(sourceLocation);
         this.sourceLocation = sourceLocation;
         this.counters = counters;
         this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.STRICT_DATE_OPTIONAL_TIME;
@@ -697,9 +710,14 @@ public class NdJsonPageDecoder implements Closeable {
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             errorPolicy.mode() == ErrorPolicy.Mode.SKIP_ROW
-                ? "Some rows in [" + sourceLocation + "] cannot be read; skipping them"
-                : "Some values in [" + sourceLocation + "] cannot be read; returning null, and skipping rows that cannot be parsed",
-            "Some values in [" + sourceLocation + "] cannot be read; " + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
+                ? "Some rows" + RowLocation.objectClause(" in", sourceLocation) + " cannot be read; skipping them"
+                : "Some values"
+                    + RowLocation.objectClause(" in", sourceLocation)
+                    + " cannot be read; returning null, and skipping rows that cannot be parsed",
+            "Some values"
+                + RowLocation.objectClause(" in", sourceLocation)
+                + " cannot be read; "
+                + SkipWarnings.REMOVED_FROM_MULTI_VALUE_OUTCOME,
             warningSink
         );
 
@@ -863,7 +881,7 @@ public class NdJsonPageDecoder implements Closeable {
         // Described once, for the strict message and the client warning alike: the row and the kind of failure.
         // Jackson's own message is never rendered to the client, since it names Jackson's classes and features;
         // the node log below keeps it, with the phase, for the operator.
-        String description = "row [" + logicalRowIndex + "]: " + lineFailureKind(e);
+        String description = RowLocation.of(logicalRowIndex, sourceLocation, messageOffsetBase) + ": " + lineFailureKind(e);
         if (errorPolicy.isStrict()) {
             // The remedy hint mirrors coercionFailure and CsvFormatReader.onRowErrorImpl, phrased for a
             // whole-line failure: both non-strict modes drop the line here, so neither is "null-fill" the way
@@ -893,10 +911,28 @@ public class NdJsonPageDecoder implements Closeable {
         }
         skipWarnings.add(description);
         checkErrorBudgetOrThrow();
-        logger.log(
-            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
-            LoggerMessageFormat.format("{} ({}): {}", description, phaseLabel, e.getOriginalMessage())
-        );
+        // Guarded rather than handed to the logger to drop, because this line is built once per bad record and a
+        // lenient scan over a large object can have many.
+        Level level = errorPolicy.logErrors() ? Level.INFO : Level.DEBUG;
+        if (logger.isEnabled(level)) {
+            logger.log(
+                level,
+                // Explicit prefix, because the description after it is a String: left off, the call binds
+                // format(prefix, pattern, args) rather than format(pattern, args) and the description becomes
+                // the pattern, which carries no placeholder and is returned on its own -- dropping the phase and
+                // the parser's own message, the two things this line adds to the warning.
+                LoggerMessageFormat.format(
+                    null,
+                    "{} ({}): {}",
+                    description,
+                    phaseLabel,
+                    // The parser's text is the file's own: a duplicate-field rejection quotes the decoded field
+                    // name, so a name holding a newline writes a second line into the node log. Escaped and
+                    // capped like every other store-supplied token printed here.
+                    ErrorExcerpts.summarizeEscaped(e.getOriginalMessage())
+                )
+            );
+        }
     }
 
     /**
@@ -970,11 +1006,14 @@ public class NdJsonPageDecoder implements Closeable {
         if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
             // Client-class for the same reason as the whole-line failure above: the budget was set by the user
             // and exhausted by the user's data.
+            // Same window clause the per-row details take, from the same field, so the aggregate cannot imply a
+            // file-global count the split-relative totalRowCount is not. CsvFormatReader.checkBudget matches.
             throw new ParsingException(
-                "[{}] errors in [{}] rows of [{}]; {}",
+                "[{}] errors in [{}] rows{}{}; {}",
                 errorCount,
                 totalRowCount,
-                sourceLocation,
+                RowLocation.objectClause(" of", sourceLocation),
+                RowLocation.countedIn(messageOffsetBase),
                 errorPolicy.trippedLimit(errorCount)
             );
         }
@@ -987,6 +1026,16 @@ public class NdJsonPageDecoder implements Closeable {
      */
     void setRecordOffsetBase(long recordOffsetBase) {
         this.recordOffsetBase = recordOffsetBase;
+        this.messageOffsetBase = recordOffsetBase;
+    }
+
+    /**
+     * Stops messages naming a byte the ordinal was counted from. Called for a split whose start offset is on the
+     * compressed axis while the records are counted on the decompressed one, where any byte printed would be a
+     * wrong instruction the reader of the message could not detect.
+     */
+    void withholdMessageStartByte() {
+        this.messageOffsetBase = RowLocation.BYTE_UNKNOWN;
     }
 
     /**
@@ -1263,7 +1312,17 @@ public class NdJsonPageDecoder implements Closeable {
                             // Rows already in blockBuilders are a partial prefix. Emit a one-shot partial-results
                             // warning (best-effort, via the same thread-bound HeaderWarning path as skip warnings);
                             // NdJsonPageIterator keeps the under-count out of the stats cache (see truncated()).
-                            skipWarnings.add("record exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; results are partial");
+                            // Through RowLocation like the other six skipWarnings sinks: naming neither the
+                            // object nor the record, every object of a glob that trips the cap would produce
+                            // character-identical text, and the warning budget deduplicates by exact string, so
+                            // only one of them would reach the reader. totalRowCount was decremented just above,
+                            // so the record that tripped the cap is the next one.
+                            skipWarnings.add(
+                                RowLocation.of(totalRowCount + 1, sourceLocation, messageOffsetBase)
+                                    + ": record exceeds ["
+                                    + ByteSizeValue.ofBytes(maxRecordBytes)
+                                    + "]; results are partial"
+                            );
                             truncated = true;
                             truncatedAtByte = recordOffset;
                             break;
@@ -2533,11 +2592,8 @@ public class NdJsonPageDecoder implements Closeable {
             // Not "the declared type": this path also fires for a supported-pair failure on an INFERRED column
             // (e.g. a bad string in an inferred long), where the target type was not declared.
             // The outcome (row skipped or value nulled) is stated once, in the summary, not per detail.
-            String message = "row ["
-                + totalRowCount
-                + "], column ["
-                + name
-                + "]: cannot read ["
+            String message = RowLocation.of(totalRowCount, sourceLocation, messageOffsetBase, name)
+                + ": cannot read ["
                 + value
                 + "] as ["
                 + target.typeName()

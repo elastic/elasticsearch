@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.rules.ReplaceAnyParams;
 import org.elasticsearch.xpack.esql.analysis.rules.ViewUtils;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
@@ -38,7 +39,9 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.AnyParam;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
@@ -102,6 +105,7 @@ import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -374,6 +378,45 @@ public class Verifier {
     }
 
     private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures, boolean skipUnresolvedTimestamp) {
+        /*
+         * The "Any" parameters of a condition that is replaced with true as soon as its other operands resolve, or of a function
+         * that doesn't exist. They are still in the plan only because of what else is unresolved, which is what the query has to
+         * be told about.
+         */
+        WaitingAnyParams waitingForOthers = new WaitingAnyParams();
+        int failuresBefore = failures.failures().size();
+        checkUnresolvedAttributes(plan, failures, skipUnresolvedTimestamp, waitingForOthers);
+        if (failures.failures().size() == failuresBefore) {
+            // Nothing else explains why the plan is unresolved: that the parameter stays is what has to be reported.
+            waitingForOthers.markers.forEach(any -> failures.add(fail(any, any.unresolvedMessage())));
+        }
+    }
+
+    /**
+     * The markers that are waiting, in the order they were found. A marker is the same one however many times the traversal of the
+     * plan finds it, so they are told apart by identity, which keeps looking them up from growing with their number.
+     */
+    private static final class WaitingAnyParams {
+        private final Set<AnyParam> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        private final List<AnyParam> markers = new ArrayList<>();
+
+        void add(AnyParam marker) {
+            if (seen.add(marker)) {
+                markers.add(marker);
+            }
+        }
+
+        boolean contains(Expression e) {
+            return seen.contains(e);
+        }
+    }
+
+    private static void checkUnresolvedAttributes(
+        LogicalPlan plan,
+        Failures failures,
+        boolean skipUnresolvedTimestamp,
+        WaitingAnyParams waitingForOthers
+    ) {
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -394,7 +437,21 @@ public class Verifier {
                     return;
                 }
 
+                // An unknown function says nothing about what its arguments would be, so it's the error, not the "Any" argument.
+                e.forEachDown(operation -> {
+                    if (ReplaceAnyParams.isSupportedCondition(operation) || operation instanceof UnresolvedFunction) {
+                        for (Expression operand : operation.children()) {
+                            if (operand instanceof AnyParam any && any.reason() == null) {
+                                waitingForOthers.add(any);
+                            }
+                        }
+                    }
+                });
+
                 e.forEachUp(ae -> {
+                    if (ae instanceof AnyParam any && waitingForOthers.contains(any)) {
+                        return;
+                    }
                     // UnsupportedAttribute can pass through a Project unchanged.
                     // Renaming is checked separately in #checkUnsupportedAttributeRenaming.
                     if (p instanceof Project && ae instanceof UnsupportedAttribute) {
@@ -402,7 +459,10 @@ public class Verifier {
                     }
 
                     // Do not fail multiple times in case the children are already unresolved.
-                    if (ae.childrenResolved() == false) {
+                    boolean onlyWaitingAnyParamsUnresolved = ae.children()
+                        .stream()
+                        .allMatch(c -> c.resolved() || waitingForOthers.contains(c));
+                    if (ae.childrenResolved() == false && onlyWaitingAnyParamsUnresolved == false) {
                         return;
                     }
 

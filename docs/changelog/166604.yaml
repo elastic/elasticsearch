@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166604
+summary: Fix hang and use-after-free when cancelling streaming compressed ES|QL reads
+type: bug

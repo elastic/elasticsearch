@@ -476,6 +476,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         query = maybeRandomizeQuery(query);
 
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        if (testCase.paramsJson() != null) {
+            builder.params(testCase.paramsJson());
+        }
         if (Strings.isNullOrEmpty(testCase.requestTimeRangeGte) == false) {
             String gte = testCase.requestTimeRangeGte;
             String lte = testCase.requestTimeRangeLte;

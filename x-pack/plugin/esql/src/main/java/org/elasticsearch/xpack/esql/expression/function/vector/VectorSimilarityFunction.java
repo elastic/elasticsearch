@@ -229,7 +229,15 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction
             return null;
         }
 
-        List<?> vectorList = (List<?>) literal.value();
+        List<?> vectorList;
+        if (literal.value() instanceof List<?> list) {
+            vectorList = list;
+        } else if (literal.value() instanceof Number number) {
+            // ES|QL folds a one-element multivalue (a 1-dimension vector) into a scalar
+            vectorList = List.of(number);
+        } else {
+            return null;
+        }
         DenseVectorFieldMapper.ElementType elementType = null;
         var fieldType = stats.fieldType(field.fieldName());
         if (fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType) {

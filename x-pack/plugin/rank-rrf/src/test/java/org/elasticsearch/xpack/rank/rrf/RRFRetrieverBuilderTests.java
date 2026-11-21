@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 /** Tests for the rrf retriever. */
@@ -703,6 +704,61 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
         String expectedQuery
     ) {
         assertMultiFieldsParamsRewrite(retriever, ctx, expectedNonInferenceFields, expectedInferenceFields, expectedQuery, null);
+    }
+
+    /**
+     * {@code min_score} is parsed for every retriever by {@link RetrieverBuilder#declareBaseParserFields}, but the rrf
+     * retriever used to lose it: the rewrite path replaces the builder via {@code clone(...)}, which copied the inner
+     * retrievers, name and prefilters but not the score threshold. The threshold therefore never reached
+     * {@code RankDocsRetrieverBuilder} and every hit was returned.
+     */
+    public void testMinScoreSurvivesRewrite() throws IOException {
+        final String json = """
+            {"retriever":{"rrf_nl":{"retrievers":[{"standard":{"query":{"match":{"field":"foo"}}}}],
+            "rank_window_size":10,"min_score":0.5}}}""";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(
+            Map.of("test-index", List.of()),
+            null,
+            Map.of()
+        );
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) sourceBuilder.retriever();
+            assertEquals(Float.valueOf(0.5f), rrf.minScore());
+
+            RetrieverBuilder rewritten = rrf.rewrite(
+                new QueryRewriteContext(
+                    parserConfig(),
+                    null,
+                    null,
+                    TransportVersion.current(),
+                    RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                    resolvedIndices,
+                    new PointInTimeBuilder(new BytesArray("pitid")),
+                    null,
+                    null
+                )
+            );
+            assertThat(rewritten, instanceOf(RRFRetrieverBuilder.class));
+            assertEquals(Float.valueOf(0.5f), rewritten.minScore());
+        }
+    }
+
+    public void testNegativeMinScoreRejected() throws IOException {
+        final String json = """
+            {"retriever":{"rrf_nl":{"retrievers":[{"standard":{"query":{"match":{"field":"foo"}}}}],"min_score":-1}}}""";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().parseXContent(parser, true, nf -> true)
+            );
+            assertThat(iae.getMessage(), containsString("failed to build [rrf]"));
+            Throwable cause = iae.getCause() != null ? iae.getCause() : iae;
+            while (cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            assertThat(cause.getMessage(), containsString("[min_score] must be greater than or equal to 0, was: [-1.0]"));
+        }
     }
 
     @Override

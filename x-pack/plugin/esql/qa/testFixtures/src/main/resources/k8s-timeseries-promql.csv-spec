@@ -3006,6 +3006,16 @@ result:double | step:datetime            | cluster:keyword | v:keyword
 2.0           | 2024-05-10T01:00:00.000Z | staging         | 3
 ;
 
+// A metric the index does not map gives no element, as in Prometheus.
+count_values_absent_metric
+required_capability: promql_command_v0
+required_capability: promql_count_values
+required_capability: fix_promql_count_values_absent_metric
+PROMQL index=k8s step=1h result=(count_values("v", does_not_exist));
+
+result:double | step:datetime | v:keyword
+;
+
 // The last network.cost per series at step=1h: prod 7.875, 0.0, 10.75; qa 6.25, 10.875, 9.375; staging 4.625, 9.5, 1.75.
 count_values_fractional
 required_capability: promql_command_v0

@@ -213,8 +213,14 @@ public final class CountValuesAggregate extends AcrossSeriesAggregate {
     /**
      * The value as a double grouping key. Packed multi-key hashing compares a double's raw bits, so a value that can be
      * NaN maps every NaN payload to the one canonical NaN; a whole number never converts to NaN.
+     * <p>
+     * A value still unresolved here reads a metric the index does not map: it is null where missing fields read as null, and
+     * fails verification otherwise. Its key is null then, so it counts nothing, as Prometheus gives nothing for an absent metric.
      */
     private Expression groupingKey(Attribute value) {
+        if (value.resolved() == false) {
+            return new Literal(source(), null, DataType.DOUBLE);
+        }
         Expression asDouble = asDouble(value);
         DataType type = value.dataType();
         if (type.noCounter().isWholeNumber()) {

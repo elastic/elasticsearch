@@ -22,11 +22,15 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.LongColumn;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -37,8 +41,10 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.columnar.numeric.NumericBinaryPayload;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
@@ -282,7 +288,7 @@ public class NumberFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.LOW
                 ),
                 indexSettings
-            );
+            ).withUpdatableSupport();
 
             this.ignoreMalformed = Parameter.explicitBoolParam(
                 "ignore_malformed",
@@ -386,8 +392,12 @@ public class NumberFieldMapper extends FieldMapper {
                 assert indexed.get() : "[index_terms] requires [index] to be true";
                 return IndexType.terms(indexed.get(), docValuesParameters.get().enabled());
             }
-            // Binary doc values can't carry a doc values skipper; the ColumNAR codec keeps a skip index of its own.
-            if (indexed.get() == false && docValuesParameters.get().enabled() && diskFormat != DocValuesDiskFormat.BINARY) {
+            // No doc-values skipper for an updatable field: Lucene's updateNumericDocValue rejects a field that carries a
+            // doc-values skip index. Binary doc values can't carry one either; the ColumNAR codec keeps a skip index of its own.
+            if (indexed.get() == false
+                && docValuesParameters.get().enabled()
+                && docValuesParameters.get().updatable() == false
+                && diskFormat != DocValuesDiskFormat.BINARY) {
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return IndexType.skippers();
                 }
@@ -492,6 +502,21 @@ public class NumberFieldMapper extends FieldMapper {
                     indexSettings.getMode().isStrictColumnar(),
                     docValuesParameters.getValue().multiValue()
                 );
+            FieldMapper.validateUpdatableDocValues(
+                context.buildFullName(leafName()),
+                docValuesParameters.getValue(),
+                FieldMapper.UpdatableDocValuesChecks.builder()
+                    .indexed(indexed.getValue())
+                    .hasSkipper(indexType().hasDocValuesSkipper())
+                    // A sorted-numeric column updates a single value at a time, so an updatable numeric must be single-valued.
+                    .allowMultiValue(false)
+                    .hasMultiFields(multiFieldsBuilder.hasMultiFields())
+                    // Reject only an explicit ignore_malformed; an index-mode default (logsdb enables it for every field) is tolerated.
+                    .ignoreMalformed(ignoreMalformed.getValue().explicit() && ignoreMalformed.getValue().value())
+                    .hasScript(script.get() != null)
+                    .build(),
+                indexSettings
+            );
             MappedFieldType ft = new NumberFieldType(context.buildFullName(leafName()), this, context.isSourceSynthetic());
 
             return new NumberFieldMapper(leafName(), ft, builderParams(this, context), context.isSourceSynthetic(), this, offsetsFieldName);
@@ -690,6 +715,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(HalfFloatPoint.sortableShortToHalfFloat((short) value));
+            }
+
+            @Override
+            Object sortableLongToValue(long value) {
+                return HalfFloatPoint.sortableShortToHalfFloat((short) value);
             }
 
             @Override
@@ -912,6 +942,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            Object sortableLongToValue(long value) {
+                return NumericUtils.sortableIntToFloat((int) value);
+            }
+
+            @Override
             BlockLoader blockLoaderFromDocValues(String fieldName, boolean readInArrayOrder) {
                 return new DoublesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l), readInArrayOrder);
             }
@@ -1094,6 +1129,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(NumericUtils.sortableLongToDouble(value));
+            }
+
+            @Override
+            Object sortableLongToValue(long value) {
+                return NumericUtils.sortableLongToDouble(value);
             }
 
             @Override
@@ -2260,6 +2300,15 @@ public class NumberFieldMapper extends FieldMapper {
 
         abstract void writeValue(XContentBuilder builder, long longValue) throws IOException;
 
+        /**
+         * Decodes a doc-values value (the sortable long written by {@link #addFields}) back to the {@code _source} value, i.e. the
+         * inverse of {@link #toSortableLong}. Used to overlay an in-place {@code doc_values.updatable} update onto the pre-computed
+         * columnar_stored source. The integer families are identity; the floating-point types override.
+         */
+        Object sortableLongToValue(long value) {
+            return value;
+        }
+
         SourceLoader.SyntheticFieldLoader syntheticFieldLoader(FieldMapper mapper, IndexSettings indexSettings) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>(2);
             layers.add(new SortedNumericDocValuesSyntheticFieldLoaderLayer(mapper.fullPath(), NumberType.this::writeValue));
@@ -2933,6 +2982,42 @@ public class NumberFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
+    }
+
+    @Override
+    public boolean isDocValuesUpdatable() {
+        return docValuesParameters.updatable();
+    }
+
+    @Override
+    public void encodeDocValuesUpdate(List<Object> values, DocValuesUpdateSink sink) {
+        // Mirrors the doc-values value addLongFields writes, so an in-place update stores exactly what a reindex would. An updatable
+        // numeric takes a single value per update. Only LONG has a binary disk format, and its sortable long is the raw long.
+        final long value = type.toSortableLong(type.parse(values.get(0), coerce()));
+        if (fieldType.diskFormat() == DocValuesDiskFormat.BINARY) {
+            // A binary column holds a document's raw longs back to back; see ColumnarNumericDocValuesField.
+            sink.binary(fullPath(), NumericBinaryPayload.encode(new long[] { value }, 1, new BytesRefBuilder()));
+        } else {
+            sink.numeric(fullPath(), value);
+        }
+    }
+
+    @Override
+    public DocValuesUpdateSourceReader docValuesUpdateSourceReader(LeafReader reader) throws IOException {
+        // An updatable numeric is single-valued (see DocValuesFieldFactory); decode the sortable long back to a source value.
+        if (fieldType.diskFormat() == DocValuesDiskFormat.BINARY) {
+            final BinaryDocValues docValues = DocValues.getBinary(reader, fullPath());
+            final long[][] decoded = new long[][] { new long[1] };
+            return doc -> {
+                if (docValues.advanceExact(doc) == false) {
+                    return null;
+                }
+                NumericBinaryPayload.decode(docValues.binaryValue(), decoded);
+                return type.sortableLongToValue(decoded[0][0]);
+            };
+        }
+        SortedNumericDocValues docValues = DocValues.getSortedNumeric(reader, fullPath());
+        return doc -> docValues.advanceExact(doc) ? type.sortableLongToValue(docValues.nextValue()) : null;
     }
 
     @Override

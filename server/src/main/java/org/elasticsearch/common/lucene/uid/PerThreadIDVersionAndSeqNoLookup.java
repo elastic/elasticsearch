@@ -139,8 +139,10 @@ final class PerThreadIDVersionAndSeqNoLookup {
             final long seqNo;
             final long term;
             if (loadSeqNo) {
-                seqNo = readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID);
-                term = readNumericDocValues(context.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, docID);
+                final long[] seqNoAndTerm = new long[2];
+                SeqNoFieldMapper.readEffectiveSeqNoAndTerm(context.reader(), docID, seqNoAndTerm);
+                seqNo = seqNoAndTerm[0];
+                term = seqNoAndTerm[1];
             } else {
                 seqNo = UNASSIGNED_SEQ_NO;
                 term = UNASSIGNED_PRIMARY_TERM;
@@ -248,10 +250,17 @@ final class PerThreadIDVersionAndSeqNoLookup {
             final int docID = scanLiveDoc(liveDocs);
             if (docID != DocIdSetIterator.NO_MORE_DOCS) {
                 final boolean ls = loadSeqNo[i];
-                final long seqNo = ls ? readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID) : UNASSIGNED_SEQ_NO;
-                final long term = ls
-                    ? readNumericDocValues(context.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, docID)
-                    : UNASSIGNED_PRIMARY_TERM;
+                final long seqNo;
+                final long term;
+                if (ls) {
+                    final long[] seqNoAndTerm = new long[2];
+                    SeqNoFieldMapper.readEffectiveSeqNoAndTerm(context.reader(), docID, seqNoAndTerm);
+                    seqNo = seqNoAndTerm[0];
+                    term = seqNoAndTerm[1];
+                } else {
+                    seqNo = UNASSIGNED_SEQ_NO;
+                    term = UNASSIGNED_PRIMARY_TERM;
+                }
                 final long version = readNumericDocValues(context.reader(), VersionFieldMapper.NAME, docID);
                 results[i] = new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
                 resolved++;
@@ -363,10 +372,17 @@ final class PerThreadIDVersionAndSeqNoLookup {
             final int docID = scanLiveDoc(liveDocs);
             if (docID != DocIdSetIterator.NO_MORE_DOCS) {
                 final boolean ls = loadSeqNo[i];
-                final long seqNo = ls ? readNumericDocValues(context.reader(), SeqNoFieldMapper.NAME, docID) : UNASSIGNED_SEQ_NO;
-                final long term = ls
-                    ? readNumericDocValues(context.reader(), SeqNoFieldMapper.PRIMARY_TERM_NAME, docID)
-                    : UNASSIGNED_PRIMARY_TERM;
+                final long seqNo;
+                final long term;
+                if (ls) {
+                    final long[] seqNoAndTerm = new long[2];
+                    SeqNoFieldMapper.readEffectiveSeqNoAndTerm(context.reader(), docID, seqNoAndTerm);
+                    seqNo = seqNoAndTerm[0];
+                    term = seqNoAndTerm[1];
+                } else {
+                    seqNo = UNASSIGNED_SEQ_NO;
+                    term = UNASSIGNED_PRIMARY_TERM;
+                }
                 final long version = readNumericDocValues(context.reader(), VersionFieldMapper.NAME, docID);
                 results[i] = new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
                 resolved++;
@@ -412,7 +428,9 @@ final class PerThreadIDVersionAndSeqNoLookup {
     private static long readSeqNo(LeafReader reader, int docId, boolean allowMissingSeqNo) throws IOException {
         final NumericDocValues dv = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
         if (dv != null && dv.advanceExact(docId)) {
-            return dv.longValue();
+            // An in-place doc-values update records its own sequence number in a companion column without touching _seq_no; overlay it so
+            // conflict resolution sees the document's effective sequence number.
+            return SeqNoFieldMapper.effectiveSeqNo(reader, docId, dv.longValue());
         }
         if (allowMissingSeqNo) {
             return UNASSIGNED_SEQ_NO;

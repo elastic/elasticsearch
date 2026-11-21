@@ -16,10 +16,13 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -31,6 +34,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.script.field.SeqNoDocValuesField;
 import org.elasticsearch.sourcebatch.MappedColumns;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -134,6 +138,66 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_seq_no";
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
+    /**
+     * Doc-values-only companions to {@code _seq_no} / {@code _primary_term}, present only on indices that support in-place doc-values
+     * updates. They hold the sequence number and primary term of the most recent in-place update so optimistic-concurrency reads can
+     * recover the document's current identity even though {@code _seq_no} itself is left untouched by the update.
+     */
+    public static final String DV_UPDATE_SEQ_NO_NAME = "_dv_update_seq_no";
+    public static final String DV_UPDATE_PRIMARY_TERM_NAME = "_dv_update_primary_term";
+
+    /**
+     * Reads a document's <em>effective</em> sequence number and primary term into {@code out} as {@code [seqNo, primaryTerm]}. This is the
+     * canonical way to read a document's identity for optimistic concurrency and realtime get; do not read {@code _seq_no} doc values
+     * directly for that purpose.
+     * <p>
+     * An in-place doc-values update cannot rewrite {@code _seq_no} (it carries a point or a doc-values skipper), so it leaves
+     * {@code _seq_no}/{@code _primary_term} untouched and records its own values in the {@link #DV_UPDATE_SEQ_NO_NAME} /
+     * {@link #DV_UPDATE_PRIMARY_TERM_NAME} companion columns. The effective identity is therefore whichever sequence number is higher,
+     * paired with the matching primary term. When the companion columns are absent (every non-columnar index, and any document never
+     * updated in place) this returns exactly {@code _seq_no} / {@code _primary_term}.
+     * <p>
+     * The raw {@code _seq_no} doc value remains the <em>original</em> operation's sequence number and is what history reconstruction
+     * (peer recovery, CCR) must read, since each in-place update contributes its own born-soft-deleted history document at its own
+     * sequence number.
+     */
+    public static void readEffectiveSeqNoAndTerm(LeafReader reader, int docId, long[] out) throws IOException {
+        assert out.length == 2 : "expected a [seqNo, primaryTerm] pair";
+        // Base _seq_no/_primary_term are required here (this path runs with sequence numbers enabled); a missing value is corruption.
+        final long baseSeqNo = readRequiredNumericDocValue(reader, NAME, docId);
+        // The companion columns are optional: absent on non-columnar indices and on any document never updated in place.
+        final long updateSeqNo = readOptionalNumericDocValue(reader, DV_UPDATE_SEQ_NO_NAME, docId, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        if (updateSeqNo > baseSeqNo) {
+            out[0] = updateSeqNo;
+            out[1] = readOptionalNumericDocValue(reader, DV_UPDATE_PRIMARY_TERM_NAME, docId, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        } else {
+            out[0] = baseSeqNo;
+            out[1] = readRequiredNumericDocValue(reader, PRIMARY_TERM_NAME, docId);
+        }
+    }
+
+    /**
+     * Overlays the in-place-update companion column onto an already-read {@code _seq_no} value, returning the document's effective
+     * sequence number. Use this from a path that has already read {@code _seq_no} (and handled its own missing-value semantics); callers
+     * that have only a doc id should use {@link #readEffectiveSeqNoAndTerm} instead.
+     */
+    public static long effectiveSeqNo(LeafReader reader, int docId, long baseSeqNo) throws IOException {
+        return Math.max(baseSeqNo, readOptionalNumericDocValue(reader, DV_UPDATE_SEQ_NO_NAME, docId, SequenceNumbers.UNASSIGNED_SEQ_NO));
+    }
+
+    private static long readRequiredNumericDocValue(LeafReader reader, String field, int docId) throws IOException {
+        final NumericDocValues dv = reader.getNumericDocValues(field);
+        if (dv == null || dv.advanceExact(docId) == false) {
+            assert false : "document [" + docId + "] does not have docValues for [" + field + "]";
+            throw new IllegalStateException("document [" + docId + "] does not have docValues for [" + field + "]");
+        }
+        return dv.longValue();
+    }
+
+    private static long readOptionalNumericDocValue(LeafReader reader, String field, int docId, long defaultValue) throws IOException {
+        final NumericDocValues dv = reader.getNumericDocValues(field);
+        return dv != null && dv.advanceExact(docId) ? dv.longValue() : defaultValue;
+    }
 
     public static final SeqNoFieldMapper WITH_POINT = new SeqNoFieldMapper(true);
     public static final SeqNoFieldMapper NO_POINT = new SeqNoFieldMapper(false);
@@ -319,6 +383,34 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         context.addColumn(
             MappedColumns.longColumn(context.primaryTerms(), PRIMARY_TERM_NAME, PRIMARY_TERM_COLUMN_FIELD_TYPE, LongColumn.NumericKind.LONG)
         );
+        // Seed the DV_UPDATE_SEQ_NO_NAME / DV_UPDATE_PRIMARY_TERM_NAME companion columns as plain NUMERIC (so IndexWriter#updateDocValues
+        // can later rewrite them) and initialize them to UNASSIGNED; an in-place update fills them in. Only present when the index keeps
+        // sequence numbers and has updatable fields.
+        if (context.indexSettings().seqNoAwareDocValuesUpdates() && context.mappingLookup().updatableFields().isEmpty() == false) {
+            final int docCount = context.docCount();
+            final byte[] updateSeqNos = new byte[docCount * Long.BYTES];
+            final byte[] updatePrimaryTerms = new byte[docCount * Long.BYTES];
+            for (int i = 0; i < docCount; i++) {
+                ByteUtils.writeLongLE(SequenceNumbers.UNASSIGNED_SEQ_NO, updateSeqNos, i * Long.BYTES);
+                ByteUtils.writeLongLE(SequenceNumbers.UNASSIGNED_PRIMARY_TERM, updatePrimaryTerms, i * Long.BYTES);
+            }
+            context.addColumn(
+                MappedColumns.longColumn(
+                    new BytesRef(updateSeqNos),
+                    DV_UPDATE_SEQ_NO_NAME,
+                    PRIMARY_TERM_COLUMN_FIELD_TYPE,
+                    LongColumn.NumericKind.LONG
+                )
+            );
+            context.addColumn(
+                MappedColumns.longColumn(
+                    new BytesRef(updatePrimaryTerms),
+                    DV_UPDATE_PRIMARY_TERM_NAME,
+                    PRIMARY_TERM_COLUMN_FIELD_TYPE,
+                    LongColumn.NumericKind.LONG
+                )
+            );
+        }
     }
 
     private static Query rangeQueryForSeqNo(boolean withPoints, long lowerValue, long upperValue) {

@@ -279,6 +279,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         );
 
         settings.add(IndexSettings.DISABLE_SEQUENCE_NUMBERS);
+        if (FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled()) {
+            // Only in-place doc-values updates form overlays; keep the setting hidden until the feature itself is enabled.
+            settings.add(IndexSettings.DOC_VALUES_MAX_OVERLAYS);
+        }
         settings.add(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         settings.add(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD);
         settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);

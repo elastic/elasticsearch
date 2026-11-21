@@ -879,8 +879,8 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     }
 
     /**
-     * Fails the whole search because this node could not hold what a shard sent back. A shard failure would instead
-     * answer with hits missing at ranks the caller cannot see.
+     * Fails the whole search when a shard's hits trip the breaker or the task's {@link FetchedHitsCheck} rejects them. A
+     * shard failure would instead answer with hits missing at ranks the caller cannot see.
      * <p>
      * Only the first caller raises: shards in flight when one trips are likely to trip too, and
      * {@link #raisePhaseFailure} is not idempotent. The flag is set at once, but the search fails only when no holder of

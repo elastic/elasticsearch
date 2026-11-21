@@ -82,6 +82,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     private volatile long expirationTimeMillis;
     private volatile TimeValue keepAlive;
+    private volatile boolean resultStored;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
     private final MutableSearchResponse searchResponse;
@@ -149,6 +150,18 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     Listener getSearchProgressActionListener() {
         return progressListener;
+    }
+
+    /**
+     * Marks that the result of this search will be stored, because the search ran past {@code wait_for_completion_timeout} or the
+     * request sets {@code keep_on_completion}.
+     */
+    void markResultStored() {
+        resultStored = true;
+    }
+
+    boolean isResultStored() {
+        return resultStored;
     }
 
     /**

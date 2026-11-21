@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fetch.chunk;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.search.FetchedHitsCheck;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -68,6 +69,8 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
     private volatile Consumer<Exception> coordinatorTripListener = e -> {};
 
+    private volatile FetchedHitsCheck fetchedHitsCheck = FetchedHitsCheck.NOOP;
+
     /**
      * Creates a new response stream for accumulating hits from a single shard.
      *
@@ -99,10 +102,25 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
-     * Registers how a trip is reported to the search. Must be called before any chunks arrive.
+     * Registers how a trip, or a rejection by the search's {@link FetchedHitsCheck}, is reported to the search. Must be called
+     * before any chunks arrive.
      */
     void setCoordinatorTripListener(Consumer<Exception> listener) {
         this.coordinatorTripListener = listener;
+    }
+
+    /**
+     * Registers the search's check on the hits that arrive. Must be called before any chunks arrive.
+     */
+    void setFetchedHitsCheck(FetchedHitsCheck fetchedHitsCheck) {
+        this.fetchedHitsCheck = fetchedHitsCheck;
+    }
+
+    /**
+     * Whether there is a check to run, so callers collect hits for {@link #checkHits} only when needed.
+     */
+    boolean checksHits() {
+        return fetchedHitsCheck != FetchedHitsCheck.NOOP;
     }
 
     /**
@@ -122,6 +140,21 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     }
 
     /**
+     * Runs the search's {@link FetchedHitsCheck} on hits already charged and queued here, and reports a rejection to the search the
+     * same way as a trip.
+     *
+     * @throws RuntimeException if the check rejects the hits
+     */
+    void checkHits(List<SearchHit> hits, long bytes) {
+        try {
+            fetchedHitsCheck.onHits(hits, bytes);
+        } catch (RuntimeException e) {
+            coordinatorTripListener.accept(e);
+            throw e;
+        }
+    }
+
+    /**
      * Accumulates a chunk of hits into this stream.
      *
      * @param chunk the chunk containing hits to accumulate
@@ -130,9 +163,20 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
     void writeChunk(FetchPhaseResponseChunk chunk, Releasable releasable) {
         boolean success = false;
         try {
-            chargeRetainedBytes(chunk.estimatedRetainedBytes());
+            long bytes = chunk.estimatedRetainedBytes();
+            chargeRetainedBytes(bytes);
 
-            chunk.consumeHits((position, hit) -> queue.add(new SequencedHit(hit, position)));
+            List<SearchHit> hits = checksHits() ? new ArrayList<>(chunk.hitCount()) : null;
+            chunk.consumeHits((position, hit) -> {
+                queue.add(new SequencedHit(hit, position));
+                if (hits != null) {
+                    hits.add(hit);
+                }
+            });
+            if (hits != null) {
+                // After the hits are queued, so this stream releases them if the check rejects them.
+                checkHits(hits, bytes);
+            }
 
             if (logger.isDebugEnabled()) {
                 logger.debug(

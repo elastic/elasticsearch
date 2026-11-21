@@ -433,6 +433,57 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         }
     }
 
+    public void testCheckGetsEachChunkWithItsCharge() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
+        List<Integer> checkedHitCounts = new ArrayList<>();
+        List<Long> checkedBytes = new ArrayList<>();
+        stream.setFetchedHitsCheck((hits, bytes) -> {
+            checkedHitCounts.add(hits.size());
+            checkedBytes.add(bytes);
+        });
+
+        try {
+            writeChunk(stream, createChunkWithSourceSize(0, 3, 0, 1024));
+            writeChunk(stream, createChunkWithSourceSize(3, 2, 3, 1024));
+            assertThat(checkedHitCounts, equalTo(List.of(3, 2)));
+            assertThat(
+                checkedBytes,
+                equalTo(List.of(estimatedRetainedBytesForSourceSize(0, 3, 1024), estimatedRetainedBytesForSourceSize(3, 2, 1024)))
+            );
+            assertThat(checkedBytes.get(0) + checkedBytes.get(1), equalTo(breaker.getUsed()));
+        } finally {
+            stream.decRef();
+        }
+    }
+
+    public void testRejectedChunkIsReportedToTheSearchAndReleasedOnClose() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 10, breaker);
+        AtomicReference<Exception> reported = new AtomicReference<>();
+        stream.setCoordinatorTripListener(reported::set);
+        IllegalArgumentException rejection = new IllegalArgumentException("too large");
+        stream.setFetchedHitsCheck((hits, bytes) -> { throw rejection; });
+        AtomicBoolean acknowledged = new AtomicBoolean();
+
+        FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 1024);
+        try {
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> stream.writeChunk(chunk, () -> acknowledged.set(true))),
+                sameInstance(rejection)
+            );
+        } finally {
+            chunk.close();
+        }
+        assertThat(reported.get(), sameInstance(rejection));
+        assertFalse("a rejected chunk is not acknowledged", acknowledged.get());
+        assertFalse("the rejected hits stay with the stream", stream.isEmpty());
+        assertThat(breaker.getUsed(), equalTo(estimatedRetainedBytesForSourceSize(0, 5, 1024)));
+
+        stream.decRef();
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testCircuitBreakerTripsOnSecondChunk() throws IOException {
         long chunk1Size = estimatedRetainedBytesForSourceSize(0, 5, 1024);
         long chunk2Size = estimatedRetainedBytesForSourceSize(5, 5, 1024);

@@ -22,6 +22,7 @@ public class SearchTask extends CancellableTask {
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
+    private FetchedHitsCheck fetchedHitsCheck = FetchedHitsCheck.NOOP;
     private Supplier<SearchResponseMerger> searchResponseMergerSupplier;  // used for CCS minimize_roundtrips=true
 
     public SearchTask(
@@ -53,6 +54,20 @@ public class SearchTask extends CancellableTask {
      */
     public final SearchProgressListener getProgressListener() {
         return progressListener;
+    }
+
+    /**
+     * Attach a {@link FetchedHitsCheck} to this task. Must be called before the search starts.
+     */
+    public final void setFetchedHitsCheck(FetchedHitsCheck fetchedHitsCheck) {
+        this.fetchedHitsCheck = fetchedHitsCheck;
+    }
+
+    /**
+     * Return the {@link FetchedHitsCheck} attached to this task.
+     */
+    final FetchedHitsCheck getFetchedHitsCheck() {
+        return fetchedHitsCheck;
     }
 
     /**

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.FetchedHitsCheck;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -154,7 +155,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         long taskId = 123L;
@@ -196,7 +198,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         TaskId parentTaskId = new TaskId("parent-node", 999L);
@@ -236,7 +239,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Map.of("X-Test-Header", "test-value", "X-Another-Header", "another-value"),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -264,7 +268,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -298,7 +303,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -328,7 +334,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             e -> {
                 doneWhenTripReported.add(future.isDone());
                 trips.add(e);
-            }
+            },
+            FetchedHitsCheck.NOOP
         );
         action.doExecute(createTask(123L), request, future);
 
@@ -385,7 +392,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -394,6 +402,57 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
 
         assertThat(response, notNullValue());
         assertThat(response.getResult(), notNullValue());
+    }
+
+    public void testDoExecuteReportsRejectedLastChunk() throws Exception {
+        transportService.registerRequestHandler(
+            FETCH_ID_ACTION_NAME,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            ShardFetchSearchRequest::new,
+            (req, channel, task) -> {
+                FetchSearchResult result = createFetchSearchResult();
+                try {
+                    BytesStreamOutput out = new BytesStreamOutput();
+                    SearchHit hit = createHit(0);
+                    out.writeVInt(0);
+                    hit.writeTo(out);
+                    hit.decRef();
+
+                    result.setLastChunkBytes(out.bytes(), 1);
+                    result.setLastChunkSequenceStart(0L);
+
+                    channel.sendResponse(result);
+                } finally {
+                    result.decRef();
+                }
+            }
+        );
+        CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+        long used = breaker.getUsed();
+        List<Exception> trips = Collections.synchronizedList(new ArrayList<>());
+        List<Integer> checkedHitCounts = Collections.synchronizedList(new ArrayList<>());
+        IllegalArgumentException rejection = new IllegalArgumentException("too large");
+        TransportFetchPhaseCoordinationAction.Request request = new TransportFetchPhaseCoordinationAction.Request(
+            createShardFetchSearchRequest(),
+            transportService.getLocalNode(),
+            Collections.emptyMap(),
+            l -> {},
+            l -> {},
+            trips::add,
+            (hits, bytes) -> {
+                checkedHitCounts.add(hits.size());
+                throw rejection;
+            }
+        );
+
+        PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
+        action.doExecute(createTask(123L), request, future);
+        Exception e = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(ExceptionsHelper.unwrap(e, IllegalArgumentException.class), sameInstance(rejection));
+        assertThat(checkedHitCounts, contains(1));
+        assertThat(trips, contains(sameInstance(rejection)));
+        // The stream is released after the listener completes.
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(used)));
     }
 
     public void testDoExecuteHandsTheChunkChargeToTheResult() throws Exception {
@@ -426,7 +485,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         CircuitBreaker breaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
@@ -492,7 +552,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         // Take a reference before the data node's handler releases the result, so the assertions can run on the test thread.
@@ -545,7 +606,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -580,7 +642,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         long taskId = 456L;
@@ -619,7 +682,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         PlainActionFuture<TransportFetchPhaseCoordinationAction.Response> future = new PlainActionFuture<>();
@@ -675,7 +739,8 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
             Collections.emptyMap(),
             l -> {},
             l -> {},
-            e -> {}
+            e -> {},
+            FetchedHitsCheck.NOOP
         );
 
         long taskId = 789L;

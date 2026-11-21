@@ -100,6 +100,11 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 TransportSearchAction.TYPE.name(),
                 searchRequest
             );
+            // Fails a search whose stored response won't fit as its hits arrive, rather than after the response is built.
+            searchTask.setFetchedHitsCheck(new StoredResponseSizeCheck(store::getMaxResponseSize, searchTask::isResultStored));
+            if (request.isKeepOnCompletion()) {
+                searchTask.markResultStored();
+            }
             // If the search runs past wait_for_completion_timeout, the submit responds first, so the search holds the parsed request's
             // charge until it ends. The task keeps the request uncharged until its result is stored.
             searchAction.execute(
@@ -119,6 +124,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                 @Override
                 public void onResponse(AsyncSearchResponse searchResponse) {
                     if (searchResponse.isRunning() || request.isKeepOnCompletion()) {
+                        searchTask.markResultStored();
                         // the task is still running and the user cannot wait more so we create
                         // a document for further retrieval
                         try {

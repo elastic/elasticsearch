@@ -17,6 +17,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -32,23 +33,27 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
     private static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[coordinator]";
 
     private final CircuitBreaker circuitBreaker;
+    private final FetchedHitsCheck fetchedHitsCheck;
     private final AtomicLong reservedBytes = new AtomicLong();
 
-    FetchSearchPhaseResults(int size, CircuitBreaker circuitBreaker) {
+    FetchSearchPhaseResults(int size, CircuitBreaker circuitBreaker, FetchedHitsCheck fetchedHitsCheck) {
         super(size);
         this.circuitBreaker = circuitBreaker;
+        this.fetchedHitsCheck = fetchedHitsCheck;
     }
 
     /**
      * Takes ownership of the charge for the hits a shard has just sent back, estimating them here unless they
-     * arrived already charged. Called before the result reaches the collector, so that a trip leaves the hits
-     * to the caller to release.
+     * arrived already charged. Called before the result reaches the collector, so that a trip or a rejection leaves
+     * the hits to the caller to release.
      *
      * @throws CircuitBreakingException if the coordinating node cannot hold these hits
+     * @throws RuntimeException if the {@link FetchedHitsCheck} rejects these hits, in which case this collection still owns the charge
      */
     void reserve(FetchSearchResult result) {
         final long bytes;
-        if (result.isChargedOnCoordinator()) {
+        final boolean chargedOnCoordinator = result.isChargedOnCoordinator();
+        if (chargedOnCoordinator) {
             // The chunked path already charged these hits, so take that charge over instead of estimating again.
             bytes = result.transferCoordinatorCharge();
         } else {
@@ -65,6 +70,12 @@ final class FetchSearchPhaseResults extends ArraySearchPhaseResults<FetchSearchR
         if (bytes > 0L && addToReservation(bytes) == false) {
             // A phase failure released this collection while the shard was still in flight, so nothing else will.
             circuitBreaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
+            // The search has failed, so there is nothing to check these hits for.
+            return;
+        }
+        if (chargedOnCoordinator == false) {
+            // The chunked path already checked these hits per chunk.
+            fetchedHitsCheck.onHits(Arrays.asList(result.hits().getHits()), bytes);
         }
     }
 

@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -213,17 +214,53 @@ public class AshProjectionMatrixTests extends ESTestCase {
      * projection generated from a fixed seed, and fails if generation changes, which requires a new format version. The
      * entries are pinned within a tolerance, as vectorized arithmetic can round differently on different machines, far
      * below what a change to the algorithm would move them by. The id is pure arithmetic on the shape and seed, so it is
-     * pinned exactly.
+     * pinned exactly. The projection has more rows than {@link AshUtils#orthonormalizeRows} orthonormalizes in a block,
+     * and entries are pinned from rows of both blocks, so that the rows projected off an earlier block are pinned too.
      */
     public void testSeededProjectionIsPinned() {
-        AshProjectionMatrix seeded = seeded(64, 32, 42L);
-        assertThat(seeded.id(), equalTo(UUID.fromString("62be003c-6ca3-350a-b6b9-861af40c2f4d")));
+        int originalDim = 256;
+        int nDims = 160;
+        assertThat(nDims, greaterThan(AshUtils.ORTHONORMALIZE_BLOCK));
+        AshProjectionMatrix seeded = seeded(originalDim, nDims, 42L);
+        assertThat(seeded.id(), equalTo(UUID.fromString("08fd6b50-199a-38f9-a091-5369c5f2bde0")));
         float[] wT = seeded.wT();
-        int[] entries = { 0, 1, 63, 64, 5 * 64 + 7, 17 * 64 + 40, 31 * 64 + 63 };
-        double[] expected = { 0.12949674, 0.10426463, 0.043838166, 0.062007304, -0.26625165, 0.044348024, 0.020550845 };
+        int[] entries = {
+            0,
+            1,
+            255,
+            256,
+            5 * originalDim + 7,
+            100 * originalDim + 40,
+            127 * originalDim + 255,
+            // the second block
+            128 * originalDim,
+            128 * originalDim + 3,
+            140 * originalDim + 100,
+            159 * originalDim + 255 };
+        double[] expected = {
+            0.066907406,
+            0.053870667,
+            0.08122442,
+            -0.025851158,
+            0.0443821,
+            0.03149061,
+            -0.006914098,
+            -0.056652173,
+            -0.042639498,
+            -0.046136588,
+            0.044607837 };
         for (int i = 0; i < entries.length; i++) {
             assertThat("entry " + entries[i], (double) wT[entries[i]], closeTo(expected[i], 1e-5));
         }
+    }
+
+    public void testRejectsLearnedAndSeeded() throws IOException {
+        int originalDim = randomIntBetween(4, 50);
+        int nDims = randomIntBetween(2, originalDim);
+        byte[] bytes = bytes(matrix(AshUtils.randomGaussians(random(), originalDim * nDims), originalDim, nDims, randomBoolean()));
+        // the flags follow the two dimensions: learned is 1, seeded is 2
+        bytes[2 * Integer.BYTES] = 3;
+        expectThrows(CorruptIndexException.class, () -> AshProjectionMatrix.readHeader(input(bytes)));
     }
 
     public void testRejectsUnknownFlags() throws IOException {

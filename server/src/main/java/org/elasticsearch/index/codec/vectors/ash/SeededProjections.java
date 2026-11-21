@@ -16,7 +16,6 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -34,8 +33,8 @@ final class SeededProjections {
 
     private record Key(int originalDim, int nDims, long seed) {}
 
-    private static final ConcurrentHashMap<Key, WeakReference<float[]>> W_T = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Key, WeakReference<AshQueryProjection>> QUERY_PROJECTIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Key, Shared<float[]>> W_T = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Key, Shared<AshQueryProjection>> QUERY_PROJECTIONS = new ConcurrentHashMap<>();
 
     private SeededProjections() {}
 
@@ -83,17 +82,24 @@ final class SeededProjections {
     }
 
     /** Returns the cached value for {@code key}, generating it if it is not cached or was collected. */
-    private static <V> V shared(ConcurrentHashMap<Key, WeakReference<V>> cache, Key key, Supplier<V> generator) {
-        // holds the value strongly until it is returned, so that it cannot be collected in between
-        AtomicReference<V> value = new AtomicReference<>();
-        cache.compute(key, (k, cached) -> {
-            value.set(cached == null ? null : cached.get());
-            if (value.get() != null) {
-                return cached;
+    private static <V> V shared(ConcurrentHashMap<Key, Shared<V>> cache, Key key, Supplier<V> generator) {
+        return cache.computeIfAbsent(key, k -> new Shared<>()).get(generator);
+    }
+
+    /**
+     * The value of one key, generated under this key's lock rather than the map's, so that generating it does not hold up
+     * lookups of other keys.
+     */
+    private static final class Shared<V> {
+        private WeakReference<V> value = new WeakReference<>(null);
+
+        synchronized V get(Supplier<V> generator) {
+            V v = value.get();
+            if (v == null) {
+                v = generator.get();
+                value = new WeakReference<>(v);
             }
-            value.set(generator.get());
-            return new WeakReference<>(value.get());
-        });
-        return value.get();
+            return v;
+        }
     }
 }

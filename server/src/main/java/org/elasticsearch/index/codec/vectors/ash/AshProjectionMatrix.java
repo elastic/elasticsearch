@@ -247,6 +247,9 @@ public final class AshProjectionMatrix {
         if ((flags & ~(LEARNED | SEEDED)) != 0) {
             throw new CorruptIndexException("unknown ASH projection matrix flags [" + flags + "]", in);
         }
+        if ((flags & LEARNED) != 0 && (flags & SEEDED) != 0) {
+            throw new CorruptIndexException("ASH projection matrix flags [" + flags + "] mark it both learned and seeded", in);
+        }
         UUID id = new UUID(in.readLong(), in.readLong());
         int trainingSampleSize = in.readInt();
         return new Header(originalDim, nDims, (flags & LEARNED) != 0, (flags & SEEDED) != 0, id, trainingSampleSize);

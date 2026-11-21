@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis.rules;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -143,10 +146,17 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             var boundary = new AnalyzerContext.ViewBoundary(settingView, boundaryViewName(identity, settingView));
             context.viewBoundaryNullFills().add(new AnalyzerContext.ViewBoundaryNullFill(boundary, fieldName));
         };
+        // Only the caller's own references can be typos the caller can fix; a view body is someone else's query.
+        var references = settingView == null ? context.unmappedReferences() : null;
         return switch (resolution) {
             case UnmappedResolution.DEFAULT -> withInnerScopes;
-            case UnmappedResolution.NULLIFY -> resolveOutsideViews(withInnerScopes, false, onViewNullFill);
-            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolveOutsideViews(withInnerScopes, true, onViewNullFill);
+            case UnmappedResolution.NULLIFY -> resolveOutsideViews(withInnerScopes, false, onViewNullFill, references);
+            case UnmappedResolution.LOAD, UnmappedResolution.LOAD_ALL -> resolveOutsideViews(
+                withInnerScopes,
+                true,
+                onViewNullFill,
+                references
+            );
         };
     }
 
@@ -189,11 +199,27 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      * {@link AnalyzerRules.ParameterizedAnalyzerRule} would, except that view
      * bodies are skipped entirely: the rule never fires on a node inside one.
      */
-    private static LogicalPlan resolveOutsideViews(LogicalPlan plan, boolean load, BiConsumer<BranchIdentity, String> onViewNullFill) {
-        return ViewUtils.transformUpOutsideViews(plan, p -> p.analyzed() || p.resolved() ? p : resolve(p, load, onViewNullFill));
+    private static LogicalPlan resolveOutsideViews(
+        LogicalPlan plan,
+        boolean load,
+        BiConsumer<BranchIdentity, String> onViewNullFill,
+        @Nullable Map<String, AnalyzerContext.UnmappedReference> references
+    ) {
+        return ViewUtils.transformUpOutsideViews(
+            plan,
+            p -> p.analyzed() || p.resolved() ? p : resolve(p, load, onViewNullFill, references)
+        );
     }
 
-    private static LogicalPlan resolve(LogicalPlan plan, boolean load, BiConsumer<BranchIdentity, String> onViewNullFill) {
+    /**
+     * Nullifies or loads the unresolved references of {@code plan}, and records them in {@code references}, if not {@code null}.
+     */
+    private static LogicalPlan resolve(
+        LogicalPlan plan,
+        boolean load,
+        BiConsumer<BranchIdentity, String> onViewNullFill,
+        @Nullable Map<String, AnalyzerContext.UnmappedReference> references
+    ) {
         if (plan.childrenResolved() == false) {
             return plan;
         }
@@ -212,10 +238,90 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
             allUnresolved.addAll(uas);
         }
 
-        var transformed = load ? load(plan, unresolved, observedOnly(plan, onViewNullFill)) : nullify(plan, unresolved);
+        LinkedHashSet<UnresolvedAttribute> toResolve = load ? loadTargets(plan, unresolved) : unresolved;
+        if (toResolve.isEmpty()) {
+            return plan;
+        }
+        var transformed = load ? load(plan, toResolve, observedOnly(plan, onViewNullFill)) : nullify(plan, toResolve);
+        if (transformed == plan) {
+            return plan;
+        }
+        if (references != null) {
+            recordUnmappedReferences(plan, toResolve, load, references);
+        }
         // A field added to a merge branch surfaces through the merge once ResolveRefs adds it to the merge's output, which it
         // does as soon as the branch's output has the field (see MergePlan#expressionsResolved).
-        return transformed == plan ? plan : refreshPlan(transformed, allUnresolved);
+        return refreshPlan(transformed, allUnresolved);
+    }
+
+    /**
+     * Records in {@code references} every name of {@code resolved} that is not there yet, with the in-scope column it is a likely typo
+     * of. The suggestion comes from a node that references the name, other than a {@code DROP}: dropping a missing field is harmless,
+     * so nothing would be gained by warning about it. {@code plan} is the plan before the names were added, so only earlier passes'
+     * additions are in its outputs; those are skipped like this pass's, so a missing field is never suggested.
+     */
+    private static void recordUnmappedReferences(
+        LogicalPlan plan,
+        Set<UnresolvedAttribute> resolved,
+        boolean loaded,
+        Map<String, AnalyzerContext.UnmappedReference> references
+    ) {
+        Set<String> resolvedNames = new LinkedHashSet<>();
+        resolved.forEach(ua -> resolvedNames.add(ua.name()));
+        Set<String> missing = new HashSet<>(references.keySet());
+        missing.addAll(resolvedNames);
+        Map<String, String> suggestions = new HashMap<>();
+        ViewUtils.forEachOutsideViews(plan, node -> {
+            if (node instanceof ResolvingProject rp && rp.kind() == ResolvingProject.Kind.DROP) {
+                return;
+            }
+            // The columns a reference in the node can resolve to, like those that collectLoadCandidates compares against.
+            List<Attribute> columns = node.children().stream().flatMap(child -> child.output().stream()).toList();
+            collectLoadCandidates(node, ua -> {
+                if (resolvedNames.contains(ua.name()) && suggestions.containsKey(ua.name()) == false) {
+                    String suggestion = likelyIntendedColumn(ua.name(), columns, missing);
+                    if (suggestion != null) {
+                        suggestions.put(ua.name(), suggestion);
+                    }
+                }
+            });
+        });
+        for (String name : resolvedNames) {
+            references.putIfAbsent(name, new AnalyzerContext.UnmappedReference(loaded, suggestions.get(name)));
+        }
+    }
+
+    /**
+     * The closest of {@code columns} that is a likely typo of the missing field {@code name}, or {@code null}: its name is within
+     * what {@link Fuzziness#AUTO} allows, counting a transposition as one edit. Like in {@code DEFAULT} mode, only primitive columns
+     * qualify, but not the {@code missing} fields this rule adds, nor sub-fields or parents of {@code name}: {@code objarr} refers
+     * to an object, not to a misspelled {@code objarr.j}.
+     */
+    @Nullable
+    private static String likelyIntendedColumn(String name, List<Attribute> columns, Set<String> missing) {
+        int maxEdits = Fuzziness.AUTO.asDistance(name);
+        // Names whose length differs by more than the edits allowed can't qualify, so most names never need an automaton.
+        List<String> candidates = new ArrayList<>();
+        for (Attribute column : columns) {
+            String candidate = column.name();
+            if (column instanceof UnresolvedAttribute == false
+                && DataType.isPrimitive(column.dataType())
+                && Math.abs(candidate.length() - name.length()) <= maxEdits
+                && missing.contains(candidate) == false
+                && candidate.startsWith(name + ".") == false
+                && name.startsWith(candidate + ".") == false) {
+                candidates.add(candidate);
+            }
+        }
+        for (int edits = 1; edits <= maxEdits && candidates.isEmpty() == false; edits++) {
+            CharacterRunAutomaton withinEdits = new CharacterRunAutomaton(new LevenshteinAutomata(name, true).toAutomaton(edits));
+            for (String candidate : candidates) {
+                if (withinEdits.run(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -293,29 +399,31 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     /**
      * Inserts {@link PotentiallyUnmappedKeywordEsField} loaders (unmapped keywords wrapped in {@link FieldAttribute}) for
-     * {@code unresolved} into the plan's {@link EsRelation}s, scope-aware across subqueries/views: an outer reference (surfaced by
-     * no {@link UnionAll} branch) is broadcast into all branches; an in-branch reference stays scoped to its own source. See #142033.
+     * {@code toLoad} into the plan's {@link EsRelation}s, scope-aware across subqueries/views: {@link #loadTargets} keeps only outer
+     * references (surfaced by no {@link UnionAll} branch), which are broadcast into all branches; an in-branch reference stays scoped
+     * to its own source. See #142033.
      */
-    private static LogicalPlan load(
-        LogicalPlan plan,
-        Set<UnresolvedAttribute> unresolved,
-        BiConsumer<BranchIdentity, String> onViewNullFill
-    ) {
+    private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> toLoad, BiConsumer<BranchIdentity, String> onViewNullFill) {
+        return nullFillViewBoundaries(loadIntoSources(plan, toLoad), toLoad, true, onViewNullFill);
+    }
+
+    /**
+     * The references of {@code unresolved} that {@link #load} must load. Below a {@link UnionAll}, those are the outer references
+     * only: a name already surfaced by a branch resolves through the merge output. #142033
+     */
+    private static LinkedHashSet<UnresolvedAttribute> loadTargets(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
-        if (plan.anyMatch(p -> p instanceof UnionAll)) {
-            // Outer references only: a name already surfaced by a branch resolves through the merge output. #142033
-            Set<String> surfacedByAnyBranch = mainSpineUnionBranchOutputNames(plan);
-            LinkedHashSet<UnresolvedAttribute> outerReferences = new LinkedHashSet<>();
-            for (UnresolvedAttribute ua : unresolved) {
-                if (surfacedByAnyBranch.contains(ua.name()) == false) {
-                    outerReferences.add(ua);
-                }
-            }
-            return outerReferences.isEmpty()
-                ? plan
-                : nullFillViewBoundaries(loadIntoSources(plan, outerReferences), outerReferences, true, onViewNullFill);
+        if (plan.anyMatch(p -> p instanceof UnionAll) == false) {
+            return unresolved;
         }
-        return nullFillViewBoundaries(loadIntoSources(plan, unresolved), unresolved, true, onViewNullFill);
+        Set<String> surfacedByAnyBranch = mainSpineUnionBranchOutputNames(plan);
+        LinkedHashSet<UnresolvedAttribute> outerReferences = new LinkedHashSet<>();
+        for (UnresolvedAttribute ua : unresolved) {
+            if (surfacedByAnyBranch.contains(ua.name()) == false) {
+                outerReferences.add(ua);
+            }
+        }
+        return outerReferences;
     }
 
     /**

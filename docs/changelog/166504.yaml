@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166504
+summary: Warn about likely typos of unmapped fields
+type: enhancement

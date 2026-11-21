@@ -422,7 +422,84 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         if (viewBoundaryWarning != null) {
             HeaderWarning.addWarning(viewBoundaryWarning);
         }
+        // PROMQL answers an absent metric or label with no data on its own terms, and makes the session nullify the caller's whole
+        // query whatever it SETs, so its nulls are not the outcome of a SET unmapped_fields the user wrote.
+        var unmapped = context().unmappedReferences();
+        if (unmapped.values().stream().anyMatch(reference -> reference.suggestion() != null)
+            && ViewUtils.anyMatchOutsideViews(plan, p -> p instanceof PromqlCommand) == false) {
+            unmappedTypoWarnings(unmapped, mappedFieldNames(verified)).forEach(HeaderWarning::addWarning);
+        }
         return replaceDescribe(verified);
+    }
+
+    /**
+     * Upper bound on the fields listed in an {@link #unmappedTypoWarning}; any further fields are only counted. Each listed field
+     * comes with its suggestion, so this lists about as many names as {@link #MAX_LISTED_NON_LOADABLE_PUNKS}.
+     */
+    static final int MAX_LISTED_UNMAPPED_TYPOS = 10;
+
+    /**
+     * At most one warning per outcome, nullified or loaded, about the fields the caller's {@code SET unmapped_fields} resolved
+     * although they are likely typos of an existing column: a query with {@code WHERE sttaus == 200} otherwise just returns no rows.
+     * A field that some index of the query maps, {@code mappedFields}, is not a typo even where a branch of the query lacks it, e.g.
+     * a subquery over an index that does not map it next to one over an index that does.
+     */
+    static List<String> unmappedTypoWarnings(Map<String, AnalyzerContext.UnmappedReference> references, Set<String> mappedFields) {
+        Map<String, String> nullified = new LinkedHashMap<>();
+        Map<String, String> loaded = new LinkedHashMap<>();
+        references.forEach((name, reference) -> {
+            if (reference.suggestion() != null && mappedFields.contains(name) == false) {
+                (reference.loaded() ? loaded : nullified).put(name, reference.suggestion());
+            }
+        });
+        List<String> warnings = new ArrayList<>(2);
+        if (nullified.isEmpty() == false) {
+            warnings.add(unmappedTypoWarning(nullified, false));
+        }
+        if (loaded.isEmpty() == false) {
+            warnings.add(unmappedTypoWarning(loaded, true));
+        }
+        return warnings;
+    }
+
+    /**
+     * The names of the fields that the indices read by {@code plan} map, anywhere in it: not the fields {@code SET unmapped_fields}
+     * nullified or loaded from {@code _source} as {@link PotentiallyUnmappedKeywordEsField}s.
+     */
+    private static Set<String> mappedFieldNames(LogicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        plan.forEachDown(EsRelation.class, relation -> {
+            for (Attribute attribute : relation.output()) {
+                if (attribute instanceof FieldAttribute fa
+                    && fa.field() instanceof MissingEsField == false
+                    && fa.field() instanceof PotentiallyUnmappedKeywordEsField == false) {
+                    names.add(fa.name());
+                }
+            }
+        });
+        return names;
+    }
+
+    // visible for testing
+    static String unmappedTypoWarning(Map<String, String> suggestionsByName, boolean loaded) {
+        assert suggestionsByName.isEmpty() == false : "no fields to warn about";
+        List<String> names = List.copyOf(suggestionsByName.keySet());
+        int listed = Math.min(names.size(), MAX_LISTED_UNMAPPED_TYPOS);
+        StringBuilder fields = new StringBuilder();
+        appendBoundedList(fields, names, listed, name -> "[" + name + "]");
+        StringBuilder suggestions = new StringBuilder();
+        appendBoundedList(suggestions, names.subList(0, listed), listed, name -> "[" + suggestionsByName.get(name) + "]");
+        boolean one = names.size() == 1;
+        String be = one ? "is" : "are";
+        return Strings.format(
+            "Field%s %s %s not mapped and %s %s; did you mean %s?",
+            one ? "" : "s",
+            fields,
+            be,
+            be,
+            loaded ? "loaded from _source as KEYWORD" : "null",
+            suggestions
+        );
     }
 
     /**

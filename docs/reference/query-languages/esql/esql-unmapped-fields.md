@@ -49,6 +49,8 @@ For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql
 Reading the real values of an unmapped field with `LOAD` is newer than the other behaviors. Earlier versions can nullify unmapped fields (`NULLIFY`) but can't load their real values.
 :::
 
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` When a field that `NULLIFY`, `LOAD`, or `LOAD_ALL` resolves looks like a misspelling of a column the query can see, the response includes a warning that suggests that column, for example `Field [sttaus] is not mapped and is null; did you mean [status]?`. A name counts as a misspelling when it's within the edit distance that [`fuzziness: AUTO`](/reference/elasticsearch/rest-apis/common-options.md#fuzziness) allows and no queried index maps it. Names that only a `DROP` or a view definition references don't trigger the warning.
+
 ## Load specific unmapped fields [esql-unmapped-fields-load]
 
 ```{applies_to}

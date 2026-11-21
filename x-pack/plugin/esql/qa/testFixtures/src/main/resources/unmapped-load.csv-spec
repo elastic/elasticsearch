@@ -2156,6 +2156,7 @@ FROM partial_mapping_sample_data
 | EVAL msg_count = MV_COUNT(unmapped_message)
 | KEEP msg_count, unmapped_messag
 ;
+warningRegex:Field \[unmapped_message\] is not mapped and is loaded from _source as KEYWORD; did you mean \[unmapped_messag\]\?
 
 msg_count:integer | unmapped_messag:keyword
 5                 | foo

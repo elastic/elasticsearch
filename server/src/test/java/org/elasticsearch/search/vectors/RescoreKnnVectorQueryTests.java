@@ -40,7 +40,16 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.bwc.Elasticsearch93Lucene104Codec;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es94.ES94ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -54,7 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
+import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomNormalizedFloatVector;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -77,10 +86,10 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
-        float[] queryVector = randomFloatVector(numDims);
+        float[] queryVector = randomNormalizedFloatVector(numDims);
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(
-            new KnnFloatVectorQuery(FIELD_NAME, randomFloatVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true)))
+            new KnnFloatVectorQuery(FIELD_NAME, randomNormalizedFloatVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true)))
         );
         innerQueries.add(DenseVectorQuery.Floats.codecScored(queryVector, FIELD_NAME).filteredBy(new FieldExistsQuery(FIELD_NAME)));
         innerQueries.add(Queries.ALL_DOCS_INSTANCE);
@@ -130,7 +139,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDocs = randomIntBetween(10, 50);
         int numDims = randomIntBetween(5, 20);
         int k = randomIntBetween(1, numDocs - 1);
-        float[] queryVector = randomFloatVector(numDims);
+        float[] queryVector = randomNormalizedFloatVector(numDims);
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
@@ -159,7 +168,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int k = randomIntBetween(1, 10);
         int rescoreK = randomIntBetween(k + 1, numDocs);
 
-        float[] queryVector = randomFloatVector(numDims);
+        float[] queryVector = randomNormalizedFloatVector(numDims);
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
@@ -189,7 +198,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         DoubleValuesSource valueSource = new FullPrecisionFloatVectorSimilarityValuesSource(
             queryVector,
             FIELD_NAME,
-            VectorSimilarityFunction.COSINE
+            VectorSimilarityFunction.DOT_PRODUCT
         );
         FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(Queries.ALL_DOCS_INSTANCE, valueSource);
         TopDocs realScoreTopDocs = searcher.search(functionScoreQuery, numDocs);
@@ -214,11 +223,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
-        float[] queryVector = randomFloatVector(numDims);
+        float[] queryVector = randomNormalizedFloatVector(numDims);
 
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(
-            new KnnFloatVectorQuery(FIELD_NAME, randomFloatVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true)))
+            new KnnFloatVectorQuery(FIELD_NAME, randomNormalizedFloatVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true)))
         );
         innerQueries.add(DenseVectorQuery.Floats.codecScored(queryVector, FIELD_NAME).filteredBy(new FieldExistsQuery(FIELD_NAME)));
         innerQueries.add(Queries.ALL_DOCS_INSTANCE);
@@ -266,7 +275,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             addRandomDocuments(numDocs, d, numDims);
 
             try (IndexReader reader = DirectoryReader.open(d)) {
-                float[] queryVector = randomFloatVector(numDims);
+                float[] queryVector = randomNormalizedFloatVector(numDims);
 
                 checkProfiling(k, numDocs, queryVector, reader, Queries.ALL_DOCS_INSTANCE);
                 checkProfiling(k, numDocs, queryVector, reader, new MockQueryProfilerProvider(randomIntBetween(1, 100)));
@@ -346,7 +355,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             DenseVectorFieldMapper.ElementType.BFLOAT16
         );
         KnnVectorsFormat format = randomFrom(
-            /*new ES920DiskBBQVectorsFormat(
+            new ES920DiskBBQVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
@@ -354,16 +363,57 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 null,
                 1
             ),
+<<<<<<< HEAD
             new ES93BinaryQuantizedVectorsFormat(elementType),
             new ES93HnswBinaryQuantizedVectorsFormat(elementType),
             new ES93ScalarQuantizedVectorsFormat(elementType),*/
+=======
+            new ES93BinaryQuantizedVectorsFormat(elementType, randomBoolean(), randomBoolean()),
+            new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
+            new ES93ScalarQuantizedVectorsFormat(elementType, null, 7, randomBoolean(), randomBoolean()),
+>>>>>>> a16e127d2b61270965ee2b492c9e0950d8667b50
             new ES93HnswScalarQuantizedVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                 elementType,
                 null,
                 7,
+<<<<<<< HEAD
                 false
+=======
+                false,
+                randomBoolean()
+            ),
+            new ES94ScalarQuantizedVectorsFormat(elementType, 7, randomBoolean(), randomBoolean()),
+            new ES94HnswScalarQuantizedVectorsFormat(
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                elementType,
+                7,
+                randomBoolean()
+            ),
+            new ES940DiskBBQVectorsFormat(
+                ES940DiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC,
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                elementType,
+                randomBoolean(),
+                null,
+                1,
+                false,
+                ES940DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+            ),
+            new ES950DiskBBQVectorsFormat(
+                QuantEncoding.SEVEN_BIT_SYMMETRIC,
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                elementType,
+                randomBoolean(),
+                null,
+                1,
+                false,
+                ES950DiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+>>>>>>> a16e127d2b61270965ee2b492c9e0950d8667b50
             )
         );
         iwc.setCodec(new Elasticsearch93Lucene104Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {
@@ -372,11 +422,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 return format;
             }
         });
-        try (IndexWriter w = new IndexWriter(d, newIndexWriterConfig())) {
+        try (IndexWriter w = new IndexWriter(d, iwc)) {
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
-                float[] vector = randomFloatVector(numDims);
-                KnnFloatVectorField vectorField = new KnnFloatVectorField(FIELD_NAME, vector, VectorSimilarityFunction.COSINE);
+                float[] vector = randomNormalizedFloatVector(numDims);
+                KnnFloatVectorField vectorField = new KnnFloatVectorField(FIELD_NAME, vector, VectorSimilarityFunction.DOT_PRODUCT);
                 document.add(vectorField);
                 w.addDocument(document);
                 if (randomBoolean() && (i % 10 == 0)) {

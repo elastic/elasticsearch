@@ -47,6 +47,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
+import org.elasticsearch.lucene.search.IndexedSpatialQueries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -227,7 +228,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             // Indexed spatial scorers walk the BKD tree inside scorerSupplier.get(). A DOC split repeats that walk
             // per slice, which is slower when LIMIT matches early. Keep those queries on SHARD without marking them
             // costly: the no-limit path still parallelizes a large circle with DOC.
-            if (containsCostlyClause(query) || containsIndexedSpatialQuery(query)) {
+            if (containsCostlyClause(query) || IndexedSpatialQueries.containsIndexedSpatialQuery(query)) {
                 return SHARD;
             }
             Query unwrapped = unwrapQuery(query);
@@ -382,6 +383,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 || query instanceof PointInSetQuery;
         }
 
+<<<<<<< HEAD
         /**
          * {@code true} when {@code query} contains an indexed spatial clause. Same walk as
          * {@link #containsCostlyClause}, including {@link QueryVisitor#getSubVisitor}, so the check sees through
@@ -440,6 +442,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             };
         }
 
+=======
+>>>>>>> a16e127d2b61270965ee2b492c9e0950d8667b50
         static Query unwrapQuery(Query query) {
             while (true) {
                 switch (query) {

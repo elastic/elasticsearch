@@ -50,6 +50,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.percolator.QueryAnalyzer.QueryExtraction;
@@ -67,7 +68,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
@@ -1149,6 +1149,10 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         result = analyze(new DisjunctionMaxQuery(Collections.emptyList(), 0f));
         assertEquals(result, Result.MATCH_NONE);
+    }
+
+    private static Result analyze(Query query) {
+        return QueryAnalyzer.analyze(query, IndexVersion.current());
     }
 
     private static void assertDimension(byte[] expected, Consumer<byte[]> consumer) {

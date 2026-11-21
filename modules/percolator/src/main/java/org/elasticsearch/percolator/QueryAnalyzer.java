@@ -28,6 +28,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 
@@ -72,9 +74,10 @@ final class QueryAnalyzer {
      * this query in such a way that the PercolatorQuery always verifies if this query with the MemoryIndex.
      *
      * @param query         The query to analyze.
+     * @param indexVersion  The version the index was created with.
      */
-    static Result analyze(Query query) {
-        ResultBuilder builder = new ResultBuilder(false);
+    static Result analyze(Query query, IndexVersion indexVersion) {
+        ResultBuilder builder = new ResultBuilder(false, indexVersion);
         query.visit(builder);
         return builder.getResult();
     }
@@ -107,13 +110,15 @@ final class QueryAnalyzer {
     private static class ResultBuilder extends QueryVisitor {
 
         final boolean conjunction;
+        final IndexVersion indexVersion;
         List<ResultBuilder> children = new ArrayList<>();
         boolean verified = true;
         int minimumShouldMatch = 0;
         List<Result> terms = new ArrayList<>();
 
-        private ResultBuilder(boolean conjunction) {
+        private ResultBuilder(boolean conjunction, IndexVersion indexVersion) {
             this.conjunction = conjunction;
+            this.indexVersion = indexVersion;
         }
 
         @Override
@@ -152,7 +157,7 @@ final class QueryAnalyzer {
             }
             this.verified = isVerified(parent);
             if (occur == Occur.MUST || occur == Occur.FILTER) {
-                ResultBuilder builder = new ResultBuilder(true);
+                ResultBuilder builder = new ResultBuilder(true, indexVersion);
                 children.add(builder);
                 return builder;
             }
@@ -168,7 +173,7 @@ final class QueryAnalyzer {
                 }
                 minimumShouldMatchValue = bq.getMinimumNumberShouldMatch();
             }
-            ResultBuilder child = new ResultBuilder(false);
+            ResultBuilder child = new ResultBuilder(false, indexVersion);
             child.minimumShouldMatch = minimumShouldMatchValue;
             children.add(child);
             return child;
@@ -181,7 +186,7 @@ final class QueryAnalyzer {
             } else if (query instanceof MatchNoDocsQuery) {
                 terms.add(Result.MATCH_NONE);
             } else if (query instanceof PointRangeQuery) {
-                terms.add(pointRangeQuery((PointRangeQuery) query));
+                terms.add(pointRangeQuery((PointRangeQuery) query, indexVersion));
             } else {
                 terms.add(Result.UNKNOWN);
             }
@@ -217,10 +222,10 @@ final class QueryAnalyzer {
 
     }
 
-    private static Result pointRangeQuery(PointRangeQuery query) {
+    private static Result pointRangeQuery(PointRangeQuery query, IndexVersion indexVersion) {
         int numDims = query.getNumDims();
         int bytesPerDim = query.getBytesPerDim();
-        if (numDims > 1 && supportsMultiDimensionalRanges(bytesPerDim) == false) {
+        if (numDims > 1 && supportsMultiDimensionalRanges(indexVersion, bytesPerDim) == false) {
             return Result.UNKNOWN;
         }
         byte[] lowerPoint = query.getLowerPoint();
@@ -244,11 +249,14 @@ final class QueryAnalyzer {
     }
 
     /**
+     * Only indices created on or after {@link IndexVersions#PERCOLATOR_MULTI_DIMENSIONAL_RANGES} use multi-dimensional ranges: nodes on
+     * older versions don't provide them for documents, so they must never read stored queries that require them, and they can't hold
+     * indices created on newer versions.
      * Values of 16 bytes leave no room for the field hash in an encoded range, see {@link PercolatorFieldMapper#encodeRange}, so the
      * ranges of their dimensions would intersect with those of other fields. {@code ip_range} has such values, geo fields don't.
      */
-    static boolean supportsMultiDimensionalRanges(int bytesPerDim) {
-        return bytesPerDim < BinaryRange.BYTES;
+    static boolean supportsMultiDimensionalRanges(IndexVersion indexVersion, int bytesPerDim) {
+        return indexVersion.onOrAfter(IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES) && bytesPerDim < BinaryRange.BYTES;
     }
 
     private static Result handleConjunction(List<Result> conjunctionsWithUnknowns) {

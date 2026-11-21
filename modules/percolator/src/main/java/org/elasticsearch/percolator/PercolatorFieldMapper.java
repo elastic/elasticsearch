@@ -277,7 +277,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         Tuple<BooleanQuery, Boolean> createCandidateQuery(IndexReader indexReader, SearchExecutionContext context) throws IOException {
-            Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = extractTermsAndRanges(indexReader);
+            Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = extractTermsAndRanges(indexReader, context.indexVersionCreated());
             List<BytesRef> extractedTerms = t.v1();
             Map<RangeField, List<byte[]>> encodedPointValuesByField = t.v2();
             // `1 + ` is needed to take into account the EXTRACTION_FAILED should clause
@@ -316,7 +316,10 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         // This was extracted the method above, because otherwise it is difficult to test what terms are included in
         // the query in case a CoveringQuery is used (it does not have a getter to retrieve the clauses)
-        static Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
+        static Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> extractTermsAndRanges(
+            IndexReader indexReader,
+            IndexVersion indexVersion
+        ) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
             Map<RangeField, List<byte[]>> encodedPointValuesByField = new HashMap<>();
 
@@ -336,7 +339,8 @@ public class PercolatorFieldMapper extends FieldMapper {
                 }
                 int pointDimensions = info.getPointIndexDimensionCount();
                 int bytesPerDim = info.getPointNumBytes();
-                if (pointDimensions == 1 || (pointDimensions > 1 && QueryAnalyzer.supportsMultiDimensionalRanges(bytesPerDim))) {
+                if (pointDimensions == 1
+                    || (pointDimensions > 1 && QueryAnalyzer.supportsMultiDimensionalRanges(indexVersion, bytesPerDim))) {
                     // Point range queries search the indexed dimensions, which come first in the packed values, so one range
                     // per indexed dimension matches what QueryAnalyzer extracts. Range and shape fields can't be told apart from
                     // points here; they get ranges too, which no stored query has.
@@ -490,7 +494,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         LuceneDocument doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
-        result = QueryAnalyzer.analyze(query);
+        result = QueryAnalyzer.analyze(query, context.indexSettings().getIndexVersionCreated());
         if (result == QueryAnalyzer.Result.UNKNOWN) {
             doc.add(new StringField(pft.extractionResultField.name(), EXTRACTION_FAILED, Field.Store.NO));
             return;

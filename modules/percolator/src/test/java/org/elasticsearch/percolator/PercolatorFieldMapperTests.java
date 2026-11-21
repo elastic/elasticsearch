@@ -58,6 +58,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -65,6 +67,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RowSource;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -102,6 +105,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.sourcebatch.SourceRowXContentParser;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -433,7 +437,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
         Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(
-            indexReader
+            indexReader,
+            IndexVersion.current()
         );
         assertEquals(1, t.v2().size());
         Map<RangeField, List<byte[]>> rangesMap = t.v2();
@@ -520,7 +525,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
         Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(
-            indexReader
+            indexReader,
+            IndexVersion.current()
         );
         assertEquals(0, t.v1().size());
         Map<RangeField, List<byte[]>> rangesMap = t.v2();
@@ -581,7 +587,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
         Tuple<List<BytesRef>, Map<RangeField, List<byte[]>>> t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(
-            indexReader
+            indexReader,
+            IndexVersion.current()
         );
         assertEquals(0, t.v1().size());
         Map<RangeField, List<byte[]>> rangesMap = t.v2();
@@ -612,6 +619,10 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertNotNull(longitude);
         assertEquals(4.3, GeoEncodingUtils.decodeLongitude(IntPoint.decodeDimension(longitude.get(0), 0)), 1e-6);
         assertEquals(4.5, GeoEncodingUtils.decodeLongitude(IntPoint.decodeDimension(longitude.get(1), 0)), 1e-6);
+
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
+        t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(indexReader, previous);
+        assertThat(t.v2().keySet(), empty());
     }
 
     public void testExtractRanges_geoBoundingBox() throws Exception {
@@ -645,6 +656,14 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(
                 document.getFields(percolatorFieldType.minimumShouldMatchField.name()),
                 transformedItemsMatch(IndexableField::numericValue, contains(2L))
+            );
+
+            IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
+            DocumentParserContext previousVersionContext = new TestDocumentParserContext(MappingLookup.EMPTY, null, previous);
+            fieldMapper.processQuery(query, previousVersionContext);
+            assertThat(
+                previousVersionContext.doc().getField(percolatorFieldType.extractionResultField.name()).stringValue(),
+                equalTo(EXTRACTION_FAILED)
             );
         }
     }

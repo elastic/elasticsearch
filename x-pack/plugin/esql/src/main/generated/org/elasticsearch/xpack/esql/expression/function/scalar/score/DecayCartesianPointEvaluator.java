@@ -32,30 +32,17 @@ public final class DecayCartesianPointEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator value;
 
-  private final BytesRef origin;
-
-  private final double scale;
-
-  private final double offset;
-
-  private final double decay;
-
-  private final Decay.DecayFunction decayFunction;
+  private final DecayScorers.CartesianScorer scorer;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public DecayCartesianPointEvaluator(Source source, ExpressionEvaluator value, BytesRef origin,
-      double scale, double offset, double decay, Decay.DecayFunction decayFunction,
-      DriverContext driverContext) {
+  public DecayCartesianPointEvaluator(Source source, ExpressionEvaluator value,
+      DecayScorers.CartesianScorer scorer, DriverContext driverContext) {
     this.source = source;
     this.value = value;
-    this.origin = origin;
-    this.scale = scale;
-    this.offset = offset;
-    this.decay = decay;
-    this.decayFunction = decayFunction;
+    this.scorer = scorer;
     this.driverContext = driverContext;
   }
 
@@ -94,7 +81,7 @@ public final class DecayCartesianPointEvaluator implements ExpressionEvaluator {
               continue position;
         }
         BytesRef value = valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch);
-        result.appendDouble(Decay.processCartesianPoint(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        result.appendDouble(Decay.processCartesianPoint(value, this.scorer));
       }
       return result.build();
     }
@@ -105,7 +92,7 @@ public final class DecayCartesianPointEvaluator implements ExpressionEvaluator {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef value = valueVector.getBytesRef(p, valueScratch);
-        result.appendDouble(p, Decay.processCartesianPoint(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        result.appendDouble(p, Decay.processCartesianPoint(value, this.scorer));
       }
       return result.build();
     }
@@ -113,7 +100,7 @@ public final class DecayCartesianPointEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "DecayCartesianPointEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+    return "DecayCartesianPointEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
   }
 
   @Override
@@ -133,35 +120,23 @@ public final class DecayCartesianPointEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory value;
 
-    private final BytesRef origin;
+    private final DecayScorers.CartesianScorer scorer;
 
-    private final double scale;
-
-    private final double offset;
-
-    private final double decay;
-
-    private final Decay.DecayFunction decayFunction;
-
-    public Factory(Source source, ExpressionEvaluator.Factory value, BytesRef origin, double scale,
-        double offset, double decay, Decay.DecayFunction decayFunction) {
+    public Factory(Source source, ExpressionEvaluator.Factory value,
+        DecayScorers.CartesianScorer scorer) {
       this.source = source;
       this.value = value;
-      this.origin = origin;
-      this.scale = scale;
-      this.offset = offset;
-      this.decay = decay;
-      this.decayFunction = decayFunction;
+      this.scorer = scorer;
     }
 
     @Override
     public DecayCartesianPointEvaluator get(DriverContext context) {
-      return new DecayCartesianPointEvaluator(source, value.get(context), origin, scale, offset, decay, decayFunction, context);
+      return new DecayCartesianPointEvaluator(source, value.get(context), scorer, context);
     }
 
     @Override
     public String toString() {
-      return "DecayCartesianPointEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+      return "DecayCartesianPointEvaluator[" + "value=" + value + ", scorer=" + scorer + "]";
     }
   }
 }

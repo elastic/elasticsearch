@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 165451
+summary: Improve `DECAY` performance by building its scorers once per query
+type: enhancement

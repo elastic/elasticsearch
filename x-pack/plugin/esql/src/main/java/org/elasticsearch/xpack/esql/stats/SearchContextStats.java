@@ -486,7 +486,7 @@ public class SearchContextStats implements SearchStats {
         } catch (IOException ex) {
             throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
-        return min > max ? ExactMinMax.NO_VALUES : new ExactMinMax(true, min, max);
+        return min > max ? ExactMinMax.noValues(typeName) : new ExactMinMax(true, min, max, typeName);
     }
 
     /**
@@ -538,7 +538,9 @@ public class SearchContextStats implements SearchStats {
             case Integer.BYTES -> new long[] {
                 NumericUtils.sortableBytesToInt(minPacked, 0),
                 NumericUtils.sortableBytesToInt(maxPacked, 0) };
-            default -> null;
+            default -> throw new IllegalStateException(
+                "the points of [" + name + "] are [" + points.getBytesPerDimension() + "] bytes wide, which no supported type uses"
+            );
         };
     }
 

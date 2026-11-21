@@ -3858,11 +3858,23 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         return e instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField;
     }
 
-    private static SearchStats exactMinMaxStats(SearchStats.ExactMinMax bounds) {
+    /** The type the fields of the test index are mapped as, which is how the statistics name the type of a field. */
+    private static String mappedTypeOf(FieldAttribute.FieldName field) {
+        return switch (field.string()) {
+            case "hire_date" -> "date";
+            case "emp_no", "salary" -> "integer";
+            case "languages" -> "byte";
+            default -> "long";
+        };
+    }
+
+    private static SearchStats exactMinMaxStats(boolean hasValues, long min, long max) {
         return new TestSearchStats() {
             @Override
             public SearchStats.ExactMinMax exactMinMax(FieldAttribute.FieldName field) {
-                return bounds;
+                return hasValues
+                    ? new SearchStats.ExactMinMax(true, min, max, mappedTypeOf(field))
+                    : SearchStats.ExactMinMax.noValues(mappedTypeOf(field));
             }
         };
     }
@@ -3876,10 +3888,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /** MIN and MAX of dates become one row of the segment bounds, and the index is not read at all. */
     public void testMinMaxAnsweredFromExactStats() {
-        var plan = plannerOptimizer.plan(
-            "from test | stats min(hire_date), max(hire_date)",
-            exactMinMaxStats(new SearchStats.ExactMinMax(true, 100L, 900L))
-        );
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", exactMinMaxStats(true, 100L, 900L));
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(false));
         assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
         var page = singleLocalSource(plan).supplier().peek();
@@ -3892,19 +3901,19 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testMinMaxOfIntegerAnsweredFromExactStats() {
-        var plan = plannerOptimizer.plan("from test | stats max(salary)", exactMinMaxStats(new SearchStats.ExactMinMax(true, -5L, 77L)));
+        var plan = plannerOptimizer.plan("from test | stats max(salary)", exactMinMaxStats(true, -5L, 77L));
         var page = singleLocalSource(plan).supplier().peek();
         assertThat(as(page.getBlock(0), IntBlock.class).getInt(0), equalTo(77));
     }
 
     /** A {@code byte} field is read as an integer. */
     public void testMinMaxOfByteAnsweredFromExactStats() {
-        var plan = plannerOptimizer.plan("from test | stats min(languages)", exactMinMaxStats(new SearchStats.ExactMinMax(true, 1L, 5L)));
+        var plan = plannerOptimizer.plan("from test | stats min(languages)", exactMinMaxStats(true, 1L, 5L));
         assertThat(as(singleLocalSource(plan).supplier().peek().getBlock(0), IntBlock.class).getInt(0), equalTo(1));
     }
 
     public void testMinMaxOfFieldWithoutValuesIsNotSeen() {
-        var plan = plannerOptimizer.plan("from test | stats min(hire_date)", exactMinMaxStats(SearchStats.ExactMinMax.NO_VALUES));
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date)", exactMinMaxStats(false, 0L, 0L));
         var page = singleLocalSource(plan).supplier().peek();
         assertThat(as(page.getBlock(1), BooleanBlock.class).getBoolean(0), is(false));
     }
@@ -3914,7 +3923,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var stats = new TestSearchStats() {
             @Override
             public SearchStats.ExactMinMax exactMinMax(FieldAttribute.FieldName field) {
-                return new SearchStats.ExactMinMax(true, 1L, 2L);
+                return new SearchStats.ExactMinMax(true, 1L, 2L, mappedTypeOf(field));
             }
 
             @Override
@@ -3927,6 +3936,30 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         singleLocalSource(plan);
     }
 
+    /** A field the shards map as one type but the query reads as another, such as a date that is read as nanoseconds. */
+    public void testMinMaxNotAnsweredFromStatsWhenTheFieldIsReadAsAnotherType() {
+        var stats = new TestSearchStats() {
+            @Override
+            public SearchStats.ExactMinMax exactMinMax(FieldAttribute.FieldName field) {
+                return new SearchStats.ExactMinMax(true, 1L, 2L, "date_nanos");
+            }
+        };
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date)", stats);
+        assertThat(plan.anyMatch(LocalSourceExec.class::isInstance), is(false));
+    }
+
+    /** A query that narrows the documents is rejected before the statistics, which read the segments of every shard, are asked. */
+    public void testStatisticsAreNotReadForAQueryThatNarrowsTheDocuments() {
+        var stats = new TestSearchStats() {
+            @Override
+            public SearchStats.ExactMinMax exactMinMax(FieldAttribute.FieldName field) {
+                throw new AssertionError("the statistics must not be read for a filtered query");
+            }
+        };
+        var plan = plannerOptimizer.plan("from test | where salary > 1000 | stats min(hire_date)", stats);
+        assertThat(plan.anyMatch(LocalSourceExec.class::isInstance), is(false));
+    }
+
     /** Without exact statistics the query reads the index, as it always did. */
     public void testMinMaxNotAnsweredWithoutExactStats() {
         var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)");
@@ -3935,7 +3968,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testMinMaxNotAnsweredFromStatsWhenTheQueryNarrowsTheDocuments() {
-        var stats = exactMinMaxStats(new SearchStats.ExactMinMax(true, 1L, 2L));
+        var stats = exactMinMaxStats(true, 1L, 2L);
         for (String query : List.of(
             "from test | where salary > 1000 | stats min(hire_date)",
             "from test | limit 5 | stats min(hire_date)",

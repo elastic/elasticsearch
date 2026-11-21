@@ -1287,7 +1287,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 )
             ) {
                 SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
-                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs)), stats.exactMinMax(F));
+                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs), type.name), stats.exactMinMax(F));
             }
         }
     }
@@ -1300,7 +1300,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             ) {
                 assertNotNull(shard.reader.leaves().get(0).reader().getDocValuesSkipper("f"));
                 SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
-                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs)), stats.exactMinMax(F));
+                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs), type.name), stats.exactMinMax(F));
             }
         }
     }
@@ -1326,13 +1326,19 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
         try (Shard shard = shard(Settings.EMPTY, mapping, fields, false)) {
             SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
-            var expected = new SearchStats.ExactMinMax(true, min(docs), max(docs));
+            var expected = new SearchStats.ExactMinMax(true, min(docs), max(docs), "long");
             assertEquals(expected, stats.exactMinMax(F));
             assertEquals(expected, stats.exactMinMax(new FieldAttribute.FieldName("f_alias")));
             long lowest = docs.stream().flatMap(List::stream).mapToLong(v -> -v / 2).min().getAsLong();
             long highest = docs.stream().flatMap(List::stream).mapToLong(v -> -v / 2).max().getAsLong();
-            assertEquals(new SearchStats.ExactMinMax(true, lowest, highest), stats.exactMinMax(new FieldAttribute.FieldName("o.f")));
-            assertEquals(new SearchStats.ExactMinMax(true, lowest, highest), stats.exactMinMax(new FieldAttribute.FieldName("o_alias")));
+            assertEquals(
+                new SearchStats.ExactMinMax(true, lowest, highest, "long"),
+                stats.exactMinMax(new FieldAttribute.FieldName("o.f"))
+            );
+            assertEquals(
+                new SearchStats.ExactMinMax(true, lowest, highest, "long"),
+                stats.exactMinMax(new FieldAttribute.FieldName("o_alias"))
+            );
         }
     }
 
@@ -1347,7 +1353,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         try (Shard shard = shard(SKIPPER_SETTINGS, mapping, docs.stream().map(d -> skipperDocument(d)).toList(), false)) {
             SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
             assertEquals(
-                new SearchStats.ExactMinMax(true, min(docs), max(docs)),
+                new SearchStats.ExactMinMax(true, min(docs), max(docs), "long"),
                 stats.exactMinMax(new FieldAttribute.FieldName("f_alias"))
             );
         }
@@ -1357,7 +1363,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         List<List<IndexableField>> docs = List.of(List.of(), List.of());
         try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, false)) {
             SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
-            assertEquals(SearchStats.ExactMinMax.NO_VALUES, stats.exactMinMax(F));
+            assertEquals(SearchStats.ExactMinMax.noValues("long"), stats.exactMinMax(F));
         }
     }
 
@@ -1429,7 +1435,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             SearchStats stats = SearchContextStats.from(
                 List.of(pointsShard.context(this), skipperShard.context(this), otherShard.context(this))
             );
-            assertEquals(new SearchStats.ExactMinMax(true, min(all), max(all)), stats.exactMinMax(F));
+            assertEquals(new SearchStats.ExactMinMax(true, min(all), max(all), "long"), stats.exactMinMax(F));
         }
     }
 

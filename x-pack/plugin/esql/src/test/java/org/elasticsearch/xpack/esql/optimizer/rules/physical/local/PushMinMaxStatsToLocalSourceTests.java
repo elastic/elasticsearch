@@ -60,5 +60,15 @@ public class PushMinMaxStatsToLocalSourceTests extends ESTestCase {
             )
         );
         assertFalse(PushMinMaxStatsToLocalSource.readsEveryDocumentWithAValue(new MatchNoneQueryBuilder(), Set.of("a")));
+        // requiring two of the clauses to match drops the documents that hold only one of the fields
+        assertFalse(
+            PushMinMaxStatsToLocalSource.readsEveryDocumentWithAValue(
+                QueryBuilders.boolQuery()
+                    .should(QueryBuilders.existsQuery("a"))
+                    .should(QueryBuilders.existsQuery("b"))
+                    .minimumShouldMatch(2),
+                Set.of("a", "b")
+            )
+        );
     }
 }

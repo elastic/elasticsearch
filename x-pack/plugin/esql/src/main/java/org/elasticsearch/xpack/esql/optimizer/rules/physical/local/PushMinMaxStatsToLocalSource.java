@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -60,6 +61,10 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
         if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
             return aggregateExec;
         }
+        // a time series aggregation reads each series as its own, so the bounds of the whole index do not describe what it reads
+        if (aggregateExec instanceof TimeSeriesAggregateExec) {
+            return aggregateExec;
+        }
         if (aggregateExec.groupings().isEmpty() == false || aggregateExec.aggregates().isEmpty()) {
             return aggregateExec;
         }
@@ -69,8 +74,9 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
         }
         EsQueryExec queryExec = (EsQueryExec) aggregateExec.child();
 
+        // What the aggregates read, before anything is asked of the statistics: a query that narrows the documents ends it
         Set<String> fields = new HashSet<>();
-        List<SearchStats.ExactMinMax> bounds = new ArrayList<>(aggregateExec.aggregates().size());
+        List<FieldAttribute> targets = new ArrayList<>(aggregateExec.aggregates().size());
         List<Boolean> isMin = new ArrayList<>(aggregateExec.aggregates().size());
         for (NamedExpression aggregate : aggregateExec.aggregates()) {
             if (aggregate instanceof Alias == false) {
@@ -88,18 +94,23 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
             if (target instanceof FieldAttribute == false || isSupported(target.dataType()) == false) {
                 return aggregateExec;
             }
-            FieldAttribute.FieldName fieldName = ((FieldAttribute) target).fieldName();
-            SearchStats.ExactMinMax exact = context.searchStats().exactMinMax(fieldName);
-            if (exact == null) {
-                return aggregateExec;
-            }
-            fields.add(fieldName.string());
-            bounds.add(exact);
+            targets.add((FieldAttribute) target);
+            fields.add(((FieldAttribute) target).fieldName().string());
             isMin.add(function instanceof Min);
         }
-
         if (readsEveryDocumentWithAValue(queryExec.query(), fields) == false) {
             return aggregateExec;
+        }
+
+        List<SearchStats.ExactMinMax> bounds = new ArrayList<>(targets.size());
+        for (FieldAttribute target : targets) {
+            SearchStats.ExactMinMax exact = context.searchStats().exactMinMax(target.fieldName());
+            // The shards of this node map the field as one type, but the query may read it as another: a field mapped as date in
+            // one index and as date_nanos in another is read as date_nanos, whichever node a shard is on
+            if (exact == null || isReadAsMappedType(target.dataType(), exact.typeName()) == false) {
+                return aggregateExec;
+            }
+            bounds.add(exact);
         }
 
         List<Attribute> output;
@@ -152,6 +163,8 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
             return true;
         }
         if (query instanceof BoolQueryBuilder bool
+            // more than one clause required to match drops the documents that hold only one of the fields
+            && bool.minimumShouldMatch() == null
             && bool.must().isEmpty()
             && bool.filter().isEmpty()
             && bool.mustNot().isEmpty()
@@ -169,6 +182,27 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
     /** The types {@link SearchStats#exactMinMax} can answer, as the types the aggregate sees. */
     private static boolean isSupported(DataType type) {
         return type == DataType.INTEGER || type == DataType.LONG || type == DataType.DATETIME || type == DataType.DATE_NANOS;
+    }
+
+    /** Whether a field mapped as {@code mappedType} is read as {@code type} without converting its values. */
+    private static boolean isReadAsMappedType(DataType type, String mappedType) {
+        if (mappedType == null) {
+            // no shard maps the field: there are no values to convert
+            return true;
+        }
+        if (type == DataType.DATETIME) {
+            return mappedType.equals("date");
+        }
+        if (type == DataType.DATE_NANOS) {
+            return mappedType.equals("date_nanos");
+        }
+        if (type == DataType.LONG) {
+            return mappedType.equals("long");
+        }
+        if (type == DataType.INTEGER) {
+            return mappedType.equals("integer") || mappedType.equals("short") || mappedType.equals("byte");
+        }
+        return false;
     }
 
     private static Block valueBlock(BlockFactory blockFactory, DataType type, long value) {

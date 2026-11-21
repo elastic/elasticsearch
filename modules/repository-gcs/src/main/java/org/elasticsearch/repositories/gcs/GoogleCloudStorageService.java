@@ -257,21 +257,24 @@ public class GoogleCloudStorageService {
         return storageOptionsBuilder.build();
     }
 
+    /**
+     * Whether the given throwable, or one of its causes, is a transport level failure that we want to retry. The SDK's default retry
+     * classification does not cover all of these (for instance {@link UnknownHostException}, which is not a {@link SocketException}), so
+     * every code path that decides whether to retry a GCS request should use this method in addition to the SDK's own handlers.
+     */
+    static boolean isRetryableTransportFailure(Throwable throwable) {
+        return ExceptionsHelper.unwrap(throwable, UnknownHostException.class) != null
+            || ExceptionsHelper.unwrap(throwable, SocketException.class) != null
+            // TLS handshake failures are SSLExceptions, not SocketExceptions. S3 and Azure retry them too.
+            || ExceptionsHelper.unwrap(throwable, SSLException.class) != null
+            || ExceptionsHelper.unwrap(throwable, SocketTimeoutException.class) != null;
+    }
+
     protected StorageRetryStrategy getRetryStrategy() {
         return ShouldRetryDecorator.decorate(
             StorageRetryStrategy.getLegacyStorageRetryStrategy(),
             (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
-                if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
-                    return true;
-                }
-                if (ExceptionsHelper.unwrap(prevThrowable, SocketException.class) != null) {
-                    return true;
-                }
-                // TLS handshake failures are SSLExceptions, not SocketExceptions. S3 and Azure retry them too.
-                if (ExceptionsHelper.unwrap(prevThrowable, SSLException.class) != null) {
-                    return true;
-                }
-                if (ExceptionsHelper.unwrap(prevThrowable, SocketTimeoutException.class) != null) {
+                if (isRetryableTransportFailure(prevThrowable)) {
                     return true;
                 }
                 return delegate.shouldRetry(prevThrowable, prevResponse);

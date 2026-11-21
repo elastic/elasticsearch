@@ -9,6 +9,7 @@
 
 package org.elasticsearch.validation;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -19,7 +20,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.BeforeClass;
 
@@ -160,6 +163,75 @@ public class DotPrefixValidatorTests extends ESTestCase {
         assertSecondIndexFails(List.of(".test-system-index", ".not-a-system-index"));
     }
 
+    public void testProductOriginHeaderSuppressesDeprecation() {
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        context.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+        var validator = new ThreadContextValidator<>(context, statefulClusterService);
+        MockLog.assertThatLogger(
+            () -> validator.validateIndices(Set.of(".regular")),
+            DotPrefixValidator.class,
+            new MockLog.UnseenEventExpectation("no warning", DotPrefixValidator.class.getCanonicalName(), Level.WARN, "*")
+        );
+        assertWarnings(); // no deprecation warning for Elastic products
+    }
+
+    public void testProductOriginHeaderLogsWarningInStateless() {
+        // The header is user-controlled and must not bypass enforcement in stateless mode. For now, a warning is logged
+        // rather than rejecting the request, until we are certain no Elastic product relies on it.
+        ThreadContext context = new ThreadContext(Settings.EMPTY);
+        context.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+        var validator = new ThreadContextValidator<>(context, statelessClusterService);
+        MockLog.assertThatLogger(
+            () -> validator.validateIndices(Set.of(".regular", ".test-system-index", ".potato5", "regular")),
+            DotPrefixValidator.class,
+            new MockLog.SeenEventExpectation(
+                "warning for .regular",
+                DotPrefixValidator.class.getCanonicalName(),
+                Level.WARN,
+                "Index [.regular] name beginning with a dot (.) is allowed only because of the [X-elastic-product-origin] header [kibana]; "
+                    + "this will be rejected in the future"
+            ),
+            new MockLog.UnseenEventExpectation(
+                "no warning for exempt indices",
+                DotPrefixValidator.class.getCanonicalName(),
+                Level.WARN,
+                "Index [*test-system-index*"
+            ),
+            new MockLog.UnseenEventExpectation(
+                "no warning for ignored patterns",
+                DotPrefixValidator.class.getCanonicalName(),
+                Level.WARN,
+                "Index [.potato5]*"
+            )
+        );
+
+        // without the header, the request is still rejected
+        var noHeaderValidator = new ThreadContextValidator<>(new ThreadContext(Settings.EMPTY), statelessClusterService);
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> noHeaderValidator.validateIndices(Set.of(".regular"))
+        );
+        assertThat(error.getMessage(), containsString("name beginning with a dot (.) is not allowed"));
+    }
+
+    public void testInternalRequestsAreExempt() {
+        Set<String> indices = Set.of(".regular");
+        for (ClusterService clusterService : List.of(statefulClusterService, statelessClusterService)) {
+            ThreadContext operatorContext = new ThreadContext(Settings.EMPTY);
+            operatorContext.putHeader("_security_privilege_category", "operator");
+            new ThreadContextValidator<>(operatorContext, clusterService).validateIndices(indices);
+
+            ThreadContext originContext = new ThreadContext(Settings.EMPTY);
+            originContext.putTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME, "test");
+            new ThreadContextValidator<>(originContext, clusterService).validateIndices(indices);
+
+            ThreadContext systemContext = new ThreadContext(Settings.EMPTY);
+            systemContext.markAsSystemContext();
+            new ThreadContextValidator<>(systemContext, clusterService).validateIndices(indices);
+        }
+        assertWarnings();
+    }
+
     private void assertFails(Set<String> indices) {
         /*
          * This method asserts the key difference between stateful and stateless mode -- statful just logs a deprecation warning, while
@@ -240,6 +312,22 @@ public class DotPrefixValidatorTests extends ESTestCase {
         @Override
         boolean isInternalRequest() {
             return false;
+        }
+    }
+
+    private static class ThreadContextValidator<R> extends DotPrefixValidator<R> {
+        private ThreadContextValidator(ThreadContext threadContext, ClusterService clusterService) {
+            super(threadContext, clusterService, systemIndices);
+        }
+
+        @Override
+        protected Set<String> getIndicesFromRequest(Object request) {
+            return Set.of();
+        }
+
+        @Override
+        public String actionName() {
+            return "";
         }
     }
 

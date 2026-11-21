@@ -288,6 +288,147 @@ public class CaseExtraTests extends ESTestCase {
         assertThat("partiallyFold must preserve the Case's declared type, not null[NULL]", result.dataType(), equalTo(DataType.KEYWORD));
     }
 
+    public void testPartialFoldRemainingArmsAllNullAfterDroppingFalse() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("a"), DataType.KEYWORD),
+                field("cond", DataType.BOOLEAN),
+                new Literal(Source.EMPTY, null, DataType.NULL)
+            )
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        assertThat(
+            c.partiallyFold(FoldContext.small()),
+            equalToIgnoringIds(
+                new Case(
+                    Source.synthetic("case"),
+                    field("cond", DataType.BOOLEAN),
+                    List.of(new Literal(Source.EMPTY, null, DataType.KEYWORD))
+                )
+            )
+        );
+    }
+
+    public void testPartialFoldRemainingArmsAllNullWithExplicitElse() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("a"), DataType.KEYWORD),
+                field("cond", DataType.BOOLEAN),
+                new Literal(Source.EMPTY, null, DataType.NULL),
+                new Literal(Source.EMPTY, null, DataType.NULL)
+            )
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        assertThat(
+            c.partiallyFold(FoldContext.small()),
+            equalToIgnoringIds(
+                new Case(
+                    Source.synthetic("case"),
+                    field("cond", DataType.BOOLEAN),
+                    List.of(new Literal(Source.EMPTY, null, DataType.KEYWORD), new Literal(Source.EMPTY, null, DataType.KEYWORD))
+                )
+            )
+        );
+    }
+
+    public void testPartialFoldRemainingArmsAllNullAfterTrue() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            field("cond", DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, null, DataType.NULL),
+                new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, null, DataType.NULL),
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("b"), DataType.KEYWORD)
+            )
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        assertThat(
+            c.partiallyFold(FoldContext.small()),
+            equalToIgnoringIds(
+                new Case(
+                    Source.synthetic("case"),
+                    field("cond", DataType.BOOLEAN),
+                    List.of(new Literal(Source.EMPTY, null, DataType.KEYWORD), new Literal(Source.EMPTY, null, DataType.KEYWORD))
+                )
+            )
+        );
+    }
+
+    public void testPartialFoldRetypesNullNextToTypedValue() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("a"), DataType.KEYWORD),
+                field("first_cond", DataType.BOOLEAN),
+                new Literal(Source.EMPTY, null, DataType.NULL),
+                field("second_cond", DataType.BOOLEAN),
+                field("second", DataType.KEYWORD)
+            )
+        );
+        assertThat(
+            c.partiallyFold(FoldContext.small()),
+            equalToIgnoringIds(
+                new Case(
+                    Source.synthetic("case"),
+                    field("first_cond", DataType.BOOLEAN),
+                    List.of(
+                        new Literal(Source.EMPTY, null, DataType.KEYWORD),
+                        field("second_cond", DataType.BOOLEAN),
+                        field("second", DataType.KEYWORD)
+                    )
+                )
+            )
+        );
+    }
+
+    public void testPartialFoldNullTypedCaseKeepsNullValues() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, null, DataType.NULL),
+                field("cond", DataType.BOOLEAN),
+                new Literal(Source.EMPTY, null, DataType.NULL)
+            )
+        );
+        assertThat(c.dataType(), equalTo(DataType.NULL));
+        assertThat(
+            c.partiallyFold(FoldContext.small()),
+            equalToIgnoringIds(
+                new Case(Source.synthetic("case"), field("cond", DataType.BOOLEAN), List.of(new Literal(Source.EMPTY, null, DataType.NULL)))
+            )
+        );
+    }
+
+    public void testPartialFoldDoesNotRetypeNullCondition() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("a"), DataType.KEYWORD),
+                field("null_cond", DataType.NULL),
+                new Literal(Source.EMPTY, null, DataType.NULL),
+                field("else", DataType.KEYWORD)
+            )
+        );
+        assertThat(
+            c.partiallyFold(FoldContext.small()),
+            equalToIgnoringIds(
+                new Case(
+                    Source.synthetic("case"),
+                    field("null_cond", DataType.NULL),
+                    List.of(new Literal(Source.EMPTY, null, DataType.KEYWORD), field("else", DataType.KEYWORD))
+                )
+            )
+        );
+    }
+
     public void testPartialFoldLastAfterKeepingUnknown() {
         Case c = new Case(
             Source.synthetic("case"),

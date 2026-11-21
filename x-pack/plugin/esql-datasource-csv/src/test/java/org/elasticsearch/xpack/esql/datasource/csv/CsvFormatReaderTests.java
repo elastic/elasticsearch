@@ -12558,11 +12558,14 @@ public class CsvFormatReaderTests extends ESTestCase {
      * {@code splitIncludesFileLeader && segmentIndex == 0}, so a non-zero base offset is ordinary there --
      * it is every later macro-split -- and the cell needs the leader flag set beside it.
      * {@code StreamingParallelParsingCoordinator.parseChunk} takes {@code chunk.index == 0} and consults no
-     * leader flag at all, so for that one a non-zero base offset is enough on its own, and what holds the
-     * invariant is its callers: the quoted-uncompressed dispatch in
-     * {@code AsyncExternalSourceOperatorFactory} throws unless the base offset is zero. A change to how
-     * splits are built is checked against whichever of those two guards applies, not against the producer
-     * named above.
+     * leader flag at all, so for that one a non-zero base offset is enough on its own, and nothing inside the
+     * coordinator holds the invariant -- it rests wholly on whoever calls {@code parallelRead}. Production
+     * calls it twice, both in {@code AsyncExternalSourceOperatorFactory.openWithParallelism}, and only one of
+     * them looks at the offset: the quoted-uncompressed arm throws unless it is zero, while the
+     * {@code STREAM_ONLY_COMPRESSED} arm passes {@code baseFileOffset} straight through. So a change to how
+     * splits are built is checked at the guard that applies -- {@code readSegment}'s leader-and-index pair,
+     * or that one explicit throw -- and at the second streaming call, which has no guard to fail. Not
+     * against the producer named above.
      */
     public void testTheFirstSplitOfABlockAlignedObjectNeedsNoWindowClause() throws IOException {
         List<Attribute> schema = splitSchema();

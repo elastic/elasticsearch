@@ -1429,8 +1429,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     /**
      * The {@code LOAD_ALL} counterpart of {@link #testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoad}: only {@code salary} is
-     * referenced, so every other unmapped {@code _source} key lands in the {@code _unmapped_fields} object. An FLS-denied field must
-     * not be one of them. {@code fls_deny_value_org_user} is denied the mapped {@code value} and the unmapped {@code org}, so neither
+     * referenced, so it is a column, and every unmapped {@code _source} key, {@code salary} included, lands in the
+     * {@code _unmapped_fields} object. An FLS-denied field must not be one of them. {@code fls_deny_value_org_user} is denied the mapped {@code value} and the unmapped {@code org}, so neither
      * may show up, while the admin running the same query sees both.
      */
     public void testFieldLevelSecurityFieldDeniedWithUnmappedFieldsLoadAll() throws Exception {
@@ -1450,8 +1450,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 .entry(
                     "values",
                     List.of(
-                        List.of(10.0, "100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "org", "sales")),
-                        List.of(20.0, "200000", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering"))
+                        List.of(10.0, "100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "org", "sales", "salary", 100000)),
+                        List.of(
+                            20.0,
+                            "200000",
+                            Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering", "salary", 200000)
+                        )
                     )
                 )
         );
@@ -1465,8 +1469,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 .entry(
                     "values",
                     List.of(
-                        List.of("100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1")),
-                        List.of("200000", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2"))
+                        List.of("100000", Map.of("hire_date", "2024-01-01", "ip_addr", "10.0.0.1", "salary", 100000)),
+                        List.of("200000", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "salary", 200000))
                     )
                 )
         );
@@ -1539,7 +1543,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 .entry("columns", List.of(column("value", "double"), column("org", "keyword"), unmappedFieldsColumn()))
                 .entry(
                     "values",
-                    List.of(List.of(20.0, "engineering", Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "salary", 200000)))
+                    List.of(
+                        List.of(
+                            20.0,
+                            "engineering",
+                            Map.of("hire_date", "2023-06-15", "ip_addr", "10.0.0.2", "org", "engineering", "salary", 200000)
+                        )
+                    )
                 )
         );
 
@@ -1762,7 +1772,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             adminResult.columnNames(),
             containsInAnyOrder("_index", "value", "org", "salary", "hire_date", "ip_addr", "_unmapped_fields")
         );
-        assertThat(adminResult.unmappedFieldNames(), equalTo(Set.of("profile.public_id", "profile.ssn", "secret_note", "tags")));
+        // org is mapped on the full-mapping index only, so the unmapped index keeps its key.
+        assertThat(adminResult.unmappedFieldNames(), equalTo(Set.of("org", "profile.public_id", "profile.ssn", "secret_note", "tags")));
 
         Response resp = runESQLCommand("fls_unmapped_load_all_per_index_access_user", query);
         assertOK(resp);
@@ -1831,9 +1842,20 @@ public class EsqlSecurityIT extends ESRestTestCase {
             result.values("_unmapped_fields"),
             equalTo(
                 List.of(
-                    Map.of("profile.ssn", "111-11-1111", "tags", List.of("red", "blue")),
-                    Map.of("profile.ssn", "222-22-2222", "secret_note", "quarterly-forecast", "tags", "green"),
-                    Map.of("profile.ssn", "333-33-3333", "tags", "yellow")
+                    Map.of("org", "sales", "profile.public_id", "p1", "profile.ssn", "111-11-1111", "tags", List.of("red", "blue")),
+                    Map.of(
+                        "org",
+                        "engineering",
+                        "profile.public_id",
+                        "p2",
+                        "profile.ssn",
+                        "222-22-2222",
+                        "secret_note",
+                        "quarterly-forecast",
+                        "tags",
+                        "green"
+                    ),
+                    Map.of("org", "marketing", "profile.public_id", "p3", "profile.ssn", "333-33-3333", "tags", "yellow")
                 )
             )
         );
@@ -1971,7 +1993,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertOK(resp);
             EsqlResult result = esqlResult(resp);
             assertThat(result.columnNames(), containsInAnyOrder("value", "org", "_unmapped_fields"));
-            assertThat(result.unmappedFieldNames(), equalTo(Set.of("profile.public_id", "profile.ssn", "secret_note", "tags")));
+            // org is the join key, which the query names, and it keeps its key.
+            assertThat(result.unmappedFieldNames(), equalTo(Set.of("org", "profile.public_id", "profile.ssn", "secret_note", "tags")));
         }
     }
 

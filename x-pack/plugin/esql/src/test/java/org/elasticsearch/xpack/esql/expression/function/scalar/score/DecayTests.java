@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.script.ScoreScriptUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -23,9 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -44,7 +45,6 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public class DecayTests extends AbstractScalarFunctionTestCase {
@@ -254,6 +254,9 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         testCaseSuppliers.addAll(
             cartesianPointTestCase("POINT (1000.0 2000.0)", "POINT (0 0)", 10000.0, null, null, null, 0.8881966011250104)
         );
+
+        // CartesianPoint random
+        testCaseSuppliers.addAll(cartesianPointRandomTestCases());
 
         // Datetime Linear
         testCaseSuppliers.addAll(
@@ -646,6 +649,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        testCaseSuppliers.addAll(distanceEqualToScaleTestCases());
+
         return parameterSuppliersFromTypedData(testCaseSuppliers);
     }
 
@@ -853,13 +858,11 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 double randomDecay = randomDecayOpenUnitInterval();
                 String randomType = randomFrom("linear", "gauss", "exp");
 
-                double scoreScriptNumericResult = unsignedLongDecayWithScoreScript(
-                    randomValue,
-                    randomOrigin,
-                    randomScale,
-                    randomOffset,
-                    randomDecay,
-                    randomType
+                double expected = referenceDecay(
+                    randomType,
+                    referenceDistance(randomValueBig, randomOriginBig, randomOffsetBig),
+                    randomScaleBig.doubleValue(),
+                    randomDecay
                 );
 
                 return new TestCaseSupplier.TestCase(
@@ -875,39 +878,32 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayUnsignedLongEvaluator["),
                     DataType.DOUBLE,
-                    equalTo(scoreScriptNumericResult)
+                    decayValueMatcher(expected)
                 );
             })
         );
     }
 
-    private static double unsignedLongDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
-        var valueUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(value);
-        var originUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(origin);
-        var scaleUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(scale);
-        var offsetUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(offset);
-
+    /**
+     * The expected score from the decay formulas in the {@code function_score} docs, written independently of the
+     * production code: linear {@code 1 - (1 - decay) * d / scale} floored at 0, exp {@code decay ^ (d / scale)} and
+     * gauss {@code decay ^ ((d / scale) ^ 2)}, where {@code d} is the distance minus the offset, floored at 0.
+     */
+    private static double referenceDecay(String type, double distance, double scale, double decay) {
+        double ratio = distance / scale;
         return switch (type) {
-            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(
-                originUnsignedLongAsDouble,
-                scaleUnsignedLongAsDouble,
-                offsetUnsignedLongAsDouble,
-                decay
-            ).decayNumericLinear(valueUnsignedLongAsDouble);
-            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(
-                originUnsignedLongAsDouble,
-                scaleUnsignedLongAsDouble,
-                offsetUnsignedLongAsDouble,
-                decay
-            ).decayNumericGauss(valueUnsignedLongAsDouble);
-            case "exp" -> new ScoreScriptUtils.DecayNumericExp(
-                originUnsignedLongAsDouble,
-                scaleUnsignedLongAsDouble,
-                offsetUnsignedLongAsDouble,
-                decay
-            ).decayNumericExp(valueUnsignedLongAsDouble);
+            case "linear" -> Math.max(0.0, 1.0 - (1.0 - decay) * ratio);
+            case "exp" -> Math.pow(decay, ratio);
+            case "gauss" -> Math.pow(decay, ratio * ratio);
             default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
         };
+    }
+
+    /**
+     * The exact distance minus the offset, floored at 0, before any rounding to a double.
+     */
+    private static double referenceDistance(BigInteger value, BigInteger origin, BigInteger offset) {
+        return value.subtract(origin).abs().subtract(offset).max(BigInteger.ZERO).doubleValue();
     }
 
     private static List<TestCaseSupplier> doubleTestCase(
@@ -1312,13 +1308,15 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 double randomDecay = randomDecayOpenUnitInterval();
                 String randomType = randomFrom("linear", "gauss", "exp");
 
-                double scoreScriptNumericResult = longDecayWithScoreScript(
-                    randomValue,
-                    randomOrigin,
+                double expected = referenceDecay(
+                    randomType,
+                    referenceDistance(
+                        BigInteger.valueOf(randomValue),
+                        BigInteger.valueOf(randomOrigin),
+                        BigInteger.valueOf(randomOffset.toNanos())
+                    ),
                     randomScale.toNanos(),
-                    randomOffset.toNanos(),
-                    randomDecay,
-                    randomType
+                    randomDecay
                 );
 
                 return new TestCaseSupplier.TestCase(
@@ -1331,7 +1329,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                     ),
                     startsWith("DecayDateNanosEvaluator["),
                     DataType.DOUBLE,
-                    decayValueMatcher(scoreScriptNumericResult)
+                    decayValueMatcher(expected)
                 );
             })
         );
@@ -1405,11 +1403,91 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return new MapExpression(Source.EMPTY, keyValuePairs);
     }
 
-    private static Matcher<Double> decayValueMatcher(Double value) {
-        if (value == Double.POSITIVE_INFINITY || value == Double.NEGATIVE_INFINITY) {
-            return equalTo(value);
-        }
+    /**
+     * Relative tolerance of 1e-9, with an absolute floor for results near 0 where both sides round differently.
+     */
+    private static Matcher<Double> decayValueMatcher(double value) {
+        return closeTo(value, Math.max(1e-9 * Math.abs(value), 1e-12));
+    }
 
-        return closeTo(BigDecimal.valueOf(value).setScale(4, RoundingMode.CEILING).doubleValue(), 0.001);
+    private static List<TestCaseSupplier> cartesianPointRandomTestCases() {
+        return List.of(
+            new TestCaseSupplier(List.of(DataType.CARTESIAN_POINT, DataType.CARTESIAN_POINT, DataType.DOUBLE, DataType.SOURCE), () -> {
+                Point randomValue = new Point(randomDoubleBetween(-1000, 1000, true), randomDoubleBetween(-1000, 1000, true));
+                Point randomOrigin = new Point(randomDoubleBetween(-1000, 1000, true), randomDoubleBetween(-1000, 1000, true));
+                double randomScale = randomDoubleBetween(1, 1000, true);
+                double randomOffset = randomDoubleBetween(0, 1000, true);
+                double randomDecay = randomDecayOpenUnitInterval();
+                String randomType = randomDecayType();
+
+                double distance = Math.hypot(randomValue.getX() - randomOrigin.getX(), randomValue.getY() - randomOrigin.getY());
+                double expected = referenceDecay(randomType, Math.max(0.0, distance - randomOffset), randomScale, randomDecay);
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(CARTESIAN.asWkb(randomValue), DataType.CARTESIAN_POINT, "value"),
+                        new TestCaseSupplier.TypedData(CARTESIAN.asWkb(randomOrigin), DataType.CARTESIAN_POINT, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(randomScale, DataType.DOUBLE, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
+                            .forceLiteral()
+                    ),
+                    startsWith("DecayCartesianPointEvaluator["),
+                    DataType.DOUBLE,
+                    decayValueMatcher(expected)
+                );
+            })
+        );
+    }
+
+    /**
+     * At a distance equal to the scale every decay type returns exactly the {@code decay} option, for every value type.
+     */
+    private static List<TestCaseSupplier> distanceEqualToScaleTestCases() {
+        long origin = LocalDateTime.of(2023, 1, 1, 0, 0, 0).atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
+        Duration day = Duration.ofDays(1);
+        long value = origin + day.toMillis();
+        String oneDegreeAtEquator = GeoDistance.ARC.calculate(0, 0, 0, 1, DistanceUnit.METERS) + "m";
+        BytesRef cartesianValue = CARTESIAN.wktToWkb("POINT (20 0)");
+        BytesRef cartesianOrigin = CARTESIAN.wktToWkb("POINT (10 0)");
+        BytesRef geoValue = GEO.wktToWkb("POINT (1 0)");
+        BytesRef geoOrigin = GEO.wktToWkb("POINT (0 0)");
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (String type : List.of("linear", "exp", "gauss")) {
+            suppliers.add(atScale(type, DataType.INTEGER, 20, 10, DataType.INTEGER, 10));
+            suppliers.add(atScale(type, DataType.LONG, 20L, 10L, DataType.LONG, 10L));
+            suppliers.add(atScale(type, DataType.UNSIGNED_LONG, ul(20), ul(10), DataType.UNSIGNED_LONG, ul(10)));
+            suppliers.add(atScale(type, DataType.DOUBLE, 20.0, 10.0, DataType.DOUBLE, 10.0));
+            suppliers.add(atScale(type, DataType.CARTESIAN_POINT, cartesianValue, cartesianOrigin, DataType.DOUBLE, 10.0));
+            suppliers.add(atScale(type, DataType.GEO_POINT, geoValue, geoOrigin, DataType.KEYWORD, oneDegreeAtEquator));
+            suppliers.add(atScale(type, DataType.DATETIME, value, origin, DataType.TIME_DURATION, day));
+            suppliers.add(atScale(type, DataType.DATE_NANOS, value * 1_000_000L, origin * 1_000_000L, DataType.TIME_DURATION, day));
+        }
+        return suppliers;
+    }
+
+    private static TestCaseSupplier atScale(
+        String type,
+        DataType valueType,
+        Object value,
+        Object origin,
+        DataType scaleType,
+        Object scale
+    ) {
+        double decay = 0.3;
+        return new TestCaseSupplier(
+            type + " at scale for " + valueType.typeName(),
+            List.of(valueType, valueType, scaleType, DataType.SOURCE),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(value, valueType, "value"),
+                    new TestCaseSupplier.TypedData(origin, valueType, "origin").forceLiteral(),
+                    new TestCaseSupplier.TypedData(scale, scaleType, "scale").forceLiteral(),
+                    new TestCaseSupplier.TypedData(createOptionsMap(null, decay, type), DataType.SOURCE, "options").forceLiteral()
+                ),
+                startsWith("Decay"),
+                DataType.DOUBLE,
+                closeTo(decay, 1e-12)
+            )
+        );
     }
 }

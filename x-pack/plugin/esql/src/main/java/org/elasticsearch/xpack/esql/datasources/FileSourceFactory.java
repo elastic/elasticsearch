@@ -721,6 +721,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                     .maxRecordBytes(context.maxRecordBytes())
                     .statsStripeSize(ExternalSourceCacheSettings.STRIPE_SIZE.get(settings).getBytes())
                     .statsColumnScope(ExternalSourceCacheSettings.STRIPE_COLUMNS.get(settings))
+                    .statsMaxExtremumBytes(Math.toIntExact(ExternalSourceCacheSettings.STATS_MAX_EXTREMUM_SIZE.get(settings).getBytes()))
                     .streamingSegmentatorAdmission(segmentatorAdmission)
                     .formatReaderRegistry(formatRegistry)
                     .registryPrototype(prototype)

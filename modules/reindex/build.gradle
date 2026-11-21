@@ -24,6 +24,8 @@ dependencies {
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
+  // for the multi-project resolver that, like in production, refuses to set a project while one is already set in the thread context
+  testImplementation project(':test:external-modules:test-multi-project')
   // for data stream integration tests
   internalClusterTestImplementation project(':modules:data-streams')
   // registers reindex relocation and pit search node features

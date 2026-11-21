@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -625,6 +626,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      * or an empty line where there is no object name, while the warning says what it always said. A
      * {@code containsString} on the byte count cannot see that, since the count is one of the parts dropped.
      */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasource.ndjson.TrimLastPartialLineInputStream:INFO",
+        reason = "the discard is an info line, and this asserts it names the object and both sizes"
+    )
     public void testTheDiscardIsLoggedWithTheObjectAndTheSizes() {
         int maxRecordBytes = 8;
         MockLog.assertThatLogger(

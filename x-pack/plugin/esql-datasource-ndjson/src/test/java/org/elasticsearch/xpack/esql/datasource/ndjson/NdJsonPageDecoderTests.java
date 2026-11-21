@@ -25,6 +25,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -1239,6 +1240,10 @@ public class NdJsonPageDecoderTests extends ESTestCase {
      * overload that reads the description as the pattern, and the formatter then returns that description by
      * itself -- which a match on the row or the kind alone would still accept.
      */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonPageDecoder:INFO",
+        reason = "the dropped-line diagnostic is an info line, and this asserts the parser text in it is escaped"
+    )
     public void testTheDroppedLineIsLoggedWithTheParserTextEscaped() {
         String ndjson = "{\"v\":1}\n{\"a\\nb\":2,\"a\\nb\":3}\n";
         MockLog.assertThatLogger(

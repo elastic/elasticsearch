@@ -11,6 +11,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
@@ -35,7 +38,8 @@ import java.util.List;
  * Evaluates reads and rewrites of labels in a typed label container. The label container is the canonical JSON object
  * {@code TimeSeriesMetadataConverter} loads - labels sorted by name - so every operation streams over it: a read stops at its label,
  * and a rewrite copies the labels it keeps in their order, writing a set label at its sorted position, which keeps the
- * result canonical. Label names are folded once.
+ * result canonical. Label names are folded once. A label container loads once per series and page, so a page holds it
+ * dictionary encoded, and an operation that depends on the label container alone runs once per dictionary entry.
  */
 public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEvaluator {
     enum Operation {
@@ -82,7 +86,52 @@ public final class TimeSeriesMetadataFunctionEvaluator implements ExpressionEval
     @Override
     public Block eval(Page page) {
         try (Block block = labelContainer.eval(page); Block values = value == null ? null : value.eval(page)) {
+            OrdinalBytesRefVector dictionary = dictionaryEncoded(block, (BytesRefBlock) values);
+            if (dictionary != null) {
+                return evalDictionary(dictionary, (BytesRefBlock) values);
+            }
             return eval(page.getPositionCount(), block, (BytesRefBlock) values);
+        }
+    }
+
+    /**
+     * The label containers of {@code block} as a dense dictionary, or null when the result is not a function of the dictionary
+     * entries alone: a null label container, which a rewrite turns into a label container, or a written value that changes from
+     * row to row. A page holds the label containers of a time-series aggregate dictionary encoded, one entry per series.
+     */
+    private static @Nullable OrdinalBytesRefVector dictionaryEncoded(Block block, @Nullable BytesRefBlock values) {
+        BytesRefVector vector = block instanceof BytesRefBlock containers ? containers.asVector() : null;
+        OrdinalBytesRefVector dictionary = vector == null ? null : vector.asOrdinals();
+        if (dictionary == null || dictionary.isDense() == false) {
+            return null;
+        }
+        if (values != null
+            && values.areAllValuesNull() == false
+            && (values.asVector() == null || values.asVector().isConstant() == false)) {
+            return null;
+        }
+        return dictionary;
+    }
+
+    /**
+     * Evaluates once per entry of {@code dictionary} rather than once per row. When every entry gives one value, the result is a
+     * dictionary over the same ordinals; when one gives none or several, as a read of an absent label or of a label of several
+     * values does, the values per entry are copied out to the rows.
+     */
+    private Block evalDictionary(OrdinalBytesRefVector dictionary, @Nullable BytesRefBlock values) {
+        BytesRefVector entries = dictionary.getDictionaryVector();
+        // A constant value holds the same at every position, and a dense dictionary has fewer entries than the page has rows.
+        try (BytesRefBlock perEntry = (BytesRefBlock) eval(entries.getPositionCount(), entries.asBlock(), values)) {
+            IntVector ordinals = dictionary.getOrdinalsVector();
+            BytesRefVector single = perEntry.asVector();
+            if (single != null) {
+                ordinals.incRef();
+                single.incRef();
+                return new OrdinalBytesRefVector(ordinals, single).asBlock();
+            }
+            int[] rows = new int[ordinals.getPositionCount()];
+            ordinals.copyTo(0, rows, 0, rows.length);
+            return perEntry.filter(true, rows, 0, rows.length);
         }
     }
 

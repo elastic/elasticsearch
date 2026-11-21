@@ -45,8 +45,7 @@ public class CoordinationDiagnosticsResultWireSerializingTests extends AbstractW
 
     @Override
     protected CoordinationDiagnosticsResult mutateInstance(CoordinationDiagnosticsResult instance) throws IOException {
-        // Since CoordinationDiagnosticsResult is a record, we don't need to check for equality
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 
     private DiscoveryNode randomDiscoveryNode() {

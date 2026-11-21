@@ -150,7 +150,6 @@ public class ClusterFormationStateWireSerializingTests extends AbstractWireSeria
     protected ClusterFormationFailureHelper.ClusterFormationState mutateInstance(
         ClusterFormationFailureHelper.ClusterFormationState instance
     ) {
-        // Since ClusterFormationState is a record, we don't need to check for equality
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 }

@@ -28,8 +28,7 @@ public class StatusInfoWireSerializingTests extends AbstractWireSerializingTestC
 
     @Override
     protected StatusInfo mutateInstance(StatusInfo instance) throws IOException {
-        // Since StatusInfo is a record, we don't need to check for equality
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 
     public void testNullStatusIsRejected() {

@@ -44,7 +44,7 @@ public class TrainedModelPrefixStringsTests extends AbstractXContentSerializingT
 
     @Override
     protected TrainedModelPrefixStrings mutateInstance(TrainedModelPrefixStrings instance) throws IOException {
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 
     @Override

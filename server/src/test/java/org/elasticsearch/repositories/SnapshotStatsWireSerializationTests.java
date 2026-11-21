@@ -31,8 +31,7 @@ public class SnapshotStatsWireSerializationTests extends AbstractWireSerializing
 
     @Override
     protected RepositoriesStats.SnapshotStats mutateInstance(RepositoriesStats.SnapshotStats instance) throws IOException {
-        // Since SnapshotStats is a record, we don't need to check for equality
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 
     /**

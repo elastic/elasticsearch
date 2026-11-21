@@ -36,7 +36,6 @@ public class RelocationOriginWireSerializingTests extends AbstractWireSerializin
 
     @Override
     protected ResumeInfo.RelocationOrigin mutateInstance(ResumeInfo.RelocationOrigin instance) throws IOException {
-        // RelocationOrigin is a record so instance based equality doesn't need to be tested
-        return null;
+        throw new AssertionError("No need to check instance equality for records");
     }
 }

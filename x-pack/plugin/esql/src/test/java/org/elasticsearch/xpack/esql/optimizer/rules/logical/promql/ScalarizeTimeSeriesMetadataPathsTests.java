@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
@@ -164,6 +165,26 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
 
         assertThat(reads(plan), empty());
         assertEquals(pod, valueOf(plan, "copy"));
+    }
+
+    /**
+     * A label written as the text of a column that isn't a string reads as that text: no such text is empty, so the write
+     * keeps all of it. The text is computed once, where the column is, and carried up.
+     */
+    public void testReadOfALabelWrittenAsText() {
+        Alias labels = labels();
+        TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, shard);
+        Expression text = new ToString(SOURCE, shard, EsqlTestUtils.TEST_CFG);
+        Alias written = new Alias(
+            SOURCE,
+            "written",
+            new TimeSeriesMetadataSet(SOURCE, Literal.keyword(SOURCE, "{}"), Literal.keyword(SOURCE, "shard"), text)
+        );
+        Eval writes = new Eval(SOURCE, aggregate, List.of(written));
+        LogicalPlan plan = scalarize(new Eval(SOURCE, writes, List.of(read("shard", written.toAttribute(), "shard"))));
+
+        assertThat(reads(plan), empty());
+        assertEquals(text, valueOf(plan, "shard"));
     }
 
     /** A filter keeping labels keeps their reads; any other label is left out. */

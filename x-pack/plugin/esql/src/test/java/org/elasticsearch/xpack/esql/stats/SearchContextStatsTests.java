@@ -1332,6 +1332,92 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         assertFalse(SearchContextStats.from(List.of(without)).isQueryable(kw, DataType.KEYWORD, false));
     }
 
+    /** Nested queries compare the child doc values, not a copy of all the children on the parent. */
+    public void testNestedChildQueryEligibility() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "price": { "type": "long" },
+              "sku": { "type": "keyword" },
+              "normalized": { "type": "keyword", "normalizer": "lowercase" },
+              "source_only": { "type": "long", "doc_values": false },
+              "note": { "type": "text" }
+            } } } } }""");
+        SearchStats stats = SearchContextStats.from(List.of(mapped));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.LONG));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.sku"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.normalized"), DataType.KEYWORD));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.source_only"), DataType.LONG));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.note"), DataType.TEXT));
+    }
+
+    public void testNestedQueriesAreAllowedOnlyWhenEveryShardAllowsExpensiveQueries() throws IOException {
+        SearchExecutionContext allowed = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": { "price": { "type": "long" } } } } } }""");
+        SearchExecutionContext refused = new SearchExecutionContext(allowed) {
+            @Override
+            public boolean allowExpensiveQueries() {
+                return false;
+            }
+        };
+
+        assertTrue(SearchContextStats.from(List.of(allowed)).nestedQueriesAllowed());
+        assertFalse(SearchContextStats.from(List.of(refused)).nestedQueriesAllowed());
+        assertFalse(SearchContextStats.from(List.of(allowed, refused)).nestedQueriesAllowed());
+    }
+
+    /** A runtime field under a nested path is read from the parent document, so a query on the child cannot match what is read. */
+    public void testNestedRuntimeChildIsNotQueryable() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": {
+              "runtime": { "items.calc": { "type": "long" } },
+              "properties": { "items": { "type": "nested", "properties": {
+                "price": { "type": "long" }
+              } } } } }""");
+        SearchStats stats = SearchContextStats.from(List.of(mapped));
+        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.price"), DataType.LONG));
+        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.calc"), DataType.LONG));
+    }
+
+    public void testNestedChildThatIsARuntimeFieldOnOneShardIsNotQueryable() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "calc": { "type": "long" }
+            } } } } }""");
+        SearchExecutionContext runtime = statsContext("""
+            { "doc": {
+              "runtime": { "items.calc": { "type": "long" } },
+              "properties": { "items": { "type": "nested", "properties": {
+                "price": { "type": "long" }
+              } } } } }""");
+        var field = new FieldAttribute.FieldName("items.calc");
+        assertTrue(SearchContextStats.from(List.of(mapped)).nestedFieldIsQueryable(field, DataType.LONG));
+        assertFalse(SearchContextStats.from(List.of(mapped, runtime)).nestedFieldIsQueryable(field, DataType.LONG));
+    }
+
+    /** One incompatible shard must prevent a node-wide prefilter; an entirely unmapped collection is harmless. */
+    public void testNestedChildQueryEligibilityAcrossShards() throws IOException {
+        SearchExecutionContext mapped = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "sku": { "type": "keyword" }
+            } } } } }""");
+        SearchExecutionContext normalized = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "sku": { "type": "keyword", "normalizer": "lowercase" }
+            } } } } }""");
+        SearchExecutionContext missingField = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": {
+              "other": { "type": "long" }
+            } } } } }""");
+        SearchExecutionContext unmapped = statsContext("""
+            { "doc": { "properties": { "id": { "type": "keyword" } } } }""");
+        var field = new FieldAttribute.FieldName("items.sku");
+        assertTrue(SearchContextStats.from(List.of(mapped, unmapped)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(mapped, normalized)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(mapped, missingField)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+        assertFalse(SearchContextStats.from(List.of(unmapped)).nestedFieldIsQueryable(field, DataType.KEYWORD));
+    }
+
     private static boolean isQueryable(SearchExecutionContext context, String field, DataType type) {
         return SearchContextStats.isQueryable(context, field, type, false);
     }

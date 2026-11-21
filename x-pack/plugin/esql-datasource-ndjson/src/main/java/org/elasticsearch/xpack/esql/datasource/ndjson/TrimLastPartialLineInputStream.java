@@ -286,7 +286,11 @@ final class TrimLastPartialLineInputStream extends InputStream {
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
             LoggerMessageFormat.format(
-                "Skipping NDJSON line of about [{}] bytes over [{}] at a split boundary ({})",
+                // The object goes in the log line as well as in the warning: an operator reading the log over a
+                // glob otherwise cannot tell which object a discard came from, and the two channels report the
+                // same event. Already reduced, like every other use of this field.
+                "Skipping NDJSON line{} of about [{}] bytes over [{}] at a split boundary ({})",
+                objectClause,
                 discardedBytes,
                 recordSplitter.maxRecordBytes(),
                 kind

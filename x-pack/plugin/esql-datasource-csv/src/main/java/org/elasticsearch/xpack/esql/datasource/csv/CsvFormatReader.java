@@ -2430,9 +2430,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         String sourceLocation
     ) {
         Exception cause = firstCause instanceof Exception ex ? ex : null;
-        // The fifth schema-path message, and the last to name only itself: its two siblings grew a format and an
-        // object here, so a glob tripping the sampling budget said less about where it failed than a glob
-        // tripping any of the others.
+        // Names the format and the object, like the other schema-path messages: without them a glob tripping the
+        // sampling budget says less about where it failed than a glob tripping any of its siblings.
         StringBuilder details = new StringBuilder(displayName(format)).append(" schema sampling")
             .append(RowLocation.objectClause(" of", sourceLocation))
             .append(": [")
@@ -2847,12 +2846,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             chunkMode,
             // From context.recordAligned() rather than chunkMode: chunkMode is demoted to false above when the
             // object has no last-modified time, which is about cache participation and says nothing about the
-            // byte axis. Reading the demoted value suppressed a correct byte on a record-aligned chunk of an
-            // object served without Last-Modified.
+            // byte axis -- reading the demoted value would suppress a correct byte on a record-aligned chunk of
+            // an object served without Last-Modified.
             // firstSplit(), not splitStartByte() == 0: a first macro-split of a block-aligned compressed object
-            // begins at the first block boundary rather than at byte zero, and is still the file's own start, so
-            // keying on the offset qualified an ordinal that needed no qualifier. It takes 0 rather than its own
-            // offset because that offset is on the compressed axis.
+            // begins at the first block boundary rather than at byte zero, and is still the file's own start.
+            // It takes 0 rather than its own
+            // offset because that offset is on the compressed axis. Keying on the offset instead would qualify
+            // an ordinal that needs no qualifier.
             context.firstSplit() ? 0L : (context.recordAligned() ? context.splitStartByte() : RowLocation.BYTE_UNKNOWN),
             context.readCounters() instanceof CsvReaderCounters c ? c : null,
             useDirectBlockPlain,

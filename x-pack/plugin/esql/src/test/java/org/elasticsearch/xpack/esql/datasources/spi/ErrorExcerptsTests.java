@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -64,16 +65,27 @@ public class ErrorExcerptsTests extends ESTestCase {
      * The value is a CSV field, which a dialect lets reach {@code max_field_size} -- ten megabytes by default,
      * unbounded when the option is zero. Escaping it whole to then cut 256 characters out of the result would
      * build six characters for every one of those, so the cut is taken on the value and only the two kept
-     * windows are escaped. What that choice is visible as, and what this pins: the count names the value's own
-     * length rather than the length of an escape nothing ever built.
+     * windows are escaped.
+     * <p>
+     * That the whole value is never escaped is a property of the work, not of the result: escaping first and
+     * cutting at escape boundaries would produce this same string, because the escape is a per-character map and
+     * both orders budget it the same way. Nothing a caller can observe separates them, and a timing or heap
+     * assertion would pin the machine rather than the method, so what is asserted here is the output -- bounded,
+     * counted by the value's own length, and whole escapes at both ends. The bounded work is held by
+     * {@code charsEscapingWithin}, which walks from one end and stops at the budget, and by the two substrings
+     * that bound what {@code escapedForDisplay} is ever handed.
      */
-    public void testALargeValueIsNeverEscapedWhole() {
+    public void testALargeValueIsCutRatherThanGrown() {
         String large = "[".repeat(2_000_000);
         String summarized = ErrorExcerpts.summarizeEscaped(large);
         assertThat(summarized.length(), lessThanOrEqualTo(ErrorExcerpts.MAX_EXCERPT_CHARS));
-        assertThat(summarized, containsString("(truncated, 2000000 chars total)"));
-        assertThat(summarized, startsWith("\\u005B"));
-        assertThat(summarized, endsWith("\\u005B"));
+        String marker = CUT_MARKER_HEAD + "2000000" + CUT_MARKER_TAIL;
+        int at = summarized.indexOf(marker);
+        assertThat("the marker counts the value, not the escape", at, greaterThan(0));
+        // Stripping every complete escape must leave nothing: a cut inside one leaves a stump at the end of the
+        // head or a bare "005B" at the start of the tail.
+        assertEquals("the head is whole escapes", "", summarized.substring(0, at).replace("\\u005B", ""));
+        assertEquals("the tail is whole escapes", "", summarized.substring(at + marker.length()).replace("\\u005B", ""));
     }
 
     /**
@@ -95,7 +107,23 @@ public class ErrorExcerptsTests extends ESTestCase {
             Matcher stump = Pattern.compile("\\\\u(?![0-9A-F]{4})").matcher(summarized);
             assertFalse("a cut left a half-written escape in [" + summarized + "]", stump.find());
         }
+        // The check above is anchored on the backslash, so it sees a head that ends inside an escape and not a
+        // tail that begins inside one: a window starting at the "005D" of a lost "\\u005D" carries no backslash
+        // to match. These three values escape every character they have, so both windows must strip to nothing.
+        for (String value : List.of("[".repeat(1_000), "]".repeat(997), "\t".repeat(500))) {
+            String escape = RowLocation.escapedForDisplay(value.substring(0, 1));
+            String summarized = ErrorExcerpts.summarizeEscaped(value);
+            int at = summarized.indexOf(CUT_MARKER_HEAD);
+            assertThat("the value was cut", at, greaterThan(0));
+            int tailAt = summarized.indexOf(CUT_MARKER_TAIL, at) + CUT_MARKER_TAIL.length();
+            assertEquals("the head is whole escapes", "", summarized.substring(0, at).replace(escape, ""));
+            assertEquals("the tail is whole escapes", "", summarized.substring(tailAt).replace(escape, ""));
+        }
     }
+
+    /** The two halves of {@code ErrorExcerpts}'s truncation marker, around the count it carries. */
+    private static final String CUT_MARKER_HEAD = "\u2026 (truncated, ";
+    private static final String CUT_MARKER_TAIL = " chars total) \u2026";
 
     /**
      * A window chosen by escaped width can still land between the halves of a surrogate pair, and a lone

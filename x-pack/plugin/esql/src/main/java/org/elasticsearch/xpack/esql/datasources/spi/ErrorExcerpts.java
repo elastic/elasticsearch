@@ -49,8 +49,9 @@ public final class ErrorExcerpts {
      * {@link #summarize} of {@code value} escaped by {@link RowLocation#escapedForDisplay}, for a message that
      * prints store-supplied text inside a bracketed clause and so needs the escape as well as the cap.
      * <p>
-     * The escape goes on before the cut, so the cap bounds what the reader will see rather than what the text
-     * measured before it grew. Escaping the value and then cutting is the obvious way to arrange that, and it is
+     * The cap bounds the escaped text rather than the value it was made from, so it bounds what the reader will
+     * see rather than what the text measured before it grew -- but the cut is chosen on the unescaped value.
+     * Escaping the whole value and cutting the result is the obvious way to get the first half, and it is
      * what this method exists to avoid: a value here is a field, which a CSV dialect lets reach
      * {@code max_field_size} -- ten megabytes by default, and no limit at all when the option is set to zero --
      * while the escape spends six characters on every one it rewrites. Only as much of each end is escaped as the

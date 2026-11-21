@@ -1294,11 +1294,11 @@ public class NdJsonPageDecoder implements Closeable {
                             // Rows already in blockBuilders are a partial prefix. Emit a one-shot partial-results
                             // warning (best-effort, via the same thread-bound HeaderWarning path as skip warnings);
                             // NdJsonPageIterator keeps the under-count out of the stats cache (see truncated()).
-                            // Through RowLocation like the other six skipWarnings sinks: this one named neither
-                            // the object nor the record, so over a glob every object that tripped the cap
-                            // produced character-identical text and the warning budget, which deduplicates by
-                            // exact string, kept one of them. totalRowCount was decremented just above, so the
-                            // record that tripped the cap is the next one.
+                            // Through RowLocation like the other six skipWarnings sinks: naming neither the
+                            // object nor the record, every object of a glob that trips the cap would produce
+                            // character-identical text, and the warning budget deduplicates by exact string, so
+                            // only one of them would reach the reader. totalRowCount was decremented just above,
+                            // so the record that tripped the cap is the next one.
                             skipWarnings.add(
                                 RowLocation.of(totalRowCount + 1, sourceLocation, messageOffsetBase)
                                     + ": record exceeds ["

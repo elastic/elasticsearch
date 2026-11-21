@@ -51,7 +51,7 @@ public final class RowLocation {
      * {@code 1 + 0xFF} wide), so a single-character ellipsis is transmitted as {@code %E2%80%A6}.
      * It is only the Latin-1 range that rides along unencoded, which is why the marker is plain ASCII.
      * Whether a given client renders that or decodes it back is the client's business, which is the reason to
-     * stay inside ASCII rather than rely on it. Observed in a warning drained from a read.
+     * stay inside ASCII rather than rely on it.
      */
     private static final String CUT_MARKER = "...";
 
@@ -184,22 +184,15 @@ public final class RowLocation {
      * locations differ only there.
      * <p>
      * What this does not buy is a bound on width, and that is the honest cost. A key may be any length a store
-     * permits, and in the warning text each escaped character costs six where the original cost one. On the
-     * wire it costs more again, by a factor this javadoc deliberately does not state:
-     * {@code HeaderWarning#escapeAndEncode} doubles the escape's one backslash, and the baseline it is measured
-     * against is not one byte per character but whatever that class makes of the character that was escaped --
-     * its no-encoding set admits both brackets unencoded and cuts across the range {@link Character#isISOControl}
-     * covers, percent-encoding part of that range and passing the rest. So the multiple depends on which
-     * character was escaped, and {@code HeaderWarning.doesNotNeedEncoding} read against {@code impersonates} is
-     * where it lands. Nothing downstream re-bounds it: {@code http.max_warning_header_size} and {@code http.max_warning_header_count}
-     * default to unbounded, and the informational channel caps the NUMBER of distinct warnings
-     * ({@code SkipWarnings#MAX_ADDED_WARNINGS}) rather than the length of any one. The merge base embedded the
-     * same location raw and uncapped, so what this adds to the width is the expansion, not the absence of a
-     * bound. The escape is the half that closes a defect -- a name cannot forge the bracket structure around it
-     * either way -- while the cap only ever traded width for ambiguity, which is a trade worth making for a name
-     * and not for a location. Bounding a location without losing the distinction it carries means a discriminator
-     * that survives the cut, which is a policy owed to every message embedding a store-supplied path rather than
-     * to this one.
+     * permits, and each escaped character costs six in the warning text and more again on the wire, by a multiple
+     * that depends on the character -- {@code HeaderWarning.doesNotNeedEncoding} read against
+     * {@link #impersonates} is where it lands. Nothing downstream re-bounds it: both
+     * {@code http.max_warning_header_size} and {@code http.max_warning_header_count} default to unbounded, and
+     * the informational channel caps the NUMBER of distinct warnings ({@code SkipWarnings#MAX_ADDED_WARNINGS})
+     * rather than the length of any one. The location is embedded raw and uncapped with or without this escape,
+     * so what the escape adds is the expansion and not the absence of a bound. Bounding a location without losing
+     * the distinction it carries means a discriminator that survives the cut, which is a policy owed to every
+     * message embedding a store-supplied path rather than to this one.
      * <p>
      * The cost, which is real and accepted: a key legitimately holding a bracket -- {@code part[0].ndjson} is an
      * ordinary name -- renders escaped, so what the warning prints is no longer a string the store will accept

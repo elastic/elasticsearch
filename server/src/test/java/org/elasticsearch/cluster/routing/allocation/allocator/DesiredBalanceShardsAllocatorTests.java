@@ -559,6 +559,325 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
+    /// Control case for [#testNewPrimaryWaitsForConvergenceAfterComputationYieldsToNewerInput]: no other reroute happens while the
+    /// computation that places the new primary is running, so that computation stops early and the primary is assigned straight away,
+    /// as [DesiredBalanceComputer#MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING] promises.
+    public void testNewPrimaryAssignedWhenComputationStopsEarly() throws Exception {
+        runNewPrimaryAssignmentScenario(false, false);
+    }
+
+    /// Reproduces a newly created primary staying unassigned for much longer than
+    /// [DesiredBalanceComputer#MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING], which is `0s` here. A single unrelated
+    /// reroute arrives while the computation that places the primary is running, so that computation yields to the newer input instead
+    /// of stopping early, and its result is stored without being reconciled. The next computation starts from a desired balance that
+    /// already places the primary, so it never counts it as newly assigned and cannot stop early for it either. With nothing else
+    /// happening in the cluster, the primary stays unassigned for every iteration that computation needs to converge.
+    public void testNewPrimaryWaitsForConvergenceAfterComputationYieldsToNewerInput() throws Exception {
+        runNewPrimaryAssignmentScenario(true, false);
+    }
+
+    /// Same as [#testNewPrimaryWaitsForConvergenceAfterComputationYieldsToNewerInput] up to the point where the follow-up computation
+    /// has been rebalancing for several iterations with the primary still unassigned. Any reroute then assigns the primary at once,
+    /// because the desired balance has held its assignment ever since the first computation yielded.
+    public void testNewPrimaryWaitsForNextRerouteAfterComputationYieldsToNewerInput() throws Exception {
+        runNewPrimaryAssignmentScenario(true, true);
+    }
+
+    /// Creates an index with one primary in a cluster that also has rebalancing work to do, where every balancer iteration takes one
+    /// (fake) second and newly created shards must not be delayed at all. Pauses the second desired balance computation part-way
+    /// through its rebalancing work to check whether the primary has been assigned yet.
+    ///
+    /// @param rerouteDuringFirstIteration whether an unrelated reroute runs on the master while the first computation is mid-iteration,
+    ///                                    which makes that computation yield to the newer input
+    /// @param rerouteWhileSecondComputationPaused whether another unrelated reroute runs while the second computation is paused; if
+    ///                                            not, the second computation is left to converge on its own
+    private void runNewPrimaryAssignmentScenario(boolean rerouteDuringFirstIteration, boolean rerouteWhileSecondComputationPaused)
+        throws Exception {
+        var discoveryNode1 = newNode("node-0");
+        var discoveryNode2 = newNode("node-1");
+        final var indexName = "index-1";
+
+        // An existing index whose shards all sit on node-0. The balancer below moves them to node-1 one per iteration, so a
+        // computation needs several iterations to converge without overriding DesiredBalanceComputer#hasEnoughIterations.
+        final var existingIndexName = "index-existing";
+        final int existingShardCount = 5;
+        final var existingAllocationIds = randomList(existingShardCount, existingShardCount, UUIDs::randomBase64UUID);
+        final var existingIndexBuilder = IndexMetadata.builder(existingIndexName)
+            .settings(indexSettings(IndexVersion.current(), existingShardCount, 0));
+        for (int i = 0; i < existingShardCount; i++) {
+            existingIndexBuilder.putInSyncAllocationIds(i, Set.of(existingAllocationIds.get(i)));
+        }
+        final var existingIndex = existingIndexBuilder.build();
+        final var existingIndexRoutingTable = IndexRoutingTable.builder(existingIndex.getIndex());
+        for (int i = 0; i < existingShardCount; i++) {
+            existingIndexRoutingTable.addShard(
+                shardRoutingBuilder(new ShardId(existingIndex.getIndex(), i), "node-0", true, ShardRoutingState.STARTED).withAllocationId(
+                    newInitializing(existingAllocationIds.get(i))
+                ).build()
+            );
+        }
+        var initialState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(discoveryNode1)
+                    .add(discoveryNode2)
+                    .localNodeId(discoveryNode1.getId())
+                    .masterNodeId(discoveryNode1.getId())
+            )
+            .metadata(Metadata.builder().put(existingIndex, false).build())
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).add(existingIndexRoutingTable).build())
+            .build();
+
+        var threadPool = new TestThreadPool(getTestName());
+        var time = new AtomicLong(threadPool.relativeTimeInMillis());
+        final long startTime = time.get();
+        var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
+        var allocationServiceRef = new SetOnce<AllocationService>();
+        var reconcileAction = new DesiredBalanceReconcilerAction() {
+            @Override
+            public ClusterState apply(ClusterState clusterState, RerouteStrategy routingAllocationAction) {
+                return allocationServiceRef.get().executeWithRoutingAllocation(clusterState, "reconcile", routingAllocationAction);
+            }
+        };
+        // Leave every unassigned shard to the desired balance allocator.
+        var gatewayAllocator = createGatewayAllocator((shardRouting, allocation, unassignedAllocationHandler) -> {});
+
+        // A plain reroute with no cluster state change of its own, as happens whenever any shard in the cluster starts.
+        class RerouteTask extends ClusterStateUpdateTask {
+            private final CountDownLatch executed = new CountDownLatch(1);
+
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                try {
+                    return allocationServiceRef.get().reroute(currentState, "unrelated reroute", ActionListener.noop());
+                } finally {
+                    executed.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        // The second computation is paused at the start of this iteration, part-way through its rebalancing work.
+        final int pauseAtIteration = 3;
+        final var rerouteSubmittedDuringIteration = new AtomicBoolean();
+        final var computations = new AtomicInteger();
+        final var secondComputationIterations = new AtomicInteger();
+        final var secondComputationIterationsWithPrimaryUnassigned = new AtomicInteger();
+        final var secondComputationPaused = new CountDownLatch(1);
+        final var releaseSecondComputation = new CountDownLatch(1);
+        // A stub is used in place of BalancedShardsAllocator so that the duration of an iteration, the number of iterations needed to
+        // converge, and the moment at which another reroute lands inside an iteration are all deterministic. It stands in for a
+        // balancer whose rebalancing phase is slow and keeps finding shards to move.
+        var shardsAllocator = new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                // simulate a slow balancer iteration
+                time.addAndGet(1_000);
+
+                if (computations.get() == 2) {
+                    if (clusterService.state().getRoutingTable().index(indexName).primaryShardsUnassigned() == 1) {
+                        secondComputationIterationsWithPrimaryUnassigned.incrementAndGet();
+                    }
+                    if (secondComputationIterations.incrementAndGet() == pauseAtIteration) {
+                        secondComputationPaused.countDown();
+                        safeAwait(releaseSecondComputation);
+                    }
+                }
+
+                final var routingNodes = allocation.routingNodes();
+                // Place every unassigned shard on node-0.
+                var unassignedIterator = routingNodes.unassigned().iterator();
+                while (unassignedIterator.hasNext()) {
+                    unassignedIterator.next();
+                    unassignedIterator.initialize("node-0", null, 0L, allocation.changes());
+                }
+                // Rebalance: move one shard of the existing index from node-0 to node-1 per iteration.
+                ShardRouting shardToMove = null;
+                for (var shardRouting : routingNodes.node("node-0")) {
+                    if (shardRouting.started() && shardRouting.getIndexName().equals(existingIndexName)) {
+                        shardToMove = shardRouting;
+                        break;
+                    }
+                }
+                if (shardToMove != null) {
+                    routingNodes.relocateShard(
+                        shardToMove,
+                        "node-1",
+                        0L,
+                        "rebalance",
+                        allocation.changes(),
+                        RecoveryPriority.RELOCATE_REBALANCING
+                    );
+                }
+                routingNodes.setBalanceWeightStatsPerNode(Map.of());
+
+                if (rerouteDuringFirstIteration && rerouteSubmittedDuringIteration.compareAndSet(false, true)) {
+                    // Another reroute runs on the master before this iteration finishes, which makes this computation's input stale.
+                    final var rerouteTask = new RerouteTask();
+                    clusterService.submitUnbatchedStateUpdateTask("unrelated reroute", rerouteTask);
+                    safeAwait(rerouteTask.executed);
+                }
+            }
+
+            @Override
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        };
+
+        // Newly created shards must not be delayed at all.
+        var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "0s").build()
+        );
+        final var firstComputationResult = new AtomicReference<DesiredBalance>();
+        final var secondComputationResult = new AtomicReference<DesiredBalance>();
+        var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            shardsAllocator,
+            threadPool,
+            clusterService,
+            // Subclassed only to count the computations and capture their results; the computation itself is unchanged.
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(time::get), shardsAllocator, TEST_ONLY_EXPLAINER) {
+                @Override
+                public DesiredBalance compute(
+                    DesiredBalance previousDesiredBalance,
+                    DesiredBalanceInput desiredBalanceInput,
+                    Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                    Predicate<DesiredBalanceInput> isFresh
+                ) {
+                    final int computation = computations.incrementAndGet();
+                    final var result = super.compute(previousDesiredBalance, desiredBalanceInput, pendingDesiredBalanceMoves, isFresh);
+                    if (computation == 1) {
+                        firstComputationResult.set(result);
+                    } else if (computation == 2) {
+                        secondComputationResult.set(result);
+                    }
+                    return result;
+                }
+            },
+            reconcileAction,
+            EMPTY_NODE_ALLOCATION_STATS,
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
+        );
+        var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
+        allocationServiceRef.set(allocationService);
+
+        final var stoppedEarlyMessage =
+            "Desired balance computation for * interrupted * in order to not delay assignment of newly created index shards *";
+        try {
+            MockLog.assertThatLogger(() -> {
+                clusterService.submitUnbatchedStateUpdateTask("create index", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        var indexMetadata = createIndexWithOneShardNoReplicas(indexName);
+                        var newState = ClusterState.builder(currentState)
+                            .metadata(Metadata.builder(currentState.metadata()).put(indexMetadata, true))
+                            .routingTable(
+                                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, currentState.routingTable())
+                                    .addAsNew(indexMetadata)
+                            )
+                            .build();
+                        return allocationService.reroute(newState, "create index", ActionListener.noop());
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError(e);
+                    }
+                });
+                safeAwait(secondComputationPaused);
+            },
+                DesiredBalanceComputer.class,
+                rerouteDuringFirstIteration
+                    ? new MockLog.UnseenEventExpectation(
+                        "Should not stop early",
+                        DesiredBalanceComputer.class.getCanonicalName(),
+                        Level.INFO,
+                        stoppedEarlyMessage
+                    )
+                    : new MockLog.SeenEventExpectation(
+                        "Should stop early",
+                        DesiredBalanceComputer.class.getCanonicalName(),
+                        Level.INFO,
+                        stoppedEarlyMessage
+                    )
+            );
+
+            // The first computation has finished, and the second one is paused part-way through its rebalancing work.
+            ClusterServiceUtils.awaitNoPendingTasks(clusterService);
+            final var shardId = clusterService.state().getRoutingTable().index(indexName).shard(0).shardId();
+            final var firstResult = firstComputationResult.get();
+            assertNull(secondComputationResult.get());
+
+            // In every case the first computation placed the primary on node-0, and that is the desired balance the allocator holds.
+            assertThat(firstResult.getAssignment(shardId).nodeIds(), equalTo(Set.of("node-0")));
+            assertThat(desiredBalanceShardsAllocator.getDesiredBalance().getAssignment(shardId).nodeIds(), equalTo(Set.of("node-0")));
+            // One iteration of the first computation plus the iterations of the second one so far, at one second each.
+            assertThat(time.get() - startTime, greaterThanOrEqualTo((1 + pauseAtIteration) * 1_000L));
+
+            if (rerouteDuringFirstIteration) {
+                assertThat(firstResult.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT));
+                // The limit is 0s, several seconds have passed, the desired balance holds an assignment for the primary and the master
+                // has nothing queued, yet the primary is still unassigned.
+                assertThat(clusterService.state().getRoutingTable().index(indexName).primaryShardsUnassigned(), equalTo(1));
+
+                if (rerouteWhileSecondComputationPaused) {
+                    // Any reroute reconciles against the desired balance left behind by the first computation.
+                    clusterService.submitUnbatchedStateUpdateTask("later reroute", new RerouteTask());
+                    ClusterServiceUtils.awaitNoPendingTasks(clusterService);
+                    assertThat(clusterService.state().getRoutingTable().index(indexName).primaryShardsUnassigned(), equalTo(0));
+                    // The second computation played no part in that: it is still paused.
+                    assertNull(secondComputationResult.get());
+                } else {
+                    // With no further reroute, the second computation has to converge before anything is reconciled. It cannot stop
+                    // early: the primary was already placed by the previous desired balance, so it is not counted as newly assigned.
+                    MockLog.assertThatLogger(() -> {
+                        releaseSecondComputation.countDown();
+                        try {
+                            assertBusy(() -> assertFalse(desiredBalanceShardsAllocator.getStats().computationActive()));
+                        } catch (Exception e) {
+                            throw new AssertionError(e);
+                        }
+                    },
+                        DesiredBalanceComputer.class,
+                        new MockLog.UnseenEventExpectation(
+                            "Should not stop early",
+                            DesiredBalanceComputer.class.getCanonicalName(),
+                            Level.INFO,
+                            stoppedEarlyMessage
+                        )
+                    );
+                    assertThat(secondComputationResult.get().finishReason(), equalTo(DesiredBalance.ComputationFinishReason.CONVERGED));
+                    // The first computation already moved one existing shard, and the second one starts from that desired balance. So
+                    // it needs one iteration for each of the other existing shards, plus a final one that finds nothing left to do.
+                    final int expectedIterations = (existingShardCount - 1) + 1;
+                    assertThat(secondComputationIterations.get(), equalTo(expectedIterations));
+                    // The primary was still unassigned at every one of those one-second iterations.
+                    assertThat(secondComputationIterationsWithPrimaryUnassigned.get(), equalTo(expectedIterations));
+                    assertThat(computations.get(), equalTo(2));
+                    // Only the reconciliation that follows convergence assigns it.
+                    ClusterServiceUtils.awaitNoPendingTasks(clusterService);
+                    assertThat(clusterService.state().getRoutingTable().index(indexName).primaryShardsUnassigned(), equalTo(0));
+                }
+            } else {
+                assertThat(firstResult.finishReason(), equalTo(DesiredBalance.ComputationFinishReason.STOP_EARLY));
+                assertThat(clusterService.state().getRoutingTable().index(indexName).primaryShardsUnassigned(), equalTo(0));
+            }
+
+            releaseSecondComputation.countDown();
+            assertBusy(() -> assertFalse(desiredBalanceShardsAllocator.getStats().computationActive()));
+        } finally {
+            releaseSecondComputation.countDown();
+            clusterService.close();
+            terminate(threadPool);
+        }
+    }
+
     public void testCallListenersOnlyAfterProducingFreshInput() throws InterruptedException {
 
         var reconciliations = new AtomicInteger(0);

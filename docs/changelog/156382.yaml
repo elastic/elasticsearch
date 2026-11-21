@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 156289
+pr: 156382
+summary: Fix truncating JSON objects mid-object
+type: bug

@@ -54,7 +54,8 @@ public class GetStreamResultRequest extends UntypedActionRequest {
      * @param maxRows     stop after this many rows, {@code >= 0}, or {@link #NO_LIMIT}. {@code 0} returns the status only.
      * @param maxBytes    stop after about this many bytes of rows, {@code >= 0}, or {@link #NO_LIMIT}. {@code 0} returns the status only.
      * @param waitTimeout how long to wait for rows when there are none yet. {@code null}, zero or negative means do not wait,
-     *                    as an unset {@code wait_for_completion_timeout} does for the async API. Must not exceed {@link #MAX_WAIT_TIMEOUT}.
+     *                    as an unset {@code wait_for_completion_timeout} does for the async API. Over REST only {@code 0} and {@code -1}
+     *                    can be sent, because the time parser rejects any other negative duration. Must not exceed {@link #MAX_WAIT_TIMEOUT}.
      */
     public GetStreamResultRequest(String streamId, long offset, long maxRows, long maxBytes, TimeValue waitTimeout) {
         this.streamId = streamId;

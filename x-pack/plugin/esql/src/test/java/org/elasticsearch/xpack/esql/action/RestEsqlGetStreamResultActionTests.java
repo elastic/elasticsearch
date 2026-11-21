@@ -119,7 +119,8 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
         assertThat(parse(Map.of("wait_timeout", "5m")).waitTimeout(), equalTo(GetStreamResultRequest.MAX_WAIT_TIMEOUT));
     }
 
-    public void testZeroAndNegativeWaitTimeoutMeanNoWait() {
+    /** A wait_timeout of 0 or -1 means no wait, as an unset one does. Any other negative value is rejected, see below. */
+    public void testZeroAndMinusOneWaitTimeoutMeanNoWait() {
         for (String value : new String[] { "0", "0s", "-1" }) {
             assertThat(value, parse(Map.of("wait_timeout", value)).waitTimeout().millis(), lessThanOrEqualTo(0L));
         }
@@ -137,6 +138,7 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
             Map.of("max_bytes", "-1"),
             Map.of("max_bytes", "lots"),
             Map.of("wait_timeout", "soon"),
+            Map.of("wait_timeout", "-2s"),
             Map.of("wait_timeout", "6m")
         )) {
             RuntimeException e = expectThrows(RuntimeException.class, () -> parse(params));
@@ -165,6 +167,7 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
      */
     public void testExecutesTheActionAndAnswersNotFoundWhenTheStreamIsNotFound() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getTestName());
+        RestRequest request = request(Map.of("offset", "5", "max_rows", "10"));
         try {
             List<ActionRequest> executed = new ArrayList<>();
             // the REST handler runs the action through a RestCancellableNodeClient, which needs a cancellable task and a node id
@@ -186,7 +189,6 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
                     return "node";
                 }
             };
-            RestRequest request = request(Map.of("offset", "5", "max_rows", "10"));
             FakeRestChannel channel = new FakeRestChannel(request, true);
             new RestEsqlGetStreamResultAction().handleRequest(request, channel, client);
 
@@ -198,6 +200,8 @@ public class RestEsqlGetStreamResultActionTests extends ESTestCase {
             assertThat(channel.capturedResponse().status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(channel.capturedResponse().content().utf8ToString(), containsString("the-id"));
         } finally {
+            // RestCancellableNodeClient tracks the HTTP channel in a static map until it is closed
+            request.getHttpChannel().close();
             terminate(threadPool);
         }
     }

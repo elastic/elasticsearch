@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 164457
+pr: 165499
+summary: Release old-connection batched `top_hits` when the final reduce trips the breaker
+type: bug

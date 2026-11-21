@@ -17,6 +17,8 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -29,10 +31,13 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 
 public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -41,6 +46,8 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
     private static final TimeValue HOT_THREADS_LOG_INTERVAL = TimeValue.timeValueMillis(200);
 
     private static final TimeValue SLOW_UPLOAD_LOG_THRESHOLD = TimeValue.timeValueMillis(100);
+
+    private static final String BCC_UPLOAD_ATTEMPTS_HISTOGRAM = "es.bcc.upload.attempts.histogram";
 
     /**
      * Delay applied in the mock object store before each BCC {@code writeBlobAtomic} so uploads stay in flight long enough for
@@ -55,7 +62,7 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);
+        return CollectionUtils.concatLists(List.of(StatelessMockRepositoryPlugin.class, TestTelemetryPlugin.class), super.nodePlugins());
     }
 
     @Override
@@ -73,6 +80,13 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
     }
 
     private static StatelessMockRepositoryStrategy delayedBccUploadStrategy() {
+        return delayedBccUploadStrategy(new AtomicInteger());
+    }
+
+    /**
+     * Delays every BCC write, and fails as many of the next ones as {@code failuresLeft} says when they start.
+     */
+    private static StatelessMockRepositoryStrategy delayedBccUploadStrategy(AtomicInteger failuresLeft) {
         return new StatelessMockRepositoryStrategy() {
             @Override
             public void blobContainerWriteBlobAtomic(
@@ -83,7 +97,7 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
                 long blobSize,
                 boolean failIfAlreadyExists
             ) throws IOException {
-                delayBccUploadIfNeeded(purpose);
+                beforeBccUpload(purpose);
                 super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
             }
 
@@ -97,13 +111,16 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
                 boolean failIfAlreadyExists,
                 Executor executor
             ) throws IOException {
-                delayBccUploadIfNeeded(purpose);
+                beforeBccUpload(purpose);
                 super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists, executor);
             }
 
-            private void delayBccUploadIfNeeded(OperationPurpose purpose) {
+            private void beforeBccUpload(OperationPurpose purpose) throws IOException {
                 if (purpose == OperationPurpose.INDICES) {
                     ESTestCase.safeSleep(BCC_UPLOAD_DELAY);
+                    if (failuresLeft.getAndDecrement() > 0) {
+                        throw new IOException("simulated upload failure");
+                    }
                 }
             }
         };
@@ -170,6 +187,56 @@ public class UploadProgressLoggingIT extends AbstractStatelessPluginIntegTestCas
 
         var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
         assertThat(shardCommitsContainer.listBlobs(operationPurpose).size(), greaterThan(0));
+    }
+
+    /**
+     * The failed attempts of an upload are counted in the slow upload log and in the attempts histogram.
+     */
+    @TestLogging(
+        reason = "need INFO from commit service to observe slow upload timing logs",
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:INFO"
+    )
+    public void testBccUploadLogsAndRecordsTheNumberOfAttempts() throws Exception {
+        final int failures = between(1, 3);
+        final var failuresLeft = new AtomicInteger();
+        var indexNode = startMasterAndIndexNode(
+            uploadObservabilitySettings(TimeValue.ZERO, SLOW_UPLOAD_LOG_THRESHOLD),
+            delayedBccUploadStrategy(failuresLeft)
+        );
+        var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "1gb")
+                .build()
+        );
+        ensureGreen(indexName);
+
+        final int attempts = failures + 1;
+        MockLog.awaitLogger(() -> {
+            // armed once the index is created, since the commit of the index creation is uploaded before the log is captured
+            failuresLeft.set(failures);
+            triggerBccUpload(indexName);
+        },
+            StatelessCommitService.class,
+            new MockLog.SeenEventExpectation(
+                "attempts in the slow upload log",
+                StatelessCommitService.class.getCanonicalName(),
+                Level.INFO,
+                "*upload took*over [" + attempts + "] attempt(s): attempt=" + attempts + " *"
+            )
+        );
+
+        // the histogram is recorded right after the log
+        assertBusy(
+            () -> assertThat(
+                getTelemetryPlugin(indexNode).getLongHistogramMeasurement(BCC_UPLOAD_ATTEMPTS_HISTOGRAM)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .toList(),
+                hasItem((long) attempts)
+            )
+        );
     }
 
     @TestLogging(

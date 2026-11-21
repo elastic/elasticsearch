@@ -78,9 +78,7 @@ public class TimeSeriesMetadataPathTests extends AbstractScalarFunctionTestCase 
                 new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer"),
                 new TestCaseSupplier.TypedData(new BytesRef(label), labelType, "label").forceLiteral()
             );
-            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=GET, names=["
-                + label
-                + "], labelContainer=Attribute[channel=0]]";
+            String evaluator = "TimeSeriesMetadataPathEvaluator[labelContainer=Attribute[channel=0], label=" + label + "]";
             return new TestCaseSupplier.TestCase(data, evaluator, DataType.KEYWORD, expected);
         });
     }

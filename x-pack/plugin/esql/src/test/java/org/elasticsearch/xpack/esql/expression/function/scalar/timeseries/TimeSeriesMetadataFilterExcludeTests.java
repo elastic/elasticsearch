@@ -75,9 +75,9 @@ public class TimeSeriesMetadataFilterExcludeTests extends AbstractScalarFunction
                 new TestCaseSupplier.TypedData(new BytesRef(labelContainer), DataType.TIME_SERIES_METADATA_DATA_TYPE, "labelContainer")
             );
             labels.forEach(label -> data.add(new TestCaseSupplier.TypedData(new BytesRef(label), DataType.KEYWORD, label).forceLiteral()));
-            String evaluator = "TimeSeriesMetadataFunctionEvaluator[operation=DROP, names="
+            String evaluator = "TimeSeriesMetadataFilterEvaluator[labelContainer=Attribute[channel=0], labels="
                 + labels
-                + ", labelContainer=Attribute[channel=0]]";
+                + ", exclude=true]";
             return new TestCaseSupplier.TestCase(data, evaluator, DataType.TIME_SERIES_METADATA_DATA_TYPE, equalTo(new BytesRef(expected)));
         });
     }

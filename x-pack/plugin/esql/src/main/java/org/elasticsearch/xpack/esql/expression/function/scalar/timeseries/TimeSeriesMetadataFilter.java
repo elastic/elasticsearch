@@ -66,8 +66,11 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var operation = exclude ? TimeSeriesMetadataFunctionEvaluator.Operation.DROP : TimeSeriesMetadataFunctionEvaluator.Operation.KEEP;
-        return TimeSeriesMetadataFunctionEvaluator.factory(operation, children(), toEvaluator);
+        return new TimeSeriesMetadataFilterEvaluator.Factory(
+            toEvaluator.apply(children().getFirst()),
+            labels().stream().map(label -> foldLabelName(label, toEvaluator)).toList(),
+            exclude
+        );
     }
 
     @Override

@@ -59,7 +59,11 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return TimeSeriesMetadataFunctionEvaluator.factory(TimeSeriesMetadataFunctionEvaluator.Operation.SET, children(), toEvaluator);
+        return new TimeSeriesMetadataSetEvaluator.Factory(
+            toEvaluator.apply(children().getFirst()),
+            foldLabelName(label(), toEvaluator),
+            toEvaluator.apply(value())
+        );
     }
 
     @Override

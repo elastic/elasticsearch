@@ -48,7 +48,10 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return TimeSeriesMetadataFunctionEvaluator.factory(TimeSeriesMetadataFunctionEvaluator.Operation.GET, children(), toEvaluator);
+        return new TimeSeriesMetadataPathEvaluator.Factory(
+            toEvaluator.apply(children().get(0)),
+            foldLabelName(children().get(1), toEvaluator)
+        );
     }
 
     @Override

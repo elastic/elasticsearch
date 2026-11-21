@@ -118,16 +118,23 @@ public final class UnmappedFieldsPattern implements NamedWriteable, UnmappedFiel
     /**
      * The pattern of a {@code DROP} command, computed from the removal list it was written with.
      *
-     * <p>Only wildcard removals need to be carried: planning cannot know which unmapped source fields a wildcard
-     * will match. An explicitly
-     * named removal is already excluded downstream, because {@code DetermineUnmappedFieldsToKeep} excludes every
-     * {@code EsRelation.output()} name — which covers both mapped columns and the fields
-     * {@code ResolveUnmapped} demand-loads for explicit references.
+     * <p>{@code DROP} removes what it matches everywhere, columns and keys of the unmapped fields alike: an explicitly named removal
+     * excludes the key of that name, and a wildcard removal excludes the keys it matches, which planning cannot list since it does not
+     * know which unmapped source fields there are. Only {@code DROP} removes keys by name, and {@code KEEP} restricts them to the ones
+     * it matches. A column that is named, mapped or added by a command does not.
      */
     public static UnmappedFieldsPattern forDrop(List<? extends NamedExpression> removals) {
-        return excludes(
-            removals.stream().filter(r -> r instanceof UnresolvedNamePattern).map(r -> ((UnresolvedNamePattern) r).glob()).toList()
-        );
+        List<String> globs = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (NamedExpression removal : removals) {
+            switch (removal) {
+                case UnresolvedNamePattern pattern -> globs.add(pattern.glob());
+                case UnresolvedAttribute attribute -> names.add(attribute.name());
+                default -> {
+                }
+            }
+        }
+        return excludes(globs).withAdditionalExcludes(names);
     }
 
     private UnmappedFieldsPattern(List<List<String>> includeGroups, List<String> globExcludes, Collection<String> exactExcludes) {

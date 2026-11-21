@@ -93,17 +93,16 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     }
 
     @Override
-    protected void doExecute(Task task, SplitRequest request, ActionListener<ActionResponse> listener) {
-        SplitTargetService.Split split = request.split;
+    protected void doExecute(Task task, SplitRequest splitRequest, ActionListener<ActionResponse> listener) {
         Request childRequest = new Request(
-            split.shardId(),
-            split.sourceNode(),
-            split.targetNode(),
-            split.sourcePrimaryTerm(),
-            split.targetPrimaryTerm()
+            splitRequest.shardId,
+            splitRequest.sourceNode,
+            splitRequest.targetNode,
+            splitRequest.sourcePrimaryTerm,
+            splitRequest.targetPrimaryTerm
         );
         transportService.sendChildRequest(
-            split.sourceNode(),
+            splitRequest.sourceNode,
             START_SPLIT_ACTION_NAME,
             childRequest,
             task,
@@ -207,11 +206,24 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     }
 
     public static class SplitRequest extends ActionRequest {
+        private final ShardId shardId;
+        private final DiscoveryNode sourceNode;
+        private final DiscoveryNode targetNode;
+        private final long sourcePrimaryTerm;
+        private final long targetPrimaryTerm;
 
-        private final SplitTargetService.Split split;
-
-        public SplitRequest(SplitTargetService.Split split) {
-            this.split = split;
+        public SplitRequest(
+            ShardId shardId,
+            DiscoveryNode sourceNode,
+            DiscoveryNode targetNode,
+            long sourcePrimaryTerm,
+            long targetPrimaryTerm
+        ) {
+            this.shardId = shardId;
+            this.sourceNode = sourceNode;
+            this.targetNode = targetNode;
+            this.sourcePrimaryTerm = sourcePrimaryTerm;
+            this.targetPrimaryTerm = targetPrimaryTerm;
         }
 
         @Override

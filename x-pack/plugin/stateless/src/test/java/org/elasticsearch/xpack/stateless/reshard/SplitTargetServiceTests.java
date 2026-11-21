@@ -71,7 +71,8 @@ public class SplitTargetServiceTests extends ESTestCase {
         when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
         var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
 
-        var shardId = new ShardId("index", "1", 0);
+        var shardId = new ShardId("index", "1", 1);
+        var sourceShardId = new ShardId("index", "1", 0);
         var sourceNode = new DiscoveryNode(
             "node1",
             "node_1",
@@ -89,8 +90,8 @@ public class SplitTargetServiceTests extends ESTestCase {
             null
         );
         var indexShard = mock(IndexShard.class);
-        var split = new SplitTargetService.Split(shardId, sourceNode, targetNode, 2, 2);
-        sts.initializeSplitInCloneState(indexShard, split);
+        var splitMetadata = new SplitTargetService.SplitMetadata(shardId, sourceShardId, targetNode, 2);
+        sts.initializeSplitInCloneState(indexShard, splitMetadata);
 
         // Any requests to handoff that do not exactly match stored split information should be rejected.
         var newShardId = new ShardId("foo", "1", 0);
@@ -135,13 +136,13 @@ public class SplitTargetServiceTests extends ESTestCase {
         when(reshardIndexService.getReshardMetrics()).thenReturn(ReshardMetrics.NOOP);
         var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
 
-        var split = dummySplit();
+        var splitMetadata = dummySplitMetadata();
         var indexShard = mock(IndexShard.class);
-        when(indexShard.shardId()).thenReturn(split.shardId());
+        when(indexShard.shardId()).thenReturn(splitMetadata.shardId());
         when(indexShard.state()).thenReturn(IndexShardState.CLOSED);
 
         sts.cancelSplits(indexShard);
-        sts.initializeSplitInCloneState(indexShard, split);
+        sts.initializeSplitInCloneState(indexShard, splitMetadata);
 
         assertTrue(sts.getShardsWithOngoingSplits().isEmpty());
     }
@@ -161,9 +162,9 @@ public class SplitTargetServiceTests extends ESTestCase {
         );
         var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
 
-        var split = dummySplit();
+        var splitMetadata = dummySplitMetadata();
         var indexShard = mock(IndexShard.class);
-        when(indexShard.shardId()).thenReturn(split.shardId());
+        when(indexShard.shardId()).thenReturn(splitMetadata.shardId());
         var failureCount = new AtomicInteger();
         reshardIndexService.maybeAwaitSplit(
             IndexReshardingMetadata.newSplitByMultiple(1, 2),
@@ -173,7 +174,7 @@ public class SplitTargetServiceTests extends ESTestCase {
                 failureCount.incrementAndGet();
             })
         );
-        sts.initializeSplitInCloneState(indexShard, split);
+        sts.initializeSplitInCloneState(indexShard, splitMetadata);
 
         sts.cancelSplits(indexShard);
 
@@ -290,8 +291,19 @@ public class SplitTargetServiceTests extends ESTestCase {
         };
 
         var sts = new SplitTargetService(Settings.EMPTY, failingClient, clusterService, reshardIndexService);
+
+        var sourceNode = new DiscoveryNode(
+            "node1",
+            "node_1",
+            new TransportAddress(TransportAddress.META_ADDRESS, 10000),
+            Map.of(),
+            Set.of(),
+            null
+        );
+
         var action = sts.createInitiateSplitWithSourceShardAction(
-            dummySplit(),
+            dummySplitMetadata(),
+            new SplitTargetService.ActiveSourceShard(sourceNode, 2),
             new AtomicBoolean(false),
             TimeValue.timeValueMillis(5000),
             new ActionListener<>() {
@@ -322,7 +334,7 @@ public class SplitTargetServiceTests extends ESTestCase {
         var sts = new SplitTargetService(Settings.EMPTY, new NoOpClient(threadPool), clusterService, reshardIndexService);
 
         var failures = new ArrayList<Exception>();
-        var action = sts.createDeleteUnownedAction(mock(IndexShard.class), new ActionListener<>() {
+        var action = sts.createDeleteUnownedAction(mock(IndexShard.class), new AtomicBoolean(true), new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 fail("a cancelled action must not succeed");
@@ -332,7 +344,7 @@ public class SplitTargetServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 failures.add(e);
             }
-        }, new AtomicBoolean(true));
+        });
         action.run();
 
         verify(reshardIndexService, never()).deleteUnownedDocuments(any(ShardId.class), any());
@@ -362,7 +374,7 @@ public class SplitTargetServiceTests extends ESTestCase {
 
         var failures = new ArrayList<Exception>();
         var action = sts.createChangeStateAction(
-            dummySplit(),
+            dummySplitMetadata(),
             IndexReshardingState.Split.TargetShardState.DONE,
             new AtomicBoolean(true),
             new ActionListener<>() {
@@ -479,16 +491,9 @@ public class SplitTargetServiceTests extends ESTestCase {
         };
     }
 
-    private static SplitTargetService.Split dummySplit() {
+    private static SplitTargetService.SplitMetadata dummySplitMetadata() {
         var targetShardId = new ShardId("index", "1", 1);
-        var sourceNode = new DiscoveryNode(
-            "node1",
-            "node_1",
-            new TransportAddress(TransportAddress.META_ADDRESS, 10000),
-            Map.of(),
-            Set.of(),
-            null
-        );
+        var sourceShardId = new ShardId("index", "1", 0);
         var targetNode = new DiscoveryNode(
             "node2",
             "node_2",
@@ -497,6 +502,6 @@ public class SplitTargetServiceTests extends ESTestCase {
             Set.of(),
             null
         );
-        return new SplitTargetService.Split(targetShardId, sourceNode, targetNode, 2, 2);
+        return new SplitTargetService.SplitMetadata(targetShardId, sourceShardId, targetNode, 2);
     }
 }

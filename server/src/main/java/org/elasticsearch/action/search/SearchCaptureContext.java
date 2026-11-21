@@ -62,6 +62,22 @@ public class SearchCaptureContext extends QueryCaptureContext {
         this(task, namedWriteableRegistry, request, null, tookInNanos, error);
     }
 
+    /**
+     * The request as it was received, before it was rewritten.
+     */
+    public SearchRequest getRequest() {
+        return request;
+    }
+
+    /**
+     * The response, or {@code null} if the search failed. It is ref-counted and may be released once the sinks have handled
+     * the context, so whatever a sink needs of it is copied while handling it.
+     */
+    @Nullable
+    public SearchResponse getResponse() {
+        return response;
+    }
+
     @Override
     public String getQuery() {
         var source = request.source();

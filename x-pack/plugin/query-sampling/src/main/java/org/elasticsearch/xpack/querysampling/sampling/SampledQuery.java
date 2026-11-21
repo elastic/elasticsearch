@@ -1,0 +1,19 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.querysampling.sampling;
+
+import org.elasticsearch.xpack.querysampling.capture.CapturedSearch;
+import org.elasticsearch.xpack.querysampling.dedup.QueryFingerprint;
+import org.elasticsearch.xpack.querysampling.dedup.TrackedQuery;
+
+/**
+ * A query that was picked for the sample.
+ *
+ * @param tracked live counters that keep changing as the query is seen again, so they are read when needed and not copied
+ */
+public record SampledQuery(QueryFingerprint fingerprint, CapturedSearch search, TrackedQuery tracked) {}

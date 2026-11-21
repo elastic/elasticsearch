@@ -3,6 +3,8 @@
 ### CONCAT
 Concatenates two or more strings.
 
+Note: The result can be at most 1MB long. A query that builds a longer one fails.
+
 ```esql
 FROM employees
 | KEEP first_name, last_name

@@ -3,6 +3,8 @@
 ### SPACE
 Returns a string made of `number` spaces.
 
+Note: The result can be at most 1MB long. For a `number` over 1048576, `SPACE` returns `null` and emits a warning, or fails the query when `number` is a constant.
+
 ```esql
 ROW message = CONCAT("Hello", SPACE(1), "World!");
 ```

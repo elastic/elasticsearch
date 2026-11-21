@@ -54,6 +54,7 @@ public class Concat extends EsqlScalarFunction implements AnyNullIsNull {
         returnType = "keyword",
         briefSummary = "Concatenates two or more strings.",
         description = "Concatenates two or more strings.",
+        note = "The result can be at most 1MB long. A query that builds a longer one fails.",
         examples = @Example(file = "eval", tag = "docsConcat")
     )
     public Concat(

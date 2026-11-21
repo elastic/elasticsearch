@@ -3,6 +3,8 @@
 ### REPEAT
 Returns a string constructed by concatenating `string` with itself the specified `number` of times.
 
+Note: The result can be at most 1MB long. For a longer one, `REPEAT` returns `null` and emits a warning.
+
 ```esql
 ROW a = "Hello!"
 | EVAL triple_a = REPEAT(a, 3)

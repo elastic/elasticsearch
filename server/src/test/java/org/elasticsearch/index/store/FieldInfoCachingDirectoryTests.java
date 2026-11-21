@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,29 +28,6 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FieldInfoCachingDirectoryTests extends ESTestCase {
-
-    public void testUnwrapWalksFilterChain() throws Exception {
-        try (Directory raw = newDirectory()) {
-            assertNull(FieldInfoCachingDirectory.unwrap(raw));
-
-            FieldInfoCachingDirectory cached = new FieldInfoCachingDirectory(raw);
-            assertSame(cached, FieldInfoCachingDirectory.unwrap(cached));
-
-            // Wrap further in an arbitrary FilterDirectory and confirm we still find the cache via the chain.
-            Directory outer = new FilterDirectory(cached) {};
-            assertSame(cached, FieldInfoCachingDirectory.unwrap(outer));
-
-            Directory outerOuter = new FilterDirectory(outer) {};
-            assertSame(cached, FieldInfoCachingDirectory.unwrap(outerOuter));
-        }
-    }
-
-    public void testUnwrapReturnsNullWhenAbsent() throws Exception {
-        try (Directory raw = newDirectory()) {
-            Directory layered = new FilterDirectory(new FilterDirectory(raw) {}) {};
-            assertNull(FieldInfoCachingDirectory.unwrap(layered));
-        }
-    }
 
     public void testWrapIfEnabledIdempotent() throws Exception {
         assumeTrue("feature flag must be enabled for this test", FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled());

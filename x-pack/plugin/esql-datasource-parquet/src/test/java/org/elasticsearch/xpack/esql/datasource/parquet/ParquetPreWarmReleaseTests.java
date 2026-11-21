@@ -84,6 +84,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -113,6 +114,8 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     private static final List<String> CATEGORY = List.of("category");
     /** {@code id} is projection-only and much larger than the predicate column, so the iterator reads in two phases. */
     private static final List<String> CATEGORY_AND_ID = List.of("category", "id");
+    /** The cap {@code ExternalSourceDrainUtils#tryAdvanceOrPark} asserts on: a reader that reaches it is stuck, not slow. */
+    private static final int MAX_EMPTY_READS_IN_A_ROW = 64;
 
     private ExecutorService asyncIo;
     private LimitedBreaker breaker;
@@ -396,6 +399,98 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
         assertLedgerClear(watermark, budget);
     }
 
+    /**
+     * An iterator that is ready but empty twice in a row has not ended: only {@link CloseableIterator#isExhausted()} says so.
+     */
+    public void testReadyButEmptyTwiceIsNotEndOfStream() throws Exception {
+        AtomicIntegerArray rows = new AtomicIntegerArray(1);
+        consume(readyButEmptyTwice(), rows, new AtomicLongArray(1), false, 0, new AtomicBoolean(), new AtomicLong(), "scripted");
+        assertEquals(EXPECTED_ROWS, rows.get(0));
+        assertEquals(EXPECTED_ROWS, drain(readyButEmptyTwice()).rows());
+        consumeOnePage(readyButEmptyTwice());
+    }
+
+    /**
+     * A ready iterator that returns nothing for as many reads as the cap allows fails the drain. Its page comes one read
+     * later, so a drain without the cap returns and this test fails instead of spinning.
+     */
+    public void testStuckIteratorFailsTheDrain() {
+        int pageAfterCap = MAX_EMPTY_READS_IN_A_ROW + 1;
+        AssertionError e = expectThrows(AssertionError.class, () -> drain(emptyUntilAdvance(pageAfterCap)));
+        assertThat(e.getMessage(), containsString("ready, empty and not exhausted"));
+        e = expectThrows(AssertionError.class, () -> consumeOnePage(emptyUntilAdvance(pageAfterCap)));
+        assertThat(e.getMessage(), containsString("ready, empty and not exhausted"));
+    }
+
+    /**
+     * A wait on I/O starts the count again: two runs of empty reads, each one short of the cap, with a wait between them
+     * still reach the page.
+     */
+    public void testWaitOnIoRestartsTheCount() {
+        int waitAt = MAX_EMPTY_READS_IN_A_ROW;
+        int pageAt = 2 * MAX_EMPTY_READS_IN_A_ROW;
+        assertEquals(EXPECTED_ROWS, drain(emptyUntilAdvance(pageAt, waitAt)).rows());
+        consumeOnePage(emptyUntilAdvance(pageAt, waitAt));
+    }
+
+    private static CloseableIterator<Page> readyButEmptyTwice() {
+        return emptyUntilAdvance(3);
+    }
+
+    /** Always ready; {@code tryAdvance()} number {@code pageAt} returns the only page, of {@link #EXPECTED_ROWS} rows. */
+    private static CloseableIterator<Page> emptyUntilAdvance(int pageAt) {
+        return emptyUntilAdvance(pageAt, 0);
+    }
+
+    /** {@code tryAdvance()} number {@code waitAt} leaves it not ready for one {@code waitForReady()} call; 0 for never. */
+    private static CloseableIterator<Page> emptyUntilAdvance(int pageAt, int waitAt) {
+        return new CloseableIterator<>() {
+            private int advances;
+            private boolean ioPending;
+            private SubscribableListener<Void> handedOut;
+
+            @Override
+            public SubscribableListener<Void> waitForReady() {
+                if (handedOut != null) {
+                    // the I/O lands before the next call
+                    handedOut.onResponse(null);
+                    handedOut = null;
+                }
+                if (ioPending == false) {
+                    return SubscribableListener.newSucceeded(null);
+                }
+                ioPending = false;
+                handedOut = new SubscribableListener<>();
+                return handedOut;
+            }
+
+            @Override
+            public Page tryAdvance() {
+                advances++;
+                ioPending = advances == waitAt;
+                return advances == pageAt ? new Page(EXPECTED_ROWS) : null;
+            }
+
+            @Override
+            public boolean isExhausted() {
+                return advances >= pageAt;
+            }
+
+            @Override
+            public boolean hasNext() {
+                throw new AssertionError("drain loops must not call hasNext");
+            }
+
+            @Override
+            public Page next() {
+                throw new AssertionError("drain loops must not call next");
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
     private record RunResult(
         boolean completed,
         String outcome,
@@ -564,19 +659,13 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
             }
             Page page = iter.tryAdvance();
             if (page == null) {
-                if (iter.waitForReady().isDone() == false) {
-                    continue;
-                }
-                page = iter.tryAdvance();
-                if (page == null) {
-                    if (iter.waitForReady().isDone() == false) {
-                        continue;
-                    }
+                if (iter.waitForReady().isDone() && iter.isExhausted()) {
                     if (rows.get(idx) != EXPECTED_ROWS) {
                         throw new AssertionError(label + " iterator " + idx + " ended after " + rows.get(idx) + " rows");
                     }
                     return;
                 }
+                continue;
             }
             rows.addAndGet(idx, page.getPositionCount());
             peakBreaker.accumulateAndGet(breaker.getUsed(), Math::max);
@@ -595,25 +684,27 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     private static DrainResult drain(CloseableIterator<Page> iter, boolean sumId) {
         int rows = 0;
         long idSum = 0L;
+        int emptyReads = 0;
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
                 safeAwait(ready, TimeValue.timeValueSeconds(30));
+                emptyReads = 0;
                 continue;
             }
             Page page = iter.tryAdvance();
             if (page == null) {
                 if (iter.waitForReady().isDone() == false) {
+                    emptyReads = 0;
                     continue;
                 }
-                page = iter.tryAdvance();
-                if (page == null) {
-                    if (iter.waitForReady().isDone() == false) {
-                        continue;
-                    }
+                if (iter.isExhausted()) {
                     return new DrainResult(rows, idSum);
                 }
+                failIfStuck(++emptyReads);
+                continue;
             }
+            emptyReads = 0;
             rows += page.getPositionCount();
             if (sumId) {
                 idSum += sumIdColumn(page);
@@ -631,27 +722,34 @@ public class ParquetPreWarmReleaseTests extends ESTestCase {
     }
 
     private static void consumeOnePage(CloseableIterator<Page> iter) {
+        int emptyReads = 0;
         while (true) {
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
                 safeAwait(ready, TimeValue.timeValueSeconds(30));
+                emptyReads = 0;
                 continue;
             }
             Page page = iter.tryAdvance();
             if (page == null) {
                 if (iter.waitForReady().isDone() == false) {
+                    emptyReads = 0;
                     continue;
                 }
-                page = iter.tryAdvance();
-                if (page == null) {
-                    if (iter.waitForReady().isDone() == false) {
-                        continue;
-                    }
+                if (iter.isExhausted()) {
                     throw new AssertionError("expected at least one page");
                 }
+                failIfStuck(++emptyReads);
+                continue;
             }
             page.releaseBlocks();
             return;
+        }
+    }
+
+    private static void failIfStuck(int emptyReadsInARow) {
+        if (emptyReadsInARow >= MAX_EMPTY_READS_IN_A_ROW) {
+            throw new AssertionError("iterator stayed ready, empty and not exhausted for " + emptyReadsInARow + " reads in a row");
         }
     }
 

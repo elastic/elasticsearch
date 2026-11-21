@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -1225,6 +1227,52 @@ public class NdJsonPageDecoderTests extends ESTestCase {
             assertEquals(policy + ": one summary + one detail warning", 2, warnings.size());
             assertEquals("row [2] of [test://duplicate]: duplicate field name", warnings.get(1));
             assertEquals(policy + ": the dropped line is charged exactly once", 1L, counters.snapshot().parseErrors());
+        }
+    }
+
+    /**
+     * The node log gets what the warning withholds -- the phase and the parser's own text -- and the parser's
+     * text is the file's own, because a duplicate-field rejection quotes the decoded field name back. A name
+     * holding a newline would end the log line and start another one that an operator reads as a record of its
+     * own, so the quoted name is escaped here exactly as the location beside it is. The whole line is pinned
+     * rather than a part of it: with the prefix argument left off the call binds the {@code LoggerMessageFormat}
+     * overload that reads the description as the pattern, and the formatter then returns that description by
+     * itself -- which a match on the row or the kind alone would still accept.
+     */
+    public void testTheDroppedLineIsLoggedWithTheParserTextEscaped() {
+        String ndjson = "{\"v\":1}\n{\"a\\nb\":2,\"a\\nb\":3}\n";
+        MockLog.assertThatLogger(
+            () -> decodeDiscardingPages(ndjson, "test://duplicate-escape"),
+            NdJsonPageDecoder.class,
+            new MockLog.SeenEventExpectation(
+                "the parser's text, escaped",
+                NdJsonPageDecoder.class.getCanonicalName(),
+                Level.INFO,
+                "row [2] of [test://duplicate-escape]: duplicate field name (decodeObject): Duplicate field 'a\\u000Ab'"
+            )
+        );
+    }
+
+    /** One lenient decode of {@code ndjson}, for a caller that cannot throw and wants only what it logged. */
+    private void decodeDiscardingPages(String ndjson, String objectName) {
+        try (
+            NdJsonPageDecoder decoder = new NdJsonPageDecoder(
+                new ByteArrayInputStream(ndjson.getBytes(StandardCharsets.UTF_8)),
+                null,
+                List.of(attribute("v", DataType.LONG)),
+                null,
+                10,
+                blockFactory,
+                ErrorPolicy.LENIENT,
+                objectName,
+                new NdJsonReaderCounters(),
+                warning -> {}
+            );
+            Page page = decoder.decodePage()
+        ) {
+            assertNotNull(page);
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 

@@ -911,14 +911,28 @@ public class NdJsonPageDecoder implements Closeable {
         }
         skipWarnings.add(description);
         checkErrorBudgetOrThrow();
-        logger.log(
-            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
-            // Explicit prefix, because the description after it is a String: left off, the call binds
-            // format(prefix, pattern, args) rather than format(pattern, args) and the description becomes the
-            // pattern, which carries no placeholder and is returned on its own -- dropping the phase and the
-            // parser's own message, the two things this line adds to the warning.
-            LoggerMessageFormat.format(null, "{} ({}): {}", description, phaseLabel, e.getOriginalMessage())
-        );
+        // Guarded rather than handed to the logger to drop, because this line is built once per bad record and a
+        // lenient scan over a large object can have many.
+        Level level = errorPolicy.logErrors() ? Level.INFO : Level.DEBUG;
+        if (logger.isEnabled(level)) {
+            logger.log(
+                level,
+                // Explicit prefix, because the description after it is a String: left off, the call binds
+                // format(prefix, pattern, args) rather than format(pattern, args) and the description becomes
+                // the pattern, which carries no placeholder and is returned on its own -- dropping the phase and
+                // the parser's own message, the two things this line adds to the warning.
+                LoggerMessageFormat.format(
+                    null,
+                    "{} ({}): {}",
+                    description,
+                    phaseLabel,
+                    // The parser's text is the file's own: a duplicate-field rejection quotes the decoded field
+                    // name, so a name holding a newline writes a second line into the node log. Escaped and
+                    // capped like every other store-supplied token printed here.
+                    ErrorExcerpts.summarizeEscaped(e.getOriginalMessage())
+                )
+            );
+        }
     }
 
     /**

@@ -138,6 +138,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -3936,16 +3937,35 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         singleLocalSource(plan);
     }
 
-    /** A field the shards map as one type but the query reads as another, such as a date that is read as nanoseconds. */
+    /**
+     * A field mapped as date in one index and date_nanos in another is read as date_nanos. A data node that holds only the date
+     * shards sees the type date, and its bounds are milliseconds, which are not the nanoseconds the aggregate returns.
+     */
     public void testMinMaxNotAnsweredFromStatsWhenTheFieldIsReadAsAnotherType() {
-        var stats = new TestSearchStats() {
-            @Override
-            public SearchStats.ExactMinMax exactMinMax(FieldAttribute.FieldName field) {
-                return new SearchStats.ExactMinMax(true, 1L, 2L, "date_nanos");
-            }
-        };
-        var plan = plannerOptimizer.plan("from test | stats min(hire_date)", stats);
-        assertThat(plan.anyMatch(LocalSourceExec.class::isInstance), is(false));
+        var unionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithDateDateNanosUnionType()));
+        var asked = new AtomicBoolean();
+        String query = "from index* | stats min(date_and_date_nanos)";
+        for (String mappedType : List.of("date", "date_nanos")) {
+            asked.set(false);
+            var stats = new TestSearchStats() {
+                @Override
+                public SearchStats.ExactMinMax exactMinMax(FieldAttribute.FieldName field) {
+                    asked.set(true);
+                    return new SearchStats.ExactMinMax(true, 1L, 2L, mappedType);
+                }
+
+                // Without the IS NOT NULL filter the optimizer infers, which stays above the source for a field that is converted
+                // as it is read, the aggregate sits directly on the source.
+                @Override
+                public boolean isIndexed(FieldAttribute.FieldName field) {
+                    return false;
+                }
+            };
+            var plan = unionTypes.plan(query, stats);
+            // the rule must reach the statistics for the type check to be what decides
+            assertThat(mappedType, asked.get(), is(true));
+            assertThat(mappedType, plan.anyMatch(LocalSourceExec.class::isInstance), is(mappedType.equals("date_nanos")));
+        }
     }
 
     /** A query that narrows the documents is rejected before the statistics, which read the segments of every shard, are asked. */

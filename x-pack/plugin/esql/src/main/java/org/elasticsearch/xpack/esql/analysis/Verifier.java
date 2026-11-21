@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -158,6 +159,13 @@ public class Verifier {
         UnmappedResolution unmappedResolution = context.unmappedResolution();
 
         Failures failures = new Failures();
+
+        // JOIN on a subquery parses but cannot be planned; its unresolved join keys would only add noise to this failure.
+        plan.forEachDown(SubqueryJoin.class, join -> failures.add(fail(join, "JOIN on a subquery is not supported yet")));
+        if (failures.hasFailures()) {
+            return failures.failures();
+        }
+
         boolean unmappedTimestampHandled = unmappedResolution != UnmappedResolution.DEFAULT
             && isTimestampUnmappedInAllIndices(plan, failures);
 

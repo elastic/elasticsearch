@@ -36,12 +36,14 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.codec.tsdb.PrefixedPartitionsWriter;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +57,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class LuceneSliceQueueTests extends ESTestCase {
 
@@ -722,6 +726,75 @@ public class LuceneSliceQueueTests extends ESTestCase {
         }
     }
 
+    public void testRandomTimeSeriesPartition() throws IOException {
+        int shift = PrefixedPartitionsWriter.PARTITION_PREFIX_BITS - Byte.SIZE;
+        int maxDocsPerPartition = 50;
+        List<PartitionedDocValues.PrefixPartitions> partitions = new ArrayList<>();
+        List<MockLeafReader> readers = new ArrayList<>();
+        int[] metricDocs = new int[1 << Byte.SIZE];
+        int totalDocs = 0;
+        for (int leaf = between(1, 6); leaf > 0; leaf--) {
+            List<Integer> prefixes = new ArrayList<>();
+            List<Integer> startDocs = new ArrayList<>();
+            int maxDoc = 0;
+            for (int metric : new int[] { 0, 3, 255 }) {
+                if (rarely()) {
+                    continue;
+                }
+                for (int low = between(0, 200); low < 1 << shift; low += between(1, 100)) {
+                    int docs = between(1, maxDocsPerPartition);
+                    prefixes.add((metric << shift) + low);
+                    startDocs.add(maxDoc);
+                    maxDoc += docs;
+                    metricDocs[metric] += docs;
+                }
+            }
+            totalDocs += maxDoc;
+            var leafPartitions = new PartitionedDocValues.PrefixPartitions(
+                prefixes.size(),
+                prefixes.stream().mapToInt(Integer::intValue).toArray(),
+                startDocs.stream().mapToInt(Integer::intValue).toArray()
+            );
+            partitions.add(leafPartitions);
+            readers.add(new MockLeafReader(maxDoc, leafPartitions));
+        }
+        MultiReader reader = new MultiReader(readers.toArray(MockLeafReader[]::new));
+        int taskConcurrency = between(1, 8);
+        int maxDocsPerLeave = between(1, 2000);
+        var slices = new LuceneSliceQueue.TimeSeriesPartitioner().partition(reader.leaves(), taskConcurrency, maxDocsPerLeave);
+        Map<Integer, List<PartialLeafReaderContext>> sliceOfPrefix = new HashMap<>();
+        int previousMetric = -1;
+        int previousDocs = 0;
+        for (List<PartialLeafReaderContext> slice : slices) {
+            int metric = -1;
+            int sliceDocs = 0;
+            for (PartialLeafReaderContext range : slice) {
+                assertThat(range.maxDoc() - range.minDoc(), lessThan(maxDocsPerLeave + maxDocsPerPartition));
+                sliceDocs += range.maxDoc() - range.minDoc();
+                var leafPartitions = partitions.get(range.leafReaderContext().ord);
+                int numPartitions = leafPartitions.numPartitions();
+                for (int i = 0; i < numPartitions; i++) {
+                    int startDoc = leafPartitions.startDocs()[i];
+                    int endDoc = i + 1 < numPartitions ? leafPartitions.startDocs()[i + 1] : range.leafReaderContext().reader().maxDoc();
+                    if (startDoc < range.maxDoc() && endDoc > range.minDoc()) {
+                        int prefix = leafPartitions.prefixes()[i];
+                        assertSame(slice, sliceOfPrefix.computeIfAbsent(prefix, p -> slice));
+                        metric = prefix >>> shift;
+                    }
+                }
+            }
+            int docsPerSlice = Math.max(Math.ceilDiv(metricDocs[metric], taskConcurrency), maxDocsPerLeave);
+            assertThat(sliceDocs, lessThan(docsPerSlice + readers.size() * maxDocsPerPartition));
+            if (metric == previousMetric) {
+                assertThat(previousDocs, greaterThanOrEqualTo(maxDocsPerLeave));
+            }
+            previousMetric = metric;
+            previousDocs = sliceDocs;
+            totalDocs -= sliceDocs;
+        }
+        assertThat(totalDocs, equalTo(0));
+    }
+
     static class MockLeafReader extends LeafReader {
         private final int maxDoc;
         private final PartitionedDocValues.PrefixPartitions prefixPartitions;
@@ -900,7 +973,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
 
         @Override
         public int prefixPartitionBits() {
-            return 1;
+            return PrefixedPartitionsWriter.PARTITION_PREFIX_BITS;
         }
     }
 }

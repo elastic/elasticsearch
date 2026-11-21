@@ -1,0 +1,4 @@
+FROM employees
+| EVAL s2 = salary
+| INLINE STATS c = COUNT(*) BY languages
+| STATS a = MIN(s2), b = MIN(salary), mc = MAX(c)

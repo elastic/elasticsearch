@@ -104,6 +104,12 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
         );
     }
 
+    public UnresolvedEqlRelation withIndexPattern(IndexPattern newIndexPattern) {
+        return newIndexPattern.equals(indexPattern)
+            ? this
+            : new UnresolvedEqlRelation(source(), newIndexPattern, query, options, mode, hasExplicitLimit, metadataFields, unresolvedMsg);
+    }
+
     public IndexPattern indexPattern() {
         return indexPattern;
     }

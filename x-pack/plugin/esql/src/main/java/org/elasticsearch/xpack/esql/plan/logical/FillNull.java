@@ -85,9 +85,9 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
     // The aliases cannot be derived without the Configuration: converterFor reads the time zone from it for datetime/date_nanos.
     private final @Nullable Configuration configuration;
 
-    private List<Attribute> lazyOutput;
+    private volatile List<Attribute> lazyOutput;
 
-    private Set<String> lazyFilledNames;
+    private volatile Set<String> lazyFilledNames;
 
     public FillNull(Source source, LogicalPlan child, @Nullable Expression fillValue, List<NamedExpression> targetFields) {
         this(source, child, fillValue, targetFields, false);

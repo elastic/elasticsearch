@@ -82,4 +82,10 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
     public String getName() {
         return "delegate_pki_action";
     }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        // Logging in and out and exchanging credentials must work under memory pressure.
+        return false;
+    }
 }

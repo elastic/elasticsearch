@@ -171,7 +171,7 @@ public class AnalyzerEqlTests extends ESTestCase {
     public void testUnconvertibleTypeBecomesUnsupportedColumn() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 
-        // date_nanos is not in EqlPageConverter.CONVERTIBLE_TYPES, so the column must surface as unsupported (like FROM).
+        // date_nanos is not in EqlRelation.CONVERTIBLE_TYPES, so the column must surface as unsupported (like FROM).
         IndexResolution resolution = indexWith(
             "eql_unconv",
             Map.of("name", field("name", KEYWORD), "ts_nanos", field("ts_nanos", DATE_NANOS))

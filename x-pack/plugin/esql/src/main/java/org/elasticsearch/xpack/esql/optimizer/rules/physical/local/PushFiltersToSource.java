@@ -24,9 +24,11 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PatternPrefixBound;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvInRange;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -46,7 +48,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.querydsl.query.BestEffortQueryBuilder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -354,10 +358,24 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             renames
         ) : "logical rename-source name leaked into the pushed filter: " + mintInput;
 
+        // A prefix-bearing mv_like / mv_rlike has no statistics form, but the range it implies does: offer that range
+        // beside it. Only top-level conjuncts get one -- under a NOT the implied superset would turn into an under-match.
+        // The range is implied by its pattern, which stays wherever the SPI puts it, so it is never kept in the FilterExec.
+        Set<Expression> derivedBounds = Collections.newSetFromMap(new IdentityHashMap<>());
+        List<Expression> mintInputWithBounds = new ArrayList<>(mintInput.size());
+        for (Expression conjunct : mintInput) {
+            MvInRange bound = PatternPrefixBound.of(conjunct);
+            if (bound != null) {
+                derivedBounds.add(bound);
+                mintInputWithBounds.add(bound);
+            }
+            mintInputWithBounds.add(conjunct);
+        }
+
         // Use the SPI to push filters
         FilterPushdownSupport.PushdownResult result = pushableCandidates.isEmpty()
             ? FilterPushdownSupport.PushdownResult.none(List.of())
-            : pushdownSupport.pushFilters(mintInput);
+            : pushdownSupport.pushFilters(mintInputWithBounds);
 
         if (result.hasPushedFilter()) {
             // Create new ExternalSourceExec with the (physical) pushed filter and the pushed ESQL expressions in logical space
@@ -370,7 +388,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             // and the conjuncts over reconciliation-cast columns the SPI did not already hand back.
             List<Expression> remainder = new ArrayList<>(partitionConjuncts);
             if (result.hasRemainder()) {
-                remainder.addAll(PhysicalNames.translateExpressionNames(result.remainder(), toLogical));
+                List<Expression> spiRemainder = result.remainder().stream().filter(e -> derivedBounds.contains(e) == false).toList();
+                remainder.addAll(PhysicalNames.translateExpressionNames(spiRemainder, toLogical));
             }
             for (Expression castConjunct : castConjuncts) {
                 if (remainder.contains(castConjunct) == false) {

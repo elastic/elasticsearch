@@ -538,6 +538,42 @@ public class ParquetFlushIT extends ESIntegTestCase {
         assertUploaded(1, total);
     }
 
+    /**
+     * The engine rejects bulks when the local bytes reach {@code index.parquet.max_local_size}. A flush of several runs takes minutes, and
+     * the counter of the local bytes (which the stats show as {@code docs.total_size_in_bytes}) used to fall only when the whole flush was
+     * over, so bulks were rejected for the space of runs that were already uploaded. The limit on the size of a file here puts each
+     * local file in a run of its own, and the stats are read all the time while one flush runs. The value must fall in steps, and not
+     * stay as it is until the flush ends. A flush is short, so the test tries a few times.
+     */
+    public void testTheLocalBytesFallAsEachRunOfAFlushIsCommittedAndNotOnlyWhenTheFlushEnds() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.max_file_size", "1b").put("index.parquet.compaction.enabled", false));
+
+        boolean sawAStep = false;
+        for (int round = 0; round < 5 && sawAStep == false; round++) {
+            final int from = round * 60_000;
+            assertFalse(bulk(from, from + 60_000).hasFailures()); // 12 local files, so 12 runs
+            final long before = indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getTotalSizeInBytes();
+            assertThat(before, greaterThan(0L));
+
+            final var flush = indicesAdmin().prepareFlush(INDEX).setWaitIfOngoing(true).execute();
+            while (flush.isDone() == false) {
+                final long now = indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getTotalSizeInBytes();
+                if (now > 0 && now < before) {
+                    sawAStep = true;
+                }
+            }
+            assertThat(flush.get().getFailedShards(), equalTo(0));
+            assertThat(
+                "everything is uploaded",
+                indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getTotalSizeInBytes(),
+                equalTo(0L)
+            );
+        }
+        assertTrue("the local bytes fell before the flush was over", sawAStep);
+        assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), greaterThan(0L));
+    }
+
     public void testFlushUploadsTheRowsOfEveryShardAsFilesOfOneTable() throws Exception {
         registerRepository();
         createIndex(2, Settings.builder());

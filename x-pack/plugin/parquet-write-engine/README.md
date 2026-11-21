@@ -336,6 +336,17 @@ highest range that it uploaded and deletes every local file below it as a leftov
 while a lower range is still being written. The limit `index.parquet.max_local_size` is checked before a bulk writes, so bulks that are
 writing at that moment can take the local size a little past it.
 
+**The local bytes are counted again after each committed run of a flush.** The engine counts the local rows and bytes for the limit
+`index.parquet.max_local_size` and for the statistics (`docs.total_size_in_bytes`). A flush cuts a large backlog into runs of at most
+`max_file_size` local bytes, and a run takes minutes to merge. An earlier version counted again only when the whole flush ended, so while
+a flush of several runs went on, the counter still held the files of the runs that were already uploaded and deleted. In a benchmark that
+reached the limit, every client waited about 4 minutes (the longest bulk took 239.8 s), although the files that were really there were
+about half of what the counter said (the whole corpus is 8 to 10 GB of local files, and more than a third was already uploaded). The
+flusher now tells the engine after each run, with the commit data moved and the local files of the run deleted, and also when a flush
+deletes the leftover files of a run that a crash had committed. The engine counts the directory again under the write side of its lock,
+so a bulk that is writing is never counted twice or not at all. A failure to count is logged and does not fail the flush: the engine
+counts again when the flush ends.
+
 **The staged upload is tried three times, and a flush never takes the file before it is uploaded.** A request to the repository can fail
 for a moment (a throttled request, a reset connection, a credential that is being renewed), and the upload is on the path that
 acknowledges the bulk. So the engine tries it three times, with waits of 250 ms and 1 s, under a new key each time, and it deletes the

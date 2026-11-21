@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -101,6 +102,20 @@ public class ParquetFlusherTests extends ESTestCase {
     private ParquetFlusher newFlusher(ParquetFlusher.Hooks hooks) throws IOException {
         LocalParquetFiles.deleteTemporaryFiles(directory);
         return new ParquetFlusher(directory, commits, TestTables.open(store, LOCATION, 0), () -> settings, () -> completeThrough, hooks);
+    }
+
+    /** A flusher with a listener, which is told after each committed run. */
+    private ParquetFlusher newFlusher(ParquetFlusher.Hooks hooks, ParquetFlusher.RunListener listener) throws IOException {
+        LocalParquetFiles.deleteTemporaryFiles(directory);
+        return new ParquetFlusher(
+            directory,
+            commits,
+            TestTables.open(store, LOCATION, 0),
+            () -> settings,
+            () -> completeThrough,
+            hooks,
+            listener
+        );
     }
 
     private static ParquetFlusher.Hooks crashAt(String crashStep) {
@@ -212,6 +227,97 @@ public class ParquetFlusherTests extends ESTestCase {
         assertThat(commits.userData().get(ShardCommitData.UPLOADED_THROUGH_SEQ_NO), nullValue());
         assertThat(localFileNames(), hasSize(1));
         assertThat(TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(0));
+    }
+
+    /**
+     * A flush of several runs takes minutes. The engine counts the local bytes for its backpressure, and it must learn about each run when
+     * the run is committed, and not when the whole flush is over, or it keeps rejecting bulks for the space of files that are gone.
+     */
+    public void testTheListenerIsToldAfterEachRunWithTheStateOfThatRun() throws Exception {
+        TestLocalFiles.write(directory, 0, 499, false);
+        TestLocalFiles.write(directory, 500, 999, false);
+        TestLocalFiles.write(directory, 1000, 1499, false);
+        settings = new ParquetFlusher.Settings(1, 1 << 16, CompressionCodecName.SNAPPY, false); // a run for each file
+
+        final List<String> seen = new ArrayList<>();
+        final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE, () -> {
+            final Map<String, String> data = commits.userData();
+            seen.add(
+                "through="
+                    + ShardCommitData.uploadedThroughSeqNo(data)
+                    + " rows="
+                    + ShardCommitData.uploadedRows(data)
+                    + " pending="
+                    + data.get(ShardCommitData.PENDING_UPLOAD)
+                    + " local="
+                    + localFileNames().size()
+            );
+        }).flush();
+
+        assertThat(result.files(), equalTo(3));
+        assertThat(
+            seen,
+            contains(
+                "through=499 rows=500 pending=null local=2",
+                "through=999 rows=1000 pending=null local=1",
+                "through=1499 rows=1500 pending=null local=0"
+            )
+        );
+        assertFlushed(1500);
+    }
+
+    public void testAListenerThatFailsDoesNotFailAFlushThatIsCommitted() throws Exception {
+        TestLocalFiles.write(directory, 0, 99, false);
+        TestLocalFiles.write(directory, 100, 199, false);
+        settings = new ParquetFlusher.Settings(1, 1 << 16, CompressionCodecName.SNAPPY, false);
+
+        final int[] calls = new int[1];
+        final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE, () -> {
+            calls[0]++;
+            if (randomBoolean()) {
+                throw new IOException("no");
+            }
+            throw new IllegalStateException("no");
+        }).flush();
+
+        assertThat(result.files(), equalTo(2));
+        assertThat(calls[0], equalTo(2));
+        assertFlushed(200);
+    }
+
+    /** A crash after the table listed the file but before the commit data moved: the recovery finishes the run. */
+    public void testTheListenerIsToldWhenARecoveryFinishesARunThatACrashCutOff() throws Exception {
+        TestLocalFiles.write(directory, 0, 99, false);
+        expectThrows(IOException.class, () -> newFlusher(crashAt("appended")).flush());
+
+        final int[] calls = new int[1];
+        newFlusher(ParquetFlusher.Hooks.NONE, () -> calls[0]++).flush();
+
+        assertThat("the recovery deletes the local files of the run, and the engine counts again", calls[0], equalTo(1));
+        assertFlushed(100);
+    }
+
+    /** A crash after the commit data moved but before the local files were deleted: the next flush deletes them as leftovers. */
+    public void testTheListenerIsToldWhenAFlushDeletesTheLeftoverFilesOfARunThatWasCommitted() throws Exception {
+        TestLocalFiles.write(directory, 0, 99, false);
+        expectThrows(IOException.class, () -> newFlusher(crashAt("committed")).flush());
+        assertThat(
+            "the local file is still there, with the merged file of the run",
+            localFileNames().stream().filter(name -> name.startsWith("pqlocal_")).toList(),
+            hasSize(1)
+        );
+
+        final int[] calls = new int[1];
+        newFlusher(ParquetFlusher.Hooks.NONE, () -> calls[0]++).flush();
+
+        assertThat(calls[0], equalTo(1));
+        assertFlushed(100);
+    }
+
+    public void testTheListenerIsNotToldByAFlushThatHasNothingToDo() throws Exception {
+        final int[] calls = new int[1];
+        newFlusher(ParquetFlusher.Hooks.NONE, () -> calls[0]++).flush();
+        assertThat(calls[0], equalTo(0));
     }
 
     public void testTheMaximumFileSizeSplitsTheFlushIntoSeveralFiles() throws Exception {

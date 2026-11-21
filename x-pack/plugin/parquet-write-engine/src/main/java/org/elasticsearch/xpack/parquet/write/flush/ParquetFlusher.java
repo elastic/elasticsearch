@@ -65,6 +65,19 @@ public final class ParquetFlusher {
         void reached(String step) throws IOException;
     }
 
+    /**
+     * Told after each run of a flush is committed: its rows are in the table, the high-water mark and the row count of the commit data
+     * have moved, and its local files are deleted. The engine counts the local rows and bytes for its backpressure and its statistics, and
+     * it must count again at this moment and not only when the whole flush is over, because a flush of several runs takes minutes and
+     * would otherwise go on holding the space of the runs that are already uploaded.
+     */
+    @FunctionalInterface
+    public interface RunListener {
+        RunListener NONE = () -> {};
+
+        void runCommitted() throws IOException;
+    }
+
     /** The settings that a flush reads when it starts, so that a dynamic update applies to the next flush. */
     public record Settings(long maxFileBytes, long rowGroupBytes, CompressionCodecName codec, boolean staged) {}
 
@@ -95,6 +108,7 @@ public final class ParquetFlusher {
     private final Supplier<Settings> settings;
     private final LongSupplier completeThroughSeqNo;
     private final Hooks hooks;
+    private final RunListener runListener;
 
     /**
      * @param completeThroughSeqNo the highest sequence number {@code n} such that every bulk with a range up to {@code n} has finished
@@ -111,12 +125,26 @@ public final class ParquetFlusher {
         LongSupplier completeThroughSeqNo,
         Hooks hooks
     ) {
+        this(directory, commits, table, settings, completeThroughSeqNo, hooks, RunListener.NONE);
+    }
+
+    /** @param runListener told after each committed run, see {@link RunListener} */
+    public ParquetFlusher(
+        Directory directory,
+        ShardCommitData commits,
+        ShardTable table,
+        Supplier<Settings> settings,
+        LongSupplier completeThroughSeqNo,
+        Hooks hooks,
+        RunListener runListener
+    ) {
         this.directory = directory;
         this.commits = commits;
         this.table = table;
         this.settings = settings;
         this.completeThroughSeqNo = completeThroughSeqNo;
         this.hooks = hooks;
+        this.runListener = runListener;
     }
 
     /**
@@ -133,13 +161,18 @@ public final class ParquetFlusher {
         // after the flush that had picked its local file up
         deleteStagedUpTo(through);
         final List<LocalFile> todo = new ArrayList<>();
+        boolean deletedLeftovers = false;
         for (LocalFile file : LocalParquetFiles.list(directory)) {
             if (file.toSeqNo() <= through) {
                 delete(file.name()); // a leftover of a crash after the table listed its rows
+                deletedLeftovers = true;
             } else if (file.toSeqNo() <= complete) {
                 todo.add(file);
             }
             // else: a bulk with a lower range may still be writing, so the next flush takes this file
+        }
+        if (deletedLeftovers) {
+            runCommitted(); // the engine counted these files when they were written, and they are gone now
         }
         int files = 0;
         long rows = 0;
@@ -263,8 +296,18 @@ public final class ParquetFlusher {
         }
         delete(pending.name());
         hooks.reached("cleaned");
+        runCommitted();
         deleteStagedUpTo(pending.to());
         hooks.reached("unstaged");
+    }
+
+    /** Tells the listener. A failure is only logged: the run is committed, and the engine counts again when the flush is over. */
+    private void runCommitted() {
+        try {
+            runListener.runCommitted();
+        } catch (IOException | RuntimeException e) {
+            logger.warn("could not update the counters of the local files after a run of a flush was committed", e);
+        }
     }
 
     /**

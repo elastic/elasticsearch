@@ -689,7 +689,10 @@ public class ParquetWriteEngine extends Engine {
                     openTable(),
                     this::flushSettings,
                     tracker::getProcessedCheckpoint,
-                    ParquetFlusher.Hooks.NONE
+                    ParquetFlusher.Hooks.NONE,
+                    // the space of a run that is uploaded is free at once: a flush of several runs takes minutes, and bulks must not be
+                    // rejected for the whole time because of a counter that counts the files that are already gone
+                    this::refreshLocalFiles
                 );
                 flusher = current;
             }

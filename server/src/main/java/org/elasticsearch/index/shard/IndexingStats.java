@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -417,7 +418,11 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
 
             builder.field(Fields.NOOP_UPDATE_TOTAL, noopUpdateCount);
-            builder.field(Fields.IN_PLACE_DOC_VALUES_UPDATE_TOTAL, inPlaceDocValuesUpdateCount);
+            // Only expose the in-place doc-values update counter while the feature is enabled, so the public stats response is unchanged
+            // on release builds until updatable doc-values ships. The wire format still carries the value unconditionally.
+            if (FieldMapper.DOC_VALUES_UPDATABLE_FEATURE_FLAG.isEnabled()) {
+                builder.field(Fields.IN_PLACE_DOC_VALUES_UPDATE_TOTAL, inPlaceDocValuesUpdateCount);
+            }
 
             builder.field(Fields.IS_THROTTLED, isThrottled);
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());

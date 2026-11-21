@@ -274,6 +274,26 @@ public class CsvProcessorTests extends ESTestCase {
         assertFalse(document.hasField("f"));
     }
 
+    public void testUntrimmedWhitespaceOnlyFields() {
+        IngestDocument document = processDocument(
+            new String[] { "a", "b", "c", "d", "e" },
+            " " + separator + "abc" + separator + "   " + separator + " " + separator + "def",
+            false
+        );
+        assertFalse(document.hasField("a"));
+        assertEquals("abc", document.getFieldValue("b", String.class));
+        assertFalse(document.hasField("c"));
+        assertFalse(document.hasField("d"));
+        assertEquals("def", document.getFieldValue("e", String.class));
+    }
+
+    public void testUntrimmedWhitespaceOnlyFieldWithEmptyValue() {
+        IngestDocument document = processDocument(new String[] { "a", "b", "c" }, "abc" + separator + "  " + separator + "def", false, "");
+        assertEquals("abc", document.getFieldValue("a", String.class));
+        assertEquals("", document.getFieldValue("b", String.class));
+        assertEquals("def", document.getFieldValue("c", String.class));
+    }
+
     public void testIgnoreMissing() {
         assumeTrue("single run only", quote.isEmpty());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());

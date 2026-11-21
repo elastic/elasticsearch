@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
@@ -32,6 +33,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -612,6 +614,57 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             warnings,
             Matchers.contains("Line exceeds [" + ByteSizeValue.ofBytes(maxRecordBytes) + "]; skipping it", "about [10] bytes skipped")
         );
+    }
+
+    /**
+     * The discard reaches the node log as well as the warning, and the log line is pinned whole rather than by a
+     * fragment, because the way it breaks leaves the warning channel untouched. Both arguments in front of the
+     * sizes are Strings, so a call that omits the prefix binds
+     * {@code LoggerMessageFormat#format(String, String, Object...)}: the object clause becomes the pattern, it
+     * carries no placeholder, and the formatter returns it alone -- an operator then reads " in [input.ndjson]",
+     * or an empty line where there is no object name, while the warning says what it always said. A
+     * {@code containsString} on the byte count cannot see that, since the count is one of the parts dropped.
+     */
+    public void testTheDiscardIsLoggedWithTheObjectAndTheSizes() {
+        int maxRecordBytes = 8;
+        MockLog.assertThatLogger(
+            () -> readDiscardingAnOversizedLine("input.ndjson", maxRecordBytes),
+            TrimLastPartialLineInputStream.class,
+            new MockLog.SeenEventExpectation(
+                "named object",
+                TrimLastPartialLineInputStream.class.getCanonicalName(),
+                Level.INFO,
+                "Skipping NDJSON line in [input.ndjson] of about [10] bytes over [8] at a split boundary (record_before_delimiter)"
+            )
+        );
+        MockLog.assertThatLogger(
+            () -> readDiscardingAnOversizedLine(null, maxRecordBytes),
+            TrimLastPartialLineInputStream.class,
+            new MockLog.SeenEventExpectation(
+                "no object name",
+                TrimLastPartialLineInputStream.class.getCanonicalName(),
+                Level.INFO,
+                "Skipping NDJSON line of about [10] bytes over [8] at a split boundary (record_before_delimiter)"
+            )
+        );
+    }
+
+    /** The read the two discard-warning tests above make, for a caller that cannot throw. */
+    private static void readDiscardingAnOversizedLine(String objectName, int maxRecordBytes) {
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream("aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8)),
+                4,
+                ErrorPolicy.LENIENT,
+                objectName,
+                new NdJsonRecordSplitter(maxRecordBytes),
+                warning -> {}
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     public void testTrimLastPartialLineLenientDiscardsOversizedTailThroughDelimiter() throws IOException {

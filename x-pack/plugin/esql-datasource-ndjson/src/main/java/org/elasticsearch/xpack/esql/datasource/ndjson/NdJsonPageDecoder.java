@@ -913,7 +913,11 @@ public class NdJsonPageDecoder implements Closeable {
         checkErrorBudgetOrThrow();
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
-            LoggerMessageFormat.format("{} ({}): {}", description, phaseLabel, e.getOriginalMessage())
+            // Explicit prefix, because the description after it is a String: left off, the call binds
+            // format(prefix, pattern, args) rather than format(pattern, args) and the description becomes the
+            // pattern, which carries no placeholder and is returned on its own -- dropping the phase and the
+            // parser's own message, the two things this line adds to the warning.
+            LoggerMessageFormat.format(null, "{} ({}): {}", description, phaseLabel, e.getOriginalMessage())
         );
     }
 

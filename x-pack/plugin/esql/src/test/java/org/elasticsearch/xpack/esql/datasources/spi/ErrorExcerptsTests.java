@@ -83,9 +83,14 @@ public class ErrorExcerptsTests extends ESTestCase {
         int at = summarized.indexOf(marker);
         assertThat("the marker counts the value, not the escape", at, greaterThan(0));
         // Stripping every complete escape must leave nothing: a cut inside one leaves a stump at the end of the
-        // head or a bare "005B" at the start of the tail.
-        assertEquals("the head is whole escapes", "", summarized.substring(0, at).replace("\\u005B", ""));
-        assertEquals("the tail is whole escapes", "", summarized.substring(at + marker.length()).replace("\\u005B", ""));
+        // head or a bare "005B" at the start of the tail. Each window is pinned present first, because stripping
+        // the escapes out of an empty one also leaves nothing -- the strip alone passes on a window that is gone.
+        String head = summarized.substring(0, at);
+        String tail = summarized.substring(at + marker.length());
+        assertThat("the head is kept", head, startsWith("\\u005B"));
+        assertThat("the tail is kept", tail, endsWith("\\u005B"));
+        assertEquals("the head is whole escapes", "", head.replace("\\u005B", ""));
+        assertEquals("the tail is whole escapes", "", tail.replace("\\u005B", ""));
     }
 
     /**
@@ -107,17 +112,22 @@ public class ErrorExcerptsTests extends ESTestCase {
             Matcher stump = Pattern.compile("\\\\u(?![0-9A-F]{4})").matcher(summarized);
             assertFalse("a cut left a half-written escape in [" + summarized + "]", stump.find());
         }
-        // The check above is anchored on the backslash, so it sees a head that ends inside an escape and not a
+        // The scan above is anchored on the backslash, so it sees a head that ends inside an escape and not a
         // tail that begins inside one: a window starting at the "005D" of a lost "\\u005D" carries no backslash
-        // to match. These three values escape every character they have, so both windows must strip to nothing.
+        // to match. These three values escape every character they have, so both windows must strip to nothing --
+        // and must be there to strip, which an empty window would satisfy without being anything a reader sees.
         for (String value : List.of("[".repeat(1_000), "]".repeat(997), "\t".repeat(500))) {
             String escape = RowLocation.escapedForDisplay(value.substring(0, 1));
             String summarized = ErrorExcerpts.summarizeEscaped(value);
             int at = summarized.indexOf(CUT_MARKER_HEAD);
             assertThat("the value was cut", at, greaterThan(0));
             int tailAt = summarized.indexOf(CUT_MARKER_TAIL, at) + CUT_MARKER_TAIL.length();
-            assertEquals("the head is whole escapes", "", summarized.substring(0, at).replace(escape, ""));
-            assertEquals("the tail is whole escapes", "", summarized.substring(tailAt).replace(escape, ""));
+            String head = summarized.substring(0, at);
+            String tail = summarized.substring(tailAt);
+            assertThat("the head is kept", head, startsWith(escape));
+            assertThat("the tail is kept", tail, endsWith(escape));
+            assertEquals("the head is whole escapes", "", head.replace(escape, ""));
+            assertEquals("the tail is whole escapes", "", tail.replace(escape, ""));
         }
     }
 

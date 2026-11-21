@@ -285,10 +285,14 @@ final class TrimLastPartialLineInputStream extends InputStream {
         skipWarnings.add("about [" + discardedBytes + "] bytes skipped" + objectClause);
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
+            // The object goes in the log line as well as in the warning: an operator reading the log over a glob
+            // otherwise cannot tell which object a discard came from, and the two channels report the same event.
+            // Already reduced, like every other use of this field. The prefix argument is passed explicitly
+            // because the clause after it is a String: left off, the call binds format(prefix, pattern, args)
+            // rather than format(pattern, args), the clause becomes the pattern, and a pattern carrying no
+            // placeholder is returned on its own -- so the operator gets the clause and no message.
             LoggerMessageFormat.format(
-                // The object goes in the log line as well as in the warning: an operator reading the log over a
-                // glob otherwise cannot tell which object a discard came from, and the two channels report the
-                // same event. Already reduced, like every other use of this field.
+                null,
                 "Skipping NDJSON line{} of about [{}] bytes over [{}] at a split boundary ({})",
                 objectClause,
                 discardedBytes,

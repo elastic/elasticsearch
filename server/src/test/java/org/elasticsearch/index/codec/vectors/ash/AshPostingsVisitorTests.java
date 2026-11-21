@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.ash;
 
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -20,6 +21,8 @@ import org.elasticsearch.search.vectors.CountingQueryTransformCache;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -104,6 +107,83 @@ public class AshPostingsVisitorTests extends ESTestCase {
             assertThat(transforms.computed(), equalTo(2));
             assertThat(otherBits.scorerQuery, not(sameInstance(first.scorerQuery)));
         }
+    }
+
+    /**
+     * A sliced query searches each named slice of a segment without per-slice centroids, such as a flushed one, with its own
+     * sliced visitor: those visitors share the projected query.
+     */
+    public void testNamedSlicesOfASegmentShareProjection() throws IOException {
+        try (Directory dir = new ByteBuffersDirectory(); IndexInput input = emptyInput(dir)) {
+            AshProjectionMatrix matrix = randomMatrix();
+            float[] query = VectorTestUtils.randomFloatVector(ORIGINAL_DIM);
+            int bitsPerDim = randomIntBetween(1, 2);
+            int queryBitsPerDim = randomFrom(0, 4);
+            int docs = randomIntBetween(2, 20);
+            List<float[]> vectors = new ArrayList<>();
+            for (int i = 0; i < docs; i++) {
+                vectors.add(VectorTestUtils.randomFloatVector(ORIGINAL_DIM));
+            }
+            FloatVectorValues values = FloatVectorValues.fromFloats(vectors, ORIGINAL_DIM);
+            float[] centroid = new float[ORIGINAL_DIM];
+            CountingQueryTransformCache transforms = new CountingQueryTransformCache();
+
+            int sliceEnd = randomIntBetween(1, docs - 1);
+            AshPostingsVisitor<?> first = slicedVisitor(
+                matrix,
+                query,
+                input,
+                bitsPerDim,
+                queryBitsPerDim,
+                centroid,
+                values,
+                0,
+                sliceEnd,
+                transforms
+            );
+            AshPostingsVisitor<?> second = slicedVisitor(
+                matrix,
+                query,
+                input,
+                bitsPerDim,
+                queryBitsPerDim,
+                centroid,
+                values,
+                sliceEnd,
+                docs,
+                transforms
+            );
+            assertThat(transforms.computed(), equalTo(1));
+            assertThat(second.scorerQuery, sameInstance(first.scorerQuery));
+        }
+    }
+
+    private static AshPostingsVisitor<?> slicedVisitor(
+        AshProjectionMatrix matrix,
+        float[] query,
+        IndexInput input,
+        int bitsPerDim,
+        int queryBitsPerDim,
+        float[] centroid,
+        FloatVectorValues values,
+        int startDoc,
+        int endDoc,
+        CountingQueryTransformCache transforms
+    ) throws IOException {
+        return AshPostingsVisitor.createSliced(
+            matrix,
+            query,
+            VectorSimilarityFunction.EUCLIDEAN,
+            input,
+            null,
+            bitsPerDim,
+            queryBitsPerDim,
+            ord -> centroid,
+            values,
+            startDoc,
+            endDoc,
+            transforms
+        );
     }
 
     private static IndexInput emptyInput(Directory dir) throws IOException {

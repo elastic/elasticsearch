@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
 import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
@@ -98,7 +100,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
         /** The dimension fields each time-series aggregate groups by in addition. */
         private final Map<LogicalPlan, List<FieldAttribute>> keys = new IdentityHashMap<>();
         /** The temporary names to give values right above the node whose output holds them, by node, then by value. */
-        private final Map<LogicalPlan, Map<Attribute, Alias>> names = new IdentityHashMap<>();
+        private final Map<LogicalPlan, Map<Expression, Alias>> names = new IdentityHashMap<>();
         /** The values each projection projects, or each join adds of its right side, in addition. */
         private final Map<LogicalPlan, List<Attribute>> carried = new IdentityHashMap<>();
         /** The columns each union outputs in addition, by the position and label they read. */
@@ -170,11 +172,13 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                         }
                         return literal.value() instanceof BytesRef ? literal : null;
                     }
-                    if (value instanceof Attribute attribute
+                    // a column, or the text of a column that isn't a string, which is never empty, is what the write keeps
+                    Expression column = value instanceof ToString text && isNeverEmptyText(text.field().dataType()) ? text.field() : value;
+                    if (column instanceof Attribute attribute
                         && scope.children().size() == 1
                         && scope.children().getFirst().outputSet().contains(attribute)) {
                         origin = scope.children().getFirst();
-                        return attribute;
+                        return value;
                     }
                     return null;
                 }
@@ -338,7 +342,7 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                     crossed = paths.get(i);
                     origin = origins.get(i);
                     aggregate = aggregates.get(i);
-                    Expression value = found.get(i) instanceof Attribute attribute ? carry(attribute, union) : found.get(i);
+                    Expression value = found.get(i) instanceof Literal ? found.get(i) : carry(found.get(i), union);
                     branches.computeIfAbsent(union.children().get(i), k -> new ArrayList<>()).add(value);
                 }
                 known = new ReferenceAttribute(
@@ -355,41 +359,43 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
             return known;
         }
 
-        /** Records the value of {@code read}: a literal as it is, an attribute under a temporary name carried up to the read. */
+        /** Records the value of {@code read}: a literal as it is, any other value under a temporary name carried up to the read. */
         private void commit(TimeSeriesMetadataPath read, Expression value) {
-            values.put(read, value instanceof Attribute attribute ? carry(attribute, read) : value);
+            values.put(read, value instanceof Literal ? value : carry(value, read));
         }
 
         /**
-         * {@code attribute} under a temporary name given right above the node whose output holds it, carried up through the
-         * nodes crossed to reach it. A column a union adds has a name of its own already.
+         * {@code value} under a temporary name given right above the node whose output holds what it reads, carried up through
+         * the nodes crossed to reach it. A column a union adds has a name of its own already.
          */
-        private Attribute carry(Attribute attribute, Node<?> at) {
-            {
-                if (aggregate != null) {
-                    List<FieldAttribute> added = keys.computeIfAbsent(aggregate, k -> new ArrayList<>());
-                    if (added.contains(attribute) == false) {
-                        added.add((FieldAttribute) attribute);
-                    }
+        private Attribute carry(Expression value, Node<?> at) {
+            if (aggregate != null) {
+                List<FieldAttribute> added = keys.computeIfAbsent(aggregate, k -> new ArrayList<>());
+                if (added.contains(value) == false) {
+                    added.add((FieldAttribute) value);
                 }
-                Attribute named = origin instanceof UnionAll
-                    ? attribute
-                    : names.computeIfAbsent(origin, k -> new LinkedHashMap<>())
-                        .computeIfAbsent(
-                            attribute,
-                            a -> new Alias(at.source(), Attribute.rawTemporaryName("promql_label", a.name(), String.valueOf(count())), a)
-                        )
-                        .toAttribute();
-                for (LogicalPlan node : crossed) {
-                    if (node != origin) {
-                        List<Attribute> added = carried.computeIfAbsent(node, k -> new ArrayList<>());
-                        if (added.contains(named) == false) {
-                            added.add(named);
-                        }
-                    }
-                }
-                return named;
             }
+            Attribute named = origin instanceof UnionAll && value instanceof Attribute attribute
+                ? attribute
+                : names.computeIfAbsent(origin, k -> new LinkedHashMap<>())
+                    .computeIfAbsent(
+                        value,
+                        v -> new Alias(
+                            at.source(),
+                            Attribute.rawTemporaryName("promql_label", Expressions.name(v), String.valueOf(count())),
+                            v
+                        )
+                    )
+                    .toAttribute();
+            for (LogicalPlan node : crossed) {
+                if (node != origin) {
+                    List<Attribute> added = carried.computeIfAbsent(node, k -> new ArrayList<>());
+                    if (added.contains(named) == false) {
+                        added.add(named);
+                    }
+                }
+            }
+            return named;
         }
 
         private int count() {
@@ -462,11 +468,20 @@ public final class ScalarizeTimeSeriesMetadataPaths extends Rule<LogicalPlan, Lo
                 }
             }
             rewritten = rewritten.transformExpressionsOnly(TimeSeriesMetadataPath.class, read -> values.getOrDefault(read, read));
-            Map<Attribute, Alias> named = names.get(node);
+            Map<Expression, Alias> named = names.get(node);
             if (named != null) {
                 rewritten = new Eval(node.source(), rewritten, List.copyOf(named.values()));
             }
             return rewritten;
+        }
+
+        /** Whether the text of every value of {@code type} has a character, as a write keeps only such text. */
+        private static boolean isNeverEmptyText(DataType type) {
+            return type.isNumeric()
+                || type == DataType.BOOLEAN
+                || type == DataType.IP
+                || type == DataType.DATETIME
+                || type == DataType.DATE_NANOS;
         }
 
         private static Literal nothing(Expression at) {

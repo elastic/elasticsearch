@@ -94,6 +94,18 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
 
     @Override
     protected MultiPoint mutateInstance(MultiPoint instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        List<Point> points = new ArrayList<>();
+        instance.forEach(points::add);
+        // every point in a collection must have the same number of dimensions as the others
+        boolean hasZ = instance.hasZ();
+        int i = randomIntBetween(0, points.size() - 1);
+        // a collection cannot be empty, so only remove a point when there is more than one
+        switch (randomIntBetween(0, points.size() > 1 ? 2 : 1)) {
+            case 0 -> points.set(i, randomValueOtherThan(points.get(i), () -> GeometryTestUtils.randomPoint(hasZ)));
+            case 1 -> points.add(GeometryTestUtils.randomPoint(hasZ));
+            case 2 -> points.remove(i);
+            default -> throw new AssertionError("unexpected mutation branch");
+        }
+        return new MultiPoint(points);
     }
 }

@@ -1,0 +1,2755 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index modes and bare null handling required"
+---
+null_value replaces a null and leaves a missing field and an empty array alone in columnar:
+
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+                null_value: NA
+              wildcard:
+                type: wildcard
+                null_value: NA
+              ip:
+                type: ip
+                null_value: 10.9.9.9
+              boolean:
+                type: boolean
+                null_value: true
+              byte:
+                type: byte
+                null_value: 9
+              short:
+                type: short
+                null_value: 9
+              integer:
+                type: integer
+                null_value: 9
+              long:
+                type: long
+                null_value: 9
+              half_float:
+                type: half_float
+                null_value: 9.5
+              float:
+                type: float
+                null_value: 9.5
+              double:
+                type: double
+                null_value: 9.5
+              date:
+                type: date
+                null_value: 2026-03-01T00:00:00.000Z
+              date_nanos:
+                type: date_nanos
+                null_value: 2026-03-01T00:00:00.000000001Z
+              geo_point:
+                type: geo_point
+                null_value: 9.0,9.0
+
+  - do:
+      bulk:
+        index: test_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "wildcard": "a", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": null, "wildcard": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "geo_point": null}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null], "wildcard": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "value_then_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "null_then_value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: keyword } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: wildcard } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: ip } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: boolean } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: byte } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: short } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: integer } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: half_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: double } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: date } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: date_nanos } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { exists: { field: geo_point } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ keyword, wildcard, ip, boolean, byte, short, integer, long, half_float, float, double, date, date_nanos, geo_point ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.byte: 1 }
+  - match: { hits.hits.0._source.short: 1 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - match: { hits.hits.0._source.long: 1 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.1._source.keyword: "NA" }
+  - match: { hits.hits.1._source.wildcard: "NA" }
+  - match: { hits.hits.1._source.ip: "10.9.9.9" }
+  - match: { hits.hits.1._source.boolean: true }
+  - match: { hits.hits.1._source.byte: 9 }
+  - match: { hits.hits.1._source.short: 9 }
+  - match: { hits.hits.1._source.integer: 9 }
+  - match: { hits.hits.1._source.long: 9 }
+  - match: { hits.hits.1._source.half_float: 9.5 }
+  - match: { hits.hits.1._source.float: 9.5 }
+  - match: { hits.hits.1._source.double: 9.5 }
+  - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.2._source.keyword: "NA" }
+  - match: { hits.hits.2._source.wildcard: "NA" }
+  - match: { hits.hits.2._source.ip: "10.9.9.9" }
+  - match: { hits.hits.2._source.boolean: true }
+  - match: { hits.hits.2._source.byte: 9 }
+  - match: { hits.hits.2._source.short: 9 }
+  - match: { hits.hits.2._source.integer: 9 }
+  - match: { hits.hits.2._source.long: 9 }
+  - match: { hits.hits.2._source.half_float: 9.5 }
+  - match: { hits.hits.2._source.float: 9.5 }
+  - match: { hits.hits.2._source.double: 9.5 }
+  - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.3._source.keyword: ["a", "NA"] }
+  - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - match: { hits.hits.3._source.byte: [1, 9] }
+  - match: { hits.hits.3._source.short: [1, 9] }
+  - match: { hits.hits.3._source.integer: [1, 9] }
+  - match: { hits.hits.3._source.long: [1, 9] }
+  - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.double: [1.5, 9.5] }
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.4._source.geo_point: 2 }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in logsdb_columnar:
+
+  - do:
+      indices.create:
+        index: test_logsdb_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+                null_value: NA
+              wildcard:
+                type: wildcard
+                null_value: NA
+              ip:
+                type: ip
+                null_value: 10.9.9.9
+              boolean:
+                type: boolean
+                null_value: true
+              byte:
+                type: byte
+                null_value: 9
+              short:
+                type: short
+                null_value: 9
+              integer:
+                type: integer
+                null_value: 9
+              long:
+                type: long
+                null_value: 9
+              half_float:
+                type: half_float
+                null_value: 9.5
+              float:
+                type: float
+                null_value: 9.5
+              double:
+                type: double
+                null_value: 9.5
+              date:
+                type: date
+                null_value: 2026-03-01T00:00:00.000Z
+              date_nanos:
+                type: date_nanos
+                null_value: 2026-03-01T00:00:00.000000001Z
+              geo_point:
+                type: geo_point
+                null_value: 9.0,9.0
+
+  - do:
+      bulk:
+        index: test_logsdb_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "wildcard": "a", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": null, "wildcard": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "geo_point": null}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null], "wildcard": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "value_then_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "null_then_value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: keyword } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: wildcard } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: ip } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: boolean } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: byte } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: short } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: integer } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: half_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: double } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: date } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: date_nanos } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { exists: { field: geo_point } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ keyword, wildcard, ip, boolean, byte, short, integer, long, half_float, float, double, date, date_nanos, geo_point ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.byte: 1 }
+  - match: { hits.hits.0._source.short: 1 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - match: { hits.hits.0._source.long: 1 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.1._source.keyword: "NA" }
+  - match: { hits.hits.1._source.wildcard: "NA" }
+  - match: { hits.hits.1._source.ip: "10.9.9.9" }
+  - match: { hits.hits.1._source.boolean: true }
+  - match: { hits.hits.1._source.byte: 9 }
+  - match: { hits.hits.1._source.short: 9 }
+  - match: { hits.hits.1._source.integer: 9 }
+  - match: { hits.hits.1._source.long: 9 }
+  - match: { hits.hits.1._source.half_float: 9.5 }
+  - match: { hits.hits.1._source.float: 9.5 }
+  - match: { hits.hits.1._source.double: 9.5 }
+  - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.2._source.keyword: "NA" }
+  - match: { hits.hits.2._source.wildcard: "NA" }
+  - match: { hits.hits.2._source.ip: "10.9.9.9" }
+  - match: { hits.hits.2._source.boolean: true }
+  - match: { hits.hits.2._source.byte: 9 }
+  - match: { hits.hits.2._source.short: 9 }
+  - match: { hits.hits.2._source.integer: 9 }
+  - match: { hits.hits.2._source.long: 9 }
+  - match: { hits.hits.2._source.half_float: 9.5 }
+  - match: { hits.hits.2._source.float: 9.5 }
+  - match: { hits.hits.2._source.double: 9.5 }
+  - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.3._source.keyword: ["a", "NA"] }
+  - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - match: { hits.hits.3._source.byte: [1, 9] }
+  - match: { hits.hits.3._source.short: [1, 9] }
+  - match: { hits.hits.3._source.integer: [1, 9] }
+  - match: { hits.hits.3._source.long: [1, 9] }
+  - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.double: [1.5, 9.5] }
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.4._source.geo_point: 2 }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in vectordb_columnar:
+
+  - do:
+      indices.create:
+        index: test_vectordb_columnar
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+                null_value: NA
+              wildcard:
+                type: wildcard
+                null_value: NA
+              ip:
+                type: ip
+                null_value: 10.9.9.9
+              boolean:
+                type: boolean
+                null_value: true
+              byte:
+                type: byte
+                null_value: 9
+              short:
+                type: short
+                null_value: 9
+              integer:
+                type: integer
+                null_value: 9
+              long:
+                type: long
+                null_value: 9
+              half_float:
+                type: half_float
+                null_value: 9.5
+              float:
+                type: float
+                null_value: 9.5
+              double:
+                type: double
+                null_value: 9.5
+              date:
+                type: date
+                null_value: 2026-03-01T00:00:00.000Z
+              date_nanos:
+                type: date_nanos
+                null_value: 2026-03-01T00:00:00.000000001Z
+              geo_point:
+                type: geo_point
+                null_value: 9.0,9.0
+
+  - do:
+      bulk:
+        index: test_vectordb_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "wildcard": "a", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": null, "wildcard": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "geo_point": null}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null], "wildcard": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "value_then_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "null_then_value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: keyword } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: wildcard } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: ip } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: boolean } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: byte } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: short } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: integer } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: half_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: double } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: date } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: date_nanos } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { exists: { field: geo_point } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ keyword, wildcard, ip, boolean, byte, short, integer, long, half_float, float, double, date, date_nanos, geo_point ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.byte: 1 }
+  - match: { hits.hits.0._source.short: 1 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - match: { hits.hits.0._source.long: 1 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.1._source.keyword: "NA" }
+  - match: { hits.hits.1._source.wildcard: "NA" }
+  - match: { hits.hits.1._source.ip: "10.9.9.9" }
+  - match: { hits.hits.1._source.boolean: true }
+  - match: { hits.hits.1._source.byte: 9 }
+  - match: { hits.hits.1._source.short: 9 }
+  - match: { hits.hits.1._source.integer: 9 }
+  - match: { hits.hits.1._source.long: 9 }
+  - match: { hits.hits.1._source.half_float: 9.5 }
+  - match: { hits.hits.1._source.float: 9.5 }
+  - match: { hits.hits.1._source.double: 9.5 }
+  - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.2._source.keyword: "NA" }
+  - match: { hits.hits.2._source.wildcard: "NA" }
+  - match: { hits.hits.2._source.ip: "10.9.9.9" }
+  - match: { hits.hits.2._source.boolean: true }
+  - match: { hits.hits.2._source.byte: 9 }
+  - match: { hits.hits.2._source.short: 9 }
+  - match: { hits.hits.2._source.integer: 9 }
+  - match: { hits.hits.2._source.long: 9 }
+  - match: { hits.hits.2._source.half_float: 9.5 }
+  - match: { hits.hits.2._source.float: 9.5 }
+  - match: { hits.hits.2._source.double: 9.5 }
+  - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.3._source.keyword: ["a", "NA"] }
+  - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - match: { hits.hits.3._source.byte: [1, 9] }
+  - match: { hits.hits.3._source.short: [1, 9] }
+  - match: { hits.hits.3._source.integer: [1, 9] }
+  - match: { hits.hits.3._source.long: [1, 9] }
+  - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.double: [1.5, 9.5] }
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.4._source.geo_point: 2 }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in columnar with row indexing:
+
+  - do:
+      indices.create:
+        index: test_columnar_row
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+            index.batch_indexing: false
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+                null_value: NA
+              wildcard:
+                type: wildcard
+                null_value: NA
+              ip:
+                type: ip
+                null_value: 10.9.9.9
+              boolean:
+                type: boolean
+                null_value: true
+              byte:
+                type: byte
+                null_value: 9
+              short:
+                type: short
+                null_value: 9
+              integer:
+                type: integer
+                null_value: 9
+              long:
+                type: long
+                null_value: 9
+              half_float:
+                type: half_float
+                null_value: 9.5
+              float:
+                type: float
+                null_value: 9.5
+              double:
+                type: double
+                null_value: 9.5
+              date:
+                type: date
+                null_value: 2026-03-01T00:00:00.000Z
+              date_nanos:
+                type: date_nanos
+                null_value: 2026-03-01T00:00:00.000000001Z
+              geo_point:
+                type: geo_point
+                null_value: 9.0,9.0
+
+  - do:
+      bulk:
+        index: test_columnar_row
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "wildcard": "a", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": null, "wildcard": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "geo_point": null}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null], "wildcard": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "value_then_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "null_then_value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: keyword } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: wildcard } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: ip } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: boolean } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: byte } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: short } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: integer } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: half_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: double } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: date } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: date_nanos } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { exists: { field: geo_point } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ keyword, wildcard, ip, boolean, byte, short, integer, long, half_float, float, double, date, date_nanos, geo_point ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.byte: 1 }
+  - match: { hits.hits.0._source.short: 1 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - match: { hits.hits.0._source.long: 1 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.1._source.keyword: "NA" }
+  - match: { hits.hits.1._source.wildcard: "NA" }
+  - match: { hits.hits.1._source.ip: "10.9.9.9" }
+  - match: { hits.hits.1._source.boolean: true }
+  - match: { hits.hits.1._source.byte: 9 }
+  - match: { hits.hits.1._source.short: 9 }
+  - match: { hits.hits.1._source.integer: 9 }
+  - match: { hits.hits.1._source.long: 9 }
+  - match: { hits.hits.1._source.half_float: 9.5 }
+  - match: { hits.hits.1._source.float: 9.5 }
+  - match: { hits.hits.1._source.double: 9.5 }
+  - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.2._source.keyword: "NA" }
+  - match: { hits.hits.2._source.wildcard: "NA" }
+  - match: { hits.hits.2._source.ip: "10.9.9.9" }
+  - match: { hits.hits.2._source.boolean: true }
+  - match: { hits.hits.2._source.byte: 9 }
+  - match: { hits.hits.2._source.short: 9 }
+  - match: { hits.hits.2._source.integer: 9 }
+  - match: { hits.hits.2._source.long: 9 }
+  - match: { hits.hits.2._source.half_float: 9.5 }
+  - match: { hits.hits.2._source.float: 9.5 }
+  - match: { hits.hits.2._source.double: 9.5 }
+  - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.3._source.keyword: ["a", "NA"] }
+  - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - match: { hits.hits.3._source.byte: [1, 9] }
+  - match: { hits.hits.3._source.short: [1, 9] }
+  - match: { hits.hits.3._source.integer: [1, 9] }
+  - match: { hits.hits.3._source.long: [1, 9] }
+  - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.double: [1.5, 9.5] }
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.4._source.geo_point: 2 }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in logsdb_columnar with row indexing:
+
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_row
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+            index.batch_indexing: false
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+                null_value: NA
+              wildcard:
+                type: wildcard
+                null_value: NA
+              ip:
+                type: ip
+                null_value: 10.9.9.9
+              boolean:
+                type: boolean
+                null_value: true
+              byte:
+                type: byte
+                null_value: 9
+              short:
+                type: short
+                null_value: 9
+              integer:
+                type: integer
+                null_value: 9
+              long:
+                type: long
+                null_value: 9
+              half_float:
+                type: half_float
+                null_value: 9.5
+              float:
+                type: float
+                null_value: 9.5
+              double:
+                type: double
+                null_value: 9.5
+              date:
+                type: date
+                null_value: 2026-03-01T00:00:00.000Z
+              date_nanos:
+                type: date_nanos
+                null_value: 2026-03-01T00:00:00.000000001Z
+              geo_point:
+                type: geo_point
+                null_value: 9.0,9.0
+
+  - do:
+      bulk:
+        index: test_logsdb_columnar_row
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "wildcard": "a", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": null, "wildcard": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "geo_point": null}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null], "wildcard": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "value_then_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "null_then_value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: keyword } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: wildcard } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: ip } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: boolean } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: byte } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: short } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: integer } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: half_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: double } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: date } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: date_nanos } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { exists: { field: geo_point } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ keyword, wildcard, ip, boolean, byte, short, integer, long, half_float, float, double, date, date_nanos, geo_point ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.byte: 1 }
+  - match: { hits.hits.0._source.short: 1 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - match: { hits.hits.0._source.long: 1 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.1._source.keyword: "NA" }
+  - match: { hits.hits.1._source.wildcard: "NA" }
+  - match: { hits.hits.1._source.ip: "10.9.9.9" }
+  - match: { hits.hits.1._source.boolean: true }
+  - match: { hits.hits.1._source.byte: 9 }
+  - match: { hits.hits.1._source.short: 9 }
+  - match: { hits.hits.1._source.integer: 9 }
+  - match: { hits.hits.1._source.long: 9 }
+  - match: { hits.hits.1._source.half_float: 9.5 }
+  - match: { hits.hits.1._source.float: 9.5 }
+  - match: { hits.hits.1._source.double: 9.5 }
+  - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.2._source.keyword: "NA" }
+  - match: { hits.hits.2._source.wildcard: "NA" }
+  - match: { hits.hits.2._source.ip: "10.9.9.9" }
+  - match: { hits.hits.2._source.boolean: true }
+  - match: { hits.hits.2._source.byte: 9 }
+  - match: { hits.hits.2._source.short: 9 }
+  - match: { hits.hits.2._source.integer: 9 }
+  - match: { hits.hits.2._source.long: 9 }
+  - match: { hits.hits.2._source.half_float: 9.5 }
+  - match: { hits.hits.2._source.float: 9.5 }
+  - match: { hits.hits.2._source.double: 9.5 }
+  - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.3._source.keyword: ["a", "NA"] }
+  - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - match: { hits.hits.3._source.byte: [1, 9] }
+  - match: { hits.hits.3._source.short: [1, 9] }
+  - match: { hits.hits.3._source.integer: [1, 9] }
+  - match: { hits.hits.3._source.long: [1, 9] }
+  - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.double: [1.5, 9.5] }
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.4._source.geo_point: 2 }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in vectordb_columnar with row indexing:
+
+  - do:
+      indices.create:
+        index: test_vectordb_columnar_row
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+            index.batch_indexing: false
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+                null_value: NA
+              wildcard:
+                type: wildcard
+                null_value: NA
+              ip:
+                type: ip
+                null_value: 10.9.9.9
+              boolean:
+                type: boolean
+                null_value: true
+              byte:
+                type: byte
+                null_value: 9
+              short:
+                type: short
+                null_value: 9
+              integer:
+                type: integer
+                null_value: 9
+              long:
+                type: long
+                null_value: 9
+              half_float:
+                type: half_float
+                null_value: 9.5
+              float:
+                type: float
+                null_value: 9.5
+              double:
+                type: double
+                null_value: 9.5
+              date:
+                type: date
+                null_value: 2026-03-01T00:00:00.000Z
+              date_nanos:
+                type: date_nanos
+                null_value: 2026-03-01T00:00:00.000000001Z
+              geo_point:
+                type: geo_point
+                null_value: 9.0,9.0
+
+  - do:
+      bulk:
+        index: test_vectordb_columnar_row
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "wildcard": "a", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": null, "wildcard": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "geo_point": null}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null], "wildcard": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "value_then_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "null_then_value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: keyword } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: wildcard } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: ip } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: boolean } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: byte } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: short } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: integer } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: long } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: half_float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: float } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: double } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: date } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: date_nanos } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { exists: { field: geo_point } }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          track_total_hits: true
+          _source: false
+
+  - match: { hits.total.value: 5 }
+  - length: { hits.hits: 5 }
+  - match: { hits.hits.0._id: value }
+  - match: { hits.hits.1._id: bare_null }
+  - match: { hits.hits.2._id: null_in_array }
+  - match: { hits.hits.3._id: value_then_null }
+  - match: { hits.hits.4._id: null_then_value }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ keyword, wildcard, ip, boolean, byte, short, integer, long, half_float, float, double, date, date_nanos, geo_point ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.byte: 1 }
+  - match: { hits.hits.0._source.short: 1 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - match: { hits.hits.0._source.long: 1 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.1._source.keyword: "NA" }
+  - match: { hits.hits.1._source.wildcard: "NA" }
+  - match: { hits.hits.1._source.ip: "10.9.9.9" }
+  - match: { hits.hits.1._source.boolean: true }
+  - match: { hits.hits.1._source.byte: 9 }
+  - match: { hits.hits.1._source.short: 9 }
+  - match: { hits.hits.1._source.integer: 9 }
+  - match: { hits.hits.1._source.long: 9 }
+  - match: { hits.hits.1._source.half_float: 9.5 }
+  - match: { hits.hits.1._source.float: 9.5 }
+  - match: { hits.hits.1._source.double: 9.5 }
+  - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.2._source.keyword: "NA" }
+  - match: { hits.hits.2._source.wildcard: "NA" }
+  - match: { hits.hits.2._source.ip: "10.9.9.9" }
+  - match: { hits.hits.2._source.boolean: true }
+  - match: { hits.hits.2._source.byte: 9 }
+  - match: { hits.hits.2._source.short: 9 }
+  - match: { hits.hits.2._source.integer: 9 }
+  - match: { hits.hits.2._source.long: 9 }
+  - match: { hits.hits.2._source.half_float: 9.5 }
+  - match: { hits.hits.2._source.float: 9.5 }
+  - match: { hits.hits.2._source.double: 9.5 }
+  - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.3._source.keyword: ["a", "NA"] }
+  - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - match: { hits.hits.3._source.byte: [1, 9] }
+  - match: { hits.hits.3._source.short: [1, 9] }
+  - match: { hits.hits.3._source.integer: [1, 9] }
+  - match: { hits.hits.3._source.long: [1, 9] }
+  - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.double: [1.5, 9.5] }
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.4._source.geo_point: 2 }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }
+
+---
+null_value replaces a null and leaves a missing field and an empty array alone in columnar with columnar_stored:
+
+  - do:
+      indices.create:
+        index: test_columnar_stored
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+                null_value: NA
+              wildcard:
+                type: wildcard
+                null_value: NA
+              ip:
+                type: ip
+                null_value: 10.9.9.9
+              boolean:
+                type: boolean
+                null_value: true
+              byte:
+                type: byte
+                null_value: 9
+              short:
+                type: short
+                null_value: 9
+              integer:
+                type: integer
+                null_value: 9
+              long:
+                type: long
+                null_value: 9
+              half_float:
+                type: half_float
+                null_value: 9.5
+              float:
+                type: float
+                null_value: 9.5
+              double:
+                type: double
+                null_value: 9.5
+              date:
+                type: date
+                null_value: 2026-03-01T00:00:00.000Z
+              date_nanos:
+                type: date_nanos
+                null_value: 2026-03-01T00:00:00.000000001Z
+              geo_point:
+                type: geo_point
+                null_value: 9.0,9.0
+
+  - do:
+      bulk:
+        index: test_columnar_stored
+        refresh: true
+        body:
+          - '{ "index": { "_id": "value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": "a", "wildcard": "a", "ip": "10.0.0.1", "boolean": false, "byte": 1, "short": 1, "integer": 1, "long": 1, "half_float": 1.5, "float": 1.5, "double": 1.5, "date": "2026-01-01T00:00:00.000Z", "date_nanos": "2026-01-01T00:00:00.000000001Z", "geo_point": "1.0,2.0"}'
+          - '{ "index": { "_id": "bare_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:02.000Z", "keyword": null, "wildcard": null, "ip": null, "boolean": null, "byte": null, "short": null, "integer": null, "long": null, "half_float": null, "float": null, "double": null, "date": null, "date_nanos": null, "geo_point": null}'
+          - '{ "index": { "_id": "null_in_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:03.000Z", "keyword": [null], "wildcard": [null], "ip": [null], "boolean": [null], "byte": [null], "short": [null], "integer": [null], "long": [null], "half_float": [null], "float": [null], "double": [null], "date": [null], "date_nanos": [null], "geo_point": [null]}'
+          - '{ "index": { "_id": "value_then_null" } }'
+          - '{"@timestamp": "2026-01-01T00:00:04.000Z", "keyword": ["a", null], "wildcard": ["a", null], "ip": ["10.0.0.1", null], "boolean": [false, null], "byte": [1, null], "short": [1, null], "integer": [1, null], "long": [1, null], "half_float": [1.5, null], "float": [1.5, null], "double": [1.5, null], "date": ["2026-01-01T00:00:00.000Z", null], "date_nanos": ["2026-01-01T00:00:00.000000001Z", null], "geo_point": ["1.0,2.0", null]}'
+          - '{ "index": { "_id": "null_then_value" } }'
+          - '{"@timestamp": "2026-01-01T00:00:05.000Z", "keyword": [null, "a"], "wildcard": [null, "a"], "ip": [null, "10.0.0.1"], "boolean": [null, false], "byte": [null, 1], "short": [null, 1], "integer": [null, 1], "long": [null, 1], "half_float": [null, 1.5], "float": [null, 1.5], "double": [null, 1.5], "date": [null, "2026-01-01T00:00:00.000Z"], "date_nanos": [null, "2026-01-01T00:00:00.000000001Z"], "geo_point": [null, "1.0,2.0"]}'
+          - '{ "index": { "_id": "missing" } }'
+          - '{"@timestamp": "2026-01-01T00:00:06.000Z"}'
+          - '{ "index": { "_id": "empty_array" } }'
+          - '{"@timestamp": "2026-01-01T00:00:07.000Z", "keyword": [], "wildcard": [], "ip": [], "boolean": [], "byte": [], "short": [], "integer": [], "long": [], "half_float": [], "float": [], "double": [], "date": [], "date_nanos": [], "geo_point": []}'
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 7 }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          sort: [ { "@timestamp": asc } ]
+          size: 20
+          _source: [ keyword, wildcard, ip, boolean, byte, short, integer, long, half_float, float, double, date, date_nanos, geo_point ]
+
+  - length: { hits.hits: 7 }
+  - match: { hits.hits.0._source.keyword: "a" }
+  - match: { hits.hits.0._source.wildcard: "a" }
+  - match: { hits.hits.0._source.ip: "10.0.0.1" }
+  - match: { hits.hits.0._source.boolean: false }
+  - match: { hits.hits.0._source.byte: 1 }
+  - match: { hits.hits.0._source.short: 1 }
+  - match: { hits.hits.0._source.integer: 1 }
+  - match: { hits.hits.0._source.long: 1 }
+  - match: { hits.hits.0._source.half_float: 1.5 }
+  - match: { hits.hits.0._source.float: 1.5 }
+  - match: { hits.hits.0._source.double: 1.5 }
+  - match: { hits.hits.0._source.date: "2026-01-01T00:00:00.000Z" }
+  - match: { hits.hits.0._source.date_nanos: "2026-01-01T00:00:00.000000001Z" }
+  - match: { hits.hits.0._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.1._source.keyword: "NA" }
+  - match: { hits.hits.1._source.wildcard: "NA" }
+  - match: { hits.hits.1._source.ip: "10.9.9.9" }
+  - match: { hits.hits.1._source.boolean: true }
+  - match: { hits.hits.1._source.byte: 9 }
+  - match: { hits.hits.1._source.short: 9 }
+  - match: { hits.hits.1._source.integer: 9 }
+  - match: { hits.hits.1._source.long: 9 }
+  - match: { hits.hits.1._source.half_float: 9.5 }
+  - match: { hits.hits.1._source.float: 9.5 }
+  - match: { hits.hits.1._source.double: 9.5 }
+  - match: { hits.hits.1._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.1._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.1._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.2._source.keyword: "NA" }
+  - match: { hits.hits.2._source.wildcard: "NA" }
+  - match: { hits.hits.2._source.ip: "10.9.9.9" }
+  - match: { hits.hits.2._source.boolean: true }
+  - match: { hits.hits.2._source.byte: 9 }
+  - match: { hits.hits.2._source.short: 9 }
+  - match: { hits.hits.2._source.integer: 9 }
+  - match: { hits.hits.2._source.long: 9 }
+  - match: { hits.hits.2._source.half_float: 9.5 }
+  - match: { hits.hits.2._source.float: 9.5 }
+  - match: { hits.hits.2._source.double: 9.5 }
+  - match: { hits.hits.2._source.date: "2026-03-01T00:00:00.000Z" }
+  - match: { hits.hits.2._source.date_nanos: "2026-03-01T00:00:00.000000001Z" }
+  - match: { hits.hits.2._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.3._source.keyword: ["a", "NA"] }
+  - match: { hits.hits.3._source.wildcard: ["a", "NA"] }
+  - match: { hits.hits.3._source.ip: ["10.0.0.1", "10.9.9.9"] }
+  - match: { hits.hits.3._source.boolean: [false, true] }
+  - match: { hits.hits.3._source.byte: [1, 9] }
+  - match: { hits.hits.3._source.short: [1, 9] }
+  - match: { hits.hits.3._source.integer: [1, 9] }
+  - match: { hits.hits.3._source.long: [1, 9] }
+  - match: { hits.hits.3._source.half_float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.float: [1.5, 9.5] }
+  - match: { hits.hits.3._source.double: [1.5, 9.5] }
+  - match: { hits.hits.3._source.date: ["2026-01-01T00:00:00.000Z", "2026-03-01T00:00:00.000Z"] }
+  - match: { hits.hits.3._source.date_nanos: ["2026-01-01T00:00:00.000000001Z", "2026-03-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.3._source.geo_point: 2 }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - contains: { hits.hits.3._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - match: { hits.hits.4._source.keyword: ["NA", "a"] }
+  - match: { hits.hits.4._source.wildcard: ["NA", "a"] }
+  - match: { hits.hits.4._source.ip: ["10.9.9.9", "10.0.0.1"] }
+  - match: { hits.hits.4._source.boolean: [true, false] }
+  - match: { hits.hits.4._source.byte: [9, 1] }
+  - match: { hits.hits.4._source.short: [9, 1] }
+  - match: { hits.hits.4._source.integer: [9, 1] }
+  - match: { hits.hits.4._source.long: [9, 1] }
+  - match: { hits.hits.4._source.half_float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.float: [9.5, 1.5] }
+  - match: { hits.hits.4._source.double: [9.5, 1.5] }
+  - match: { hits.hits.4._source.date: ["2026-03-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z"] }
+  - match: { hits.hits.4._source.date_nanos: ["2026-03-01T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z"] }
+  - length: { hits.hits.4._source.geo_point: 2 }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 8.999999966472387, "lon": 8.999999966472387} }
+  - contains: { hits.hits.4._source.geo_point: {"lat": 0.9999999823048711, "lon": 1.9999999646097422} }
+  - match: { hits.hits.5._source: {} }
+  - match: { hits.hits.6._source: {} }

@@ -1,0 +1,1484 @@
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      cluster_features: [ "mapper.columnar.bare_null_is_absence" ]
+      reason: "columnar index modes and bare null handling required"
+
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+
+  - do:
+      bulk:
+        index: test_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": ["b", null, "a", "b"], "text": ["b", null, "a", "b"], "wildcard": ["b", null, "a", "b"], "ip": ["10.0.0.2", null, "10.0.0.1", "10.0.0.2"], "boolean": [true, null, false, true], "byte": [2, null, 1, 2], "short": [2, null, 1, 2], "integer": [2, null, 1, 2], "long": [2, null, 1, 2], "half_float": [2.5, null, 1.5, 2.5], "float": [2.5, null, 1.5, 2.5], "double": [2.5, null, 1.5, 2.5], "date": ["2026-01-02T00:00:00.000Z", null, "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-02T00:00:00.000000001Z", null, "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"]}'
+
+  - do:
+      indices.create:
+        index: test_logsdb_columnar
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+
+  - do:
+      bulk:
+        index: test_logsdb_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": ["b", null, "a", "b"], "text": ["b", null, "a", "b"], "wildcard": ["b", null, "a", "b"], "ip": ["10.0.0.2", null, "10.0.0.1", "10.0.0.2"], "boolean": [true, null, false, true], "byte": [2, null, 1, 2], "short": [2, null, 1, 2], "integer": [2, null, 1, 2], "long": [2, null, 1, 2], "half_float": [2.5, null, 1.5, 2.5], "float": [2.5, null, 1.5, 2.5], "double": [2.5, null, 1.5, 2.5], "date": ["2026-01-02T00:00:00.000Z", null, "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-02T00:00:00.000000001Z", null, "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"]}'
+
+  - do:
+      indices.create:
+        index: test_vectordb_columnar
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+
+  - do:
+      bulk:
+        index: test_vectordb_columnar
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": ["b", null, "a", "b"], "text": ["b", null, "a", "b"], "wildcard": ["b", null, "a", "b"], "ip": ["10.0.0.2", null, "10.0.0.1", "10.0.0.2"], "boolean": [true, null, false, true], "byte": [2, null, 1, 2], "short": [2, null, 1, 2], "integer": [2, null, 1, 2], "long": [2, null, 1, 2], "half_float": [2.5, null, 1.5, 2.5], "float": [2.5, null, 1.5, 2.5], "double": [2.5, null, 1.5, 2.5], "date": ["2026-01-02T00:00:00.000Z", null, "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-02T00:00:00.000000001Z", null, "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"]}'
+
+  - do:
+      indices.create:
+        index: test_columnar_row
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+            index.batch_indexing: false
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+
+  - do:
+      bulk:
+        index: test_columnar_row
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": ["b", null, "a", "b"], "text": ["b", null, "a", "b"], "wildcard": ["b", null, "a", "b"], "ip": ["10.0.0.2", null, "10.0.0.1", "10.0.0.2"], "boolean": [true, null, false, true], "byte": [2, null, 1, 2], "short": [2, null, 1, 2], "integer": [2, null, 1, 2], "long": [2, null, 1, 2], "half_float": [2.5, null, 1.5, 2.5], "float": [2.5, null, 1.5, 2.5], "double": [2.5, null, 1.5, 2.5], "date": ["2026-01-02T00:00:00.000Z", null, "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-02T00:00:00.000000001Z", null, "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"]}'
+
+  - do:
+      indices.create:
+        index: test_logsdb_columnar_row
+        body:
+          settings:
+            index.mode: logsdb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+            index.batch_indexing: false
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+
+  - do:
+      bulk:
+        index: test_logsdb_columnar_row
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": ["b", null, "a", "b"], "text": ["b", null, "a", "b"], "wildcard": ["b", null, "a", "b"], "ip": ["10.0.0.2", null, "10.0.0.1", "10.0.0.2"], "boolean": [true, null, false, true], "byte": [2, null, 1, 2], "short": [2, null, 1, 2], "integer": [2, null, 1, 2], "long": [2, null, 1, 2], "half_float": [2.5, null, 1.5, 2.5], "float": [2.5, null, 1.5, 2.5], "double": [2.5, null, 1.5, 2.5], "date": ["2026-01-02T00:00:00.000Z", null, "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-02T00:00:00.000000001Z", null, "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"]}'
+
+  - do:
+      indices.create:
+        index: test_vectordb_columnar_row
+        body:
+          settings:
+            index.mode: vectordb_columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: synthetic
+            index.batch_indexing: false
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+
+  - do:
+      bulk:
+        index: test_vectordb_columnar_row
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": ["b", null, "a", "b"], "text": ["b", null, "a", "b"], "wildcard": ["b", null, "a", "b"], "ip": ["10.0.0.2", null, "10.0.0.1", "10.0.0.2"], "boolean": [true, null, false, true], "byte": [2, null, 1, 2], "short": [2, null, 1, 2], "integer": [2, null, 1, 2], "long": [2, null, 1, 2], "half_float": [2.5, null, 1.5, 2.5], "float": [2.5, null, 1.5, 2.5], "double": [2.5, null, 1.5, 2.5], "date": ["2026-01-02T00:00:00.000Z", null, "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-02T00:00:00.000000001Z", null, "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"]}'
+
+  - do:
+      indices.create:
+        index: test_columnar_stored
+        body:
+          settings:
+            index.mode: columnar
+            index.number_of_shards: 1
+            index.mapping.source.mode: columnar_stored
+          mappings:
+            properties:
+              '@timestamp':
+                type: date
+              keyword:
+                type: keyword
+              text:
+                type: text
+              wildcard:
+                type: wildcard
+              ip:
+                type: ip
+              boolean:
+                type: boolean
+              byte:
+                type: byte
+              short:
+                type: short
+              integer:
+                type: integer
+              long:
+                type: long
+              half_float:
+                type: half_float
+              float:
+                type: float
+              double:
+                type: double
+              date:
+                type: date
+              date_nanos:
+                type: date_nanos
+
+  - do:
+      bulk:
+        index: test_columnar_stored
+        refresh: true
+        body:
+          - '{ "index": { "_id": "unsorted_duplicates_with_nulls" } }'
+          - '{"@timestamp": "2026-01-01T00:00:01.000Z", "keyword": ["b", null, "a", "b"], "text": ["b", null, "a", "b"], "wildcard": ["b", null, "a", "b"], "ip": ["10.0.0.2", null, "10.0.0.1", "10.0.0.2"], "boolean": [true, null, false, true], "byte": [2, null, 1, 2], "short": [2, null, 1, 2], "integer": [2, null, 1, 2], "long": [2, null, 1, 2], "half_float": [2.5, null, 1.5, 2.5], "float": [2.5, null, 1.5, 2.5], "double": [2.5, null, 1.5, 2.5], "date": ["2026-01-02T00:00:00.000Z", null, "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"], "date_nanos": ["2026-01-02T00:00:00.000000001Z", null, "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"]}'
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a keyword field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: keyword
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: keyword
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: keyword
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: keyword
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: keyword
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: keyword
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: keyword
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.keyword: ["b", "a", "b"] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a text field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.text: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: text
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.text: ["b", "a", "b"] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a wildcard field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: wildcard
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.wildcard: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: wildcard
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.wildcard: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: wildcard
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.wildcard: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: wildcard
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.wildcard: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: wildcard
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.wildcard: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: wildcard
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.wildcard: ["b", "a", "b"] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: wildcard
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.wildcard: ["b", "a", "b"] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on an ip field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: ip
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.ip: ["10.0.0.2", "10.0.0.1", "10.0.0.2"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: ip
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.ip: ["10.0.0.2", "10.0.0.1", "10.0.0.2"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: ip
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.ip: ["10.0.0.2", "10.0.0.1", "10.0.0.2"] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: ip
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.ip: ["10.0.0.2", "10.0.0.1", "10.0.0.2"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: ip
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.ip: ["10.0.0.2", "10.0.0.1", "10.0.0.2"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: ip
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.ip: ["10.0.0.2", "10.0.0.1", "10.0.0.2"] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: ip
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.ip: ["10.0.0.2", "10.0.0.1", "10.0.0.2"] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a boolean field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: boolean
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.boolean: [true, false, true] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: boolean
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.boolean: [true, false, true] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: boolean
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.boolean: [true, false, true] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: boolean
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.boolean: [true, false, true] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: boolean
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.boolean: [true, false, true] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: boolean
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.boolean: [true, false, true] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: boolean
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.boolean: [true, false, true] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a byte field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: byte
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.byte: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: byte
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.byte: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: byte
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.byte: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: byte
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.byte: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: byte
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.byte: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: byte
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.byte: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: byte
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.byte: [2, 1, 2] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a short field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: short
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.short: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: short
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.short: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: short
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.short: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: short
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.short: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: short
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.short: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: short
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.short: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: short
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.short: [2, 1, 2] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on an integer field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: integer
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.integer: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: integer
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.integer: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: integer
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.integer: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: integer
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.integer: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: integer
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.integer: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: integer
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.integer: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: integer
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.integer: [2, 1, 2] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a long field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.long: [2, 1, 2] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: long
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.long: [2, 1, 2] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a half_float field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: half_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.half_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: half_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.half_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: half_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.half_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: half_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.half_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: half_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.half_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: half_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.half_float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: half_float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.half_float: [2.5, 1.5, 2.5] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a float field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.float: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: float
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.float: [2.5, 1.5, 2.5] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a double field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: double
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.double: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: double
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.double: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: double
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.double: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: double
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.double: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: double
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.double: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: double
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.double: [2.5, 1.5, 2.5] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: double
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.double: [2.5, 1.5, 2.5] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a date field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: date
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date: ["2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: date
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date: ["2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: date
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date: ["2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: date
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date: ["2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: date
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date: ["2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: date
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date: ["2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: date
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date: ["2026-01-02T00:00:00.000Z", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z"] }
+
+---
+synthetic source keeps the order and the duplicates of the values that remain after a null on a date_nanos field in every variant:
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/165909"
+      reason: "source keeps the null element, so the values that remain are not returned alone (proposed contract in #165909)"
+
+  - do:
+      search:
+        index: test_columnar
+        body:
+          query: { match_all: {} }
+          _source: date_nanos
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date_nanos: ["2026-01-02T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          query: { match_all: {} }
+          _source: date_nanos
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date_nanos: ["2026-01-02T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          query: { match_all: {} }
+          _source: date_nanos
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date_nanos: ["2026-01-02T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: date_nanos
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date_nanos: ["2026-01-02T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: date_nanos
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date_nanos: ["2026-01-02T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          query: { match_all: {} }
+          _source: date_nanos
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date_nanos: ["2026-01-02T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          query: { match_all: {} }
+          _source: date_nanos
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.date_nanos: ["2026-01-02T00:00:00.000000001Z", "2026-01-01T00:00:00.000000001Z", "2026-01-02T00:00:00.000000001Z"] }
+
+---
+every document of the bulk requests is indexed:
+  - do:
+      search:
+        index: test_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_logsdb_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_vectordb_columnar_row
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test_columnar_stored
+        body:
+          size: 0
+          track_total_hits: true
+
+  - match: { hits.total.value: 1 }

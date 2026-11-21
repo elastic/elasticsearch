@@ -16,11 +16,14 @@ import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.document.column.ObjectTupleCursor;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -550,6 +553,104 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                 assertEquals("only the valued document has postings", 1, terms == null ? 0 : terms.getDocCount());
             }
         }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoValueInColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoValue(IndexMode.COLUMNAR);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoValueInLogsdbColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoValue(IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165909")
+    public void testNullOnlyArraysHaveNoValueInVectordbColumnar() throws IOException {
+        assertNullOnlyArraysHaveNoValue(IndexMode.VECTORDB_COLUMNAR);
+    }
+
+    private record ExistsAndNorms(List<Integer> exists, List<Integer> withDocValues, List<Integer> withNorm) {}
+
+    private void assertNullOnlyArraysHaveNoValue(IndexMode indexMode) throws IOException {
+        final MapperService mapperService = createMapperService(
+            IndexVersion.current(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build(),
+            mapping(b -> {
+                b.startObject("@timestamp").field("type", "date").endObject();
+                b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject();
+            })
+        );
+        final List<String> shapes = new ArrayList<>(valuedBatch());
+        shapes.addAll(VALUELESS_FIELD_SHAPES);
+        final List<String> sources = shapes.stream().map(AbstractColumnarNullHandlingTestCase::timestamped).toList();
+
+        final ExistsAndNorms oneByOne;
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
+            for (int i = 0; i < sources.size(); i++) {
+                final SourceToParse source = new SourceToParse("d" + i, new BytesArray(sources.get(i)), XContentType.JSON);
+                iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                oneByOne = existsAndNorms(mapperService, reader);
+            }
+        }
+
+        final ExistsAndNorms batch;
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
+            withMappedColumns(mapperService, sources, columns -> iw.addBatch(columns.toColumnBatch()));
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                batch = existsAndNorms(mapperService, reader);
+            }
+        }
+
+        assertEquals("documents that match exists, indexed one by one", List.of(0), oneByOne.exists());
+        assertEquals("documents that match exists, indexed as a batch", List.of(0), batch.exists());
+        assertEquals("documents that have doc values, indexed one by one", List.of(0), oneByOne.withDocValues());
+        assertEquals("documents that have doc values, indexed as a batch", List.of(0), batch.withDocValues());
+        final List<Integer> expectedWithNorm = mapperService.fieldType(FIELD).getTextSearchInfo().hasNorms() ? List.of(0) : List.of();
+        assertEquals("documents that have a norm, indexed one by one", expectedWithNorm, oneByOne.withNorm());
+        assertEquals("documents that have a norm, indexed as a batch", expectedWithNorm, batch.withNorm());
+    }
+
+    private ExistsAndNorms existsAndNorms(MapperService mapperService, DirectoryReader reader) throws IOException {
+        final Query exists = mapperService.fieldType(FIELD).existsQuery(createSearchExecutionContext(mapperService));
+        final List<Integer> matched = Arrays.stream(new IndexSearcher(reader).search(exists, reader.maxDoc()).scoreDocs)
+            .map(scoreDoc -> scoreDoc.doc)
+            .sorted()
+            .toList();
+        final List<Integer> withDocValues = new ArrayList<>();
+        final List<Integer> withNorm = new ArrayList<>();
+        for (LeafReaderContext leaf : reader.leaves()) {
+            final DocIdSetIterator docValues = docValuesIterator(leaf);
+            if (docValues != null) {
+                for (int doc = docValues.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = docValues.nextDoc()) {
+                    withDocValues.add(leaf.docBase + doc);
+                }
+            }
+            final NumericDocValues norms = leaf.reader().getNormValues(FIELD);
+            if (norms != null) {
+                for (int doc = norms.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = norms.nextDoc()) {
+                    withNorm.add(leaf.docBase + doc);
+                }
+            }
+        }
+        return new ExistsAndNorms(matched, withDocValues, withNorm);
+    }
+
+    private static DocIdSetIterator docValuesIterator(LeafReaderContext leaf) throws IOException {
+        final FieldInfo fieldInfo = leaf.reader().getFieldInfos().fieldInfo(FIELD);
+        if (fieldInfo == null) {
+            return null;
+        }
+        return switch (fieldInfo.getDocValuesType()) {
+            case NONE -> null;
+            case NUMERIC -> leaf.reader().getNumericDocValues(FIELD);
+            case BINARY -> leaf.reader().getBinaryDocValues(FIELD);
+            case SORTED -> leaf.reader().getSortedDocValues(FIELD);
+            case SORTED_NUMERIC -> leaf.reader().getSortedNumericDocValues(FIELD);
+            case SORTED_SET -> leaf.reader().getSortedSetDocValues(FIELD);
+        };
     }
 
     private static String timestamped(String field) {

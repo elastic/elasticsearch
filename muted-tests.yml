@@ -859,3 +859,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testOnPageFetchedSeesEveryArrivingPage
   issue: https://github.com/elastic/elasticsearch/issues/166977
+- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithoutPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166996

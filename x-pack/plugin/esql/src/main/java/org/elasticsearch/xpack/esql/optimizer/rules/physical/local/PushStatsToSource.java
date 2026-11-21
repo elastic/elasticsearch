@@ -185,9 +185,12 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
             return null;
         }
         var stats = context.searchStats();
-        // Doc values are needed because segments that cannot use their metadata are scanned. Multi-valued fields are fine: the
-        // segment bounds and the per-document minimum/maximum both cover every value.
-        if (stats.exists(field.fieldName()) == false || stats.hasDocValues(field.fieldName()) == false) {
+        // Doc values are needed because segments that cannot use their metadata are scanned. Points or a skipper are needed because
+        // a field without either would be scanned on a single slice per shard, which is slower than the parallel scan this replaces.
+        // Multi-valued fields are fine: the segment bounds and the per-document minimum/maximum both cover every value.
+        if (stats.exists(field.fieldName()) == false
+            || stats.hasDocValues(field.fieldName()) == false
+            || stats.hasPointsOrSkipper(field.fieldName()) == false) {
             return null;
         }
         // Cost check: skip pushdown if any segment has deletions. Such segments cannot use their metadata and would be scanned on

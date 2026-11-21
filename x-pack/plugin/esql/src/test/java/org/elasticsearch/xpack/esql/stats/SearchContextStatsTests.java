@@ -356,6 +356,34 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /** Segment metadata shortcuts need points or a skipper: an indexed date has points, one with only doc values has neither. */
+    public void testHasPointsOrSkipper() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": {
+                "indexed": { "type": "date" },
+                "doc_values_only": { "type": "date", "index": false },
+                "indexed_int": { "type": "integer" },
+                "doc_values_only_int": { "type": "integer", "index": false }
+            }}}""");
+        final Directory dir = newDirectory();
+        final IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of());
+            reader = writer.getReader();
+        }
+        try {
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertTrue(stats.hasPointsOrSkipper(new FieldAttribute.FieldName("indexed")));
+            assertTrue(stats.hasPointsOrSkipper(new FieldAttribute.FieldName("indexed_int")));
+            assertFalse(stats.hasPointsOrSkipper(new FieldAttribute.FieldName("doc_values_only")));
+            assertFalse(stats.hasPointsOrSkipper(new FieldAttribute.FieldName("doc_values_only_int")));
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
     public void testDocValuesOnlyKeywordIsNotDetectedAsSingleValued() throws IOException {
         final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
         final MapperService mapperService = mapperHelper.createMapperService("""

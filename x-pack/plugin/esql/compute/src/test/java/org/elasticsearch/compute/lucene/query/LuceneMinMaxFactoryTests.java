@@ -15,13 +15,16 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
@@ -53,6 +56,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -160,6 +164,55 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
                             throw new AssertionError("doc values read on a leaf without deletions, the metadata should be used");
                         }
                         return in.getSortedNumericDocValues(field);
+                    }
+
+                    @Override
+                    public CacheHelper getCoreCacheHelper() {
+                        return in.getCoreCacheHelper();
+                    }
+
+                    @Override
+                    public CacheHelper getReaderCacheHelper() {
+                        return in.getReaderCacheHelper();
+                    }
+                };
+            }
+        }) {
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+                return in;
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return in.getReaderCacheHelper();
+            }
+        };
+    }
+
+    /** Wraps the reader so that the documents read through doc values are counted, keeping single valued fields single valued. */
+    private static IndexReader countDocValueReads(IndexReader reader, AtomicLong reads) throws IOException {
+        return new FilterDirectoryReader((DirectoryReader) reader, new FilterDirectoryReader.SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                return new FilterLeafReader(leaf) {
+                    @Override
+                    public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
+                        SortedNumericDocValues sorted = in.getSortedNumericDocValues(field);
+                        if (sorted == null) {
+                            return null;
+                        }
+                        NumericDocValues single = DocValues.unwrapSingleton(sorted);
+                        if (single == null) {
+                            throw new AssertionError("this helper only counts single valued fields");
+                        }
+                        return DocValues.singleton(new FilterNumericDocValues(single) {
+                            @Override
+                            public boolean advanceExact(int target) throws IOException {
+                                reads.incrementAndGet();
+                                return in.advanceExact(target);
+                            }
+                        });
                     }
 
                     @Override
@@ -323,32 +376,32 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
         ElementType type = randomElementType();
         int docs = 20_000;
         long[] values = new long[docs];
-        try (
-            RandomIndexWriter writer = new RandomIndexWriter(
-                random(),
-                directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
-            )
-        ) {
+        // exactly one segment: the randomized flush settings would otherwise split the documents into many small segments, and
+        // segments that cannot improve the result are skipped as a whole, which would hide the block skipping under test
+        IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            .setRAMBufferSizeMB(512);
+        try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < docs; i++) {
                 // mostly increasing values with noise, so that block bounds differ from block to block
                 values[i] = type == ElementType.INT ? (i / 7) + between(-50, 50) : (i * 3L) + between(-5000, 5000);
-                if (i % 5 == 0) {
-                    // gaps: documents without a value
-                    writer.addDocument(new Document());
-                    values[i] = Long.MIN_VALUE;
-                    continue;
-                }
                 Document doc = new Document();
-                doc.add(SortedNumericDocValuesField.indexedField(FIELD, values[i]));
                 doc.add(new NumericDocValuesField("filter", i));
+                if (i % 5 == 0) {
+                    // a document without a value that the filter can still match
+                    values[i] = Long.MIN_VALUE;
+                } else {
+                    doc.add(SortedNumericDocValuesField.indexedField(FIELD, values[i]));
+                }
                 writer.addDocument(doc);
             }
             writer.commit();
-            readers.add(writer.getReader());
         }
+        readers.add(DirectoryReader.open(directory));
+        assertThat(lastReader().leaves().size(), equalTo(1));
         int from = between(0, docs / 2);
-        int to = between(from, docs - 1);
+        // at least a few documents, so that a document with a value is always in the range
+        int to = between(from + 10, docs - 1);
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         for (int i = from; i <= to; i++) {
@@ -362,6 +415,49 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
         Result result = run(factory(lastReader(), type, filter, List.of(Function.MIN, Function.MAX)), type, 2);
         assertThat(result.values, equalTo(new long[] { min, max }));
         assertThat(result.seen, equalTo(new boolean[] { true, true }));
+    }
+
+    /**
+     * The skipper bounds of a block cover its documents, so once the extremes were seen, later blocks cannot improve the result and
+     * documents without a value need no read. The first block holds the extremes, a long run of documents without values follows,
+     * then a block that improves the maximum, and the remaining blocks stay within the extremes. Only the documents of the first
+     * two blocks may be read.
+     */
+    public void testFilteredScanSkipsBlocksAndGaps() throws IOException {
+        ElementType type = randomElementType();
+        int firstBlock = 4096;
+        int gapEnd = 10_000;
+        int docs = 20_000;
+        // exactly one segment: the randomized flush settings would otherwise split the documents into many small segments, and
+        // segments that cannot improve the result are skipped as a whole, which would hide the block skipping under test
+        IndexWriterConfig config = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+            .setRAMBufferSizeMB(512);
+        try (IndexWriter writer = new IndexWriter(directory, config)) {
+            for (int i = 0; i < docs; i++) {
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField("filter", i));
+                if (i < firstBlock || i >= gapEnd) {
+                    long value = i == 1 ? -1_000_000L : i == 2 ? 1_000_000L : i == gapEnd ? 2_000_000L : between(0, 999);
+                    doc.add(SortedNumericDocValuesField.indexedField(FIELD, value));
+                }
+                writer.addDocument(doc);
+            }
+            writer.commit();
+        }
+        readers.add(DirectoryReader.open(directory));
+        assertThat(lastReader().leaves().size(), equalTo(1));
+        AtomicLong reads = new AtomicLong();
+        IndexReader reader = track(countDocValueReads(lastReader(), reads));
+        // the filter skips document 0, so it never matches every document and the metadata shortcut cannot apply
+        Query filter = NumericDocValuesField.newSlowRangeQuery("filter", 1, docs - 1);
+        Result result = run(factory(reader, type, filter, List.of(Function.MIN, Function.MAX)), type, 2);
+        assertThat(result.values, equalTo(new long[] { -1_000_000L, 2_000_000L }));
+        assertThat(result.seen, equalTo(new boolean[] { true, true }));
+        // The first block and the block after the gap, which improves the maximum, are read. Without block skipping all 19,999
+        // matching documents are read, without gap skipping the 5,904 documents of the gap are read too.
+        assertThat(reads.get(), lessThanOrEqualTo(2L * firstBlock));
+        assertThat(reads.get(), greaterThan(0L));
     }
 
     /**

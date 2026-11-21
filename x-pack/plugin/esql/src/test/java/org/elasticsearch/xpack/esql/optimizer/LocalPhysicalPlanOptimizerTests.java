@@ -212,6 +212,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         public boolean hasDeletions() {
             return false;
         }
+
+        @Override
+        public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+            return true;
+        }
     };
 
     private final SearchStats CONSTANT_K_STATS = new TestSearchStats() {
@@ -539,6 +544,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             public boolean hasDeletions() {
                 return true;
             }
+
+            @Override
+            public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+                return true;
+            }
         };
         var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", withDeletions);
         assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
@@ -556,6 +566,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             public boolean hasDeletions() {
                 return false;
             }
+
+            @Override
+            public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+                return true;
+            }
         };
         var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", multiValued);
         assertThat(minMaxStatsQueryFor(plan).stat(), instanceOf(EsStatsQueryExec.MinMaxStat.class));
@@ -572,8 +587,30 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             public boolean hasDeletions() {
                 return false;
             }
+
+            @Override
+            public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+                return true;
+            }
         };
         var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", noDocValues);
+        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+    }
+
+    /** Without points or a skipper the shard would be scanned on one slice, which is slower than the parallel scan. */
+    public void testMinMaxNotPushedToStatsSourceWithoutPointsOrSkipper() {
+        var noMetadata = new TestSearchStats() {
+            @Override
+            public boolean hasDeletions() {
+                return false;
+            }
+
+            @Override
+            public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+                return false;
+            }
+        };
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", noMetadata);
         assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
     }
 

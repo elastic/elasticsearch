@@ -7,22 +7,32 @@
 
 package org.elasticsearch.xpack.esql.eql;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
+import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Coordinator-local source operator that delegates to the EQL engine: on first poll it issues a single
@@ -55,6 +65,8 @@ public class EqlSourceOperator extends SourceOperator {
         }
     }
 
+    private static final int MAX_LISTED_FAILURE_REASONS = 3;
+
     private final DriverContext driverContext;
     private final Client client;
     private final EqlSearchRequest request;
@@ -68,9 +80,7 @@ public class EqlSourceOperator extends SourceOperator {
     private SubscribableListener<Void> blocked;
     private volatile Page page;
     private volatile Exception failure;
-    // Whether the EQL response was partial (a shard failed or timed out). Only possible when the enclosing ES|QL query
-    // allows partial results; surfaced as a warning so the incomplete result is not reported as complete.
-    private volatile boolean partial;
+    private volatile String partialResultsWarning;
     // Guards the close()-vs-response-callback race: Driver.drainAndCloseOperators runs before waitForAsyncActions,
     // so close() can fire while the EQL search is still in flight. Mutations of page/closed are synchronized(this).
     private boolean closed;
@@ -112,7 +122,7 @@ public class EqlSourceOperator extends SourceOperator {
                 // This callback runs on the EQL response thread, outside the driver run loop, so the blocks must come from
                 // the root factory: the driver's local breaker may only be touched by the driver thread.
                 // isPartial() only flags a still-running async response; a completed one reports lost shards in shardFailures().
-                partial = CollectionUtils.isEmpty(response.shardFailures()) == false;
+                partialResultsWarning = describePartialResults(response);
                 Page built = EqlPageConverter.toPage(response, mode, schema, driverContext.blockFactory().parent());
                 synchronized (this) {
                     if (closed) {
@@ -169,15 +179,12 @@ public class EqlSourceOperator extends SourceOperator {
      * Emits a warning on the driver thread when the EQL response was partial (a shard failed or timed out), so an
      * incomplete result is surfaced to the user. This only happens when the enclosing ES|QL query allows partial
      * results; when it does not, the delegate fails the query outright and no page is emitted.
-     *
-     * <p>Known boundary: this surfaces the partial state as a warning only. It does not yet flip the ES|QL response's
-     * {@code is_partial} flag, because a source operator has no handle on the query-level {@code EsqlExecutionInfo};
-     * wiring that through is a follow-up (a client keying off {@code is_partial} alone would not see the shard failure).
      */
     private void maybeWarnPartial() {
-        if (partial) {
-            driverContext.createOnlyWarnings(source)
-                .registerWarning("EQL query returned partial results (one or more shards failed or timed out); some events may be missing");
+        String warning = partialResultsWarning;
+        if (warning != null) {
+            driverContext.markPartial();
+            driverContext.createOnlyWarnings(source).registerWarningWithoutSourceText(warning);
         }
     }
 
@@ -188,6 +195,50 @@ public class EqlSourceOperator extends SourceOperator {
                     "EQL query used the default size of [" + request.size() + "] matches. Set WITH {\"size\": n} to return more."
                 );
         }
+    }
+
+    private static String describePartialResults(EqlSearchResponse response) {
+        ShardSearchFailure[] failures = response.shardFailures();
+        boolean shardsFailed = CollectionUtils.isEmpty(failures) == false;
+        if (shardsFailed == false && response.isTimeout() == false) {
+            return null;
+        }
+        StringBuilder warning = new StringBuilder("EQL query returned partial results");
+        if (response.isTimeout()) {
+            warning.append(", the search timed out");
+        }
+        if (shardsFailed) {
+            Set<ShardId> failedShards = new HashSet<>();
+            Set<String> reasons = new TreeSet<>();
+            for (ShardSearchFailure failure : failures) {
+                failedShards.add(failure.shard() == null ? null : failure.shard().getShardId());
+                reasons.add(rootCause(failure));
+            }
+            warning.append(", [").append(failedShards.size()).append("] failed shards: ");
+            int listed = 0;
+            for (String reason : reasons) {
+                if (listed == MAX_LISTED_FAILURE_REASONS) {
+                    warning.append(" and [").append(reasons.size() - listed).append("] more");
+                    break;
+                }
+                warning.append(listed == 0 ? "[" : ", [").append(reason).append(']');
+                listed++;
+            }
+        }
+        return warning.toString();
+    }
+
+    private static String rootCause(ShardSearchFailure failure) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable root = failure.getCause();
+        while (root.getCause() != null && seen.add(root)) {
+            root = root.getCause();
+        }
+        if (root instanceof NotSerializableExceptionWrapper) {
+            return root.getMessage();
+        }
+        String name = ElasticsearchException.getExceptionName(root);
+        return root.getMessage() == null ? name : name + ": " + root.getMessage();
     }
 
     @Override

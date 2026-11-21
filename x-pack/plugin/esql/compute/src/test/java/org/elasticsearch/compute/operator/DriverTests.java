@@ -1653,6 +1653,37 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    public void testPartialDriverContextMarksTheCompletionInfoPartial() {
+        Driver partial = TestDriverFactory.create(
+            driverContext(),
+            new CannedSourceOperator(Collections.emptyIterator()),
+            List.of(),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        Driver complete = TestDriverFactory.create(
+            driverContext(),
+            new CannedSourceOperator(Collections.emptyIterator()),
+            List.of(),
+            new TestResultPageSinkOperator(page -> fail("sink should not receive output"))
+        );
+        partial.driverContext().markPartial();
+        ThreadPool threadPool = threadPool();
+        try {
+            PlainActionFuture<Void> partialFuture = new PlainActionFuture<>();
+            PlainActionFuture<Void> completeFuture = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), partial, between(1, 1000), partialFuture);
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), complete, between(1, 1000), completeFuture);
+            partialFuture.actionGet(30, TimeUnit.SECONDS);
+            completeFuture.actionGet(30, TimeUnit.SECONDS);
+            assertFalse(DriverCompletionInfo.excludingProfiles(List.of(complete), 0, false).partial());
+            assertTrue(DriverCompletionInfo.excludingProfiles(List.of(complete, partial), 0, false).partial());
+        } finally {
+            partial.close();
+            complete.close();
+            terminate(threadPool);
+        }
+    }
+
     private static void assertFinishedWithUsage(Driver driver, long bytesRead, long readNanos, long readCpuNanos) {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(driver), 0, false);

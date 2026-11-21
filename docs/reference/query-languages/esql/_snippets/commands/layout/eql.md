@@ -103,15 +103,17 @@ command as described above, the command uses the default size and the query retu
 
 ### Partial results
 
-An event query honors the enclosing {{esql}} query's
-[`allow_partial_results`](/reference/query-languages/esql/esql-rest.md) setting. When partial results are
-allowed and a shard fails, the query returns the events it could and adds a warning that the results may be
-incomplete, rather than reporting a partial result as complete. In the same case, a `sequence` query follows
-the `xpack.eql.default_allow_partial_sequence_results` cluster setting, the same as a standalone EQL search:
-for an index pattern that targets a single remote cluster, that is the remote cluster's setting.
-The setting defaults to `false`, which returns no sequences rather than the ones found on the remaining shards.
+The command honors the enclosing {{esql}} query's
+[`allow_partial_results`](/reference/query-languages/esql/esql-rest.md) setting. When partial results are not
+allowed, a shard failure fails the query. When they are allowed and a shard fails, an event or `sample` query
+returns the events or samples it could, and a `sequence` query follows the
+`xpack.eql.default_allow_partial_sequence_results` cluster setting, the same as a standalone EQL search: for an
+index pattern that targets a single remote cluster, that is the remote cluster's setting. The setting defaults to
+`false`, which returns no sequences rather than the ones found on the remaining shards.
 `WITH { "allow_partial_sequence_results": … }` overrides the setting for a single query; set it to `true` to
-prefer resilience over completeness.
+prefer resilience over completeness. Whenever a shard fails and the query still returns, even with no sequences,
+the response sets `is_partial` to `true` and adds a warning listing up to three distinct failure reasons, rather
+than reporting a partial result as complete.
 
 ### Unmapped fields
 

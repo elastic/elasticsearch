@@ -32,6 +32,8 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -205,13 +207,18 @@ public class VersionStringFieldMapper extends FieldMapper {
                 );
             }
             Term term = new Term(name(), new BytesRef(value));
-            Automaton automaton = AutomatonQueries.toRegexpAutomaton(
-                term,
-                syntaxFlags,
-                matchFlags,
-                maxDeterminizedStates,
-                context.getCircuitBreaker()
+            CircuitBreaker breaker = context.getCircuitBreaker();
+            Automaton automaton = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, breaker);
+            // An AutomatonQuery compiles the DFA into its UTF-8 run form as it is constructed, which peaks well above the DFA.
+            return AutomatonQueries.reservingCompile(
+                automaton,
+                breaker,
+                ChildMemoryCircuitBreaker.CATEGORY_REGEXP,
+                () -> decodingRegexpQuery(term, automaton, method)
             );
+        }
+
+        private static Query decodingRegexpQuery(Term term, Automaton automaton, @Nullable MultiTermQuery.RewriteMethod method) {
             return new AutomatonQuery(term, automaton, false, method == null ? CONSTANT_SCORE_REWRITE : method) {
 
                 @Override

@@ -269,7 +269,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             } catch (TooComplexToDeterminizeException e) {
                 throw new IllegalArgumentException("Pattern was too complex to determinize", e);
             }
-            return new CharacterRunAutomaton(automaton).run(matchTarget) ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
+            return accepts(automaton, matchTarget) ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
+        }
+
+        /**
+         * Runs the one value through {@code dfa}. A run automaton would answer faster, but it is a table with an entry for
+         * every state and character class of the pattern, built here to be read once.
+         */
+        private static boolean accepts(Automaton dfa, String value) {
+            return Operations.run(dfa, value);
         }
 
         @Override
@@ -364,12 +372,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 maxDeterminizedStates,
                 context == null ? null : context.getCircuitBreaker()
             );
-            final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
-            if (runAutomaton.run(this.value)) {
-                return Queries.ALL_DOCS_INSTANCE;
-            } else {
-                return Queries.NO_DOCS_INSTANCE;
-            }
+            return accepts(automaton, this.value) ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
         }
 
         @Override

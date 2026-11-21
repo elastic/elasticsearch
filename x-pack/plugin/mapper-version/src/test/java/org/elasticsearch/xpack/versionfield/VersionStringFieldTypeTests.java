@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
@@ -57,6 +59,23 @@ public class VersionStringFieldTypeTests extends FieldTypeTestCase {
         assertEquals(0L, breaker.getUsed());
         Query query = ft.regexpQuery("2\\.1.*", RegExp.ALL, 0, 10_000, null, context);
         assertEquals("/2\\.1.*/", query.toString("field"));
+        assertEquals(0L, breaker.getUsed());
+    }
+
+    /**
+     * Constructing the query compiles the automaton into the form it runs, which takes far more memory than the automaton.
+     * That step is reserved too: this pattern's automaton builds under the limit, and its compiled form is what is refused.
+     */
+    public void testRegexpQueryReservesItsCompiledForm() {
+        MappedFieldType ft = new VersionStringFieldMapper.Builder("field").build(MapperBuilderContext.root(false, false)).fieldType();
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.allowExpensiveQueries()).thenReturn(true);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        when(context.getCircuitBreaker()).thenReturn(breaker);
+        String pattern = "[0-9]{500}";
+        AutomatonQueries.toRegexpAutomaton(new Term("field", pattern), RegExp.ALL, 0, 10_000, breaker);
+        assertEquals(0L, breaker.getUsed());
+        expectThrows(CircuitBreakingException.class, () -> ft.regexpQuery(pattern, RegExp.ALL, 0, 10_000, null, context));
         assertEquals(0L, breaker.getUsed());
     }
 

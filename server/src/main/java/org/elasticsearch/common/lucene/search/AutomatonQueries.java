@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Helper functions for creating various forms of {@link AutomatonQuery}
@@ -200,13 +201,23 @@ public class AutomatonQueries {
     }
 
     public static ByteRunAutomaton toByteRunAutomaton(Automaton automaton, @Nullable CircuitBreaker circuitBreaker, String category) {
+        return reservingCompile(automaton, circuitBreaker, category, () -> new ByteRunAutomaton(automaton));
+    }
+
+    /**
+     * Runs {@code compile}, which builds the form a query runs from {@code dfa} (a {@code ByteRunAutomaton}, or the
+     * {@code CompiledAutomaton} an {@link AutomatonQuery} builds when it is constructed), with an estimate of that step's
+     * peak held on {@code circuitBreaker} while it runs. The estimate is released on return; what the caller keeps is
+     * accounted by the caller. If {@code circuitBreaker} is {@code null}, {@code compile} runs without accounting.
+     */
+    public static <T> T reservingCompile(Automaton dfa, @Nullable CircuitBreaker circuitBreaker, String category, Supplier<T> compile) {
         if (circuitBreaker == null) {
-            return new ByteRunAutomaton(automaton);
+            return compile.get();
         }
-        long reservation = new AutomatonQueryCostEstimator(automaton.ramBytesUsed()).estimate();
+        long reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
         circuitBreaker.addEstimateBytesAndMaybeBreak(reservation, category);
         try {
-            return new ByteRunAutomaton(automaton);
+            return compile.get();
         } finally {
             circuitBreaker.addWithoutBreaking(-reservation, category);
         }

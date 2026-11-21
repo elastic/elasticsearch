@@ -71,6 +71,11 @@ public class EsqlCaptureContext extends QueryCaptureContext {
         return request.queryDescription();
     }
 
+    /** Available on success and failure, including queries that never produce a response. */
+    public long requestedTimeRangeMillis() {
+        return request.requestedTimeRangeMillis();
+    }
+
     public Optional<ShardInfo> shardInfo() {
         return Optional.ofNullable(response).map(EsqlQueryResponse::getExecutionInfo).map(EsqlCaptureContext::getShardInfo);
     }

@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
@@ -82,6 +84,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Runtime-only state of the node that runs the query: it is not serialized.
      */
     private transient Map<String, ViewQuerySettings> viewSettings = Map.of();
+    // Coordinator-only metadata, retained on failures as well as successful responses. Not serialized.
+    private transient long requestedTimeRangeMillis = -1;
     /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
      * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
@@ -442,6 +446,23 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views (yet). */
     public Map<String, ViewQuerySettings> viewSettings() {
         return viewSettings;
+    }
+
+    /** Records the request-filter span used by timestamp-bounds-aware analysis, independently of query logging. */
+    public void setRequestedTimeRange(@Nullable TimestampBounds bounds) {
+        requestedTimeRangeMillis = -1;
+        if (bounds != null) {
+            try {
+                requestedTimeRangeMillis = Duration.between(bounds.start(), bounds.end()).toMillis();
+            } catch (ArithmeticException e) {
+                // An unrepresentable span must not fail an otherwise valid query just for instrumentation.
+            }
+        }
+    }
+
+    /** Requested filter span in milliseconds, or -1 if no bounded span could be determined. */
+    public long requestedTimeRangeMillis() {
+        return requestedTimeRangeMillis;
     }
 
     Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {

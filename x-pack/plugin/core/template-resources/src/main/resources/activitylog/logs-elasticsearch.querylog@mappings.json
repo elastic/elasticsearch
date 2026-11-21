@@ -162,6 +162,9 @@
                   "type": "flattened",
                   "ignore_above": 256
                 },
+                "requested_time_range_ms": {
+                  "type": "long"
+                },
                 "result_count": {
                   "type": "long",
                   "index": false

@@ -707,12 +707,21 @@ public class EsqlSession {
         final Configuration finalConfiguration = explainContext != null ? configuration.withExplainOnly() : configuration;
         final FoldContext foldContext = finalConfiguration.newFoldContext();
 
+        // Keep the original filter's bounds even if index resolution retries without the filter. Resolve date math
+        // against the same fixed now as analysis, and retain the span for instrumentation on failure paths too.
+        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+            request.filter(),
+            finalConfiguration::absoluteStartedTimeInMillis
+        );
+        request.setRequestedTimeRange(timestampBounds);
+
         analyzedPlan(
             plan,
             QuerySettings.UNMAPPED_FIELDS.get(finalConfiguration.resolvedSettings()),
             finalConfiguration,
             executionInfo,
             request.filter(),
+            timestampBounds,
             viewResolution.indexViewOrigins(),
             viewResolution.viewSettings(),
             new ActionListener<Versioned<LogicalPlan>>() {
@@ -1979,6 +1988,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         IndexViewOrigins indexViewOrigins,
         Map<String, ViewQuerySettings> viewSettings,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
@@ -2010,6 +2020,7 @@ public class EsqlSession {
                     configuration,
                     executionInfo,
                     requestFilter,
+                    timestampBounds,
                     indexViewOrigins,
                     delegate
                 );
@@ -2024,6 +2035,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         QueryBuilder requestFilter,
+        TimestampBounds timestampBounds,
         IndexViewOrigins indexViewOrigins,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
@@ -2055,15 +2067,8 @@ public class EsqlSession {
         PreAnalysisResult result = resolveFieldNames(parsed, preAnalysis, unmappedResolution, viewSettings, requestFilter, configuration)
             .withMinimumTransportVersion(localClusterMinimumVersion)
             .withIndexViewOrigins(indexViewOrigins);
-        // Extract timestamp bounds eagerly from the request filter so they can be threaded through to the analyzer
-        // and to listing, even when index resolution is retried without the filter (e.g. because the filter covers
-        // an empty time range). Extraction uses configuration::absoluteStartedTimeInMillis (fixed at request start).
         // PromQL / TBUCKET / TSTEP keep LEGACY rounding. Listing uses RANGE_QUERY so folder hints are never tighter
         // than the row-filter rewrite (a time_zone range the translator drops does not narrow listing).
-        TimestampBounds timestampBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
-            requestFilter,
-            configuration::absoluteStartedTimeInMillis
-        );
         TimestampBounds listingBounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
             requestFilter,
             configuration::absoluteStartedTimeInMillis,

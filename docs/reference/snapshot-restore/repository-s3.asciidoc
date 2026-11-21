@@ -230,7 +230,7 @@ any of these versions.
     storage service that restores S3 compatibility. Use the
     {ref}/repo-analysis-api.html[repository analysis API] to verify that your
     repository behaves correctly. This setting was added and deprecated in
-    8.19.24 and will be removed in a future major version. Defaults to `false`.
+    8.19.24 and will be removed in 10.x. Defaults to `false`.
 
 NOTE: The `legacy_content_md5` setting is not supported by versions `9.0`,
 `9.1`, `9.2`, `9.3`, `9.4` or `9.5.0` to `9.5.5`. If you configure this setting,

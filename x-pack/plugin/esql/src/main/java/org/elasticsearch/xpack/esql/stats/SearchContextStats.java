@@ -211,6 +211,16 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean nestedQueriesAllowed() {
+        for (SearchExecutionContext context : contexts) {
+            if (context.allowExpensiveQueries() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
     public boolean nestedFieldHasDocValues(FieldName field) {
         boolean mapped = false;
         for (SearchExecutionContext context : contexts) {

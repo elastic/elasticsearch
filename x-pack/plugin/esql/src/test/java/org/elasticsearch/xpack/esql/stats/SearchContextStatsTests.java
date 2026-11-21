@@ -1351,6 +1351,21 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.note"), DataType.TEXT));
     }
 
+    public void testNestedQueriesAreAllowedOnlyWhenEveryShardAllowsExpensiveQueries() throws IOException {
+        SearchExecutionContext allowed = statsContext("""
+            { "doc": { "properties": { "items": { "type": "nested", "properties": { "price": { "type": "long" } } } } } }""");
+        SearchExecutionContext refused = new SearchExecutionContext(allowed) {
+            @Override
+            public boolean allowExpensiveQueries() {
+                return false;
+            }
+        };
+
+        assertTrue(SearchContextStats.from(List.of(allowed)).nestedQueriesAllowed());
+        assertFalse(SearchContextStats.from(List.of(refused)).nestedQueriesAllowed());
+        assertFalse(SearchContextStats.from(List.of(allowed, refused)).nestedQueriesAllowed());
+    }
+
     /** A runtime field under a nested path is read from the parent document, so a query on the child cannot match what is read. */
     public void testNestedRuntimeChildIsNotQueryable() throws IOException {
         SearchExecutionContext mapped = statsContext("""

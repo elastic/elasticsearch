@@ -44,7 +44,8 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
 
 /**
  * Runs {@code WHERE NESTED_ANY(<predicate>)} in Lucene as a {@code nested} query, so only parents with a matching child document
- * leave the index. Each shard mapping must allow Lucene to compare the child values as their block loaders read them, including
+ * leave the index. Every shard must accept nested queries, which {@code search.allow_expensive_queries: false} refuses. Each shard
+ * mapping must allow Lucene to compare the child values as their block loaders read them, including
  * having searchable doc values and no keyword normalizer that changes query literals. An exact translation replaces the
  * predicate; one that needs a recheck is pushed and still evaluated; anything else stays in memory. A {@code true} predicate, as
  * in {@code NESTED_ANY(items, true)}, matches any child document. {@code NOT NESTED_ANY(<predicate>)} is pushed as
@@ -102,6 +103,9 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
      * shard here. {@link Translation#exact} says the query matches exactly the parents the predicate does.
      */
     static Translation translate(NestedPredicate predicate, LucenePushdownPredicates children, SearchStats stats) {
+        if (stats.nestedQueriesAllowed() == false) {
+            return null;
+        }
         Expression childPredicate = childPredicate(predicate, stats);
         if (childPredicate == null) {
             return null;

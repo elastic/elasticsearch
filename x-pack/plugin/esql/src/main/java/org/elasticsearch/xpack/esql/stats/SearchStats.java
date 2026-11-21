@@ -40,6 +40,14 @@ public interface SearchStats {
     }
 
     /**
+     * Whether every shard here accepts {@code nested} queries. Lucene's nested query is refused where
+     * {@code search.allow_expensive_queries} is {@code false}, so a predicate may only become one when this holds.
+     */
+    default boolean nestedQueriesAllowed() {
+        return false;
+    }
+
+    /**
      * Whether every shard here that maps the nested child {@code field} can query it, and every shard that maps its nested
      * object maps it too. At least one must map it. Where the object is mapped but the field is not, its children hold null
      * for it in memory, which a query on the field cannot match the way a predicate on null would.

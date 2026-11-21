@@ -113,6 +113,24 @@ public class NestedPredicateLuceneTests extends ESTestCase {
         assertIsTheNestedQueryForSkuA(pushed.query());
     }
 
+    public void testNothingTranslatesWhenTheShardsRefuseExpensiveQueries() {
+        NestedPredicate onAChild = predicate(EQUALS_A);
+        NestedPredicate onTheCollection = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items, true) | LIMIT 10");
+        SearchStats refusing = stats(queryableAsRead(onAChild), false);
+
+        assertThat(PushNestedPredicateToSource.translate(onAChild, CHILDREN, refusing), is(nullValue()));
+        assertThat(PushNestedPredicateToSource.translate(onTheCollection, CHILDREN, refusing), is(nullValue()));
+        assertThat(PushNestedPredicateToSource.push(onAChild, false, CHILDREN, refusing), is(nullValue()));
+    }
+
+    public void testEvalKeepsReadingChildrenWhenTheShardsRefuseExpensiveQueries() {
+        NestedPredicate predicate = predicate(EQUALS_A);
+        EvalExec eval = eval(predicate);
+        LocalPhysicalOptimizerContext refusing = context(stats(queryableAsRead(predicate), false));
+
+        assertThat(new EvaluateNestedPredicateInLucene().apply(eval, refusing), equalTo(eval));
+    }
+
     public void testAPredicateTheShardsCannotQueryIsNotPushed() {
         assertThat(PushNestedPredicateToSource.push(predicate(EQUALS_A), false, CHILDREN, stats(Map.of())), is(nullValue()));
     }
@@ -179,12 +197,16 @@ public class NestedPredicateLuceneTests extends ESTestCase {
     }
 
     private static LocalPhysicalOptimizerContext context(Map<String, DataType> queryable) {
+        return context(stats(queryable));
+    }
+
+    private static LocalPhysicalOptimizerContext context(SearchStats stats) {
         return new LocalPhysicalOptimizerContext(
             PlannerSettings.DEFAULTS,
             new EsqlFlags(true),
             EsqlTestUtils.TEST_CFG,
             FoldContext.small(),
-            stats(queryable)
+            stats
         );
     }
 
@@ -193,7 +215,16 @@ public class NestedPredicateLuceneTests extends ESTestCase {
      * child field is queryable as a given type.
      */
     private static SearchStats stats(Map<String, DataType> queryable) {
+        return stats(queryable, true);
+    }
+
+    private static SearchStats stats(Map<String, DataType> queryable, boolean nestedQueriesAllowed) {
         return new SearchStats.UnsupportedSearchStats() {
+            @Override
+            public boolean nestedQueriesAllowed() {
+                return nestedQueriesAllowed;
+            }
+
             @Override
             public boolean nestedFieldIsQueryable(FieldAttribute.FieldName field, DataType type) {
                 return queryable.get(field.string()) == type;

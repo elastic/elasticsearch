@@ -1305,6 +1305,54 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /** A field alias has no data of its own: its bounds are those of the field it points to, also in an object. */
+    public void testExactMinMaxThroughFieldAlias() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<Long>> docs = randomDocuments(type);
+        String mapping = """
+            { "doc": { "properties": {
+                "f": { "type": "long" },
+                "f_alias": { "type": "alias", "path": "f" },
+                "o": { "properties": { "f": { "type": "long" } } },
+                "o_alias": { "type": "alias", "path": "o.f" }
+            } } }""";
+        List<List<IndexableField>> fields = new ArrayList<>();
+        for (List<Long> values : docs) {
+            List<IndexableField> doc = new ArrayList<>(pointsDocument(type, values));
+            for (long value : values) {
+                doc.add(new LongField("o.f", -value / 2, Field.Store.NO));
+            }
+            fields.add(doc);
+        }
+        try (Shard shard = shard(Settings.EMPTY, mapping, fields, false)) {
+            SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
+            var expected = new SearchStats.ExactMinMax(true, min(docs), max(docs));
+            assertEquals(expected, stats.exactMinMax(F));
+            assertEquals(expected, stats.exactMinMax(new FieldAttribute.FieldName("f_alias")));
+            long lowest = docs.stream().flatMap(List::stream).mapToLong(v -> -v / 2).min().getAsLong();
+            long highest = docs.stream().flatMap(List::stream).mapToLong(v -> -v / 2).max().getAsLong();
+            assertEquals(new SearchStats.ExactMinMax(true, lowest, highest), stats.exactMinMax(new FieldAttribute.FieldName("o.f")));
+            assertEquals(new SearchStats.ExactMinMax(true, lowest, highest), stats.exactMinMax(new FieldAttribute.FieldName("o_alias")));
+        }
+    }
+
+    public void testExactMinMaxThroughFieldAliasOfSkipperField() throws IOException {
+        ExactType type = EXACT_TYPES.get(2);
+        List<List<Long>> docs = randomDocuments(type);
+        String mapping = """
+            { "doc": { "properties": {
+                "f": { "type": "long", "index": false },
+                "f_alias": { "type": "alias", "path": "f" }
+            } } }""";
+        try (Shard shard = shard(SKIPPER_SETTINGS, mapping, docs.stream().map(d -> skipperDocument(d)).toList(), false)) {
+            SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
+            assertEquals(
+                new SearchStats.ExactMinMax(true, min(docs), max(docs)),
+                stats.exactMinMax(new FieldAttribute.FieldName("f_alias"))
+            );
+        }
+    }
+
     public void testExactMinMaxOfFieldWithoutValues() throws IOException {
         List<List<IndexableField>> docs = List.of(List.of(), List.of());
         try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, false)) {

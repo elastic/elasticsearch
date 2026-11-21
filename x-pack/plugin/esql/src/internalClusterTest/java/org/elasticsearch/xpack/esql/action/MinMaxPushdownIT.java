@@ -101,7 +101,11 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
                     "b",
                     "type=byte",
                     "other",
-                    "type=long"
+                    "type=long",
+                    "d_alias",
+                    "type=alias,path=d",
+                    "i_alias",
+                    "type=alias,path=i"
                 )
         );
     }
@@ -332,6 +336,37 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
             }
             indicesAdmin().prepareRefresh(index).get();
             assertAnsweredFromMetadata(index, "FROM " + index, doc -> true);
+        }
+    }
+
+    /** A field alias returns the bounds of the field it points to, which is the one the segments hold. */
+    public void testFieldAlias() {
+        for (boolean columnar : new boolean[] { false, true }) {
+            String index = "aliased_field_" + columnar;
+            createIndex(index, columnar, 1);
+            indexDense(index);
+            Outcome outcome = profiled(
+                "FROM "
+                    + index
+                    + " | STATS lo = MIN(d_alias), hi = MAX(d_alias), lo_i = MIN(i_alias), hi_i = MAX(i_alias)"
+                    + " | EVAL lo = TO_LONG(lo), hi = TO_LONG(hi)",
+                null
+            );
+            // the date columns come last: EVAL moves the columns it replaces to the end
+            assertThat(
+                index,
+                asLongs(outcome.row),
+                equalTo(
+                    List.of(
+                        expected("i", true, doc -> true),
+                        expected("i", false, doc -> true),
+                        expected("d", true, doc -> true),
+                        expected("d", false, doc -> true)
+                    )
+                )
+            );
+            assertThat(outcome.luceneSource, is(false));
+            assertThat(outcome.localSource, is(true));
         }
     }
 

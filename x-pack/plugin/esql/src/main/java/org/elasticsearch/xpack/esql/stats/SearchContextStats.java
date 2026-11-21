@@ -472,7 +472,8 @@ public class SearchContextStats implements SearchStats {
                     if (reader.hasDeletions()) {
                         return null;
                     }
-                    long[] leafBounds = leafBounds(indexType.hasDocValuesSkipper(), reader, name);
+                    // the segments hold the field under its own name, which differs from the one asked for when that is an alias
+                    long[] leafBounds = leafBounds(indexType.hasDocValuesSkipper(), reader, type.name());
                     if (leafBounds == null) {
                         return null;
                     }

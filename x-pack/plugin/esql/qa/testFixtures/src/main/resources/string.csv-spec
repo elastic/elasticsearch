@@ -2250,6 +2250,44 @@ emp_no:integer  | x:boolean
 10001           | null
 ;
 
+notEqualsToLowerMultiValueConstant
+required_capability: fn_to_lower_fix_mv_constant_case_comparison
+from employees
+| where to_lower(first_name) != ["georgi", "bezalel"]
+| stats c = count(*)
+;
+warning:Line 2:9: evaluation of [to_lower(first_name) != [\"georgi\", \"bezalel\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+0
+;
+
+notEqualsToUpperMultiValueConstant
+required_capability: fn_to_upper_fix_mv_constant_case_comparison
+from employees
+| where to_upper(first_name) != ["GEORGI", "BEZALEL"]
+| stats c = count(*)
+;
+warning:Line 2:9: evaluation of [to_upper(first_name) != [\"GEORGI\", \"BEZALEL\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+c:long
+0
+;
+
+equalsToLowerMultiValueConstant
+required_capability: fn_to_lower_fix_mv_constant_case_comparison
+from employees
+| where to_lower(first_name) == ["georgi", "bezalel"]
+| keep emp_no, first_name
+;
+warning:Line 2:9: evaluation of [to_lower(first_name) == [\"georgi\", \"bezalel\"]] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer  | first_name:keyword
+;
+
 notEqualsToUpperFolded
 from employees
 | where to_upper(first_name) != "Georgi"

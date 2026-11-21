@@ -93,6 +93,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedi
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
@@ -6975,6 +6976,33 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var equals = as(filter.condition(), Equals.class);
         assertThat(Expressions.name(equals.left()), is("emp_no"));
         as(filter.child(), EsRelation.class);
+    }
+
+    /**
+     * A multi-valued literal must stay on {@code Equals}. Rewriting it to {@code InsensitiveEquals}
+     * compares the field with the collection's string form and drops the multi-value warning.
+     * https://github.com/elastic/elasticsearch/issues/166897
+     */
+    public void testReplaceStringCasingWithInsensitiveEqualsMultiValuedConstant() {
+        for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
+            for (var op : List.of("==", "!=")) {
+                var query = "FROM test | WHERE " + fn + "(first_name) " + op + " [\"georgi\", \"bezalel\"]";
+                var plan = optimizedPlan(query);
+                var limit = as(plan, Limit.class);
+                var filter = as(limit.child(), Filter.class);
+                Equals equals;
+                if (op.equals("!=")) {
+                    var not = as(filter.condition(), Not.class);
+                    equals = as(not.field(), Equals.class);
+                } else {
+                    equals = as(filter.condition(), Equals.class);
+                }
+                as(equals.left(), ChangeCase.class);
+                var literal = as(equals.right(), Literal.class);
+                assertThat(query, literal.value(), instanceOf(List.class));
+                as(filter.child(), EsRelation.class);
+            }
+        }
     }
 
     @Override

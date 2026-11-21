@@ -13,6 +13,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.$Hash$Table;
+$if(int)$
+import org.elasticsearch.compute.aggregation.GroupRuns;
+$endif$
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -69,6 +72,38 @@ $endif$
      */
     private boolean seenNull;
 
+$if(int)$
+    /**
+     * When {@code true}, the input to {@link #add(Page, GroupingAggregatorFunction.AddInput)} is known to arrive from Lucene
+     * ordered by this field (it is the shard's primary {@code index.sort.field}), so equal values are adjacent. Pages without
+     * nulls or multivalues are then split into {@link GroupRuns runs} of equal values that are hashed once each.
+     */
+    private final boolean primarySorted;
+
+    /**
+     * Scratch for the runs of the page being added, reused for every page. Only created for a {@link #primarySorted} hash.
+     */
+    private GroupRuns runs;
+
+    /**
+     * How many pages took the runs path, so a profile can confirm that the sorted path was really used.
+     */
+    private long sortedPages;
+
+    /**
+     * How many pages of a {@link #primarySorted} hash skipped the runs path because their keys were nearly unique, so a profile
+     * shows why a sorted key did not get faster.
+     */
+    private long fallbackPages;
+
+    /**
+     * The smallest average run length at which a page still takes the runs path. Finding the runs costs a comparison per row
+     * and saves one hash probe per row that repeats the previous key, so it only pays when keys repeat. Below this, a page
+     * is hashed row by row like an unsorted one.
+     */
+    private static final int MIN_AVERAGE_RUN_LENGTH = 2;
+
+$endif$
 $if(BytesRef)$
     private static final int PREFETCH_BATCH = 128;
     private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
@@ -87,11 +122,25 @@ $if(long)$
     private final int[] batchHashes = new int[PREFETCH_BATCH];
 $endif$
 
+$if(int)$
+    $Type$BlockHash(int channel, BlockFactory blockFactory, boolean primarySorted) {
+        super(blockFactory);
+        this.channel = channel;
+        this.hash = HashImplFactory.new$Hash$(blockFactory);
+        this.primarySorted = primarySorted;
+    }
+
+    $Type$BlockHash(int channel, BlockFactory blockFactory) {
+        this(channel, blockFactory, false);
+    }
+
+$else$
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
         this.hash = HashImplFactory.new$Hash$(blockFactory);
     }
+$endif$
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
@@ -113,6 +162,12 @@ $if(hasVector)$
             }
             return;
         }
+$if(int)$
+        if (primarySorted && vector.getPositionCount() > 0) {
+            addRuns(vector, addInput);
+            return;
+        }
+$endif$
         try (IntVector groupIds = add(vector)) {
             addInput.add(0, groupIds);
         }
@@ -168,6 +223,61 @@ $endif$
     }
 $endif$
 
+$if(int)$
+    /**
+     * Path of {@link #add(Page, GroupingAggregatorFunction.AddInput)} for a {@link #primarySorted} vector page. First finds the
+     * runs of equal adjacent values with a plain comparison per row, then hashes one value per run and hands the runs
+     * to the aggregators, which then do not have to look for the same boundaries again.
+     * <p>
+     *     A page whose keys are nearly unique has nothing to save, so it is hashed row by row like an unsorted one instead:
+     *     as soon as the page has more runs than {@code positions / MIN_AVERAGE_RUN_LENGTH} the search for runs stops. The
+     *     choice is made for every page on its own and never changes the result, only the cost.
+     * </p>
+     */
+    private void addRuns($Type$Vector vector, GroupingAggregatorFunction.AddInput addInput) {
+        if (runs == null) {
+            runs = new GroupRuns(blockFactory);
+        }
+        runs.reset();
+        int positions = vector.getPositionCount();
+        int maxRuns = positions / MIN_AVERAGE_RUN_LENGTH;
+        $type$ prev = vector.get$Type$(0);
+        for (int i = 1; i < positions; i++) {
+            $type$ v = vector.get$Type$(i);
+            if (v != prev) {
+                runs.appendRunEnd(i);
+                if (runs.runCount() >= maxRuns) {
+                    // The run in progress makes one more run than counted, so the page is already over the limit.
+                    addRowByRow(vector, addInput);
+                    return;
+                }
+                prev = v;
+            }
+        }
+        runs.appendRunEnd(positions);
+        int runCount = runs.runCount();
+        if (runCount > maxRuns) {
+            addRowByRow(vector, addInput);
+            return;
+        }
+        sortedPages++;
+        for (int run = 0; run < runCount; run++) {
+            runs.setGroupId(run, Math.toIntExact(hashOrdToGroupNullReserved(hash.add(vector.get$Type$(runs.start(run))))));
+        }
+        addInput.addRuns(0, runs);
+    }
+
+    /**
+     * The fallback of {@link #addRuns} for a page with too few repeated keys: the same work as for a page that is not sorted.
+     */
+    private void addRowByRow($Type$Vector vector, GroupingAggregatorFunction.AddInput addInput) {
+        fallbackPages++;
+        try (IntVector groupIds = add(vector)) {
+            addInput.add(0, groupIds);
+        }
+    }
+
+$endif$
 $if(BytesRef)$
     private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
         int positions = vector.getPositionCount();
@@ -588,6 +698,11 @@ $elseif(DoubleRange)$
         b.append(", size=").append(ByteSizeValue.ofBytes(hash.ramBytesUsed()));
 $endif$
         b.append(", seenNull=").append(seenNull);
+$if(int)$
+        if (primarySorted) {
+            b.append(", primarySorted=true, sortedPages=").append(sortedPages).append(", fallbackPages=").append(fallbackPages);
+        }
+$endif$
         return b.append('}').toString();
     }
 }

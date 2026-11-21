@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -26,19 +27,14 @@ public class StatelessPluginSettingsTests extends ESTestCase {
 
     public void testStatelessDefaultSharedCachedSize() {
         StatelessPlugin searchNodeStateless = new TestUtils.StatelessPluginWithTrialLicense(
-            Settings.builder()
-                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-                .build()
+            statelessEnabledSettings().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName()).build()
         );
         Settings searchNodeSettings = searchNodeStateless.additionalSettings();
         assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("90%"));
         assertThat(searchNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("250GB"));
 
         StatelessPlugin searchNodeStatelessWithManualSetting = new TestUtils.StatelessPluginWithTrialLicense(
-            Settings.builder()
-                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            statelessEnabledSettings().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
                 .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), "65%")
                 .build()
         );
@@ -47,10 +43,7 @@ public class StatelessPluginSettingsTests extends ESTestCase {
         assertFalse(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.exists(searchNodeWithManualSettingSettings));
 
         StatelessPlugin indexNodeStateless = new TestUtils.StatelessPluginWithTrialLicense(
-            Settings.builder()
-                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName())
-                .build()
+            statelessEnabledSettings().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.INDEX_ROLE.roleName()).build()
         );
         Settings indexNodeSettings = indexNodeStateless.additionalSettings();
         assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey()), equalTo("50%"));
@@ -59,13 +52,10 @@ public class StatelessPluginSettingsTests extends ESTestCase {
 
     public void testDiskUsageBalanceFactorSettingIsZeroForStateless() {
         var statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
-            Settings.builder()
-                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
-                )
-                .build()
+            statelessEnabledSettings().put(
+                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
+                randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
+            ).build()
         );
         assertThat(
             statelessNode.additionalSettings().get(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey()),
@@ -75,14 +65,17 @@ public class StatelessPluginSettingsTests extends ESTestCase {
 
     public void testIndexBalanceMetricsEnabledForStateless() {
         var statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
-            Settings.builder()
-                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName())
-                .build()
+            statelessEnabledSettings().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.SEARCH_ROLE.roleName()).build()
         );
         assertThat(
             statelessNode.additionalSettings().get(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey()),
             equalTo("true")
         );
+    }
+
+    private static Settings.Builder statelessEnabledSettings() {
+        return Settings.builder()
+            .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+            .put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket");
     }
 }

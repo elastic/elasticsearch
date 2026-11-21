@@ -175,11 +175,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
      * and for BlobRequestOptions#getSingleBlobPutThresholdInBytes().
      */
     public static class TestAzureRepositoryPlugin extends AzureRepositoryPlugin {
-
-        public TestAzureRepositoryPlugin(Settings settings) {
-            super(settings);
-        }
-
         @Override
         AzureStorageService createAzureStorageService(
             Settings settingsToUse,

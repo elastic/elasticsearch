@@ -18,7 +18,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -34,7 +33,6 @@ import java.net.Proxy;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -78,14 +76,15 @@ public class AzureStorageServiceTests extends ESTestCase {
     }
 
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
-        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
-        new SettingsModule(settings, plugin.getSettings(), Collections.emptyList());
+        final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin();
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.threadPool()).thenReturn(threadPool);
         when(services.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(threadPool);
         when(services.clusterService()).thenReturn(clusterService);
+        var environment = newEnvironment(settings);
+        when(services.environment()).thenReturn(environment);
         plugin.createComponents(services);
         return plugin;
     }

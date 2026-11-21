@@ -33,6 +33,7 @@ import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.configuration.InferenceServiceFeatures;
 import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
@@ -68,6 +69,8 @@ import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenc
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.validation.ImageChatCompletionServiceIntegrationValidator;
+import org.elasticsearch.xpack.inference.services.validation.SimpleChatCompletionServiceIntegrationValidator;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
@@ -115,6 +118,7 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
         DECISION
     );
     private static final String SERVICE_NAME = "Elastic";
+    static final String IMAGE_ONLY_CHAT_COMPLETION_MODEL_ID = "jina-ocr-v1";
 
     // TODO: revisit this value once EIS supports dense models
     // The default maximum batch size for dense text embeddings is proactively set to 16.
@@ -218,6 +222,28 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     @Override
     public boolean supportsNonStreamingChatCompletion() {
         return true;
+    }
+
+    /**
+     * The default chat completion validation sends a text-only request, which image-only models reject. EIS doesn't tell Elasticsearch
+     * which input types a model accepts, so send a text and image probe for the known image-only model and the default probe for all
+     * others.
+     * TODO replace the model ID check once EIS advertises the input types each model accepts
+     */
+    @Override
+    public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        if (taskType == CHAT_COMPLETION) {
+            var defaultValidator = new SimpleChatCompletionServiceIntegrationValidator();
+            var imageValidator = new ImageChatCompletionServiceIntegrationValidator();
+            return (service, model, timeout, listener) -> {
+                if (IMAGE_ONLY_CHAT_COMPLETION_MODEL_ID.equals(model.getServiceSettings().modelId())) {
+                    imageValidator.validate(service, model, timeout, listener);
+                } else {
+                    defaultValidator.validate(service, model, timeout, listener);
+                }
+            };
+        }
+        return null;
     }
 
     @Override

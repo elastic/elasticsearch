@@ -11,3 +11,5 @@ steps:
       diskSizeGb: 350
       diskType: gp3
       diskName: /dev/sda1
+    env:
+      EXTRA_GRADLE_ARGS: "--configuration-cache"

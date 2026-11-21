@@ -56,7 +56,8 @@ public final class WithinFileWideningWarnings {
             // detail that follows and defeat the escape applied to the location. The sampled value is the third
             // such field and is deliberately NOT escaped: it is the user's own data, bracketed cells are ordinary
             // in it (csv-headerless.csv-spec pins warnings reading value [[-2.14] and value [12]]), and an escape
-            // there would mangle the common case to close the rare one. That trade is esql-planning#2022's.
+            // there would mangle the common case to close the rare one, and where the perimeter of the escape
+            // should fall is a question about every message embedding a sampled value, not about this one.
             String detail = "column ["
                 + RowLocation.escapedForDisplay(widened.columnName())
                 + "] at sample "

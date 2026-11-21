@@ -44,4 +44,70 @@ public final class ErrorExcerpts {
         int tail = remaining - head;
         return value.substring(0, head) + marker + value.substring(value.length() - tail);
     }
+
+    /**
+     * {@link #summarize} of {@code value} escaped by {@link RowLocation#escapedForDisplay}, for a message that
+     * prints store-supplied text inside a bracketed clause and so needs the escape as well as the cap.
+     * <p>
+     * The escape goes on before the cut, so the cap bounds what the reader will see rather than what the text
+     * measured before it grew. Escaping the value and then cutting is the obvious way to arrange that, and it is
+     * what this method exists to avoid: a value here is a field, which a CSV dialect lets reach
+     * {@code max_field_size} -- ten megabytes by default, and no limit at all when the option is set to zero --
+     * while the escape spends six characters on every one it rewrites. Only as much of each end is escaped as the
+     * cap can hold.
+     * <p>
+     * Choosing the cut on the value rather than on its escape has a second effect, and it is the reason not to
+     * reverse the two even where the sizes are small: a cut landing inside one of the six-character escapes
+     * leaves a stump that
+     * spells nothing, and a cut taken before the escape cannot produce one. The count in the marker is the
+     * value's own length for the same reason the row number is the file's -- the escape belongs to this message,
+     * and the number has to name something the reader can find in the object.
+     */
+    public static String summarizeEscaped(String value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value.length() <= MAX_EXCERPT_CHARS) {
+            String escaped = RowLocation.escapedForDisplay(value);
+            if (escaped.length() <= MAX_EXCERPT_CHARS) {
+                return escaped;
+            }
+        }
+        String marker = "… (truncated, " + value.length() + " chars total) …";
+        int remaining = Math.max(0, MAX_EXCERPT_CHARS - marker.length());
+        int headBudget = remaining / 2;
+        int head = charsEscapingWithin(value, headBudget, true);
+        int tail = charsEscapingWithin(value, remaining - headBudget, false);
+        return RowLocation.escapedForDisplay(value.substring(0, head)) + marker + RowLocation.escapedForDisplay(
+            value.substring(value.length() - tail)
+        );
+    }
+
+    /**
+     * How many characters from one end of {@code value} escape to no more than {@code budget} characters. The
+     * walk is over the value, so nothing past the two windows is ever escaped, and a window that would end
+     * between the halves of a surrogate pair gives the orphan up: a lone surrogate encodes to no UTF-8 sequence,
+     * so keeping it spends a position in the cap to show the reader whatever each channel substitutes for it.
+     */
+    private static int charsEscapingWithin(String value, int budget, boolean fromStart) {
+        int taken = 0;
+        int spent = 0;
+        while (taken < value.length()) {
+            char c = fromStart ? value.charAt(taken) : value.charAt(value.length() - 1 - taken);
+            int width = RowLocation.escapedWidth(c);
+            if (spent + width > budget) {
+                break;
+            }
+            spent += width;
+            taken++;
+        }
+        if (fromStart) {
+            if (taken > 0 && Character.isHighSurrogate(value.charAt(taken - 1))) {
+                taken--;
+            }
+        } else if (taken > 0 && Character.isLowSurrogate(value.charAt(value.length() - taken))) {
+            taken--;
+        }
+        return taken;
+    }
 }

@@ -1377,7 +1377,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "the header"
                         + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
                         + " has duplicate column name ["
-                        + ErrorExcerpts.summarize(RowLocation.escapedForDisplay(name))
+                        + ErrorExcerpts.summarizeEscaped(name)
                         + "]; columns cannot bind by name"
                 );
             }
@@ -2003,6 +2003,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // are visible instead of collapsing to [].
             StringJoiner rendered = new StringJoiner(", ", "[", "]");
             for (String dup : duplicates) {
+                // Escaped but not capped, unlike the sibling refusals: the cap here is on the assembled list
+                // below, and a per-name cap inside it would leave the list's own marker counting the names as
+                // this message shortened them rather than as the header spelled them.
                 rendered.add("'" + RowLocation.escapedForDisplay(dup) + "'");
             }
             ExternalClientException headerEx = new ExternalClientException(
@@ -3223,7 +3226,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "Invalid "
                         + displayName(format)
                         + " schema format: ["
-                        + ErrorExcerpts.summarize(RowLocation.escapedForDisplay(column))
+                        + ErrorExcerpts.summarizeEscaped(column)
                         + "]. Expected 'name:type'"
                 );
                 throw schemaEx;
@@ -3267,7 +3270,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "",
                     ""
                 );
-                dtEx.setDetail("illegal data type [" + ErrorExcerpts.summarize(typeName) + "]");
+                dtEx.setDetail("illegal data type [" + ErrorExcerpts.summarizeEscaped(typeName) + "]");
                 throw dtEx;
             }
         };

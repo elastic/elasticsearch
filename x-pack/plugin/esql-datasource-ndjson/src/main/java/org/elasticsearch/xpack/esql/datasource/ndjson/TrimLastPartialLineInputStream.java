@@ -118,6 +118,15 @@ final class TrimLastPartialLineInputStream extends InputStream {
         this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation, recordSplitter, warningSink);
     }
 
+    /**
+     * @param sourceLocation the object this stream is reading, already reduced for display by
+     *                       {@code RowLocation.displayObjectName} or {@code escapedForDisplay}. Every other
+     *                       constructor funnels here, so this is the one place the precondition holds: the
+     *                       messages below embed it inside brackets, and a caller handing this a raw path
+     *                       reopens the forgery those brackets were escaped to close. Production reaches it
+     *                       from {@code NdJsonPageIterator}, which passes its already-reduced
+     *                       {@code messageLocation}.
+     */
     TrimLastPartialLineInputStream(
         InputStream delegate,
         int chunkSize,

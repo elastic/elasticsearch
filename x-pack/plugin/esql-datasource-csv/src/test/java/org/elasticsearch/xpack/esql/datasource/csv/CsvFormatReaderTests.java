@@ -6638,21 +6638,32 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * The object name in these refusals is escaped; the column name printed beside it in the same bracketed
-     * clause is store-supplied too, and comes from the object's own header line. Left raw it forges the
-     * clause the escape was added to protect: a column literally named
-     * {@code a] has duplicate column name [b} closes the real bracket and opens a counterfeit one, so the
-     * sentence names two columns the file does not have. Escaping the brackets is what defeats that; the
-     * words of the forged clause still appear inside the escaped name, because the escape rewrites the
-     * characters that carry structure and nothing else. The escape goes on before
-     * {@link ErrorExcerpts#summarize}, matching the order {@code RowLocation.shorten} already uses, so the
-     * cap bounds escaped text rather than letting an escaped name grow past it.
+     * A refusal that concatenates a token from the object's own header line inside brackets has to escape it,
+     * and that -- not whether an object name happens to stand beside it -- is the rule these four sites share.
+     * Left raw, a column literally named {@code a] has duplicate column name [b} closes the real bracket and
+     * opens a counterfeit one, so the sentence names two columns the file does not have. Escaping the brackets
+     * is what defeats that; the words of the forged clause still appear inside the escaped name, because the
+     * escape rewrites the characters that carry structure and nothing else.
      * <p>
-     * Three refusals share the fault and are pinned together, because what went wrong was that each was read
-     * on its own while the object clause was added to all three: the inference-path duplicate
-     * ({@code checkUniqueAttributeNames}), the declared-binding duplicate ({@code rejectDuplicateHeaderNames},
-     * which only a read reaches), and the schema-format refusal. A fourth path printing a header token inside
-     * brackets has to join them.
+     * The criterion matters because the first version of it was the wrong one. Written as "the column printed
+     * beside the object's", it was already false of the schema-format refusal, which names no object -- and
+     * reading it as true excluded {@code parseDataType}, three statements further down the same
+     * {@code parseTypedSchema} loop, where a type token reaches {@code illegal data type [...]} by the same
+     * route. A criterion that does not hold of its own members cannot say what else belongs.
+     * <p>
+     * So all four are pinned together: the inference-path duplicate ({@code checkUniqueAttributeNames}), the
+     * declared-binding duplicate ({@code rejectDuplicateHeaderNames}, which only a read reaches), the
+     * schema-format refusal, and the illegal-type refusal. What is deliberately not here is the per-row
+     * {@code cannot read [value] as [type]}, whose text is a cell rather than a header token -- a different
+     * population, and the open question of how far the escape perimeter runs.
+     * <p>
+     * Three of them call {@link ErrorExcerpts#summarizeEscaped}, so the cap bounds the escaped text the reader
+     * sees; it takes the cut on the value and escapes only the two kept windows, because a header field may be
+     * as large as {@code max_field_size} lets it, and escaping that whole to show 256 characters of it spends
+     * six characters on every one. {@code checkUniqueAttributeNames} is the exception and escapes without
+     * capping, because its cap is on the list it assembles: capping each name inside that list would leave the
+     * list's own marker counting the names as the message shortened them rather than as the header spelled
+     * them, which is the one number a reader of that refusal has to go on.
      */
     public void testAColumnNameCannotForgeTheRefusalClause() {
         String forgesInferenceDuplicate = "a'] has duplicate column names ['b";
@@ -6688,6 +6699,22 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat("the brackets must not survive raw", schemaFormat.getMessage(), not(containsString(forgesSchemaFormat)));
         assertThat("the escape must have fired", schemaFormat.getMessage(), containsString("\\u005D"));
+
+        // The type half of a name:type pair, which reaches the refusal with its colon already spent on the
+        // split -- so this forges the clause that the schema-format refusal above it never gets to raise.
+        String forgesIllegalType = "x] has duplicate column name [y";
+        ExternalClientException illegalType = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(
+                createStorageObject("id:long,c:" + forgesIllegalType + "\n1,2\n", "forge-type.csv")
+            )
+        );
+        assertThat(
+            "the brackets must not survive raw",
+            illegalType.getMessage(),
+            not(containsString(forgesIllegalType.toUpperCase(Locale.ROOT)))
+        );
+        assertThat("the escape must have fired", illegalType.getMessage(), containsString("\\u005D"));
     }
 
     /**

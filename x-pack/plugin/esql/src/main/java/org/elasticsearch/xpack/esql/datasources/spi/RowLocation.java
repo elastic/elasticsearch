@@ -319,6 +319,15 @@ public final class RowLocation {
     }
 
     /**
+     * How many characters {@link #escapedForDisplay} renders {@code c} as: six for one it escapes, one for
+     * anything else. {@link ErrorExcerpts} uses it to decide how much of a value to escape, so that bounding
+     * the escaped text does not mean building it first.
+     */
+    static int escapedWidth(char c) {
+        return impersonates(c) ? 6 : 1;
+    }
+
+    /**
      * {@link #of} with the column clause the per-cell messages carry: {@code row [N] of [object], column [c]}.
      * The column goes after the location so the two kinds of message share a prefix and sort together.
      */

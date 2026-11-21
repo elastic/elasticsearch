@@ -41,7 +41,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.stateless.StatelessThreadPools;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.TimestampFieldValueRange;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
@@ -74,14 +73,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.groupingBy;
 import static org.elasticsearch.common.io.Streams.limitStream;
-import static org.elasticsearch.xpack.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.isGenerationalFile;
 
 /**
@@ -670,14 +667,17 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         // Current position of the start of the commit (relative to the start of the region)
         int currentPositionInRegion = (int) (currentOffset % cacheRegionSizeInBytes);
 
-        // Approximate position of the end of the header + replicated content (using the estimated max. header size as a hint)
-        int estimatedHeaderEnd = Math.addExact(currentPositionInRegion, estimatedMaxHeaderSizeInBytes);
+        final var replicatedContent = ReplicatedContent.create(
+            internalFiles,
+            internalFilesSize,
+            directory,
+            cacheRegionSizeInBytes,
+            currentPositionInRegion,
+            estimatedMaxHeaderSizeInBytes
+        );
 
-        // Approximate position of the end of the commit
-        var estimatedCommitEnd = Math.addExact(estimatedHeaderEnd, internalFilesSize);
-
-        // Check if the header and internal files completely fit into the same region, in which case there is no need for replicated content
-        if (estimatedCommitEnd < cacheRegionSizeInBytes) {
+        // There is no need for replicated content if the header and internal files completely fit into the same region
+        if (replicatedContent == ReplicatedContent.EMPTY) {
             logger.trace(
                 "{} skipping content replication: commit {} at offset [{}][{}] with [{}] bytes of internal files "
                     + "would fit within the cache region of [{}] bytes assuming an approximate header size of [{}] bytes",
@@ -689,17 +689,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 cacheRegionSizeInBytes,
                 estimatedMaxHeaderSizeInBytes
             );
-            return ReplicatedContent.EMPTY;
         }
-
-        LongPredicate shouldReplicate;
-        if (estimatedMaxHeaderSizeInBytes != 0) {
-            // Replicate content for internal files that are not in the same region as the header
-            shouldReplicate = (offset) -> cacheRegionSizeInBytes <= (estimatedHeaderEnd + offset);
-        } else {
-            shouldReplicate = ALWAYS_REPLICATE; // Keep previous behavior
-        }
-        return ReplicatedContent.create(true, internalFiles, directory, shouldReplicate);
+        return replicatedContent;
     }
 
     public BatchedCompoundCommit getFrozenBatchedCompoundCommit() {

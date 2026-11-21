@@ -24,7 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.cache.Lucene90CompoundEntriesReader;
 import org.elasticsearch.xpack.stateless.commits.InternalFilesReplicatedRanges.InternalFileReplicatedRange;
 import org.elasticsearch.xpack.stateless.commits.ReplicatedContent.InternalFileRangeReader;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit.InternalFile;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 166165
+pr: 166907
+summary: "[Inference API] Fix Vertex AI tool result merged with user text"
+type: bug

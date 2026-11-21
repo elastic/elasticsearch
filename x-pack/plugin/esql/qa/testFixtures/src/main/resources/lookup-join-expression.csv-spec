@@ -1307,3 +1307,26 @@ emp_no:integer | languages:integer | lang:keyword | lang_minus_one:keyword | lan
 10004          | 5                 | null         | German                 | Spanish
 10005          | 1                 | English      | null                   | null
 ;
+
+// The left key is unmapped. A RENAME of an unmapped field under LOAD is null for every row, so the join finds no match. The operands of the
+// right, name_str and other2, are not loaded onto the left side as unmapped fields, which made them ambiguous.
+lookupJoinExpressionWithUnmappedLeftKeyInLoadMode
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: optional_fields_v5
+required_capability: lookup_join_expression_on_unmapped_left_key
+
+SET unmapped_fields="load"\;
+FROM multi_column_joinable
+| RENAME id_int AS id_left, name_str AS name_unused, is_active_bool AS is_active_left, ip_addr AS ip_addr_left, does_not_exist AS name_left
+| LOOKUP JOIN multi_column_joinable_lookup ON id_left == id_int AND name_left == name_str AND id_left < other2
+| KEEP id_left, name_left, extra1, other1, other2
+| SORT id_left, name_left, extra1, other1, other2
+| LIMIT 3
+;
+
+id_left:integer | name_left:keyword | extra1:keyword | other1:keyword | other2:integer
+1               | null            | foo            | null           | null
+[1, 19, 21]     | null            | zyx            | null           | null
+2               | null            | bar            | null           | null
+;

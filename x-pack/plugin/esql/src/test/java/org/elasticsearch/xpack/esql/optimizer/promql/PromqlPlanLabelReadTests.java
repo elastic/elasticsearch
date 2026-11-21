@@ -33,8 +33,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
- * Plans every {@code PROMQL} query over {@code k8s} of the csv-spec files and checks what {@link ScalarizeTimeSeriesMetadataPaths} leaves of the
- * reads of labels out of the label container: a read costs a parse of the container per row, a column next to nothing.
+ * Plans every {@code PROMQL} query over {@code k8s} of the csv-spec files and checks what
+ * {@link ScalarizeTimeSeriesMetadataPaths} leaves of the reads of labels out of the label container: a read costs a parse of
+ * the container per row, a column next to nothing.
  * <ul>
  *     <li>No read of a {@code keyword} dimension is left: the plan always has its column.</li>
  *     <li>The rule changes nothing it already rewrote.</li>

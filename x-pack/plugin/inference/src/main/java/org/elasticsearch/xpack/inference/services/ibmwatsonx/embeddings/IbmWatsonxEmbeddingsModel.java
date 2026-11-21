@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
 import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.apache.hc.core5.net.URIBuilder;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -17,6 +18,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
@@ -25,7 +27,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.EMBEDDINGS;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
@@ -97,7 +98,7 @@ public class IbmWatsonxEmbeddingsModel extends IbmWatsonxModel {
         IbmWatsonxEmbeddingsServiceSettings serviceSettings,
         TaskSettings taskSettings,
         @Nullable DefaultSecretSettings secrets,
-        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
+        TriConsumer<SimpleHttpRequest, IbmWatsonxModel, HttpSettings.ProxySettings> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),

@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 166346
+summary: Add HTTP proxy support for the Inference API
+type: feature

@@ -30,12 +30,12 @@ import org.elasticsearch.inference.configuration.NonStreamingChatFeature;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -100,16 +100,25 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
     // allowing for some headroom, we set the window size below 384 words
     public static final int RERANK_WINDOW_SIZE = 350;
 
+    private final HttpSettings.ProxySettings proxySettings;
+
     public IbmWatsonxService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        InferenceServiceExtension.InferenceServiceFactoryContext context
+        InferenceServiceExtension.InferenceServiceFactoryContext context,
+        HttpSettings httpSettings
     ) {
-        this(factory, serviceComponents, context.clusterService());
+        this(factory, serviceComponents, context.clusterService(), httpSettings);
     }
 
-    public IbmWatsonxService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+    public IbmWatsonxService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService,
+        HttpSettings httpSettings
+    ) {
         super(factory, serviceComponents, clusterService, MODEL_CREATORS);
+        this.proxySettings = httpSettings.proxy();
     }
 
     @Override
@@ -186,7 +195,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
 
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
-        var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings);
+        var action = ibmWatsonxModel.accept(getActionCreator(), taskSettings);
         action.execute(input, timeout, listener);
     }
 
@@ -213,7 +222,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
             getServiceComponents().threadPool(),
             overriddenModel,
             UNIFIED_CHAT_COMPLETION_HANDLER,
-            unifiedChatInput -> new IbmWatsonxChatCompletionRequest(unifiedChatInput, overriddenModel),
+            unifiedChatInput -> new IbmWatsonxChatCompletionRequest(unifiedChatInput, overriddenModel, proxySettings),
             UnifiedChatInput.class
         );
         var errorMessage = IbmWatsonxActionCreator.buildErrorMessage(TaskType.CHAT_COMPLETION, model.getInferenceEntityId());
@@ -228,7 +237,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
             listener.onFailure(createInvalidModelException(model));
             return;
         }
-        var actionCreator = new IbmWatsonxActionCreator(getSender(), getServiceComponents());
+        var actionCreator = getActionCreator();
 
         var action = ibmWatsonxRerankModel.accept(actionCreator, request.taskSettings());
         action.execute(fromRerankRequest(request), timeout, listener);
@@ -252,7 +261,7 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
             ibmWatsonxModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
-        var actionCreator = getActionCreator(getSender(), getServiceComponents());
+        var actionCreator = getActionCreator();
 
         for (var request : batchedRequests) {
             var action = ibmWatsonxModel.accept(actionCreator, taskSettings);
@@ -264,8 +273,8 @@ public class IbmWatsonxService extends SenderService<IbmWatsonxModel> implements
         }
     }
 
-    protected IbmWatsonxActionCreator getActionCreator(Sender sender, ServiceComponents serviceComponents) {
-        return new IbmWatsonxActionCreator(getSender(), getServiceComponents());
+    protected IbmWatsonxActionCreator getActionCreator() {
+        return new IbmWatsonxActionCreator(getSender(), getServiceComponents(), proxySettings);
     }
 
     @Override

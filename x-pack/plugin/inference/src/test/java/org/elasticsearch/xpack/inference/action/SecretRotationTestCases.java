@@ -36,6 +36,7 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.settings.Settings.EMPTY;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.Utils.mockHttpSettings;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithSettings;
 
@@ -267,7 +268,8 @@ public class SecretRotationTestCases {
         BiFunction<ThreadPool, HttpClientManager, SenderService<?>> factory = (tp, cm) -> new IbmWatsonxService(
             HttpRequestSenderTests.createSenderFactory(tp, cm),
             createWithEmptySettings(tp),
-            mockClusterServiceEmpty()
+            mockClusterServiceEmpty(),
+            mockHttpSettings()
         );
 
         var baseServiceSettings = Map.of(

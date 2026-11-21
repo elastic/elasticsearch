@@ -100,6 +100,8 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
             var httpRequest = request.toHTTPRequest();
             httpRequest.setConnectTimeout(oauth2ClusterSettings.connectTimeoutMillis());
             httpRequest.setReadTimeout(oauth2ClusterSettings.readTimeoutMillis());
+            // TODO: httpRequest.send() uses the Nimbus SDK's own HTTP transport and bypasses the xpack.inference.http.proxy.* settings;
+            // in egress-restricted environments the token fetch will fail or skip the proxy
             var response = TokenResponse.parse(httpRequest.send());
             if (response.indicatesSuccess() == false) {
                 var errorObject = response.toErrorResponse().getErrorObject();

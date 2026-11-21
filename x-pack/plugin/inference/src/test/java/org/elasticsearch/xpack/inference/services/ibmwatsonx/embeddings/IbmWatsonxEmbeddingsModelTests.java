@@ -48,7 +48,7 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
             new IbmWatsonxEmbeddingsServiceSettings(modelId, projectId, uri, apiVersion, null, dimensions, similarityMeasure, null),
             EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, "foo")
+            (httpPost, model, proxySettings) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, "foo")
         );
     }
 
@@ -72,7 +72,7 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
             new IbmWatsonxEmbeddingsServiceSettings(modelId, projectId, uri, apiVersion, tokenLimit, dimensions, similarityMeasure, null),
             EmptyTaskSettings.INSTANCE,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
+            (httpPost, model, proxySettings) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 }

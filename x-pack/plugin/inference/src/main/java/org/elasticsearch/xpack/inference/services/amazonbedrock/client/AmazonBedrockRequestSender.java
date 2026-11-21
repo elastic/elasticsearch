@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
@@ -41,13 +42,18 @@ public class AmazonBedrockRequestSender implements Sender {
         private final CountDownLatch startCompleted = new CountDownLatch(1);
         private final AmazonBedrockRequestSender bedrockRequestSender;
 
-        public Factory(ServiceComponents serviceComponents, ClusterService clusterService) {
+        public Factory(ServiceComponents serviceComponents, ClusterService clusterService, HttpSettings httpSettings) {
             this(
                 serviceComponents,
                 clusterService,
                 new AmazonBedrockExecuteOnlyRequestSender(
                     new AmazonBedrockInferenceClientCache(
-                        (model, timeout) -> AmazonBedrockInferenceClient.create(model, timeout, serviceComponents.threadPool()),
+                        (model, timeout) -> AmazonBedrockInferenceClient.create(
+                            model,
+                            timeout,
+                            serviceComponents.threadPool(),
+                            httpSettings.proxy()
+                        ),
                         Clock.systemUTC()
                     ),
                     serviceComponents.throttlerManager()

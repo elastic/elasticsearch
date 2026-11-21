@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
@@ -49,9 +50,12 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
         OpenAiCompletionResponseEntity::fromResponse
     );
 
-    public IbmWatsonxActionCreator(Sender sender, ServiceComponents serviceComponents) {
+    private final HttpSettings.ProxySettings proxySettings;
+
+    public IbmWatsonxActionCreator(Sender sender, ServiceComponents serviceComponents, HttpSettings.ProxySettings proxySettings) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
+        this.proxySettings = proxySettings;
     }
 
     @Override
@@ -67,7 +71,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
     @Override
     public ExecutableAction create(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = IbmWatsonxRerankModel.of(model, taskSettings);
-        var requestCreator = IbmWatsonxRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
+        var requestCreator = IbmWatsonxRerankRequestManager.of(overriddenModel, serviceComponents.threadPool(), proxySettings);
         var failedToSendRequestErrorMessage = buildErrorMessage(TaskType.RERANK, overriddenModel.getInferenceEntityId());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
@@ -78,7 +82,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
             serviceComponents.threadPool(),
             chatCompletionModel,
             COMPLETION_HANDLER,
-            inputs -> new IbmWatsonxChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), chatCompletionModel),
+            inputs -> new IbmWatsonxChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), chatCompletionModel, proxySettings),
             CompletionInput.class
         );
 
@@ -91,7 +95,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
         Truncator truncator,
         ThreadPool threadPool
     ) {
-        return new IbmWatsonxEmbeddingsRequestManager(model, truncator, threadPool);
+        return new IbmWatsonxEmbeddingsRequestManager(model, truncator, threadPool, proxySettings);
     }
 
     /**

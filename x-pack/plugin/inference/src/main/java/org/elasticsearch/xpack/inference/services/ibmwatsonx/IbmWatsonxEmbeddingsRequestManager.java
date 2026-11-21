@@ -12,6 +12,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -41,10 +42,18 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
 
     private final Truncator truncator;
 
-    public IbmWatsonxEmbeddingsRequestManager(IbmWatsonxEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+    private final HttpSettings.ProxySettings proxySettings;
+
+    public IbmWatsonxEmbeddingsRequestManager(
+        IbmWatsonxEmbeddingsModel model,
+        Truncator truncator,
+        ThreadPool threadPool,
+        HttpSettings.ProxySettings proxySettings
+    ) {
         super(threadPool, model);
         this.model = Objects.requireNonNull(model);
         this.truncator = Objects.requireNonNull(truncator);
+        this.proxySettings = proxySettings;
     }
 
     @Override
@@ -60,7 +69,7 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
             new ExecutableInferenceRequest(
                 requestSender,
                 logger,
-                getEmbeddingRequest(truncator, truncatedInput, model),
+                getEmbeddingRequest(truncator, truncatedInput, model, proxySettings),
                 HANDLER,
                 timedListener
             )
@@ -70,8 +79,9 @@ public class IbmWatsonxEmbeddingsRequestManager extends IbmWatsonxRequestManager
     protected IbmWatsonxEmbeddingsRequest getEmbeddingRequest(
         Truncator truncator,
         Truncator.TruncationResult truncatedInput,
-        IbmWatsonxEmbeddingsModel model
+        IbmWatsonxEmbeddingsModel model,
+        HttpSettings.ProxySettings proxySettings
     ) {
-        return new IbmWatsonxEmbeddingsRequest(truncator, truncatedInput, model);
+        return new IbmWatsonxEmbeddingsRequest(truncator, truncatedInput, model, proxySettings);
     }
 }

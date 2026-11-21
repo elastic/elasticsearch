@@ -14,6 +14,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.message.BasicHeader;
@@ -21,6 +22,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
@@ -38,14 +40,25 @@ import static org.elasticsearch.xpack.inference.external.http.retry.BaseResponse
 
 public final class IbmWatsonxRequestUtils {
 
-    public static void decorateWithBearerToken(SimpleHttpRequest httpPost, DefaultSecretSettings secretSettings, String inferenceId) {
-        String bearerTokenGenUrl = "https://iam.cloud.ibm.com/identity/token";
+    static final String BEARER_TOKEN_GEN_URL = "https://iam.cloud.ibm.com/identity/token";
+
+    public static void decorateWithBearerToken(
+        SimpleHttpRequest httpPost,
+        DefaultSecretSettings secretSettings,
+        String inferenceId,
+        HttpSettings.ProxySettings proxySettings
+    ) {
         String bearerToken = "";
+
+        var clientBuilder = HttpClients.custom();
+        if (proxySettings != null) {
+            clientBuilder.setProxy(new HttpHost(proxySettings.scheme().scheme(), proxySettings.host(), proxySettings.port()));
+        }
 
         // This synchronous IAM token fetch moved from the 4.x classic client to the 5.x classic client, using
         // execute(request, responseHandler) which also releases the connection deterministically.
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpPost httpPostForBearerToken = new HttpPost(bearerTokenGenUrl);
+        try (CloseableHttpClient httpClient = clientBuilder.build()) {
+            HttpPost httpPostForBearerToken = new HttpPost(BEARER_TOKEN_GEN_URL);
 
             String body = "grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=" + secretSettings.apiKey().toString();
             ByteArrayEntity byteEntity = new ByteArrayEntity(body.getBytes(StandardCharsets.UTF_8), null);
@@ -54,7 +67,7 @@ public final class IbmWatsonxRequestUtils {
             httpPostForBearerToken.setHeader(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded");
 
             bearerToken = httpClient.execute(httpPostForBearerToken, response -> {
-                validateResponse(bearerTokenGenUrl, inferenceId, response);
+                validateResponse(BEARER_TOKEN_GEN_URL, inferenceId, response);
                 HttpEntity entity = response.getEntity();
                 Map<String, Object> map;
                 try (InputStream content = entity.getContent()) {

@@ -22,6 +22,7 @@ import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.mockProxySettings;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.endsWith;
@@ -138,7 +139,8 @@ public class IbmWatsonxEmbeddingsRequestTests extends ESTestCase {
         return new IbmWatsonxEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
-            embeddingsModel
+            embeddingsModel,
+            mockProxySettings()
         );
     }
 }

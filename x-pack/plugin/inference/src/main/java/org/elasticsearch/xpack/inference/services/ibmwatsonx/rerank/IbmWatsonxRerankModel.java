@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
 import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.apache.hc.core5.net.URIBuilder;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
@@ -22,7 +24,6 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.ML;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxUtils.RERANKS;
@@ -89,7 +90,7 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
         IbmWatsonxRerankServiceSettings serviceSettings,
         IbmWatsonxRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings,
-        BiConsumer<SimpleHttpRequest, IbmWatsonxModel> authHeaderDecorator
+        TriConsumer<SimpleHttpRequest, IbmWatsonxModel, HttpSettings.ProxySettings> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),

@@ -326,6 +326,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<InferenceIndexMappingManager> inferenceIndexManager = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
     private final SetOnce<AuthorizationTaskExecutor> authorizationTaskExecutorRef = new SetOnce<>();
+    private final SetOnce<HttpSettings> httpSettings = new SetOnce<>();
     /**
       * Used to limit the amount of memory mainly in-flight request objects
      *  (e.g. {@link org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput} can allocate.
@@ -430,7 +431,13 @@ public class InferencePlugin extends Plugin
         var httpRequestSenderFactory = new HttpRequestSender.Factory(serviceComponents.get(), httpClientManager, services.clusterService());
         httpFactory.set(httpRequestSenderFactory);
 
-        var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
+        httpSettings.set(new HttpSettings(settings, services.clusterService()));
+
+        var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(
+            serviceComponents.get(),
+            services.clusterService(),
+            httpSettings.get()
+        );
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
         inferenceIndexManager.set(new InferenceIndexMappingManager(services.client(), createInferenceIndexDescriptor(getIndexSettings())));
@@ -493,10 +500,7 @@ public class InferencePlugin extends Plugin
         },
             context -> new SageMakerService(
                 new SageMakerModelBuilder(sageMakerSchemas),
-                new SageMakerClient(
-                    new SageMakerClient.Factory(new HttpSettings(settings, services.clusterService())),
-                    services.threadPool()
-                ),
+                new SageMakerClient(new SageMakerClient.Factory(httpSettings.get()), services.threadPool()),
                 sageMakerSchemas,
                 services.threadPool(),
                 sageMakerConfigurations::getOrCompute,
@@ -727,7 +731,7 @@ public class InferencePlugin extends Plugin
         factories.add(context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context));
-        factories.add(context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context));
+        factories.add(context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context, httpSettings.get()));
         factories.add(context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context));
         factories.add(context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context));

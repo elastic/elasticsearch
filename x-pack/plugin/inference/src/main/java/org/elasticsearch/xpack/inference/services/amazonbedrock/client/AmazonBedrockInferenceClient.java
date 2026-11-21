@@ -11,6 +11,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
+import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
 import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeAsyncClient;
@@ -32,6 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockExceptions;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.reactivestreams.FlowAdapters;
@@ -60,17 +62,27 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     private final BedrockRuntimeAsyncClient internalClient;
     private final ThreadPool threadPool;
 
-    public static AmazonBedrockBaseClient create(AmazonBedrockModel model, @Nullable TimeValue timeout, ThreadPool threadPool) {
+    public static AmazonBedrockBaseClient create(
+        AmazonBedrockModel model,
+        @Nullable TimeValue timeout,
+        ThreadPool threadPool,
+        @Nullable HttpSettings.ProxySettings proxySettings
+    ) {
         try {
-            return new AmazonBedrockInferenceClient(model, timeout, threadPool);
+            return new AmazonBedrockInferenceClient(model, timeout, threadPool, proxySettings);
         } catch (Exception e) {
             throw AmazonBedrockExceptions.wrap("Failed to create Amazon Bedrock Client", e);
         }
     }
 
-    protected AmazonBedrockInferenceClient(AmazonBedrockModel model, @Nullable TimeValue timeout, ThreadPool threadPool) {
+    protected AmazonBedrockInferenceClient(
+        AmazonBedrockModel model,
+        @Nullable TimeValue timeout,
+        ThreadPool threadPool,
+        @Nullable HttpSettings.ProxySettings proxySettings
+    ) {
         super(model, timeout);
-        this.internalClient = createAmazonBedrockClient(model, timeout);
+        this.internalClient = createAmazonBedrockClient(model, timeout, proxySettings);
         this.threadPool = Objects.requireNonNull(threadPool);
         setExpiryTimestamp();
     }
@@ -137,7 +149,11 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     // allow this to be overridden for test mocks
-    protected BedrockRuntimeAsyncClient createAmazonBedrockClient(AmazonBedrockModel model, @Nullable TimeValue timeout) {
+    protected BedrockRuntimeAsyncClient createAmazonBedrockClient(
+        AmazonBedrockModel model,
+        @Nullable TimeValue timeout,
+        HttpSettings.ProxySettings proxySettings
+    ) {
         var secretSettings = model.getSecretSettings();
 
         var serviceSettings = model.getServiceSettings();
@@ -145,9 +161,15 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
         try {
             var credentials = AwsBasicCredentials.create(secretSettings.accessKey().toString(), secretSettings.secretKey().toString());
             var credentialsProvider = StaticCredentialsProvider.create(credentials);
-            var clientConfig = timeout == null
-                ? NettyNioAsyncHttpClient.builder().connectionTimeout(DEFAULT_CLIENT_TIMEOUT_MS)
-                : NettyNioAsyncHttpClient.builder().connectionTimeout(Duration.ofMillis(timeout.millis()));
+            var proxyConfig = proxySettings == null
+                ? null
+                : ProxyConfiguration.builder()
+                    .host(proxySettings.host())
+                    .scheme(proxySettings.scheme().scheme())
+                    .port(proxySettings.port())
+                    .build();
+            var connectionTimeout = timeout == null ? DEFAULT_CLIENT_TIMEOUT_MS : Duration.ofMillis(timeout.millis());
+            var clientConfig = NettyNioAsyncHttpClient.builder().proxyConfiguration(proxyConfig).connectionTimeout(connectionTimeout);
             var override = ClientOverrideConfiguration.builder()
                 // disable profileFile, user credentials will always come from the configured Model Secrets
                 .defaultProfileFileSupplier(ProfileFile.aggregator()::build)

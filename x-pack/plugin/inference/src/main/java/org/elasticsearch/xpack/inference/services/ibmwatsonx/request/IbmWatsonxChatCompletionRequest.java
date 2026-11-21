@@ -13,6 +13,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -26,10 +27,16 @@ import java.util.Objects;
 public class IbmWatsonxChatCompletionRequest implements OutboundUnifiedCompletionRequest {
     private final IbmWatsonxChatCompletionModel model;
     private final UnifiedChatInput chatInput;
+    private final HttpSettings.ProxySettings proxySettings;
 
-    public IbmWatsonxChatCompletionRequest(UnifiedChatInput chatInput, IbmWatsonxChatCompletionModel model) {
+    public IbmWatsonxChatCompletionRequest(
+        UnifiedChatInput chatInput,
+        IbmWatsonxChatCompletionModel model,
+        HttpSettings.ProxySettings proxySettings
+    ) {
         this.chatInput = Objects.requireNonNull(chatInput);
         this.model = Objects.requireNonNull(model);
+        this.proxySettings = proxySettings;
     }
 
     @Override
@@ -41,7 +48,7 @@ public class IbmWatsonxChatCompletionRequest implements OutboundUnifiedCompletio
             ContentType.APPLICATION_JSON
         );
 
-        model.authHeaderDecorator().accept(httpPost, model);
+        model.authHeaderDecorator().apply(httpPost, model, proxySettings);
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }

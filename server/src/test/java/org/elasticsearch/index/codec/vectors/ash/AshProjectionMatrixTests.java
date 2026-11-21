@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
@@ -125,6 +126,25 @@ public class AshProjectionMatrixTests extends ESTestCase {
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
         assertArrayEquals(wT, restored.wT(), 0f);
+    }
+
+    public void testShareableRequiresLearnedFullSample() {
+        int required = randomIntBetween(1, 100_000);
+        UUID id = UUID.randomUUID();
+        assertThat(new AshProjectionMatrix(new float[8], 4, 2, true, id, required).isShareable(required), is(true));
+        assertThat(new AshProjectionMatrix(new float[8], 4, 2, true, id, required + 1).isShareable(required), is(true));
+        assertThat(new AshProjectionMatrix(new float[8], 4, 2, true, id, required - 1).isShareable(required), is(false));
+        assertThat(new AshProjectionMatrix(new float[8], 4, 2, false, id, required).isShareable(required), is(false));
+    }
+
+    public void testHasShape() {
+        int originalDim = randomIntBetween(2, 50);
+        int nDims = randomIntBetween(1, originalDim);
+        AshProjectionMatrix pm = matrix(new float[originalDim * nDims], originalDim, nDims, true);
+        assertThat(pm.hasShape(originalDim, nDims), is(true));
+        assertThat(pm.hasShape(originalDim + 1, nDims), is(false));
+        assertThat(pm.hasShape(originalDim, nDims + 1), is(false));
+        assertThat(pm.hasShape(nDims, originalDim), is(originalDim == nDims));
     }
 
     public void testRejectsNegativeTrainingSampleSize() {

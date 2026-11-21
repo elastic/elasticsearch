@@ -13,14 +13,21 @@ import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+
 /**
- * Unit tests for the merge-time projection-matrix selection rule
- * ({@link ESNextDiskASHVectorsWriter#selectInheritedProjectionMatrix}). The rule decides which input
- * segment's learned matrix is inherited (warm-started) into the merged segment.
+ * Unit tests for the merge-time projection-matrix selection rules
+ * ({@link ESNextDiskASHVectorsWriter#selectShareableProjectionMatrix} and
+ * {@link ESNextDiskASHVectorsWriter#selectInheritedProjectionMatrix}). They decide which input segment's matrix is
+ * reused as-is, or else inherited (warm-started), in the merged segment.
  */
 public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
 
@@ -107,5 +114,67 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
     public void testReturnsNullWhenAllDimensionMismatch() {
         var candidates = List.of(new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(learned(8, 2, 1.0f), 10));
         assertNull(ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+    }
+
+    private static AshProjectionMatrix withSample(int originalDim, int nDims, boolean learned, int trainingSampleSize) {
+        return new AshProjectionMatrix(new float[originalDim * nDims], originalDim, nDims, learned, UUID.randomUUID(), trainingSampleSize);
+    }
+
+    /** The same W as {@code matrix}, as read by another segment that uses it. */
+    private static AshProjectionMatrix copyOf(AshProjectionMatrix matrix) {
+        return new AshProjectionMatrix(
+            matrix.wT().clone(),
+            matrix.originalDim(),
+            matrix.nDims(),
+            matrix.isLearned(),
+            matrix.id(),
+            matrix.trainingSampleSize()
+        );
+    }
+
+    private static ESNextDiskASHVectorsWriter.SizedProjectionMatrix sized(AshProjectionMatrix matrix, int size) {
+        return new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(matrix, size);
+    }
+
+    public void testShareableSelectionReturnsNullWhenNoCandidates() {
+        assertThat(ESNextDiskASHVectorsWriter.selectShareableProjectionMatrix(4, 2, 100, List.of()), nullValue());
+    }
+
+    public void testShareableSelectionPrefersMatrixUsedByMostVectors() {
+        int required = randomIntBetween(1, 100);
+        AshProjectionMatrix small = withSample(4, 2, true, required);
+        AshProjectionMatrix large = withSample(4, 2, true, required + randomIntBetween(0, 100));
+        var candidates = new ArrayList<>(List.of(sized(small, 10), sized(large, 100)));
+        Collections.shuffle(candidates, random());
+        assertThat(ESNextDiskASHVectorsWriter.selectShareableProjectionMatrix(4, 2, required, candidates), sameInstance(large));
+    }
+
+    public void testShareableSelectionSumsVectorsOfSegmentsSharingAMatrix() {
+        AshProjectionMatrix shared = withSample(4, 2, true, 100);
+        AshProjectionMatrix largest = withSample(4, 2, true, 100);
+        var candidates = new ArrayList<>(
+            // two segments sharing W hold more vectors together than the single largest segment
+            List.of(sized(shared, 60), sized(copyOf(shared), 60), sized(largest, 100))
+        );
+        Collections.shuffle(candidates, random());
+        AshProjectionMatrix selected = ESNextDiskASHVectorsWriter.selectShareableProjectionMatrix(4, 2, 100, candidates);
+        assertThat(selected.id(), equalTo(shared.id()));
+    }
+
+    public void testShareableSelectionSkipsPartialSamplesAndMismatchedShapes() {
+        var ineligible = List.of(
+            sized(withSample(4, 2, true, 99), 1000),
+            sized(withSample(4, 2, false, 100), 1000),
+            sized(withSample(8, 2, true, 100), 1000),
+            sized(withSample(4, 3, true, 100), 1000),
+            sized(null, 1000)
+        );
+        assertThat(ESNextDiskASHVectorsWriter.selectShareableProjectionMatrix(4, 2, 100, ineligible), nullValue());
+
+        AshProjectionMatrix eligible = withSample(4, 2, true, 100);
+        var candidates = new ArrayList<>(ineligible);
+        candidates.add(sized(eligible, 1));
+        Collections.shuffle(candidates, random());
+        assertThat(ESNextDiskASHVectorsWriter.selectShareableProjectionMatrix(4, 2, 100, candidates), sameInstance(eligible));
     }
 }

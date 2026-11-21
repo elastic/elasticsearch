@@ -64,7 +64,11 @@ import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * ASH-specific implementation of {@link IVFVectorsWriter}. Delegates quantized posting list
@@ -187,6 +191,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             ivfSegmentConfig,
             quantizerExec,
             null,
+            null,
             false // flush: the flush training factor; the vectors are on-heap
         );
     }
@@ -205,8 +210,22 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
     ) throws IOException {
         // Reuse an already-trained projection matrix from one of the segments being merged instead of
         // re-learning W from scratch. W is a global orthonormal projection of centered/normalized
-        // vectors and is effectively centroid-independent, so it can be carried across a merge.
-        final AshProjectionMatrix inherited = inheritProjectionMatrix(fieldInfo, mergeState);
+        // vectors and is effectively centroid-independent, so it can be carried across a merge. In order of preference:
+        // - a matrix learned from a full sample, as-is, so that the merged segment shares W with the other segments that
+        // still use it;
+        // - otherwise a learned matrix to warm-start from, or failing that a newly trained one.
+        int originalDim = fieldInfo.getVectorDimension();
+        IvfSegmentConfig.AshConfig config = ashConfig(fieldInfo);
+        AshProjectionMatrix reused = null;
+        AshProjectionMatrix inherited = null;
+        if (inheritsProjection(config, originalDim)) {
+            int nDims = config.projectedDims(originalDim);
+            List<SizedProjectionMatrix> candidates = projectionMatrixCandidates(fieldInfo, mergeState);
+            reused = selectShareableProjectionMatrix(originalDim, nDims, config.trainingFactor() * originalDim, candidates);
+            if (reused == null) {
+                inherited = selectInheritedProjectionMatrix(originalDim, nDims, candidates);
+            }
+        }
         return buildAndWriteAshPostingsLists(
             fieldInfo,
             centroidSupplier,
@@ -217,23 +236,17 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             overspillAssignments,
             ivfSegmentConfig,
             quantizerExec,
+            reused,
             inherited,
             true // merge: the merge training factor; the vectors are streamed off-heap by ordinal
         );
     }
 
     /**
-     * Finds a trained ASH projection matrix W among the segments being merged, returning it or {@code null} if none is
-     * available. Prefers the input segment with the most vectors so W is seeded from the best-trained
-     * source. Any reader that is not an {@link ESNextDiskASHVectorsReader} (or has no matrix for the
-     * field) is skipped, and a {@code null} result causes the caller to fall back to training W.
+     * Collects the ASH projection matrices of the segments being merged, together with the number of vectors of each
+     * segment. Any reader that is not an {@link ESNextDiskASHVectorsReader} (or has no matrix for the field) is skipped.
      */
-    private AshProjectionMatrix inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
-        int originalDim = fieldInfo.getVectorDimension();
-        IvfSegmentConfig.AshConfig config = ashConfig(fieldInfo);
-        if (inheritsProjection(config, originalDim) == false) {
-            return null;
-        }
+    private List<SizedProjectionMatrix> projectionMatrixCandidates(FieldInfo fieldInfo, MergeState mergeState) {
         List<SizedProjectionMatrix> candidates = new ArrayList<>();
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
@@ -261,23 +274,60 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 candidates.add(new SizedProjectionMatrix(matrix, size));
             }
         }
-        return selectInheritedProjectionMatrix(originalDim, config.projectedDims(originalDim), candidates);
+        return candidates;
     }
 
     /**
-     * Returns whether merging a field under {@code config} should seed its projection from an input segment. Without
-     * dimensionality reduction and without Procrustes iterations the projection is a seeded random rotation, the same
-     * in every segment, so there is nothing to inherit and the input segments' matrices are not loaded at all.
+     * Returns whether merging a field under {@code config} should reuse or seed its projection from an input segment.
+     * Without dimensionality reduction and without Procrustes iterations the projection is a seeded random rotation, the
+     * same in every segment, so there is nothing to inherit and the input segments' matrices are not loaded at all.
      */
     static boolean inheritsProjection(IvfSegmentConfig.AshConfig config, int originalDim) {
         return config.projectedDims(originalDim) != originalDim || config.trainingIterations() > 0;
     }
 
     /**
-     * A candidate projection matrix for merge inheritance together with the number of vectors in the
-     * segment it came from (used to prefer the best-trained source).
+     * A candidate projection matrix for merge reuse or inheritance together with the number of vectors in the
+     * segment it came from (used to prefer the matrix used by the most vectors, or the best-trained source).
      */
     record SizedProjectionMatrix(AshProjectionMatrix matrix, int size) {}
+
+    /**
+     * Selects the projection matrix to reuse as-is at merge from the given candidates, or {@code null} if none is
+     * suitable: a matrix of the expected shape, learned from at least {@code requiredSampleSize} vectors, and so as good
+     * for the merged segment as one learned from the merged vectors. Reusing it rather than refining it lets the merged
+     * segment share W with the other segments that still use it. Candidates with the same id hold the same W, so the
+     * matrix used by the most vectors among the segments being merged, summed over the candidates sharing its id, is
+     * selected. Ties go to the matrix that comes first among the candidates.
+     */
+    static AshProjectionMatrix selectShareableProjectionMatrix(
+        int expectedDim,
+        int expectedProjectedDims,
+        int requiredSampleSize,
+        List<SizedProjectionMatrix> candidates
+    ) {
+        Map<UUID, Long> vectorsById = new LinkedHashMap<>();
+        Map<UUID, AshProjectionMatrix> matrixById = new HashMap<>();
+        for (SizedProjectionMatrix candidate : candidates) {
+            AshProjectionMatrix matrix = candidate.matrix();
+            if (matrix == null
+                || matrix.hasShape(expectedDim, expectedProjectedDims) == false
+                || matrix.isShareable(requiredSampleSize) == false) {
+                continue;
+            }
+            vectorsById.merge(matrix.id(), (long) candidate.size(), Long::sum);
+            matrixById.putIfAbsent(matrix.id(), matrix);
+        }
+        AshProjectionMatrix best = null;
+        long bestVectors = -1;
+        for (Map.Entry<UUID, Long> entry : vectorsById.entrySet()) {
+            if (entry.getValue() > bestVectors) {
+                bestVectors = entry.getValue();
+                best = matrixById.get(entry.getKey());
+            }
+        }
+        return best;
+    }
 
     /**
      * Selects the projection matrix to inherit at merge from the given candidates, or {@code null}
@@ -300,10 +350,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         int bestSize = -1;
         for (SizedProjectionMatrix candidate : candidates) {
             AshProjectionMatrix matrix = candidate.matrix();
-            if (matrix == null
-                || matrix.isLearned() == false
-                || matrix.originalDim() != expectedDim
-                || matrix.nDims() != expectedProjectedDims) {
+            if (matrix == null || matrix.isLearned() == false || matrix.hasShape(expectedDim, expectedProjectedDims) == false) {
                 continue;
             }
             if (candidate.size() > bestSize) {
@@ -324,6 +371,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
         OverspillAssignments overspillAssignments,
         IvfSegmentConfig segmentConfig,
         TaskExecutor quantizerExec,
+        AshProjectionMatrix reused,
         AshProjectionMatrix inherited,
         boolean useMergeTrainingFactor
     ) throws IOException {
@@ -346,6 +394,7 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
             quantizerExec,
             fieldInfo.getVectorSimilarityFunction(),
             skipDocIds,
+            reused,
             inherited,
             useMergeTrainingFactor
         );

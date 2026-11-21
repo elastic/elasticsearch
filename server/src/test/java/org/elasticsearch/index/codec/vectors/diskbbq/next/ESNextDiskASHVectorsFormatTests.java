@@ -29,6 +29,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorEncoding;
@@ -53,6 +54,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.ESBaseKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
 import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
@@ -64,7 +66,9 @@ import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -80,7 +84,9 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -418,6 +424,147 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
                 assertEquals("every segment learned its own projection", docsPerSegment.length, ids.size());
             }
         }
+    }
+
+    /**
+     * A merge reuses as-is the projection matrix of the input with the most vectors among those learned from a full
+     * sample, keeping its id, so that the merged segment shares W with the segments that still use it.
+     */
+    public void testMergeReusesFullSampleProjectionOfMostVectors() throws IOException {
+        int dims = 64;
+        // the configuration of ashTestFormat
+        IvfSegmentConfig.AshConfig config = IvfSegmentConfig.AshConfig.defaults();
+        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(config, dims));
+        int fullSample = config.trainingFactor() * dims;
+        int smaller = randomIntBetween(fullSample, 2 * fullSample);
+        int larger = smaller + randomIntBetween(1, fullSample);
+        int[] docsPerSegment = random().nextBoolean() ? new int[] { smaller, larger } : new int[] { larger, smaller };
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, segmentPerCommitConfig(ashTestFormat()))) {
+            List<AshProjectionMatrix> inputs = writeSegments(w, dims, docsPerSegment);
+            AshProjectionMatrix expected = null;
+            for (int s = 0; s < inputs.size(); s++) {
+                assertTrue("segment " + s + " learned from a full sample", inputs.get(s).isShareable(fullSample));
+                if (docsPerSegment[s] == larger) {
+                    expected = inputs.get(s);
+                }
+            }
+            assertThat(inputs.get(0).id(), not(equalTo(inputs.get(1).id())));
+
+            w.forceMerge(1);
+            List<AshProjectionMatrix> merged = projectionMatrices(w);
+            assertThat(merged, hasSize(1));
+            assertThat(merged.get(0).id(), equalTo(expected.id()));
+            assertThat(merged.get(0).trainingSampleSize(), equalTo(expected.trainingSampleSize()));
+            assertThat(merged.get(0).wT(), equalTo(expected.wT()));
+        }
+    }
+
+    /**
+     * Without an input projection matrix learned from a full sample, a merge warm-starts from a learned input matrix,
+     * which refines it into a new matrix with a new id, learned from the merged sample.
+     */
+    public void testMergeWarmStartsWithoutFullSampleProjection() throws IOException {
+        int dims = 64;
+        // the configuration of ashTestFormat
+        IvfSegmentConfig.AshConfig config = IvfSegmentConfig.AshConfig.defaults();
+        int fullSample = config.trainingFactor() * dims;
+        // at least twice as many vectors as projected dimensions, so that each projection is learned
+        int minLearned = 2 * config.projectedDims(dims);
+        int[] docsPerSegment = new int[] { randomIntBetween(minLearned, fullSample - 1), randomIntBetween(minLearned, fullSample - 1) };
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, segmentPerCommitConfig(ashTestFormat()))) {
+            List<AshProjectionMatrix> inputs = writeSegments(w, dims, docsPerSegment);
+            for (AshProjectionMatrix input : inputs) {
+                assertTrue(input.isLearned());
+                assertFalse(input.isShareable(fullSample));
+            }
+
+            w.forceMerge(1);
+            List<AshProjectionMatrix> merged = projectionMatrices(w);
+            assertThat(merged, hasSize(1));
+            assertThat(merged.get(0).id(), not(in(inputs.stream().map(AshProjectionMatrix::id).toList())));
+            assertTrue(merged.get(0).isLearned());
+            assertThat(merged.get(0).trainingSampleSize(), equalTo(Math.min(fullSample, docsPerSegment[0] + docsPerSegment[1])));
+        }
+    }
+
+    /**
+     * Without dimensionality reduction nothing is inherited at merge, whatever the input segments learned from: the
+     * merged segment gets a new rotation.
+     */
+    public void testMergeWithoutReductionTrainsNewRotation() throws IOException {
+        int dims = 64;
+        IvfSegmentConfig.AshConfig config = IvfSegmentConfig.AshConfig.of(2, 4, 1.0f, Integer.MAX_VALUE);
+        assertFalse(ESNextDiskASHVectorsWriter.inheritsProjection(config, dims));
+        int fullSample = config.trainingFactor() * dims;
+        ESNextDiskASHVectorsFormat format = new ESNextDiskASHVectorsFormat(
+            AshConfigResolver.fixed(config),
+            MIN_VECTORS_PER_CLUSTER,
+            ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            null,
+            -1,
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
+        );
+        int[] docsPerSegment = new int[] { randomIntBetween(fullSample, 2 * fullSample), randomIntBetween(fullSample, 2 * fullSample) };
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, segmentPerCommitConfig(format))) {
+            List<AshProjectionMatrix> inputs = writeSegments(w, dims, docsPerSegment);
+            for (AshProjectionMatrix input : inputs) {
+                assertTrue(input.isLearned());
+                assertTrue(input.hasShape(dims, dims));
+            }
+
+            w.forceMerge(1);
+            List<AshProjectionMatrix> merged = projectionMatrices(w);
+            assertThat(merged, hasSize(1));
+            assertTrue(merged.get(0).hasShape(dims, dims));
+            assertThat(merged.get(0).id(), not(in(inputs.stream().map(AshProjectionMatrix::id).toList())));
+        }
+    }
+
+    /** A writer configuration that writes a segment per commit, and merges only when forced to. */
+    private static IndexWriterConfig segmentPerCommitConfig(KnnVectorsFormat format) {
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
+        LogDocMergePolicy mergePolicy = new LogDocMergePolicy();
+        mergePolicy.setMergeFactor(100);
+        iwc.setMergePolicy(mergePolicy);
+        iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
+        iwc.setRAMBufferSizeMB(256);
+        return iwc;
+    }
+
+    /** Writes a segment of random vectors per entry of {@code docsPerSegment} and returns their projection matrices. */
+    private static List<AshProjectionMatrix> writeSegments(IndexWriter w, int dims, int[] docsPerSegment) throws IOException {
+        for (int docs : docsPerSegment) {
+            for (int i = 0; i < docs; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("f", VectorTestUtils.randomFloatVector(dims), VectorSimilarityFunction.EUCLIDEAN));
+                w.addDocument(doc);
+            }
+            w.commit();
+        }
+        List<AshProjectionMatrix> matrices = projectionMatrices(w);
+        assertThat(matrices, hasSize(docsPerSegment.length));
+        return matrices;
+    }
+
+    /** Returns the projection matrices of field {@code f} in the segments of {@code w}, in segment order. */
+    private static List<AshProjectionMatrix> projectionMatrices(IndexWriter w) throws IOException {
+        List<AshProjectionMatrix> matrices = new ArrayList<>();
+        try (IndexReader reader = DirectoryReader.open(w)) {
+            for (LeafReaderContext ctx : reader.leaves()) {
+                LeafReader leafReader = ctx.reader();
+                FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo("f");
+                matrices.add(ashReader(leafReader, "f").getProjectionMatrix(fieldInfo));
+            }
+        }
+        return matrices;
     }
 
     /**

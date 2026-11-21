@@ -202,6 +202,9 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     @Override
     public void onMaster() {
+        // Update right away instead of waiting for the first poll interval. Otherwise, back-to-back master elections, each of which
+        // restarts the countdown, could starve the update and let end_time expire. The update is idempotent and cheap.
+        perform(() -> LOGGER.debug("completed tsdb update task after becoming master"));
         scheduleTask();
     }
 

@@ -743,20 +743,22 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
-        String fullPath = context.path().pathAsText(arrayFieldName);
-        var fc = FallbackPostMapper.FieldContext.forArrayElements(context, mapper, fullPath);
-        var preCapReason = FallbackPostMapper.resolvePrecaptureReason(fc);
-        if (preCapReason != null) {
-            context = FallbackPostMapper.captureScope(context, fullPath);
-        } else if (fc.canAddIgnoredField()
-            && fc.storesArraysNatively() == false
-            && mapper instanceof ObjectMapper objectMapper
-            && objectMapper.isEnabled() == false) {
-                // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
-                // get tracked through ignored source.
-                FallbackPostMapper.capture(context, fullPath, FallbackPostMapper.Reason.OBJECT_DISABLED);
-                return;
-            }
+        // Pre-capture needs ignored source; without it, skip building the full path for every array of every document.
+        if (context.canAddIgnoredField()) {
+            String fullPath = context.path().pathAsText(arrayFieldName);
+            var fc = FallbackPostMapper.FieldContext.forArrayElements(context, mapper, fullPath);
+            var preCapReason = FallbackPostMapper.resolvePrecaptureReason(fc);
+            if (preCapReason != null) {
+                context = FallbackPostMapper.captureScope(context, fullPath);
+            } else if (fc.storesArraysNatively() == false
+                && mapper instanceof ObjectMapper objectMapper
+                && objectMapper.isEnabled() == false) {
+                    // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
+                    // get tracked through ignored source.
+                    FallbackPostMapper.capture(context, fullPath, FallbackPostMapper.Reason.OBJECT_DISABLED);
+                    return;
+                }
+        }
 
         // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
         // elements from regular source loading that are then skipped from the synthesized array source.

@@ -247,9 +247,11 @@ public final class FallbackPostMapper {
      */
     public static DocumentParserContext parseField(DocumentParserContext context, FieldMapper fieldMapper) throws IOException {
         String fieldPath = fieldMapper.fullPath();
-        DocumentParserContext parseCtx = resolvePrecaptureReason(FieldContext.forField(context, fieldMapper)) != null
-            ? context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, null))
-            : context;
+        // Checking canAddIgnoredField first keeps the per-field FieldContext lookups off the path when ignored source is disabled.
+        DocumentParserContext parseCtx = context.canAddIgnoredField()
+            && resolvePrecaptureReason(FieldContext.forField(context, fieldMapper)) != null
+                ? context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldPath, null))
+                : context;
 
         FieldMapper.ParseResult result = fieldMapper.parse(parseCtx);
 

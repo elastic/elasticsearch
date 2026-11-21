@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -293,4 +295,54 @@ public class FallbackPostMapperIntegrationTests extends MapperServiceTestCase {
         forField("field.kw", doc.rootDoc()).expectDocValues().expectOnFailure().verify();
     }
 
+    /**
+     * Every pre-capture trigger, as scalar and as array, must leave the document untouched by {@code _ignored_source}
+     * when ignored source cannot be written: with stored source, or with synthetic source and ignored source writes
+     * skipped. With synthetic source and writes allowed, the same document does get {@code _ignored_source} entries.
+     */
+    public void testNoPreCaptureWhenIgnoredSourceCannotBeWritten() throws IOException {
+        CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+            b.startObject("keep_all").field("type", "keyword").field("synthetic_source_keep", "all").endObject();
+            b.startObject("keep_arrays").field("type", "keyword").field("synthetic_source_keep", "arrays").endObject();
+            b.startObject("fallback").field("type", "long").field("doc_values", false).endObject();
+            b.startObject("src").field("type", "keyword").field("copy_to", "dest").endObject();
+            b.startObject("dest").field("type", "keyword").endObject();
+            b.startObject("disabled_object").field("type", "object").field("enabled", false).endObject();
+            b.startObject("keep_all_object");
+            {
+                b.field("type", "object").field("synthetic_source_keep", "all");
+                b.startObject("properties").startObject("f").field("type", "keyword").endObject().endObject();
+            }
+            b.endObject();
+        };
+        CheckedConsumer<XContentBuilder, IOException> document = b -> {
+            if (randomBoolean()) {
+                b.field("keep_all", "a").field("keep_arrays", "a").field("fallback", 1).field("src", "a").field("dest", "a");
+                b.startObject("disabled_object").field("x", "a").endObject();
+                b.startObject("keep_all_object").field("f", "a").endObject();
+            } else {
+                b.array("keep_all", "a", "b").array("keep_arrays", "a", "b").array("fallback", 1, 2);
+                b.array("src", "a", "b").array("dest", "a", "b");
+                b.startArray("disabled_object").startObject().field("x", "a").endObject().startObject().field("x", "b").endObject();
+                b.endArray();
+                b.startArray("keep_all_object").startObject().field("f", "a").endObject().startObject().field("f", "b").endObject();
+                b.endArray();
+            }
+        };
+
+        Settings settings = randomBoolean()
+            ? Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED).build()
+            : Settings.builder()
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), true)
+                .build();
+        ParsedDocument doc = createMapperService(settings, mapping(mapping)).documentMapper().parse(source(document));
+        assertNull(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+        for (String field : new String[] { "keep_all", "keep_arrays", "fallback", "src", "dest", "keep_all_object.f" }) {
+            assertFalse("field [" + field + "] was not indexed", doc.rootDoc().getFields(field).isEmpty());
+        }
+
+        ParsedDocument syntheticDoc = createSytheticSourceMapperService(mapping(mapping)).documentMapper().parse(source(document));
+        assertNotNull(syntheticDoc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+    }
 }

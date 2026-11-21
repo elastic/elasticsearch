@@ -16,7 +16,7 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
 
     public void testMaxScorePropagation() {
         SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE);
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, strategy);
         strategy.setCollector(collector);
 
@@ -46,7 +46,7 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
 
     public void testReadOnlySharedScoreIsNotPublishedTo() {
         SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore.readOnly());
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore.readOnly(), QueryTransformCache.NONE);
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, strategy);
         strategy.setCollector(collector);
 
@@ -71,10 +71,10 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
      */
     public void testTiedScoreInAnotherLeafStaysCompetitive() {
         SharedMinCompetitiveScore sharedScore = new SharedMinCompetitiveScore();
-        IVFKnnSearchStrategy strategyA = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore);
+        IVFKnnSearchStrategy strategyA = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE);
         MaxScoreTopKnnCollector leafA = new MaxScoreTopKnnCollector(2, 1000, strategyA);
         strategyA.setCollector(leafA);
-        IVFKnnSearchStrategy strategyB = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore);
+        IVFKnnSearchStrategy strategyB = new IVFKnnSearchStrategy(0.5f, 100, 10, sharedScore, QueryTransformCache.NONE);
         MaxScoreTopKnnCollector leafB = new MaxScoreTopKnnCollector(2, 1000, strategyB);
         strategyB.setCollector(leafB);
 

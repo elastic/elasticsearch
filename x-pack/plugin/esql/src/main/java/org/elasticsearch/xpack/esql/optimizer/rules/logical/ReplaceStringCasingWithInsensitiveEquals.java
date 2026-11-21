@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -46,16 +47,28 @@ public class ReplaceStringCasingWithInsensitiveEquals extends OptimizerRules.Opt
         Expression e = sf;
         if (bc.left() instanceof ChangeCase changeCase && bc.right().foldable()) {
             if (bc instanceof Equals) {
-                e = replaceChangeCase(ctx, bc, changeCase, negated);
+                e = replaceChangeCase(ctx, sf, bc, changeCase, negated);
             } else if (bc instanceof NotEquals) { // not actually used currently, `!=` is built as `NOT(==)` already
-                e = replaceChangeCase(ctx, bc, changeCase, negated == false);
+                e = replaceChangeCase(ctx, sf, bc, changeCase, negated == false);
             }
         }
         return e;
     }
 
-    private static Expression replaceChangeCase(LogicalOptimizerContext ctx, BinaryComparison bc, ChangeCase changeCase, boolean negated) {
-        var foldedRight = BytesRefs.toString(bc.right().fold(ctx.foldCtx()));
+    private static Expression replaceChangeCase(
+        LogicalOptimizerContext ctx,
+        ScalarFunction original,
+        BinaryComparison bc,
+        ChangeCase changeCase,
+        boolean negated
+    ) {
+        var foldedValue = bc.right().fold(ctx.foldCtx());
+        // A multi-valued literal folds to a collection. Leave the comparison untouched so Equals
+        // still warns and returns null, instead of comparing against the collection's string form.
+        if (foldedValue != null && foldedValue instanceof BytesRef == false && foldedValue instanceof String == false) {
+            return original;
+        }
+        var foldedRight = BytesRefs.toString(foldedValue);
         if (foldedRight == null) {
             // the comparison evaluates to null, negated or not
             return Literal.of(bc, null);

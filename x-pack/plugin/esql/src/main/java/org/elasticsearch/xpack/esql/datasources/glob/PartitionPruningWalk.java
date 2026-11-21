@@ -352,22 +352,14 @@ final class PartitionPruningWalk {
             listener.onFailure(e);
             return;
         }
-        session.runAsync(Math.max(1, concurrency), executor, new ActionListener<>() {
-            @Override
-            public void onResponse(WalkResult walk) {
-                listener.onResponse(walk);
+        session.runAsync(Math.max(1, concurrency), executor, listener.delegateResponse((l, e) -> {
+            if (e instanceof IOException) {
+                logger.debug("Partition-pruning walk of [{}] failed; falling back to a flat listing", prefix, e);
+                l.onResponse(null);
+            } else {
+                l.onFailure(e);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (e instanceof IOException) {
-                    logger.debug("Partition-pruning walk of [{}] failed; falling back to a flat listing", prefix, e);
-                    listener.onResponse(null);
-                    return;
-                }
-                listener.onFailure(e);
-            }
-        });
+        }));
     }
 
     /**
@@ -820,74 +812,52 @@ final class PartitionPruningWalk {
         }
 
         private void advanceAsync(int concurrency, Executor executor, ActionListener<WalkResult> listener) {
-            final WalkResult early;
-            final boolean listLevel;
-            final boolean cancelledNow;
-            try {
-                if (cancelled.getAsBoolean()) {
-                    cancelledNow = true;
-                    early = null;
-                    listLevel = false;
-                } else if (dirs.isEmpty()) {
-                    cancelledNow = false;
-                    early = collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs);
-                    listLevel = false;
-                } else if (pending.isEmpty() || listings.get() + dirs.size() > maxDirectoryListings) {
-                    cancelledNow = false;
-                    early = finishSurvivors();
-                    listLevel = false;
-                } else {
-                    cancelledNow = false;
-                    early = null;
-                    listLevel = true;
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-            if (cancelledNow) {
+            if (cancelled.getAsBoolean()) {
                 listener.onFailure(new TaskCancelledException("listing cancelled"));
                 return;
             }
-            if (listLevel == false) {
-                listener.onResponse(early);
-                return;
-            }
-            listChildrenParallel(provider, dirs, concurrency, executor, listings, cancelled, new ActionListener<>() {
-                @Override
-                public void onResponse(StorageChildren[] listed) {
-                    WalkResult done;
-                    boolean continueWalk;
-                    try {
-                        if (listed == null) {
-                            done = null;
-                            continueWalk = false;
-                        } else {
-                            ClassifiedLevel level = classifyListed(listed);
-                            if (applyPeeksIfNeeded(level) == false) {
+            if (dirs.isEmpty() == false && pending.isEmpty() == false && listings.get() + dirs.size() <= maxDirectoryListings) {
+                listChildrenParallel(provider, dirs, concurrency, executor, listings, cancelled, new ActionListener<>() {
+                    @Override
+                    public void onResponse(StorageChildren[] listed) {
+                        WalkResult done;
+                        boolean continueWalk;
+                        try {
+                            if (listed == null) {
                                 done = null;
                                 continueWalk = false;
                             } else {
-                                done = applyClassified(level);
-                                continueWalk = done == null && level.continueWalk;
+                                ClassifiedLevel level = classifyListed(listed);
+                                if (applyPeeksIfNeeded(level) == false) {
+                                    done = null;
+                                    continueWalk = false;
+                                } else {
+                                    done = applyClassified(level);
+                                    continueWalk = done == null && level.continueWalk;
+                                }
                             }
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                            return;
                         }
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                        return;
+                        if (continueWalk) {
+                            advanceAsync(concurrency, executor, listener);
+                            return;
+                        }
+                        listener.onResponse(done);
                     }
-                    if (continueWalk) {
-                        advanceAsync(concurrency, executor, listener);
-                        return;
-                    }
-                    listener.onResponse(done);
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+                return;
+            }
+            ActionListener.completeWith(
+                listener,
+                () -> dirs.isEmpty() ? collector.result(prunedColumns, inferColumnTypes(seenValues), prunedDirs) : finishSurvivors()
+            );
         }
 
         /**

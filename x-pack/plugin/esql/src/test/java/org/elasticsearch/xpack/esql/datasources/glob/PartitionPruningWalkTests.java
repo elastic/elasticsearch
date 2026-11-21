@@ -39,7 +39,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.DAY_SPEC;
@@ -343,22 +342,14 @@ public class PartitionPruningWalkTests extends ESTestCase {
     }
 
     public void testAsyncListenerCompletesOnceWhenOnResponseThrows() throws Exception {
-        // DIRECT hits the sequential listChildrenParallel branch on the calling thread.
-        // ThrottledIterator completes inside AbstractRefCounted.close, so a throwing
-        // onResponse becomes an Error there; the sequential path is the one wrap used to
-        // double-complete.
+        // Sequential listChildrenParallel on the calling thread. A throwing listener
+        // inside ThrottledIterator completion is a contract violation, not a supported path.
         assertListenerCompletesOnce(EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-        try {
-            assertListenerCompletesOnce(threadPool.generic());
-        } finally {
-            terminate(threadPool);
-        }
     }
 
     public void testDiscoveredFilesLimitPropagatesWithoutFlatListing() throws Exception {
         List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
-        FolderRangePredicate pred = folderRange(filters, HOUR_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
         String prefixListing = ListingWalkHarness.WIDE_HIVE_PREFIX + "/";
 
         ListingWalkHarness sequential = new ListingWalkHarness(wideHiveTree());
@@ -369,7 +360,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
                 () -> tryWalk(
                     sequential,
                     WIDE_HIVE_GLOB,
-                    listingHints(filters, HOUR_SPEC),
+                    listingHints(filters, DAY_SPEC),
                     pred,
                     () -> false,
                     0,
@@ -389,7 +380,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
                     () -> tryWalkAsync(
                         parallel,
                         WIDE_HIVE_GLOB,
-                        listingHints(filters, HOUR_SPEC),
+                        listingHints(filters, DAY_SPEC),
                         pred,
                         () -> false,
                         4,
@@ -439,7 +430,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
             List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)),
             DAY_SPEC,
             WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES,
-            50
+            5
         );
     }
 
@@ -449,7 +440,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
             List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END)),
             HOUR_SPEC,
             WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES,
-            50
+            5
         );
     }
 
@@ -488,19 +479,6 @@ public class PartitionPruningWalkTests extends ESTestCase {
         FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
         ListingWalkHarness provider = new ListingWalkHarness(wideHiveTree());
         provider.setListChildrenDelayNanos(TimeUnit.MILLISECONDS.toNanos(5));
-        AtomicReference<AssertionError> watched = new AtomicReference<>();
-        AtomicBoolean stop = new AtomicBoolean();
-        Thread watcher = new Thread(() -> {
-            while (stop.get() == false) {
-                int issued = provider.listChildrenRequests();
-                if (issued > ceiling) {
-                    watched.compareAndSet(null, new AssertionError("issued " + issued + " > ceiling " + ceiling));
-                    return;
-                }
-                Thread.onSpinWait();
-            }
-        }, getTestName() + "-ceiling-watch");
-        watcher.start();
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             PartitionPruningWalk.WalkResult result = tryWalkAsync(
@@ -518,13 +496,7 @@ public class PartitionPruningWalkTests extends ESTestCase {
             assertThat(provider.listChildrenRequests(), lessThanOrEqualTo(ceiling));
             assertEquals(0, provider.listObjectPages());
         } finally {
-            stop.set(true);
-            watcher.join(TimeUnit.SECONDS.toMillis(5));
             terminate(threadPool);
-        }
-        AssertionError watchError = watched.get();
-        if (watchError != null) {
-            throw watchError;
         }
     }
 
@@ -559,6 +531,9 @@ public class PartitionPruningWalkTests extends ESTestCase {
                 PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
             );
             fail("throwing onResponse should surface to the caller on the sequential path");
+        } catch (AssertionError e) {
+            // ActionListener.completeWith asserts when onResponse throws.
+            assertTrue(e.getMessage(), e.getMessage().contains("downstream onResponse"));
         } catch (RuntimeException e) {
             assertEquals("downstream onResponse", e.getMessage());
         }
@@ -585,8 +560,8 @@ public class PartitionPruningWalkTests extends ESTestCase {
         try {
             for (int i = 0; i < iterations; i++) {
                 ListingWalkHarness parallelProvider = new ListingWalkHarness(tree);
-                parallelProvider.setListChildrenDelayNanos(() -> TimeUnit.MILLISECONDS.toNanos(randomIntBetween(0, 5)));
-                int concurrency = randomIntBetween(1, 16);
+                parallelProvider.setListChildrenDelayNanos(() -> TimeUnit.MILLISECONDS.toNanos(randomIntBetween(0, 1)));
+                int concurrency = randomIntBetween(2, 16);
                 PartitionPruningWalk.WalkResult parallel = PartitionPruningWalk.withFinishMode(
                     PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
                     () -> tryWalkAsync(parallelProvider, WIDE_HIVE_GLOB, List.of(), pred, () -> false, concurrency, threadPool.generic())

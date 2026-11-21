@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.compute.operator.SuppressedFailures;
-import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
@@ -1980,18 +1979,6 @@ public final class GlobExpander {
         );
     }
 
-    /** Compute {@code expand} then complete {@code listener} once. A throwing {@code onResponse} is the caller's. */
-    private static void completeExpand(ActionListener<FileList> listener, CheckedSupplier<FileList, Exception> expand) {
-        FileList listing;
-        try {
-            listing = expand.get();
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        listener.onResponse(listing);
-    }
-
     /**
      * Async counterpart of {@link #doExpandGlob}. Walk-eligible unbounded globs with concurrency &gt; 1 run
      * {@link PartitionPruningWalk#tryWalkAsync} on {@code fanOutExecutor} even when
@@ -2067,9 +2054,9 @@ public final class GlobExpander {
                     new ActionListener<>() {
                         @Override
                         public void onResponse(PartitionPruningWalk.WalkResult walk) {
-                            FileList listing;
-                            try {
-                                listing = doExpandGlob(
+                            ActionListener.completeWith(
+                                listener,
+                                () -> doExpandGlob(
                                     pattern,
                                     provider,
                                     hints,
@@ -2087,12 +2074,8 @@ public final class GlobExpander {
                                     maxDirectoryListings,
                                     walk,
                                     true
-                                );
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                                return;
-                            }
-                            listener.onResponse(listing);
+                                )
+                            );
                         }
 
                         @Override
@@ -2106,7 +2089,7 @@ public final class GlobExpander {
         }
 
         if (fanOutEligible == false) {
-            completeExpand(
+            ActionListener.completeWith(
                 listener,
                 () -> doExpandGlob(
                     pattern,
@@ -2131,7 +2114,7 @@ public final class GlobExpander {
 
         // Fan-out path: non-pattern and enumerable are cheaper as a sync drain.
         if (storagePath.isPattern() == false) {
-            completeExpand(
+            ActionListener.completeWith(
                 listener,
                 () -> doExpandGlob(
                     pattern,
@@ -2156,7 +2139,7 @@ public final class GlobExpander {
 
         GlobMatcher matcher = new GlobMatcher(storagePath.globPart());
         if (matcher.enumerateKeys(maxGlobExpansion) != null) {
-            completeExpand(
+            ActionListener.completeWith(
                 listener,
                 () -> doExpandGlob(
                     pattern,
@@ -2236,7 +2219,7 @@ public final class GlobExpander {
             );
         } else {
             // Slots unavailable (listChildren unsupported, budget exhausted, or a value filter): use the flat drain.
-            completeExpand(
+            ActionListener.completeWith(
                 listener,
                 () -> doExpandGlob(
                     pattern,

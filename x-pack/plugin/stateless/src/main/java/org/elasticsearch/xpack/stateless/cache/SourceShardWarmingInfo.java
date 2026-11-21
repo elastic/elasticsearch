@@ -19,7 +19,7 @@ public final class SourceShardWarmingInfo {
     public static final SourceShardWarmingInfo NOT_REQUESTED = new SourceShardWarmingInfo(false, 0L);
 
     /// @param shardBytesToWarm  the source's estimate of the bytes this shard warms
-    /// @param sourceBytesToWarm the source's estimate of the bytes warmed by all its shards not already relocating to another node,
+    /// @param sourceBytesToWarm the source's estimate of the bytes warmed by all its shards that may relocate to the target,
     ///                          including this one; `0` when the source could not compute it
     public record WarmingInfo(long shardBytesToWarm, long sourceBytesToWarm) {
         public static final WarmingInfo NONE = new WarmingInfo(0L, 0L);

@@ -92,6 +92,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
@@ -220,6 +221,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -347,6 +349,7 @@ public class LocalExecutionPlanner {
      * tied to the build they run under.
      */
     private final boolean snapshotBuild;
+    private final FetchOperatorProvider fetchOperators;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -396,6 +399,7 @@ public class LocalExecutionPlanner {
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
         boolean snapshotBuild,
+        FetchOperatorProvider fetchOperators,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
@@ -425,6 +429,7 @@ public class LocalExecutionPlanner {
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.snapshotBuild = snapshotBuild;
+        this.fetchOperators = fetchOperators;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -546,6 +551,8 @@ public class LocalExecutionPlanner {
             return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
+        } else if (node instanceof FetchExec fetch) {
+            return planFetch(fetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -1579,10 +1586,13 @@ public class LocalExecutionPlanner {
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
         List<Layout.ChannelSet> inverse = source.layout.inverse();
+        DocVectorEncoder docEncoder = fetchOperators.receivesDetachedDocuments()
+            ? DocVectorEncoder.detached()
+            : new DocVectorEncoder(context.shardContexts);
         for (int channel = 0; channel < inverse.size(); channel++) {
             var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, inverse.get(channel).nameIds());
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
-            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), context.shardContexts);
+            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), docEncoder);
         }
         List<TopNOperator.SortOrder> orders = order.stream().map(o -> {
             int sortByChannel = getAttributeChannel(o.child(), source.layout, "order by expression must be an attribute");
@@ -2627,10 +2637,6 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(eqlSource.output());
-        // No pushed LIMIT and no WITH {"size"} → fall back to the ES|QL result-truncation cap, and warn at runtime
-        // if the response fills it (results may be incomplete).
-        int truncationCap = configuration.resultTruncationMaxSize(false);
-        boolean warnOnTruncation = EqlRequests.usesTruncationCapSize(eqlSource.options(), eqlSource.pushedLimit());
         EqlSearchRequest request = EqlRequests.build(
             eqlSource.query(),
             eqlSource.indices(),
@@ -2638,7 +2644,6 @@ public class LocalExecutionPlanner {
             eqlSource.options(),
             eqlSource.pushedLimit(),
             new EqlRequests.EnclosingQuery(
-                truncationCap,
                 // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
                 configuration.allowPartialResults(),
                 QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
@@ -2655,7 +2660,14 @@ public class LocalExecutionPlanner {
             request.preResolvedFieldCaps(preResolved);
         }
         return PhysicalOperation.fromSource(
-            new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output(), eqlSource.source(), warnOnTruncation),
+            new EqlSourceOperator.Factory(
+                client,
+                request,
+                eqlSource.mode(),
+                eqlSource.output(),
+                eqlSource.source(),
+                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit())
+            ),
             layout.build()
         );
     }
@@ -2985,6 +2997,16 @@ public class LocalExecutionPlanner {
             elementTypes.add(PlannerUtils.toElementType(inverse.get(channel).type()));
         }
         return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
+    }
+
+    private PhysicalOperation planFetch(FetchExec fetch, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(fetch.child(), context);
+        Layout.ChannelAndType doc = source.layout.get(fetch.doc().id());
+        if (doc == null || doc.type() != DataType.DOC_DATA_TYPE) {
+            throw new IllegalStateException("fetch reads documents from [" + fetch.doc() + "] but the input has " + doc);
+        }
+        Layout layout = source.layout.builder().append(fetch.fetchedAttributes()).build();
+        return source.with(fetchOperators.fetchOperator(fetch, doc.channel()), layout);
     }
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {

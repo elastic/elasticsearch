@@ -18,6 +18,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.sourcebatch.CompactedColumns;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 
 import java.util.List;
@@ -150,6 +151,11 @@ final class DenseVectorColumn<T> extends VectorColumn<T> implements LuceneColumn
     @Override
     public Column toLuceneColumn() {
         return this;
+    }
+
+    @Override
+    public Column toLuceneColumn(int[] compactedDocIds) {
+        return CompactedColumns.of(this, compactedDocIds);
     }
 
     @Override

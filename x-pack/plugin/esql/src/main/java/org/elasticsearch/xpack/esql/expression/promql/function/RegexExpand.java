@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -301,15 +302,14 @@ public final class RegexExpand extends EsqlScalarFunction implements VersionedNa
         }
 
         private static Map<String, int[]> namedGroups(String[] groupNames) {
-            Map<String, int[]> groups = new HashMap<>();
+            Map<String, List<Integer>> lists = new HashMap<>();
             for (int g = 1; g < groupNames.length; g++) {
                 if (groupNames[g] != null) {
-                    int[] previous = groups.get(groupNames[g]);
-                    int[] indices = previous == null ? new int[1] : Arrays.copyOf(previous, previous.length + 1);
-                    indices[indices.length - 1] = g;
-                    groups.put(groupNames[g], indices);
+                    lists.computeIfAbsent(groupNames[g], k -> new ArrayList<>()).add(g);
                 }
             }
+            Map<String, int[]> groups = new HashMap<>(lists.size());
+            lists.forEach((name, indices) -> groups.put(name, indices.stream().mapToInt(Integer::intValue).toArray()));
             return groups;
         }
 

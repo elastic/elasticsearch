@@ -162,10 +162,13 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
      * past it is taken to differ.
      */
     private boolean sameLanguage(Re2Pattern re2, RLikePattern lucene) {
+        // a fresh budget, discarded after the check, so the inputs it holds while the differences are built need no release
         CircuitBreaker breaker = FoldContext.small().circuitBreakerView(source());
         try {
             Automaton a = re2.createAutomaton(false, breaker, NAME);
+            breaker.addEstimateBytesAndMaybeBreak(a.ramBytesUsed(), NAME);
             Automaton b = lucene.createAutomaton(false);
+            breaker.addEstimateBytesAndMaybeBreak(b.ramBytesUsed(), NAME);
             return Operations.isEmpty(CircuitBreakingOperations.minus(a, b, breaker, NAME))
                 && Operations.isEmpty(CircuitBreakingOperations.minus(b, a, breaker, NAME));
         } catch (IllegalArgumentException | TooComplexToDeterminizeException | FoldContext.FoldTooMuchMemoryException e) {

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.junit.Before;
@@ -24,6 +27,16 @@ public class CrossClusterIntoIT extends AbstractCrossClusterTestCase {
     @Override
     protected boolean reuseClusters() {
         return false;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings());
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            // The setting is rejected while the feature flag is off, which would fail the clusters before the tests can be skipped.
+            settings.put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), true);
+        }
+        return settings.build();
     }
 
     @Before
@@ -45,8 +58,14 @@ public class CrossClusterIntoIT extends AbstractCrossClusterTestCase {
     }
 
     public void testRemoteThatTheQueryExcludesIsNotARemoteSource() throws Exception {
+        assumeTrue("INTO writes through batch indexing", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         setupClusters(2);
-        assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("dest-into"));
+        assertAcked(
+            client(LOCAL_CLUSTER).admin()
+                .indices()
+                .prepareCreate("dest-into")
+                .setSettings(Settings.builder().put(IndexSettings.BATCH_INDEXING.getKey(), true))
+        );
 
         String query = "FROM logs-*," + REMOTE_CLUSTER_1 + ":logs-*,-" + REMOTE_CLUSTER_1 + ":* | KEEP v | INTO dest-into";
         try (EsqlQueryResponse response = runQuery(query, null)) {

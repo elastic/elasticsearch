@@ -15,9 +15,12 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 
+@RunWith(ESRandomizedRunner.class)
 public class BlockMetadataAccumulatorTests extends LuceneTestCase {
 
     private static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;

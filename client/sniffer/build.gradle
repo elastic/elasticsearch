@@ -46,7 +46,6 @@ dependencies {
 
   testImplementation project(":client:test")
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit4}"
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
@@ -78,6 +77,8 @@ tasks.named("jarHell").configure { enabled = false }
 
 tasks.named("testTestingConventions").configure {
   baseClass 'org.elasticsearch.client.RestClientTestCase'
+  // The client does not depend on the Elasticsearch test framework, so its tests cannot use ESRandomizedRunner
+  allowPlainRandomizedRunner = true
 }
 
 tasks.named("thirdPartyAudit").configure {

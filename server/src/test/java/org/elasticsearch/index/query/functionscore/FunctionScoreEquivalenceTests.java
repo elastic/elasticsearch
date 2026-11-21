@@ -16,7 +16,10 @@ import org.apache.lucene.tests.search.SearchEquivalenceTestBase;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
+@RunWith(ESRandomizedRunner.class)
 public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
     static {
         try {

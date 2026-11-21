@@ -182,6 +182,47 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
     }
 
+    def "test classes must not run with the plain randomized runner"() {
+        given:
+        simpleJavaBuild()
+        runnerClasses()
+        runWithClazz("org.acme.valid.SomeTests", "org.elasticsearch.test.junit.runner.ESRandomizedRunner")
+        // @RunWith is inherited, the subclass of a class with the right runner is fine as well
+        file("src/test/java/org/acme/valid/InheritingTests.java").text = """
+            package org.acme.valid;
+            public class InheritingTests extends SomeTests {}
+        """.stripIndent()
+
+        when:
+        def result = gradleRunner("precommit").build()
+        then:
+        result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
+
+        when:
+        runWithClazz("org.acme.PlainTests", "com.carrotsearch.randomizedtesting.RandomizedRunner")
+        file("src/test/java/org/acme/InheritingPlainTests.java").text = """
+            package org.acme;
+            public class InheritingPlainTests extends PlainTests {}
+        """.stripIndent()
+        result = gradleRunner("precommit").buildAndFail()
+        then:
+        result.task(":testTestingConventions").outcome == TaskOutcome.FAILED
+        result.output.contains("Following test classes run with the plain RandomizedRunner, use ESRandomizedRunner instead:")
+        result.output.contains("org.acme.PlainTests")
+        result.output.contains("org.acme.InheritingPlainTests")
+        assertProblemsReportContainsProblem("Plain randomized runner")
+
+        when: "the project opts out"
+        buildFile << """
+        tasks.named('testTestingConventions').configure {
+            allowPlainRandomizedRunner = true
+        }
+        """
+        result = gradleRunner("precommit").build()
+        then:
+        result.task(":testTestingConventions").outcome == TaskOutcome.SUCCESS
+    }
+
     @Unroll
     def "applies conventions on #sourceSetName tests"() {
         given:
@@ -228,6 +269,40 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
         where:
         pluginName                            | taskName                                 | sourceSetName
         "elasticsearch.internal-cluster-test" | ":internalClusterTestTestingConventions" | "internalClusterTest"
+    }
+
+    /** Stand-ins for the runner annotation and the runners, which the check looks up by name. */
+    private void runnerClasses() {
+        file("src/test/java/org/junit/runner/RunWith.java").text = """
+            package org.junit.runner;
+            import java.lang.annotation.*;
+            @Retention(RetentionPolicy.RUNTIME)
+            @Inherited
+            public @interface RunWith {
+                Class<?> value();
+            }
+        """.stripIndent()
+        file("src/test/java/com/carrotsearch/randomizedtesting/RandomizedRunner.java").text = """
+            package com.carrotsearch.randomizedtesting;
+            public class RandomizedRunner {}
+        """.stripIndent()
+        file("src/test/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text = """
+            package org.elasticsearch.test.junit.runner;
+            public class ESRandomizedRunner {}
+        """.stripIndent()
+    }
+
+    private void runWithClazz(String className, String runner) {
+        int lastDot = className.lastIndexOf('.')
+        File clazzFile = file("src/test/java/${className.replace('.', '/')}.java")
+        clazzFile.parentFile.mkdirs()
+        clazzFile.text = """
+            package ${className.substring(0, lastDot)};
+            @org.junit.runner.RunWith(${runner}.class)
+            public class ${className.substring(lastDot + 1)} extends org.apache.lucene.tests.util.LuceneTestCase {
+                public void testMe() {}
+            }
+        """.stripIndent()
     }
 
     private void simpleJavaBuild() {

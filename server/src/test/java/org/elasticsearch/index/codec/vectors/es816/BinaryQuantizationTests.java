@@ -23,11 +23,14 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.util.Random;
 
 import static org.elasticsearch.index.codec.vectors.VectorTestUtils.randomFloatVector;
 
+@RunWith(ESRandomizedRunner.class)
 public class BinaryQuantizationTests extends LuceneTestCase {
 
     public void testQuantizeForIndex() {

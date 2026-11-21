@@ -18,6 +18,8 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 
@@ -47,6 +49,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLette
         "Lucene50" }
 )
 @LuceneTestCase.SuppressReproduceLine
+@RunWith(ESRandomizedRunner.class)
 public abstract class SqlCliTestCase extends LuceneTestCase {
 
     public boolean randomBoolean() {

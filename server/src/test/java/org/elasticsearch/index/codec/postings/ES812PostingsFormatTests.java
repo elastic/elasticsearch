@@ -37,9 +37,12 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BasePostingsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 
+@RunWith(ESRandomizedRunner.class)
 public class ES812PostingsFormatTests extends BasePostingsFormatTestCase {
     private final Codec codec = TestUtil.alwaysPostingsFormat(new ES812PostingsFormat());
 

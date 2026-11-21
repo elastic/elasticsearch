@@ -1,0 +1,70 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+dependencies {
+  api ("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+    exclude group: "junit", module: "junit"
+  }
+
+  // we do not want to expose a version conflict in transitive dependencies by
+  // bringing in different versions of dependencies.
+  // Therefore we exclude mismatches in our transitive dependencies explicitly.
+  // This also avoids jarHell issues with different hamcrest related dependencies
+  // like hamcrest and hamcrest-core
+  api "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api("junit:junit:${versions.junit4}") {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
+
+  runtimeOnly "org.junit.jupiter:junit-jupiter:${versions.junit}"
+  runtimeOnly "org.junit.vintage:junit-vintage-engine:${versions.junit}"
+  runtimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit}"
+}
+
+// we don't depend on :server or lucene here
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}
+tasks.named("thirdPartyAudit").configure {
+  // junit platform launcher uses jdk.jfr.Event
+  ignoreViolations(
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener$DiscoveryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener$DiscoveryIssueEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener$EngineDiscoveryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener$LauncherDiscoveryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingDiscoveryListener',
+
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$ExecutionEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$FileEntryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$ReportEntryEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$SkippedTestEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$TestEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$TestExecutionEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener$TestPlanExecutionEvent',
+    'org.junit.platform.launcher.jfr.FlightRecordingExecutionListener',
+  )
+}
+
+// TODO: should we have licenses for our test deps?
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure { enabled = false }
+
+tasks.named('splitPackagesAudit').configure {
+  // for now we always run tests with the classpath, so we are ok with split packages for tests
+  enabled = false
+}
+
+// Tests extend RandomizedTest directly rather than LuceneTestCase, which
+// is incompatible with the ES testing-conventions baseline
+tasks.named('testTestingConventions').configure { enabled = false }

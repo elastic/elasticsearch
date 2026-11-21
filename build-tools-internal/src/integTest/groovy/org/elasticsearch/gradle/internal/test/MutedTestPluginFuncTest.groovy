@@ -21,8 +21,15 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         buildFile << """
             apply plugin: 'java'
             repositories { mavenCentral() }
-            dependencies { testImplementation 'junit:junit:4.13.2' }
+            dependencies {
+                testImplementation 'junit:junit:4.13.2'
+                testImplementation 'com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.8.2'
+                testImplementation 'org.junit.jupiter:junit-jupiter:6.1.3'
+                testRuntimeOnly 'org.junit.vintage:junit-vintage-engine'
+                testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+            }
             tasks.withType(Test).configureEach {
+                useJUnitPlatform()
                 testLogging { events "started" }
             }
         """
@@ -31,7 +38,7 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     def "muted tests are excluded by default"() {
         given:
         muteTest("org.acme.SomeTest", "someMutedTest")
-        testClazz("org.acme.SomeTest") {
+        randomizedClass("src/test/java", "org.acme.SomeTest") {
             """
             @org.junit.Test public void someMutedTest() {}
             @org.junit.Test public void someUnmutedTest() {}
@@ -50,7 +57,7 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     def "tests.mutes.enabled=true applies mutes explicitly"() {
         given:
         muteTest("org.acme.SomeTest", "someMutedTest")
-        testClazz("org.acme.SomeTest") {
+        randomizedClass("src/test/java", "org.acme.SomeTest") {
             """
             @org.junit.Test public void someMutedTest() {}
             @org.junit.Test public void someUnmutedTest() {}
@@ -69,7 +76,7 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     def "tests.mutes.enabled=false runs all tests including muted ones"() {
         given:
         muteTest("org.acme.SomeTest", "someMutedTest")
-        testClazz("org.acme.SomeTest") {
+        randomizedClass("src/test/java", "org.acme.SomeTest") {
             """
             @org.junit.Test public void someMutedTest() {}
             @org.junit.Test public void someUnmutedTest() {}
@@ -89,12 +96,12 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         given:
         addOtherTestSourceSet()
         muteTest("org.acme.ScopedTest", "someMutedTest", [":otherTest"])
-        testClazz("org.acme.ScopedTest") {
+        randomizedClass("src/test/java", "org.acme.ScopedTest") {
             """
             @org.junit.Test public void someMutedTest() {}
             """
         }
-        clazz(file("src/otherTest/java"), "org.acme.ScopedTest", null) {
+        randomizedClass("src/otherTest/java", "org.acme.ScopedTest") {
             """
             @org.junit.Test public void someMutedTest() {}
             @org.junit.Test public void someUnmutedTest() {}
@@ -116,12 +123,12 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
     def "adding a scoped mute only reexecutes the affected test task"() {
         given:
         addOtherTestSourceSet()
-        testClazz("org.acme.UnaffectedTest") {
+        randomizedClass("src/test/java", "org.acme.UnaffectedTest") {
             """
             @org.junit.Test public void unaffectedTest() {}
             """
         }
-        clazz(file("src/otherTest/java"), "org.acme.ScopedTest", null) {
+        randomizedClass("src/otherTest/java", "org.acme.ScopedTest") {
             """
             @org.junit.Test public void someMutedTest() {}
             @org.junit.Test public void someUnmutedTest() {}
@@ -144,6 +151,47 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
         secondResult.output.contains("unaffectedTest STARTED") == false
     }
 
+    def "muting a single parameter of a parameterized test leaves its siblings running"() {
+        given:
+        muteTest("org.acme.ParameterizedTest", "someTest {phase=1}")
+        file("src/test/java/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text = esRandomizedRunnerSource()
+        file("src/test/java/org/acme/ParameterizedTest.java").text = """
+            package org.acme;
+
+            import com.carrotsearch.randomizedtesting.annotations.Name;
+            import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+            import java.util.List;
+            import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+            import org.junit.Test;
+            import org.junit.runner.RunWith;
+
+            @RunWith(ESRandomizedRunner.class)
+            public class ParameterizedTest {
+
+                public ParameterizedTest(@Name("phase") int phase) {
+                }
+
+                @ParametersFactory(shuffle = false)
+                public static Iterable<Object[]> parameters() {
+                    return List.of(new Object[] { 0 }, new Object[] { 1 }, new Object[] { 2 });
+                }
+
+                @Test
+                public void someTest() {
+                }
+            }
+        """.stripIndent()
+
+        when:
+        def result = gradleRunner("test").build()
+
+        then:
+        result.task(":test").outcome == TaskOutcome.SUCCESS
+        result.output.contains("someTest {phase=0} STARTED")
+        result.output.contains("someTest {phase=1} STARTED") == false
+        result.output.contains("someTest {phase=2} STARTED")
+    }
+
     def "invalid task scoped mute schema fails the build"() {
         given:
         file("muted-tests.yml").text = """
@@ -153,7 +201,7 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
               tasks: []
               issue: https://github.com/elastic/elasticsearch/issues/1
         """.stripIndent()
-        testClazz("org.acme.SomeTest") {
+        randomizedClass("src/test/java", "org.acme.SomeTest") {
             """
             @org.junit.Test public void someMutedTest() {}
             """
@@ -164,6 +212,35 @@ class MutedTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
         then:
         result.output.contains("muted test tasks must not be empty")
+    }
+
+    /**
+     * Writes a test class run by the randomized runner of the Elasticsearch tests, like the Elasticsearch tests are. The fixture project
+     * compiles a copy of that runner, because it cannot be a dependency of this build, see the integTest task definition in build.gradle.
+     * The body is the content of the class, whose methods must use the fully qualified name of the JUnit annotations.
+     */
+    private File randomizedClass(String sourceDir, String className, Closure<String> body) {
+        file("${sourceDir}/org/elasticsearch/test/junit/runner/ESRandomizedRunner.java").text = esRandomizedRunnerSource()
+
+        int lastDot = className.lastIndexOf('.')
+        File sourceFile = file("${sourceDir}/${className.replace('.', '/')}.java")
+        sourceFile.text = """
+            package ${className.substring(0, lastDot)};
+
+            import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+            import org.junit.runner.RunWith;
+
+            @RunWith(ESRandomizedRunner.class)
+            public class ${className.substring(lastDot + 1)} {
+            ${body.call()}
+            }
+        """.stripIndent()
+        sourceFile
+    }
+
+    /** The source of the runner of the Elasticsearch tests, handed over by the integTest task. */
+    private static String esRandomizedRunnerSource() {
+        new File(System.getProperty("es.randomized.runner.source")).text
     }
 
     private void addOtherTestSourceSet() {

@@ -14,11 +14,14 @@ import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
+import org.junit.runner.RunWith;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
+@RunWith(ESRandomizedRunner.class)
 public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
 
     public void testMixedAlphabetTokenization() throws IOException {

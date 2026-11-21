@@ -28,7 +28,9 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.elasticsearch.test.junit.runner.ESRandomizedRunner;
 import org.junit.BeforeClass;
+import org.junit.runner.RunWith;
 
 import java.util.Locale;
 
@@ -41,6 +43,7 @@ import java.util.Locale;
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@RunWith(ESRandomizedRunner.class)
 public class IndexableBinaryStringToolsTests extends LuceneTestCase {
     private static int NUM_RANDOM_TESTS;
     private static int MAX_RANDOM_BINARY_LENGTH;

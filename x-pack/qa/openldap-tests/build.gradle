@@ -4,7 +4,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(":x-pack:test:idp-fixture")
-  testImplementation "junit:junit:${versions.junit4}"
+  testImplementation project(":test:vintage-randomized-runner")
 }
 
 tasks.named('test') {

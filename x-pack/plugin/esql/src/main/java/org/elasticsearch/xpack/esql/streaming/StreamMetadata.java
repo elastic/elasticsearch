@@ -29,7 +29,7 @@ public record StreamMetadata(
     @Nullable StreamCompletionInfo completionInfo
 ) {
 
-    enum Status {
+    public enum Status {
         RUNNING,
         COMPLETE,
         FAILED,

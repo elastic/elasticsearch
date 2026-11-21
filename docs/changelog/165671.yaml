@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 165671
+summary: Scope privilege cache clears to actual changes
+type: bug

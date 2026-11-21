@@ -2473,6 +2473,25 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
+     * The setting ends at the boundary of a view, so a view that does not set it may use PROMQL, though the query that uses the view
+     * runs under LOAD_ALL. The same PROMQL written in the query itself is still rejected.
+     */
+    public void testLoadAllModeAllowsPromQlInsideAViewThatDoesNotLoad() {
+        assumeTrue("Requires views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        String promql = "PROMQL index=test step=5m avg(network.bytes_in)";
+        // A range selector makes the plan carry the time-series dimension nodes, which LOAD_ALL has to admit too.
+        String promqlRate = "PROMQL index=test step=5m rate(network.bytes_in[5m])";
+        TestAnalyzer analyzer = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .addView("promql_view", promql)
+            .addView("promql_rate_view", promqlRate);
+
+        analyzer.statement(setUnmappedLoadAll("FROM promql_view"));
+        analyzer.statement(setUnmappedLoadAll("FROM promql_view | LIMIT 10"));
+        analyzer.statement(setUnmappedLoadAll("FROM promql_rate_view"));
+        analyzer.statementError(setUnmappedLoadAll(promql), containsString("PROMQL is not supported with unmapped_fields=\"load_all\""));
+    }
+
+    /**
      * A LOAD_ALL field referenced by EVAL is demand-loaded into the relation's output; a subsequent DROP removes it from scope.
      * Referencing the same field again in SORT (after the DROP) must fail: the field is no longer visible.
      */

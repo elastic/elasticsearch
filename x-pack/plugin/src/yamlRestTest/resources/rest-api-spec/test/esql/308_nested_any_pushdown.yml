@@ -15,7 +15,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             dynamic: strict
             properties:
@@ -199,7 +198,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             dynamic: strict
             properties:
@@ -243,7 +241,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             analysis:
               normalizer:
                 lower:
@@ -285,7 +282,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             dynamic: strict
             properties:
@@ -350,7 +346,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
             analysis:
               normalizer:
                 lower:
@@ -386,7 +381,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             runtime:
               items.calculated:
@@ -437,7 +431,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             properties:
               id: { type: keyword }
@@ -453,7 +446,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             runtime:
               items.calculated:

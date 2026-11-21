@@ -43,6 +43,8 @@ The `unmapped_fields` setting accepts the following values, which range from str
 
 For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
+{applies_to}`stack: ga 9.7+` You can also send the setting in the `_query` request body, as `"settings": {"unmapped_fields": "LOAD_ALL"}`. A value set in the query with `SET` overrides the request body.
+
 :::{tip}
 :applies_to: stack: preview =9.4, ga 9.5+
 

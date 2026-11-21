@@ -168,6 +168,7 @@ public final class QuerySettings {
     )
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
+        .withRequestBody()
         .withTelemetryLabels(
             Arrays.stream(UnmappedResolution.values()).map(UnmappedResolution::settingValue).toList(),
             UnmappedResolution::settingValue

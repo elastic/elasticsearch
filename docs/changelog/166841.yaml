@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 166769
+pr: 166841
+summary: Explicitly check for `doc_values` when building `IndexType.archivedPoints()`
+type: bug

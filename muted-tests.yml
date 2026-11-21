@@ -234,6 +234,10 @@ tests:
   - :docs:yamlRestTest
   method: test {yaml=reference/snapshot-restore/apis/restore-snapshot-api/line_60}
   issue: https://github.com/elastic/elasticsearch/issues/166584
+- class: org.elasticsearch.repositories.s3.RepositoryS3ContentIntegrityRestIT
+  tasks:
+  - :modules:repository-s3:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/166982
 
 # Examples:
 #

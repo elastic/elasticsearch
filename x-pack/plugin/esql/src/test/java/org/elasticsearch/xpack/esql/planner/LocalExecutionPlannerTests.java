@@ -1588,6 +1588,22 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
+     * A null build key fails the join: the caller must drop rows with a null key before the build side is materialized.
+     */
+    public void testRepeatedKeyHashJoinNullBuildKeyThrows() {
+        Block buildKeys;
+        try (LongBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(3)) {
+            builder.appendLong(1);
+            builder.appendNull();
+            builder.appendLong(1);
+            buildKeys = builder.build();
+        }
+        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, longs(1, 2), longs(10, 20), buildKeys, longs(100, 200, 101));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> runHashJoin(mapHashJoin(join)));
+        assertThat(e.getMessage(), equalTo("repeated-key lookup requires non-null build keys"));
+    }
+
+    /**
      * A logical {@link HashJoin} with repeated keys over local data, joining a probe key and value to a build key and, unless
      * {@code buildValues} is null, a build value.
      */

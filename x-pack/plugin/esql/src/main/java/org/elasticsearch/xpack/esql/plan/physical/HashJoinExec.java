@@ -25,15 +25,16 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 /**
  * Joins its left side's rows to the rows of local data, the build side, on equal keys.
  * <p>
- * Never serialized: like other physical plans, it is built on the node that runs it. A join that runs on a data node gets there as
- * a logical plan inside a {@link FragmentExec}.
+ * Never serialized: the {@code Mapper} only places it above the exchange, on the coordinator, and a data node builds its own from
+ * the logical join that reaches it inside a {@link FragmentExec}.
  */
 public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
     private final List<Attribute> addedFields;
     /**
-     * Whether the build side may repeat a key, so that a probe row comes out once for each build row it matches.
+     * Whether the build side may repeat a key, so that a probe row comes out once for each build row it matches. Every build key
+     * must then be non-null and single-valued (see {@code RowInTableLookup#build}).
      */
     private final boolean repeatedKeys;
     private volatile List<Attribute> lazyOutput;

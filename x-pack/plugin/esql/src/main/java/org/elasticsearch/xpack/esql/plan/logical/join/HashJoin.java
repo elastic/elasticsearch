@@ -34,7 +34,9 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  * {@link JoinTypes#INNER} drops unmatched probe rows; {@link JoinTypes#LEFT} keeps them (PromQL {@code unless}).
  * <p>
  * The build side has each key once unless {@link #repeatedKeys()} is set, in which case a probe row comes out once for each
- * build row it matches.
+ * build row it matches. Every build key must then be non-null and single-valued, or the join fails: the caller drops other build
+ * rows before the build side is materialized (see {@code RowInTableLookup#build}). Repeated keys can't be combined with
+ * {@link #unique()}.
  */
 public class HashJoin extends Join implements SortPreserving {
 

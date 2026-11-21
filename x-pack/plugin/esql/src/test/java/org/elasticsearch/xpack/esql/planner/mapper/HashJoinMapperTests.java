@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -106,6 +107,26 @@ public class HashJoinMapperTests extends ESTestCase {
         assertThat(join.repeatedKeys(), equalTo(true));
         // Local data on the left needs no exchange.
         as(join.left(), LocalSourceExec.class);
+    }
+
+    /**
+     * A unique join matches a probe row to at most one build row, which repeated build keys would break.
+     */
+    public void testUniqueWithRepeatedKeysNotSupported() {
+        HashJoin template = hashJoin(true, JoinTypes.LEFT, new long[] { 10, 20 }, new long[] { 100, 200 });
+        HashJoin hashJoin = new HashJoin(
+            template.source(),
+            template.left(),
+            template.right(),
+            template.leftFields(),
+            template.rightFields(),
+            template.addedFields(),
+            true,
+            template.config().type(),
+            true
+        );
+        EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> map(hashJoin));
+        assertThat(e.getMessage(), equalTo("a unique hash join cannot allow repeated keys"));
     }
 
     /**

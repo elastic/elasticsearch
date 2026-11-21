@@ -39,8 +39,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.FiniteStringsIterator;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchParseException;
@@ -105,7 +108,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -113,6 +118,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
@@ -124,6 +130,15 @@ public class WildcardFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "wildcard";
     public static final short MAX_CLAUSES_IN_APPROXIMATION_QUERY = 10;
+    /**
+     * The most indexed forms a single ngram of a case-insensitive query is looked up under before it is left unconstrained. This is a
+     * safety net: no character currently has more than three case variants that lowercase differently, so an ngram has at most 27.
+     */
+    static final int MAX_CASE_INSENSITIVE_NGRAM_FORMS = 64;
+
+    // Lucene folds Unicode case for the deprecated ASCII flag too, so a query using it needs the same approximation
+    @SuppressWarnings("deprecation")
+    private static final int CASE_INSENSITIVE_MATCH_FLAGS = RegExp.CASE_INSENSITIVE | RegExp.ASCII_CASE_INSENSITIVE;
     private static final int WILDCARD_TERMS_EXPANSION_LIMIT = 16;
     public static final int NGRAM_SIZE = 3;
 
@@ -316,6 +331,7 @@ public class WildcardFieldMapper extends FieldMapper {
         private final IgnoreAbove ignoreAbove;
         private final IndexVersion indexVersion;
         private final boolean arrayOrderBinaryDocValues;
+        private final QueryNgrams caseSensitiveNgrams = new CaseSensitiveNgrams();
 
         private WildcardFieldType(
             String name,
@@ -381,8 +397,14 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
+            QueryNgrams ngrams = caseInsensitive ? new CaseInsensitiveNgrams(MAX_CASE_INSENSITIVE_NGRAM_FORMS) : caseSensitiveNgrams;
+            return buildWildcardQuery(wildcardPattern, ngrams, context);
+        }
+
+        Query buildWildcardQuery(String wildcardPattern, QueryNgrams ngrams, SearchExecutionContext context) {
+            boolean caseInsensitive = ngrams.caseInsensitive();
             BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
-            Integer numClauses = getApproxWildCardQuery(wildcardPattern, rewritten);
+            Integer numClauses = getApproxWildCardQuery(wildcardPattern, rewritten, ngrams);
             if (numClauses == null) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return new FieldExistsQuery(name());
@@ -415,26 +437,26 @@ public class WildcardFieldMapper extends FieldMapper {
             return context == null ? null : context.getCircuitBreaker();
         }
 
-        private Integer getApproxWildCardQuery(String wildcardPattern, BooleanQuery.Builder rewritten) {
+        private Integer getApproxWildCardQuery(String wildcardPattern, BooleanQuery.Builder rewritten, QueryNgrams ngrams) {
             // Break search term into tokens
-            Set<String> tokens = new LinkedHashSet<>();
-            boolean matchAll = breakIntoTokens(wildcardPattern, tokens);
+            Set<Set<String>> tokens = new LinkedHashSet<>();
+            boolean matchAll = breakIntoTokens(wildcardPattern, tokens, ngrams::addTokens);
             if (matchAll) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
                 return null;
             }
             int clauseCount = 0;
-            for (String string : tokens) {
+            for (Set<String> forms : tokens) {
                 if (clauseCount >= MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
                     break;
                 }
-                addClause(string, rewritten, Occur.MUST);
+                addFormsClause(forms, rewritten, Occur.MUST);
                 clauseCount++;
             }
             return clauseCount;
         }
 
-        private boolean breakIntoTokens(String wildcardPattern, Set<String> tokens) {
+        private <T> boolean breakIntoTokens(String wildcardPattern, Set<T> tokens, BiConsumer<Set<T>, String> tokenizer) {
             String ngramIndexPattern = addLineEndChars(wildcardPattern);
             StringBuilder sequence = new StringBuilder();
             int numWildcardChars = 0;
@@ -445,14 +467,14 @@ public class WildcardFieldMapper extends FieldMapper {
                 switch (c) {
                     case WildcardQuery.WILDCARD_STRING:
                         if (sequence.length() > 0) {
-                            getNgramTokens(tokens, sequence.toString());
+                            tokenizer.accept(tokens, sequence.toString());
                             sequence = new StringBuilder();
                         }
                         numWildcardStrings++;
                         break;
                     case WildcardQuery.WILDCARD_CHAR:
                         if (sequence.length() > 0) {
-                            getNgramTokens(tokens, sequence.toString());
+                            tokenizer.accept(tokens, sequence.toString());
                             sequence = new StringBuilder();
                         }
                         numWildcardChars++;
@@ -475,7 +497,7 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             if (sequence.length() > 0) {
-                getNgramTokens(tokens, sequence.toString());
+                tokenizer.accept(tokens, sequence.toString());
             }
             return tokens.isEmpty() && (numWildcardChars == 0 || numWildcardStrings > 0);
         }
@@ -530,9 +552,12 @@ public class WildcardFieldMapper extends FieldMapper {
             }
 
             RegExp ngramRegex = new RegExp(addLineEndChars(value), syntaxFlags, matchFlags);
+            QueryNgrams ngrams = (matchFlags & CASE_INSENSITIVE_MATCH_FLAGS) != 0
+                ? new CaseInsensitiveNgrams(MAX_CASE_INSENSITIVE_NGRAM_FORMS)
+                : caseSensitiveNgrams;
 
-            Query approxBooleanQuery = toApproximationQuery(ngramRegex);
-            Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery);
+            Query approxBooleanQuery = toApproximationQuery(ngramRegex, ngrams);
+            Query approxNgramQuery = rewriteBoolToNgramQuery(approxBooleanQuery, ngrams);
 
             // We can accelerate execution with the ngram query
             return BinaryDvConfirmedQuery.fromRegexpQuery(
@@ -557,25 +582,26 @@ public class WildcardFieldMapper extends FieldMapper {
         // * If an expression resolves to a RegExpQuery eg ?? then only the verification
         // query is run.
         // * Anything else is a concrete query that should be run on the ngram index.
-        public static Query toApproximationQuery(RegExp r) throws IllegalArgumentException {
+        // Literal text is normalized by the given ngrams, so that equivalent alternatives merge and adjacent text can be joined.
+        private static Query toApproximationQuery(RegExp r, QueryNgrams ngrams) throws IllegalArgumentException {
             Query result = null;
             switch (r.kind) {
                 case REGEXP_CHAR_CLASS:
-                    result = createCharacterClassQuery(r);
+                    result = createCharacterClassQuery(r, ngrams);
                     break;
                 case REGEXP_UNION:
-                    result = createUnionQuery(r);
+                    result = createUnionQuery(r, ngrams);
                     break;
                 case REGEXP_CONCATENATION:
-                    result = createConcatenationQuery(r);
+                    result = createConcatenationQuery(r, ngrams);
                     break;
                 case REGEXP_STRING:
-                    String normalizedString = toLowerCase(r.s);
+                    String normalizedString = ngrams.normalizeLeaf(r.s);
                     result = new TermQuery(new Term("", normalizedString));
                     break;
                 case REGEXP_CHAR:
                     String cs = Character.toString(r.c);
-                    String normalizedChar = toLowerCase(cs);
+                    String normalizedChar = ngrams.normalizeLeaf(cs);
                     result = new TermQuery(new Term("", normalizedChar));
                     break;
                 case REGEXP_REPEAT:
@@ -585,7 +611,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 case REGEXP_REPEAT_MIN:
                 case REGEXP_REPEAT_MINMAX:
                     if (r.min > 0) {
-                        result = toApproximationQuery(r.exp1);
+                        result = toApproximationQuery(r.exp1, ngrams);
                         if (result instanceof TermQuery) {
                             // Wrap the repeating expression so that it is not concatenated by a parent which concatenates
                             // plain TermQuery objects together. Boolean queries are interpreted as a black box and not
@@ -621,11 +647,11 @@ public class WildcardFieldMapper extends FieldMapper {
             return result;
         }
 
-        private static Query createConcatenationQuery(RegExp r) {
+        private static Query createConcatenationQuery(RegExp r, QueryNgrams ngrams) {
             // Create ANDs of expressions plus collapse consecutive TermQuerys into single longer ones
             ArrayList<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, queries);
-            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, queries);
+            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, ngrams, queries);
+            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_CONCATENATION, ngrams, queries);
             BooleanQuery.Builder bAnd = new BooleanQuery.Builder();
             StringBuilder sequence = new StringBuilder();
             for (Query query : queries) {
@@ -651,8 +677,22 @@ public class WildcardFieldMapper extends FieldMapper {
 
         }
 
-        private static Query createCharacterClassQuery(RegExp r) {
+        private static Query createCharacterClassQuery(RegExp r, QueryNgrams ngrams) {
             // TODO: consider expanding this to allow for character ranges as well (need additional tests and performance eval)
+            if (ngrams.caseInsensitive() && Arrays.equals(r.from, r.to)) {
+                // Case-insensitive parsing lists every case variant of each character written, e.g. [Pp] as [PpPp]. When they all
+                // normalize to one character, use it so that it can be joined with its neighbours like any other literal.
+                Set<String> normalized = new HashSet<>();
+                for (int c : r.from) {
+                    normalized.add(ngrams.normalizeLeaf(Character.toString(c)));
+                    if (normalized.size() > 1) {
+                        break;
+                    }
+                }
+                if (normalized.size() == 1) {
+                    return new TermQuery(new Term("", normalized.iterator().next()));
+                }
+            }
             List<Query> queries = new ArrayList<>();
             if (r.from.length > MAX_CLAUSES_IN_APPROXIMATION_QUERY) {
                 return Queries.ALL_DOCS_INSTANCE;
@@ -661,7 +701,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 // only handle character classes for now not ranges
                 if (r.from[i] == r.to[i]) {
                     String cs = Character.toString(r.from[i]);
-                    String normalizedChar = toLowerCase(cs);
+                    String normalizedChar = ngrams.normalizeLeaf(cs);
                     queries.add(new TermQuery(new Term("", normalizedChar)));
                 } else {
                     // immediately exit because we can't currently optimize a combination of range and classes
@@ -671,11 +711,11 @@ public class WildcardFieldMapper extends FieldMapper {
             return formQuery(queries);
         }
 
-        private static Query createUnionQuery(RegExp r) {
+        private static Query createUnionQuery(RegExp r, QueryNgrams ngrams) {
             // Create an OR of clauses
             List<Query> queries = new ArrayList<>();
-            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
-            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, queries);
+            findLeaves(r.exp1, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, ngrams, queries);
+            findLeaves(r.exp2, org.apache.lucene.util.automaton.RegExp.Kind.REGEXP_UNION, ngrams, queries);
             return formQuery(queries);
         }
 
@@ -702,12 +742,17 @@ public class WildcardFieldMapper extends FieldMapper {
             return Queries.ALL_DOCS_INSTANCE;
         }
 
-        private static void findLeaves(RegExp exp, org.apache.lucene.util.automaton.RegExp.Kind kind, List<Query> queries) {
+        private static void findLeaves(
+            RegExp exp,
+            org.apache.lucene.util.automaton.RegExp.Kind kind,
+            QueryNgrams ngrams,
+            List<Query> queries
+        ) {
             if (exp.kind == kind) {
-                findLeaves(exp.exp1, kind, queries);
-                findLeaves(exp.exp2, kind, queries);
+                findLeaves(exp.exp1, kind, ngrams, queries);
+                findLeaves(exp.exp2, kind, ngrams, queries);
             } else {
-                queries.add(toApproximationQuery(exp));
+                queries.add(toApproximationQuery(exp, ngrams));
             }
         }
 
@@ -716,7 +761,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         // Takes a BooleanQuery + TermQuery tree representing query logic and rewrites using ngrams of appropriate size.
-        private Query rewriteBoolToNgramQuery(Query approxQuery) {
+        private Query rewriteBoolToNgramQuery(Query approxQuery, QueryNgrams ngrams) {
             // TODO optimise more intelligently so we:
             // 1) favour full-length term queries eg abc over short eg a* when pruning too many clauses.
             // 2) make MAX_CLAUSES_IN_APPROXIMATION_QUERY a global cap rather than per-boolean clause.
@@ -727,7 +772,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
                 int clauseCount = 0;
                 for (BooleanClause clause : bq) {
-                    Query q = rewriteBoolToNgramQuery(clause.query());
+                    Query q = rewriteBoolToNgramQuery(clause.query(), ngrams);
                     if (q != null) {
                         if (clause.occur().equals(Occur.FILTER)) {
                             // Can't drop "should" clauses because it can elevate a sibling optional item
@@ -752,11 +797,11 @@ public class WildcardFieldMapper extends FieldMapper {
                 }
 
                 // Break term into tokens
-                Set<String> tokens = new LinkedHashSet<>();
-                getNgramTokens(tokens, s);
+                Set<Set<String>> tokens = new LinkedHashSet<>();
+                ngrams.addTokens(tokens, s);
                 BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
-                for (String string : tokens) {
-                    addClause(string, rewritten, Occur.FILTER);
+                for (Set<String> forms : tokens) {
+                    addFormsClause(forms, rewritten, Occur.FILTER);
                 }
                 return rewritten.build();
             }
@@ -791,11 +836,210 @@ public class WildcardFieldMapper extends FieldMapper {
 
             if (foundTokens == 0 && fragment.length() > 0) {
                 // fragment must have been less than NGRAM_SIZE - add a placeholder which may be used in a prefix query e.g. ab*
-                fragment = toLowerCase(fragment);
-                if (analyzer == WILDCARD_ANALYZER_7_10) {
-                    fragment = PunctuationFoldingFilter.normalize(fragment);
+                tokens.add(normalizeFragment(fragment));
+            }
+        }
+
+        /**
+         * Normalizes text the way the index analysis normalizes each ngram: lowercased and, for indices created since 7.10,
+         * with punctuation folded. Both work one character at a time.
+         */
+        String normalizeFragment(String fragment) {
+            String normalized = toLowerCase(fragment);
+            return analyzer == WILDCARD_ANALYZER_7_10 ? PunctuationFoldingFilter.normalize(normalized) : normalized;
+        }
+
+        /**
+         * Breaks the text of a query into the ngram tokens to look up in the ngram index, each given as the set of forms it may
+         * have been indexed under.
+         */
+        interface QueryNgrams {
+            void addTokens(Set<Set<String>> tokens, String fragment);
+
+            /**
+             * Normalizes literal text of a regular expression before it is assembled into an approximation, so that alternatives
+             * matching the same ngrams merge into one and adjacent literals can be joined into longer text.
+             */
+            String normalizeLeaf(String text);
+
+            boolean caseInsensitive();
+        }
+
+        /** Each ngram of a case-sensitive query has a single form, which is how the index analysis normalizes it. */
+        private final class CaseSensitiveNgrams implements QueryNgrams {
+            @Override
+            public void addTokens(Set<Set<String>> tokens, String fragment) {
+                Set<String> ngrams = new LinkedHashSet<>();
+                getNgramTokens(ngrams, fragment);
+                for (String ngram : ngrams) {
+                    tokens.add(Set.of(ngram));
                 }
-                tokens.add(fragment);
+            }
+
+            @Override
+            public String normalizeLeaf(String text) {
+                return toLowerCase(text);
+            }
+
+            @Override
+            public boolean caseInsensitive() {
+                return false;
+            }
+        }
+
+        /**
+         * The forms under which a character could have been indexed, given every character Lucene matches with it
+         * case-insensitively, including itself.
+         */
+        Set<String> caseVariantForms(int codePoint) {
+            Set<String> forms = new LinkedHashSet<>();
+            for (int variant : caseVariants(codePoint)) {
+                forms.add(normalizeFragment(Character.toString(variant)));
+            }
+            return forms;
+        }
+
+        /** Every character Lucene matches with the given one case-insensitively, including itself. */
+        static List<Integer> caseVariants(int codePoint) {
+            List<Integer> variants = new ArrayList<>();
+            FiniteStringsIterator iterator = new FiniteStringsIterator(Automata.makeCaseInsensitiveChar(codePoint));
+            for (IntsRef variant = iterator.next(); variant != null; variant = iterator.next()) {
+                variants.add(variant.ints[variant.offset]);
+            }
+            return variants;
+        }
+
+        /**
+         * Breaks the text of a case-insensitive query into ngram tokens, each given as the set of forms it may have been indexed
+         * under. The ngram index only lowercases, but case-insensitive verification uses Lucene's case folding, under which
+         * characters that lowercase differently can still match (e.g. {@code ı} and {@code I}). So each character is expanded into
+         * every character Lucene matches with it, those are normalized the way the index normalizes them, and an ngram may be
+         * indexed under any combination of its characters' forms. Taking the variants from Lucene and the normalization from the
+         * index analysis keeps this in step with both, without encoding any knowledge of which characters fold differently.
+         */
+        final class CaseInsensitiveNgrams implements QueryNgrams {
+            private final int maxForms;
+            // Created for each query, so these remember each character's analysis only while that query is built
+            private final Map<Integer, List<Integer>> variants = new HashMap<>();
+            private final Map<Integer, Set<String>> forms = new HashMap<>();
+            private final Map<Integer, Integer> canonical = new HashMap<>();
+
+            CaseInsensitiveNgrams(int maxForms) {
+                this.maxForms = maxForms;
+            }
+
+            private List<Integer> variants(int codePoint) {
+                return variants.computeIfAbsent(codePoint, WildcardFieldType::caseVariants);
+            }
+
+            private Set<String> forms(int codePoint) {
+                return forms.computeIfAbsent(codePoint, WildcardFieldType.this::caseVariantForms);
+            }
+
+            @Override
+            public boolean caseInsensitive() {
+                return true;
+            }
+
+            /**
+             * Replaces each character with a canonical one, so that text differing only in case, like {@code Foo} and
+             * {@code foo}, becomes identical. Expanding the canonical text gives the same ngram forms as the original.
+             */
+            @Override
+            public String normalizeLeaf(String text) {
+                StringBuilder canonical = new StringBuilder(text.length());
+                text.codePoints().forEach(codePoint -> canonical.appendCodePoint(canonicalCodePoint(codePoint)));
+                return canonical.toString();
+            }
+
+            /**
+             * The lowest character reachable from the given one through case variants that all have its forms. Lucene's case
+             * variants are not symmetric, e.g. {@code i} matches {@code I} and {@code İ} matches {@code i} but {@code i} does not
+             * match {@code İ}, so following them transitively is what gives every such character the same canonical one.
+             */
+            private int canonicalCodePoint(int codePoint) {
+                Integer known = canonical.get(codePoint);
+                if (known != null) {
+                    return known;
+                }
+                Set<String> codePointForms = forms(codePoint);
+                Set<Integer> reached = new HashSet<>(List.of(codePoint));
+                List<Integer> toVisit = new ArrayList<>(List.of(codePoint));
+                int lowest = codePoint;
+                while (toVisit.isEmpty() == false) {
+                    for (int variant : variants(toVisit.removeLast())) {
+                        if (reached.contains(variant) == false && forms(variant).equals(codePointForms)) {
+                            reached.add(variant);
+                            toVisit.add(variant);
+                            lowest = Math.min(lowest, variant);
+                        }
+                    }
+                }
+                canonical.put(codePoint, lowest);
+                return lowest;
+            }
+
+            /**
+             * Adds the forms of each ngram of the fragment. An ngram with more than {@code maxForms} forms is added with none, which
+             * leaves it unconstrained so that only verification checks it.
+             */
+            @Override
+            public void addTokens(Set<Set<String>> tokens, String fragment) {
+                if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
+                    return;
+                }
+                List<Set<String>> charForms = fragment.codePoints().mapToObj(this::forms).toList();
+                if (charForms.size() < NGRAM_SIZE) {
+                    tokens.add(ngramForms(charForms));
+                } else {
+                    for (int i = 0; i + NGRAM_SIZE <= charForms.size(); i++) {
+                        tokens.add(ngramForms(charForms.subList(i, i + NGRAM_SIZE)));
+                    }
+                }
+            }
+
+            private Set<String> ngramForms(List<Set<String>> charForms) {
+                long count = 1;
+                for (Set<String> forms : charForms) {
+                    count *= forms.size();
+                }
+                if (count > maxForms) {
+                    // Too many forms to be worth looking up, so leave this ngram unconstrained and rely on verification
+                    return Set.of();
+                }
+                List<String> forms = List.of("");
+                for (Set<String> nextCharForms : charForms) {
+                    List<String> extended = new ArrayList<>(forms.size() * nextCharForms.size());
+                    for (String form : forms) {
+                        for (String nextCharForm : nextCharForms) {
+                            extended.add(form + nextCharForm);
+                        }
+                    }
+                    forms = extended;
+                }
+                return new LinkedHashSet<>(forms);
+            }
+        }
+
+        /**
+         * Adds a clause matching any of the given forms of an ngram token. An empty set of forms leaves the token unconstrained.
+         * Forms of one token are case variants of the same text, so they all have the same length. Full-length forms are matched
+         * with a single {@link TermInSetQuery}, which unlike a disjunction counts as one clause towards the boolean clause limit.
+         */
+        private void addFormsClause(Set<String> forms, BooleanQuery.Builder bqBuilder, Occur occur) {
+            if (forms.isEmpty()) {
+                bqBuilder.add(new BooleanClause(Queries.ALL_DOCS_INSTANCE, occur));
+            } else if (forms.size() == 1) {
+                addClause(forms.iterator().next(), bqBuilder, occur);
+            } else if (forms.stream().allMatch(form -> form.codePointCount(0, form.length()) == NGRAM_SIZE)) {
+                List<BytesRef> terms = forms.stream().map(BytesRef::new).toList();
+                bqBuilder.add(new BooleanClause(new TermInSetQuery(name(), terms), occur));
+            } else {
+                BooleanQuery.Builder anyForm = new BooleanQuery.Builder();
+                for (String form : forms) {
+                    addClause(form, anyForm, Occur.SHOULD);
+                }
+                bqBuilder.add(new BooleanClause(anyForm.build(), occur));
             }
         }
 
@@ -1007,7 +1251,7 @@ public class WildcardFieldMapper extends FieldMapper {
         public Query termQuery(Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
             BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
-            Integer numClauses = getApproxWildCardQuery(escapeWildcardSyntax(searchTerm), rewritten);
+            Integer numClauses = getApproxWildCardQuery(escapeWildcardSyntax(searchTerm), rewritten, caseSensitiveNgrams);
             if (numClauses != null && numClauses > 0) {
                 Query approxQuery = rewritten.build();
                 return BinaryDvConfirmedQuery.fromTerms(approxQuery, name(), arrayOrderBinaryDocValues, new BytesRef(searchTerm));
@@ -1030,7 +1274,11 @@ public class WildcardFieldMapper extends FieldMapper {
                 final BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 for (BytesRef term : terms) {
                     final BooleanQuery.Builder rewritten = new BooleanQuery.Builder();
-                    final Integer numClauses = getApproxWildCardQuery(escapeWildcardSyntax(term.utf8ToString()), rewritten);
+                    final Integer numClauses = getApproxWildCardQuery(
+                        escapeWildcardSyntax(term.utf8ToString()),
+                        rewritten,
+                        caseSensitiveNgrams
+                    );
                     if (numClauses != null && numClauses > 0) {
                         builder.add(rewritten.build(), Occur.SHOULD);
                     }
@@ -1044,7 +1292,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 final Set<BytesRef> tokenList = new TreeSet<>();
                 for (BytesRef term : terms) {
                     // Break search term into tokens
-                    final boolean matchAll = breakIntoTokens(escapeWildcardSyntax(term.utf8ToString()), tokens);
+                    final boolean matchAll = breakIntoTokens(escapeWildcardSyntax(term.utf8ToString()), tokens, this::getNgramTokens);
                     assert matchAll == false;
                     if (tokens.isEmpty() == false) {
                         // If there are tokens, we take the middle one to represent the term

@@ -22,6 +22,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -34,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
@@ -54,6 +57,9 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     // Keep-alive duration requested with the search currently in flight
     private final AtomicReference<TimeValue> currentKeepAlive = new AtomicReference<>();
     private final SearchContextKeepaliveDeadline keepaliveDeadline;
+    private final CircuitBreaker circuitBreaker;
+    private final String breakerLabel;
+    private final LongSupplier accountingThresholdBytes;
 
     public ClientScrollablePaginatedHitSource(
         Logger logger,
@@ -64,12 +70,18 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         Consumer<Exception> fail,
         ParentTaskAssigningClient client,
         SearchRequest firstSearchRequest,
-        SearchContextKeepaliveDeadline keepaliveDeadline
+        SearchContextKeepaliveDeadline keepaliveDeadline,
+        CircuitBreaker circuitBreaker,
+        String breakerLabel,
+        LongSupplier accountingThresholdBytes
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
         this.keepaliveDeadline = keepaliveDeadline;
+        this.circuitBreaker = circuitBreaker;
+        this.breakerLabel = breakerLabel;
+        this.accountingThresholdBytes = accountingThresholdBytes;
         firstSearchRequest.allowPartialSearchResults(false);
     }
 
@@ -109,7 +121,14 @@ public class ClientScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
                 if (keepAlive != null) {
                     keepaliveDeadline.recordSuccessfulExtension(keepAlive);
                 }
-                searchListener.onResponse(wrapSearchResponse(searchResponse));
+                Response response = wrapSearchResponse(searchResponse);
+                try {
+                    ClientHit.reserveHeldPage(circuitBreaker, breakerLabel, accountingThresholdBytes.getAsLong(), response);
+                } catch (CircuitBreakingException e) {
+                    searchListener.onFailure(e);
+                    return;
+                }
+                searchListener.onResponse(response);
             }
 
             @Override

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -24,6 +26,34 @@ import org.elasticsearch.xcontent.XContentType;
  */
 
 class ClientHit implements PaginatedHitSource.Hit {
+    /**
+     * Charges a local page's source bytes to {@code breaker} until the action releases the page, since its hits pin the transport
+     * buffers past the search-side charges. Like {@code RemoteParseContext} for remote. Pages below {@code thresholdBytes} aren't
+     * charged, so a very high {@code cluster.reindex.memory_accounting_threshold} turns this off.
+     *
+     * @throws CircuitBreakingException if the page does not fit, after releasing the hits
+     */
+    static void reserveHeldPage(CircuitBreaker breaker, String label, long thresholdBytes, PaginatedHitSource.Response response) {
+        long bytes = 0;
+        for (PaginatedHitSource.Hit hit : response.getHits()) {
+            BytesReference source = hit.getSource();
+            if (source != null) {
+                bytes += source.length();
+            }
+        }
+        if (bytes == 0 || bytes < thresholdBytes) {
+            return;
+        }
+        try {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        } catch (CircuitBreakingException e) {
+            response.getHits().forEach(PaginatedHitSource.Hit::release);
+            throw e;
+        }
+        final long reserved = bytes;
+        response.setBodyReleasable(() -> breaker.addWithoutBreaking(-reserved));
+    }
+
     private final SearchHit delegate;
     private final BytesReference source;
 

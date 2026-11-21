@@ -58,7 +58,8 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
             maxTaskShutdownGracePeriod,
             reindexSettings,
             requestBreaker,
-            "delete_by_query_bulk_batch"
+            "delete_by_query_bulk_batch",
+            "delete_by_query_search_hits"
         );
     }
 

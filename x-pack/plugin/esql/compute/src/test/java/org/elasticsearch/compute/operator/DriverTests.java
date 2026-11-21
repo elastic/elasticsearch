@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
@@ -45,6 +46,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -159,6 +161,66 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().driverNanos(), greaterThan(0L));
         assertThat(charged.get(), equalTo(driver.status().driverNanos()));
+        assertThat(driver.searchLoad().nanos(), equalTo(charged.get()));
+    }
+
+    /**
+     * An operator that removes an async action on the thread running the driver loop doesn't charge the loop's time, which the
+     * driver charges itself, so the pool task running the driver is charged no more than the time it ran.
+     */
+    public void testRemovingAnAsyncActionInTheLoopChargesItsTimeOnce() throws Exception {
+        EsThreadPoolExecutor pool = EsExecutors.newFixed(
+            "test",
+            1,
+            -1,
+            EsExecutors.daemonThreadFactory("test", "load"),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).attributeTaskLoad().build()
+        );
+        try {
+            DriverContext driverContext = driverContext();
+            Driver driver = new Driver(
+                "unset",
+                "test",
+                "test",
+                "test",
+                randomNonNegativeLong(),
+                System.nanoTime(),
+                driverContext,
+                () -> "unset",
+                new CannedSourceOperator(randomList(1, 5, DriverTests::randomPage).iterator()),
+                List.of(new AbstractPageMappingOperator() {
+                    @Override
+                    protected Page process(Page page) {
+                        spin(TimeUnit.MILLISECONDS.toNanos(5));
+                        driverContext.addAsyncAction();
+                        driverContext.removeAsyncAction();
+                        return page;
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "async_action_operator";
+                    }
+                }),
+                new TestResultPageSinkOperator(Page::releaseBlocks),
+                TimeValue.timeValueHours(1),
+                () -> {}
+            );
+            driver.loadTarget((nanos, cpuNanos, finishNanos) -> {});
+            long startNanos = System.nanoTime();
+            PlainActionFuture<Long> elapsed = new PlainActionFuture<>();
+            pool.execute(ActionRunnable.supply(elapsed, () -> {
+                driver.run(TimeValue.timeValueHours(1), Integer.MAX_VALUE, System::nanoTime);
+                return System.nanoTime() - startNanos;
+            }));
+            long elapsedNanos = elapsed.get(10, TimeUnit.SECONDS);
+            assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+            assertThat(driver.searchLoad().nanos(), greaterThan(0L));
+            assertThat(driver.searchLoad().nanos(), lessThanOrEqualTo(elapsedNanos));
+        } finally {
+            ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+        }
     }
 
     /**
@@ -174,7 +236,9 @@ public class DriverTests extends ESTestCase {
                 return List.of(new ShardLoad(first, 0, 3), new ShardLoad(second, 0, 1), new ShardLoad(empty, 0, 0));
             }
         };
-        assertTrue(source.reportSearchLoad(400, System.nanoTime()));
+        QueryLoad driverLoad = new QueryLoad();
+        assertTrue(source.reportSearchLoad(400, System.nanoTime(), driverLoad));
+        assertThat(driverLoad.nanos(), equalTo(400L));
         assertThat(first.rowsEmitted(), equalTo(3L));
         assertThat(second.rowsEmitted(), equalTo(1L));
         assertThat(empty.rowsEmitted(), equalTo(0L));
@@ -221,6 +285,7 @@ public class DriverTests extends ESTestCase {
         assertThat(shardNanos, greaterThan(0L));
         assertThat(charged.get(), greaterThan(0L));
         assertThat(shardNanos + charged.get(), equalTo(driver.status().driverNanos()));
+        assertThat(driver.searchLoad().nanos(), equalTo(driver.status().driverNanos()));
     }
 
     /**
@@ -1641,7 +1706,7 @@ public class DriverTests extends ESTestCase {
             Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), healthy, between(1, 1000), healthyFuture);
             expectThrows(IllegalStateException.class, () -> failingFuture.actionGet(30, TimeUnit.SECONDS));
             healthyFuture.actionGet(30, TimeUnit.SECONDS);
-            DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(failing, healthy), 0, false);
+            DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(failing, healthy), 0, new QueryLoad(), false);
             assertThat(info.bytesRead(), equalTo(1_100L));
             assertThat(info.readNanos(), equalTo(30L));
             assertThat(info.readCpuNanos(), equalTo(12L));
@@ -1655,7 +1720,7 @@ public class DriverTests extends ESTestCase {
 
     private static void assertFinishedWithUsage(Driver driver, long bytesRead, long readNanos, long readCpuNanos) {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
-        DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(driver), 0, false);
+        DriverCompletionInfo info = DriverCompletionInfo.excludingProfiles(List.of(driver), 0, new QueryLoad(), false);
         assertThat(info.bytesRead(), equalTo(bytesRead));
         assertThat(info.readNanos(), equalTo(readNanos));
         assertThat(info.readCpuNanos(), equalTo(readCpuNanos));

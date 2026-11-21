@@ -167,7 +167,7 @@ public class QuerySchedulerMemoryTests extends ESTestCase {
     public void testTasksKeepTheQueryTracked() {
         List<Runnable> pool = new ArrayList<>();
         var part = scheduler.part(queryId("q"), owner);
-        scheduler.executor(queryId("q"), pool::add, List.of()).execute(() -> {});
+        scheduler.executor(queryId("q"), pool::add, List.of(), null).execute(() -> {});
         part.close();
         assertThat(scheduler.queries(), equalTo(1));
         pool.removeFirst().run();

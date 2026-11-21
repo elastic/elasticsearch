@@ -63,6 +63,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.scheduling.QueryLoad;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -1243,8 +1244,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, shards.size());
             final AtomicInteger pagesProduced = new AtomicInteger();
             List<DataNodeRequest.Shard> batch = shards.subList(startBatchIndex, endBatchIndex);
-            ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
-                final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
+            // acquiring the search contexts of the batch is work of its compute
+            QueryLoad batchLoad = new QueryLoad();
+            ComputeCompletionListener batchListener = new ComputeCompletionListener() {
+                final ComputeCompletionListener ref = computeListener.acquireCompute();
 
                 @Override
                 public void onResponse(DriverCompletionInfo info) {
@@ -1257,6 +1260,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
+                    // no driver ran, so the batch only did what it charged to its load
+                    onFailure(e, batchUsage(batchLoad));
+                }
+
+                @Override
+                public void onFailure(Exception e, DriverCompletionInfo usage) {
                     // TODO: once FROM supports INTO, fail fast if a writer in this batch has already sent a bulk
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
@@ -1266,7 +1275,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         if (sortBound != null) {
                             sortBound.invalidate();
                         }
-                        onResponse(DriverCompletionInfo.EMPTY);
+                        // none of its pages are returned, so it did not approximate them
+                        onResponse(usage.withoutApproximationApplied());
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
@@ -1276,7 +1286,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 exchangeService.finishSinkHandler(externalId, e);
                             }
                         } finally {
-                            ref.onFailure(e);
+                            ref.onFailure(e, usage);
                         }
                     }
                 }
@@ -1287,10 +1297,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 configuration,
                 request.aliasFilters(),
                 PlannerUtils.sliceSelection(request.plan()),
+                batchLoad,
                 ActionListener.wrap(acquiredSearchContexts -> {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
                     if (acquiredSearchContexts.isEmpty()) {
-                        batchListener.onResponse(DriverCompletionInfo.EMPTY);
+                        batchListener.onResponse(batchUsage(batchLoad));
                         return;
                     }
                     var computeContext = new ComputeContext(
@@ -1307,7 +1318,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         singleNodeOptimizations,
                         sortBound,
                         null,
-                        FetchOperatorProvider.UNSUPPORTED
+                        FetchOperatorProvider.UNSUPPORTED,
+                        batchLoad
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1322,12 +1334,24 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             );
         }
 
+        /**
+         * What a batch that ran no driver did: the load it charged, including the task running it so far.
+         */
+        private static DriverCompletionInfo batchUsage(QueryLoad batchLoad) {
+            QueryLoad.Charging running = QueryLoad.Charging.running();
+            if (running != null && running.load() == batchLoad) {
+                TaskLoadAttribution.chargeSoFar(running, System.nanoTime());
+            }
+            return DriverCompletionInfo.excludingProfiles(List.of(), 0L, batchLoad, false);
+        }
+
         private void acquireSearchContexts(
             String clusterAlias,
             List<DataNodeRequest.Shard> shards,
             Configuration configuration,
             Map<Index, AliasFilter> aliasFilters,
             SliceSelection slices,
+            QueryLoad load,
             ActionListener<IndexedByShardId<ComputeSearchContext>> listener
         ) {
             final List<Tuple<IndexShard, SplitShardCountSummary>> targetShards = new ArrayList<>();
@@ -1346,7 +1370,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
                 // acquiring the search contexts and planning the batch with them is work for its shards
-                TaskLoadAttribution.attribute(shardsLoad(shards));
+                TaskLoadAttribution.attribute(load.charging(shardsLoad(shards)));
                 var newContexts = new ArrayList<SearchContext>();
                 for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                     SearchContext context = null;
@@ -1524,7 +1548,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         request.singleNodeOptimizations(),
                         null,
                         reduceLoad(request.shards(), searchContexts),
-                        FetchOperatorProvider.UNSUPPORTED
+                        FetchOperatorProvider.UNSUPPORTED,
+                        new QueryLoad()
                     ),
                     reductionPlan.nodeReducePlan(),
                     plannerSettings,

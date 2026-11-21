@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -57,6 +58,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             null,
@@ -108,6 +110,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             null,
@@ -142,6 +145,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             null,
@@ -180,6 +184,7 @@ public class DriverCompletionInfoBwcWarningsTests extends ESTestCase {
             6,
             700,
             900,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             null,

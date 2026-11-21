@@ -127,6 +127,30 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * A shard failure that the query tolerates still reports what its compute did before it failed.
+     */
+    public void testPartialResultsReportTheUsageOfTheFailedShards() throws Exception {
+        Set<String> okIds = populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM fail,ok METADATA _id | KEEP _id, fail_me | LIMIT 100");
+        request.allowPartialResults(true);
+        // have to run one shard at a time to avoid failing all shards
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder().put(randomPragmas().getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
+            )
+        );
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse resp = run(request)) {
+            assertTrue(resp.isPartial());
+            assertThat(EsqlTestUtils.getValuesList(resp).size(), equalTo(okIds.size()));
+            // the failed shards found documents before loading the failing field
+            assertThat(resp.documentsFound(), greaterThan((long) okIds.size()));
+            assertThat(resp.searchLoad().loadNanos(), greaterThan(0L));
+        }
+    }
+
     public void testDefaultPartialResults() throws Exception {
         Set<String> okIds = populateIndices();
         assertAcked(

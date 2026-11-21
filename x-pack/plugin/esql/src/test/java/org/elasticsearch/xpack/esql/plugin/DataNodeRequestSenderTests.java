@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -332,6 +333,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             0,
             cpuNanos,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),

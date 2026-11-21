@@ -125,6 +125,62 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     /**
+     * The query's waiting is handed out once, so its executors add up to it.
+     */
+    public void testLoadsOfTheExecutorsAddUpToTheWaitingOfTheQuery() {
+        Waits first = new Waits();
+        Waits second = new Waits();
+        QueryLoad firstLoad = new QueryLoad();
+        QueryLoad secondLoad = new QueryLoad();
+        var firstExecutor = executor("q", pool, firstLoad, first);
+        var secondExecutor = executor("q", pool, secondLoad, second);
+        firstExecutor.execute(() -> {});
+        clock.set(10);
+        secondExecutor.execute(() -> {});
+        clock.set(20);
+        pool.runNext();
+        clock.set(25);
+        pool.runNext();
+        assertThat(first.total() + second.total(), equalTo(35L));
+        assertThat(firstLoad.waitingNanos(), equalTo(20L));
+        assertThat(secondLoad.waitingNanos(), equalTo(5L));
+    }
+
+    /**
+     * An executor without a load leaves the waiting to the next one with a load.
+     */
+    public void testExecutorWithoutLoadLeavesTheWaitingToOneWithALoad() {
+        QueryLoad load = new QueryLoad();
+        var withoutLoad = executor("q", pool, (QueryLoad) null, new Waits());
+        var withLoad = executor("q", pool, load, new Waits());
+        withoutLoad.execute(() -> {});
+        clock.set(10);
+        withLoad.execute(() -> {});
+        clock.set(20);
+        pool.runNext();
+        assertThat(load.waitingNanos(), equalTo(0L));
+        clock.set(25);
+        pool.runNext();
+        assertThat(load.waitingNanos(), equalTo(25L));
+    }
+
+    /**
+     * A query forgotten while idle still hands its waiting to an executor used again.
+     */
+    public void testLoadKeepsTheWaitingOfAQueryTrackedAgain() {
+        QueryLoad load = new QueryLoad();
+        var executor = executor("q", pool, load, new Waits());
+        executor.execute(() -> {});
+        clock.set(10);
+        pool.runNext();
+        assertThat(scheduler.queries(), equalTo(0));
+        executor.execute(() -> {});
+        clock.set(25);
+        pool.runNext();
+        assertThat(load.waitingNanos(), equalTo(25L));
+    }
+
+    /**
      * A shard of the query's queued tasks that has no work left, like a shard whose slices ES|QL drivers already read,
      * does not accumulate waiting time.
      */
@@ -756,11 +812,15 @@ public class QuerySchedulerTests extends ESTestCase {
     }
 
     private QueryScheduler.QueryExecutor executor(String query, Executor pool, Waits... shards) {
+        return executor(query, pool, new QueryLoad(), shards);
+    }
+
+    private QueryScheduler.QueryExecutor executor(String query, Executor pool, QueryLoad load, Waits... shards) {
         List<QueryScheduler.Shard> searched = new ArrayList<>();
         for (Waits shard : shards) {
             searched.add(new QueryScheduler.Shard(shard, shard, shard::hasWork));
         }
-        return scheduler.newExecutor(queryId(query), pool, searched);
+        return scheduler.newExecutor(queryId(query), pool, searched, load);
     }
 
     private static TaskId queryId(String query) {

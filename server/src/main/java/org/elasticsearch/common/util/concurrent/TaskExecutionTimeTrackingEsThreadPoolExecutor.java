@@ -287,7 +287,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         timedRunnable.beforeExecute();
         if (attributeTaskLoad) {
             assert t instanceof EsExecutors.EsThread : "a pool attributing its task load must run on EsThreads, got " + t;
-            TaskLoadAttribution.taskStarted();
+            TaskLoadAttribution.taskStarted(timedRunnable);
         }
         final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
         assert taskQueueLatency >= 0;

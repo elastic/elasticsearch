@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.scheduling.SearchLoadMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
@@ -435,6 +436,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -458,6 +460,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -489,6 +492,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -686,6 +690,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             50,
             200,
             300,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -718,6 +723,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -751,6 +757,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            SearchLoadMetrics.EMPTY,
             List.of(),
             List.of(),
             Map.of(),
@@ -770,7 +777,23 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
     }
 
     private static DriverCompletionInfo usageWithBytesRead(long bytesRead) {
-        return new DriverCompletionInfo(0, 0, 0, bytesRead, 0, 0, 0, 0, List.of(), List.of(), Map.of(), false, false, Set.of());
+        return new DriverCompletionInfo(
+            0,
+            0,
+            0,
+            bytesRead,
+            0,
+            0,
+            0,
+            0,
+            SearchLoadMetrics.EMPTY,
+            List.of(),
+            List.of(),
+            Map.of(),
+            false,
+            false,
+            Set.of()
+        );
     }
 
     /**

@@ -27,6 +27,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -137,6 +138,20 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
 
         SubqueryJoin join = findJoin(optimizedJoinPlan(query + "| DROP m"));
         assertThat(join.right().output().stream().map(Attribute::name).toList(), equalTo(List.of("language_code")));
+    }
+
+    /**
+     * A null left key matches nothing, so the join is replaced with nulls for the subquery's columns. Columns of the same type share
+     * one null through an {@code Alias}, which the join's output must keep.
+     */
+    public void testNullKeyReplacesJoinWithNulls() {
+        LogicalPlan plan = optimizedJoinPlan("""
+            FROM test
+            | EVAL language_code = null
+            | LEFT OUTER JOIN (FROM languages | EVAL other_name = language_name) ON language_code
+            """);
+        assertThat(plan.collect(SubqueryJoin.class::isInstance), hasSize(0));
+        assertThat(plan.output().stream().map(Attribute::name).toList(), hasItems("language_name", "other_name"));
     }
 
     public void testMapperRejectsJoin() {

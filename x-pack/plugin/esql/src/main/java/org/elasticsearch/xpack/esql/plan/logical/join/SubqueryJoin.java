@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -108,7 +108,13 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
 
     @Override
     public List<NamedExpression> computeOutputExpressions(List<? extends NamedExpression> left, List<? extends NamedExpression> right) {
-        return Join.computeOutputExpressions(left, makeReference(Expressions.asAttributes(right)), config());
+        List<NamedExpression> subqueryColumns = new ArrayList<>(right.size());
+        for (NamedExpression column : right) {
+            // Only attributes become references. An Alias, such as the one PruneLeftJoinOnNullMatchingField adds so that columns of
+            // the same type share one null, defines its column and must stay.
+            subqueryColumns.add(column instanceof Attribute attribute ? makeReference(List.of(attribute)).getFirst() : column);
+        }
+        return Join.computeOutputExpressions(left, subqueryColumns, config());
     }
 
     @Override
@@ -170,7 +176,8 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
 
     /**
      * Same as {@code LOOKUP JOIN}: numeric keys of different types match by value, with one exception. An {@code unsigned_long}
-     * only matches another {@code unsigned_long}, because a common floating-point type would round it.
+     * only matches another {@code unsigned_long}, because a common floating-point type would round it. For now, though,
+     * {@link AbstractSubqueryJoin#isSubqueryJoinUnsupported} rejects every {@code unsigned_long} key.
      */
     static boolean comparableKeyTypes(DataType leftType, DataType rightType) {
         if (leftType == NULL) {
@@ -178,6 +185,7 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
             return true;
         }
         if (leftType.isNumeric() && rightType.isNumeric()) {
+            // TODO: the hash join compares keys by element type, so running the join must first cast both keys to a common type.
             return areTypesCompatible(leftType, rightType);
         }
         return leftType.noText() == rightType.noText();
@@ -198,10 +206,14 @@ public class SubqueryJoin extends Join implements IndependentSubqueryJoin {
     }
 
     /**
-     * Collects the remote index patterns read by {@code plan}'s own query. The right side of a nested {@link IndependentSubqueryJoin}
-     * is that join's to check.
+     * Collects the remote index patterns read by {@code plan}'s own query. A nested {@code SubqueryJoin} reports both of its own
+     * sides, so that a remote index is reported once. The right side of any other {@link IndependentSubqueryJoin} runs on its own and
+     * is not this join's to check.
      */
     private static void collectRemoteIndexPatterns(LogicalPlan plan, Set<String> remoteIndexPatterns) {
+        if (plan instanceof SubqueryJoin) {
+            return;
+        }
         if (plan instanceof EsRelation relation
             && relation.concreteIndices().keySet().stream().anyMatch(cluster -> cluster.equals(LOCAL_CLUSTER_GROUP_KEY) == false)) {
             remoteIndexPatterns.add(relation.indexPattern());

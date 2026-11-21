@@ -11,6 +11,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.VersionMode;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -244,6 +245,19 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
         }
     }
 
+    /**
+     * A view decides the {@code unmapped_fields} mode of its own body: the join is rejected in a view that sets a mode, and allowed in
+     * a view without one, whatever mode the query reading the view sets.
+     */
+    public void testUnmappedFieldsModeOfView() {
+        assumeTrue("Requires branching views", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        String body = JOIN_LANGUAGES.strip();
+        analyzer().addView("v", "SET unmapped_fields=\"nullify\";\n" + body)
+            .statementError("FROM v", containsString("JOIN on a subquery is not supported with unmapped_fields=\"nullify\""));
+        LogicalPlan plan = analyzer().addView("v", body).statement("SET unmapped_fields=\"nullify\"; FROM v");
+        assertTrue(findJoin(plan).resolved());
+    }
+
     public void testRemoteIndicesAreRejected() {
         TestAnalyzer analyzer = analyzer().addIndex("remote:languages", remoteLanguages());
         analyzer.error("""
@@ -255,6 +269,24 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
             FROM remote:languages
             | LEFT OUTER JOIN (FROM languages) ON language_code
             """, containsString("line 2:3: JOIN subquery does not support remote indices yet, found [remote:languages]"));
+    }
+
+    /**
+     * Each join reports the remote indices of its own sides, so a remote index read before two chained joins is reported once.
+     */
+    public void testRemoteIndexIsReportedOnceForChainedJoins() {
+        analyzer().addIndex("remote:languages", remoteLanguages())
+            .error(
+                """
+                    FROM remote:languages
+                    | LEFT OUTER JOIN (FROM languages) ON language_code
+                    | LEFT OUTER JOIN (FROM languages) ON language_code
+                    """,
+                allOf(
+                    containsString("Found 1 problem"),
+                    containsString("line 2:3: JOIN subquery does not support remote indices yet, found [remote:languages]")
+                )
+            );
     }
 
     /**

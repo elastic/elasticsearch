@@ -135,7 +135,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("fls_user4_1", "x-pack-test-password", "fls_user4_1", false)
         .user("fls_user4_1_alias", "x-pack-test-password", "fls_user4_1_alias", false)
         .user("dls_user", "x-pack-test-password", "dls_user", false)
-        .user("dls_min_max_user", "x-pack-test-password", "dls_min_max_user", false)
         .user("eql_dls_user", "x-pack-test-password", "eql_dls_user", false)
         .user("eql_fls_user", "x-pack-test-password", "eql_fls_user", false)
         .user("dls_partial_mapping_user", "x-pack-test-password", "dls_partial_mapping", false)
@@ -346,7 +345,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "properties":{"n": {"type": "integer"}, "org": {"type": "keyword"}}
             """;
         createIndex("min-max-dls", indexSettings(), mappingPrefix() + minMaxMapping);
-        indexMinMaxDocument(1, 5, "engineering");
+        indexMinMaxDocument(1, 5, "marketing");
         indexMinMaxDocument(2, 100, "sales");
         indexMinMaxDocument(3, 1, "sales");
         refresh("min-max-dls");
@@ -1426,7 +1425,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(1, 100)))
         );
 
-        Response dlsResp = runESQLCommand("dls_min_max_user", query);
+        Response dlsResp = runESQLCommand("dls_user", query);
         assertOK(dlsResp);
         assertMap(entityAsMap(dlsResp), matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(5, 5))));
     }

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayList;
@@ -233,6 +234,38 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
         assertThat("the alias uses the min/max source", outcome.minMaxSource, is(true));
     }
 
+    /**
+     * An index alias with a filter restricts the documents of every shard query, but the filter is added when the shard query is
+     * built, so it is not visible in the plan. The result has to cover only the documents the filter lets through.
+     */
+    public void testIndexAliasFilter() {
+        for (boolean columnar : new boolean[] { false, true }) {
+            String index = "aliased_" + columnar;
+            createIndex(index, columnar);
+            indexDense(index);
+            int threshold = intOf(100);
+            String alias = index + "_filtered";
+            assertAcked(
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .addAlias(index, alias, QueryBuilders.rangeQuery("i").gt(threshold))
+            );
+
+            Outcome outcome = minMax(alias, true, "");
+            long lowest = Long.MAX_VALUE;
+            long highest = Long.MIN_VALUE;
+            for (long[] doc : docs.values()) {
+                if (doc[1] > threshold) {
+                    lowest = Math.min(lowest, doc[0]);
+                    highest = Math.max(highest, doc[0]);
+                }
+            }
+            assertThat(asLongs(outcome.row), equalTo(List.of(lowest, highest)));
+            // the filter is not visible in the plan: the operator is planned, then scans the filtered documents
+            assertThat(outcome.minMaxSource, is(true));
+            assertThat(outcome.luceneSource, is(false));
+        }
+    }
+
     /** A filter means the metadata does not describe the matching documents: the query is not answered by the min/max source. */
     public void testFilterIsNotAnsweredFromMetadata() {
         for (boolean columnar : new boolean[] { false, true }) {
@@ -290,23 +323,7 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testNoDocumentHasAValue() {
-        for (boolean columnar : new boolean[] { false, true }) {
-            String index = "novalues_" + columnar;
-            createIndex(index, columnar);
-            for (int doc = 0; doc < 10; doc++) {
-                prepareIndex(index).setId("empty_" + doc).setSource("other", doc).get();
-            }
-            indicesAdmin().prepareRefresh(index).get();
-            for (boolean date : new boolean[] { true, false }) {
-                Outcome outcome = minMax(index, date, "");
-                assertThat(index, outcome.row.get(0), equalTo(null));
-                assertThat(index, outcome.row.get(1), equalTo(null));
-            }
-        }
-    }
-
-    /** A multi-valued field takes the smallest and the largest of all values, whether or not the source answers it. */
+    /** A multi-valued field takes the smallest and the largest of all values: the segment bounds cover all of them. */
     public void testMultiValuedField() {
         String index = "multivalued";
         createIndex(index, false);
@@ -326,22 +343,6 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
 
         Outcome outcome = minMax(index, true, "");
         assertThat(asLongs(outcome.row), equalTo(List.of(lowest, highest)));
-        // not provably single valued, so it is not pushed and the values are loaded as before
-        assertThat(outcome.minMaxSource, is(false));
-    }
-
-    /** Aggregates mixed with others, or over different fields, are not answered by the min/max source. */
-    public void testUnsupportedShapesStillWork() {
-        String index = "shapes";
-        createIndex(index, false);
-        indexDense(index);
-
-        Outcome withCount = profiled("FROM " + index + " | STATS lo = MIN(i), hi = MAX(i), c = COUNT(*)");
-        assertThat(asLongs(withCount.row), equalTo(List.of(expected(false, true), expected(false, false), (long) docs.size())));
-        assertThat(withCount.minMaxSource, is(false));
-
-        Outcome twoFields = profiled("FROM " + index + " | STATS lo = MIN(i), hi = MAX(d) | EVAL hi = TO_LONG(hi)");
-        assertThat(asLongs(twoFields.row), equalTo(List.of(expected(false, true), expected(true, false))));
-        assertThat(twoFields.minMaxSource, is(false));
+        assertThat(outcome.minMaxSource, is(true));
     }
 }

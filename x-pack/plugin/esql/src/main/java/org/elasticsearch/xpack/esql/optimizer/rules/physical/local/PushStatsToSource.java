@@ -185,16 +185,14 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
             return null;
         }
         var stats = context.searchStats();
-        // isSingleValue is only true for a date/number field when every segment has points or a skipper, i.e. metadata to read
-        if (stats.exists(field.fieldName()) == false
-            || stats.hasDocValues(field.fieldName()) == false
-            || stats.isSingleValue(field.fieldName()) == false) {
+        // Doc values are needed because segments that cannot use their metadata are scanned. Multi-valued fields are fine: the
+        // segment bounds and the per-document minimum/maximum both cover every value.
+        if (stats.exists(field.fieldName()) == false || stats.hasDocValues(field.fieldName()) == false) {
             return null;
         }
-        // Deleted documents are still described by segment metadata. Segments with deletions would be scanned on a single slice,
-        // which is slower than the parallel scan this replaces.
+        // Cost check: skip pushdown if any segment has deletions. Such segments cannot use their metadata and would be scanned on
+        // a single slice, which is slower than the parallel scan this replaces.
         // TODO: scan only the segments with deletions, in parallel, and answer the others from metadata.
-        // Document-level security relies on this check too: its readers hide documents through live docs and report deletions.
         if (stats.hasDeletions()) {
             return null;
         }

@@ -206,13 +206,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         }
     };
 
-    /** Single valued fields and no deleted documents, which is what the MIN/MAX metadata push down needs. */
-    private final SearchStats NO_DELETIONS_SV_STATS = new TestSearchStats() {
-        @Override
-        public boolean isSingleValue(FieldAttribute.FieldName field) {
-            return true;
-        }
-
+    /** No deleted documents, which is what the MIN/MAX metadata push down needs. */
+    private final SearchStats NO_DELETIONS_STATS = new TestSearchStats() {
         @Override
         public boolean hasDeletions() {
             return false;
@@ -466,7 +461,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *     \_EsStatsQueryExec[test], stats[MinMaxStat[name=hire_date, elementType=LONG, functions=[MIN, MAX]]], query[][...], limit[],
      */
     public void testMinMaxDatePushedToStatsSource() {
-        var plan = plannerOptimizer.plan("from test | stats min_hd = min(hire_date), max_hd = max(hire_date)", NO_DELETIONS_SV_STATS);
+        var plan = plannerOptimizer.plan("from test | stats min_hd = min(hire_date), max_hd = max(hire_date)", NO_DELETIONS_STATS);
         var statsQuery = minMaxStatsQueryFor(plan);
         assertThat(Expressions.names(statsQuery.output()), contains("$$min_hd$min", "$$min_hd$seen", "$$max_hd$max", "$$max_hd$seen"));
         // InferNonNullAggConstraint pushes "hire_date exists", which MIN/MAX do not need: no query is left on the stats source
@@ -486,7 +481,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /** The functions keep the order of the aggregates, which is the order of the intermediate output attributes. */
     public void testMaxMinIntegerPushedToStatsSourceKeepsOrder() {
-        var plan = plannerOptimizer.plan("from test | stats mx = max(salary), mn = min(salary)", NO_DELETIONS_SV_STATS);
+        var plan = plannerOptimizer.plan("from test | stats mx = max(salary), mn = min(salary)", NO_DELETIONS_STATS);
         var statsQuery = minMaxStatsQueryFor(plan);
         assertThat(Expressions.names(statsQuery.output()), contains("$$mx$max", "$$mx$seen", "$$mn$min", "$$mn$seen"));
         assertThat(
@@ -502,7 +497,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testSingleMinPushedToStatsSource() {
-        var plan = plannerOptimizer.plan("from test | stats m = min(emp_no)", NO_DELETIONS_SV_STATS);
+        var plan = plannerOptimizer.plan("from test | stats m = min(emp_no)", NO_DELETIONS_STATS);
         assertThat(
             minMaxStatsQueryFor(plan).stat(),
             equalTo(new EsStatsQueryExec.MinMaxStat("emp_no", ElementType.INT, List.of(LuceneMinMaxFactory.Function.MIN)))
@@ -510,7 +505,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testMinMaxThroughAliasPushedToStatsSource() {
-        var plan = plannerOptimizer.plan("from test | eval d = hire_date | stats min_d = min(d), max_d = max(d)", NO_DELETIONS_SV_STATS);
+        var plan = plannerOptimizer.plan("from test | eval d = hire_date | stats min_d = min(d), max_d = max(d)", NO_DELETIONS_STATS);
         var stat = as(minMaxStatsQueryFor(plan).stat(), EsStatsQueryExec.MinMaxStat.class);
         assertThat(stat.name(), is("hire_date"));
         assertThat(stat.functions(), contains(LuceneMinMaxFactory.Function.MIN, LuceneMinMaxFactory.Function.MAX));
@@ -532,7 +527,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             "from test | stats max(first_name)",
             "from test | stats min(long_noidx)"
         )) {
-            var plan = plannerOptimizer.plan(query, NO_DELETIONS_SV_STATS);
+            var plan = plannerOptimizer.plan(query, NO_DELETIONS_STATS);
             assertThat(query, plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
         }
     }
@@ -540,11 +535,6 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     /** Segment bounds still describe deleted documents, and scanning the segments with deletions on one slice is slower. */
     public void testMinMaxNotPushedToStatsSourceWithDeletions() {
         var withDeletions = new TestSearchStats() {
-            @Override
-            public boolean isSingleValue(FieldAttribute.FieldName field) {
-                return true;
-            }
-
             @Override
             public boolean hasDeletions() {
                 return true;
@@ -554,25 +544,25 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
     }
 
-    public void testMinMaxNotPushedToStatsSourceWhenNotSingleValue() {
-        // no deleted documents, but the stats do not say that the field is single valued
-        var notSingleValued = new TestSearchStats() {
+    /** The segment bounds and the per-document minimum/maximum cover every value, so a multi-valued field is pushed too. */
+    public void testMinMaxMultiValuedFieldPushedToStatsSource() {
+        var multiValued = new TestSearchStats() {
+            @Override
+            public boolean isSingleValue(FieldAttribute.FieldName field) {
+                return false;
+            }
+
             @Override
             public boolean hasDeletions() {
                 return false;
             }
         };
-        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", notSingleValued);
-        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", multiValued);
+        assertThat(minMaxStatsQueryFor(plan).stat(), instanceOf(EsStatsQueryExec.MinMaxStat.class));
     }
 
     public void testMinMaxNotPushedToStatsSourceWithoutDocValues() {
         var noDocValues = new TestSearchStats() {
-            @Override
-            public boolean isSingleValue(FieldAttribute.FieldName field) {
-                return true;
-            }
-
             @Override
             public boolean hasDocValues(FieldAttribute.FieldName field) {
                 return false;

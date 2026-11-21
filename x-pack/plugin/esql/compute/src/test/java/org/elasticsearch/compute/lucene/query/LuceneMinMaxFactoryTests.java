@@ -11,6 +11,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -311,6 +312,95 @@ public class LuceneMinMaxFactoryTests extends LuceneMinMaxOperatorTestCase {
 
         Result result = run(factory(reader, type, Queries.ALL_DOCS_INSTANCE, List.of(Function.MIN, Function.MAX)), type, 2);
         assertThat(result.values, equalTo(new long[] { 100L, 519L }));
+        assertThat(result.seen, equalTo(new boolean[] { true, true }));
+    }
+
+    /**
+     * A filtered scan skips the blocks of documents whose skipper bounds cannot improve the result. Blocks are skipped only when
+     * that is safe: documents that do not match the filter, and the filtered extremes, must not change the answer.
+     */
+    public void testFilteredScanSkipsBlocksSafely() throws IOException {
+        ElementType type = randomElementType();
+        int docs = 20_000;
+        long[] values = new long[docs];
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int i = 0; i < docs; i++) {
+                // mostly increasing values with noise, so that block bounds differ from block to block
+                values[i] = type == ElementType.INT ? (i / 7) + between(-50, 50) : (i * 3L) + between(-5000, 5000);
+                if (i % 5 == 0) {
+                    // gaps: documents without a value
+                    writer.addDocument(new Document());
+                    values[i] = Long.MIN_VALUE;
+                    continue;
+                }
+                Document doc = new Document();
+                doc.add(SortedNumericDocValuesField.indexedField(FIELD, values[i]));
+                doc.add(new NumericDocValuesField("filter", i));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            readers.add(writer.getReader());
+        }
+        int from = between(0, docs / 2);
+        int to = between(from, docs - 1);
+        long min = Long.MAX_VALUE;
+        long max = Long.MIN_VALUE;
+        for (int i = from; i <= to; i++) {
+            if (values[i] != Long.MIN_VALUE) {
+                min = Math.min(min, values[i]);
+                max = Math.max(max, values[i]);
+            }
+        }
+        // a filter on another field never matches every document, so the min/max shortcut is not used
+        Query filter = NumericDocValuesField.newSlowRangeQuery("filter", from, to);
+        Result result = run(factory(lastReader(), type, filter, List.of(Function.MIN, Function.MAX)), type, 2);
+        assertThat(result.values, equalTo(new long[] { min, max }));
+        assertThat(result.seen, equalTo(new boolean[] { true, true }));
+    }
+
+    /**
+     * A multi-valued document that is deleted is still described by the segment bounds, so the segment is scanned. The scan takes
+     * the smallest and the largest of the values of every live document.
+     */
+    public void testMultiValuedWithDeletionsFallsBackToScan() throws IOException {
+        ElementType type = randomElementType();
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (String id : new String[] { "low", "high", "a", "b" }) {
+                Document doc = new Document();
+                doc.add(new StringField("id", id, Field.Store.NO));
+                long[] values = switch (id) {
+                    case "low" -> new long[] { -1000L, 50L };
+                    case "high" -> new long[] { 60L, 1000L };
+                    case "a" -> new long[] { 10L, 700L };
+                    case "b" -> new long[] { 20L, 30L };
+                    default -> throw new AssertionError(id);
+                };
+                for (long value : values) {
+                    doc.add(SortedNumericDocValuesField.indexedField(FIELD, value));
+                }
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            writer.deleteDocuments(new Term("id", "low"));
+            writer.deleteDocuments(new Term("id", "high"));
+            writer.commit();
+            readers.add(writer.getReader());
+        }
+
+        Result result = run(factory(lastReader(), type, Queries.ALL_DOCS_INSTANCE, List.of(Function.MIN, Function.MAX)), type, 2);
+        assertThat(result.values, equalTo(new long[] { 10L, 700L }));
         assertThat(result.seen, equalTo(new boolean[] { true, true }));
     }
 

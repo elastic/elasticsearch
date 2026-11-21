@@ -227,10 +227,13 @@ public class MetadataRolloverService {
         assert dataStreamIndices.getIndices().isEmpty() == false || isFailureStoreRollover
             : "Unable to roll over dataStreamIndices with no indices";
 
+        // Resolve the next index first: it rejects replicated data streams, which must happen before we look up the write index since a
+        // replicated data stream can have an empty failure store that is not marked for lazy creation.
+        final String newWriteIndexName = dataStream.nextWriteIndexAndGeneration(project, dataStreamIndices).v1();
         final String originalWriteIndex = dataStreamIndices.getIndices().isEmpty() && dataStreamIndices.isRolloverOnWrite()
             ? NON_EXISTENT_SOURCE
             : project.index(dataStreamIndices.getWriteIndex()).getIndex().getName();
-        return new NameResolution(originalWriteIndex, null, dataStream.nextWriteIndexAndGeneration(project, dataStreamIndices).v1());
+        return new NameResolution(originalWriteIndex, null, newWriteIndexName);
     }
 
     private RolloverResult rolloverAlias(
@@ -335,9 +338,10 @@ public class MetadataRolloverService {
         }
 
         final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
+        // Resolve the next index first: it rejects replicated data streams before we touch the (possibly empty) write index.
+        final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices);
         final boolean isLazyCreation = dataStreamIndices.getIndices().isEmpty() && dataStreamIndices.isRolloverOnWrite();
         final Index originalWriteIndex = isLazyCreation ? null : dataStreamIndices.getWriteIndex();
-        final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices);
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
         // fails if the index already exists

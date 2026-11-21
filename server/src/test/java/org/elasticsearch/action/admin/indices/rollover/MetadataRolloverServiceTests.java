@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -910,6 +911,28 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), equalTo("no matching index template found for data stream [" + dataStream.getName() + "]"));
+    }
+
+    /**
+     * A replicated (CCR follower) data stream has an empty failure store that is never marked for lazy creation. Resolving the rollover
+     * names of its failure store must report that replicated data streams can't be rolled over, rather than failing with an
+     * {@link ArrayIndexOutOfBoundsException} while looking up the missing write index.
+     */
+    public void testResolveRolloverNamesForFailureStoreOfReplicatedDataStream() {
+        String name = "replicated-ds";
+        IndexMetadata backingIndex = DataStreamTestHelper.createFirstBackingIndex(name, System.currentTimeMillis()).build();
+        DataStream dataStream = DataStream.builder(name, List.of(backingIndex.getIndex()))
+            .setGeneration(1)
+            .setReplicated(true)
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .build();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(backingIndex, false).put(dataStream).build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataRolloverService.resolveRolloverNames(project, name, null, new CreateIndexRequest("_na_"), true)
+        );
+        assertThat(e.getMessage(), equalTo("data stream [" + name + "] cannot be rolled over, because it is a replicated data stream"));
     }
 
     private static IndexMetadata createMetadata(String indexName) {

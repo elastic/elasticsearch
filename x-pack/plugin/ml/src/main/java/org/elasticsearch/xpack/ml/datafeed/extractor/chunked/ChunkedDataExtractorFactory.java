@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.esql.EsqlDataExtractorFactory;
 
 import java.util.Objects;
 
@@ -45,7 +45,8 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
         // End rounds down so the still-open bucket at the window edge is never extracted (real-time relies on this).
         long alignedEnd = timeAligner.alignToFloor(end);
         boolean hasEsqlQuery = datafeedConfig.getEsqlQuery() != null;
-        boolean injectsEsqlRowLimit = hasEsqlQuery && EsqlDataExtractor.injectsRowLimit(datafeedConfig.getEsqlQuery());
+        boolean injectsEsqlRowLimit = dataExtractorFactory instanceof EsqlDataExtractorFactory esqlFactory
+            && esqlFactory.query().injectsRowLimit();
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
             job.getId(),
             datafeedConfig.getScrollSize(),

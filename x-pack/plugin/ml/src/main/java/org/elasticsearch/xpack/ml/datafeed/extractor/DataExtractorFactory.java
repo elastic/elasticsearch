@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregatedSearchRequestBuilder;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.CompositeAggregationDataExtractorFactory;
@@ -56,6 +57,7 @@ public interface DataExtractorFactory {
         Job job,
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
+        EsqlQueryAnalyzer esqlQueryAnalyzer,
         ActionListener<DataExtractorFactory> listener
     ) {
         create(
@@ -67,6 +69,7 @@ public interface DataExtractorFactory {
             xContentRegistry,
             timingStatsReporter,
             DatafeedSearchTelemetry.NOOP,
+            esqlQueryAnalyzer,
             listener
         );
     }
@@ -80,6 +83,7 @@ public interface DataExtractorFactory {
         NamedXContentRegistry xContentRegistry,
         DatafeedTimingStatsReporter timingStatsReporter,
         DatafeedSearchTelemetry searchTelemetry,
+        EsqlQueryAnalyzer esqlQueryAnalyzer,
         ActionListener<DataExtractorFactory> listener
     ) {
         final Client searchClient = cloudCredentialManager.wrapClient(client, datafeed.getCloudInternalCredential());
@@ -93,7 +97,7 @@ public interface DataExtractorFactory {
         );
 
         if (datafeed.getEsqlQuery() != null) {
-            EsqlDataExtractorFactory.create(searchClient, datafeed, job, timingStatsReporter, factoryHandler);
+            EsqlDataExtractorFactory.create(searchClient, datafeed, job, timingStatsReporter, esqlQueryAnalyzer, factoryHandler);
             return;
         }
 

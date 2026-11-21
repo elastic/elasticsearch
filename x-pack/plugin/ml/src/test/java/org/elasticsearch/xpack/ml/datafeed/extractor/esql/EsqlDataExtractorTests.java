@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.core.esql.action.internal.SharedSecrets;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.esql.ml.EsqlParserQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.esql.spi.EsqlQueryAnalyzer;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.junit.After;
 import org.junit.Before;
@@ -76,6 +78,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class EsqlDataExtractorTests extends ESTestCase {
+
+    private static final EsqlQueryAnalyzer ANALYZER = new EsqlParserQueryAnalyzer();
 
     private static final String DEFAULT_QUERY = "FROM logs";
     private static final String TIME_FIELD = "ts";
@@ -196,7 +200,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         DataExtractor.Result result = extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + " | SORT ??timeField ASC | LIMIT 10000"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(DEFAULT_QUERY + "\n| SORT ??timeField ASC\n| LIMIT 10000"));
         assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", "timestamp", IDENTIFIER))));
         assertThat(result.rowCount(), equalTo(1L));
         verify(timingStatsReporter).reportSearchDuration(any());
@@ -217,7 +221,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
             extractor.next();
 
-            verify(builder).query(DEFAULT_QUERY + " | SORT ??timeField ASC | LIMIT 10000");
+            verify(builder).query(DEFAULT_QUERY + "\n| SORT ??timeField ASC\n| LIMIT 10000");
             verify(builder).filter(any(RangeQueryBuilder.class));
             verify(builder).params(List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER)));
             verify(builder).allowPartialResults(false);
@@ -241,7 +245,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + " | SORT ??timeField ASC | LIMIT 10000"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(esqlQuery + "\n| SORT ??timeField ASC\n| LIMIT 10000"));
     }
 
     public void testUserLimitShouldKeepUserLimitAndAppendTimeSort() throws IOException {
@@ -251,7 +255,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(query + " | SORT ??timeField ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(query + "\n| SORT ??timeField ASC"));
     }
 
     public void testUserLimitEndingInLineCommentShouldAppendTimeSortOnNewLine() throws IOException {
@@ -261,7 +265,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(query + "\n | SORT ??timeField ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(query + "\n| SORT ??timeField ASC"));
     }
 
     public void testFourQuoteTripleStringWithOuterLimitShouldAppendTimeSort() throws IOException {
@@ -271,7 +275,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        assertThat(extractor.capturedOrderedQuery, equalTo(query + " | SORT ??timeField ASC"));
+        assertThat(extractor.capturedOrderedQuery, equalTo(query + "\n| SORT ??timeField ASC"));
     }
 
     public void testTimeFilterShouldBeHalfOpenOnNext() throws IOException {
@@ -353,7 +357,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         extractor.next();
 
-        String expectedQuery = DEFAULT_QUERY + " | SORT ??timeField ASC | LIMIT 10000";
+        String expectedQuery = DEFAULT_QUERY + "\n| SORT ??timeField ASC\n| LIMIT 10000";
         QueryBuilder expectedFilter = new RangeQueryBuilder(TIME_FIELD).gte(1000L).lt(2000L).format("epoch_millis");
         List<EsqlQueryParam> expectedParams = List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER));
         assertThat(extractor.capturedQueries, equalTo(List.of(expectedQuery, expectedQuery)));
@@ -517,7 +521,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         assertThat(
             extractor.capturedOrderedQuery,
-            equalTo(DEFAULT_QUERY + " | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
+            equalTo(DEFAULT_QUERY + "\n| STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
         );
         assertThat(extractor.capturedParams, equalTo(List.of(new EsqlQueryParam("timeField", TIME_FIELD, IDENTIFIER))));
         assertThat(extractor.capturedTimeFilter, equalTo(new RangeQueryBuilder(TIME_FIELD).gte(1000L).lt(9000L).format("epoch_millis")));
@@ -623,9 +627,9 @@ public class EsqlDataExtractorTests extends ESTestCase {
         assertThat(extractor.capturedQueries.size(), equalTo(2));
         assertThat(
             extractor.capturedQueries.get(0),
-            equalTo("FROM logs | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
+            equalTo("FROM logs\n| STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
         );
-        assertThat(extractor.capturedQueries.get(1), equalTo(aggregatingQuery + " | STATS probe_output_rows = COUNT(*)"));
+        assertThat(extractor.capturedQueries.get(1), equalTo(aggregatingQuery + "\n| STATS probe_output_rows = COUNT(*)"));
         assertThat(
             extractor.capturedTimeFilters.get(1),
             equalTo(new RangeQueryBuilder(TIME_FIELD).gte(1_000_000L).lt(1_000_000L + GROUPING_INTERVAL_MILLIS).format("epoch_millis"))
@@ -647,9 +651,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
 
         assertThat(
             extractor.capturedQueries.get(0),
-            equalTo(
-                "FROM logs // web tier\n | STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)"
-            )
+            equalTo("FROM logs\n| STATS earliest_time = MIN(??timeField), latest_time = MAX(??timeField), total_hits = COUNT(*)")
         );
     }
 
@@ -667,7 +669,7 @@ public class EsqlDataExtractorTests extends ESTestCase {
         extractor.getSummary();
 
         assertThat(extractor.capturedQueries.size(), equalTo(2));
-        assertThat(extractor.capturedQueries.get(1), equalTo(commentedQuery + "\n | STATS probe_output_rows = COUNT(*)"));
+        assertThat(extractor.capturedQueries.get(1), equalTo(commentedQuery + "\n| STATS probe_output_rows = COUNT(*)"));
     }
 
     public void testAggregatingQueryWithNoDataInProbeWindowShouldFallBackToProbeCount() {
@@ -754,7 +756,8 @@ public class EsqlDataExtractorTests extends ESTestCase {
     private static EsqlDataExtractorContext context(long start, long end) {
         return new EsqlDataExtractorContext(
             JOB_ID,
-            DEFAULT_QUERY,
+            EsqlDatafeedQuery.parse(ANALYZER, DEFAULT_QUERY),
+            ANALYZER,
             TIME_FIELD,
             TIME_FIELD,
             GROUPING_INTERVAL_MILLIS,
@@ -769,7 +772,8 @@ public class EsqlDataExtractorTests extends ESTestCase {
     private static EsqlDataExtractorContext contextWithHeaders(long start, long end, Map<String, String> headers) {
         return new EsqlDataExtractorContext(
             JOB_ID,
-            DEFAULT_QUERY,
+            EsqlDatafeedQuery.parse(ANALYZER, DEFAULT_QUERY),
+            ANALYZER,
             TIME_FIELD,
             TIME_FIELD,
             GROUPING_INTERVAL_MILLIS,
@@ -805,7 +809,8 @@ public class EsqlDataExtractorTests extends ESTestCase {
     ) {
         EsqlDataExtractorContext context = new EsqlDataExtractorContext(
             JOB_ID,
-            esqlQuery,
+            EsqlDatafeedQuery.parse(ANALYZER, esqlQuery),
+            ANALYZER,
             sourceTimeField,
             emittedTimeField,
             GROUPING_INTERVAL_MILLIS,

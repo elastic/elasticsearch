@@ -324,6 +324,23 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
+    public void testAssignmentEarlierInTheSameEvalReplacesTheChild() {
+        nestedAnalyzer().error(
+            "FROM ne | EVAL items.sku = \"z\", h = NESTED_ANY(items.sku == \"z\") | KEEP id, h",
+            containsString("NESTED_ANY cannot use [items.sku]: a column of that name replaces it here")
+        );
+    }
+
+    public void testAssignmentLaterInTheSameEvalDoesNotReplaceTheChild() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | EVAL h = NESTED_ANY(items.sku == \"a\"), items.sku = \"z\" | KEEP id, h");
+        assertThat(predicate(plan).path(), equalTo("items"));
+    }
+
+    public void testUnrelatedAssignmentEarlierInTheSameEvalDoesNotReplaceTheChild() {
+        LogicalPlan plan = nestedAnalyzer().query("FROM ne | EVAL k = 1, h = NESTED_ANY(items.sku == \"a\") | KEEP id, h");
+        assertThat(predicate(plan).path(), equalTo("items"));
+    }
+
     public void testNamedCollectionOfALookupIndexIsRejected() {
         nestedAnalyzer().error(
             "FROM ne_orders | LOOKUP JOIN ne_lookup ON id | WHERE NESTED_ANY(items, true)",

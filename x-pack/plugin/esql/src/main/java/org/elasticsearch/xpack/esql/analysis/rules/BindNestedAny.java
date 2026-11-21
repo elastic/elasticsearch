@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis.rules;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -49,10 +50,29 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
      * query with the same name replaces the child, as a later definition does everywhere else, so that is an error.
      */
     public static LogicalPlan scope(LogicalPlan plan, List<Attribute> childrenOutput) {
-        return plan.transformExpressionsOnlyUp(NestedAny.class, nested -> nested.transformUp(UnresolvedAttribute.class, attribute -> {
-            Attribute field = nestedField(attribute, childrenOutput);
+        if (plan instanceof Eval eval) {
+            return scopeEval(eval, childrenOutput);
+        }
+        return plan.transformExpressionsOnlyUp(NestedAny.class, nested -> scope(nested, childrenOutput, Set.of()));
+    }
+
+    /** Each assignment sees the columns the earlier assignments of the same {@code EVAL} define. */
+    private static LogicalPlan scopeEval(Eval eval, List<Attribute> childrenOutput) {
+        Set<String> assigned = new HashSet<>();
+        List<Alias> fields = new ArrayList<>();
+        for (Alias field : eval.fields()) {
+            Set<String> before = Set.copyOf(assigned);
+            fields.add((Alias) field.transformUp(NestedAny.class, nested -> scope(nested, childrenOutput, before)));
+            assigned.add(field.name());
+        }
+        return fields.equals(eval.fields()) ? eval : new Eval(eval.source(), eval.child(), fields);
+    }
+
+    private static Expression scope(NestedAny nested, List<Attribute> childrenOutput, Set<String> assigned) {
+        return nested.transformUp(UnresolvedAttribute.class, attribute -> {
+            Attribute field = nestedField(attribute, childrenOutput, assigned);
             return field == null ? attribute : field;
-        }));
+        });
     }
 
     @Override
@@ -211,13 +231,13 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
         return output.stream().anyMatch(column -> column.synthetic() == false && column.name().equals(name));
     }
 
-    private static Attribute nestedField(UnresolvedAttribute attribute, List<Attribute> output) {
+    private static Attribute nestedField(UnresolvedAttribute attribute, List<Attribute> output, Set<String> assigned) {
         String scopedName = NestedScopeField.PREFIX + attribute.name();
         for (Attribute candidate : output) {
             if (candidate instanceof FieldAttribute field
                 && field.name().equals(scopedName)
                 && field.field() instanceof NestedScopeField scope) {
-                if (replacedByColumn(output, attribute.name())) {
+                if (assigned.contains(attribute.name()) || replacedByColumn(output, attribute.name())) {
                     throw error(attribute, "NESTED_ANY cannot use [" + attribute.name() + "]: a column of that name replaces it here");
                 }
                 if (scope.leaf() instanceof UnsupportedEsField unsupported) {

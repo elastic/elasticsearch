@@ -2077,6 +2077,95 @@ from employees
 emp_no:integer  | first_name:keyword
 ;
 
+equalsToLowerDivByZeroFolded
+required_capability: fn_to_lower_fix_null_folded_comparison
+from employees
+| where to_lower(first_name) == to_string(1/0)
+| keep emp_no, first_name
+;
+warning:Line 2:43: evaluation of [1/0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:43: java.lang.ArithmeticException: / by zero
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToUpperDivByZeroFolded
+required_capability: fn_to_upper_fix_null_folded_comparison
+from employees
+| where to_upper(first_name) != to_string(1/0)
+| keep emp_no, first_name
+;
+warning:Line 2:43: evaluation of [1/0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:43: java.lang.ArithmeticException: / by zero
+
+emp_no:integer  | first_name:keyword
+;
+
+equalsToUpperCaseNullFolded
+required_capability: fn_to_upper_fix_null_folded_comparison
+from employees
+| where to_upper(first_name) == case(true, null, "a")
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToLowerCaseNullFolded
+required_capability: fn_to_lower_fix_null_folded_comparison
+from employees
+| where to_lower(first_name) != case(true, null, "a")
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+equalsToLowerEvalNullFolded
+required_capability: fn_to_lower_fix_null_folded_comparison
+from employees
+| eval n = null::keyword
+| where to_lower(first_name) == n
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+notEqualsToUpperEvalNullFolded
+required_capability: fn_to_upper_fix_null_folded_comparison
+from employees
+| eval n = null::keyword
+| where to_upper(first_name) != n
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+;
+
+equalsToUpperNullFoldedDisjunction
+required_capability: fn_to_upper_fix_null_folded_comparison
+from employees
+| where to_upper(first_name) == case(true, null, "a") or emp_no == 10001
+| keep emp_no, first_name
+;
+
+emp_no:integer  | first_name:keyword
+10001           | Georgi
+;
+
+equalsToLowerNullFoldedInEval
+required_capability: fn_to_lower_fix_null_folded_comparison
+from employees
+| where emp_no == 10001
+| eval x = to_lower(first_name) == case(true, null, "a")
+| keep emp_no, x
+;
+
+emp_no:integer  | x:boolean
+10001           | null
+;
+
 notEqualsToUpperFolded
 from employees
 | where to_upper(first_name) != "Georgi"

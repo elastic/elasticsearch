@@ -26,7 +26,11 @@ import java.io.IOException;
 
 public class ToLower extends ChangeCase implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLower", ToLower::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToLower.class).unaryConfig(ToLower::new).name("to_lower");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToLower.class)
+        .unaryConfig(ToLower::new)
+        // Fix an NPE when compared to a foldable expression that evaluates to null.
+        .capabilities("fix_null_folded_comparison")
+        .name("to_lower");
     private static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = TransportVersion.fromName(
         "esql_serialize_source_functions_warnings"
     );

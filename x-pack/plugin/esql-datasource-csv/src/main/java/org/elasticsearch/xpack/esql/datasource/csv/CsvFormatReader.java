@@ -1378,7 +1378,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     "the header"
                         + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
                         + " has duplicate column name ["
-                        + ErrorExcerpts.summarize(name)
+                        + ErrorExcerpts.summarize(RowLocation.escapedForDisplay(name))
                         + "]; columns cannot bind by name"
                 );
             }
@@ -2004,7 +2004,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // are visible instead of collapsing to [].
             StringJoiner rendered = new StringJoiner(", ", "[", "]");
             for (String dup : duplicates) {
-                rendered.add("'" + dup + "'");
+                rendered.add("'" + RowLocation.escapedForDisplay(dup) + "'");
             }
             ExternalClientException headerEx = new ExternalClientException(
                 ExternalException.Condition.MALFORMED_DATA,
@@ -3221,7 +3221,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     ""
                 );
                 schemaEx.setDetail(
-                    "Invalid " + displayName(format) + " schema format: [" + ErrorExcerpts.summarize(column) + "]. Expected 'name:type'"
+                    "Invalid "
+                        + displayName(format)
+                        + " schema format: ["
+                        + ErrorExcerpts.summarize(RowLocation.escapedForDisplay(column))
+                        + "]. Expected 'name:type'"
                 );
                 throw schemaEx;
             }

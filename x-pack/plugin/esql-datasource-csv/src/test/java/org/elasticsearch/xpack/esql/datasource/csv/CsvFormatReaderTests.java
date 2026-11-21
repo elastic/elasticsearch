@@ -6637,6 +6637,59 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * The object name in these refusals is escaped; the column name printed beside it in the same bracketed
+     * clause is store-supplied too, and comes from the object's own header line. Left raw it forges the
+     * clause the escape was added to protect: a column literally named
+     * {@code a] has duplicate column name [b} closes the real bracket and opens a counterfeit one, so the
+     * sentence names two columns the file does not have. Escaping the brackets is what defeats that; the
+     * words of the forged clause still appear inside the escaped name, because the escape rewrites the
+     * characters that carry structure and nothing else. The escape goes on before
+     * {@link ErrorExcerpts#summarize}, matching the order {@code RowLocation.shorten} already uses, so the
+     * cap bounds escaped text rather than letting an escaped name grow past it.
+     * <p>
+     * Three refusals share the fault and are pinned together, because what went wrong was that each was read
+     * on its own while the object clause was added to all three: the inference-path duplicate
+     * ({@code checkUniqueAttributeNames}), the declared-binding duplicate ({@code rejectDuplicateHeaderNames},
+     * which only a read reaches), and the schema-format refusal. A fourth path printing a header token inside
+     * brackets has to join them.
+     */
+    public void testAColumnNameCannotForgeTheRefusalClause() {
+        String forgesInferenceDuplicate = "a'] has duplicate column names ['b";
+        ExternalClientException inferred = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(
+                createStorageObject(forgesInferenceDuplicate + "," + forgesInferenceDuplicate + "\n1,2\n", "forge-inferred.csv")
+            )
+        );
+        assertThat("the brackets must not survive raw", inferred.getMessage(), not(containsString(forgesInferenceDuplicate)));
+        assertThat("the escape must have fired", inferred.getMessage(), containsString("\\u005D"));
+
+        String forgesBindDuplicate = "a] has duplicate column name [b";
+        CsvFormatReader binding = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
+            .withDeclaredProvenanceBinding(true);
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        IllegalArgumentException bound = expectThrows(
+            IllegalArgumentException.class,
+            () -> binding.read(
+                createStorageObject(forgesBindDuplicate + ",ts," + forgesBindDuplicate + "\n1,2,3\n", "forge-bind.csv"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat("the brackets must not survive raw", bound.getMessage(), not(containsString(forgesBindDuplicate)));
+        assertThat("the escape must have fired", bound.getMessage(), containsString("\\u005D"));
+
+        String forgesSchemaFormat = "x]. Expected 'name:type'. Invalid CSV schema format: [y";
+        ExternalClientException schemaFormat = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(
+                createStorageObject("id:long," + forgesSchemaFormat + "\n1,2\n", "forge-schema.csv")
+            )
+        );
+        assertThat("the brackets must not survive raw", schemaFormat.getMessage(), not(containsString(forgesSchemaFormat)));
+        assertThat("the escape must have fired", schemaFormat.getMessage(), containsString("\\u005D"));
+    }
+
+    /**
      * Naming the object put a user-chosen string into these messages, and one legal filename is a storage host:
      * {@code logs.amazonaws.com.csv}. {@link CsvFormatReader#sampleLimitError} carries the whole reasoning; this
      * pins the two halves of it observable from here, both against the same message.
@@ -12564,8 +12617,10 @@ public class CsvFormatReaderTests extends ESTestCase {
      * them looks at the offset: the quoted-uncompressed arm throws unless it is zero, while the
      * {@code STREAM_ONLY_COMPRESSED} arm passes {@code baseFileOffset} straight through. So a change to how
      * splits are built is checked at the guard that applies -- {@code readSegment}'s leader-and-index pair,
-     * or that one explicit throw -- and at the second streaming call, which has no guard to fail. Not
-     * against the producer named above.
+     * or that one explicit throw -- and at the second streaming call, which has no guard to fail. What keeps
+     * that call's offset at zero is upstream of the coordinator entirely: which splits {@code FileSplitProvider}
+     * builds for a compressed object, and where {@code resolveDispatchMode} sends them. Read those; this
+     * javadoc does not state what they do.
      */
     public void testTheFirstSplitOfABlockAlignedObjectNeedsNoWindowClause() throws IOException {
         List<Attribute> schema = splitSchema();

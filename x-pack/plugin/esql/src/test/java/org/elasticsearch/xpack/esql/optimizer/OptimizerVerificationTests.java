@@ -445,6 +445,27 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     /**
+     * The subquery of {@code IN} runs as a query of its own, before the main one. Its LIMIT or STATS doesn't move the
+     * aggregation of the main query to the coordinator, unlike the same commands in the main query.
+     */
+    public void testFullTextInStatsFilterWithInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        for (String ftf : List.of("match(title, \"Meditation\")", "qstr(\"title: Meditation\")")) {
+            for (String subquery : List.of("(FROM test | SORT id | LIMIT 3 | KEEP id)", "(FROM test | STATS id = MAX(id))")) {
+                String in = "id IN " + subquery;
+                optimize(fullTextAnalyzer().query("FROM test | WHERE " + in + " | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)"));
+                optimize(fullTextAnalyzer().query("FROM test | STATS c = COUNT(*) WHERE " + ftf + " AND " + in + ", d = COUNT(*)"));
+                optimize(fullTextAnalyzer().query("FROM test | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*) WHERE " + in));
+
+                // the same command in the main query is rejected, already by the analyzer
+                String limit = "FROM test | WHERE " + in + " | LIMIT 10 | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)";
+                var e = expectThrows(VerificationException.class, () -> fullTextAnalyzer().query(limit));
+                assertThat(ftf, e.getMessage(), containsString(" function cannot be used after LIMIT"));
+            }
+        }
+    }
+
+    /**
      * A column that is an alias of an indexed field looks like one to search row by row in the analyzed plan, but the
      * optimizer replaces it with the field, making it a Lucene query that the aggregation can't evaluate after LIMIT.
      */

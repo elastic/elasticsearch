@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -89,6 +90,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -513,7 +515,7 @@ public abstract class FullTextFunction extends Function
             if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
                 return;
             }
-            commands.forEachDown(LogicalPlan.class, lp -> {
+            forEachDownInMainScope(commands, lp -> {
                 if (commandCheck.test(lp) == false) {
                     if (lp instanceof ExternalRelation externalRelation) {
                         // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
@@ -554,6 +556,18 @@ public abstract class FullTextFunction extends Function
                 }
             });
         });
+    }
+
+    /**
+     * Applies {@code action} to {@code plan} and to the commands below it that feed its rows. The right side of an
+     * {@link IndependentSubqueryJoin}, like the subquery of {@code WHERE x IN (FROM ...)}, is not one of them: it runs as a
+     * query of its own, so a {@code LIMIT} or a {@code STATS} in it says nothing about where the rows of {@code plan} are.
+     */
+    private static void forEachDownInMainScope(LogicalPlan plan, Consumer<LogicalPlan> action) {
+        action.accept(plan);
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
+            forEachDownInMainScope(child, action);
+        }
     }
 
     /**

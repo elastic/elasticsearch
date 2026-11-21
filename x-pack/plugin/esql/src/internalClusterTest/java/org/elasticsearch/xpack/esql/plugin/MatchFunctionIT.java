@@ -20,6 +20,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -260,6 +261,43 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                 assertValues(resp.values(), List.of(List.of(2L, 6L)));
             }
         }
+    }
+
+    /**
+     * The subquery of IN runs as a query of its own: its LIMIT or STATS doesn't detach the rows of the main query from their
+     * documents.
+     */
+    public void testMatchInStatsFilterWithInSubquery() {
+        assumeTrue("requires WHERE IN subqueries", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        String limited = "id IN (FROM test_keyword | SORT id | LIMIT 3 | KEEP id)";
+        String max = "id IN (FROM test_keyword | STATS id = max(id))";
+        String match = "match(content, \"fox\")";
+        Map<String, List<Object>> queries = Map.of(
+            "WHERE " + limited + " | STATS c = count(*) WHERE " + match + ", d = count(*)",
+            List.of(1L, 3L),
+            "WHERE " + max + " | STATS c = count(*) WHERE " + match + ", d = count(*)",
+            List.of(1L, 1L),
+            "STATS c = count(*) WHERE " + match + " AND " + limited + ", d = count(*)",
+            List.of(1L, 6L),
+            "STATS c = count(*) WHERE " + match + ", d = count(*) WHERE " + limited,
+            List.of(2L, 3L),
+            "STATS c = count(*) WHERE " + match + ", d = count(*) WHERE " + max,
+            List.of(2L, 1L),
+            "WHERE " + limited + " | WHERE " + match + " | STATS c = count(*), d = count(*)",
+            List.of(1L, 1L)
+        );
+        for (var query : queries.entrySet()) {
+            try (var resp = run("FROM test | " + query.getKey())) {
+                assertColumnNames(resp.columns(), List.of("c", "d"));
+                assertValues(resp.values(), List.of(query.getValue()));
+            }
+        }
+
+        var error = expectThrows(
+            VerificationException.class,
+            () -> run("FROM test | WHERE " + limited + " | LIMIT 10 | STATS c = count(*) WHERE " + match + ", d = count(*)")
+        );
+        assertThat(error.getMessage(), containsString("[MATCH] function cannot be used after LIMIT"));
     }
 
     public void testMatchWithStats() {

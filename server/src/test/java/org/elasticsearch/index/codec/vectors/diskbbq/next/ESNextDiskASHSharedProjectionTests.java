@@ -50,7 +50,15 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
 
     private static IndexWriterConfig writerConfig() {
         IndexWriterConfig iwc = new IndexWriterConfig();
-        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(ESNextDiskASHTestFixture.ashFormat(null, -1)));
+        iwc.setCodec(
+            TestUtil.alwaysKnnVectorsFormat(
+                new ESNextDiskASHVectorsFormat(
+                    ESNextDiskASHVectorsFormat.MIN_VECTORS_PER_CLUSTER,
+                    ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                    null
+                )
+            )
+        );
         // keep each flush its own segment
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         iwc.setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH);
@@ -73,7 +81,7 @@ public class ESNextDiskASHSharedProjectionTests extends ESTestCase {
         Set<UUID> ids = new HashSet<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             FieldInfo fieldInfo = ctx.reader().getFieldInfos().fieldInfo(FIELD);
-            ids.add(ESNextDiskASHTestFixture.ashReader(ctx.reader(), FIELD).getProjectionMatrix(fieldInfo).id());
+            ids.add(ESNextDiskASHVectorsFormatTests.ashReader(ctx.reader(), FIELD).getProjectionMatrix(fieldInfo).id());
         }
         return ids;
     }

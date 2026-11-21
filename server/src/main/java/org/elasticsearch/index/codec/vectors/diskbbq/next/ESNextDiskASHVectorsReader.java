@@ -246,14 +246,6 @@ public class ESNextDiskASHVectorsReader extends IVFVectorsReader<ESNextDiskASHVe
         return fields.get(fieldInfo.number).ashBitsPerDim();
     }
 
-    /**
-     * Returns the number of named slices the given field has centroids for in this segment, for tests: -1 if the segment
-     * is not sliced, 0 if it is a single flat posting list.
-     */
-    int getNumSlicesForTest(FieldInfo fieldInfo) {
-        return fields.get(fieldInfo.number).numSlices();
-    }
-
     @Override
     public PostingVisitor getPostingVisitor(
         FieldInfo fieldInfo,

@@ -442,6 +442,32 @@ public class SearchContextStats implements SearchStats {
     }
 
     @Override
+    public boolean hasDeletions() {
+        for (SearchExecutionContext context : contexts) {
+            for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
+                if (leafContext.reader().hasDeletions()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public boolean hasPointsOrSkipper(FieldName field) {
+        // a shard that does not map the field holds no value for it, so it does not need metadata
+        for (SearchExecutionContext context : contexts) {
+            if (isExtractableMappedField(context, field.string())) {
+                var indexType = context.getFieldType(field.string()).indexType();
+                if (indexType.hasPoints() == false && indexType.hasDocValuesSkipper() == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    @Override
     public boolean isSingleValue(FieldName field) {
         String fieldName = field.string();
         var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);

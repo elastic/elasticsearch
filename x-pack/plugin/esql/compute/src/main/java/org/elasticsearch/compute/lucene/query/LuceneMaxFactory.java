@@ -115,6 +115,10 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             return skipper.maxValue() <= currentResult;
         }
 
+        public final boolean canSkipRange(long rangeMin, long rangeMax, long currentResult) {
+            return rangeMax <= currentResult;
+        }
+
         public final long evaluate(long value1, long value2) {
             return Math.max(value1, value2);
         }

@@ -882,11 +882,27 @@ public class LocalExecutionPlanner {
         EsStatsQueryExec.Stat stat = statsQuery.stat();
 
         EsPhysicalOperationProviders esProvider = (EsPhysicalOperationProviders) physicalOperationProviders;
-        var queryFunction = switch (stat) {
-            case EsStatsQueryExec.BasicStat basic -> esProvider.querySupplierForField(basic.filter(statsQuery.query()), basic.name());
-            case EsStatsQueryExec.ByStat byStat -> esProvider.querySupplier(byStat.queryBuilderAndTags());
+        final LuceneOperator.Factory luceneFactory = switch (stat) {
+            case EsStatsQueryExec.BasicStat basic -> esProvider.countSource(
+                context,
+                esProvider.querySupplierForField(basic.filter(statsQuery.query()), basic.name()),
+                stat.tagTypes(),
+                statsQuery.limit()
+            );
+            case EsStatsQueryExec.ByStat byStat -> esProvider.countSource(
+                context,
+                esProvider.querySupplier(byStat.queryBuilderAndTags()),
+                stat.tagTypes(),
+                statsQuery.limit()
+            );
+            case EsStatsQueryExec.MinMaxStat minMax -> esProvider.minMaxSource(
+                context,
+                esProvider.querySupplierForField(statsQuery.query(), minMax.name()),
+                minMax.name(),
+                minMax.elementType(),
+                minMax.functions()
+            );
         };
-        final LuceneOperator.Factory luceneFactory = esProvider.countSource(context, queryFunction, stat.tagTypes(), statsQuery.limit());
 
         Layout.Builder layout = new Layout.Builder();
         layout.append(statsQuery.outputSet());

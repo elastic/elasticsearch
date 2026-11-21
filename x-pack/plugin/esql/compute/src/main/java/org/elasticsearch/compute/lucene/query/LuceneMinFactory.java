@@ -116,6 +116,10 @@ public final class LuceneMinFactory extends LuceneOperator.Factory {
             return skipper.minValue() >= currentResult;
         }
 
+        public final boolean canSkipRange(long rangeMin, long rangeMax, long currentResult) {
+            return rangeMin >= currentResult;
+        }
+
         public final long evaluate(long value1, long value2) {
             return Math.min(value1, value2);
         }

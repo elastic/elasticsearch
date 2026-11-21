@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -262,6 +263,48 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
     }
 
+    /** Deleted documents are still described by segment metadata, so any segment with deletions must be reported. */
+    public void testHasDeletions() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final List<Closeable> toClose = new ArrayList<>();
+        try {
+            final List<SearchExecutionContext> clean = new ArrayList<>();
+            final List<SearchExecutionContext> dirty = new ArrayList<>();
+            for (boolean withDeletion : new boolean[] { false, true }) {
+                final MapperService mapperService = mapperHelper.createMapperService("""
+                    { "doc": { "properties": { "id": { "type": "keyword" }, "date": { "type": "date" }}}}""");
+                final Directory dir = newDirectory();
+                final IndexReader reader;
+                try (
+                    RandomIndexWriter writer = new RandomIndexWriter(
+                        random(),
+                        dir,
+                        newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+                    )
+                ) {
+                    writer.addDocument(List.of(new StringField("id", "1", Field.Store.NO)));
+                    writer.addDocument(List.of(new StringField("id", "2", Field.Store.NO)));
+                    writer.commit();
+                    if (withDeletion) {
+                        writer.deleteDocuments(new Term("id", "1"));
+                    }
+                    reader = writer.getReader();
+                }
+                toClose.add(reader);
+                toClose.add(mapperService);
+                toClose.add(dir);
+                (withDeletion ? dirty : clean).add(mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader)));
+            }
+            assertFalse(SearchContextStats.from(clean).hasDeletions());
+            assertTrue(SearchContextStats.from(dirty).hasDeletions());
+            final List<SearchExecutionContext> both = new ArrayList<>(clean);
+            both.addAll(dirty);
+            assertTrue(SearchContextStats.from(both).hasDeletions());
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
     /**
      * Verifies that {@code isSingleValue} correctly detects multi-valued keyword fields even when
      * the number of unique terms equals the number of documents — a case where the old heuristic
@@ -308,6 +351,34 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 "keyword field with MVs must not be reported as single-valued",
                 stats.isSingleValue(new FieldAttribute.FieldName("kw"))
             );
+        } finally {
+            IOUtils.close(reader, mapperService, dir);
+        }
+    }
+
+    /** Segment metadata shortcuts need points or a skipper: an indexed date has points, one with only doc values has neither. */
+    public void testHasPointsOrSkipper() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
+        final MapperService mapperService = mapperHelper.createMapperService("""
+            { "doc": { "properties": {
+                "indexed": { "type": "date" },
+                "doc_values_only": { "type": "date", "index": false },
+                "indexed_int": { "type": "integer" },
+                "doc_values_only_int": { "type": "integer", "index": false }
+            }}}""");
+        final Directory dir = newDirectory();
+        final IndexReader reader;
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+            writer.addDocument(List.of());
+            reader = writer.getReader();
+        }
+        try {
+            SearchExecutionContext ctx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
+            SearchStats stats = SearchContextStats.from(List.of(ctx));
+            assertTrue(stats.hasPointsOrSkipper(new FieldAttribute.FieldName("indexed")));
+            assertTrue(stats.hasPointsOrSkipper(new FieldAttribute.FieldName("indexed_int")));
+            assertFalse(stats.hasPointsOrSkipper(new FieldAttribute.FieldName("doc_values_only")));
+            assertFalse(stats.hasPointsOrSkipper(new FieldAttribute.FieldName("doc_values_only_int")));
         } finally {
             IOUtils.close(reader, mapperService, dir);
         }

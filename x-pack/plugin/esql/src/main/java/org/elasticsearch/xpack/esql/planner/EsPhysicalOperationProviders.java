@@ -22,6 +22,7 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
+import org.elasticsearch.compute.lucene.query.LuceneMinMaxFactory;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
@@ -834,6 +835,30 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             limit == null ? NO_LIMIT : (Integer) limit.fold(context.foldCtx()),
             directoryBytesRead,
             context.queryPragmas().minDocsPerSlice(LuceneSliceQueue.MIN_DOCS_PER_SLICE),
+            singleValueQueryWarnings
+        );
+    }
+
+    /**
+     * Build a {@link SourceOperator.SourceOperatorFactory} that computes {@code MIN}/{@code MAX} of a field from index metadata,
+     * scanning doc values only for segments where the metadata is not exact.
+     */
+    public LuceneMinMaxFactory minMaxSource(
+        LocalExecutionPlannerContext context,
+        Function<org.elasticsearch.compute.lucene.ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+        String fieldName,
+        ElementType elementType,
+        List<LuceneMinMaxFactory.Function> functions
+    ) {
+        return new LuceneMinMaxFactory(
+            shardContexts,
+            queryFunction,
+            context.queryPragmas().dataPartitioning(plannerSettings.defaultDataPartitioning()),
+            context.queryPragmas().taskConcurrency(),
+            fieldName,
+            elementType,
+            functions,
+            directoryBytesRead,
             singleValueQueryWarnings
         );
     }

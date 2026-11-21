@@ -1123,7 +1123,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
 
         @Override
         public MappedFieldType fieldType(String name) {
-            throw new UnsupportedOperationException();
+            return null;
         }
 
         @Override

@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.query.LuceneMinMaxFactory;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -19,10 +23,15 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.UnaryAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -74,6 +83,11 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
             aggregates = resolveAliases(aggregates, aliasReplacedBy);
         }
 
+        PhysicalPlan minMax = pushableMinMax(aggregateExec, queryExec, aggregates, context);
+        if (minMax != null) {
+            return minMax;
+        }
+
         var tuple = pushableStats(aggregateExec.groupings(), aggregates, context);
 
         // for the moment support pushing count just for one field
@@ -110,6 +124,95 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
         }
 
         return plan;
+    }
+
+    /**
+     * Replaces an ungrouped, unfiltered {@code MIN}/{@code MAX} aggregation over a single integer or date field with a stats source
+     * that answers from index metadata (points or doc values skipper) for segments without deletions, and scans doc values for the
+     * rest. All aggregates must be {@code MIN}/{@code MAX} over the same field, otherwise nothing is pushed. Nothing is pushed
+     * either if any segment has deletions.
+     *
+     * @return the stats source, or {@code null} if the aggregation cannot be pushed
+     */
+    private static PhysicalPlan pushableMinMax(
+        AggregateExec aggregateExec,
+        EsQueryExec queryExec,
+        List<? extends NamedExpression> aggregates,
+        LocalPhysicalOptimizerContext context
+    ) {
+        if (aggregateExec.getMode() != AggregatorMode.INITIAL || aggregateExec.groupings().isEmpty() == false || aggregates.isEmpty()) {
+            return null;
+        }
+        // a pushed limit or sort means the index-wide metadata no longer describes the matching documents
+        if (queryExec.limit() != null || (queryExec.sorts() != null && queryExec.sorts().isEmpty() == false)) {
+            return null;
+        }
+        FieldAttribute field = null;
+        List<LuceneMinMaxFactory.Function> functions = new ArrayList<>(aggregates.size());
+        for (NamedExpression agg : aggregates) {
+            if ((agg instanceof Alias alias && alias.child() instanceof UnaryAggregateFunction fn) == false) {
+                return null;
+            }
+            UnaryAggregateFunction fn = (UnaryAggregateFunction) ((Alias) agg).child();
+            if (fn.hasFilter() || fn.hasWindow() || fn.field() instanceof FieldAttribute == false) {
+                return null;
+            }
+            FieldAttribute fa = (FieldAttribute) fn.field();
+            if (field != null && field.fieldName().equals(fa.fieldName()) == false) {
+                return null;
+            }
+            field = fa;
+            if (fn instanceof Min) {
+                functions.add(LuceneMinMaxFactory.Function.MIN);
+            } else if (fn instanceof Max) {
+                functions.add(LuceneMinMaxFactory.Function.MAX);
+            } else {
+                return null;
+            }
+        }
+        if ((field.dataType() != DataType.INTEGER && field.dataType() != DataType.DATETIME)
+            || field.field() instanceof FunctionEsField
+            || field.field() instanceof UnionTypeEsField) {
+            return null;
+        }
+        // Any other pushed filter means the index-wide metadata no longer describes the matching documents. The exception is the
+        // "field exists" filter that InferNonNullAggConstraint adds for indexed fields: MIN/MAX ignore missing values anyway.
+        // This matches the exact filter that rule emits (see InferNonNullAggConstraint); if its shape changes this stops matching and
+        // the query silently falls back to the scan, so keep the two in step.
+        QueryBuilder query = queryExec.query();
+        if (query != null
+            && (query instanceof ExistsQueryBuilder exists && exists.fieldName().equals(field.fieldName().string())) == false) {
+            return null;
+        }
+        var stats = context.searchStats();
+        // Doc values are needed because segments that cannot use their metadata are scanned. Points or a skipper are needed because
+        // a field without either would be scanned on a single slice per shard, which is slower than the parallel scan this replaces.
+        // Multi-valued fields are fine: the segment bounds and the per-document minimum/maximum both cover every value.
+        if (stats.exists(field.fieldName()) == false
+            || stats.hasDocValues(field.fieldName()) == false
+            || stats.hasPointsOrSkipper(field.fieldName()) == false) {
+            return null;
+        }
+        // Cost check: skip pushdown if any segment has deletions. Such segments cannot use their metadata and would be scanned on
+        // a single slice, which is slower than the parallel scan this replaces.
+        // TODO: scan only the segments with deletions, in parallel, and answer the others from metadata.
+        if (stats.hasDeletions()) {
+            return null;
+        }
+        List<Attribute> intermediate = aggregateExec.intermediateAttributes();
+        if (intermediate.size() != 2 * aggregates.size()) {
+            return null;
+        }
+        ElementType elementType = field.dataType() == DataType.INTEGER ? ElementType.INT : ElementType.LONG;
+        return new EsStatsQueryExec(
+            aggregateExec.source(),
+            queryExec.indexPattern(),
+            // the exists filter is redundant for MIN/MAX, and dropping it lets segments with partial values use their metadata
+            null,
+            null,
+            intermediate,
+            new EsStatsQueryExec.MinMaxStat(field.fieldName().string(), elementType, functions)
+        );
     }
 
     /**

@@ -15,6 +15,8 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.query.LuceneMinMaxFactory;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
@@ -200,6 +202,19 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
         public boolean isSingleValue(FieldAttribute.FieldName field) {
+            return true;
+        }
+    };
+
+    /** No deleted documents, which is what the MIN/MAX metadata push down needs. */
+    private final SearchStats NO_DELETIONS_STATS = new TestSearchStats() {
+        @Override
+        public boolean hasDeletions() {
+            return false;
+        }
+
+        @Override
+        public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
             return true;
         }
     };
@@ -441,6 +456,169 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         // The filter leaves only rows with a single salary and a single emp_no, so both count the rows: one count, pushed down
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(false));
         assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(true));
+    }
+
+    /**
+     * Expects
+     * LimitExec[1000[INTEGER]]
+     * \_AggregateExec[[],[MIN(hire_date{f}#10) AS min_hd, MAX(hire_date{f}#10) AS max_hd],FINAL,null]
+     *   \_ExchangeExec[[$$min_hd$min{r}#20, $$min_hd$seen{r}#21, $$max_hd$max{r}#22, $$max_hd$seen{r}#23],true]
+     *     \_EsStatsQueryExec[test], stats[MinMaxStat[name=hire_date, elementType=LONG, functions=[MIN, MAX]]], query[][...], limit[],
+     */
+    public void testMinMaxDatePushedToStatsSource() {
+        var plan = plannerOptimizer.plan("from test | stats min_hd = min(hire_date), max_hd = max(hire_date)", NO_DELETIONS_STATS);
+        var statsQuery = minMaxStatsQueryFor(plan);
+        assertThat(Expressions.names(statsQuery.output()), contains("$$min_hd$min", "$$min_hd$seen", "$$max_hd$max", "$$max_hd$seen"));
+        // InferNonNullAggConstraint pushes "hire_date exists", which MIN/MAX do not need: no query is left on the stats source
+        assertThat(statsQuery.query(), is(nullValue()));
+        assertThat(statsQuery.limit(), is(nullValue()));
+        assertThat(
+            statsQuery.stat(),
+            equalTo(
+                new EsStatsQueryExec.MinMaxStat(
+                    "hire_date",
+                    ElementType.LONG,
+                    List.of(LuceneMinMaxFactory.Function.MIN, LuceneMinMaxFactory.Function.MAX)
+                )
+            )
+        );
+    }
+
+    /** The functions keep the order of the aggregates, which is the order of the intermediate output attributes. */
+    public void testMaxMinIntegerPushedToStatsSourceKeepsOrder() {
+        var plan = plannerOptimizer.plan("from test | stats mx = max(salary), mn = min(salary)", NO_DELETIONS_STATS);
+        var statsQuery = minMaxStatsQueryFor(plan);
+        assertThat(Expressions.names(statsQuery.output()), contains("$$mx$max", "$$mx$seen", "$$mn$min", "$$mn$seen"));
+        assertThat(
+            statsQuery.stat(),
+            equalTo(
+                new EsStatsQueryExec.MinMaxStat(
+                    "salary",
+                    ElementType.INT,
+                    List.of(LuceneMinMaxFactory.Function.MAX, LuceneMinMaxFactory.Function.MIN)
+                )
+            )
+        );
+    }
+
+    public void testSingleMinPushedToStatsSource() {
+        var plan = plannerOptimizer.plan("from test | stats m = min(emp_no)", NO_DELETIONS_STATS);
+        assertThat(
+            minMaxStatsQueryFor(plan).stat(),
+            equalTo(new EsStatsQueryExec.MinMaxStat("emp_no", ElementType.INT, List.of(LuceneMinMaxFactory.Function.MIN)))
+        );
+    }
+
+    public void testMinMaxThroughAliasPushedToStatsSource() {
+        var plan = plannerOptimizer.plan("from test | eval d = hire_date | stats min_d = min(d), max_d = max(d)", NO_DELETIONS_STATS);
+        var stat = as(minMaxStatsQueryFor(plan).stat(), EsStatsQueryExec.MinMaxStat.class);
+        assertThat(stat.name(), is("hire_date"));
+        assertThat(stat.functions(), contains(LuceneMinMaxFactory.Function.MIN, LuceneMinMaxFactory.Function.MAX));
+    }
+
+    public void testMinMaxNotPushedToStatsSource() {
+        for (String query : List.of(
+            // a filter means the index-wide metadata does not describe the matching documents
+            "from test | where salary > 1000 | stats min(hire_date), max(hire_date)",
+            "from test | limit 10 | stats min(hire_date), max(hire_date)",
+            "from test | stats min(hire_date), max(hire_date) by first_name",
+            // only min/max over a single field are supported together
+            "from test | stats min(hire_date), count(*)",
+            "from test | stats min(hire_date), max(salary)",
+            "from test | stats min(hire_date) where salary > 10",
+            // not a plain field
+            "from test | stats min(salary + 1)",
+            // unsupported types
+            "from test | stats max(first_name)",
+            "from test | stats min(long_noidx)"
+        )) {
+            var plan = plannerOptimizer.plan(query, NO_DELETIONS_STATS);
+            assertThat(query, plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+        }
+    }
+
+    /** Segment bounds still describe deleted documents, and scanning the segments with deletions on one slice is slower. */
+    public void testMinMaxNotPushedToStatsSourceWithDeletions() {
+        var withDeletions = new TestSearchStats() {
+            @Override
+            public boolean hasDeletions() {
+                return true;
+            }
+
+            @Override
+            public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+                return true;
+            }
+        };
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", withDeletions);
+        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+    }
+
+    /** The segment bounds and the per-document minimum/maximum cover every value, so a multi-valued field is pushed too. */
+    public void testMinMaxMultiValuedFieldPushedToStatsSource() {
+        var multiValued = new TestSearchStats() {
+            @Override
+            public boolean isSingleValue(FieldAttribute.FieldName field) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDeletions() {
+                return false;
+            }
+
+            @Override
+            public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+                return true;
+            }
+        };
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", multiValued);
+        assertThat(minMaxStatsQueryFor(plan).stat(), instanceOf(EsStatsQueryExec.MinMaxStat.class));
+    }
+
+    public void testMinMaxNotPushedToStatsSourceWithoutDocValues() {
+        var noDocValues = new TestSearchStats() {
+            @Override
+            public boolean hasDocValues(FieldAttribute.FieldName field) {
+                return false;
+            }
+
+            @Override
+            public boolean hasDeletions() {
+                return false;
+            }
+
+            @Override
+            public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+                return true;
+            }
+        };
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", noDocValues);
+        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+    }
+
+    /** Without points or a skipper the shard would be scanned on one slice, which is slower than the parallel scan. */
+    public void testMinMaxNotPushedToStatsSourceWithoutPointsOrSkipper() {
+        var noMetadata = new TestSearchStats() {
+            @Override
+            public boolean hasDeletions() {
+                return false;
+            }
+
+            @Override
+            public boolean hasPointsOrSkipper(FieldAttribute.FieldName field) {
+                return false;
+            }
+        };
+        var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)", noMetadata);
+        assertThat(plan.anyMatch(EsStatsQueryExec.class::isInstance), is(false));
+    }
+
+    private EsStatsQueryExec minMaxStatsQueryFor(PhysicalPlan plan) {
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        return as(exchange.child(), EsStatsQueryExec.class);
     }
 
     public void testAnotherCountAllWithFilter() {

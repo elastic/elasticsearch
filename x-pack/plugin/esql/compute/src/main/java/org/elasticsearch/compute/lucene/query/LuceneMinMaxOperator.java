@@ -9,9 +9,13 @@ package org.elasticsearch.compute.lucene.query;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -20,13 +24,14 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -56,6 +61,12 @@ final class LuceneMinMaxOperator extends LuceneOperator {
          */
         boolean canSkipLeaf(DocValuesSkipper skipper, long currentResult);
 
+        /**
+         * Return true if no value between {@code rangeMin} and {@code rangeMax}, such as the bounds of a block of documents, can
+         * improve {@code currentResult}.
+         */
+        boolean canSkipRange(long rangeMin, long rangeMax, long currentResult);
+
         /** Wraps the provided {@link SortedNumericDocValues} with a {@link MultiValueMode} */
         LongValues multiValueMode(SortedNumericDocValues sortedNumericDocValues);
 
@@ -73,9 +84,10 @@ final class LuceneMinMaxOperator extends LuceneOperator {
 
     private boolean seen = false;
     private int remainingDocs;
-    private long result;
+    /** One running result per function, in the same order as {@link #numberTypes}. */
+    private final long[] results;
 
-    private final NumberType numberType;
+    private final NumberType[] numberTypes;
 
     private final String fieldName;
 
@@ -90,11 +102,40 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         java.util.function.LongSupplier directoryBytesRead,
         QueryWarnings singleValueQueryWarnings
     ) {
+        this(
+            shardRefCounters,
+            driverContext,
+            sliceQueue,
+            fieldName,
+            new NumberType[] { numberType },
+            limit,
+            new long[] { initialResult },
+            directoryBytesRead,
+            singleValueQueryWarnings
+        );
+    }
+
+    /**
+     * Computes several min/max functions over the same field in one pass. The output page holds, for each function in order,
+     * the value block followed by the {@code seen} block.
+     */
+    LuceneMinMaxOperator(
+        IndexedByShardId<? extends RefCounted> shardRefCounters,
+        DriverContext driverContext,
+        LuceneSliceQueue sliceQueue,
+        String fieldName,
+        NumberType[] numberTypes,
+        int limit,
+        long[] initialResults,
+        java.util.function.LongSupplier directoryBytesRead,
+        QueryWarnings singleValueQueryWarnings
+    ) {
         super(shardRefCounters, driverContext, PAGE_SIZE, sliceQueue, directoryBytesRead, singleValueQueryWarnings, false);
+        assert numberTypes.length > 0 && numberTypes.length == initialResults.length;
         this.remainingDocs = limit;
-        this.numberType = numberType;
+        this.numberTypes = numberTypes;
         this.fieldName = fieldName;
-        this.result = initialResult;
+        this.results = initialResults.clone();
     }
 
     @Override
@@ -119,12 +160,16 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 }
                 final LeafReader reader = scorer.leafReaderContext().reader();
                 final Query query = scorer.weight().getQuery();
-                final DocValuesSkipper skipper = reader.getDocValuesSkipper(fieldName);
-                if (query == null || query instanceof MatchAllDocsQuery) {
-                    final PointValues pointValues = reader.getPointValues(fieldName);
-                    // only apply shortcut if we are visiting all documents, otherwise we need to trigger the search
-                    // on doc values as that's the order they are visited without push down.
-                    if (pointValues != null && pointValues.getDocCount() >= remainingDocs) {
+                // a field alias is resolved to the field that actually holds the data in this shard
+                final String field = backingFieldName(scorer.shardContext());
+                final DocValuesSkipper skipper = reader.getDocValuesSkipper(field);
+                // The planner builds match-all as a boost(0) match_all, so look through the boost/constant-score wrappers.
+                if (query == null || LuceneSourceOperator.Factory.unwrapQuery(query) instanceof MatchAllDocsQuery) {
+                    final PointValues pointValues = reader.getPointValues(field);
+                    // Only apply the shortcut if we are visiting all documents: with a limit that is smaller than the number of
+                    // documents we need to trigger the search on doc values, as that's the order they are visited without push down.
+                    // Without a limit every document is visited, so the segment bounds always apply.
+                    if (pointValues != null && (remainingDocs == NO_LIMIT || pointValues.getDocCount() >= remainingDocs)) {
                         final Bits liveDocs = reader.getLiveDocs();
                         if (liveDocs == null) {
                             // In data partitioning, we might have got the same segment previous
@@ -134,7 +179,9 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                             // we've already looked.
                             if (scorer.position() == 0) {
                                 seen = true;
-                                result = numberType.evaluate(result, numberType.fromPointValues(pointValues));
+                                for (int i = 0; i < numberTypes.length; i++) {
+                                    results[i] = numberTypes[i].evaluate(results[i], numberTypes[i].fromPointValues(pointValues));
+                                }
                                 if (remainingDocs != NO_LIMIT) {
                                     remainingDocs -= pointValues.getDocCount();
                                 }
@@ -147,7 +194,9 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                     if (scorer.isDone() == false && skipper != null && skipper.docCount() > 0 && reader.getLiveDocs() == null) {
                         if (scorer.position() == 0) {
                             seen = true;
-                            result = numberType.evaluate(result, numberType.fromSkipper(skipper));
+                            for (int i = 0; i < numberTypes.length; i++) {
+                                results[i] = numberTypes[i].evaluate(results[i], numberTypes[i].fromSkipper(skipper));
+                            }
                             if (remainingDocs != NO_LIMIT) {
                                 remainingDocs -= skipper.docCount();
                             }
@@ -155,46 +204,37 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                         scorer.markAsDone();
                     }
                 }
+                // A segment without any value for the field cannot change the result: skip it instead of iterating every document.
+                // Only without a limit, because a limit counts the documents that are visited.
+                if (scorer.isDone() == false && remainingDocs == NO_LIMIT && hasNoValues(reader, field, skipper)) {
+                    scorer.markAsDone();
+                }
                 // Leaf pruning: once we have a result, skip any segment whose skipper bound
                 // cannot improve it, regardless of the query.
-                if (scorer.isDone() == false && seen && skipper != null && numberType.canSkipLeaf(skipper, result)) {
+                if (scorer.isDone() == false && seen && skipper != null && canSkipLeaf(skipper)) {
                     scorer.markAsDone();
                 }
                 if (scorer.isDone() == false) {
                     // could not apply shortcut, trigger the search
-                    final LongValues values = numberType.multiValueMode(DocValues.getSortedNumeric(reader, fieldName));
-                    final LeafCollector leafCollector = new LeafCollector() {
-                        @Override
-                        public void setScorer(Scorable scorer) {}
-
-                        @Override
-                        public void collect(int doc) throws IOException {
-                            assert remainingDocs > 0;
-                            remainingDocs--;
-                            if (values.advanceExact(doc)) {
-                                seen = true;
-                                result = numberType.evaluate(result, values.longValue());
-                            }
-                        }
-                    };
-                    scorer.scoreNextRange(leafCollector, reader.getLiveDocs(), remainingDocs);
+                    scorer.scoreNextRange(newCollector(reader, field), reader.getLiveDocs(), remainingDocs);
                 }
             }
 
             Page page = null;
             // emit only one page
             if (isFinished() && pagesEmitted == 0) {
-                Block result = null;
-                BooleanBlock seen = null;
+                final Block[] blocks = new Block[numberTypes.length * 2];
                 try {
-                    result = this.seen
-                        ? numberType.buildResult(blockFactory, this.result, PAGE_SIZE)
-                        : numberType.buildEmptyResult(blockFactory, PAGE_SIZE);
-                    seen = blockFactory.newConstantBooleanBlockWith(this.seen, PAGE_SIZE);
-                    page = new Page(PAGE_SIZE, result, seen);
+                    for (int i = 0; i < numberTypes.length; i++) {
+                        blocks[2 * i] = this.seen
+                            ? numberTypes[i].buildResult(blockFactory, results[i], PAGE_SIZE)
+                            : numberTypes[i].buildEmptyResult(blockFactory, PAGE_SIZE);
+                        blocks[2 * i + 1] = blockFactory.newConstantBooleanBlockWith(this.seen, PAGE_SIZE);
+                    }
+                    page = new Page(PAGE_SIZE, blocks);
                 } finally {
                     if (page == null) {
-                        Releasables.closeExpectNoException(result, seen);
+                        Releasables.closeExpectNoException(blocks);
                     }
                 }
             }
@@ -202,6 +242,119 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+    }
+
+    /**
+     * Collects the values of the documents the query matches. Without a limit, documents in blocks that cannot improve any result
+     * are not read: the skipper bounds of a block cover every document of the block, matching or not, so the check is conservative.
+     */
+    private LeafCollector newCollector(LeafReader reader, String field) throws IOException {
+        final SortedNumericDocValues sorted = DocValues.getSortedNumeric(reader, field);
+        // a single valued field is read once per document for all functions
+        final NumericDocValues single = DocValues.unwrapSingleton(sorted);
+        final LongValues[] perFunction;
+        if (single == null) {
+            // the multi value mode wrappers are stateful and must not share one iterator
+            perFunction = new LongValues[numberTypes.length];
+            for (int i = 0; i < numberTypes.length; i++) {
+                perFunction[i] = numberTypes[i].multiValueMode(i == 0 ? sorted : DocValues.getSortedNumeric(reader, field));
+            }
+        } else {
+            perFunction = null;
+        }
+        // a limit counts the documents that are visited, so no document can be skipped then
+        final DocValuesSkipper blockSkipper = remainingDocs == NO_LIMIT ? reader.getDocValuesSkipper(field) : null;
+        return new LeafCollector() {
+            private int blockMin = -1;
+            private int blockMax = -1;
+            private boolean blockSkippable;
+
+            @Override
+            public void setScorer(Scorable scorer) {}
+
+            @Override
+            public void collect(int doc) throws IOException {
+                assert remainingDocs > 0;
+                // keep the no-limit marker: counting down from it would disable the shortcut for later segments
+                if (remainingDocs != NO_LIMIT) {
+                    remainingDocs--;
+                }
+                if (blockSkipper != null && skipsBlockOf(doc)) {
+                    return;
+                }
+                if (single != null) {
+                    if (single.advanceExact(doc)) {
+                        seen = true;
+                        final long value = single.longValue();
+                        for (int i = 0; i < numberTypes.length; i++) {
+                            results[i] = numberTypes[i].evaluate(results[i], value);
+                        }
+                    }
+                    return;
+                }
+                for (int i = 0; i < perFunction.length; i++) {
+                    if (perFunction[i].advanceExact(doc)) {
+                        seen = true;
+                        results[i] = numberTypes[i].evaluate(results[i], perFunction[i].longValue());
+                    }
+                }
+            }
+
+            /** Whether the document has no value or sits in a block that cannot improve any result. */
+            private boolean skipsBlockOf(int doc) throws IOException {
+                if (doc > blockMax) {
+                    blockSkipper.advance(doc);
+                    blockMin = blockSkipper.minDocID(0);
+                    if (blockMin == DocIdSetIterator.NO_MORE_DOCS) {
+                        // no block is left: no later document has a value
+                        blockMax = Integer.MAX_VALUE;
+                    } else {
+                        blockMax = blockSkipper.maxDocID(0);
+                        blockSkippable = seen && canSkipBlock(blockSkipper);
+                    }
+                }
+                if (blockMin == DocIdSetIterator.NO_MORE_DOCS) {
+                    return true;
+                }
+                // a document before the block is in a gap without values
+                return doc < blockMin || blockSkippable;
+            }
+        };
+    }
+
+    /** A block can be skipped only when no function can improve its current result with the values of the block. */
+    private boolean canSkipBlock(DocValuesSkipper skipper) {
+        for (int i = 0; i < numberTypes.length; i++) {
+            if (numberTypes[i].canSkipRange(skipper.minValue(0), skipper.maxValue(0), results[i]) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether the segment holds no value at all for the field: it is not in the segment, or no document has a value. */
+    private static boolean hasNoValues(LeafReader reader, String field, DocValuesSkipper skipper) {
+        if (skipper != null) {
+            return skipper.docCount() == 0;
+        }
+        FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(field);
+        return fieldInfo == null || (fieldInfo.getDocValuesType() == DocValuesType.NONE && fieldInfo.getPointDimensionCount() == 0);
+    }
+
+    /** The name of the field that holds the data in the given shard: differs from {@link #fieldName} for a field alias. */
+    private String backingFieldName(ShardContext shardContext) {
+        MappedFieldType fieldType = shardContext.fieldType(fieldName);
+        return fieldType == null ? fieldName : fieldType.name();
+    }
+
+    /** A leaf can be skipped only when no function can improve its current result. */
+    private boolean canSkipLeaf(DocValuesSkipper skipper) {
+        for (int i = 0; i < numberTypes.length; i++) {
+            if (numberTypes[i].canSkipLeaf(skipper, results[i]) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

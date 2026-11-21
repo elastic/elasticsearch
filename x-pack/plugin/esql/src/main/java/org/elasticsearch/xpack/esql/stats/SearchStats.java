@@ -61,6 +61,24 @@ public interface SearchStats {
 
     boolean isSingleValue(FieldName field);
 
+    /**
+     * Whether every shard that maps {@code field} indexes it with points or a doc values skipper, which the segment metadata
+     * shortcuts, such as the {@code MIN}/{@code MAX} push-down, read. Without either, such a shortcut cannot apply and the
+     * whole shard would be scanned. Unknown counts as {@code false}.
+     */
+    default boolean hasPointsOrSkipper(FieldName field) {
+        return false;
+    }
+
+    /**
+     * Whether any segment behind these stats holds deleted documents. Segment level metadata, such as the minimum and maximum
+     * of a field, still describes the deleted documents, so it cannot answer a question about the live ones. Unknown
+     * counts as {@code true}.
+     */
+    default boolean hasDeletions() {
+        return true;
+    }
+
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
     /**

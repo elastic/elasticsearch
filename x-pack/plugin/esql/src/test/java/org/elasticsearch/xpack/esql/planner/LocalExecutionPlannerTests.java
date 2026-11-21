@@ -42,6 +42,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneMinMaxFactory;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -145,6 +146,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.DistinctByExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
@@ -189,6 +191,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -1020,6 +1023,44 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
         var blockLoader = constructBlockLoader();
         assertThat(blockLoader.loader(), sameInstance(ConstantNull.INSTANCE));
+    }
+
+    /**
+     * A {@link EsStatsQueryExec.MinMaxStat} is planned into a {@link LuceneMinMaxFactory} that carries the field, element type and
+     * functions of the stat, and not into the count operator used by the other stats.
+     */
+    public void testMinMaxStatPlansLuceneMinMaxFactory() throws IOException {
+        List<Attribute> intermediate = List.of(
+            new ReferenceAttribute(Source.EMPTY, "min", DataType.DATETIME),
+            new ReferenceAttribute(Source.EMPTY, "min$seen", DataType.BOOLEAN),
+            new ReferenceAttribute(Source.EMPTY, "max", DataType.DATETIME),
+            new ReferenceAttribute(Source.EMPTY, "max$seen", DataType.BOOLEAN)
+        );
+        EsStatsQueryExec statsExec = new EsStatsQueryExec(
+            Source.EMPTY,
+            EsIndexGenerator.esIndex("test").name(),
+            null,
+            null,
+            intermediate,
+            new EsStatsQueryExec.MinMaxStat(
+                "date",
+                ElementType.LONG,
+                List.of(LuceneMinMaxFactory.Function.MIN, LuceneMinMaxFactory.Function.MAX)
+            )
+        );
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            statsExec,
+            EmptyIndexedByShardId.instance(),
+            randomBoolean()
+        );
+        LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
+        var factory = (LuceneMinMaxFactory) supplier.physicalOperation().sourceOperatorFactory;
+        String description = factory.describe();
+        assertThat(description, startsWith("LuceneMinMaxOperator[type = LONG, functions = [MIN, MAX], dataPartitioning = "));
+        assertThat(description, endsWith(", fieldName = date]"));
     }
 
     public void testTimeSeries() throws IOException {

@@ -18,6 +18,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
+import java.util.BitSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 // end generated imports
@@ -123,16 +124,35 @@ public final class LongArrayVector extends AbstractVector implements LongVector 
             }
             return (LongBlock) blockFactory().newConstantNullBlock(getPositionCount());
         }
-        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(getPositionCount())) {
-            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
-            for (int p = 0; p < getPositionCount(); p++) {
-                if (mask.getBoolean(p)) {
-                    builder.appendLong(getLong(p));
-                } else {
-                    builder.appendNull();
+        int positionCount = getPositionCount();
+        long reserved = BlockRamUsageEstimator.sizeOfBitSet(positionCount);
+        blockFactory().adjustBreaker(reserved);
+        try {
+            BitSet nulls = new BitSet(positionCount);
+            int nullCount = 0;
+            for (int p = 0; p < positionCount; p++) {
+                if (mask.getBoolean(p) == false) {
+                    nulls.set(p);
+                    nullCount++;
                 }
             }
-            return builder.build();
+            if (nullCount == 0) {
+                incRef();
+                return new LongVectorBlock(this);
+            }
+            if (nullCount == positionCount) {
+                return (LongBlock) blockFactory().newConstantNullBlock(positionCount);
+            }
+            LongArrayBlock result = new LongArrayBlock(this, positionCount, null, nulls, Block.MvOrdering.UNORDERED);
+            blockFactory().adjustBreaker(result.ramBytesUsedOnlyBlock() - reserved);
+            reserved = 0;
+            // incRef after adjusting the breaker so we don't leak the vector if the breaker trips.
+            incRef();
+            return result;
+        } finally {
+            if (reserved != 0) {
+                blockFactory().adjustBreaker(-reserved);
+            }
         }
     }
 

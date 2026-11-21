@@ -24,10 +24,12 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.expression.LoadFromPageEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -1382,6 +1384,220 @@ public class CaseExtraTests extends ESTestCase {
                 }
             }
             assertThat(seen.seen("e"), equalTo(expectedElse));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testCaseEagerNullElseUsesKeepMask() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+
+        // Explicit null else and implied null else with vector, nullable array block, multivalued array block, and ordinal bytes.
+        for (boolean explicitNull : new boolean[] { true, false }) {
+            Case longCase = explicitNull
+                ? new Case(
+                    Source.synthetic("<case>"),
+                    field("c", DataType.BOOLEAN),
+                    List.of(field("v", DataType.LONG), new Literal(Source.EMPTY, null, DataType.NULL))
+                )
+                : new Case(Source.synthetic("<case>"), field("c", DataType.BOOLEAN), List.of(field("v", DataType.LONG)));
+            EvaluatorMapper.ToEvaluator longMapper = new EvaluatorMapper.ToEvaluator() {
+                @Override
+                public ExpressionEvaluator.Factory apply(Expression expression) {
+                    if (expression instanceof FieldAttribute fa) {
+                        return new LoadFromPageEvaluator.Factory(fa.name().equals("c") ? 0 : 1);
+                    }
+                    return new ExpressionEvaluator.Factory() {
+                        @Override
+                        public ExpressionEvaluator get(DriverContext ctx) {
+                            return new ExpressionEvaluator() {
+                                @Override
+                                public Block eval(Page page) {
+                                    throw new AssertionError("null literal else should not be evaluated on mixed mask");
+                                }
+
+                                @Override
+                                public long baseRamBytesUsed() {
+                                    return 0;
+                                }
+
+                                @Override
+                                public void close() {}
+                            };
+                        }
+
+                        @Override
+                        public boolean eagerEvalSafeInLazy() {
+                            return true;
+                        }
+                    };
+                }
+
+                @Override
+                public FoldContext foldCtx() {
+                    return FoldContext.small();
+                }
+            };
+            // Dense vector with mixed, null, and multivalued conditions
+            Page vectorPage = new Page(
+                booleans(blockFactory, true, false, null, List.of(true, false), true),
+                longs(blockFactory, 10L, 20L, 30L, 40L, 50L)
+            );
+            try (
+                ExpressionEvaluator evaluator = longCase.toEvaluator(longMapper).get(driverContext);
+                Block result = evaluator.eval(vectorPage)
+            ) {
+                assertThat(evaluator.toString(), containsString("CaseEagerEvaluator["));
+                assertThat(toJavaObject(result, 0), equalTo(10L));
+                assertThat(toJavaObject(result, 1), nullValue());
+                assertThat(toJavaObject(result, 2), nullValue());
+                assertThat(toJavaObject(result, 3), nullValue());
+                assertThat(toJavaObject(result, 4), equalTo(50L));
+            } finally {
+                vectorPage.releaseBlocks();
+            }
+
+            // Nullable + multivalued array block
+            Page mvPage = new Page(
+                booleans(blockFactory, true, true, false, true, false),
+                longs(blockFactory, List.of(1L, 2L), null, 30L, 40L, List.of(5L, 6L))
+            );
+            try (
+                ExpressionEvaluator evaluator = longCase.toEvaluator(longMapper).get(driverContext);
+                Block result = evaluator.eval(mvPage)
+            ) {
+                assertThat(toJavaObject(result, 0), equalTo(List.of(1L, 2L)));
+                assertThat(toJavaObject(result, 1), nullValue());
+                assertThat(toJavaObject(result, 2), nullValue());
+                assertThat(toJavaObject(result, 3), equalTo(40L));
+                assertThat(toJavaObject(result, 4), nullValue());
+            } finally {
+                mvPage.releaseBlocks();
+            }
+
+            // OrdinalBytesRefBlock keeps its dictionary through keepMask
+            Case keywordCase = explicitNull
+                ? new Case(
+                    Source.synthetic("<case>"),
+                    field("c", DataType.BOOLEAN),
+                    List.of(field("v", DataType.KEYWORD), new Literal(Source.EMPTY, null, DataType.NULL))
+                )
+                : new Case(Source.synthetic("<case>"), field("c", DataType.BOOLEAN), List.of(field("v", DataType.KEYWORD)));
+            BytesRefBlock ordinalBlock;
+            try (var ordinalsBuilder = blockFactory.newIntBlockBuilder(2); var dictBuilder = blockFactory.newBytesRefVectorBuilder(2)) {
+                ordinalsBuilder.appendInt(0);
+                ordinalsBuilder.appendInt(1);
+                dictBuilder.appendBytesRef(new BytesRef("a"));
+                dictBuilder.appendBytesRef(new BytesRef("b"));
+                ordinalBlock = new OrdinalBytesRefBlock(ordinalsBuilder.build(), dictBuilder.build());
+            }
+            Page ordinalPage = new Page(booleans(blockFactory, true, false), ordinalBlock);
+            try (
+                ExpressionEvaluator evaluator = keywordCase.toEvaluator(longMapper).get(driverContext);
+                Block result = evaluator.eval(ordinalPage)
+            ) {
+                assertThat(evaluator.toString(), containsString("CaseEagerEvaluator["));
+                assertTrue("expected OrdinalBytesRefBlock from keepMask, got " + result.getClass(), result instanceof OrdinalBytesRefBlock);
+                assertThat(toJavaObject(result, 0), equalTo(new BytesRef("a")));
+                assertThat(toJavaObject(result, 1), nullValue());
+            } finally {
+                ordinalPage.releaseBlocks();
+            }
+        }
+    }
+
+    public void testCaseEagerAllNullElseColumnUsesKeepMask() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        Case caseExpr = caseOfFields("c", "v", "e");
+        Map<String, Integer> channels = Map.of("c", 0, "v", 1, "e", 2);
+        EvaluatorMapper.ToEvaluator mapper = new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                return new LoadFromPageEvaluator.Factory(channels.get(((FieldAttribute) expression).name()));
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
+        };
+        Page page = new Page(
+            booleans(blockFactory, true, false, true, false),
+            longs(blockFactory, 1L, 2L, null, 4L),
+            blockFactory.newConstantNullBlock(4)
+        );
+        try (ExpressionEvaluator evaluator = caseExpr.toEvaluator(mapper).get(driverContext); Block result = evaluator.eval(page)) {
+            assertThat(evaluator.toString(), containsString("CaseEagerEvaluator["));
+            assertThat(toJavaObject(result, 0), equalTo(1L));
+            assertThat(toJavaObject(result, 1), nullValue());
+            assertThat(toJavaObject(result, 2), nullValue());
+            assertThat(toJavaObject(result, 3), nullValue());
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testCaseEagerMultiValuedTDigestNullElse() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        Case caseExpr = new Case(
+            Source.synthetic("<case>"),
+            field("c", DataType.BOOLEAN),
+            List.of(field("v", DataType.TDIGEST), new Literal(Source.EMPTY, null, DataType.NULL))
+        );
+        EvaluatorMapper.ToEvaluator mapper = new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                if (expression instanceof FieldAttribute fa) {
+                    return new LoadFromPageEvaluator.Factory(fa.name().equals("c") ? 0 : 1);
+                }
+                return new ExpressionEvaluator.Factory() {
+                    @Override
+                    public ExpressionEvaluator get(DriverContext ctx) {
+                        return new ExpressionEvaluator() {
+                            @Override
+                            public Block eval(Page page) {
+                                return ctx.blockFactory().newConstantNullBlock(page.getPositionCount());
+                            }
+
+                            @Override
+                            public long baseRamBytesUsed() {
+                                return 0;
+                            }
+
+                            @Override
+                            public void close() {}
+                        };
+                    }
+
+                    @Override
+                    public boolean eagerEvalSafeInLazy() {
+                        return true;
+                    }
+                };
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
+        };
+        TDigestBlock mvTDigest;
+        try (var builder = blockFactory.newTDigestBlockBuilder(2)) {
+            builder.beginPositionEntry();
+            builder.appendTDigest(BlockTestUtils.randomTDigest());
+            builder.appendTDigest(BlockTestUtils.randomTDigest());
+            builder.endPositionEntry();
+            builder.appendTDigest(BlockTestUtils.randomTDigest());
+            mvTDigest = builder.build();
+        }
+        Page page = new Page(booleans(blockFactory, true, false), mvTDigest);
+        try (ExpressionEvaluator evaluator = caseExpr.toEvaluator(mapper).get(driverContext); Block result = evaluator.eval(page)) {
+            assertThat(evaluator.toString(), containsString("CaseEagerEvaluator["));
+            assertThat(result.getValueCount(0), equalTo(2));
+            assertTrue(result.isNull(1));
         } finally {
             page.releaseBlocks();
         }

@@ -1,0 +1,262 @@
+---
+"Switch to columnar through a component template with multi_value":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "the effective mappings of a data stream are validated with the index mode of the template and its component templates"
+
+  # The write index is created from a template without an index mode, so it is a standard index.
+  - do:
+      allowed_warnings:
+        - "index template [mv-template] has index patterns [mv-ds*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [mv-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: mv-template
+        body:
+          index_patterns: [ "mv-ds*" ]
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      indices.create_data_stream:
+        name: mv-ds
+
+  # The index mode comes from a component template.
+  - do:
+      cluster.put_component_template:
+        name: mv-settings
+        body:
+          template:
+            settings:
+              index.mode: columnar
+
+  # multi_value is only valid in columnar index modes. The write index keeps the standard mode until the next rollover.
+  - do:
+      allowed_warnings:
+        - "index template [mv-template] has index patterns [mv-ds*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [mv-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: mv-template
+        body:
+          index_patterns: [ "mv-ds*" ]
+          data_stream: {}
+          composed_of: [ mv-settings ]
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                kw:
+                  type: keyword
+                  multi_value: false
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: mv-ds
+  - match: { data_streams.0.name: mv-ds }
+  - match: { data_streams.0.effective_mappings.properties.kw.type: keyword }
+
+---
+"Switch the template from time_series to columnar with multi_value":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "the effective mappings of a data stream are validated with the index mode of the template"
+
+  # The write index is a time_series index with an index.routing_path, which columnar index modes reject.
+  - do:
+      allowed_warnings:
+        - "index template [tsdb-mv-template] has index patterns [tsdb-mv-ds*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsdb-mv-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsdb-mv-template
+        body:
+          index_patterns: [ "tsdb-mv-ds*" ]
+          data_stream: {}
+          template:
+            settings:
+              index.mode: time_series
+              index.routing_path: [ dim ]
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      indices.create_data_stream:
+        name: tsdb-mv-ds
+
+  - do:
+      allowed_warnings:
+        - "index template [tsdb-mv-template] has index patterns [tsdb-mv-ds*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsdb-mv-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsdb-mv-template
+        body:
+          index_patterns: [ "tsdb-mv-ds*" ]
+          data_stream: {}
+          template:
+            settings:
+              index.mode: columnar
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: keyword
+                kw:
+                  type: keyword
+                  multi_value: false
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: tsdb-mv-ds
+  - match: { data_streams.0.name: tsdb-mv-ds }
+  - match: { data_streams.0.effective_mappings.properties.kw.type: keyword }
+
+  - do:
+      indices.put_data_stream_mappings:
+        name: tsdb-mv-ds
+        body:
+          properties:
+            name:
+              type: keyword
+  - match: { data_streams.0.name: tsdb-mv-ds }
+  - match: { data_streams.0.applied_to_data_stream: true }
+
+---
+"Switch to logsdb with a routing partition size":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "the effective mappings of a data stream are validated with the index mode of the template"
+
+  - do:
+      allowed_warnings:
+        - "index template [partition-template] has index patterns [partition-ds*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [partition-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: partition-template
+        body:
+          index_patterns: [ "partition-ds*" ]
+          data_stream: { allow_custom_routing: true }
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      indices.create_data_stream:
+        name: partition-ds
+
+  # Without a shard count, a partition size above 1 is valid, because index creation computes more routing shards than the partition size.
+  - do:
+      allowed_warnings:
+        - "index template [partition-template] has index patterns [partition-ds*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [partition-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: partition-template
+        body:
+          index_patterns: [ "partition-ds*" ]
+          data_stream: { allow_custom_routing: true }
+          template:
+            settings:
+              index.mode: logsdb
+              index.routing_partition_size: 2
+            mappings:
+              _routing:
+                required: true
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: partition-ds
+  - match: { data_streams.0.name: partition-ds }
+  - match: { data_streams.0.effective_mappings._routing.required: true }
+
+---
+"Switch to time_series without a routing path":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+      cluster_features: [ "mapper.columnar.template_mode_validation_fix" ]
+      reason: "the effective mappings of a data stream are validated with the index mode of the template"
+
+  - do:
+      allowed_warnings:
+        - "index template [tsdb-switch-template] has index patterns [tsdb-switch-ds*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsdb-switch-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsdb-switch-template
+        body:
+          index_patterns: [ "tsdb-switch-ds*" ]
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: keyword
+
+  - do:
+      indices.create_data_stream:
+        name: tsdb-switch-ds
+
+  # The time_series index setting provider computes the routing path from the dimensions, so the template does not set one.
+  - do:
+      allowed_warnings:
+        - "index template [tsdb-switch-template] has index patterns [tsdb-switch-ds*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [tsdb-switch-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: tsdb-switch-template
+        body:
+          index_patterns: [ "tsdb-switch-ds*" ]
+          data_stream: {}
+          template:
+            settings:
+              index.mode: time_series
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      indices.get_data_stream_mappings:
+        name: tsdb-switch-ds
+  - match: { data_streams.0.name: tsdb-switch-ds }
+  - match: { data_streams.0.effective_mappings.properties.dim.time_series_dimension: true }
+
+  # The index setting providers get the template's mode, so they add the time_series settings that the next write index gets.
+  - do:
+      indices.get_data_stream_settings:
+        name: tsdb-switch-ds
+  - match: { data_streams.0.name: tsdb-switch-ds }
+  - match: { data_streams.0.effective_settings.index.mode: time_series }
+  - is_true: data_streams.0.effective_settings.index.time_series.start_time
+
+  # Updating the data stream settings validates them with the same time_series settings.
+  - do:
+      indices.put_data_stream_settings:
+        name: tsdb-switch-ds
+        body:
+          index:
+            number_of_replicas: 0
+  - match: { data_streams.0.name: tsdb-switch-ds }
+  - match: { data_streams.0.applied_to_data_stream: true }
+
+  # Updating the data stream mappings runs the index setting providers with the template's mode, so the routing path is computed.
+  - do:
+      indices.put_data_stream_mappings:
+        name: tsdb-switch-ds
+        body:
+          properties:
+            name:
+              type: keyword
+  - match: { data_streams.0.name: tsdb-switch-ds }
+  - match: { data_streams.0.applied_to_data_stream: true }
+  - match: { data_streams.0.effective_mappings.properties.name.type: keyword }

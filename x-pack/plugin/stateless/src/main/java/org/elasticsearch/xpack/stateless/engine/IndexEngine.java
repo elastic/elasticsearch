@@ -14,9 +14,11 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.StandardDirectoryReader;
@@ -1089,7 +1091,16 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
+        // the index writer wraps the merges on full flush in merges that do not forward their abort, which the warmer would not see
+        assert iwc.getMaxFullFlushMergeWaitMillis() <= 0 : "merges on full flush are not supported";
+        return super.createWriter(directory, iwc);
+    }
+
+    @Override
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
+        // called while the engine is being constructed, before the fields of the engine are set
+        final var warmer = engineConfig.getMergedSegmentWarmer() instanceof MergedSegmentWarmer w ? w : null;
         return new OneMergeWrappingMergePolicy(mergePolicy, oneMerge -> new SizeTrackingOneMerge(oneMerge) {
             private volatile boolean isComplete = false;
 
@@ -1115,7 +1126,20 @@ public class IndexEngine extends InternalEngine {
             @Override
             public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
                 isComplete = true;
+                final var mergeInfo = getMergeInfo();
+                if (warmer != null && mergeInfo != null) {
+                    warmer.onMergeFinished(mergeInfo, this);
+                }
                 super.mergeFinished(success, segmentDropped);
+            }
+
+            // the index writer sets the merged segment before it warms it
+            @Override
+            public void setMergeInfo(SegmentCommitInfo info) {
+                super.setMergeInfo(info);
+                if (warmer != null) {
+                    warmer.onMergeStarted(info, this);
+                }
             }
         });
     }

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
@@ -217,7 +218,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public EsqlStatement visitStatements(EsqlBaseParser.StatementsContext ctx) {
         List<QuerySetting> settings = new ArrayList<>();
         for (EsqlBaseParser.SetCommandContext setCommandContext : ctx.setCommand()) {
-            settings.add(visitSetCommand(setCommandContext));
+            QuerySetting setting = visitSetCommand(setCommandContext);
+            settings.add(setting);
+            if (anyParamValue() != null && setting.name().equals(QuerySettings.PARAM_ANY_VALUE.name())) {
+                applyAnyParamValueSetting(setCommandContext, setting);
+            }
         }
 
         List<LetBinding> letBindings = new ArrayList<>(ctx.letCommand().size());
@@ -232,6 +237,27 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         LogicalPlan query = visitSingleStatement(ctx.singleStatement());
         return new EsqlStatement(query, settings, letBindings);
+    }
+
+    /**
+     * Makes a {@code SET param_any_value} the value of the statement's reserved parameter value, so the last one wins, as it does
+     * when {@link QuerySettings#resolve} folds the settings. Parameters are decided with this value, so it can't come from one.
+     * A value of another type or an empty one is left as it is: the settings validation rejects it right after the parsing.
+     */
+    private void applyAnyParamValueSetting(EsqlBaseParser.SetCommandContext ctx, QuerySetting setting) {
+        if (ctx.setField().constant() instanceof EsqlBaseParser.InputParameterContext) {
+            throw new ParsingException(setting.source(), "Setting [{}] can't be set with a parameter", setting.name());
+        }
+        // a list of strings is a keyword literal too
+        if (setting.value() instanceof Literal literal
+            && literal.dataType() == DataType.KEYWORD
+            && literal.value() != null
+            && literal.value() instanceof List<?> == false) {
+            String value = BytesRefs.toString(literal.value());
+            if (value.isEmpty() == false) {
+                anyParamValue(value);
+            }
+        }
     }
 
     @Override

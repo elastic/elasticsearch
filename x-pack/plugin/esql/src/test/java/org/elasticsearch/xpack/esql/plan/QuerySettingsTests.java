@@ -225,6 +225,90 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
+    public void testValidate_ParamAnyValue() {
+        var setting = QuerySettings.PARAM_ANY_VALUE;
+
+        assertDefault(setting, equalTo("__ANY__"));
+
+        assertValid(setting, of("*"), equalTo("*"));
+        assertValid(setting, of("__ALL__"), equalTo("__ALL__"));
+
+        assertInvalid(setting.name(), of(""), "Error validating setting [param_any_value]: must not be empty");
+        assertInvalid(setting.name(), Literal.integer(Source.EMPTY, 1), "Setting [param_any_value] must be of type KEYWORD");
+        assertInvalid(setting.name(), Literal.fromBoolean(Source.EMPTY, true), "Setting [param_any_value] must be of type KEYWORD");
+    }
+
+    public void testParamAnyValueIsSnapshotOnly() {
+        var setting = QuerySettings.PARAM_ANY_VALUE;
+
+        assertThat(setting.snapshotOnly(), is(true));
+        assertThat(QuerySettings.applicableIn(true, false), hasItem(setting));
+        assertThat(QuerySettings.applicableIn(false, false), not(hasItem(setting)));
+        assertThat(QuerySettings.applicableIn(false, true), not(hasItem(setting)));
+
+        // SET is rejected while parsing
+        assertInvalid(
+            setting.name(),
+            new SettingsValidationContext(false, false),
+            of("__ANY__"),
+            "Setting [param_any_value] is only available in snapshot builds"
+        );
+        // the request body is rejected while resolving
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> QuerySettings.resolve(Map.of(QuerySettings.PARAM_ANY_VALUE, "*"), null, NON_SNAPSHOT_CTX_WITH_CPS_ENABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Setting [param_any_value] is only available in snapshot builds"));
+    }
+
+    public void testParamAnyValueIsRequestBodyExposedWithoutAliasOrClusterDefault() {
+        var setting = QuerySettings.PARAM_ANY_VALUE;
+
+        assertThat(setting.requestBody(), is(true));
+        assertThat(setting.aliases().isEmpty(), is(true));
+        assertThat(setting.clusterSetting(), is(nullValue()));
+    }
+
+    public void testResolveParamAnyValuePrecedence() {
+        // Nothing supplied it: the default applies, on release builds too, as the parser decides if it uses it.
+        assertThat(
+            QuerySettings.PARAM_ANY_VALUE.get(QuerySettings.resolve(Map.of(), null, NON_SNAPSHOT_CTX_WITH_CPS_ENABLED)),
+            equalTo("__ANY__")
+        );
+        assertThat(
+            QuerySettings.PARAM_ANY_VALUE.get(QuerySettings.resolve(Map.of(), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)),
+            equalTo("__ANY__")
+        );
+
+        // The request overrides the default.
+        Map<QuerySettingDef<?>, Object> requestParams = Map.of(QuerySettings.PARAM_ANY_VALUE, "*");
+        assertThat(
+            QuerySettings.PARAM_ANY_VALUE.get(QuerySettings.resolve(requestParams, null, SNAPSHOT_CTX_WITH_CPS_ENABLED)),
+            equalTo("*")
+        );
+
+        // A SET overrides the request, and the last SET wins.
+        EsqlStatement statement = new EsqlStatement(
+            null,
+            List.of(
+                new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "param_any_value", of("first"))),
+                new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, "param_any_value", of("last")))
+            )
+        );
+        assertThat(
+            QuerySettings.PARAM_ANY_VALUE.get(QuerySettings.resolve(requestParams, statement, SNAPSHOT_CTX_WITH_CPS_ENABLED)),
+            equalTo("last")
+        );
+    }
+
+    public void testResolveRequestParamAnyValueRejectsEmpty() {
+        var ex = expectThrows(
+            VerificationException.class,
+            () -> QuerySettings.resolve(Map.of(QuerySettings.PARAM_ANY_VALUE, ""), null, SNAPSHOT_CTX_WITH_CPS_ENABLED)
+        );
+        assertThat(ex.getMessage(), containsString("Error validating setting [param_any_value]: must not be empty"));
+    }
+
     public void testValidate_Approximation() {
         var def = QuerySettings.APPROXIMATION;
         assertDefault(def, is(nullValue()));

@@ -1031,15 +1031,26 @@ result:double          | step:datetime
 1.7153027436774597E9   | 2024-05-10T01:00:00.000Z
 ;
 
-# AwaitsFix: https://github.com/elastic/elasticsearch/issues/141172
-time_minus_raw_field-Ignore
+// A range query looks back one step, where Prometheus looks back five minutes (compatibility row 12): at 00:00 no
+// series has a sample yet, and at 01:00 each subtracts its last sample from the step.
+time_minus_raw_field
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: promql_time
-PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost);
+required_capability: fix_promql_drop_stored_metric_name
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(time() - network.cost)
+| SORT _timeseries;
 
-result:double          | step:datetime            | cluster:keyword | pod:keyword
-0.0                    | 2024-05-10T00:00:00.000Z | prod             | one
+result:double    | step:datetime            | _timeseries:keyword
+1.715302792125E9 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+1.7153028E9      | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1.71530278925E9  | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+1.71530279375E9  | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+1.715302789125E9 | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+1.715302790625E9 | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+1.715302795375E9 | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+1.7153027905E9   | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+1.71530279825E9  | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
 ;
 
 post_processing_stats_global

@@ -35,6 +35,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -91,6 +92,15 @@ public class ShardCodecStateDirectoryTests extends ESTestCase {
         try (Directory raw = newDirectory()) {
             ShardCodecStateDirectory stateDirectory = new ShardCodecStateDirectory(raw);
             long empty = stateDirectory.ramBytesUsed();
+            // every wrapped shard holds the directory and its map of states, even before it has any state
+            assertThat(
+                empty,
+                equalTo(
+                    RamUsageEstimator.shallowSizeOfInstance(ShardCodecStateDirectory.class) + RamUsageEstimator.shallowSizeOfInstance(
+                        ConcurrentHashMap.class
+                    )
+                )
+            );
             ShardCodecStateDirectory.getOrCreate(stateDirectory, StateA.class, StateA::new);
             assertThat(stateDirectory.ramBytesUsed(), equalTo(empty + RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + 1000));
             ShardCodecStateDirectory.getOrCreate(stateDirectory, StateB.class, StateB::new);

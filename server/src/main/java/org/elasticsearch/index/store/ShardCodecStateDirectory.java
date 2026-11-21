@@ -46,7 +46,8 @@ public final class ShardCodecStateDirectory extends DelegatingByteSizeDirectory 
 
     public static final FeatureFlag FEATURE_FLAG = new FeatureFlag("shard_codec_state_directory");
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ShardCodecStateDirectory.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ShardCodecStateDirectory.class)
+        + RamUsageEstimator.shallowSizeOfInstance(ConcurrentHashMap.class);
 
     private final ConcurrentHashMap<Class<?>, Accountable> states = new ConcurrentHashMap<>();
 

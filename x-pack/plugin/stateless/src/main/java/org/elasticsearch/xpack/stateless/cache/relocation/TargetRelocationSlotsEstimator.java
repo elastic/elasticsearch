@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.stateless.cache.relocation;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -24,9 +22,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /// The slots that a target has for incoming non-critical recoveries, which relocations share with the recoveries of unassigned shards
-/// added for performance reasons and with snapshot restores. [RelocationSourceShutdownTimeouts] shares them when it turns the time left
-/// until the grace deadline of a shutting-down node, see [ShutdownWarmingDeadline], into a warming timeout. It only counts the
-/// relocations as using the slots.
+/// added for performance reasons and with snapshot restores. It only counts the relocations as using the slots.
 public class TargetRelocationSlotsEstimator {
 
     /// The values of the master settings at which the master leaves the throttling of the recoveries to a search node to the data nodes, as
@@ -40,7 +36,9 @@ public class TargetRelocationSlotsEstimator {
         -1
     );
 
-    private volatile int maxConcurrentNonCriticalRecoveries;
+    /// The two limits are published together, so that a calculation does not combine the overall limit of one configuration with the
+    /// non-critical limit of another.
+    private volatile IncomingRecoveryLimits incomingRecoveryLimits;
     private volatile boolean masterThrottlingDisabled;
 
     public TargetRelocationSlotsEstimator(ClusterSettings clusterSettings, Settings nodeSettings, ByteSizeValue maxHeap) {
@@ -48,7 +46,7 @@ public class TargetRelocationSlotsEstimator {
             clusterSettings,
             nodeSettings,
             maxHeap,
-            limits -> this.maxConcurrentNonCriticalRecoveries = limits.maxConcurrentNonCriticalRecoveries()
+            limits -> this.incomingRecoveryLimits = limits
         );
         this.masterThrottlingDisabled = masterThrottlingDisabled(clusterSettings::get);
         clusterSettings.addSettingsUpdateConsumer(
@@ -64,12 +62,21 @@ public class TargetRelocationSlotsEstimator {
     /// The settings are the ones of this node, and during a rolling upgrade they may be ahead of the master's, which still throttles and
     /// leaves the shards it has not got to waiting in the cluster state, whereas with data node recovery throttling the master starts all
     /// the relocations of a shutting-down node at once. So the settings are trusted only when the cluster state agrees, see
-    /// [#allSearchShardsOnShuttingDownNodesRelocating].
+    /// [SearchShardRelocations#hasPendingRelocationsOnShuttingDownNodes].
     public int knownAvailableSlots(final ClusterState state, final int relocationsInFlight) {
-        final int maxRecoveries = maxConcurrentNonCriticalRecoveries;
-        return dataNodeRecoveryThrottlingEnabled(maxRecoveries) && allSearchShardsOnShuttingDownNodesRelocating(state)
-            ? maxRecoveries
-            : Math.min(maxRecoveries, relocationsInFlight);
+        final int maxRecoveries = incomingRecoveryLimits.maxConcurrentNonCriticalRecoveries();
+        return dataNodeRecoveryThrottlingEnabled(maxRecoveries)
+            && SearchShardRelocations.hasPendingRelocationsOnShuttingDownNodes(state) == false
+                ? maxRecoveries
+                : Math.min(maxRecoveries, relocationsInFlight);
+    }
+
+    /// The slots of a target for the non-critical recoveries, as the relocations, while `criticalRecoveries` run on it: the data node limit
+    /// on the non-critical recoveries, or what the overall limit leaves after the critical recoveries, which use it as well. It is very
+    /// large when the data nodes have no limit.
+    public int slotsForNonCriticalRecoveries(final int criticalRecoveries) {
+        final var limits = incomingRecoveryLimits;
+        return Math.max(0, Math.min(limits.maxConcurrentNonCriticalRecoveries(), limits.maxConcurrentRecoveries() - criticalRecoveries));
     }
 
     /// The data nodes throttle the relocations, and not the master, when their non-critical limit is finite and the master does not
@@ -78,26 +85,6 @@ public class TargetRelocationSlotsEstimator {
     // TODO: move to DataNodeRecoveryThrottlingSettings (elastic/elasticsearch-team#5653)
     private boolean dataNodeRecoveryThrottlingEnabled(int maxRecoveries) {
         return maxRecoveries < IncomingRecoveryLimits.UNBOUNDED.maxConcurrentNonCriticalRecoveries() && masterThrottlingDisabled;
-    }
-
-    /// Whether every search shard on the search nodes marked for removal has already started to relocate. Shards that are not started
-    /// yet (initializing) cannot relocate, so they do not count.
-    private static boolean allSearchShardsOnShuttingDownNodesRelocating(final ClusterState state) {
-        final var nodeShutdowns = state.metadata().nodeShutdowns();
-        for (String nodeId : nodeShutdowns.getAllNodeIds()) {
-            final var discoveryNode = state.nodes().get(nodeId);
-            if (nodeShutdowns.isNodeMarkedForRemoval(nodeId) == false
-                || discoveryNode == null
-                || discoveryNode.hasRole(DiscoveryNodeRole.SEARCH_ROLE.roleName()) == false) {
-                continue;
-            }
-            final var routingNode = state.getRoutingNodes().node(nodeId);
-            // a search node only holds search shards, as a promotable shard is only allowed on an index node
-            if (routingNode != null && routingNode.numberOfShardsWithState(ShardRoutingState.STARTED) > 0) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static boolean masterThrottlingDisabled(final Function<Setting<Integer>, Integer> currentValue) {

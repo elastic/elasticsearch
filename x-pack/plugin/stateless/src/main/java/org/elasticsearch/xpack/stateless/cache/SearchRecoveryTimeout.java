@@ -52,6 +52,21 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
             MayFollow.PLAN_OF_ANOTHER_PHASE,
             false
         ),
+        RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_SLOTS_AVAILABLE(
+            "relocation source not shutting down, cluster shutdown metadata present, no relocation slot contention",
+            true,
+            Phase.OTHER,
+            MayFollow.ANY_PLAN,
+            false
+        ),
+        RELOCATION_SOURCE_NOT_SHUTTING_DOWN_SHUTDOWN_EQUAL_SHARE(
+            "relocation source not shutting down, cluster shutdown metadata present (equal share of remaining time to the tightest capped "
+                + "grace deadline)",
+            true,
+            Phase.OTHER,
+            MayFollow.ANY_PLAN,
+            true
+        ),
         RELOCATION_SOURCE_SHUTTING_DOWN_GRACE_ELAPSED(
             "relocation source shutting down (grace period elapsed)",
             false,
@@ -138,6 +153,7 @@ public record SearchRecoveryTimeout(TimeValue timeout, TimeoutContext timeoutCon
         };
     }
 
+    /// Whether this is an equal-share plan, which carries a per-shard share, see [#perShardShareMs].
     public boolean isEqualSharePlan() {
         return timeoutContext.equalShare;
     }

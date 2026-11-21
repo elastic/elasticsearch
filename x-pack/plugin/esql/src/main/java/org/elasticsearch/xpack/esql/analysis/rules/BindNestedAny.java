@@ -58,11 +58,13 @@ public final class BindNestedAny extends ParameterizedRule<LogicalPlan, LogicalP
 
     /** Each assignment sees the columns the earlier assignments of the same {@code EVAL} define. */
     private static LogicalPlan scopeEval(Eval eval, List<Attribute> childrenOutput) {
+        if (eval.fields().stream().noneMatch(field -> field.anyMatch(NestedAny.class::isInstance))) {
+            return eval;
+        }
         Set<String> assigned = new HashSet<>();
         List<Alias> fields = new ArrayList<>();
         for (Alias field : eval.fields()) {
-            Set<String> before = Set.copyOf(assigned);
-            fields.add((Alias) field.transformUp(NestedAny.class, nested -> scope(nested, childrenOutput, before)));
+            fields.add((Alias) field.transformUp(NestedAny.class, nested -> scope(nested, childrenOutput, assigned)));
             assigned.add(field.name());
         }
         return fields.equals(eval.fields()) ? eval : new Eval(eval.source(), eval.child(), fields);

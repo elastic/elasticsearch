@@ -71,6 +71,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataFilter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataPath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.timeseries.TimeSeriesMetadataSet;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -156,6 +159,9 @@ public class ScalarFunctionWritables {
         entries.add(RegexExpand.ENTRY);
         entries.add(FloatToLabelValue.ENTRY);
         entries.add(WindowFilter.ENTRY);
+        entries.add(TimeSeriesMetadataFilter.ENTRY);
+        entries.add(TimeSeriesMetadataPath.ENTRY);
+        entries.add(TimeSeriesMetadataSet.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());
         return entries;

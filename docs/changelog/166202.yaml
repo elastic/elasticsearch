@@ -1,0 +1,6 @@
+area: Inference
+issues:
+ - 164776
+pr: 166202
+summary: Add mutation coverage for Google Vertex AI chat settings
+type: enhancement

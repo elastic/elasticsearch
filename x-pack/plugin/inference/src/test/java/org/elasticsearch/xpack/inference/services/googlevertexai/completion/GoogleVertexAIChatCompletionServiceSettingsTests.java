@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
@@ -440,6 +442,39 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
     @Override
     protected GoogleVertexAiChatCompletionServiceSettings createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected GoogleVertexAiChatCompletionServiceSettings mutateInstance(GoogleVertexAiChatCompletionServiceSettings instance)
+        throws IOException {
+        var projectId = instance.projectId();
+        var location = instance.location();
+        var modelId = instance.modelId();
+        var uri = instance.uri();
+        var streamingUri = instance.streamingUri();
+        var provider = instance.provider();
+        var rateLimitSettings = instance.rateLimitSettings();
+
+        switch (randomInt(6)) {
+            case 0 -> projectId = randomValueOtherThan(projectId, () -> randomAlphaOfLengthOrNull(10));
+            case 1 -> location = randomValueOtherThan(location, () -> randomAlphaOfLengthOrNull(10));
+            case 2 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(10));
+            case 3 -> uri = randomValueOtherThan(uri, () -> createOptionalUri(randomOptionalString()));
+            case 4 -> streamingUri = randomValueOtherThan(streamingUri, () -> createOptionalUri(randomOptionalString()));
+            case 5 -> provider = randomValueOtherThan(provider, () -> randomFrom(GoogleModelGardenProvider.values()));
+            case 6 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new GoogleVertexAiChatCompletionServiceSettings(
+            projectId,
+            location,
+            modelId,
+            uri,
+            streamingUri,
+            provider,
+            rateLimitSettings
+        );
     }
 
     private static GoogleVertexAiChatCompletionServiceSettings createRandom() {

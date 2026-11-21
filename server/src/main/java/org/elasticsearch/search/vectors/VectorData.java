@@ -27,11 +27,34 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.common.Strings.format;
 
 public record VectorData(float[] floatVector, byte[] byteVector, String stringVector) implements Writeable, ToXContentFragment {
+
+    public static final String TOXCONTENT_FLOAT_VECTOR_FORMAT = "float_vector_format";
+
+    /**
+     * How float vectors are written by {@link #toXContent}.
+     */
+    public enum FloatFormat {
+        /** A JSON array of numbers. */
+        ARRAY,
+        /** A base64 string of the big endian float bytes, about half the size of the array. */
+        BASE64,
+        /** An empty array, for when the vector contents are not wanted, e.g. to keep logged queries small. */
+        ELIDED;
+
+        public String paramValue() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static FloatFormat fromString(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
+        }
+    }
 
     private static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
 
@@ -147,11 +170,18 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (floatVector != null) {
-            builder.startArray();
-            for (float v : floatVector) {
-                builder.value(v);
+            String format = params.param(TOXCONTENT_FLOAT_VECTOR_FORMAT);
+            switch (format == null ? FloatFormat.ARRAY : FloatFormat.fromString(format)) {
+                case BASE64 -> builder.value(DecodedVector.floatsToBase64(floatVector));
+                case ELIDED -> builder.startArray().endArray();
+                case ARRAY -> {
+                    builder.startArray();
+                    for (float v : floatVector) {
+                        builder.value(v);
+                    }
+                    builder.endArray();
+                }
             }
-            builder.endArray();
         } else if (stringVector != null) {
             builder.value(stringVector);
         } else {
@@ -259,5 +289,4 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
         DecodedVector decoded = DecodedVector.decode(encoded, elementType, dims);
         return decoded.isByteVector() ? VectorData.fromBytes(decoded.bytes()) : VectorData.fromFloats(decoded.toFloatArray());
     }
-
 }

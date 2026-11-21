@@ -181,7 +181,7 @@ public final class PinnedRetrieverBuilder extends CompoundRetrieverBuilder<Pinne
             }
             builder.endArray();
         }
-        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever(), params);
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
     }
 

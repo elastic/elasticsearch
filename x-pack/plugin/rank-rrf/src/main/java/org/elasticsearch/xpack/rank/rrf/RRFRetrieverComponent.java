@@ -46,7 +46,7 @@ public class RRFRetrieverComponent implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContentObject.Params params) throws IOException {
         builder.startObject();
-        builder.field(RETRIEVER_FIELD.getPreferredName(), retriever);
+        builder.field(RETRIEVER_FIELD.getPreferredName(), retriever, params);
         builder.field(WEIGHT_FIELD.getPreferredName(), weight);
         builder.endObject();
         return builder;

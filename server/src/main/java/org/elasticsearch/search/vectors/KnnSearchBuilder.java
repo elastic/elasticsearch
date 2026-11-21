@@ -537,7 +537,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             builder.field(queryVectorBuilder.getWriteableName(), queryVectorBuilder);
             builder.endObject();
         } else {
-            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector, params);
         }
         if (similarity != null) {
             builder.field(VECTOR_SIMILARITY.getPreferredName(), similarity);

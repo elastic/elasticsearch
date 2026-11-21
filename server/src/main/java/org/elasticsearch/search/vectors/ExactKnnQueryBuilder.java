@@ -107,7 +107,7 @@ public class ExactKnnQueryBuilder extends LeafQueryBuilder<ExactKnnQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query", query);
+        builder.field("query", query, params);
         builder.field("field", field);
         if (vectorSimilarity != null) {
             builder.field("similarity", vectorSimilarity);

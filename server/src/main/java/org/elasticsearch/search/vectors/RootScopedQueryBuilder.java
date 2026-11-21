@@ -58,7 +58,7 @@ final class RootScopedQueryBuilder extends TransientQueryBuilder<RootScopedQuery
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query", query);
+        builder.field("query", query, params);
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }

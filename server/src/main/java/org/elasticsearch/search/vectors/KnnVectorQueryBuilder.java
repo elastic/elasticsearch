@@ -387,7 +387,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         builder.startObject(NAME);
         builder.field(FIELD_FIELD.getPreferredName(), fieldName);
         if (queryVector != null) {
-            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector, params);
         }
         if (k != null) {
             builder.field(K_FIELD.getPreferredName(), k);

@@ -11,6 +11,7 @@ package org.elasticsearch.common.logging.activity;
 
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -38,7 +39,7 @@ public interface ActivityLogProducer<Context extends QueryCaptureContext> {
     /**
      * Produces a {@link ESLogMessage} if the producer decides to log, or nothing otherwise.
      */
-    Optional<ESLogMessage> produce(Context context, ActionLoggingFields additionalFields);
+    Optional<ESLogMessage> produce(Context context, ActionLoggingFields additionalFields, ToXContent.Params formatParams);
 
     /**
      * Since we only have query logging for now, set it as the default logger name for convenience.

@@ -303,7 +303,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         builder.startObject();
         builder.startObject(getName());
         if (preFilterQueryBuilders.isEmpty() == false) {
-            builder.field(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilders);
+            builder.xContentList(PRE_FILTER_FIELD.getPreferredName(), preFilterQueryBuilders, params);
         }
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);

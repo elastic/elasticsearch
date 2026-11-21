@@ -132,7 +132,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
 
     @Override
     public void doToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever());
+        builder.field(RETRIEVER_FIELD.getPreferredName(), innerRetrievers.getFirst().retriever(), params);
         builder.startArray(RESCORE_FIELD.getPreferredName());
         for (RescorerBuilder<?> rescorer : rescorers) {
             rescorer.toXContent(builder, params);

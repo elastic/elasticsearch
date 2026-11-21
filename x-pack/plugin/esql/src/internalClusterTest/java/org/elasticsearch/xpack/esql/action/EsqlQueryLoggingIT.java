@@ -25,6 +25,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
@@ -309,7 +310,10 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
             if (filter != null) {
-                assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
+                assertThat(
+                    message.get(QUERY_FIELD_FILTER),
+                    equalTo(QueryCaptureContext.filterToLogString(filter, ToXContent.EMPTY_PARAMS).get())
+                );
             } else {
                 assertNull(message.get(QUERY_FIELD_FILTER));
             }
@@ -485,7 +489,10 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             assertNotNull(message.get(QUERY_FIELD_INDICES));
         }
         if (filter != null) {
-            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
+            assertThat(
+                message.get(QUERY_FIELD_FILTER),
+                equalTo(QueryCaptureContext.filterToLogString(filter, ToXContent.EMPTY_PARAMS).get())
+            );
         } else {
             assertNull(message.get(QUERY_FIELD_FILTER));
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -67,7 +68,7 @@ public class EsqlCaptureContext extends QueryCaptureContext {
     }
 
     @Override
-    public String getQuery() {
+    public String getQuery(ToXContent.Params params) {
         return request.queryDescription();
     }
 

@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -127,7 +128,10 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
             assertMessageSuccess(message, EqlCaptureContext.TYPE, query);
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("5"));
-            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryCaptureContext.filterToLogString(filter).get()));
+            assertThat(
+                message.get(QUERY_FIELD_FILTER),
+                equalTo(QueryCaptureContext.filterToLogString(filter, ToXContent.EMPTY_PARAMS).get())
+            );
         } finally {
             decRef(response);
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.logging.activity.ActivityLogProducer;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
@@ -31,9 +32,13 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
 
     @Override
-    public Optional<ESLogMessage> produce(EsqlCaptureContext context, ActionLoggingFields additionalFields) {
+    public Optional<ESLogMessage> produce(
+        EsqlCaptureContext context,
+        ActionLoggingFields additionalFields,
+        ToXContent.Params formatParams
+    ) {
         ESLogMessage msg = produceCommon(context, QueryLogging.ES_QUERY_FIELDS_PREFIX, additionalFields);
-        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery())
+        msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery(formatParams))
             .field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
         context.getQueryProfile().ifPresent(profile -> {
@@ -57,7 +62,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
         if (viewSettings.isEmpty() == false) {
             msg.field(VIEW_SETTINGS_FIELD, viewSettings);
         }
-        context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
+        context.getFilter(formatParams).ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
 
         var namedParams = context.namedParams();
         if (namedParams.isEmpty()) {

@@ -29,6 +29,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
      */
     public static final String VIEW_SETTINGS_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "view_settings";
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
+    public static final String REQUESTED_TIME_RANGE_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "requested_time_range_ms";
 
     @Override
     public Optional<ESLogMessage> produce(EsqlCaptureContext context, ActionLoggingFields additionalFields) {
@@ -36,6 +37,9 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlCaptureContext> 
         msg.field(QueryLogging.QUERY_FIELD_QUERY, context.getQuery())
             .field(QueryLogging.QUERY_FIELD_RESULT_COUNT, context.getResultCount());
         msg.field(QueryLogging.QUERY_FIELD_INDICES, context.getIndices());
+        if (context.requestedTimeRangeMillis() >= 0) {
+            msg.field(REQUESTED_TIME_RANGE_FIELD, context.requestedTimeRangeMillis());
+        }
         context.getQueryProfile().ifPresent(profile -> {
             for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();

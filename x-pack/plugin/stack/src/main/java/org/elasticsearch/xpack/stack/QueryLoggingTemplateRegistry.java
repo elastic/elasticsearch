@@ -41,8 +41,8 @@ public class QueryLoggingTemplateRegistry extends IndexTemplateRegistry {
     // version 8: params is indexable
     // version 9: lower priority
     // version 10: ES|QL query settings
-    // version 11: view_settings, flattened since its keys are user-chosen view names
-    public static final int INDEX_TEMPLATE_VERSION = 10;
+    // version 11: view_settings, flattened since its keys are user-chosen view names; ES|QL requested time range
+    public static final int INDEX_TEMPLATE_VERSION = 11;
 
     public static final String QUERY_LOGGING_TEMPLATE_VERSION_VARIABLE = "xpack.stack.querylog.template.version";
 

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -77,6 +79,20 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlQueryRequestTests extends ESTestCase {
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(List.of(EsqlQueryStatus.ENTRY));
+
+    public void testRequestedTimeRange() {
+        var request = EsqlQueryRequest.syncEsqlQueryRequest("ROW value = 1");
+        assertThat(request.requestedTimeRangeMillis(), equalTo(-1L));
+
+        long millis = randomLongBetween(0, 86_400_000);
+        Instant start = Instant.parse("2026-01-01T00:00:00.123Z");
+        request.setRequestedTimeRange(new TimestampBounds(start, start.plusMillis(millis)));
+        assertThat(request.requestedTimeRangeMillis(), equalTo(millis));
+
+        // An unrepresentable span is reported as unknown rather than failing the query.
+        request.setRequestedTimeRange(new TimestampBounds(Instant.MIN, Instant.MAX));
+        assertThat(request.requestedTimeRangeMillis(), equalTo(-1L));
+    }
 
     public void testParseFields() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);

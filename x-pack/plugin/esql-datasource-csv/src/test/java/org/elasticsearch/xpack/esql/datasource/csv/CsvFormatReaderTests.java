@@ -12552,13 +12552,17 @@ public class CsvFormatReaderTests extends ESTestCase {
      * newline boundaries {@code RecordBoundaryProbe} returns is seeded with {@code 0L}, so the split
      * {@code buildNewlineMacroSplits} stamps {@code _first_split} on is always the one at byte zero,
      * and a record-aligned first split at a non-zero offset is a cell production never builds.
-     * That reaches only the two context builders keyed on the macro-split stamp. The other two --
-     * {@code ParallelParsingCoordinator.readSegment} and
-     * {@code StreamingParallelParsingCoordinator.parseChunk} -- write {@code recordAligned(true)} as a
-     * literal, so no boundary list speaks for them; there the invariant rests on segment and chunk zero
-     * beginning at their object's start, which leaves {@code splitStartByte} equal to the base offset the
-     * dispatcher passed in. Letting either of those see a non-zero base offset rebuilds this cell without
-     * touching the producer named above.
+     * That reaches only the two context builders keyed on the macro-split stamp. The other two write
+     * {@code recordAligned(true)} as a literal, so no boundary list speaks for them, and they do not guard
+     * the pair alike. {@code ParallelParsingCoordinator.readSegment} takes
+     * {@code splitIncludesFileLeader && segmentIndex == 0}, so a non-zero base offset is ordinary there --
+     * it is every later macro-split -- and the cell needs the leader flag set beside it.
+     * {@code StreamingParallelParsingCoordinator.parseChunk} takes {@code chunk.index == 0} and consults no
+     * leader flag at all, so for that one a non-zero base offset is enough on its own, and what holds the
+     * invariant is its callers: the quoted-uncompressed dispatch in
+     * {@code AsyncExternalSourceOperatorFactory} throws unless the base offset is zero. A change to how
+     * splits are built is checked against whichever of those two guards applies, not against the producer
+     * named above.
      */
     public void testTheFirstSplitOfABlockAlignedObjectNeedsNoWindowClause() throws IOException {
         List<Attribute> schema = splitSchema();

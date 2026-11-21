@@ -19,6 +19,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
@@ -59,6 +60,10 @@ import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
  * An aggregator of string values that relies on global ordinals in order to build buckets.
  */
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
+    // Keep this optional per-request list to 256 ordinals or 1/64 of the dictionary, whichever is smaller.
+    private static final int MAX_TRACKED_ORDINALS = 256;
+    private static final int TRACKED_ORDINAL_DENSITY_SHIFT = 6;
+
     protected final ResultStrategy<?, ?, ?> resultStrategy;
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
@@ -115,6 +120,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     String descriptCollectionStrategy() {
         return collectionStrategy.describe();
+    }
+
+    void enableSparseOrdinalTracking() {
+        collectionStrategy.enableSparseOrdinalTracking();
     }
 
     @Override
@@ -409,6 +418,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      * to generate the results.
      */
     abstract static class CollectionStrategy implements Releasable {
+        void enableSparseOrdinalTracking() {}
+
         /**
          * Short description of the collection mechanism added to the profile
          * output to help with debugging.
@@ -462,10 +473,23 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         private final boolean excludeDeletedDocs;
         private final ResultStrategy<R, B, TB> collectionStrategy;
+        private boolean trackCollectedOrdinals;
+        private long maxTrackedOrdinals;
+        private long trackedOrdinalCount;
+        private LongArray trackedOrdinals;
 
         DenseGlobalOrds(ResultStrategy<R, B, TB> collectionStrategy, boolean excludeDeletedDocs) {
             this.excludeDeletedDocs = excludeDeletedDocs;
             this.collectionStrategy = collectionStrategy;
+        }
+
+        @Override
+        void enableSparseOrdinalTracking() {
+            assert bucketCountThresholds.getMinDocCount() > 0;
+            assert excludeDeletedDocs == false;
+            assert acceptedGlobalOrdinals == ALWAYS_TRUE;
+            trackCollectedOrdinals = true;
+            maxTrackedOrdinals = Math.min(MAX_TRACKED_ORDINALS, valueCount >>> TRACKED_ORDINAL_DENSITY_SHIFT);
         }
 
         @Override
@@ -486,7 +510,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         void collectGlobalOrd(long owningBucketOrd, int doc, long globalOrd, LeafBucketCollector sub) throws IOException {
             assert owningBucketOrd == 0;
-            collectExistingBucket(sub, doc, globalOrd);
+            if (trackCollectedOrdinals) {
+                // Keep dense counts authoritative and use the updated count to notice the first positive contribution.
+                long docCount = docCountProvider.getDocCount(doc);
+                long newDocCount = getDocCounts().increment(globalOrd, docCount);
+                if (docCount > 0 && newDocCount == docCount) {
+                    trackCollectedOrdinal(globalOrd);
+                }
+                sub.collect(doc, globalOrd);
+            } else {
+                collectExistingBucket(sub, doc, globalOrd);
+            }
         }
 
         @Override
@@ -495,11 +529,46 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         private void collect(BucketInfoConsumer consumer) throws IOException {
-            if (excludeDeletedDocs) {
+            if (trackCollectedOrdinals) {
+                for (long index = 0; index < trackedOrdinalCount; index++) {
+                    long globalOrd = trackedOrdinals.get(index);
+                    long docCount = bucketDocCount(globalOrd);
+                    if (docCount > 0) {
+                        consumer.accept(globalOrd, globalOrd, docCount);
+                    }
+                }
+            } else if (excludeDeletedDocs) {
                 forEachExcludeDeletedDocs(consumer);
             } else {
                 forEachAllowDeletedDocs(consumer);
             }
+        }
+
+        private void trackCollectedOrdinal(long globalOrd) {
+            if (trackedOrdinalCount >= maxTrackedOrdinals) {
+                disableSparseTracking();
+                return;
+            }
+            try {
+                if (trackedOrdinals == null) {
+                    trackedOrdinals = bigArrays().newLongArray(1, false);
+                } else if (trackedOrdinalCount == trackedOrdinals.size()) {
+                    trackedOrdinals = bigArrays().grow(trackedOrdinals, trackedOrdinalCount + 1);
+                }
+                trackedOrdinals.set(trackedOrdinalCount++, globalOrd);
+            } catch (CircuitBreakingException e) {
+                // Tracking is an optional optimization; the dense counts still support the original full scan.
+                disableSparseTracking();
+            }
+        }
+
+        private void disableSparseTracking() {
+            trackCollectedOrdinals = false;
+            if (trackedOrdinals != null) {
+                trackedOrdinals.close();
+            }
+            trackedOrdinals = null;
+            trackedOrdinalCount = 0;
         }
 
         private void forEachAllowDeletedDocs(BucketInfoConsumer consumer) throws IOException {
@@ -549,7 +618,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            if (trackedOrdinals != null) {
+                trackedOrdinals.close();
+            }
+        }
 
         @Override
         InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {

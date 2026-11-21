@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 160967
+pr: 163291
+summary: Avoid scanning zero-count ordinals in sparse keyword terms aggregations
+type: enhancement

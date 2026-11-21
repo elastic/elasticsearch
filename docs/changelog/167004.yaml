@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167004
+summary: Log requested time range of ES|QL queries
+type: enhancement

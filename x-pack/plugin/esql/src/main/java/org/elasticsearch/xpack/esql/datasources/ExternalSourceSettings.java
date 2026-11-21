@@ -204,14 +204,32 @@ public final class ExternalSourceSettings {
         return concurrency > 0 ? concurrency : defaultBlobStoreConcurrency(settings);
     }
 
+    /**
+     * S3/Azure SDK HTTP pool size for the same {@link #MAX_CONCURRENT_REQUESTS} knob — not a new setting.
+     * Positive {@code N} becomes {@code N + 1} so a truncated GET can abort while its replacement starts
+     * (including {@code N = 1}). {@code 0} (unlimited permits) uses {@link #defaultBlobStoreConcurrency}
+     * rather than a 1-connection pool.
+     */
+    public static int sdkConnectionPoolSize(Settings settings) {
+        return sdkConnectionPoolSize(blobStoreConcurrency(settings), defaultBlobStoreConcurrency(settings));
+    }
+
+    static int sdkConnectionPoolSize(int permits, int unlimitedFallback) {
+        if (permits <= 0) {
+            return unlimitedFallback;
+        }
+        return Math.addExact(permits, 1);
+    }
+
     static final int MAX_CONCURRENT_REQUESTS_UPPER_BOUND = 500;
 
     /**
-     * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
-     * that bounds in-flight data reads ({@code StorageProviderRegistry}) and the backend SDK HTTP connection pools
-     * (S3 Netty {@code maxConcurrency}, Azure reactor-netty {@code ConnectionProvider}), and — via
-     * {@link #blobStoreConcurrency(Settings)} — the metadata-discovery fan-out. Set to 0 to disable permit-based
-     * concurrency limiting entirely.
+     * The single external-read concurrency knob, per scheme, per node. There is no second setting.
+     * {@code N} is the permit ceiling that bounds in-flight data reads ({@code StorageProviderRegistry}).
+     * S3/Azure SDK HTTP pools are {@link #sdkConnectionPoolSize(Settings)} ({@code N + 1}, or the default
+     * pool when {@code N} is 0/unlimited) so a truncated GET can abort while its replacement starts.
+     * GCS has no SDK pool cap. Also sizes — via {@link #blobStoreConcurrency(Settings)} — the
+     * metadata-discovery fan-out. Set to 0 to disable permit-based concurrency limiting entirely.
      * <p>
      * The default is {@link #defaultBlobStoreConcurrency(Settings)} rather than a fixed literal: CPU slope
      * {@code allocatedProcessors * 3} clamped to

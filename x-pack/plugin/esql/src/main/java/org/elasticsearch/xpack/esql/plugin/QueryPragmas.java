@@ -262,8 +262,8 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
     /**
-     * Turns the fetch phase on or off for one query. A build without the fetch phase ignores it. Without the pragma the
-     * fetch phase stays off.
+     * Turns the fetch phase on or off for one query, whatever {@code esql.query.fetch_phase.enabled} says. A build
+     * without the fetch phase ignores it. Without the pragma the cluster setting decides.
      */
     public static final Setting<Boolean> FETCH_PHASE = Setting.boolSetting("fetch_phase", false);
 
@@ -610,7 +610,7 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
-     * The {@code fetch_phase} pragma, or {@code null} when the query does not set it.
+     * The {@code fetch_phase} pragma, or {@code null} when the query does not set it and the cluster setting decides.
      */
     @Nullable
     public Boolean fetchPhase() {

@@ -895,3 +895,8 @@ tests:
   - :x-pack:plugin:searchable-snapshots:test
   method: testWithMemorySegmentSliceColdCacheCopiesIntoConfinedScratchBeyondBlobCacheIndexRange
   issue: https://github.com/elastic/elasticsearch/issues/167030
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testSourceRelocationCancelsClone
+  issue: https://github.com/elastic/elasticsearch/issues/167032

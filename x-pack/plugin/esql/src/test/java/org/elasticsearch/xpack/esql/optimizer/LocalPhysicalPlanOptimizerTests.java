@@ -3979,16 +3979,25 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(plan.anyMatch(LocalSourceExec.class::isInstance), is(false));
     }
 
-    /** With the stored preference a scan reads the stored source, which the segment metadata may not describe. */
-    public void testMinMaxNotAnsweredFromStatsWithTheStoredFieldExtractPreference() {
+    /**
+     * With the stored preference a scan may read a number from the stored source, which the segment metadata may not describe, so
+     * the index is read. A date is read from its doc values whatever the preference, so it is still answered from the statistics.
+     */
+    public void testMinMaxFromStatsWithTheStoredFieldExtractPreference() {
         var analyzer = makeAnalyzer("mapping-default.json");
-        String query = "from test | stats min(hire_date), max(hire_date)";
-        for (String preference : List.of("none", "stored")) {
+        record Case(String preference, String query, boolean fromStats) {}
+        for (Case c : List.of(
+            new Case("none", "from test | stats min(salary), max(salary)", true),
+            new Case("stored", "from test | stats min(salary), max(salary)", false),
+            new Case("stored", "from test | stats min(salary), max(hire_date)", false),
+            new Case("none", "from test | stats min(hire_date), max(hire_date)", true),
+            new Case("stored", "from test | stats min(hire_date), max(hire_date)", true)
+        )) {
             var configuration = EsqlTestUtils.configuration(
-                new QueryPragmas(Settings.builder().put("field_extract_preference", preference).build())
+                new QueryPragmas(Settings.builder().put("field_extract_preference", c.preference()).build())
             );
-            var plan = new TestPlannerOptimizer(configuration, analyzer).plan(query, exactMinMaxStats(true, 1L, 2L), analyzer);
-            assertThat(preference, plan.anyMatch(LocalSourceExec.class::isInstance), is(preference.equals("none")));
+            var plan = new TestPlannerOptimizer(configuration, analyzer).plan(c.query(), exactMinMaxStats(true, 1L, 2L), analyzer);
+            assertThat(c.toString(), plan.anyMatch(LocalSourceExec.class::isInstance), is(c.fromStats()));
         }
     }
 

@@ -180,7 +180,11 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     private Outcome profiled(String query, QueryBuilder filter) {
-        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(getPragmas());
+        return profiled(query, filter, getPragmas());
+    }
+
+    private Outcome profiled(String query, QueryBuilder filter, QueryPragmas pragmas) {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(pragmas);
         request.profile(true);
         if (filter != null) {
             request.filter(filter);
@@ -220,6 +224,41 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
         assertThat(index, asLongs(outcome.row), equalTo(expectedRow(keep)));
         assertThat(index + " reads the index", outcome.luceneSource, is(true));
         assertThat(index + " is not answered by a local source", outcome.localSource, is(false));
+    }
+
+    /**
+     * A number that is indexed but left out of {@code _source} is read as it is stored when the stored preference asks for it, so
+     * the metadata, which holds the indexed value, does not describe what the scan reads. The query must then read the index and
+     * give what a scan gives.
+     */
+    public void testStoredFieldExtractPreferenceReadsTheIndex() {
+        assertAcked(
+            prepareCreate("stored_pref").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .setMapping("""
+                    {
+                      "_source": { "excludes": ["x"] },
+                      "properties": { "x": { "type": "long" }, "other": { "type": "long" } }
+                    }
+                    """)
+        );
+        for (int n = 0; n < 20; n++) {
+            prepareIndex("stored_pref").setId("doc_" + n).setSource("x", 100 + n, "other", n).get();
+        }
+        indicesAdmin().prepareRefresh("stored_pref").get();
+
+        String query = "FROM stored_pref | STATS MIN(x), MAX(x)";
+        Outcome metadata = profiled(query, null);
+        assertThat(metadata.row, equalTo(List.of(100L, 119L)));
+        assertThat(metadata.localSource, is(true));
+
+        QueryPragmas stored = new QueryPragmas(Settings.builder().put("field_extract_preference", "stored").build());
+        Outcome storedScan = profiled(query, null, stored);
+        assertThat(storedScan.luceneSource, is(true));
+        assertThat(storedScan.localSource, is(false));
+        // a filter that keeps every document makes the same query a scan for sure
+        Outcome reference = profiled(query, QueryBuilders.rangeQuery("other").gte(0), stored);
+        assertThat(reference.luceneSource, is(true));
+        assertThat(storedScan.row, equalTo(reference.row));
     }
 
     public void testMinMaxFromMetadata() {

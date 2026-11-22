@@ -457,26 +457,45 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
                 optimize(fullTextAnalyzer().query("FROM test | STATS c = COUNT(*) WHERE " + ftf + " AND " + in + ", d = COUNT(*)"));
                 optimize(fullTextAnalyzer().query("FROM test | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*) WHERE " + in));
 
-                // the same command in the main query is rejected, already by the analyzer
-                String limit = "FROM test | WHERE " + in + " | LIMIT 10 | STATS c = COUNT(*) WHERE " + ftf + ", d = COUNT(*)";
-                var e = expectThrows(VerificationException.class, () -> fullTextAnalyzer().query(limit));
-                assertThat(ftf, e.getMessage(), containsString(" function cannot be used after LIMIT"));
             }
+        }
+        // the same command in the main query is rejected, already by the analyzer. Below the join it tells that only the
+        // subquery is skipped, not both of its sides.
+        for (String limit : List.of("LIMIT 10 | WHERE id IN (FROM test | KEEP id)", "WHERE id IN (FROM test | KEEP id) | LIMIT 10")) {
+            String query = "FROM test | " + limit + " | STATS c = COUNT(*) WHERE qstr(\"title: x\"), d = COUNT(*)";
+            var e = expectThrows(VerificationException.class, () -> fullTextAnalyzer().query(query));
+            assertThat(limit, e.getMessage(), containsString("[QSTR] function cannot be used after LIMIT"));
         }
     }
 
     /**
      * A column that is an alias of an indexed field looks like one to search row by row in the analyzed plan, but the
-     * optimizer replaces it with the field, making it a Lucene query that the aggregation can't evaluate after LIMIT.
+     * optimizer replaces it with the field. After LIMIT the aggregation has no documents to run a Lucene query against, so
+     * this is only accepted for a field that is searched over its values as well.
      */
     public void testFullTextInStatsFilterOnAliasedField() {
-        String stats = " | STATS c = COUNT(*) WHERE match(t, \"Meditation\"), d = COUNT(*)";
-        for (String commands : List.of("RENAME title AS t | LIMIT 10", "LIMIT 10 | RENAME title AS t", "EVAL t = title | LIMIT 10")) {
-            var err = error(fullTextAnalyzer().query("FROM test | " + commands + stats));
-            assertThat(commands, err, containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field"));
+        // Lucene matches a date to the precision of the query, so its search stays a Lucene query
+        String date = " | STATS c = COUNT(*) WHERE match(t, \"2023-01-01\"), d = COUNT(*)";
+        optimize(fullTextAnalyzer().query("FROM test | RENAME published_date AS t" + date));
+        optimize(fullTextAnalyzer().query("FROM test | EVAL t = published_date" + date));
+        for (String field : List.of(
+            "RENAME published_date AS t | LIMIT 10",
+            "LIMIT 10 | RENAME published_date AS t",
+            "EVAL t = published_date | LIMIT 10"
+        )) {
+            var err = error(fullTextAnalyzer().query("FROM test | " + field + date));
+            assertThat(field, err, containsString("[MATCH] function cannot be used after LIMIT when it targets an indexed field"));
         }
-        optimize(fullTextAnalyzer().query("FROM test | RENAME title AS t" + stats));
-        optimize(fullTextAnalyzer().query("FROM test | EVAL t = title" + stats));
+
+        String text = " | STATS c = COUNT(*) WHERE match(t, \"Meditation\"), d = COUNT(*)";
+        for (String field : List.of(
+            "RENAME title AS t",
+            "RENAME title AS t | LIMIT 10",
+            "LIMIT 10 | RENAME title AS t",
+            "EVAL t = title | LIMIT 10"
+        )) {
+            optimize(fullTextAnalyzer().query("FROM test | " + field + text));
+        }
     }
 
     public void testRuntimeTextSearchRejectedAfterForkThroughCast() {

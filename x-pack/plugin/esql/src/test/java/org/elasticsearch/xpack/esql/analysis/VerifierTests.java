@@ -4169,12 +4169,34 @@ public class VerifierTests extends AnalyzerTestCase {
      * be rejected after the commands that make the aggregation run on rows no longer tied to a document.
      */
     public void testFullTextFunctionsInStatsFilterAfterCommands() {
-        checkFullTextFunctionsInStatsFilterAfterCommands("MATCH", "function", "match(title, \"Meditation\")");
-        checkFullTextFunctionsInStatsFilterAfterCommands(":", "operator", "title : \"Meditation\"");
-        checkFullTextFunctionsInStatsFilterAfterCommands("QSTR", "function", "qstr(\"title: Meditation\")");
-        checkFullTextFunctionsInStatsFilterAfterCommands("KQL", "function", "kql(\"title: Meditation\")");
-        checkFullTextFunctionsInStatsFilterAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")");
-        checkFullTextFunctionsInStatsFilterAfterCommands("KNN", "function", "knn(vector, [0, 1, 2])");
+        // away from the documents these need Lucene all the same: the query is parsed or run by the mapper of the field
+        checkFullTextFunctionsInStatsFilterAfterCommands("MATCH", "function", "match(published_date, \"2023-01-01\")", "published_date");
+        checkFullTextFunctionsInStatsFilterAfterCommands(":", "operator", "id : 10", "category");
+        checkFullTextFunctionsInStatsFilterAfterCommands("QSTR", "function", "qstr(\"title: Meditation\")", "title");
+        checkFullTextFunctionsInStatsFilterAfterCommands("KQL", "function", "kql(\"title: Meditation\")", "title");
+        checkFullTextFunctionsInStatsFilterAfterCommands("MATCH_PHRASE", "function", "match_phrase(title, \"Meditation\")", "title");
+        checkFullTextFunctionsInStatsFilterAfterCommands("KNN", "function", "knn(vector, [0, 1, 2])", "vector");
+
+        // MATCH on a text or keyword field is evaluated over the values of the field where there are no documents
+        for (String match : List.of(
+            "match(title, \"Meditation\")",
+            "title : \"Meditation\"",
+            "match(tags, \"Meditation\")",
+            "match(title, \"Meditation\", {\"operator\": \"AND\"})"
+        )) {
+            String stats = " | stats c = max(id) where " + match + ", d = count(*)";
+            fullText().query("from test | limit 10" + stats);
+            fullText().query("from test | sort id | limit 10" + stats);
+            fullText().query("from test | limit 1 by id" + stats);
+            fullText().query("from test | stats id = max(id) by title, tags" + stats);
+            fullText().query("from test | change_point id on id" + stats);
+            fullText().query("from test | fork (where id > 0) (where id > 1)" + stats);
+        }
+        // the options of an analyzed search don't apply to an exact one
+        fullText().error(
+            "from test | limit 10 | stats c = max(id) where match(tags, \"Meditation\", {\"operator\": \"AND\"}), d = count(*)",
+            containsString("[MATCH] function cannot be used after LIMIT")
+        );
 
         // QSTR and KQL have no field to tell that the rows are not read from an index
         for (String function : List.of("QSTR", "KQL")) {
@@ -4186,15 +4208,19 @@ public class VerifierTests extends AnalyzerTestCase {
         }
     }
 
-    private void checkFullTextFunctionsInStatsFilterAfterCommands(String functionName, String functionType, String functionInvocation) {
+    private void checkFullTextFunctionsInStatsFilterAfterCommands(
+        String functionName,
+        String functionType,
+        String functionInvocation,
+        String field
+    ) {
         String stats = " | stats c = max(id) where " + functionInvocation + ", d = count(*)";
         String error = "[" + functionName + "] " + functionType + " cannot be used after ";
-        String fieldName = "KNN".equals(functionName) ? "vector" : "title";
 
         fullText().error("from test | limit 10" + stats, containsString(error + "LIMIT"));
         fullText().error("from test | sort id | limit 10" + stats, containsString(error + "LIMIT"));
         fullText().error("from test | limit 1 by id" + stats, containsString(error + "LIMIT"));
-        fullText().error("from test | stats id = max(id) by " + fieldName + stats, containsString(error + "STATS"));
+        fullText().error("from test | stats m = max(id) by id, " + field + stats, containsString(error + "STATS"));
         // runs on the coordinator, and so does what follows
         fullText().error("from test | change_point id on id" + stats, containsString(error + "CHANGE_POINT"));
         // the filter doesn't have to be the only one
@@ -4206,7 +4232,7 @@ public class VerifierTests extends AnalyzerTestCase {
         // these commands only stop a WHERE from being pushed to Lucene, the rows are still tied to their documents
         fullText().query("from test | mv_expand id" + stats);
         fullText().query("from test | eval x = id + 1" + stats);
-        fullText().query("from test | keep id, title, vector" + stats);
+        fullText().query("from test | keep id, title, published_date, vector, category" + stats);
         fullText().query("from test | where id > 10 | sort id" + stats);
         if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             fullText().query("from test | inline stats m = max(id) by category" + stats);

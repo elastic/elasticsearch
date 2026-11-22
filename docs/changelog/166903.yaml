@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166903
-summary: Verify full-text functions in STATS filters
+summary: Fix full-text functions in STATS filters after LIMIT
 type: bug

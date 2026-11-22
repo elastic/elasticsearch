@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator.ShardConfig;
 import org.elasticsearch.compute.lucene.query.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.lucene.query.LuceneQueryScoreEvaluator;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -244,6 +248,16 @@ public abstract class FullTextFunction extends Function
     public abstract boolean supportsRuntimeSearch();
 
     /**
+     * Whether this search of an indexed field gives the same results when it is evaluated row by row, over the values of
+     * the field, as when Lucene runs it. A function that does is not tied to the node that holds the documents: where there
+     * are no shards, like on the coordinator after a {@code LIMIT}, it is evaluated like a {@link #isRuntimeSearch() runtime
+     * search} instead.
+     */
+    public boolean canSearchWithoutShards() {
+        return false;
+    }
+
+    /**
      * Checks full text query functions for invalid usage.
      *
      * @param plan root plan to check
@@ -460,6 +474,8 @@ public abstract class FullTextFunction extends Function
                     input,
                     filter,
                     FullTextFunction.class,
+                    // away from the documents, these are evaluated over the values of the field instead
+                    ftf -> ftf.isRuntimeSearch() || ftf.canSearchWithoutShards(),
                     lp -> readsLuceneDocuments(lp, inlineStatsAggregates) && executesOnCoordinator(lp) == false,
                     m -> "[" + m.functionName() + "] " + m.functionType(),
                     failures
@@ -504,15 +520,40 @@ public abstract class FullTextFunction extends Function
         java.util.function.Function<E, String> typeErrorMsgProvider,
         Failures failures
     ) {
+        // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
+        // of querying a Lucene index, so it doesn't need a shard context or push-down to a data node.
+        checkCommandsBeforeExpression(
+            plan,
+            commands,
+            condition,
+            typeToken,
+            exp -> exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch(),
+            commandCheck,
+            typeErrorMsgProvider,
+            failures
+        );
+    }
+
+    /**
+     * Same as above, for the expressions of the type that are not {@code unrestricted}: those can follow any command.
+     */
+    private static <E extends Expression> void checkCommandsBeforeExpression(
+        LogicalPlan plan,
+        LogicalPlan commands,
+        Expression condition,
+        Class<E> typeToken,
+        Predicate<E> unrestricted,
+        Predicate<LogicalPlan> commandCheck,
+        java.util.function.Function<E, String> typeErrorMsgProvider,
+        Failures failures
+    ) {
         Set<String> inheritedSourceTexts = new HashSet<>();
         plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
         // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
         // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
         inheritedSourceTexts.add(plan.sourceText());
         condition.forEachDown(typeToken, exp -> {
-            // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
-            // of querying a Lucene index, so it doesn't need a shard context or push-down to a data node.
-            if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
+            if (unrestricted.test(exp)) {
                 return;
             }
             forEachDownInMainScope(commands, lp -> {
@@ -817,7 +858,54 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
+        if (shardContexts.isEmpty()) {
+            return new NoDocumentsEvaluator.Factory(functionName());
+        }
+        return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(shardContexts));
+    }
+
+    /**
+     * Stands for the Lucene query of a full-text function on a node that has no shards to run it against. The verifier
+     * rejects the queries that take rows away from their documents before such a function, so this only gets to run when
+     * there are no rows either: the source of the query turned out to be empty while planning, e.g. for
+     * {@code WHERE x IN (FROM ...)} when the subquery returns nothing. It fails on any row it is given.
+     */
+    private record NoDocumentsEvaluator(String functionName, DriverContext context) implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NoDocumentsEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            if (page.getPositionCount() > 0) {
+                throw new IllegalStateException("[" + functionName + "] requires the documents of an index, but this node has no shards");
+            }
+            return context.blockFactory().newConstantBooleanBlockWith(false, 0);
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public String toString() {
+            return "NoDocuments[" + functionName + "]";
+        }
+
+        record Factory(String functionName) implements ExpressionEvaluator.Factory {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new NoDocumentsEvaluator(functionName, context);
+            }
+
+            @Override
+            public String toString() {
+                return "NoDocuments[" + functionName + "]";
+            }
+        }
     }
 
     /**

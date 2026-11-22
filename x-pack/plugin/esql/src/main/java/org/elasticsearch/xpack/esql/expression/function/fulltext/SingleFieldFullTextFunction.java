@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -234,7 +235,22 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
      */
     @Nullable
     protected String valuesAnalyzerName() {
-        return AnalyzedTextExpression.valuesAnalyzerOf(field());
+        String declared = AnalyzedTextExpression.valuesAnalyzerOf(field());
+        if (declared != null) {
+            return declared;
+        }
+        // An indexed field that is searched row by row, see canSearchWithoutShards, is analyzed like the index does.
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        return fieldAttribute != null && fieldAttribute.field() instanceof TextEsField text ? text.analyzerName() : null;
+    }
+
+    /**
+     * Whether to evaluate this function row by row, over the values in the page, instead of running a Lucene query against
+     * the documents of the rows. That is how a {@link #isRuntimeSearch() runtime search} is evaluated, and also the search of
+     * an indexed field on a node that has no shards to query, when the function {@link #canSearchWithoutShards() allows it}.
+     */
+    protected boolean evaluatesRowByRow(ToEvaluator toEvaluator) {
+        return isRuntimeSearch() || (canSearchWithoutShards() && toEvaluator.shardContexts().isEmpty());
     }
 
     /** The declared values analyzer resolved through the registry, or the standard analyzer when none was declared. */

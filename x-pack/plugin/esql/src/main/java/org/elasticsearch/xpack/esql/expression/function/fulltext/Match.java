@@ -43,6 +43,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -475,6 +477,38 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         return false;
     }
 
+    /**
+     * A {@code text} field is matched row by row like Lucene matches it when the analyzer of its mapping is known here,
+     * and a {@code keyword} field when its values are indexed as they are. The other types are left to Lucene: it parses
+     * the query with the mapper of the field, e.g. a date is matched to the precision of the query.
+     * <p>
+     * The mapping of a {@code text} field can also set a {@code search_analyzer} for the query, that is not known here: the
+     * query is analyzed like the values, which is what Lucene does when the mapping sets none.
+     */
+    @Override
+    public boolean canSearchWithoutShards() {
+        if (isRuntimeSearch() || DataType.isString(query().dataType()) == false) {
+            return false;
+        }
+        FieldAttribute fieldAttribute = fieldAsFieldAttribute();
+        if (fieldAttribute.field() instanceof TextEsField text) {
+            return field().dataType() == TEXT && text.unknownAnalyzer() == TextEsField.UnknownAnalyzer.NONE;
+        }
+        if (fieldAttribute.field() instanceof KeywordEsField keyword) {
+            if (field().dataType() != KEYWORD || keyword.getNormalized()) {
+                return false;
+            }
+            // the only option that applies to an exact match
+            for (String option : matchQueryOptions().keySet()) {
+                if (option.equals(LENIENT_FIELD.getPreferredName()) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         FieldAttribute fieldAttribute = fieldAsFieldAttribute();
@@ -604,7 +638,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (false == isRuntimeSearch()) {
+        if (false == evaluatesRowByRow(toEvaluator)) {
             // we push down match to the shards as a Lucene query.
             return super.toEvaluator(toEvaluator);
         }

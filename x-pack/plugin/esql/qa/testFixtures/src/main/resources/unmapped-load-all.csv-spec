@@ -8527,7 +8527,8 @@ TS k8s_downsampled_unmapped
 ;
 
 // A time-series aggregation over the same downsampled-shaped index reads a rolled-up aggregate_metric_double gauge, which is mapped, together
-// with an unmapped field that the query names, which is its own keyword column cast here.
+// with an unmapped field that the query names, which is its own keyword column cast here. The gauge's default metric is max, so the min of
+// it shows that the aggregation reads the rolled-up min and not the default scalar.
 loadAllTsDownsampledAggregation
 required_capability: optional_fields_load_all_single_source_column
 required_capability: ts_command_v0
@@ -8536,14 +8537,14 @@ required_capability: optional_fields_load_all_ts
 
 SET unmapped_fields="LOAD_ALL"\;
 TS k8s_downsampled_unmapped
-| STATS tx = max(max_over_time(network.eth0.tx)), bytes = sum(max_over_time(network.bytes_in :: long)) BY cluster
+| STATS tx = min(min_over_time(network.eth0.tx)), bytes = sum(max_over_time(network.bytes_in :: long)) BY cluster
 | SORT cluster
 ;
 
 tx:double | bytes:long | cluster:keyword
-1419.0    | 2329       | prod
-1248.0    | 2507       | qa
-1011.0    | 2443       | staging
+20.0      | 2329       | prod
+75.0      | 2507       | qa
+157.0     | 2443       | staging
 ;
 
 // METRICS_INFO replaces the columns of its input, so it returns no _unmapped_fields column, and the shards read no _source for it.

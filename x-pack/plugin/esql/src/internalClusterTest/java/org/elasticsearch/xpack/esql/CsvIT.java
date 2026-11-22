@@ -400,6 +400,13 @@ public class CsvIT extends ESTestCase {
             TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         cluster.beforeTest(random());
+        // The loaders are static, so they outlive the cluster of the previous class that ran in this JVM. What they recorded as loaded
+        // is not in this new cluster, and the next unloadAll() would delete views that it does not have.
+        indices.reset();
+        enrich.reset();
+        inference.reset();
+        views.reset();
+        aliases.reset();
 
         long stop = System.currentTimeMillis();
         logger.info("Started test cluster in {} ms", stop - start);
@@ -938,6 +945,12 @@ public class CsvIT extends ESTestCase {
                     throw new RuntimeException("Resource loading failure", failure);
                 }
             }
+        }
+
+        /** Forget what was loaded, because the cluster that it was loaded into is gone. */
+        public void reset() {
+            loaded.clear();
+            failure = null;
         }
 
         public void unloadAll() {

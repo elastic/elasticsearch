@@ -42,9 +42,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
+import static java.util.stream.Collectors.joining;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasToString;
@@ -458,6 +461,180 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
      */
     public void testNamedLoaderChargesTheValuesItHolds() throws IOException {
         assertTripsWhileHoldingValues(loader("a"), json("{\"a\":" + arrayOfShortStrings(100_000) + "}"));
+    }
+
+    /**
+     * The JSON of {@code _unmapped_fields} spells each leaf as its full path, so one long key above many leaves makes it far larger
+     * than {@code _source}: here about a hundred times. It is charged as it is built, so the read trips the breaker with a label of its
+     * own, instead of growing a buffer that nothing accounts for, and a breaker with room for it reads the same document.
+     */
+    public void testAllFieldsLoaderChargesTheJsonItBuildsForALongSharedPrefix() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 10.0));
+        Source source = json(documentWithALongKeyAboveManyLeaves(1_000, 10_000));
+
+        CircuitBreaker roomy = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(roomy, null)) {
+            reader.read(0, storedFields(source), loader.builder(TestBlock.factory(), 1));
+        }
+        assertThat(roomy.getUsed(), equalTo(0L));
+
+        TrippedLabelBreaker breaker = new TrippedLabelBreaker(newLimitedBreaker(ByteSizeValue.ofMb(4)));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            long inherited = breaker.getUsed();
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            expectThrows(CircuitBreakingException.class, () -> reader.read(0, storedFields(source), builder));
+            assertThat(breaker.trippedLabel, equalTo("unmapped fields written json"));
+            assertThat(breaker.getUsed(), equalTo(inherited));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A breaker that remembers the label of the charge that tripped it, which the breakers that tests make leave out of the error. */
+    private static final class TrippedLabelBreaker implements CircuitBreaker {
+        private final CircuitBreaker delegate;
+        private String trippedLabel;
+
+        TrippedLabelBreaker(CircuitBreaker delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            try {
+                delegate.addEstimateBytesAndMaybeBreak(bytes, label);
+            } catch (CircuitBreakingException e) {
+                trippedLabel = label;
+                throw e;
+            }
+        }
+
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {
+            delegate.circuitBreak(fieldName, bytesNeeded);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            delegate.addWithoutBreaking(bytes);
+        }
+
+        @Override
+        public long getUsed() {
+            return delegate.getUsed();
+        }
+
+        @Override
+        public long getLimit() {
+            return delegate.getLimit();
+        }
+
+        @Override
+        public double getOverhead() {
+            return delegate.getOverhead();
+        }
+
+        @Override
+        public long getTrippedCount() {
+            return delegate.getTrippedCount();
+        }
+
+        @Override
+        public String getName() {
+            return delegate.getName();
+        }
+
+        @Override
+        public Durability getDurability() {
+            return delegate.getDurability();
+        }
+
+        @Override
+        public void setLimitAndOverhead(long limit, double overhead) {
+            delegate.setLimitAndOverhead(limit, overhead);
+        }
+    }
+
+    /**
+     * The same document read by a named loader, which writes no JSON, is not charged for it.
+     */
+    /**
+     * A write that would need an array larger than the JVM allows is rejected before anything is charged or copied. Growing to it
+     * would throw an {@code OutOfMemoryError}, which is fatal for the node, and {@code toIntExact} on a larger size an
+     * {@code ArithmeticException}.
+     */
+    public void testJsonBufferRejectsAWriteBeyondTheLargestArray() {
+        long[] charged = new long[1];
+        CircuitBreaker breaker = new NoopCircuitBreaker("test") {
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+                charged[0] += bytes;
+            }
+        };
+        try (UnmappedFields.HeldValues charge = UnmappedFields.HeldValues.ofWrittenJson(breaker, 0)) {
+            UnmappedFields.ChargingByteArrayOutputStream out = new UnmappedFields.ChargingByteArrayOutputStream(charge);
+            long before = charged[0];
+            // The check runs before the bytes are read, so a one byte array stands in for the huge write.
+            for (int length : new int[] { Integer.MAX_VALUE - 7, Integer.MAX_VALUE }) {
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> out.write(new byte[1], 0, length));
+                assertThat(e.getMessage(), containsString("the JSON of the unmapped fields of a document needs"));
+            }
+            assertThat("nothing is charged for a write that is rejected", charged[0], equalTo(before));
+            // A write the array can take is not affected.
+            out.write(new byte[] { 1, 2, 3 }, 0, 3);
+            assertThat(out.bytesRefSharingArray().length, equalTo(3));
+        }
+    }
+
+    public void testNamedLoaderChargesNoJson() throws IOException {
+        Source source = json(documentWithALongKeyAboveManyLeaves(1_000, 10_000));
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(4));
+        BlockLoader loader = loader("id");
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            reader.read(0, storedFields(source), loader.builder(TestBlock.factory(), 1));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A document whose JSON is about the size of its {@code _source} is covered by the reservation, and makes no call to the breaker
+     * beyond it: the breaker has no room for anything more.
+     */
+    public void testJsonTheReservationCoversIsNotChargedAgain() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 10.0));
+        String json = "{" + IntStream.range(0, 20_000).mapToObj(i -> "\"key" + i + "\":\"value" + i + "\"").collect(joining(",")) + "}";
+        long reservation = json.length() * 10L;
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(reservation + ByteSizeValue.ofKb(1).getBytes()));
+        try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(breaker, null)) {
+            long inherited = breaker.getUsed();
+            BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+            reader.read(0, storedFields(json(json)), builder);
+            assertThat(breaker.getUsed(), equalTo(inherited));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The heap that the loader of all fields holds while it builds the JSON of a document with a long shared prefix is no more than
+     * what it has charged to the breaker by then, with the reservation that ES|QL makes by default.
+     */
+    public void testAllFieldsLoaderChargesAtLeastTheHeapItHoldsForALongSharedPrefix() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("dynamic", false)));
+        BlockLoader loader = createSearchExecutionContext(mapperService).unmappedFields()
+            .allFieldsBlockLoader(new UnmappedFields.Walk(Set.of(), UnmappedFields.Filter.ALL, 10.0));
+        assertChargesAtLeastTheHeapItHolds(loader, json(documentWithALongKeyAboveManyLeaves(1_000, 20_000)));
+    }
+
+    /** A document of one key of {@code keyLength} characters above {@code leaves} short leaves, and a mapped-looking {@code id}. */
+    private static String documentWithALongKeyAboveManyLeaves(int keyLength, int leaves) {
+        return "{\"id\":\"0\",\""
+            + "p".repeat(keyLength)
+            + "\":{"
+            + IntStream.range(0, leaves).mapToObj(i -> "\"k" + i + "\":0").collect(joining(","))
+            + "}}";
     }
 
     /**

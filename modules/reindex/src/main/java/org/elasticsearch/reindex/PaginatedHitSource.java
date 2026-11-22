@@ -206,9 +206,11 @@ public abstract class PaginatedHitSource {
         private final boolean timedOut;
         private final List<PaginatedSearchFailure> failures;
         private final long totalHits;
-        private final List<? extends Hit> hits;
+        // hits and searchAfterValues are mutable but not volatile: they're accessed one stage at a time (the search callback,
+        // then the bulk callback), never concurrently, and each stage is handed to the next.
+        private List<? extends Hit> hits;
         private final String scrollId;
-        private final Object[] searchAfterValues;
+        private Object[] searchAfterValues;
         private final BytesReference pitId;
 
         public Response(
@@ -318,6 +320,23 @@ public abstract class PaginatedHitSource {
         }
 
         /**
+         * Forgets the hits of this batch so they can be garbage collected while something still holds the response.
+         * Only call this once nothing needs to read the hits again. Any hit that has not been released yet is released here, and a hit
+         * that was already released is left alone, because {@link Hit#release()} is safe to call twice. The scroll id,
+         * search-after values and PIT id are kept so a later reader of the response still sees the cursor for this page.
+         */
+        public void dropHits() {
+            // Without explicit values the getter falls back to the last hit, and a released hit may not answer. The batch hits are
+            // already released by the time this runs, so the loop below only sees released hits. Both point-in-time sources pass
+            // explicit search-after values, so the fallback is never needed. Keeping the values array pins the answer anyway.
+            searchAfterValues = getSearchAfterValues();
+            for (Hit hit : hits) {
+                hit.release();
+            }
+            hits = List.of();
+        }
+
+        /**
          * The scroll id used to fetch the next set of documents. Null for PIT-based pagination.
          */
         public String getScrollId() {
@@ -402,6 +421,7 @@ public abstract class PaginatedHitSource {
         /**
          * Release any ref-counted resources held by this hit. Call when the hit is no longer needed.
          * Default is no-op; implementations that wrap ref-counted resources (e.g. {@link SearchHit}) override to release.
+         * A second call must do nothing, because the script, the page cleanup and {@link Response#dropHits()} can each release a hit.
          */
         default void release() {}
 

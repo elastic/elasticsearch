@@ -13,14 +13,20 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.SortedMap;
+import java.util.function.Supplier;
 
 /**
  * Implementation of delete-by-query using paginated search and bulk requests.
@@ -38,7 +44,10 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         TimeValue maxTaskShutdownGracePeriod,
         ReindexSettings reindexSettings,
-        CircuitBreaker requestBreaker
+        CircuitBreaker requestBreaker,
+        IndexingPressure indexingPressure,
+        @Nullable SystemIndices systemIndices,
+        @Nullable Supplier<SortedMap<String, IndexAbstraction>> indicesLookup
     ) {
         super(
             task,
@@ -58,7 +67,10 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
             maxTaskShutdownGracePeriod,
             reindexSettings,
             requestBreaker,
-            "delete_by_query_bulk_batch"
+            "delete_by_query_bulk_batch",
+            indexingPressure,
+            systemIndices,
+            indicesLookup
         );
     }
 

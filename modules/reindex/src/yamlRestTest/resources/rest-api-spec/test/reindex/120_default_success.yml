@@ -1,0 +1,40 @@
+---
+"reindex update and delete by query still complete":
+  - do:
+      index:
+        index: source
+        id: "1"
+        body: { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - match: { created: 1 }
+  - match: { failures: [] }
+
+  - do:
+      update_by_query:
+        index: source
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - match: { updated: 1 }
+  - match: { failures: [] }
+
+  - do:
+      delete_by_query:
+        index: dest
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - match: { deleted: 1 }
+  - match: { failures: [] }

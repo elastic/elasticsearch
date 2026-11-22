@@ -20,10 +20,12 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.ShutdownPrepareService;
@@ -48,6 +50,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final TimeValue taskShutdownGracePeriod;
     private final ReindexSettings reindexSettings;
     private final CircuitBreaker requestBreaker;
+    private final IndexingPressure indexingPressure;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportDeleteByQueryAction(
@@ -61,7 +65,9 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         @Nullable DeleteByQueryMetrics deleteByQueryMetrics,
         @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
         ReindexSettings reindexSettings,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices
     ) {
         super(DeleteByQueryAction.NAME, transportService, actionFilters, DeleteByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -80,6 +86,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
             "REQUEST circuit breaker must be available — delete-by-query relies on it for per-batch heap reservations"
         );
+        this.indexingPressure = Objects.requireNonNull(indexingPressure, "indexingPressure must not be null");
+        this.systemIndices = Objects.requireNonNull(systemIndices, "systemIndices must not be null");
     }
 
     @Override
@@ -115,7 +123,10 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     bulkByPaginatedSearchSearchContextMetrics,
                     taskShutdownGracePeriod,
                     reindexSettings,
-                    requestBreaker
+                    requestBreaker,
+                    indexingPressure,
+                    systemIndices,
+                    () -> projectResolver.getProjectMetadata(clusterService.state()).getIndicesLookup()
                 ).start();
             }
         );

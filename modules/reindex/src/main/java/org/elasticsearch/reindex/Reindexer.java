@@ -36,6 +36,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -55,6 +56,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -71,6 +73,7 @@ import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
@@ -104,6 +107,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -113,6 +117,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
@@ -144,6 +149,12 @@ public class Reindexer {
     private final TaskResultsService taskResultsService;
     private final TimeValue reindexShutdownGracePeriod;
     private final CircuitBreaker requestBreaker;
+    /** Null when this reindexer was not given the node's indexing pressure. Bulks then stay unaccounted. */
+    @Nullable
+    private final IndexingPressure indexingPressure;
+    /** Null when this reindexer was not given the node's system indices. No bulk then counts as system-only. */
+    @Nullable
+    private final SystemIndices systemIndices;
 
     Reindexer(
         ClusterService clusterService,
@@ -159,7 +170,9 @@ public class Reindexer {
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
         TaskResultsService taskResultsService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        @Nullable IndexingPressure indexingPressure,
+        @Nullable SystemIndices systemIndices
     ) {
         this.clusterService = clusterService;
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
@@ -177,6 +190,8 @@ public class Reindexer {
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
         this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        this.indexingPressure = indexingPressure;
+        this.systemIndices = systemIndices;
     }
 
     public void initTask(BulkByPaginatedSearchTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -309,7 +324,10 @@ public class Reindexer {
                 reindexShutdownGracePeriod,
                 bulkByPaginatedSearchSearchContextMetrics,
                 reindexSettings,
-                requestBreaker
+                requestBreaker,
+                indexingPressure,
+                systemIndices,
+                () -> projectResolver.getProjectMetadata(clusterService.state()).getIndicesLookup()
             );
             searchAction.start();
         };
@@ -1012,7 +1030,10 @@ public class Reindexer {
             TimeValue maxTaskShutdownGracePeriod,
             @Nullable BulkByPaginatedSearchSearchContextMetrics bulkByPaginatedSearchSearchContextMetrics,
             ReindexSettings reindexSettings,
-            CircuitBreaker requestBreaker
+            CircuitBreaker requestBreaker,
+            @Nullable IndexingPressure indexingPressure,
+            @Nullable SystemIndices systemIndices,
+            @Nullable Supplier<SortedMap<String, IndexAbstraction>> indicesLookup
         ) {
             super(
                 task,
@@ -1038,7 +1059,10 @@ public class Reindexer {
                 maxTaskShutdownGracePeriod,
                 reindexSettings,
                 requestBreaker,
-                "reindex_bulk_batch"
+                "reindex_bulk_batch",
+                indexingPressure,
+                systemIndices,
+                indicesLookup
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
             this.destinationSliceEnabled = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && destinationSliceEnabled(state);
@@ -1118,6 +1142,15 @@ public class Reindexer {
                 );
             }
             return super.buildPaginatedSearchResultSource(backoffPolicy, searchRequest);
+        }
+
+        /**
+         * A reindex writes to its destination whatever it reads from. Enrich reindex sets its destination the same way.
+         */
+        @Override
+        protected List<String> writeTargetExpressions() {
+            final String destination = mainRequest.getDestination().index();
+            return destination == null ? List.of() : List.of(destination);
         }
 
         @Override
@@ -1227,6 +1260,15 @@ public class Reindexer {
             }
 
             return wrap(index);
+        }
+
+        @Override
+        protected void releaseHitAfterRequestBuilt(PaginatedHitSource.Hit doc) {
+            // The request holds its own copy of the source. Routing and a script have already read the hit.
+            final XContentType destType = mainRequest.getDestination().getContentType();
+            if (destType != null && doc.getXContentType() != destType) {
+                doc.release();
+            }
         }
 
         /**

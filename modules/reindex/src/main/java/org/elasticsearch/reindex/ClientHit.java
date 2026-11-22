@@ -17,6 +17,8 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * Implementation of {@link PaginatedHitSource.Hit} that wraps a {@link SearchHit} from a local
  * {@link org.elasticsearch.client.internal.Client} search. Shared by scroll-based and PIT-based
@@ -26,6 +28,11 @@ import org.elasticsearch.xcontent.XContentType;
 class ClientHit implements PaginatedHitSource.Hit {
     private final SearchHit delegate;
     private final BytesReference source;
+    /**
+     * The script releases a hit once the request holds its own source, and the page cleanup releases every hit again.
+     * The search hit ref is dropped on the first of those calls.
+     */
+    private final AtomicBoolean released = new AtomicBoolean();
 
     ClientHit(SearchHit delegate) {
         delegate.mustIncRef();
@@ -87,6 +94,8 @@ class ClientHit implements PaginatedHitSource.Hit {
 
     @Override
     public void release() {
-        delegate.decRef();
+        if (released.compareAndSet(false, true)) {
+            delegate.decRef();
+        }
     }
 }

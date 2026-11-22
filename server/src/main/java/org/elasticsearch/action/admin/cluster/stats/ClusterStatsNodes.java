@@ -803,6 +803,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long currentIngestExpansionBytes = 0;
             long totalIngestExpansionBytes = 0;
             long ingestExpansionRejections = 0;
+            long reindexPageReserveRejections = 0;
+            long reindexPageBytesBelowEstimate = 0;
+            long reindexPageBytesAboveEstimate = 0;
+            long reindexPageExceedsLimit = 0;
 
             for (NodeStats nodeStat : nodeStats) {
                 IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
@@ -834,6 +838,10 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     currentIngestExpansionBytes += nodeStatIndexingPressureStats.getCurrentIngestExpansionBytes();
                     totalIngestExpansionBytes += nodeStatIndexingPressureStats.getTotalIngestExpansionBytes();
                     ingestExpansionRejections += nodeStatIndexingPressureStats.getIngestExpansionRejections();
+                    reindexPageReserveRejections += nodeStatIndexingPressureStats.getReindexPageReserveRejections();
+                    reindexPageBytesBelowEstimate += nodeStatIndexingPressureStats.getReindexPageBytesBelowEstimate();
+                    reindexPageBytesAboveEstimate += nodeStatIndexingPressureStats.getReindexPageBytesAboveEstimate();
+                    reindexPageExceedsLimit += nodeStatIndexingPressureStats.getReindexPageExceedsLimit();
                 }
             }
             indexingPressureStats = new IndexingPressureStats(
@@ -863,7 +871,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 totalLargeRejectedOpsBytes,
                 currentIngestExpansionBytes,
                 totalIngestExpansionBytes,
-                ingestExpansionRejections
+                ingestExpansionRejections,
+                reindexPageReserveRejections,
+                reindexPageBytesBelowEstimate,
+                reindexPageBytesAboveEstimate,
+                reindexPageExceedsLimit
             );
         }
 

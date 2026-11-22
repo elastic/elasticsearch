@@ -170,7 +170,10 @@ public class ReindexScriptTests extends AbstractAsyncBulkByPaginatedSearchAction
             randomPositiveTimeValue(),
             null,
             new ReindexSettings(),
-            NoopCircuitBreaker.INSTANCE
+            NoopCircuitBreaker.INSTANCE,
+            null,
+            null,
+            null
         );
     }
 

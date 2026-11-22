@@ -88,6 +88,44 @@ public class IndexingPressure implements IndexingPressureMonitor {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Coordinating bytes guessed for one document before a reindex, update-by-query, or delete-by-query search page
+     * is fetched. The page is only a document count at that point. The real bulk replaces this guess once the page
+     * arrives.
+     */
+    public static final Setting<ByteSizeValue> REINDEX_BYTES_ESTIMATE_PER_DOCUMENT = Setting.byteSizeSetting(
+        "indexing_pressure.reindex.bytes_estimate_per_document",
+        ByteSizeValue.ofKb(16),
+        ByteSizeValue.ofBytes(1),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Whether a reindex, update-by-query, or delete-by-query page reserves coordinating bytes before it searches.
+     * When this is false the bulk is charged when it is sent, which is what a node with no indexing pressure does.
+     */
+    public static final Setting<Boolean> REINDEX_PAGE_RESERVE_ENABLED = Setting.boolSetting(
+        "indexing_pressure.reindex.page_reserve_enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * The largest fraction of the coordinating limit a page estimate may reserve. A guess above that is cut down to it,
+     * and then it waits until the node has room, like any other reserve. One half means two such reserves fill an empty node.
+     */
+    public static final Setting<Double> REINDEX_ESTIMATE_CAP_PROPORTION = Setting.doubleSetting(
+        "indexing_pressure.reindex.estimate_cap_proportion",
+        0.5d,
+        0.01d,
+        1.0d,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(IndexingPressure.class);
 
     private final AtomicLong currentCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
@@ -99,6 +137,8 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final AtomicLong currentPrimaryOps = new AtomicLong(0);
     private final AtomicLong currentReplicaOps = new AtomicLong(0);
 
+    // For a reindex page the coordinating totals hold the estimate the page reserved, not its real bytes. The real bytes are the total
+    // minus reindexPageBytesBelowEstimate plus reindexPageBytesAboveEstimate. The coordinating ops total includes the final empty page.
     private final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
     private final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
     private final AtomicLong totalPrimaryBytes = new AtomicLong(0);
@@ -124,6 +164,14 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final AtomicLong largeOpsRejections = new AtomicLong(0);
     private final AtomicLong totalRejectedLargeOpsBytes = new AtomicLong(0);
 
+    // A reindex page reserve that did not fit. Not counted in coordinatingRejections, because no client sees a 429 for it.
+    private final AtomicLong reindexPageReserveRejections = new AtomicLong(0);
+    // Bytes a built reindex page gave back, or took on, against the estimate it reserved.
+    private final AtomicLong reindexPageBytesBelowEstimate = new AtomicLong(0);
+    private final AtomicLong reindexPageBytesAboveEstimate = new AtomicLong(0);
+    // A built reindex page larger than the coordinating limit. Also counted in coordinatingRejections.
+    private final AtomicLong reindexPageExceedsLimit = new AtomicLong(0);
+
     private final long lowWatermark;
     private final long lowWatermarkSize;
     private final long highWatermark;
@@ -132,6 +180,14 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final long primaryLimit;
     private final long replicaLimit;
     private final long operationLimit;
+
+    /**
+     * Read on each page reserve. A dynamic update applies to the next reserve, and a charge already held keeps the
+     * size it took.
+     */
+    private volatile long reindexBytesEstimatePerDocument;
+    private volatile boolean reindexPageReserveEnabled;
+    private volatile double reindexEstimateCapProportion;
 
     private final List<IndexingPressureListener> listeners = new CopyOnWriteArrayList<>();
 
@@ -144,6 +200,87 @@ public class IndexingPressure implements IndexingPressureMonitor {
         this.primaryLimit = MAX_PRIMARY_BYTES.get(settings).getBytes();
         this.replicaLimit = MAX_REPLICA_BYTES.get(settings).getBytes();
         this.operationLimit = MAX_OPERATION_SIZE.get(settings).getBytes();
+        this.reindexBytesEstimatePerDocument = REINDEX_BYTES_ESTIMATE_PER_DOCUMENT.get(settings).getBytes();
+        this.reindexPageReserveEnabled = REINDEX_PAGE_RESERVE_ENABLED.get(settings);
+        this.reindexEstimateCapProportion = REINDEX_ESTIMATE_CAP_PROPORTION.get(settings);
+    }
+
+    /**
+     * Bytes guessed for one document on the next reindex, update-by-query, or delete-by-query page reserve.
+     */
+    public long reindexBytesEstimatePerDocument() {
+        return reindexBytesEstimatePerDocument;
+    }
+
+    /**
+     * Whether the next page reserve should run. A charge already held is not released by turning this off.
+     */
+    public boolean reindexPageReserveEnabled() {
+        return reindexPageReserveEnabled;
+    }
+
+    /**
+     * The most bytes a page estimate may reserve. A dynamic update applies to the next reserve.
+     */
+    public long reindexEstimateCapInBytes() {
+        long cap = (long) (coordinatingLimit * reindexEstimateCapProportion);
+        if (cap < 1) {
+            return 1;
+        }
+        return Math.min(cap, coordinatingLimit);
+    }
+
+    /**
+     * One reindex page reserve was refused. The task waits and tries again. This is not a coordinating rejection.
+     */
+    public void addReindexPageReserveRejection() {
+        reindexPageReserveRejections.incrementAndGet();
+    }
+
+    /**
+     * A page charge shrank by this many bytes after its estimate. The shrink is to the hits when the page arrives, or to the bulk
+     * when that is smaller. A page can shrink and later grow, and both are recorded.
+     */
+    public void addReindexPageBytesBelowEstimate(long bytes) {
+        assert bytes > 0 : bytes;
+        reindexPageBytesBelowEstimate.addAndGet(bytes);
+    }
+
+    /**
+     * A page charge grew by this many bytes after its estimate. The growth is from the hits up to the bulk, so a page that is still
+     * under its estimate can record it. Real bytes are the reserved total, minus the shrinks, plus the growths.
+     */
+    public void addReindexPageBytesAboveEstimate(long bytes) {
+        assert bytes > 0 : bytes;
+        reindexPageBytesAboveEstimate.addAndGet(bytes);
+    }
+
+    /**
+     * A built reindex page was larger than the coordinating limit, so its charge could not grow to the real size.
+     */
+    public void addReindexPageExceedsLimit() {
+        reindexPageExceedsLimit.incrementAndGet();
+    }
+
+    /**
+     * Applies a dynamic update of {@link #REINDEX_BYTES_ESTIMATE_PER_DOCUMENT}. The next page reserve reads it.
+     */
+    public void setReindexBytesEstimatePerDocument(ByteSizeValue estimate) {
+        this.reindexBytesEstimatePerDocument = estimate.getBytes();
+    }
+
+    /**
+     * Applies a dynamic update of {@link #REINDEX_PAGE_RESERVE_ENABLED}. The next page reserve reads it.
+     */
+    public void setReindexPageReserveEnabled(boolean enabled) {
+        this.reindexPageReserveEnabled = enabled;
+    }
+
+    /**
+     * Applies a dynamic update of {@link #REINDEX_ESTIMATE_CAP_PROPORTION}. The next page reserve reads it.
+     */
+    public void setReindexEstimateCapProportion(double proportion) {
+        this.reindexEstimateCapProportion = proportion;
     }
 
     private static Releasable wrapReleasable(Releasable releasable) {
@@ -172,6 +309,30 @@ public class IndexingPressure implements IndexingPressureMonitor {
 
     public Coordinating createCoordinatingOperation(boolean forceExecution) {
         return new Coordinating(forceExecution);
+    }
+
+    /**
+     * Reserves coordinating bytes for a reindex, update-by-query, or delete-by-query search page before the page exists. The caller
+     * resizes the reservation to the real page afterwards, and waits and tries again when this refuses.
+     * <p>
+     * A refusal here is not counted in {@code coordinating_rejections}. The caller polls until the bytes fit, and no client sees a 429 for
+     * it. The caller counts the refusal with {@link #addReindexPageReserveRejection()} instead.
+     * <p>
+     * The reservation is never forced, so {@link Coordinating#increaseBytes} still refuses a page whose own size is above the
+     * coordinating limit.
+     * <p>
+     * Callers cap their estimate at {@link #reindexEstimateCapInBytes()}. The default proportion is one half, so two such reserves
+     * fill the budget on an empty node and a third waits. A page whose real size is above that cap reserves the cap and grows when
+     * it is resized. That growth is refused only when the reservation's own new size passes the limit.
+     *
+     * @param systemOnly true when every index the page writes is a system index. The reserve then skips the node total check, so
+     *                   bytes the node already holds do not refuse it. A system-only bulk was never refused that way.
+     * @throws EsRejectedExecutionException if the bytes do not fit, in which case nothing was reserved
+     */
+    public Coordinating reserveReindexPage(int operations, long bytes, boolean systemOnly) {
+        Coordinating coordinating = new Coordinating(false);
+        coordinating.increment(operations, bytes, systemOnly, false);
+        return coordinating;
     }
 
     /**
@@ -371,15 +532,27 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
 
         public void increment(int operations, long bytes) {
+            increment(operations, bytes, false, true);
+        }
+
+        /**
+         * @param skipNodeTotalCheck when true, only this reservation's own size is checked against the coordinating limit, and what
+         *                           the node already holds is not
+         * @param countRejection whether a refusal counts in {@code coordinating_rejections}
+         */
+        private void increment(int operations, long bytes, boolean skipNodeTotalCheck, boolean countRejection) {
             assert closed.get() == false;
             long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
             long replicaWriteBytes = currentReplicaBytes.get();
             long totalBytes = combinedBytes + replicaWriteBytes;
-            if (forceExecution == false && totalBytes > coordinatingLimit) {
+            final boolean overLimit = skipNodeTotalCheck ? bytes > coordinatingLimit : totalBytes > coordinatingLimit;
+            if (forceExecution == false && overLimit) {
                 long bytesWithoutOperation = combinedBytes - bytes;
                 long totalBytesWithoutOperation = totalBytes - bytes;
                 currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
-                coordinatingRejections.getAndIncrement();
+                if (countRejection) {
+                    coordinatingRejections.getAndIncrement();
+                }
                 throw new EsRejectedExecutionException(
                     "rejected execution of coordinating operation ["
                         + "coordinating_and_primary_bytes="
@@ -412,8 +585,74 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
 
         /**
+         * Bytes this reservation currently holds.
+         */
+        public long currentBytes() {
+            return currentOperationsSize;
+        }
+
+        /**
+         * Adds bytes to this reservation.
+         * The node's coordinating total may pass its limit, because the bytes are already in memory and the reservation has to match them.
+         * Refuses when this reservation's own new size would pass the coordinating limit, and leaves the reservation unchanged when it
+         * refuses.
+         * <p>
+         * A reservation has one owner at a time. Resizing or closing it from two threads at once is not safe.
+         * <p>
+         * The total counters keep the amount first reserved. Growing the reservation moves the current counters only.
+         *
+         * @param bytes additional bytes to hold
+         * @throws EsRejectedExecutionException when this reservation's own size would exceed the coordinating limit
+         */
+        public void increaseBytes(long bytes) {
+            increaseBytes(bytes, false);
+        }
+
+        /**
+         * Adds bytes to this reservation, as {@link #increaseBytes(long)} does, but lets the caller grow it past the coordinating limit.
+         * That is for a system-only bulk, which a plain coordinating reservation never refuses, so a system index page larger than the
+         * limit can still be admitted.
+         *
+         * @param bytes additional bytes to hold
+         * @param allowPastLimit when true, this reservation's own size is not checked against the coordinating limit
+         * @throws EsRejectedExecutionException when {@code allowPastLimit} is false and this reservation's own size would exceed the
+         *                                      coordinating limit
+         */
+        public void increaseBytes(long bytes, boolean allowPastLimit) {
+            assert closed.get() == false;
+            assert bytes >= 0 : bytes;
+            if (bytes == 0) {
+                return;
+            }
+            long newSize = currentOperationsSize + bytes;
+            // The check is this reservation alone. The node total is allowed to pass the limit so one admitted page can grow to its real
+            // size while other work is still in flight.
+            if (forceExecution == false && allowPastLimit == false && newSize > coordinatingLimit) {
+                coordinatingRejections.getAndIncrement();
+                throw new EsRejectedExecutionException(
+                    "rejected execution of coordinating operation ["
+                        + "coordinating_operation_bytes="
+                        + newSize
+                        + ", "
+                        + "max_coordinating_bytes="
+                        + coordinatingLimit
+                        + "]",
+                    false
+                );
+            }
+            currentOperationsSize = newSize;
+            logger.trace(() -> Strings.format("increasing coordinating reservation by [%d] bytes to [%d]", bytes, newSize));
+            currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
+            currentCoordinatingBytes.getAndAdd(bytes);
+        }
+
+        /**
          * Reduces the tracked byte count for this coordinating operation without closing it.
          * Use this to lower a reservation once the actual size is known to be smaller than the initially reserved amount.
+         * <p>
+         * A reservation has one owner at a time. Resizing or closing it from two threads at once is not safe.
+         * <p>
+         * The total counters keep the amount first reserved. Shrinking the reservation moves the current counters only.
          */
         public void reduceBytes(long bytes) {
             assert closed.get() == false;
@@ -705,8 +944,19 @@ public class IndexingPressure implements IndexingPressureMonitor {
             totalRejectedLargeOpsBytes.get(),
             currentIngestExpansionBytes.get(),
             totalIngestExpansionBytes.get(),
-            ingestExpansionRejections.get()
+            ingestExpansionRejections.get(),
+            reindexPageReserveRejections.get(),
+            reindexPageBytesBelowEstimate.get(),
+            reindexPageBytesAboveEstimate.get(),
+            reindexPageExceedsLimit.get()
         );
+    }
+
+    /**
+     * The coordinating byte limit. A reservation whose own size is above this is rejected.
+     */
+    public long getCoordinatingLimitInBytes() {
+        return coordinatingLimit;
     }
 
     @Override

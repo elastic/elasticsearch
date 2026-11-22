@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import com.github.luben.zstd.ZstdOutputStream;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -426,10 +427,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * pre-signed one carries its signature in the query string, so the location the log names IS the
      * credential. {@code ExternalFailuresTests} pins the redaction itself; this pins that this call site
      * applies it, which no test of {@code redactHttpUrl} can.
+     *
+     * <p>Redacting the argument is half of it: a store's own exception can quote the signed URL back, so an
+     * attached throwable would carry past the redaction. The double's message is its own path for that
+     * reason, and the expectation matches only an event with no throwable on it.
      */
     @TestLogging(
         value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:DEBUG",
-        reason = "the give-up is a debug line, and this asserts the location it names carries no signature"
+        reason = "the give-up is a debug line, and this asserts neither its location nor a throwable carries the signature"
     )
     public void testAFailedMtimeProbeDoesNotLogAPreSignedUrlsSignature() throws Exception {
         String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
@@ -441,7 +446,12 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                     StreamingParallelParsingCoordinator.class.getCanonicalName(),
                     Level.DEBUG,
                     "*no last-modified for [https://bucket.s3.example.com/data/employees.csv];*"
-                )
+                ) {
+                    @Override
+                    public boolean innerMatch(LogEvent event) {
+                        return event.getThrown() == null; // the store's own message is not ours to redact
+                    }
+                }
             );
             // Paired with the expectation above, so this cannot pass by the line never being logged at all.
             mockLog.addExpectation(
@@ -6763,7 +6773,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public Instant lastModified() throws IOException {
-            throw new IOException("this store serves no last-modified");
+            // Quotes the location back, as a storage SDK's own error does -- which is why the give-up log
+            // attaches no throwable.
+            throw new IOException("this store serves no last-modified: " + path);
         }
 
         @Override

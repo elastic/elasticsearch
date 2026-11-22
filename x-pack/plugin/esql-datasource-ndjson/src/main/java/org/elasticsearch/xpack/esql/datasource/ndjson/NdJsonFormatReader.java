@@ -639,9 +639,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 }
                 mtimeMillis = mtime.toEpochMilli();
             } catch (IOException e) {
-                // Same give-up as the scan path's, redacted for the same reason. Resolution still answers; the
-                // file just takes no cacheable identity from it.
-                logger.debug("no last-modified for [{}]; statistics for this read are uncacheable", sourceLocation, e);
+                // The throwable stays out: a store's own message can quote the signed URL back.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
+                    sourceLocation,
+                    e.getClass().getSimpleName()
+                );
                 return sampledMetadata(schema, location, null, counted.count(), sampled.sampleRows()).withWarnings(warnings)
                     .withWidenedColumns(widenedColumns);
             }
@@ -774,13 +777,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                     chunkMode = false;
                 }
             } catch (IOException e) {
-                // Same give-up as the chunk-parallel coordinator's, so an operator sees it whichever path read
-                // the file. Redacted: an http/https dataset's resource is the user's own URL, and a pre-signed
-                // one carries its signature in the query string, which must not reach the node log.
+                // The throwable stays out: a store's own message can quote the signed URL back.
                 logger.debug(
-                    "no last-modified for [{}]; statistics for this read are uncacheable",
+                    "no last-modified for [{}]; statistics for this read are uncacheable: {}",
                     ExternalFailures.redactHttpUrl(object.path().toString()),
-                    e
+                    e.getClass().getSimpleName()
                 );
                 cacheable = false;
                 chunkMode = false;

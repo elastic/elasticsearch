@@ -2500,12 +2500,11 @@ public final class StreamingParallelParsingCoordinator {
                     probed = Optional.ofNullable(storageObject.lastModified());
                 } catch (IOException e) {
                     probed = Optional.empty(); // No pin, so the publish guard leaves the file a safe miss.
-                    // Redacted: an http/https resource is the user's own URL, and a pre-signed one carries its
-                    // signature in the query string, which must not reach the node log.
+                    // The throwable stays out: a store's own message can quote the signed URL back.
                     logger.debug(
-                        "no last-modified for [{}]; statistics for this read are uncacheable",
+                        "no last-modified for [{}]; statistics for this read are uncacheable: {}",
                         ExternalFailures.redactHttpUrl(storageObject.path().toString()),
-                        e
+                        e.getClass().getSimpleName()
                     );
                 }
                 pinnedSourceMtime.compareAndSet(null, probed);

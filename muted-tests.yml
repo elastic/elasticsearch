@@ -885,3 +885,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripDropsClusterWithPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/167022
+- class: org.elasticsearch.compute.operator.DriverTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testDriverFailingWhileBlockedClosesItsSleep
+  issue: https://github.com/elastic/elasticsearch/issues/167028

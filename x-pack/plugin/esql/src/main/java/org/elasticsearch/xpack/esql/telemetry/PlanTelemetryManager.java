@@ -7,9 +7,21 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
+import org.elasticsearch.action.search.TimeRangeBucket;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -31,6 +43,8 @@ public class PlanTelemetryManager {
     private final LongCounter viewSettingsCounterAll;
     private final LongCounter viewResolvedSettingsCounter;
     private final LongCounter linkedProjectsHistogram;
+    private final LongHistogram queryDurationHistogram;
+    private final LongCounter queryCounter;
 
     /**
      * Number of times a command is used.
@@ -98,6 +112,63 @@ public class PlanTelemetryManager {
      */
     public static final String LINKED_PROJECTS_HISTOGRAM = "es.esql.linked_projects.histogram";
 
+    /**
+     * Duration in milliseconds of each successful ES|QL query: its {@code took}, as reported in the response and the query logs.
+     * Split by {@link #SOURCE_COMMAND} and {@link #TIME_RANGE_FILTER_FROM}, so latency can be analyzed by how old the data a query
+     * asks for is and by whether it is a metrics query. Failed and cancelled queries are left out, as their duration says little
+     * about query latency; they are counted by {@link #QUERY_TOTAL}, which must be read alongside this histogram: the slowest
+     * queries are the most likely to time out or be cancelled, so the tail of a bucket with many of them is biased low.
+     */
+    public static final String QUERY_DURATION_HISTOGRAM = "es.esql.query.duration.histogram";
+
+    /**
+     * Number of ES|QL queries, by {@link #SOURCE_COMMAND}, {@link #TIME_RANGE_FILTER_FROM} and {@link #OUTCOME}, so the share of
+     * queries that failed or were cancelled can be read per bucket of {@link #QUERY_DURATION_HISTOGRAM}.
+     */
+    public static final String QUERY_TOTAL = "es.esql.query.total";
+
+    /**
+     * Explicit millisecond bucket boundaries for {@link #QUERY_DURATION_HISTOGRAM}, covering 1 ms up to 10 minutes.
+     * Avoids the default sqrt(2) ladder, which clips above ~131 s and emits 36 buckets per series.
+     */
+    private static final List<Long> QUERY_DURATION_BUCKET_BOUNDARIES = List.of(
+        1L,
+        5L,
+        10L,
+        25L,
+        50L,
+        100L,
+        250L,
+        500L,
+        1_000L,
+        2_500L,
+        5_000L,
+        10_000L,
+        30_000L,
+        60_000L,
+        120_000L,
+        300_000L,
+        600_000L
+    );
+
+    /**
+     * Attribute of {@link #QUERY_DURATION_HISTOGRAM} and {@link #QUERY_TOTAL}: what the query reads, the name of a
+     * {@link QuerySourceCommand}.
+     */
+    public static final String SOURCE_COMMAND = "es_esql_source_command";
+
+    /**
+     * Attribute of {@link #QUERY_DURATION_HISTOGRAM} and {@link #QUERY_TOTAL}: the age of the lower bound of the request filter's
+     * {@code @timestamp} range when the query started, bucketed by {@link TimeRangeBucket}. Absent if the request filter has no such
+     * range. Shared with the search metrics, which bucket a Query DSL search's time range the same way, so one filter covers both.
+     */
+    public static final String TIME_RANGE_FILTER_FROM = SearchRequestAttributesExtractor.TIME_RANGE_FILTER_FROM_ATTRIBUTE;
+
+    /**
+     * Attribute of {@link #QUERY_TOTAL}: how the query ended, the lowercase name of a {@link QueryMetricsListener.Outcome}.
+     */
+    public static final String OUTCOME = "es_esql_outcome";
+
     public static final String FEATURE_NAME = "feature_name";
 
     /**
@@ -154,6 +225,17 @@ public class PlanTelemetryManager {
             "Histogram of linked projects per esql query",
             "unit"
         );
+        queryDurationHistogram = meterRegistry.registerLongHistogram(
+            QUERY_DURATION_HISTOGRAM,
+            "ESQL query duration on the coordinator for successful queries, by source command and time range filter age",
+            "ms",
+            QUERY_DURATION_BUCKET_BOUNDARIES
+        );
+        queryCounter = meterRegistry.registerLongCounter(
+            QUERY_TOTAL,
+            "ESQL queries on the coordinator, by source command, time range filter age and outcome",
+            "unit"
+        );
     }
 
     /**
@@ -170,6 +252,49 @@ public class PlanTelemetryManager {
         if (metrics.linkedProjectsCount() != null) {
             linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
         }
+    }
+
+    /**
+     * Records a query, once per query: counts it by its outcome, and records its duration if it succeeded.
+     *
+     * @param requestedTimeRange the {@code @timestamp} range the request filter asks for, or {@code null} if unknown
+     * @param queryStartMillis   when the query started, in milliseconds since the epoch, which the age of the range is relative to
+     */
+    public void recordQuery(
+        PlanTelemetry metrics,
+        @Nullable TimestampBounds requestedTimeRange,
+        long queryStartMillis,
+        QueryMetricsListener.Outcome outcome,
+        TimeValue took
+    ) {
+        Map<String, Object> attributes = requestedTimeRange == null
+            ? Map.of(SOURCE_COMMAND, metrics.sourceCommand().name())
+            : Map.of(
+                SOURCE_COMMAND,
+                metrics.sourceCommand().name(),
+                TIME_RANGE_FILTER_FROM,
+                timeRangeFilterFrom(requestedTimeRange, queryStartMillis)
+            );
+        queryCounter.incrementBy(1, Maps.copyMapWithAddedEntry(attributes, OUTCOME, outcome.name().toLowerCase(Locale.ROOT)));
+        if (outcome == QueryMetricsListener.Outcome.SUCCESS) {
+            queryDurationHistogram.record(took.millis(), attributes);
+        }
+    }
+
+    /**
+     * Buckets how long before the query started the requested range starts, as {@link SearchRequestAttributesExtractor} does for
+     * Query DSL searches. A range that starts in the future lands in the first bucket.
+     */
+    private static String timeRangeFilterFrom(TimestampBounds requestedTimeRange, long queryStartMillis) {
+        Duration age = Duration.between(requestedTimeRange.start(), Instant.ofEpochMilli(queryStartMillis));
+        long ageMillis;
+        try {
+            ageMillis = age.toMillis();
+        } catch (ArithmeticException e) {
+            // A date far outside the epoch millisecond range is as old, or as far in the future, as can be.
+            ageMillis = age.isNegative() ? Long.MIN_VALUE : Long.MAX_VALUE;
+        }
+        return TimeRangeBucket.resolve(ageMillis);
     }
 
     private void incCommand(String name, int count, boolean success) {

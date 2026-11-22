@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
@@ -435,6 +436,19 @@ public class PlanExecutor {
         return ActionListener.releaseBefore(reservation, listener);
     }
 
+    private void recordQuery(
+        EsqlQueryRequest request,
+        PlanTelemetry planTelemetry,
+        EsqlExecutionInfo executionInfo,
+        QueryMetricsListener.Outcome outcome
+    ) {
+        TimeValue took = executionInfo.tookOrElapsed();
+        // The age of the requested range is relative to when the query started, not to now: a slow query must not shift into an older
+        // bucket. The start is derived from the took, as nothing else here keeps the wall-clock time the query started at.
+        long queryStartMillis = System.currentTimeMillis() - took.millis();
+        planTelemetryManager.recordQuery(planTelemetry, request.requestedTimeRange(), queryStartMillis, outcome, took);
+    }
+
     private void onQuerySuccess(
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
@@ -446,6 +460,7 @@ public class PlanExecutor {
         String client
     ) {
         planTelemetryManager.publish(planTelemetry, true);
+        recordQuery(request, planTelemetry, executionInfo, QueryMetricsListener.Outcome.SUCCESS);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -483,6 +498,7 @@ public class PlanExecutor {
         // X-elastic-product-origin header instead (see clientOf), so the two families can differ for the same query.
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
+        recordQuery(request, planTelemetry, executionInfo, outcomeOf(ex));
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
             queryLabels(client, planTelemetry),

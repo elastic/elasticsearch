@@ -24,6 +24,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlAsyncGetResultsAction;
 
 import java.util.ArrayList;
@@ -48,8 +49,8 @@ import static org.hamcrest.Matchers.lessThan;
  * <p>
  * The query runs on a data node. The requests go through a coordinating only node with a {@value #RELAY_REQUEST_LIMIT} request
  * breaker, which a response with {@value #DOCS} rows doesn't fit in, and one with {@value #HELD_DOCS} rows does, both while it arrives
- * and as the pages read from it. A second coordinating only node with a {@value #DECODING_RELAY_REQUEST_LIMIT} request breaker fits
- * the response with {@value #HELD_DOCS} rows while it arrives, but not the pages read from it on top.
+ * and as the pages read from it. The tests of a trip while the pages are read give it a {@value #DECODING_RELAY_REQUEST_LIMIT} request
+ * breaker instead, which fits the response with {@value #HELD_DOCS} rows while it arrives, but not all the pages read from it on top.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
@@ -60,6 +61,7 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
     private static final int PAYLOAD_CHARS = 4000;
     private static final String RELAY_REQUEST_LIMIT = "200kb";
     private static final String DECODING_RELAY_REQUEST_LIMIT = "50kb";
+    private static final int ROWS_PER_PAGE = 2;
 
     private String owner;
     private String relay;
@@ -72,13 +74,14 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
     }
 
     private void startCluster() {
+        startCluster(RELAY_REQUEST_LIMIT);
+    }
+
+    private void startCluster(String relayRequestLimit) {
         // The test cluster can make a node's request breaker a noop one, which charges nothing.
         owner = internalCluster().startNode(Settings.builder().put("indices.breaker.request.type", "memory"));
         relay = internalCluster().startCoordinatingOnlyNode(
-            Settings.builder()
-                .put("indices.breaker.request.type", "memory")
-                .put("indices.breaker.request.limit", RELAY_REQUEST_LIMIT)
-                .build()
+            Settings.builder().put("indices.breaker.request.type", "memory").put("indices.breaker.request.limit", relayRequestLimit).build()
         );
         assertAcked(indicesAdmin().prepareCreate(INDEX).setSettings(indexSettings(1, 0)).setMapping("payload", "type=keyword"));
         BulkRequestBuilder bulk = client(owner).prepareBulk();
@@ -104,7 +107,7 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
         startCluster();
         CircuitBreaker relayBreaker = relayBreaker();
         long tripsBefore = relayBreaker.getTrippedCount();
-        String id = submit(DOCS);
+        String id = submit(DOCS, 0);
 
         // The trip itself, not wrapped in a remote transport exception, since it is the relaying node that has no room.
         CircuitBreakingException e = expectThrows(CircuitBreakingException.class, () -> rowsThrough(relay, id, stop));
@@ -132,7 +135,7 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
     private void assertRelayedResponseIsChargedUntilReleased(boolean stop) throws Exception {
         startCluster();
         CircuitBreaker relayBreaker = relayBreaker();
-        String id = submit(HELD_DOCS);
+        String id = submit(HELD_DOCS, 0);
 
         EsqlQueryResponse response = execute(relay, id, stop);
         try {
@@ -147,8 +150,8 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A response that fits while it arrives, but not with the pages read from it, fails with a 429 while its pages are read. The
-     * reservation and the pages read so far are released.
+     * A response that fits while it arrives, but not with all the pages read from it, fails with a 429 while its pages are read. The
+     * reservation and the pages read before the trip are released.
      */
     public void testRelayedResponseTripsWhileReadingPages() throws Exception {
         assertRelayedResponseTripsWhileReadingPages(false);
@@ -159,20 +162,14 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
     }
 
     private void assertRelayedResponseTripsWhileReadingPages(boolean stop) throws Exception {
-        startCluster();
-        String id = submit(HELD_DOCS);
-        String decodingRelay = internalCluster().startCoordinatingOnlyNode(
-            Settings.builder()
-                .put("indices.breaker.request.type", "memory")
-                .put("indices.breaker.request.limit", DECODING_RELAY_REQUEST_LIMIT)
-                .build()
-        );
-        CircuitBreaker breaker = internalCluster().getInstance(CircuitBreakerService.class, decodingRelay)
-            .getBreaker(CircuitBreaker.REQUEST);
+        startCluster(DECODING_RELAY_REQUEST_LIMIT);
+        // Several pages, so that some are read before the one that trips.
+        String id = submit(HELD_DOCS, ROWS_PER_PAGE);
+        CircuitBreaker breaker = relayBreaker();
         long tripsBefore = breaker.getTrippedCount();
 
         // A trip while the response is read reaches the caller wrapped by the transport, which only the get action unwraps.
-        Exception e = expectThrows(Exception.class, () -> rowsThrough(decodingRelay, id, stop));
+        Exception e = expectThrows(Exception.class, () -> rowsThrough(relay, id, stop));
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
         CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         assertNotNull(trip);
@@ -195,7 +192,7 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
 
     private void assertOwnerPassesItsRequestBreakerForTheReply(boolean stop) throws Exception {
         startCluster();
-        String id = submit(HELD_DOCS);
+        String id = submit(HELD_DOCS, 0);
         CircuitBreaker ownerBreaker = internalCluster().getInstance(CircuitBreakerService.class, owner).getBreaker(CircuitBreaker.REQUEST);
 
         AtomicReference<CircuitBreaker> replyBreaker = new AtomicReference<>();
@@ -239,15 +236,22 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Runs a query on the node that runs it and stores the result.
+     * Runs a query on the node that runs it and stores the result, with {@code rowsPerPage} rows in each page, or the default for 0.
      */
-    private String submit(int size) {
+    private String submit(int size, int rowsPerPage) {
         EsqlQueryRequest request = asyncEsqlQueryRequest("FROM " + INDEX + " | KEEP payload | LIMIT " + size).keepOnCompletion(true)
             .waitForCompletionTimeout(TimeValue.timeValueSeconds(30));
+        if (rowsPerPage > 0) {
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.PAGE_SIZE.getKey(), rowsPerPage).build()))
+                .acceptedPragmaRisks(true);
+        }
         EsqlQueryResponse response = client(owner).execute(EsqlQueryAction.INSTANCE, request).actionGet(SAFE_AWAIT_TIMEOUT);
         try {
             assertFalse(response.isRunning());
             assertThat(rows(response), equalTo(size));
+            if (rowsPerPage > 0) {
+                assertThat(response.pages().size(), equalTo(size / rowsPerPage));
+            }
             return response.asyncExecutionId().orElseThrow();
         } finally {
             response.decRef();

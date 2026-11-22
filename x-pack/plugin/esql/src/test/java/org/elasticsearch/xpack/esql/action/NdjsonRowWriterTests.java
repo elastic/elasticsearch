@@ -29,8 +29,11 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * The rows of a page as NDJSON lines, the part that {@code POST /_query/stream} and {@code GET /_query/stream/{id}} share. The pages
@@ -77,6 +80,10 @@ public class NdjsonRowWriterTests extends ESTestCase {
             // is counted and fails the check below.
             List<String> lines = List.of(text.substring(0, text.length() - 1).split("\n", -1));
             assertThat("the returned count is the number of lines written", rows, equalTo(lines.size()));
+            for (String line : lines) {
+                // a row is a JSON array, so a line is never empty: a blank line must not be counted as a row
+                assertThat("every line is a JSON array", line, allOf(startsWith("["), endsWith("]")));
+            }
             return lines;
         }
     }
@@ -322,7 +329,9 @@ public class NdjsonRowWriterTests extends ESTestCase {
         try {
             NdjsonRowWriter writer = new NdjsonRowWriter(page, ONE_LONG, null, ZoneOffset.UTC);
             RowsLimit limit = new RowsLimit(3);
-            assertThat(writeChunk(writer, between(1, 100), limit).size() + writeChunk(writer, 100, limit).size(), equalTo(3));
+            List<String> lines = new ArrayList<>(writeChunk(writer, between(1, 100), limit));
+            lines.addAll(writeChunk(writer, 100, limit));
+            assertThat(lines, equalTo(List.of("[0]", "[1]", "[2]")));
             assertTrue(writer.allRowsWritten());
             assertFalse("no row of the page was left out", writer.stoppedAtLimit());
         } finally {

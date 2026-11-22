@@ -227,38 +227,64 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A number that is indexed but left out of {@code _source} is read as it is stored when the stored preference asks for it, so
-     * the metadata, which holds the indexed value, does not describe what the scan reads. The query must then read the index and
-     * give what a scan gives.
+     * A field that is indexed but left out of {@code _source} is read as it is stored when the stored preference asks for it. For a
+     * number that differs from the metadata, which holds the indexed value, so the query must read the index and give what a scan
+     * gives. A date is read from its doc values whatever the preference, so it is still answered from the metadata, with what a scan
+     * gives.
      */
-    public void testStoredFieldExtractPreferenceReadsTheIndex() {
+    public void testStoredFieldExtractPreference() {
+        assumeTrue("requires the snapshot-only field_extract_preference pragma", canUseQueryPragmas());
         assertAcked(
             prepareCreate("stored_pref").setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .setMapping("""
                     {
-                      "_source": { "excludes": ["x"] },
-                      "properties": { "x": { "type": "long" }, "other": { "type": "long" } }
+                      "_source": { "excludes": ["x", "d", "dn"] },
+                      "properties": {
+                        "x": { "type": "long" },
+                        "d": { "type": "date" },
+                        "dn": { "type": "date_nanos" },
+                        "other": { "type": "long" }
+                      }
                     }
                     """)
         );
         for (int n = 0; n < 20; n++) {
-            prepareIndex("stored_pref").setId("doc_" + n).setSource("x", 100 + n, "other", n).get();
+            prepareIndex("stored_pref").setId("doc_" + n)
+                .setSource(
+                    "x",
+                    100 + n,
+                    "d",
+                    BASE_DATE + n * 1000L,
+                    "dn",
+                    Instant.ofEpochSecond(0, BASE_DATE * 1_000_000L + n * 1_000_000L).toString(),
+                    "other",
+                    n
+                )
+                .get();
         }
         indicesAdmin().prepareRefresh("stored_pref").get();
 
-        String query = "FROM stored_pref | STATS MIN(x), MAX(x)";
-        Outcome metadata = profiled(query, null);
-        assertThat(metadata.row, equalTo(List.of(100L, 119L)));
-        assertThat(metadata.localSource, is(true));
-
         QueryPragmas stored = new QueryPragmas(Settings.builder().put("field_extract_preference", "stored").build());
-        Outcome storedScan = profiled(query, null, stored);
-        assertThat(storedScan.luceneSource, is(true));
-        assertThat(storedScan.localSource, is(false));
-        // a filter that keeps every document makes the same query a scan for sure
-        Outcome reference = profiled(query, QueryBuilders.rangeQuery("other").gte(0), stored);
-        assertThat(reference.luceneSource, is(true));
-        assertThat(storedScan.row, equalTo(reference.row));
+        for (String field : List.of("x", "d", "dn")) {
+            boolean isDate = field.equals("x") == false;
+            String query = "FROM stored_pref | STATS min = MIN("
+                + field
+                + "), max = MAX("
+                + field
+                + ") | EVAL min = TO_LONG(min), max = TO_LONG(max)";
+
+            Outcome metadata = profiled(query, null);
+            assertThat(field, metadata.localSource, is(true));
+
+            Outcome storedPlan = profiled(query, null, stored);
+            // a filter that keeps every document makes the same query a scan for sure
+            Outcome reference = profiled(query, QueryBuilders.rangeQuery("other").gte(0), stored);
+            assertThat(field, reference.luceneSource, is(true));
+            assertThat(field, reference.localSource, is(false));
+            assertThat(field, storedPlan.row, equalTo(reference.row));
+            assertThat(field + " is answered from the metadata only if it is a date", storedPlan.localSource, is(isDate));
+            assertThat(field, storedPlan.luceneSource, is(isDate == false));
+        }
     }
 
     public void testMinMaxFromMetadata() {

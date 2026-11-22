@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 166709
+pr: 166887
+summary: Fix NPE in case-insensitive equals rewrite on null-folding operand
+type: bug

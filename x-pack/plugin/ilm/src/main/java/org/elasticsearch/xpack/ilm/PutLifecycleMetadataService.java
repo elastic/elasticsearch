@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -143,6 +144,7 @@ public class PutLifecycleMetadataService {
      * @param state  The cluster state
      */
     private static void validatePrerequisites(LifecyclePolicy policy, ProjectState state, XPackLicenseState licenseState) {
+        validateUnboundedTotalShardsPerNodeSupported(policy, state.cluster().getMinTransportVersion());
         List<Phase> phasesWithSearchableSnapshotActions = policy.getPhases()
             .values()
             .stream()
@@ -201,6 +203,32 @@ public class PutLifecycleMetadataService {
                         + phase.getName()
                         + "] phase "
                         + "must exist before it can be referenced by an ILM policy"
+                );
+            }
+        }
+    }
+
+    /**
+     * Rejects a {@link SearchableSnapshotAction} with an unbounded ({@code -1}) {@code total_shards_per_node} while any node in the
+     * cluster is older than {@link SearchableSnapshotAction#UNBOUNDED_TOTAL_SHARDS_PER_NODE_TRANSPORT_VERSION}. Older nodes accept the
+     * value from the wire but throw when they build the policy steps, which makes an older elected master fail to apply the cluster state.
+     * The check runs on both the coordinating node and the master, because an older master does not have it.
+     */
+    public static void validateUnboundedTotalShardsPerNodeSupported(LifecyclePolicy policy, TransportVersion minTransportVersion) {
+        if (minTransportVersion.supports(SearchableSnapshotAction.UNBOUNDED_TOTAL_SHARDS_PER_NODE_TRANSPORT_VERSION)) {
+            return;
+        }
+        for (Phase phase : policy.getPhases().values()) {
+            if (phase.getActions().get(SearchableSnapshotAction.NAME) instanceof SearchableSnapshotAction action
+                && Integer.valueOf(-1).equals(action.getTotalShardsPerNode())) {
+                throw new IllegalArgumentException(
+                    "["
+                        + SearchableSnapshotAction.TOTAL_SHARDS_PER_NODE.getPreferredName()
+                        + "] of [-1] in the ["
+                        + SearchableSnapshotAction.NAME
+                        + "] action of phase ["
+                        + phase.getName()
+                        + "] is not supported until all nodes in the cluster are upgraded"
                 );
             }
         }

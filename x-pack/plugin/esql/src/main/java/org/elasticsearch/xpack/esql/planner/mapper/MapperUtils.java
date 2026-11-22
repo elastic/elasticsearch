@@ -22,11 +22,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InsertEmptyBuckets;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.IpLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
@@ -59,10 +61,12 @@ import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.InsertEmptyBucketsExec;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.IpLocationExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -90,7 +94,23 @@ import java.util.List;
 public class MapperUtils {
     private MapperUtils() {}
 
+    /**
+     * Records {@code logical}'s id on {@code physical} when the physical node does not already name an origin.
+     * 1:1 translations call this once; a node that already has an origin is left alone so a second stamp
+     * does not duplicate the id.
+     */
+    static <P extends PhysicalPlan> P stampOrigin(P physical, LogicalPlan logical) {
+        if (physical != null && logical != null && physical.planOrigin().isEmpty()) {
+            physical.withOrigin(logical.planId());
+        }
+        return physical;
+    }
+
     static PhysicalPlan mapLeaf(LeafPlan p) {
+        return stampOrigin(mapLeafUnstamped(p), p);
+    }
+
+    private static PhysicalPlan mapLeafUnstamped(LeafPlan p) {
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
         }
@@ -109,7 +129,8 @@ public class MapperUtils {
                 eql.mode(),
                 eql.output(),
                 eql.pushedLimit(),
-                eql.preResolvedFieldCaps()
+                eql.preResolvedFieldCaps(),
+                eql.requestFilter()
             );
         }
 
@@ -117,6 +138,10 @@ public class MapperUtils {
     }
 
     static PhysicalPlan mapUnary(UnaryPlan p, PhysicalPlan child) {
+        return stampOrigin(mapUnaryUnstamped(p, child), p);
+    }
+
+    private static PhysicalPlan mapUnaryUnstamped(UnaryPlan p, PhysicalPlan child) {
         if (p instanceof Filter f) {
             return new FilterExec(f.source(), child, f.condition());
         }
@@ -213,6 +238,10 @@ public class MapperUtils {
 
         if (p instanceof MvExpand mvExpand) {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
+        }
+
+        if (p instanceof NestedExpand expand) {
+            return new NestedExpandExec(expand.source(), child, expand.path(), expand.expanded(), expand.paths());
         }
 
         if (p instanceof Fetch fetch) {
@@ -354,7 +383,7 @@ public class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        return switch (aggregate) {
+        AggregateExec exec = switch (aggregate) {
             case TimeSeriesAggregate ts -> new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
@@ -387,6 +416,11 @@ public class MapperUtils {
                 null
             );
         };
+        return stampOrigin(exec, aggregate);
+    }
+
+    static PhysicalPlan mapIntoWrite(Into into, PhysicalPlan child) {
+        return new IntoExec(into.source(), child, into.destination(), into.child().output(), into.output(), IntoExec.Mode.WRITE);
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

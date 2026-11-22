@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ConstantEvaluators;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.AbstractStringPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -218,10 +220,31 @@ public abstract class MvRegexMatch extends BinaryScalarFunction
     }
 
     /**
+     * The literal prefix every value matching the pattern starts with ({@code abc} for {@code abc*xyz} or
+     * {@code abc.*xyz}), or {@code null} when there is none ({@code *abc}, the empty pattern). Also {@code null} when the
+     * pattern is not a single, well-formed constant: that is an author error {@link #postOptimizationVerification}
+     * reports, so a caller asking for a pruning hint gets none rather than an exception.
+     */
+    @Nullable
+    public final String patternPrefix() {
+        if (right().foldable() == false) {
+            return null;
+        }
+        try {
+            return compilePattern(patternString()).extractPrefix();
+        } catch (InvalidArgumentException | IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
      * Validate the folded pattern, throwing {@link InvalidArgumentException} or {@link IllegalArgumentException} if it
      * is malformed or too complex to determinize. Called only with a non-null scalar pattern string.
      */
     protected abstract void validatePattern(String pattern);
+
+    /** The folded pattern in this function's grammar. May throw on a malformed pattern, as {@link #validatePattern} does. */
+    protected abstract AbstractStringPattern compilePattern(String pattern);
 
     /** Whether a given (present, non-null) pattern can be pushed to Lucene. Defaults to true; {@link MvLike} refuses the empty pattern. */
     protected boolean patternPushable(String pattern) {

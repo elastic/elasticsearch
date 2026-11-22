@@ -300,6 +300,46 @@ public class ViewServiceTests extends ESTestCase {
         validatePutView("subquery-view", "FROM (TS metrics | KEEP cpu), (FROM other)");
     }
 
+    public void testAcceptsLet() {
+        validatePutView("let-view", "LET a = (FROM metrics | KEEP cpu); LET b = (FROM a | WHERE cpu > 1); FROM b");
+        validatePutView("let-view", "LET a = (FROM metrics | KEEP host); FROM other | WHERE host IN (FROM a)");
+    }
+
+    /**
+     * Named subquery errors depend only on the definition, so the view is rejected when it is stored, and not only when it is queried.
+     */
+    public void testRejectsLetErrors() {
+        expectThrows(
+            ParsingException.class,
+            containsString("LET subquery [unused] is declared but never referenced"),
+            () -> validatePutView("let-view", "LET unused = (FROM metrics); FROM other")
+        );
+        expectThrows(
+            ParsingException.class,
+            containsString("Subqueries are not supported in LOOKUP JOIN"),
+            () -> validatePutView("let-view", "LET b = (FROM metrics); FROM other | LOOKUP JOIN b ON host")
+        );
+        expectThrows(
+            ParsingException.class,
+            containsString("Subqueries are not supported in TS command"),
+            () -> validatePutView("let-view", "LET b = (FROM metrics); TS b | STATS c = COUNT(*)")
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("Forward reference in LET subqueries: [b] cannot be referenced before its declaration"),
+            () -> validatePutView("let-view", "LET a = (FROM b); LET b = (FROM metrics); FROM a")
+        );
+    }
+
+    public void testValidateViewFailsOnLetErrors() {
+        var e = expectThrows(
+            ParsingException.class,
+            () -> validateView(viewService, new View("let-view", "LET unused = (FROM metrics); FROM other", null, false))
+        );
+        assertThat(e.getMessage(), containsString("LET subquery [unused] is declared but never referenced"));
+        assertThat(viewService.get(ProjectId.DEFAULT, "let-view"), nullValue());
+    }
+
     private void validatePutView(String name, String query) {
         viewService.validatePutView(clusterService.state().metadata().getProject(ProjectId.DEFAULT), new View(name, query, null, false));
     }

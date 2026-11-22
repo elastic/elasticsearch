@@ -752,8 +752,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
             AtomicReference<CircuitBreaker> seenBreaker = new AtomicReference<>();
+            AtomicReference<BlockFactory> seenFactory = new AtomicReference<>();
             Page filePage = new Page(1, TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 7 }, 1).asBlock());
             FormatReader formatReader = new SinglePageReader(() -> filePage) {
+                @Override
+                public FormatReader withBlockFactory(BlockFactory blockFactory) {
+                    seenFactory.set(blockFactory);
+                    return this;
+                }
+
                 @Override
                 public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
                     seenBreaker.set(context.breaker());
@@ -792,6 +799,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                     }
                 }
                 assertNotNull(page);
+                assertSame("the operator must bind the producer parent factory before read", TEST_BLOCK_FACTORY, seenFactory.get());
                 assertSame(TEST_BLOCK_FACTORY.breaker(), seenBreaker.get());
                 assertThat(seenBreaker.get(), not(instanceOf(LocalCircuitBreaker.class)));
                 IntBlock yearBlock = page.getBlock(1);
@@ -805,6 +813,69 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
         } finally {
             local.close();
+        }
+    }
+
+    public void testBindProducerFactoryClosesThePreBindMint() throws Exception {
+        AtomicInteger preBindCloses = new AtomicInteger();
+        Page filePage = new Page(1, TEST_BLOCK_FACTORY.newIntArrayVector(new int[] { 7 }, 1).asBlock());
+        FormatReader formatReader = new SinglePageReader(() -> filePage) {
+            @Override
+            public FormatReader withReadConfig(String readConfig) {
+                return new SinglePageReader(() -> filePage) {
+                    @Override
+                    public FormatReader withBlockFactory(BlockFactory blockFactory) {
+                        return new SinglePageReader(() -> filePage) {
+                            @Override
+                            public void close() {}
+                        };
+                    }
+
+                    @Override
+                    public void close() {
+                        preBindCloses.incrementAndGet();
+                    }
+                };
+            }
+        };
+
+        StoragePath filePath = StoragePath.of("s3://bucket/data/year=2024/f1.parquet");
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(filePath, 100, Instant.EPOCH)),
+            "s3://bucket/data/**" + "/f1.parquet"
+        );
+        List<Attribute> attributes = List.of(ref("value", DataType.INTEGER), ref("year", DataType.INTEGER));
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubMultiFileStorageProvider(),
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            Runnable::run
+        ).fileList(fileList).partitionColumnNames(Set.of("year")).partitionValues(Map.of("year", 2024)).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        Page page = null;
+        try {
+            while (operator.isFinished() == false) {
+                Page p = operator.getOutput();
+                if (p != null) {
+                    if (page == null) {
+                        page = p;
+                    } else {
+                        p.releaseBlocks();
+                    }
+                }
+            }
+            assertNotNull(page);
+            assertThat("withBlockFactory copy must close the withReadConfig mint it replaced", preBindCloses.get(), equalTo(1));
+        } finally {
+            if (page != null) {
+                page.releaseBlocks();
+            }
+            operator.close();
         }
     }
 
@@ -4956,9 +5027,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 iterator.close();
             }
 
-            assertFalse("abortStream must receive the Abortable raw GET, not a decompressed wrapper", object.sawNonAbortable.get());
-            assertTrue("abortStream must hit Abortable.abort() on the raw GET", object.sawAbortable.get());
-            assertTrue(object.abortCalled.get());
+            assertFalse("close must not drain the Abortable raw GET as a non-Abortable wrapper", object.sawNonAbortable.get());
+            assertTrue("close of a large leftover must abort the Abortable raw GET", object.abortCalled.get());
         } finally {
             exec.shutdownNow();
         }
@@ -5022,7 +5092,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
 
             assertEquals(rows, seen);
-            assertTrue("abortStream must hit Abortable.abort() on the raw GET", object.sawAbortable.get());
+            assertTrue("close after a full gzip read must still abort the raw GET", object.abortCalled.get());
             assertTrue(
                 "a fully read gzip body must reach end-of-body before the abort, or the connection is discarded",
                 object.endOfBodyReadBeforeAbort.get()
@@ -5047,8 +5117,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new FailingStreamOnlyCodec());
 
-        byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
-        byte[] gzipped = gzipCompress(plain);
+        byte[] gzipped = new byte[DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES * 2];
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(gzipped, tracking);
@@ -5661,11 +5730,19 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             if (abortCalled.get()) {
                 return;
             }
-            byte[] drain = new byte[8192];
-            int n;
-            while ((n = inner.read(drain, 0, drain.length)) != -1) {
-                bytesConsumed.addAndGet(n);
+            int unread = inner.available();
+            if (unread > DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES) {
+                abort();
+                return;
             }
+            if (unread > 0) {
+                byte[] drain = new byte[8192];
+                int n;
+                while ((n = inner.read(drain, 0, drain.length)) != -1) {
+                    bytesConsumed.addAndGet(n);
+                }
+            }
+            abort();
         }
     }
 

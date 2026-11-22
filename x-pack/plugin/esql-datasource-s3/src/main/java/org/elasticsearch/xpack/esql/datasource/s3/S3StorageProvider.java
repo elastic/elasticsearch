@@ -29,6 +29,7 @@ import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.CommonPrefix;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
@@ -110,6 +111,19 @@ public class S3StorageProvider implements StorageProvider {
     private static final String DEFAULT_JWT_AUDIENCE = "sts.amazonaws.com";
 
     private static final Duration CONNECTION_ACQUISITION_TIMEOUT = Duration.ofSeconds(60);
+    /**
+     * Idle read timeout on the async {@code readBytesAsync} path (Parquet ranges). Streaming
+     * {@code newStream} uses the Apache client, whose abort drops the socket.
+     */
+    private static final Duration ASYNC_READ_TIMEOUT = Duration.ofSeconds(30);
+
+    private static NettyNioAsyncHttpClient.Builder nettyHttpClientBuilder(int maxConnections) {
+        return NettyNioAsyncHttpClient.builder()
+            .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
+            .maxConcurrency(maxConnections)
+            .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+            .readTimeout(ASYNC_READ_TIMEOUT);
+    }
 
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
@@ -119,7 +133,7 @@ public class S3StorageProvider implements StorageProvider {
      * provider, mirroring the client-wide scope the strategy had when it lived inside the SDK client.
      * SDK-level retries are disabled on {@link #s3AsyncClient} — see {@link #buildS3AsyncClient}.
      */
-    private final RetryStrategy asyncReadRetryStrategy = AwsRetryStrategy.standardRetryStrategy();
+    private final RetryStrategy asyncReadRetryStrategy = standardRetryStrategy();
     private final S3Configuration config;
     private final StorageIdentity storageIdentity;
     // Non-null only in the production constructor; null in the test-only constructor (forTesting).
@@ -165,9 +179,9 @@ public class S3StorageProvider implements StorageProvider {
     }
 
     /**
-     * Production constructor. {@code maxConnections} sizes the async client's Netty connection pool and is the
-     * value of the {@code esql.external.max_concurrent_requests} node setting, read at the plugin's construction
-     * path (which holds node {@link Settings}).
+     * Production constructor. {@code maxConnections} sizes both HTTP pools: Apache for blocking
+     * {@code newStream} GETs and Netty for {@code readBytesAsync}
+     * ({@link ExternalSourceSettings#sdkConnectionPoolSize(Settings)} from {@code esql.external.max_concurrent_requests}).
      */
     @SuppressWarnings("this-escape")
     public S3StorageProvider(
@@ -209,7 +223,7 @@ public class S3StorageProvider implements StorageProvider {
                 case MANAGED_IDENTITY -> buildManagedIdentityCredentialsProvider();
             };
             this.credentials = resolvedCredentials;
-            s3 = buildS3Client(config, resolvedCredentials);
+            s3 = buildS3Client(config, resolvedCredentials, maxConnections);
             this.stsAsyncClient = sts;
             this.s3Client = s3;
             this.s3AsyncClient = buildS3AsyncClient(config, resolvedCredentials, maxConnections);
@@ -310,7 +324,9 @@ public class S3StorageProvider implements StorageProvider {
      * Package-private for subclass override in tests.
      */
     S3Client buildRetryClient(String region) {
-        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy(), region).build();
+        S3ClientBuilder builder = S3Client.builder();
+        configureCommon(builder, config, credentials, standardRetryStrategy(), region);
+        return builder.httpClientBuilder(apacheHttpClientBuilder(maxConnections)).build();
     }
 
     /**
@@ -321,10 +337,7 @@ public class S3StorageProvider implements StorageProvider {
      */
     S3AsyncClient buildRetryAsyncClient(String region) {
         return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), region).httpClientBuilder(
-            NettyNioAsyncHttpClient.builder()
-                .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
-                .maxConcurrency(maxConnections)
-                .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+            nettyHttpClientBuilder(maxConnections)
         ).build();
     }
 
@@ -423,8 +436,31 @@ public class S3StorageProvider implements StorageProvider {
         }
     }
 
-    private static S3Client buildS3Client(S3Configuration config, IdentityProvider<? extends AwsCredentialsIdentity> credentials) {
-        return configureCommon(S3Client.builder(), config, credentials, AwsRetryStrategy.standardRetryStrategy(), null).build();
+    /**
+     * AWS Standard retries plus {@code InvalidAccessKeyId}. IAM is not strongly consistent, so a
+     * freshly minted key can 403 until it propagates; this is the S3 SDK seam that waits that out.
+     * Azure/GCS would add an SDK-native predicate at their own builders if they hit the same class
+     * of failure.
+     */
+    private static RetryStrategy standardRetryStrategy() {
+        return AwsRetryStrategy.standardRetryStrategy()
+            .toBuilder()
+            .retryOnException(S3FailureDetail::isInvalidAccessKeyIdException)
+            .build();
+    }
+
+    private static AbortRegisteringHttpClient.Builder apacheHttpClientBuilder(int maxConnections) {
+        return new AbortRegisteringHttpClient.Builder(maxConnections, CONNECTION_ACQUISITION_TIMEOUT);
+    }
+
+    private static S3Client buildS3Client(
+        S3Configuration config,
+        IdentityProvider<? extends AwsCredentialsIdentity> credentials,
+        int maxConnections
+    ) {
+        S3ClientBuilder builder = S3Client.builder();
+        configureCommon(builder, config, credentials, standardRetryStrategy(), null);
+        return builder.httpClientBuilder(apacheHttpClientBuilder(maxConnections)).build();
     }
 
     private static S3AsyncClient buildS3AsyncClient(
@@ -443,11 +479,12 @@ public class S3StorageProvider implements StorageProvider {
         // Pass the builder (not a pre-built client) so the SDK takes ownership of the Netty client
         // and closes it when S3AsyncClient.close() is called. A pre-built client passed via
         // .httpClient() is wrapped in NonManagedSdkAsyncHttpClient whose close() is a no-op.
-        // Size the connection pool from the single esql.external.max_concurrent_requests knob; the circuit breaker
-        // bounds memory and reactive 503 backoff handles throttling. The SDK's default maxConcurrency is 50,
-        // which caps a single query's read parallelism well below what S3 serves happily — S3 throttles per
-        // key-prefix request rate, not per per-machine connection count, and pushes back with 503/backoff when it
-        // actually needs to. connectionAcquisitionTimeout is generous so brief pool contention queues rather than
+        // Size the connection pool from esql.external.max_concurrent_requests via
+        // sdkConnectionPoolSize (N+1, or the default when unlimited). The SDK's default
+        // maxConcurrency is 50, which caps a single query's read parallelism well below what S3
+        // serves happily — S3 throttles per key-prefix request rate, not per per-machine connection
+        // count, and pushes back with 503/backoff when it actually needs to.
+        // connectionAcquisitionTimeout is generous so brief pool contention queues rather than
         // failing the read.
         //
         // SDK-level retries are DISABLED on the async client: it exists solely for
@@ -459,10 +496,7 @@ public class S3StorageProvider implements StorageProvider {
         // See KnownLengthAsyncResponseTransformer's javadoc; do not re-enable retries here without
         // removing the single-use contract there.
         return configureCommon(S3AsyncClient.builder(), config, credentials, AwsRetryStrategy.doNotRetry(), null).httpClientBuilder(
-            NettyNioAsyncHttpClient.builder()
-                .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT)
-                .maxConcurrency(maxConnections)
-                .connectionAcquisitionTimeout(CONNECTION_ACQUISITION_TIMEOUT)
+            nettyHttpClientBuilder(maxConnections)
         ).build();
     }
 
@@ -493,7 +527,7 @@ public class S3StorageProvider implements StorageProvider {
         IdentityProvider<? extends AwsCredentialsIdentity> credentials,
         List<ExecutionInterceptor> interceptors
     ) {
-        return configureCommon(builder, config, credentials, AwsRetryStrategy.standardRetryStrategy(), null, interceptors);
+        return configureCommon(builder, config, credentials, standardRetryStrategy(), null, interceptors);
     }
 
     private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(

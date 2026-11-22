@@ -1186,15 +1186,15 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     /** The types the exact bounds support, with the range their values come from. */
-    private record ExactType(String name, long lowest, long highest, boolean intPoints) {}
+    private record ExactType(String name, DataType dataType, long lowest, long highest, boolean intPoints) {}
 
     private static final List<ExactType> EXACT_TYPES = List.of(
-        new ExactType("date", -10_000_000_000L, 10_000_000_000L, false),
-        new ExactType("date_nanos", 0L, 10_000_000_000L, false),
-        new ExactType("long", Long.MIN_VALUE, Long.MAX_VALUE, false),
-        new ExactType("integer", Integer.MIN_VALUE, Integer.MAX_VALUE, true),
-        new ExactType("short", Short.MIN_VALUE, Short.MAX_VALUE, true),
-        new ExactType("byte", Byte.MIN_VALUE, Byte.MAX_VALUE, true)
+        new ExactType("date", DataType.DATETIME, -10_000_000_000L, 10_000_000_000L, false),
+        new ExactType("date_nanos", DataType.DATE_NANOS, 0L, 10_000_000_000L, false),
+        new ExactType("long", DataType.LONG, Long.MIN_VALUE, Long.MAX_VALUE, false),
+        new ExactType("integer", DataType.INTEGER, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+        new ExactType("short", DataType.INTEGER, Short.MIN_VALUE, Short.MAX_VALUE, true),
+        new ExactType("byte", DataType.INTEGER, Byte.MIN_VALUE, Byte.MAX_VALUE, true)
     );
 
     private static final Settings SKIPPER_SETTINGS = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
@@ -1287,7 +1287,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 )
             ) {
                 SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
-                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs), type.name), stats.exactMinMax(F));
+                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs), type.dataType), stats.exactMinMax(F));
             }
         }
     }
@@ -1300,7 +1300,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             ) {
                 assertNotNull(shard.reader.leaves().get(0).reader().getDocValuesSkipper("f"));
                 SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
-                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs), type.name), stats.exactMinMax(F));
+                assertEquals(type.name, new SearchStats.ExactMinMax(true, min(docs), max(docs), type.dataType), stats.exactMinMax(F));
             }
         }
     }
@@ -1326,17 +1326,17 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         }
         try (Shard shard = shard(Settings.EMPTY, mapping, fields, false)) {
             SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
-            var expected = new SearchStats.ExactMinMax(true, min(docs), max(docs), "long");
+            var expected = new SearchStats.ExactMinMax(true, min(docs), max(docs), DataType.LONG);
             assertEquals(expected, stats.exactMinMax(F));
             assertEquals(expected, stats.exactMinMax(new FieldAttribute.FieldName("f_alias")));
             long lowest = docs.stream().flatMap(List::stream).mapToLong(v -> -v / 2).min().getAsLong();
             long highest = docs.stream().flatMap(List::stream).mapToLong(v -> -v / 2).max().getAsLong();
             assertEquals(
-                new SearchStats.ExactMinMax(true, lowest, highest, "long"),
+                new SearchStats.ExactMinMax(true, lowest, highest, DataType.LONG),
                 stats.exactMinMax(new FieldAttribute.FieldName("o.f"))
             );
             assertEquals(
-                new SearchStats.ExactMinMax(true, lowest, highest, "long"),
+                new SearchStats.ExactMinMax(true, lowest, highest, DataType.LONG),
                 stats.exactMinMax(new FieldAttribute.FieldName("o_alias"))
             );
         }
@@ -1353,7 +1353,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         try (Shard shard = shard(SKIPPER_SETTINGS, mapping, docs.stream().map(d -> skipperDocument(d)).toList(), false)) {
             SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
             assertEquals(
-                new SearchStats.ExactMinMax(true, min(docs), max(docs), "long"),
+                new SearchStats.ExactMinMax(true, min(docs), max(docs), DataType.LONG),
                 stats.exactMinMax(new FieldAttribute.FieldName("f_alias"))
             );
         }
@@ -1363,7 +1363,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         List<List<IndexableField>> docs = List.of(List.of(), List.of());
         try (Shard shard = shard(Settings.EMPTY, mapping("long", true), docs, false)) {
             SearchStats stats = SearchContextStats.from(List.of(shard.context(this)));
-            assertEquals(SearchStats.ExactMinMax.noValues("long"), stats.exactMinMax(F));
+            assertEquals(SearchStats.ExactMinMax.noValues(DataType.LONG), stats.exactMinMax(F));
         }
     }
 
@@ -1435,7 +1435,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
             SearchStats stats = SearchContextStats.from(
                 List.of(pointsShard.context(this), skipperShard.context(this), otherShard.context(this))
             );
-            assertEquals(new SearchStats.ExactMinMax(true, min(all), max(all), "long"), stats.exactMinMax(F));
+            assertEquals(new SearchStats.ExactMinMax(true, min(all), max(all), DataType.LONG), stats.exactMinMax(F));
         }
     }
 
@@ -1450,6 +1450,21 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         ) {
             assertNull(SearchContextStats.from(List.of(withMetadata.context(this), withoutMetadata.context(this))).exactMinMax(F));
             assertNull(SearchContextStats.from(List.of(withoutMetadata.context(this), withMetadata.context(this))).exactMinMax(F));
+        }
+    }
+
+    public void testExactMinMaxAcrossShardsThatMapIntegerTypesDifferently() throws IOException {
+        List<List<IndexableField>> intDocs = List.of(pointsDocument(EXACT_TYPES.get(3), List.of(5L)));
+        List<List<IndexableField>> shortDocs = List.of(pointsDocument(EXACT_TYPES.get(4), List.of(2L)));
+        try (
+            Shard intShard = shard(Settings.EMPTY, mapping("integer", true), intDocs, false);
+            Shard shortShard = shard(Settings.EMPTY, mapping("short", true), shortDocs, false)
+        ) {
+            // both are read as integer, so the bounds of the two can be combined
+            assertEquals(
+                new SearchStats.ExactMinMax(true, 2L, 5L, DataType.INTEGER),
+                SearchContextStats.from(List.of(intShard.context(this), shortShard.context(this))).exactMinMax(F)
+            );
         }
     }
 

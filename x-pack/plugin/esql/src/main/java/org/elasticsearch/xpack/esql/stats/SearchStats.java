@@ -83,12 +83,12 @@ public interface SearchStats {
      * The bounds {@link #exactMinMax} reports. Dates are the milliseconds or nanoseconds since the epoch.
      *
      * @param hasValues {@code false} when no document holds a value, which makes {@code MIN} and {@code MAX} {@code null}
-     * @param typeName  the type that every shard maps the field as, such as {@code date} or {@code integer}, so that a caller can tell
-     *                  whether it reads the field as that type. {@code null} if no shard maps the field.
+     * @param type      the type that every shard maps the field as, so that a caller can tell whether it reads the field as that type
+     *                  without converting the values. {@code null} if no shard maps the field.
      */
-    record ExactMinMax(boolean hasValues, long min, long max, String typeName) {
-        public static ExactMinMax noValues(String typeName) {
-            return new ExactMinMax(false, 0L, 0L, typeName);
+    record ExactMinMax(boolean hasValues, long min, long max, DataType type) {
+        public static ExactMinMax noValues(DataType type) {
+            return new ExactMinMax(false, 0L, 0L, type);
         }
 
         public ExactMinMax {

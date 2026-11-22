@@ -58,7 +58,7 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
         AggregatorMode mode = aggregateExec.getMode();
-        if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
+        if (mode.isInputPartial()) {
             return aggregateExec;
         }
         // a time series aggregation reads each series as its own, so the bounds of the whole index do not describe what it reads
@@ -107,7 +107,7 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
             SearchStats.ExactMinMax exact = context.searchStats().exactMinMax(target.fieldName());
             // The shards of this node map the field as one type, but the query may read it as another: a field mapped as date in
             // one index and as date_nanos in another is read as date_nanos, whichever node a shard is on
-            if (exact == null || isReadAsMappedType(target.dataType(), exact.typeName()) == false) {
+            if (exact == null || (exact.type() != null && exact.type() != target.dataType())) {
                 return aggregateExec;
             }
             bounds.add(exact);
@@ -182,27 +182,6 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
     /** The types {@link SearchStats#exactMinMax} can answer, as the types the aggregate sees. */
     private static boolean isSupported(DataType type) {
         return type == DataType.INTEGER || type == DataType.LONG || type == DataType.DATETIME || type == DataType.DATE_NANOS;
-    }
-
-    /** Whether a field mapped as {@code mappedType} is read as {@code type} without converting its values. */
-    private static boolean isReadAsMappedType(DataType type, String mappedType) {
-        if (mappedType == null) {
-            // no shard maps the field: there are no values to convert
-            return true;
-        }
-        if (type == DataType.DATETIME) {
-            return mappedType.equals("date");
-        }
-        if (type == DataType.DATE_NANOS) {
-            return mappedType.equals("date_nanos");
-        }
-        if (type == DataType.LONG) {
-            return mappedType.equals("long");
-        }
-        if (type == DataType.INTEGER) {
-            return mappedType.equals("integer") || mappedType.equals("short") || mappedType.equals("byte");
-        }
-        return false;
     }
 
     private static Block valueBlock(BlockFactory blockFactory, DataType type, long value) {

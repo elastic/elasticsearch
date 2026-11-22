@@ -63,7 +63,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -140,7 +139,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -2211,16 +2209,8 @@ public class ComputeService {
             final String logicalPlanJson;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
-                // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
-                List<SearchExecutionContext> localContexts = new ArrayList<>();
-                // A shard filter, such as an index alias filter, is applied to the queries but not to the segments the stats read
-                boolean shardFilters = false;
-                for (var shardContext : shardContexts.iterable()) {
-                    var defaultShardContext = (DefaultShardContext) shardContext;
-                    localContexts.add(defaultShardContext.executionContext());
-                    shardFilters |= defaultShardContext.hasAliasFilter();
-                }
-                SearchStats localStats = SearchContextStats.from(localContexts, shardFilters);
+                // Planning sees the fields the plan reads as each shard resolves them
+                SearchStats localStats = SearchContextStats.fromShards(shardContexts.iterable());
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,

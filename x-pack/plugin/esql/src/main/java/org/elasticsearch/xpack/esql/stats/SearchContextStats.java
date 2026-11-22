@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
 import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -41,10 +42,12 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,10 +106,21 @@ public class SearchContextStats implements SearchStats {
     }
 
     /**
-     * @param shardFilters whether a shard applies a filter to its queries, such as an index alias filter, that the segments do not
-     *                     reflect. Statistics that would otherwise describe documents the filter hides are then not reported as exact.
+     * Statistics over the shards a node searches. A shard filter, such as an index alias filter, is applied to the queries of a shard
+     * but not to its segments, so statistics that would otherwise describe documents the filter hides are not reported as exact.
      */
-    public static SearchStats from(List<SearchExecutionContext> contexts, boolean shardFilters) {
+    public static SearchStats fromShards(Iterable<? extends ShardContext> shards) {
+        List<SearchExecutionContext> contexts = new ArrayList<>();
+        boolean shardFilters = false;
+        for (ShardContext shard : shards) {
+            DefaultShardContext defaultShard = (DefaultShardContext) shard;
+            contexts.add(defaultShard.executionContext());
+            shardFilters |= defaultShard.hasAliasFilter();
+        }
+        return from(contexts, shardFilters);
+    }
+
+    static SearchStats from(List<SearchExecutionContext> contexts, boolean shardFilters) {
         if (contexts == null || contexts.isEmpty()) {
             return SearchStats.EMPTY;
         }
@@ -440,30 +454,31 @@ public class SearchContextStats implements SearchStats {
 
     private ExactMinMax computeExactMinMax(FieldName field) {
         final String name = field.string();
-        if (mayHoldUnmappedField(field)) {
-            // a scan would read the field from the source of a shard that does not map it
-            return null;
-        }
-        String typeName = null;
+        DataType dataType = null;
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         try {
             for (SearchExecutionContext context : contexts) {
                 if (isExtractableMappedField(context, name) == false) {
+                    if (context.isMappedField(name) == false && context.unmappedFields().mayExist(name)) {
+                        // a scan would read the field from the source of this shard
+                        return null;
+                    }
                     // reads as null in this shard, as it does in a scan
                     continue;
                 }
                 MappedFieldType type = context.getFieldType(name);
-                if (isExactMinMaxType(type) == false || type.hasDocValues() == false) {
+                DataType shardType = exactMinMaxDataType(type);
+                if (shardType == null || type.hasDocValues() == false) {
                     return null;
                 }
                 var indexType = type.indexType();
                 if (indexType.hasDocValuesSkipper() == false && indexType.hasPoints() == false) {
                     return null;
                 }
-                if (typeName == null) {
-                    typeName = type.typeName();
-                } else if (typeName.equals(type.typeName()) == false) {
+                if (dataType == null) {
+                    dataType = shardType;
+                } else if (dataType != shardType) {
                     // the shards disagree on how to read the field
                     return null;
                 }
@@ -486,24 +501,28 @@ public class SearchContextStats implements SearchStats {
         } catch (IOException ex) {
             throw new EsqlIllegalArgumentException("Cannot access data storage", ex);
         }
-        return min > max ? ExactMinMax.noValues(typeName) : new ExactMinMax(true, min, max, typeName);
+        return min > max ? ExactMinMax.noValues(dataType) : new ExactMinMax(true, min, max, dataType);
     }
 
     /**
-     * The types whose segment metadata is the sortable form of a {@code long}, which is the value itself.
-     * The floating point types encode theirs differently and are not supported.
+     * The type a field is read as, for the types whose segment metadata is the sortable form of a {@code long}, which is the value
+     * itself, and {@code null} for any other. The floating point types encode theirs differently and are not supported.
      */
-    private static boolean isExactMinMaxType(MappedFieldType type) {
-        if (type instanceof DateFieldType) {
-            return true;
+    private static DataType exactMinMaxDataType(MappedFieldType type) {
+        if (type instanceof DateFieldType dateType) {
+            return switch (dateType.resolution()) {
+                case MILLISECONDS -> DataType.DATETIME;
+                case NANOSECONDS -> DataType.DATE_NANOS;
+            };
         }
         if (type instanceof NumberFieldType numberType) {
             return switch (numberType.numberType()) {
-                case LONG, INTEGER, SHORT, BYTE -> true;
-                case HALF_FLOAT, FLOAT, DOUBLE -> false;
+                case LONG -> DataType.LONG;
+                case INTEGER, SHORT, BYTE -> DataType.INTEGER;
+                case HALF_FLOAT, FLOAT, DOUBLE -> null;
             };
         }
-        return false;
+        return null;
     }
 
     /**

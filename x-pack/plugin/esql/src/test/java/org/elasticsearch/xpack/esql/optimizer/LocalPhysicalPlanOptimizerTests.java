@@ -3859,13 +3859,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         return e instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField;
     }
 
-    /** The type the fields of the test index are mapped as, which is how the statistics name the type of a field. */
-    private static String mappedTypeOf(FieldAttribute.FieldName field) {
+    /** The type the fields of the test index are read as, which is how the statistics name the type of a field. */
+    private static DataType mappedTypeOf(FieldAttribute.FieldName field) {
         return switch (field.string()) {
-            case "hire_date" -> "date";
-            case "emp_no", "salary" -> "integer";
-            case "languages" -> "byte";
-            default -> "long";
+            case "hire_date" -> DataType.DATETIME;
+            case "emp_no", "salary", "languages" -> DataType.INTEGER;
+            default -> DataType.LONG;
         };
     }
 
@@ -3945,7 +3944,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         var unionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithDateDateNanosUnionType()));
         var asked = new AtomicBoolean();
         String query = "from index* | stats min(date_and_date_nanos)";
-        for (String mappedType : List.of("date", "date_nanos")) {
+        for (DataType mappedType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
             asked.set(false);
             var stats = new TestSearchStats() {
                 @Override
@@ -3963,8 +3962,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             };
             var plan = unionTypes.plan(query, stats);
             // the rule must reach the statistics for the type check to be what decides
-            assertThat(mappedType, asked.get(), is(true));
-            assertThat(mappedType, plan.anyMatch(LocalSourceExec.class::isInstance), is(mappedType.equals("date_nanos")));
+            assertThat(mappedType.typeName(), asked.get(), is(true));
+            assertThat(mappedType.typeName(), plan.anyMatch(LocalSourceExec.class::isInstance), is(mappedType == DataType.DATE_NANOS));
         }
     }
 

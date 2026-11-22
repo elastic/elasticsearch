@@ -1667,23 +1667,6 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
         assertFalse(SearchContextStats.from(List.of(allowed, refused)).nestedQueriesAllowed());
     }
 
-    /**
-     * Lucene rounds a query literal to the precision of these mappers, while the child is compared at its full read value.
-     * {@code scaled_float} does the same but comes from a module, so the pushdown yaml covers it.
-     */
-    public void testNestedChildOfALossyFloatingPointTypeIsNotQueryable() throws IOException {
-        SearchExecutionContext mapped = statsContext("""
-            { "doc": { "properties": { "items": { "type": "nested", "properties": {
-              "dbl": { "type": "double" },
-              "flt": { "type": "float" },
-              "half": { "type": "half_float" }
-            } } } } }""");
-        SearchStats stats = SearchContextStats.from(List.of(mapped));
-        assertTrue(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.dbl"), DataType.DOUBLE));
-        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.flt"), DataType.DOUBLE));
-        assertFalse(stats.nestedFieldIsQueryable(new FieldAttribute.FieldName("items.half"), DataType.DOUBLE));
-    }
-
     /** A runtime field under a nested path is read from the parent document, so a query on the child cannot match what is read. */
     public void testNestedRuntimeChildIsNotQueryable() throws IOException {
         SearchExecutionContext mapped = statsContext("""

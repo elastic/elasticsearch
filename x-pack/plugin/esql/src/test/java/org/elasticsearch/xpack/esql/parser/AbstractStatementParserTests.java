@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -38,6 +39,15 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned
 import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractStatementParserTests extends ESTestCase {
+
+    /** The default of {@link EsqlFlags#ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION}, the limit of the binary operators in an expression. */
+    protected static final int MAX_BINARY_OPERATORS = EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION.getDefault(Settings.EMPTY);
+
+    /** The default of {@link EsqlFlags#ESQL_MAX_PARENTHESES_COUNT}, which counts the opening and the closing parentheses. */
+    protected static final int MAX_PARENTHESES_COUNT = EsqlFlags.ESQL_MAX_PARENTHESES_COUNT.getDefault(Settings.EMPTY);
+
+    /** The limit of the left parentheses of an expression: the parser uses half of {@link #MAX_PARENTHESES_COUNT}. */
+    protected static final int MAX_LEFT_PARENTHESES = MAX_PARENTHESES_COUNT / 2;
 
     void assertQuery(String query, LogicalPlan expected) {
         final LogicalPlan actual;

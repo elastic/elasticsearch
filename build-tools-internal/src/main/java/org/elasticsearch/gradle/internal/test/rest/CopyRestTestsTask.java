@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.apache.tools.ant.filters.ReplaceTokens;
+import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens;
 import org.elasticsearch.gradle.internal.util.SerializableFunction;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -123,6 +124,27 @@ public final class MultivalueDedupe {
      * Result of calling "hash" on a multivalue dedupe.
      */
     public record HashResult(IntBlock ords, boolean sawNull) {}
+
+    /**
+     * Build a {@link BatchEncoder} that reads the values of each position as they are in the block, without
+     * removing duplicates or reordering them, so a multivalue is encoded as a list.
+     */
+    public static BatchEncoder directEncoder(Block block) {
+        if (block.areAllValuesNull()) {
+            return new BatchEncoder.DirectNulls(block);
+        }
+        return switch (block.elementType()) {
+            case BOOLEAN -> new BatchEncoder.DirectBooleans((BooleanBlock) block);
+            case BYTES_REF -> new BatchEncoder.DirectBytesRefs((BytesRefBlock) block);
+            case INT -> new BatchEncoder.DirectInts((IntBlock) block);
+            case LONG -> new BatchEncoder.DirectLongs((LongBlock) block);
+            case FLOAT -> new BatchEncoder.DirectFloats((FloatBlock) block);
+            case DOUBLE -> new BatchEncoder.DirectDoubles((DoubleBlock) block);
+            case DOUBLE_RANGE -> new BatchEncoder.DirectDoubleRanges((DoubleRangeBlock) block);
+            case NULL, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
+                throw new IllegalArgumentException("can't encode [" + block.elementType() + "]");
+        };
+    }
 
     /**
      * Build a {@link BatchEncoder} which deduplicates values at each position

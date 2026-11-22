@@ -229,6 +229,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
@@ -1182,7 +1183,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *   <li>The index pattern's field-caps mapping — resolved through the SAME shared path {@code FROM} uses
      *       ({@code IndexResolver} / {@link Analyzer#mappingAsAttributes}), carried in {@link AnalyzerContext#indexResolution()}
      *       keyed by the pattern — becomes one typed column per mapped field. Mapped types the converter cannot extract
-     *       (anything outside {@link EqlPageConverter#CONVERTIBLE_TYPES}) surface as {@code unsupported}, same UX as
+     *       (anything outside {@link EqlRelation#CONVERTIBLE_TYPES}) surface as {@code unsupported}, same UX as
      *       {@code FROM}.</li>
      * </ul>
      * If the index pattern did not resolve, the node is rewritten unresolved with the resolution message (the verifier turns
@@ -1319,7 +1320,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (attr instanceof FieldAttribute fa && fa.hasTypeConflicts()) {
                 return fa.flagTypeConflicts();
             }
-            if (attr instanceof FieldAttribute fa && EqlPageConverter.CONVERTIBLE_TYPES.contains(fa.dataType()) == false) {
+            if (attr instanceof FieldAttribute fa && EqlRelation.CONVERTIBLE_TYPES.contains(fa.dataType()) == false) {
                 String typeName = fa.dataType().typeName();
                 UnsupportedEsField field = new UnsupportedEsField(fa.name(), List.of(typeName), null, Map.of());
                 return new UnsupportedAttribute(source, fa.name(), field, "EQL command does not yet support [" + typeName + "] fields");
@@ -1873,6 +1874,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
+                // Left unresolved: the Verifier rejects JOIN on a subquery before any resolution of its keys matters.
+                case SubqueryJoin sj -> sj;
                 case FillNull f -> resolveFillNull(f, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);

@@ -57,7 +57,7 @@ public class ColumnarIndexingThroughputBenchmark {
     private static final String MAPPING = """
         {
           "_doc": {
-            "dynamic": false,
+            "dynamic": "strict",
             "properties": {
               "host":       { "type": "keyword" },
               "message":    { "type": "keyword" },

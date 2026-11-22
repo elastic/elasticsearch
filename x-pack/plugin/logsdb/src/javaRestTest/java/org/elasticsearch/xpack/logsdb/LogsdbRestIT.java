@@ -300,7 +300,6 @@ public class LogsdbRestIT extends ESRestTestCase {
                             "message_length": { "type": "long" },
                             "log.offset": { "type": "long" }
                         },
-                        "dynamic": false,
                         "properties": {
                             "@timestamp": { "type": "date" },
                             "log": {
@@ -640,7 +639,6 @@ public class LogsdbRestIT extends ESRestTestCase {
                         "runtime": {
                             "message_length": { "type": "long" }
                         },
-                        "dynamic": false,
                         "properties": {
                             "@timestamp": { "type": "date" },
                             "log": {

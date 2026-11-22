@@ -760,6 +760,15 @@ public class ObjectMapper extends Mapper {
             }
         }
 
+        /**
+         * Strict columnar modes keep unmapped fields out of {@code _source} too, so {@code dynamic: false} would silently discard them.
+         * Indices created on or after {@link IndexVersions#COLUMNAR_REJECTS_DYNAMIC_FALSE} reject it, older ones keep accepting it.
+         */
+        static boolean rejectsDynamicFalse(MappingParserContext parserContext) {
+            return parserContext.getIndexSettings().getMode().isStrictColumnar()
+                && parserContext.indexVersionCreated().onOrAfter(IndexVersions.COLUMNAR_REJECTS_DYNAMIC_FALSE);
+        }
+
         @SuppressWarnings({ "unchecked", "rawtypes" })
         protected static boolean parseObjectOrDocumentTypeProperties(
             String fieldName,
@@ -781,6 +790,9 @@ public class ObjectMapper extends Mapper {
                     builder.dynamic(Dynamic.FLATTENED);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
+                    if (dynamic == false && rejectsDynamicFalse(parserContext)) {
+                        throw new MapperParsingException("dynamic [false] is not supported in strict columnar mode");
+                    }
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
                 }
                 return true;

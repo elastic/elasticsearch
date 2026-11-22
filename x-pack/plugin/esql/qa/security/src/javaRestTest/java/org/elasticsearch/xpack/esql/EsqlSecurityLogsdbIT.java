@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
  *
  * <p>The {@code logsdb_columnar} counterpart lives in {@link EsqlSecurityLogsdbColumnarIT}; the two are separate single-mode classes
  * rather than one {@code @ParametersFactory} because behavior differs between the two index modes - notably, {@code logsdb_columnar}
- * drops {@code dynamic:false} unmapped fields at index time.
+ * rejects {@code dynamic:false}.
  *
  * <p>Two tracked FLS x synthetic-source bugs are disabled for this class via {@code @AwaitsFix} overrides at the bottom of the file:
  * <ol>

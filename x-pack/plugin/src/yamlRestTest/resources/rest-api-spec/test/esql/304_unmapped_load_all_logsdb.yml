@@ -71,8 +71,8 @@ setup:
               id:
                 type: keyword
 
-  # logsdb_columnar overrides isStrictColumnar(), so _ignored_source is never written and the unmapped
-  # fields are dropped while the document is parsed.
+  # logsdb_columnar overrides isStrictColumnar(), so _ignored_source is never written and dynamic:false is
+  # rejected: the index keeps no unmapped field, and its document carries none.
   - do:
       indices.create:
         index: la_logsdb_columnar
@@ -81,7 +81,7 @@ setup:
             index:
               mode: logsdb_columnar
           mappings:
-            dynamic: false
+            dynamic: strict
             properties:
               "@timestamp":
                 type: date
@@ -103,7 +103,7 @@ setup:
           - { "index": { "_index": "la_logsdb_baseline", "_id": "1" } }
           - { "@timestamp": "2024-01-01T00:00:00.000Z", "host": { "name": "h1" }, "id": "1", "level": "warn", "meta": { "region": "eu" }, "tags": [ "z", "a", "z" ] }
           - { "index": { "_index": "la_logsdb_columnar", "_id": "1" } }
-          - { "@timestamp": "2024-01-01T00:00:00.000Z", "host": { "name": "h1" }, "id": "1", "level": "warn", "meta": { "region": "eu" }, "tags": [ "z", "a", "z" ] }
+          - { "@timestamp": "2024-01-01T00:00:00.000Z", "host": { "name": "h1" }, "id": "1" }
 
 ---
 teardown:
@@ -146,21 +146,7 @@ teardown:
   - match: { values.2: [ "la_logsdb_stored", { level: warn, meta.region: eu, tags: [ "z", "a", "z" ] } ] }
 
 ---
-'logsdb_columnar drops the unmapped fields at ingest, so LOAD_ALL finds nothing to expand':
-  - do:
-      esql.query:
-        body:
-          query: 'SET unmapped_fields="LOAD_ALL"; FROM la_logsdb_columnar | KEEP id, host.name, * | LIMIT 5'
-  - length: { columns: 4 }
-  - match: { columns.0.name: id }
-  - match: { columns.1.name: host.name }
-  - match: { columns.2.name: "@timestamp" }
-  - match: { columns.3.name: _unmapped_fields }
-  - match: { columns.3.type: _source }
-  - match: { values.0: [ "1", "h1", "2024-01-01T00:00:00.000Z", null ] }
-
----
-'logsdb and logsdb_columnar in one pattern: the recoverable leg fills the object, the lossy leg is null':
+'logsdb and logsdb_columnar in one pattern: the recoverable leg fills the object, the columnar leg is null':
   - do:
       esql.query:
         body:

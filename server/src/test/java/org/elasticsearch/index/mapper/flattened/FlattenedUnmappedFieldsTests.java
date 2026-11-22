@@ -540,13 +540,18 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
 
     public void testExplicitSubObjectDynamicOverridesAbsorption() throws IOException {
         // A sub-object declared dynamic:false becomes a prefix property resolving to FALSE, so unmapped fields under it are
-        // dropped rather than absorbed; unmapped fields elsewhere still inherit the root's FLATTENED.
-        DocumentMapper mapper = columnarService(b -> {
-            b.startObject("attributes");
-            b.field("dynamic", "false");
-            b.startObject("properties").startObject("host").field("type", "keyword").endObject().endObject();
-            b.endObject();
-        }).documentMapper();
+        // dropped rather than absorbed; unmapped fields elsewhere still inherit the root's FLATTENED. Only indices created before
+        // dynamic:false was rejected accept it.
+        DocumentMapper mapper = createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_DYNAMIC_FALSE),
+            columnarSettings(),
+            dynamicFlattenedMapping(b -> {
+                b.startObject("attributes");
+                b.field("dynamic", "false");
+                b.startObject("properties").startObject("host").field("type", "keyword").endObject().endObject();
+                b.endObject();
+            })
+        ).documentMapper();
 
         String top = randomAlphanumericOfLength(5);
         ParsedDocument doc = mapper.parse(source(b -> {

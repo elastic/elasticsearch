@@ -1065,7 +1065,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                     {
                         b.startObject("meta");
                         {
-                            b.field("dynamic", "false");
+                            b.field("dynamic", "strict");
                             b.startObject("properties");
                             b.startObject("x").field("type", "keyword").endObject();
                             b.endObject();
@@ -1404,11 +1404,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testStrictColumnarModesAllowHeterogeneousDynamic() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            // Root dynamic=true, attributes dynamic=false, resource dynamic=strict
+            // Root dynamic=true, attributes dynamic=true, resource dynamic=strict
             MapperService mapperService = createMapperService(settings, mapping(b -> {
                 b.startObject("attributes");
                 {
-                    b.field("dynamic", "false");
+                    b.field("dynamic", "true");
                     b.startObject("properties");
                     b.startObject("host").field("type", "keyword").endObject();
                     b.endObject();
@@ -1431,7 +1431,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             assertNotNull(mapperService.fieldType("resource.service"));
             // Prefix→dynamic map is populated
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("attributes").dynamic());
+            assertEquals(ObjectMapper.Dynamic.TRUE, root.getPrefixProperties().get("attributes").dynamic());
             assertEquals(ObjectMapper.Dynamic.STRICT, root.getPrefixProperties().get("resource").dynamic());
         }
     }
@@ -1439,11 +1439,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testStrictColumnarModesHeterogeneousDynamicNestedPrefixes() throws Exception {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
-            // foo dynamic=false, foo.bar dynamic=true (overrides parent)
+            // foo dynamic=strict, foo.bar dynamic=true (overrides parent)
             MapperService mapperService = createMapperService(settings, mapping(b -> {
                 b.startObject("foo");
                 {
-                    b.field("dynamic", "false");
+                    b.field("dynamic", "strict");
                     b.startObject("properties");
                     b.startObject("bar");
                     {
@@ -1458,7 +1458,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }));
             RootObjectMapper root = mapperService.mappingLookup().getMapping().getRoot();
-            assertEquals(ObjectMapper.Dynamic.FALSE, root.getPrefixProperties().get("foo").dynamic());
+            assertEquals(ObjectMapper.Dynamic.STRICT, root.getPrefixProperties().get("foo").dynamic());
             assertEquals(ObjectMapper.Dynamic.TRUE, root.getPrefixProperties().get("foo.bar").dynamic());
         }
     }

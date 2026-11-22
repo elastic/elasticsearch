@@ -370,12 +370,13 @@ dynamic mapping - columnar stored:
 
 ---
 
-dynamic false drops unmapped fields - columnar synthetic source:
+dynamic false is rejected:
   - requires:
-      cluster_features: ["mapper.columnar.drops_dynamic_false_fields"]
-      reason: "columnar mode drops unmapped dynamic:false fields rather than storing in ignored source"
+      cluster_features: ["mapper.columnar_rejects_dynamic_false"]
+      reason: "strict columnar modes reject dynamic:false from this version on"
 
   - do:
+      catch: bad_request
       indices.create:
         index: test
         body:
@@ -384,40 +385,11 @@ dynamic false drops unmapped fields - columnar synthetic source:
             index.mapping.source.mode: synthetic
           mappings:
             dynamic: false
-            properties:
-              kwd:
-                type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: dynamic [false] is not supported in strict columnar mode" }
 
   - do:
-      index:
-        index: test
-        id: 1
-        refresh: true
-        body:
-          kwd: mapped_value
-          unmapped_leaf: dropped
-          unmapped_obj:
-            key: also_dropped
-
-  - do:
-      get:
-        index: test
-        id: 1
-  - match: {found: true}
-  - match:
-      _source:
-        kwd: mapped_value
-  - is_false: _source.unmapped_leaf
-  - is_false: _source.unmapped_obj
-
----
-
-dynamic false drops unmapped fields - columnar stored source:
-  - requires:
-      cluster_features: ["mapper.columnar.drops_dynamic_false_fields"]
-      reason: "columnar mode drops unmapped dynamic:false fields rather than storing in ignored source"
-
-  - do:
+      catch: bad_request
       indices.create:
         index: test
         body:
@@ -426,29 +398,25 @@ dynamic false drops unmapped fields - columnar stored source:
             index.mapping.source.mode: columnar_stored
           mappings:
             dynamic: false
-            properties:
-              kwd:
-                type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: dynamic [false] is not supported in strict columnar mode" }
 
   - do:
-      index:
+      indices.create:
         index: test
-        id: 1
-        refresh: true
         body:
-          kwd: mapped_value
-          unmapped_leaf: dropped
-          unmapped_arr:
-            - 1
-            - 2
-
+          settings:
+            index.mode: columnar
   - do:
-      get:
+      catch: bad_request
+      indices.put_mapping:
         index: test
-        id: 1
-  - match: {found: true}
-  - match:
-      _source:
-        kwd: mapped_value
-  - is_false: _source.unmapped_leaf
-  - is_false: _source.unmapped_arr
+        body:
+          properties:
+            attributes:
+              dynamic: false
+              properties:
+                host:
+                  type: keyword
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: dynamic [false] is not supported in strict columnar mode" }

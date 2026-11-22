@@ -364,7 +364,6 @@ FROM partial_mapping_sample_data
 // syntheticSourceLoadsScalarUnmappedField in unmapped-load.csv-spec does.
 syntheticSourceKeepScalarUnmappedField
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load has nothing to read - lossy by design
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM synthetic_source_partial_mapping
@@ -383,7 +382,6 @@ FROM synthetic_source_partial_mapping
 // it does not, so both legs produce values. Mirrors crossMappingLoadsBothLegs in unmapped-load.csv-spec.
 crossMappingLoadsBothLegs
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read - lossy by design
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM cross_mapping_a, cross_mapping_b METADATA _index
@@ -5018,7 +5016,6 @@ with_lc:long | rows:long
 showMeTheSource
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_fix_unmapped_object_value
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored METADATA _source
@@ -5045,7 +5042,6 @@ id:keyword | _source:_source | _unmapped_fields:_source
 scalarObjectCollision
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_fix_unmapped_object_value
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored METADATA _source
@@ -5064,7 +5060,6 @@ id:keyword | a:keyword | deep:keyword | a.b:keyword
 wildcardAStarExpandsBothForms
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_fix_unmapped_object_value
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored
@@ -5081,7 +5076,6 @@ id:keyword | _unmapped_fields:_source
 
 wildcardDeepDotStarExpandsLeaf
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored METADATA _source
@@ -5097,7 +5091,6 @@ id:keyword | _source:_source | _unmapped_fields:_source
 
 uniformAndSneakyArraysUnionTheirLeafColumns
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored, unmapped_source_synthetic METADATA _index, _source
@@ -5116,7 +5109,6 @@ unmapped_source_synthetic | 7 | s | r | "{""id"":""7"",""objarr"":[{""k"":""r""}
 sneakyArraySourceShapeAcrossSourceModes
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_unmapped_fields_last
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_arrays METADATA _index, _source
@@ -5145,7 +5137,6 @@ unmapped_source_synthetic | [t, u] | null | null | null | "{""id"":""8"",""nest"
 
 nullyFieldNeverProducesAColumnStoredSource
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored, unmapped_source_synthetic METADATA _index, _source
@@ -5167,7 +5158,6 @@ id:keyword | _index:keyword | _source:_source | _unmapped_fields:_source
 disabledSourceYieldsOnlyMappedId
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5195,7 +5185,6 @@ id:keyword | _source:_source | _unmapped_fields:_source
 excludedFieldsNotSurfacedAsColumns
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_excludes METADATA _source
@@ -5223,7 +5212,6 @@ explicitReferenceToSourceIgnored_deep_objarr_Fields
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
 required_capability: optional_fields_load_all_unmapped_fields_last
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_excludes METADATA _source
@@ -5244,7 +5232,6 @@ id:keyword | _source:_source | deep:keyword | objarr:keyword | x:long | _unmappe
 returnOnlySourceIncludedColumns_arr_and_id
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_includes METADATA _source
@@ -5271,7 +5258,6 @@ id:keyword | _source:_source | _unmapped_fields:_source
 returnOnlySourceIncludedColumns_arr_and_id_WhenForceReferencingWildcardField
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_includes METADATA _source
@@ -5297,7 +5283,6 @@ id:keyword | _source:_source | _unmapped_fields:_source
 
 storedAndSyntheticIdenticalForUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_stored, unmapped_source_synthetic, unmapped_source_synth_keep_arrays METADATA _index, _source
@@ -5320,7 +5305,6 @@ id:keyword | a.b:keyword | arr:keyword | _index:keyword | _source:_source | _unm
 
 subobjectsFalseLoadAllExpandsLeavesLikeStoredSource
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_source_subobjects_false METADATA _source
@@ -5348,7 +5332,6 @@ storedobjectsFalse_For_unmapped_source_mapped_Highlight
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_fix_unmapped_object_value
 required_capability: fix_parsing_subobjects_false_dynamic_false
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5369,7 +5352,6 @@ unmapped_source_stored|8              |null           |null           |null     
 
 loadAllLogsdbAgreesWithStoredAndSyntheticSource
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 // logsdb defaults _source to synthetic, but IndexMode.LOGSDB does not override isStrictColumnar(), so _ignored_source
 // stays enabled and a dynamic:false field is still recoverable. The same seven documents in three index modes must
@@ -5394,7 +5376,6 @@ synthetic_source_partial_mapping | 2 | "{""unmapped.nested"":""b"",""unmapped_ev
 loadAllLogsdbStatsBY_ADiscoveredColumn
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_stats
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 // Grouping a logsdb index by a field that exists only in _source - language_code
 SET unmapped_fields="LOAD_ALL"\;
@@ -5412,7 +5393,6 @@ rows:long | total:long | language_code:keyword
 
 loadAllAllTypesUnmappedDiscoversEveryTypeAsKeyword
 required_capability: optional_fields_load_all_single_source_column
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM all_types_unmapped
@@ -5427,7 +5407,6 @@ null | key1 | null | "{""boolean"":""true"",""byte"":1,""constant_keyword-foo"":
 disabledSourceNamedUnmappedFieldsAreNullColumns
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5446,7 +5425,6 @@ id:keyword | a.b:keyword | arr:keyword | nest.inner.leaf:keyword
 disabledSourceRenameMappedAndUnmappedField
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 // RENAME resolves an unmapped name the same way KEEP does, so the renamed column exists and is null.
@@ -5467,7 +5445,6 @@ doc_id:keyword | tags:keyword
 disabledSourceDropUnmappedAndWildcard
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 // DROP removes the fabricated columns again, by name and by wildcard, leaving the mapped id and the one named field not dropped.
@@ -5488,7 +5465,6 @@ id:keyword | a.b:keyword
 disabledSourceWhereOnUnmappedFieldMatchesNothing
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 // Every value of an unmapped field is null here, so an equality filter on one removes every row.
@@ -5506,7 +5482,6 @@ disabledSourceStatsCountsRowsButNotUnmappedValues
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_stats
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 // The documents are still there and still counted; only their unmapped values are gone.
@@ -5522,7 +5497,6 @@ rows:long | ids:long | tags:long
 disabledSourceWithStoredSourceSiblingOnlyStoredLegDiscovers
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 // Discovery is a union across the pattern: the stored leg contributes the leaves and the disabled leg's rows get a null
@@ -5546,7 +5520,6 @@ disabledSourceAcrossSourceModesIsANetZeroProjection
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_net_zero_projection
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5566,7 +5539,6 @@ unmapped_source_synthetic | 1 | v1 | null
 disabledSourceWithIncludesAndExcludesSiblings
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5588,7 +5560,6 @@ unmapped_source_includes | 5 | "{""arr"":[""x"",""y""]}"
 disabledSourceWildcardsMatchNothing
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5607,7 +5578,6 @@ id:keyword | _unmapped_fields:_source
 disabledSourceWildcardsMatchNothingButLiteralIsFabricated
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5626,7 +5596,6 @@ id:keyword | nested.inner.leaf:keyword | _unmapped_fields:_source
 disabledSourceMixedWildcardsAndLiteralsWithSource
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5646,7 +5615,6 @@ disabledSourceInlineStatsAndEvalOverUnmappedName
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_inline_stats
 required_capability: source_field_mapping
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5669,7 +5637,6 @@ disabledSourceAcrossAllSourceFilteringModes
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
 required_capability: fix_parsing_subobjects_false_dynamic_false
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -7102,7 +7069,6 @@ required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -7756,7 +7722,6 @@ required_capability: optional_fields_load_all_fillnull
 required_capability: optional_fields_fix_unmapped_object_value
 required_capability: fix_parsing_subobjects_false_dynamic_false
 required_capability: fillnull_late_loaded_columns
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -7781,7 +7746,6 @@ required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_fillnull
 required_capability: source_field_mapping
 required_capability: fillnull_late_loaded_columns
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -7806,7 +7770,6 @@ required_capability: optional_fields_fix_unmapped_object_value
 required_capability: fix_parsing_subobjects_false_dynamic_false
 required_capability: source_field_mapping
 required_capability: fillnull_late_loaded_columns
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -7844,7 +7807,6 @@ required_capability: optional_fields_fix_unmapped_object_value
 required_capability: fix_parsing_subobjects_false_dynamic_false
 required_capability: source_field_mapping
 required_capability: fillnull_late_loaded_columns
-skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 request_stored: skip
 
 SET unmapped_fields="LOAD_ALL"\;

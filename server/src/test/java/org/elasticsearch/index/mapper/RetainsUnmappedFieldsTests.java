@@ -195,8 +195,10 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
         assertFalse(createSearchExecutionContext(withoutSink).unmappedFields().mayExist());
         assertMayHoldUnmappedFields(withoutSink, b -> b.field("field", "value").field("unmapped", "value"), false);
         // With the sink, only the segments can tell whether it absorbed: dynamic: false absorbs nothing, so none has its keyed field.
-        // Without the feature flag no index has the sink, so nothing is read, as before the version gate.
-        MapperService withSink = createMapperService(settings, mapping.get());
+        // Without the feature flag no index has the sink, so nothing is read, as before the version gate. dynamic: false is only accepted
+        // on indices created before it was rejected, which still have the sink.
+        IndexVersion withSinkVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_REJECTS_DYNAMIC_FALSE);
+        MapperService withSink = createMapperService(withSinkVersion, settings, mapping.get());
         assertThat(
             createSearchExecutionContext(withSink).unmappedFields().mayExist(),
             equalTo(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled())

@@ -331,6 +331,13 @@ public class AnalyzerNestedAnyTests extends AnalyzerTestCase {
         );
     }
 
+    public void testAssignmentEarlierInTheSameEvalReplacesTheCollection() {
+        nestedAnalyzer().error(
+            "FROM ne | EVAL items = 1, h = NESTED_ANY(items, true) | KEEP id, h",
+            containsString("NESTED_ANY cannot use [items]: a column of that name replaces it here")
+        );
+    }
+
     public void testAssignmentLaterInTheSameEvalDoesNotReplaceTheChild() {
         LogicalPlan plan = nestedAnalyzer().query("FROM ne | EVAL h = NESTED_ANY(items.sku == \"a\"), items.sku = \"z\" | KEEP id, h");
         assertThat(predicate(plan).path(), equalTo("items"));

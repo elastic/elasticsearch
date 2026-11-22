@@ -20,6 +20,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -1147,20 +1148,40 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return configuration.equals(other.configuration) && offset == other.offset && roundingConvention == other.roundingConvention;
     }
 
+    /**
+     * The rounding of a date bucket, or null when its arguments are not constant or make no sense.
+     */
+    @Nullable
+    public Rounding dateRounding(FoldContext foldContext) {
+        if ((constant(buckets, foldContext)
+            && (from == null || constant(from, foldContext))
+            && (to == null || constant(to, foldContext))) == false) {
+            return null;
+        }
+        // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
+        // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
+        // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
+        // zero/negative values at fold time, so they don't reach here in an impossible state.
+        if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).longValue() <= 0) {
+            return null;
+        }
+        return getDateRounding(foldContext).getUnprepared();
+    }
+
+    private static boolean constant(Expression e, FoldContext foldContext) {
+        return e.foldable() && e.fold(foldContext) != null;
+    }
+
     protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
         if ((buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) == false) {
             return null;
         }
         DataType fieldType = field.dataType();
         if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
-            // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
-            // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
-            // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
-            // zero/negative values at fold time, so they don't reach here in an impossible state.
-            if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).longValue() <= 0) {
+            Rounding rounding = dateRounding(foldContext);
+            if (rounding == null) {
                 return null;
             }
-            Rounding rounding = getDateRounding(foldContext).getUnprepared();
             Rounding.Interval interval = rounding.getInterval();
             return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
         }

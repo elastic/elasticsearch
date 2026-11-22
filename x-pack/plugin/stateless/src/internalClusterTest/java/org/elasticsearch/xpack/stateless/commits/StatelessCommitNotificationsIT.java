@@ -61,6 +61,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -439,8 +440,27 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
         commitService.readVirtualBatchedCompoundCommitChunk(request, output);
         assertThat("chunk read must return at least one byte", output.size(), not(equalTo(0)));
 
-        // Release the notification: the after-notification cleanup fires, closes the VBCC, and releases local file refs.
-        goAheadLatch.countDown();
+        final List<String> internalFiles = uploadedInfo.uploadedBcc()
+            .compoundCommits()
+            .stream()
+            .flatMap(cc -> cc.internalFiles().stream())
+            .toList();
+        try {
+            // While the notification is outstanding the VBCC must keep the local files it uploaded on disk: that is what lets chunk
+            // requests from the search tier be served from the indexing node's disk instead of the blob store.
+            assertThat(internalFiles, not(empty()));
+            for (String fileName : internalFiles) {
+                assertTrue(
+                    "file [" + fileName + "] must be retained until the notification completes",
+                    Files.exists(indexShardPath.resolve(fileName))
+                );
+            }
+            assertThat("local files must be accounted for while retained", indexDir.estimateSizeInBytes(), greaterThan(0L));
+        } finally {
+            goAheadLatch.countDown();
+        }
+
+        // The notification was released above: the after-notification cleanup fires, closes the VBCC, and releases local file refs.
         flushThread.join(30_000);
         assertFalse(flushThread.isAlive());
 
@@ -452,11 +472,14 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessPluginInteg
                 () -> commitService.readVirtualBatchedCompoundCommitChunk(request, new BytesStreamOutput())
             )
         );
-        // After the VBCC closes, local file refs are released → files freed from disk.
-        assertThat("local files must be freed after VBCC is closed", indexDir.estimateSizeInBytes(), equalTo(0L));
-        for (String fileName : uploadedInfo.blobFileRanges().keySet()) {
-            assertFalse("file [" + fileName + "] must be deleted after VBCC closes", Files.exists(indexShardPath.resolve(fileName)));
-        }
+        // After the VBCC closes, local file refs are released → files freed from disk. The VBCC is removed from recentlyUploadedVbccs
+        // before it is closed, so the chunk read above can start failing while the files are still being released.
+        assertBusy(() -> {
+            assertThat("local files must be freed after VBCC is closed", indexDir.estimateSizeInBytes(), equalTo(0L));
+            for (String fileName : internalFiles) {
+                assertFalse("file [" + fileName + "] must be deleted after VBCC closes", Files.exists(indexShardPath.resolve(fileName)));
+            }
+        });
 
         ensureGreen(indexName);
     }

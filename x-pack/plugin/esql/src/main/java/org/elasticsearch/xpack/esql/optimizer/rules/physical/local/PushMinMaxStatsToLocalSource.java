@@ -66,8 +66,11 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
         if (aggregateExec instanceof TimeSeriesAggregateExec) {
             return aggregateExec;
         }
-        boolean storedPreference = context.configuration() != null
-            && context.configuration().pragmas().fieldExtractPreference() == MappedFieldType.FieldExtractPreference.STORED;
+        // A scan then loads the values the way the preference asks, which can differ from the segment metadata
+        if (context.configuration() != null
+            && context.configuration().pragmas().fieldExtractPreference() != MappedFieldType.FieldExtractPreference.NONE) {
+            return aggregateExec;
+        }
         if (aggregateExec.groupings().isEmpty() == false || aggregateExec.aggregates().isEmpty()) {
             return aggregateExec;
         }
@@ -95,11 +98,6 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
             }
             Expression target = minMax.field();
             if (target instanceof FieldAttribute == false || isSupported(target.dataType()) == false) {
-                return aggregateExec;
-            }
-            // With the stored preference a scan may read a number from the stored source, which can differ from what the segment
-            // metadata describes. A date is read from its doc values whatever the preference.
-            if (storedPreference && target.dataType() != DataType.DATETIME && target.dataType() != DataType.DATE_NANOS) {
                 return aggregateExec;
             }
             targets.add((FieldAttribute) target);

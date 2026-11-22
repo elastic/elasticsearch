@@ -229,9 +229,9 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A field that is indexed but left out of {@code _source} is read as it is stored when the stored preference asks for it. For a
-     * number that differs from the metadata, which holds the indexed value, so the query must read the index and give what a scan
-     * gives. A date is read from its doc values whatever the preference, so it is still answered from the metadata, with what a scan
-     * gives.
+     * number that differs from the metadata, which holds the indexed value, so with a field extract preference the query must read
+     * the index and give what a scan gives. A date is read from its doc values whatever the preference, so the scan gives the
+     * indexed bounds.
      */
     public void testStoredFieldExtractPreference() {
         assumeTrue("requires the snapshot-only field_extract_preference pragma", canUseQueryPragmas());
@@ -294,8 +294,8 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
             List<Long> scanned = isDate ? indexed : Arrays.asList(null, null);
             assertThat(field + " as a scan reads it", asLongs(reference.row), equalTo(scanned));
             assertThat(field, asLongs(storedPlan.row), equalTo(scanned));
-            assertThat(field + " is answered from the metadata only if it is a date", storedPlan.localSource, is(isDate));
-            assertThat(field, storedPlan.luceneSource, is(isDate == false));
+            assertThat(field + " reads the index with a field extract preference", storedPlan.luceneSource, is(true));
+            assertThat(field, storedPlan.localSource, is(false));
         }
     }
 

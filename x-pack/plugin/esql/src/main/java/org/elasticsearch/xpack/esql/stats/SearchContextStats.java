@@ -101,8 +101,12 @@ public class SearchContextStats implements SearchStats {
         }
     };
 
+    /**
+     * Statistics over {@code contexts}, which cannot tell whether a shard applies a filter to its queries, such as an index alias
+     * filter, so nothing that such a filter would invalidate is reported as exact. Use {@link #fromShards} when that is known.
+     */
     public static SearchStats from(List<SearchExecutionContext> contexts) {
-        return from(contexts, false);
+        return from(contexts, true);
     }
 
     /**

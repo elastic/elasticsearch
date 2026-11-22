@@ -9935,7 +9935,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             return;
         }
 
-        var plan = physicalPlanNoSerializationCheck(query); // HashJoinExec is not serialized
+        var plan = physicalPlan(query);
 
         ProjectExec outerProject = as(plan, ProjectExec.class);
         TopNExec outerTopN = as(outerProject.child(), TopNExec.class);

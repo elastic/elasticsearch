@@ -66,8 +66,9 @@ public interface SearchStats {
      * Unlike {@link #min} and {@link #max}, which are estimates good enough to choose between plans, this is exact. It is
      * therefore {@code null}, meaning "ask the data instead", unless all of the following hold:
      * <ul>
-     *   <li>the field is a {@code date}, {@code date_nanos}, {@code long}, {@code integer}, {@code short} or {@code byte}, mapped
-     *       as the same type by every shard that maps it, with doc values and with points or a doc values skipper;</li>
+     *   <li>the field is a {@code date}, {@code date_nanos}, {@code long}, {@code integer}, {@code short} or {@code byte}, which
+     *       every shard that maps it reads as the same ES|QL type ({@code integer}, {@code short} and {@code byte} all read as
+     *       {@code integer}), with doc values and with points or a doc values skipper;</li>
      *   <li>no segment has deleted documents: the metadata still covers a deleted document, and document level security hides
      *       documents the same way;</li>
      *   <li>no shard may hold the field outside of its mapping, where a scan would still read it;</li>
@@ -83,8 +84,9 @@ public interface SearchStats {
      * The bounds {@link #exactMinMax} reports. Dates are the milliseconds or nanoseconds since the epoch.
      *
      * @param hasValues {@code false} when no document holds a value, which makes {@code MIN} and {@code MAX} {@code null}
-     * @param type      the type that every shard maps the field as, so that a caller can tell whether it reads the field as that type
-     *                  without converting the values. {@code null} if no shard maps the field.
+     * @param type      the ES|QL type that every shard reads the field as, not the mapping type: {@code integer}, {@code short} and
+     *                  {@code byte} mappings are all {@code INTEGER}. A caller can tell whether it reads the field as that type without
+     *                  converting the values. {@code null} if no shard maps the field.
      */
     record ExactMinMax(boolean hasValues, long min, long max, DataType type) {
         public static ExactMinMax noValues(DataType type) {

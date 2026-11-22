@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -63,6 +64,11 @@ public class PushMinMaxStatsToLocalSource extends PhysicalOptimizerRules.Paramet
         }
         // a time series aggregation reads each series as its own, so the bounds of the whole index do not describe what it reads
         if (aggregateExec instanceof TimeSeriesAggregateExec) {
+            return aggregateExec;
+        }
+        // With this preference a scan reads the values from the stored source, which can hold other values than the segment metadata does
+        if (context.configuration() != null
+            && context.configuration().pragmas().fieldExtractPreference() == MappedFieldType.FieldExtractPreference.STORED) {
             return aggregateExec;
         }
         if (aggregateExec.groupings().isEmpty() == false || aggregateExec.aggregates().isEmpty()) {

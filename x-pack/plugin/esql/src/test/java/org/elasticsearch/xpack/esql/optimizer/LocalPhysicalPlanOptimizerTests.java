@@ -3979,6 +3979,19 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(plan.anyMatch(LocalSourceExec.class::isInstance), is(false));
     }
 
+    /** With the stored preference a scan reads the stored source, which the segment metadata may not describe. */
+    public void testMinMaxNotAnsweredFromStatsWithTheStoredFieldExtractPreference() {
+        var analyzer = makeAnalyzer("mapping-default.json");
+        String query = "from test | stats min(hire_date), max(hire_date)";
+        for (String preference : List.of("none", "stored")) {
+            var configuration = EsqlTestUtils.configuration(
+                new QueryPragmas(Settings.builder().put("field_extract_preference", preference).build())
+            );
+            var plan = new TestPlannerOptimizer(configuration, analyzer).plan(query, exactMinMaxStats(true, 1L, 2L), analyzer);
+            assertThat(preference, plan.anyMatch(LocalSourceExec.class::isInstance), is(preference.equals("none")));
+        }
+    }
+
     /** Without exact statistics the query reads the index, as it always did. */
     public void testMinMaxNotAnsweredWithoutExactStats() {
         var plan = plannerOptimizer.plan("from test | stats min(hire_date), max(hire_date)");

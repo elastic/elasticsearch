@@ -454,16 +454,18 @@ public class SearchContextStats implements SearchStats {
 
     private ExactMinMax computeExactMinMax(FieldName field) {
         final String name = field.string();
+        // Before any segment is read: a shard that does not map the field may still hold it in its source, where a scan reads it
+        for (SearchExecutionContext context : contexts) {
+            if (context.isMappedField(name) == false && context.unmappedFields().mayExist(name)) {
+                return null;
+            }
+        }
         DataType dataType = null;
         long min = Long.MAX_VALUE;
         long max = Long.MIN_VALUE;
         try {
             for (SearchExecutionContext context : contexts) {
                 if (isExtractableMappedField(context, name) == false) {
-                    if (context.isMappedField(name) == false && context.unmappedFields().mayExist(name)) {
-                        // a scan would read the field from the source of this shard
-                        return null;
-                    }
                     // reads as null in this shard, as it does in a scan
                     continue;
                 }

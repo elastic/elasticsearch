@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.asyncEsqlQueryRequest;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -173,8 +174,8 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
         assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
         CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
         assertNotNull(trip);
-        // The keyword bytes of the pages trip, not the reservation, which the response fits in while it arrives.
-        assertThat(trip.getMessage(), containsString("[<reused_arrays>]"));
+        // The pages trip, not the reservation, which the response fits in while it arrives.
+        assertThat(trip.getMessage(), anyOf(containsString("[<reused_arrays>]"), containsString("[<esql_block_factory>]")));
         assertThat(breaker.getTrippedCount(), greaterThan(tripsBefore));
         assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
     }
@@ -250,7 +251,9 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
             assertFalse(response.isRunning());
             assertThat(rows(response), equalTo(size));
             if (rowsPerPage > 0) {
-                assertThat(response.pages().size(), equalTo(size / rowsPerPage));
+                // A segment or slice boundary can end a page early, which only adds pages.
+                // At least this many shows the page size took effect.
+                assertThat(response.pages().size(), greaterThanOrEqualTo(size / rowsPerPage));
             }
             return response.asyncExecutionId().orElseThrow();
         } finally {

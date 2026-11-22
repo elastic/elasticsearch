@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import com.github.luben.zstd.ZstdOutputStream;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -30,6 +31,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -386,7 +389,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         // Control: the same read WITH a sink must probe, or this would also pass against a path that had
         // stopped stamping chunks altogether. EXACTLY one, because the probe is memoized per file: more than
-        // one would mean the memo broke and every chunk is paying a HEAD again.
+        // one would mean the memo broke and every chunk is paying a metadata request again.
         AtomicInteger captured = new AtomicInteger();
         List<Instant> capturedStamps = streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), captured);
         assertThat("a capturing read probes once for the whole file", captured.get(), Matchers.equalTo(1));
@@ -416,6 +419,42 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         AtomicInteger failedProbe = new AtomicInteger();
         streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), failedProbe, new FailingMtimeStorageObject(MTIME_PROBE_PATH));
         assertThat("a failed probe is memoized too, not retried per chunk", failedProbe.get(), Matchers.equalTo(1));
+    }
+
+    /**
+     * The give-up line names the object, and an {@code https} dataset's resource is the user's own URL: a
+     * pre-signed one carries its signature in the query string, so the location the log names IS the
+     * credential. {@code ExternalFailuresTests} pins the redaction itself; this pins that this call site
+     * applies it, which no test of {@code redactHttpUrl} can.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:DEBUG",
+        reason = "the give-up is a debug line, and this asserts the location it names carries no signature"
+    )
+    public void testAFailedMtimeProbeDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the give-up line, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*no last-modified for [https://bucket.s3.example.com/data/employees.csv];*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the line never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any line",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*" + signature + "*"
+                )
+            );
+            streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), new AtomicInteger(), new FailingMtimeStorageObject(path));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     private static final String MTIME_PROBE_PATH = "mem://streaming-mtime-probe-test";

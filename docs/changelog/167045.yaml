@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167045
+summary: "ES|QL|DS: Gate MIN/MAX NaN skipping on transport version"
+type: bug

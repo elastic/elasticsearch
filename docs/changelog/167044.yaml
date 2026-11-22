@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 165747
+pr: 167044
+summary: Fix final reduce when batched node responses have no aggregations
+type: bug

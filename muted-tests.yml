@@ -771,16 +771,6 @@ tests:
 - class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
   method: testContainsPointClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
-  tasks:
-  - :server:test
-  method: testRequiredFieldWithoutValueCausesColumnarFallback
-  issue: https://github.com/elastic/elasticsearch/issues/166579
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
-  tasks:
-  - :server:test
-  method: testRequiredFieldWithoutValueAppearsInIgnoredOnIgnoreFailure
-  issue: https://github.com/elastic/elasticsearch/issues/166451
 - class: org.elasticsearch.snapshots.SnapshotResiliencyTests
   tasks:
   - :server:test

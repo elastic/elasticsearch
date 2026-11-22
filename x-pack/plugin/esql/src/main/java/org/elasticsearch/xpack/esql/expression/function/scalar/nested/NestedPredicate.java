@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -239,8 +238,7 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
             );
         }
         Layout layout = new Layout.Builder().append(inputs).build();
-        FoldContext foldCtx = toEvaluator.foldCtx();
-        ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluator(foldCtx, body, layout, toEvaluator.shardContexts(), null);
+        ExpressionEvaluator.Factory predicate = EvalMapper.toEvaluatorContext(layout, toEvaluator).apply(body);
         List<DataType> types = inputs.stream().map(Attribute::dataType).toList();
         NestedChildren.Factory children = NestedChildren.factory(
             toEvaluator.shardContexts(),

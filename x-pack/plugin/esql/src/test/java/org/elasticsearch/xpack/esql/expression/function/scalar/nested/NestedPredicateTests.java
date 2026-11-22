@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nested;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedPredicateSerializationTests.analyzedPredicate;
@@ -125,6 +128,43 @@ public class NestedPredicateTests extends ESTestCase {
 
         assertThat(predicate.toEvaluator(context), is(notNullValue()));
         assertThat(requested.get(), equalTo(1));
+    }
+
+    public void testTheBodyIsBuiltThroughTheAnalyzerLookupOfTheContext() {
+        NestedPredicate predicate = analyzedPredicate(
+            "FROM ne | WHERE NESTED_ANY(LENGTH(TOP_SNIPPETS(items.sku, \"a\", {\"analyzer\": \"whitespace\"})) > 0) | LIMIT 10"
+        );
+        List<String> requested = new ArrayList<>();
+        EvaluatorMapper.ToEvaluator context = new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
+
+            @Override
+            public IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shardContexts() {
+                return EmptyIndexedByShardId.instance();
+            }
+
+            @Override
+            public PlannerSettings plannerSettings() {
+                return PlannerSettings.DEFAULTS;
+            }
+
+            @Override
+            public Analyzer getAnalyzer(String name) {
+                requested.add(name);
+                return new StandardAnalyzer();
+            }
+        };
+
+        assertThat(predicate.toEvaluator(context), is(notNullValue()));
+        assertThat(requested, equalTo(List.of("whitespace")));
     }
 
     public void testAContextWithoutPlannerSettingsIsAnError() {

@@ -153,4 +153,43 @@ public final class EvalMapper {
             }
         };
     }
+
+    /**
+     * The context for evaluating an expression over {@code layout}, for an expression whose evaluator builds a body of its own
+     * over different channels than {@code parent}'s. Everything but the layout comes from {@code parent}.
+     */
+    public static EvaluatorMapper.ToEvaluator toEvaluatorContext(Layout layout, EvaluatorMapper.ToEvaluator parent) {
+        return new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public ExpressionEvaluator.Factory apply(Expression expression) {
+                if (expression instanceof EvaluatorMapper m) {
+                    return m.toEvaluator(this);
+                }
+                if (expression instanceof Attribute attr) {
+                    return new LoadFromPageEvaluator.Factory(layout.get(attr.id()).channel());
+                }
+                throw new QlIllegalArgumentException("Unsupported expression [{}]", expression);
+            }
+
+            @Override
+            public FoldContext foldCtx() {
+                return parent.foldCtx();
+            }
+
+            @Override
+            public IndexedByShardId<? extends ShardContext> shardContexts() {
+                return parent.shardContexts();
+            }
+
+            @Override
+            public PlannerSettings plannerSettings() {
+                return parent.plannerSettings();
+            }
+
+            @Override
+            public Analyzer getAnalyzer(String name) {
+                return parent.getAnalyzer(name);
+            }
+        };
+    }
 }

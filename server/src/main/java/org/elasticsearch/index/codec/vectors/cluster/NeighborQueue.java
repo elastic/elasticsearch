@@ -112,6 +112,14 @@ public class NeighborQueue {
         return (((long) NumericUtils.floatToSortableInt(score)) << 32) | (0xFFFFFFFFL & ~node);
     }
 
+    /**
+     * Returns the least competitive encoding with {@code score}: every non-negative node with that score encodes to at least
+     * this value, since the largest node id loses score ties.
+     */
+    public static long encodeLeastCompetitive(float score) {
+        return encodeRaw(Integer.MAX_VALUE, score);
+    }
+
     public static float decodeScoreRaw(long heapValue) {
         return NumericUtils.sortableIntToFloat((int) (heapValue >> 32));
     }

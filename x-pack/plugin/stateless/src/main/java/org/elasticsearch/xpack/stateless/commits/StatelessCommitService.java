@@ -1438,21 +1438,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             if (primaryTermAndGeneration.generation() > maxUploadedGeneration) {
                 continue;
             }
-            bccBlobs.add(
-                new BccBlob(BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()), primaryTermAndGeneration)
-            );
+            bccBlobs.add(new BccBlob(primaryTermAndGeneration));
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
         for (var staleCompoundCommit : commitCleaner.getPendingDeletes(shardId)) {
             if (staleCompoundCommit.primaryTermAndGeneration().generation() > maxUploadedGeneration) {
                 continue;
             }
-            bccBlobs.add(
-                new BccBlob(
-                    BatchedCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
-                    staleCompoundCommit.primaryTermAndGeneration()
-                )
-            );
+            bccBlobs.add(new BccBlob(staleCompoundCommit.primaryTermAndGeneration()));
         }
         return bccBlobs;
     }
@@ -1736,7 +1729,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
             for (BccBlob nonRecoveredBlob : otherBlobs) {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(nonRecoveredBlob.blobName())) {
+                if (BccBlob.startsWithBlobPrefix(nonRecoveredBlob.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlob.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());

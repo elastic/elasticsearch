@@ -18,10 +18,14 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.Predicate;
@@ -98,6 +102,7 @@ public final class Shapes {
                 .build("scaled_float.dense")
         );
         add(shapes, metrics4());
+        add(shapes, dateStrings());
         return Collections.unmodifiableMap(shapes);
     }
 
@@ -115,6 +120,20 @@ public final class Shapes {
             mapping(names, "long", Map.of()),
             new Metrics4Docs(),
             EnumSet.of(Feature.DENSE, Feature.POINTS),
+            Expect.COLUMN,
+            List.of()
+        );
+    }
+
+    /** Four default-format dates sent as ISO strings with millis and {@code Z}. */
+    private static BenchShape dateStrings() {
+        String[] names = { "received", "ingested", "observed" };
+        return new BenchShape(
+            "date.str",
+            IndexMode.COLUMNAR,
+            mapping(names, "date", Map.of()),
+            new DateStringDocs(names),
+            EnumSet.of(Feature.DENSE, Feature.STRING_INPUT),
             Expect.COLUMN,
             List.of()
         );
@@ -382,6 +401,26 @@ public final class Shapes {
             b.field("bytes_in", r.nextInt(10_000_000));
             b.field("bytes_out", r.nextInt(10_000_000));
             b.field("latency", r.nextInt(100_000));
+        }
+    }
+
+    private record DateStringDocs(String[] names) implements DocGenerator {
+
+        private static final DateTimeFormatter ISO_MILLIS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT)
+            .withZone(ZoneOffset.UTC);
+
+        @Override
+        public JsonKind kind() {
+            return JsonKind.STRING;
+        }
+
+        @Override
+        public void write(XContentBuilder b, Random r, int doc) throws IOException {
+            long timestamp = ValueDist.MONOTONIC_TS.nextLong(r, doc);
+            b.field(TIMESTAMP, ISO_MILLIS.format(Instant.ofEpochMilli(timestamp)));
+            for (String name : names) {
+                b.field(name, ISO_MILLIS.format(Instant.ofEpochMilli(timestamp + r.nextInt(5_000))));
+            }
         }
     }
 

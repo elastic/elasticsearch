@@ -1643,6 +1643,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             mtimeMillis = mtime.toEpochMilli();
         } catch (IOException e) {
+            // Same give-up as the scan path's, redacted for the same reason. Resolution still answers; the
+            // file just takes no cacheable identity from it.
+            logger.debug(
+                "no last-modified for [{}]; statistics for this read are uncacheable",
+                ExternalFailures.redactHttpUrl(object.path().toString()),
+                e
+            );
             return new SimpleSourceMetadata(
                 schema,
                 formatName(),
@@ -2708,6 +2715,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     chunkMode = false;
                 }
             } catch (IOException e) {
+                // Same give-up as the chunk-parallel coordinator's, so an operator sees it whichever path read
+                // the file. Redacted: an http/https dataset's resource is the user's own URL, and a pre-signed
+                // one carries its signature in the query string, which must not reach the node log.
+                logger.debug(
+                    "no last-modified for [{}]; statistics for this read are uncacheable",
+                    ExternalFailures.redactHttpUrl(object.path().toString()),
+                    e
+                );
                 cacheable = false;
                 wholeFileRead = false;
                 chunkMode = false;

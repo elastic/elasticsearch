@@ -8389,3 +8389,48 @@ FROM partial_mapping_sample_data, (FROM partial_mapping_sample_data | EVAL event
 event_duration:unsupported
 null
 ;
+
+// The LOAD_ALL counterpart of loadSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped. The branch that sorts on unmapped_message
+// names it, so it is a column there. LOAD loads it in the other branch too, and so does LOAD_ALL, where it is also still a key.
+loadAllSubquerySortRefInOneBranchTrailingWildcardKeepSurfacesUnmapped
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | SORT unmapped_message),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| KEEP *message
+;
+ignoreOrder:true
+
+message:keyword        | unmapped_message:keyword   | _unmapped_fields:_source
+42                     | 43                         | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+Connected to 10.1.0.1! | Disconnected from 10.1.0.1 | null
+Connected to 10.1.0.2! | Disconnected from 10.1.0.2 | null
+Connected to 10.1.0.3! | Disconnected from 10.1.0.3 | null
+Connection error?      | Disconnection error        | null
+Connection error?      | Disconnection error        | null
+Connection error?      | Disconnection error        | null
+;
+
+// The LOAD_ALL counterpart of fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad: FILLNULL ON * fills the columns of its own
+// branch, and the other branch keeps its own.
+loadAllFillNullAllColumnsInSubqueryBranchWithDifferentColumns
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_fillnull
+required_capability: subquery_in_from_command
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data METADATA _index | WHERE message == "42"),
+     (FROM no_mapping_sample_data METADATA _index | WHERE unmapped_message == "43" | FILLNULL "x" ON *)
+| KEEP _index, message
+| SORT _index
+;
+
+_index:keyword              | message:keyword
+no_mapping_sample_data      | 42
+partial_mapping_sample_data | 42
+;

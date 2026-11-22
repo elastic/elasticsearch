@@ -25,19 +25,6 @@ import java.util.regex.Pattern;
  */
 public final class LoadAllFromLoad {
 
-    /** The spec files that have queries with {@code unmapped_fields="load"}, for the suites that generate one class per file. */
-    public static final String[] SPEC_FILES = {
-        "enrich.csv-spec",
-        "flattened-unmapped-load.csv-spec",
-        "flattened-unmapped-sink-load.csv-spec",
-        "in_subquery.csv-spec",
-        "nested_subquery.csv-spec",
-        "subquery.csv-spec",
-        "unmapped-load.csv-spec",
-        "unmapped-punk-singles.csv-spec",
-        "unmapped-type-conflicts.csv-spec",
-        "views.csv-spec" };
-
     /**
      * Tests with {@code ROW}, which the command allow-list of {@code LOAD_ALL} does not have yet.
      * See <a href="https://github.com/elastic/elasticsearch/issues/164812">#164812</a>.
@@ -68,7 +55,8 @@ public final class LoadAllFromLoad {
 
     /**
      * Tests where {@code LOAD_ALL} is meant to differ: a field that one branch of a subquery names is loaded in that branch only by
-     * {@code LOAD}, which null-fills it in the others, and in all of them by {@code LOAD_ALL}.
+     * {@code LOAD}, which null-fills it in the others, and in all of them by {@code LOAD_ALL}. Their expected results cannot be reused, so
+     * each has its own {@code LOAD_ALL} version in {@code unmapped-load-all.csv-spec}.
      */
     private static final Set<String> DIFFERS_BY_DESIGN = Set.of(
         "unmapped-load.fillNullAllColumnsInSubqueryBranchWithDifferentColumnsUnderLoad",

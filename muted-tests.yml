@@ -235,7 +235,7 @@ tests:
   tasks:
   - :x-pack:plugin:inference:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackFieldsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testFetchTooManyBigFields
@@ -322,7 +322,7 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/161309
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackStringFunctionsIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testManyDissectFromRow
@@ -603,6 +603,7 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.0.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.1.9#javaRestTest
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.2.8#javaRestTest
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.3.8#javaRestTest
   method: testMergeKeywordAndFlattenedKey {NONE}
   issue: https://github.com/elastic/elasticsearch/issues/165491
@@ -849,3 +850,38 @@ tests:
   - :x-pack:plugin:esql:test
   method: testLimitOnTheWire
   issue: https://github.com/elastic/elasticsearch/issues/166946
+- class: org.elasticsearch.xpack.esql.plan.logical.TsInfoSerializationTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testLimitNotOnTheWire
+  issue: https://github.com/elastic/elasticsearch/issues/166968
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testOnPageFetchedSeesEveryArrivingPage
+  issue: https://github.com/elastic/elasticsearch/issues/166977
+- class: org.elasticsearch.xpack.esql.action.ExternalSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithoutPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/166996
+- class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
+  tasks:
+  - :modules:aggregations:yamlRestTest
+  method: test {yaml=aggregations/terms_include_exclude_regex/a build predicted to exceed the request breaker is refused, and the reservation is released}
+  issue: https://github.com/elastic/elasticsearch/issues/167016
+- class: org.elasticsearch.index.codec.vectors.es816.BinaryQuantizationTests
+  tasks:
+  - :server:test
+  method: testQuantizeForQuery
+  issue: https://github.com/elastic/elasticsearch/issues/167018
+- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripFailsQueryWithoutPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/167009
+- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripDropsClusterWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/167022

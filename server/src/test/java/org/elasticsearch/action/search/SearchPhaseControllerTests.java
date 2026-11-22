@@ -1433,32 +1433,38 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
-    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders() {
-        Boolean[] flags = { null, false, true };
-        for (Boolean first : flags) {
-            for (Boolean second : flags) {
-                TopDocsStats accumulated = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-                accumulated.terminatedEarly = first;
-                TopDocsStats batch = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-                batch.terminatedEarly = second;
-                accumulated.add(batch);
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyTrue() {
+        assertTopDocsStatsMergeEarlyTermination(true, true, true);
+        assertTopDocsStatsMergeEarlyTermination(true, false, true);
+        assertTopDocsStatsMergeEarlyTermination(true, null, true);
+        assertTopDocsStatsMergeEarlyTermination(false, true, true);
+        assertTopDocsStatsMergeEarlyTermination(null, true, true);
+    }
 
-                Boolean expected = Boolean.TRUE.equals(first) || Boolean.TRUE.equals(second) ? Boolean.TRUE
-                    : first == null && second == null ? null
-                    : Boolean.FALSE;
-                assertEquals("merging termination flags " + first + " then " + second, expected, accumulated.terminatedEarly);
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyFalse() {
+        assertTopDocsStatsMergeEarlyTermination(false, false, false);
+        assertTopDocsStatsMergeEarlyTermination(null, false, false);
+        assertTopDocsStatsMergeEarlyTermination(false, null, false);
+    }
 
-                // The ordinary shard-result overload must agree with the batched overload, including empty results.
-                TopDocsStats unbatched = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-                unbatched.terminatedEarly = first;
-                unbatched.add(
-                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
-                    false,
-                    second
-                );
-                assertEquals(expected, unbatched.terminatedEarly);
-            }
-        }
+    public void testTopDocsStatsMergeEarlyTerminationAcrossBatchOrders_TerminatedEarlyNull() {
+        assertTopDocsStatsMergeEarlyTermination(null, null, null);
+    }
+
+    private void assertTopDocsStatsMergeEarlyTermination(Boolean first, Boolean second, Boolean expected) {
+        TopDocsStats accumulated = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        accumulated.terminatedEarly = first;
+        TopDocsStats batch = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        batch.terminatedEarly = second;
+        accumulated.add(batch);
+
+        assertEquals("merging termination flags " + first + " then " + second, expected, accumulated.terminatedEarly);
+
+        // The ordinary shard-result overload must agree with the batched overload, including empty results.
+        TopDocsStats unbatched = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
+        unbatched.terminatedEarly = first;
+        unbatched.add(new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN), false, second);
+        assertEquals(expected, unbatched.terminatedEarly);
     }
 
     public void testMergeWithPartialFetchResults() {

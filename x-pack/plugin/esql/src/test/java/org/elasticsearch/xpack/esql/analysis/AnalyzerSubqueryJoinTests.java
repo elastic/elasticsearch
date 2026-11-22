@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
@@ -108,6 +109,20 @@ public class AnalyzerSubqueryJoinTests extends AnalyzerTestCase {
         Project pin = as(join.right(), Project.class);
         assertThat(pin.output().stream().map(Attribute::name).toList(), contains("language_code", "language_name"));
         assertThat(pin.child().anyMatch(Project.class::isInstance), equalTo(false));
+    }
+
+    /**
+     * {@code INLINE STATS} holds an {@code Aggregate}, but the subquery's columns pass through it, so its output is pinned as well.
+     */
+    public void testPinsInlineStatsSubqueryOutput() {
+        SubqueryJoin join = findJoin(analyzer().query("""
+            FROM test
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (FROM languages | INLINE STATS c = COUNT(*) BY language_code) ON language_code
+            """));
+        Project pin = as(join.right(), Project.class);
+        as(pin.child(), InlineStats.class);
+        assertThat(pin.output().stream().map(Attribute::name).toList(), hasItems("language_name", "c"));
     }
 
     public void testDoesNotPinSubqueryWithItsOwnProjectOrAggregate() {

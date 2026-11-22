@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /**
@@ -42,16 +41,6 @@ public interface IndependentSubqueryJoin {
      */
     static boolean isSubqueryBranch(LogicalPlan parent, int childIndex) {
         return parent instanceof IndependentSubqueryJoin && parent instanceof BinaryPlan && childIndex == SUBQUERY_CHILD_INDEX;
-    }
-
-    /**
-     * Like {@code Node#forEachDown}, but does not descend into the right side of an {@link IndependentSubqueryJoin}.
-     */
-    static void forEachDownInMainScope(LogicalPlan plan, Consumer<? super LogicalPlan> action) {
-        action.accept(plan);
-        for (LogicalPlan child : mainScopeChildren(plan)) {
-            forEachDownInMainScope(child, action);
-        }
     }
 
     /**

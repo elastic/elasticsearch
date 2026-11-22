@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.junit.Before;
@@ -87,6 +88,36 @@ public class LogicalPlanOptimizerSubqueryJoinTests extends AbstractLogicalPlanOp
         SubqueryJoin join = findJoin(plan);
         Filter filter = findParent(plan, join, Filter.class);
         assertThat(filter.condition().references().stream().map(Attribute::name).toList(), equalTo(List.of("flag")));
+    }
+
+    /**
+     * For the same reason, a sort on such a column is kept: the rows without a match sort apart from the others.
+     */
+    public void testSortOnSubqueryConstantIsKept() {
+        LogicalPlan plan = optimizedJoinPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (FROM languages | EVAL flag = true) ON language_code
+            | SORT flag
+            | LIMIT 10
+            """);
+        List<LogicalPlan> topN = plan.collect(TopN.class::isInstance);
+        assertThat(topN, hasSize(1));
+        List<String> keys = ((TopN) topN.getFirst()).order().stream().flatMap(o -> o.references().stream()).map(Attribute::name).toList();
+        assertThat(keys, equalTo(List.of("flag")));
+    }
+
+    /**
+     * The subquery's constants still fold inside the subquery. A {@code ROW} becomes a {@link LocalRelation} only once
+     * {@code b = a + 1} is folded.
+     */
+    public void testSubqueryConstantsFoldInsideSubquery() {
+        SubqueryJoin join = findJoin(optimizedJoinPlan("""
+            FROM test
+            | EVAL language_code = languages
+            | LEFT OUTER JOIN (ROW language_code = 1, a = 1, b = a + 1) ON language_code
+            """));
+        assertThat(join.right().collect(LocalRelation.class::isInstance), hasSize(1));
     }
 
     /**

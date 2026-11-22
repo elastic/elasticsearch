@@ -20,8 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -108,6 +107,10 @@ public final class RuleUtils {
      * {@code InlineJoin} plans before calling this method — see
      * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField} for an
      * example of that explicit exclusion.
+     * <p>
+     * The subquery of an {@link IndependentSubqueryJoin} is not walked. It is a query of its own, and its constants do not hold
+     * above the join: a {@code LEFT JOIN} on a subquery gives a row without a match null for the subquery's columns. Callers that
+     * fold the whole plan fold each subquery with the references collected from it alone.
      *
      * @param plan The logical plan to analyze.
      * @param ctx The optimizer context providing fold context.
@@ -134,13 +137,8 @@ public final class RuleUtils {
         if (stopCondition.test(plan)) {
             return;
         }
-        for (LogicalPlan child : plan.children()) {
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
             collectFoldableRefs(child, collectRefsBuilder, ctx, stopCondition);
-        }
-        // A LEFT JOIN on a subquery gives a row without a match null for the subquery's columns, so a constant the subquery defines
-        // does not hold above the join. The collected references have no scope, so the subquery loses these constants as well.
-        if (plan instanceof SubqueryJoin join && join.config().type() == JoinTypes.LEFT) {
-            join.rightOutputFields().forEach(collectRefsBuilder::remove);
         }
         // At Aggregate boundaries, remove multi-valued grouping keys before processing this node's expressions.
         // After GROUP BY, these attributes represent expanded single values, not the original multi-valued literals.

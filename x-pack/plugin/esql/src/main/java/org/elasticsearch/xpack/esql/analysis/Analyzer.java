@@ -2513,6 +2513,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <p>
          * When the subquery has no {@link Project} or {@link Aggregate} of its own, its output is pinned with a {@link Project}, as
          * for an {@code IN} subquery: without one, a data node running the subquery can replace its fields with just {@code _doc}.
+         * The {@link Aggregate} of an {@link InlineStats} does not count, since its input columns pass through.
          */
         private SubqueryJoin resolveSubqueryJoin(SubqueryJoin join) {
             JoinConfig config = join.config();
@@ -2526,8 +2527,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> rightKeys = resolveUsingColumns(config.rightFields(), join.right().output(), "right");
 
             LogicalPlan right = join.right();
-            if (Resolvables.resolved(rightKeys)
-                && IndependentSubqueryJoin.anyMatchInMainScope(right, p -> p instanceof Project || p instanceof Aggregate) == false) {
+            if (Resolvables.resolved(rightKeys) && hasOwnProjectOrAggregate(right) == false) {
                 right = new Project(join.source(), right, right.output());
             }
             return new SubqueryJoin(
@@ -2536,6 +2536,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 right,
                 new JoinConfig(config.type(), leftKeys, rightKeys, config.joinOnConditions())
             );
+        }
+
+        private static boolean hasOwnProjectOrAggregate(LogicalPlan plan) {
+            if (plan instanceof Project || plan instanceof Aggregate) {
+                return true;
+            }
+            List<LogicalPlan> children = plan instanceof InlineStats inlineStats
+                ? List.of(inlineStats.aggregate().child())
+                : IndependentSubqueryJoin.mainScopeChildren(plan);
+            for (LogicalPlan child : children) {
+                if (hasOwnProjectOrAggregate(child)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /**

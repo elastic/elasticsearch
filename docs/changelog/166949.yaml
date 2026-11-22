@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 166949
+summary: Only prune IVF kNN candidates scoring below another segment's min competitive score
+type: bug

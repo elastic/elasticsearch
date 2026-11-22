@@ -10,6 +10,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.QueryCache;
@@ -161,10 +162,15 @@ public final class EngineConfig {
 
     private final MergeMetrics mergeMetrics;
 
+    private final FlushMetrics flushMetrics;
+
     /**
      * Allows to pass an {@link ElasticsearchIndexDeletionPolicy} wrapper to egine implementations.
      */
     private final Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
+
+    @Nullable
+    private final IndexWriter.IndexReaderWarmer mergedSegmentWarmer;
 
     private EngineConfig(
         ShardId shardId,
@@ -197,7 +203,9 @@ public final class EngineConfig {
         MapperService mapperService,
         EngineResetLock engineResetLock,
         MergeMetrics mergeMetrics,
-        Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
+        FlushMetrics flushMetrics,
+        Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper,
+        @Nullable IndexWriter.IndexReaderWarmer mergedSegmentWarmer
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -247,7 +255,9 @@ public final class EngineConfig {
         this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
         this.engineResetLock = engineResetLock;
         this.mergeMetrics = mergeMetrics;
+        this.flushMetrics = flushMetrics;
         this.indexDeletionPolicyWrapper = indexDeletionPolicyWrapper;
+        this.mergedSegmentWarmer = mergedSegmentWarmer;
     }
 
     /**
@@ -501,11 +511,25 @@ public final class EngineConfig {
         return mergeMetrics;
     }
 
+    public FlushMetrics getFlushMetrics() {
+        return flushMetrics;
+    }
+
     /**
      * @return an {@link ElasticsearchIndexDeletionPolicy} wrapper, to be use by engine implementations.
      */
     public Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> getIndexDeletionPolicyWrapper() {
         return indexDeletionPolicyWrapper;
+    }
+
+    /**
+     * Returns the Lucene {@link IndexWriter.IndexReaderWarmer} that runs on the merge thread for each newly merged segment, before the
+     * merge is committed to the writer, or {@code null} if there is none. An exception thrown by the warmer fails the merge. This is
+     * unrelated to {@link #getWarmer()}, which warms searchers on refresh.
+     */
+    @Nullable
+    public IndexWriter.IndexReaderWarmer getMergedSegmentWarmer() {
+        return mergedSegmentWarmer;
     }
 
     public static final class Builder {
@@ -539,7 +563,9 @@ public final class EngineConfig {
         private MapperService mapperService;
         private EngineResetLock engineResetLock;
         private MergeMetrics mergeMetrics;
+        private FlushMetrics flushMetrics = FlushMetrics.NOOP;
         private Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper;
+        private IndexWriter.IndexReaderWarmer mergedSegmentWarmer;
 
         Builder() {}
 
@@ -574,7 +600,9 @@ public final class EngineConfig {
             this.mapperService = config.mapperService;
             this.engineResetLock = config.engineResetLock;
             this.mergeMetrics = config.mergeMetrics;
+            this.flushMetrics = config.flushMetrics;
             this.indexDeletionPolicyWrapper = config.indexDeletionPolicyWrapper;
+            this.mergedSegmentWarmer = config.mergedSegmentWarmer;
         }
 
         public Builder shardId(ShardId shardId) {
@@ -599,6 +627,11 @@ public final class EngineConfig {
 
         public Builder warmer(Engine.Warmer warmer) {
             this.warmer = warmer;
+            return this;
+        }
+
+        public Builder mergedSegmentWarmer(@Nullable IndexWriter.IndexReaderWarmer mergedSegmentWarmer) {
+            this.mergedSegmentWarmer = mergedSegmentWarmer;
             return this;
         }
 
@@ -727,6 +760,11 @@ public final class EngineConfig {
             return this;
         }
 
+        public Builder flushMetrics(FlushMetrics flushMetrics) {
+            this.flushMetrics = flushMetrics;
+            return this;
+        }
+
         public Builder indexDeletionPolicyWrapper(
             Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
         ) {
@@ -766,7 +804,9 @@ public final class EngineConfig {
                 mapperService,
                 engineResetLock,
                 mergeMetrics,
-                indexDeletionPolicyWrapper
+                flushMetrics,
+                indexDeletionPolicyWrapper,
+                mergedSegmentWarmer
             );
         }
     }

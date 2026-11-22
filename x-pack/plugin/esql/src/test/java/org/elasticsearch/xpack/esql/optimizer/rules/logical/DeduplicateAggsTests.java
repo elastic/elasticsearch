@@ -31,7 +31,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.contains;
@@ -39,6 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
@@ -617,5 +620,206 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(aggregates, hasSize(1));
         var countDistinct = as(as(aggregates.get(0), Alias.class).child(), CountDistinct.class);
         assertEquals("scalerank", as(countDistinct.field(), FieldAttribute.class).name());
+    }
+
+    /**
+     * {@code before} and {@code after} are both {@code COUNT(*)}, but over different rows, so {@code MIN(before)} and
+     * {@code MIN(after)} are different aggregations.
+     */
+    public void testStackedInlineStatsSameAggOverIdenticallyDefinedColumns() {
+        var plan = plan("""
+            ROW v = [1, 2]
+            | MV_EXPAND v
+            | INLINE STATS before = COUNT(*)
+            | WHERE v == 1
+            | INLINE STATS after = COUNT(*)
+            | STATS before = MIN(before), after_min = MIN(after), after_max = MAX(after)
+            | LIMIT 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("before", "after_min", "after_max"));
+        aggFieldName(aggs.get(0), Min.class, "before");
+        aggFieldName(aggs.get(1), Min.class, "after");
+        aggFieldName(aggs.get(2), Max.class, "after");
+        as(agg.child(), InlineJoin.class);
+    }
+
+    /**
+     * {@code c} and {@code d} are both {@code COUNT(*)}, but over different rows, so {@code min(c)} and {@code min(d)} are
+     * different aggregations.
+     */
+    public void testChainedStatsSameAggOverIdenticallyDefinedColumns() {
+        var plan = plan("""
+            from test
+            | stats c = count(*) by languages
+            | stats d = count(*) by c
+            | stats mc = min(c), md = min(d)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("mc", "md"));
+        aggFieldName(aggs.get(0), Min.class, "c");
+        aggFieldName(aggs.get(1), Min.class, "d");
+        var inner = as(agg.child(), Aggregate.class);
+        assertThat(Expressions.names(inner.aggregates()), contains("d", "c"));
+    }
+
+    /**
+     * {@code x} and {@code y} are both {@code [1, 2]} below the first aggregate, but each holds one expanded value per group
+     * above it, so {@code MAX(x)} and {@code MAX(y)} are different aggregations.
+     */
+    public void testMultiValuedGroupingKeysSameAggAfterFilter() {
+        var plan = plan("""
+            ROW x = [1, 2], y = [1, 2]
+            | STATS BY x, y
+            | WHERE x < y
+            | STATS mx = MAX(x), my = MAX(y)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("mx", "my"));
+        aggFieldName(aggs.get(0), Max.class, "x");
+        aggFieldName(aggs.get(1), Max.class, "y");
+    }
+
+    /**
+     * {@code a} is the literal {@code 0} per group, but a row with a multi-valued grouping key joins every one of its groups,
+     * so {@code a} can be multi-valued while {@code z} is not, and {@code COUNT(a)} and {@code COUNT(z)} differ.
+     */
+    public void testInlineStatsRightSideEvalSameAggOverEqualLiteral() {
+        var plan = plan("""
+            from test
+            | inline stats a = count(*) where false, m = max(salary) by languages
+            | eval z = 0::long
+            | stats ca = count(a), cz = count(z), mm = max(m)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("ca", "cz", "mm"));
+        aggFieldName(aggs.get(0), Count.class, "a");
+    }
+
+    /**
+     * The lookup's {@code language_name} shadows the alias of the same name, so {@code count(language_name)} counts the lookup
+     * column, while {@code f2} still equals {@code first_name} on every joined row.
+     */
+    public void testLookupJoinShadowedAliasIsNotResolved() {
+        var plan = plan("""
+            from test
+            | eval language_code = languages, language_name = first_name, f2 = first_name
+            | lookup join languages_lookup on language_code
+            | stats a = count(language_name), b = count(first_name), c = count(f2)
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("a", "b", "c"));
+        assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("b"));
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b"));
+        aggFieldName(aggs.get(0), Count.class, "language_name");
+        aggFieldName(aggs.get(1), Count.class, "first_name");
+        assertTrue(agg.child().anyMatch(Join.class::isInstance));
+    }
+
+    /**
+     * The lookup's {@code language_name} shadows the {@code language_name} of the first {@code STATS}, which {@code c} duplicates,
+     * so {@code count(language_name)} and {@code count(c)} count different columns.
+     */
+    public void testLookupJoinShadowedAggregateOutputIsNotResolved() {
+        var plan = plan("""
+            from test
+            | stats language_name = count(*), c = count(*) by language_code = languages
+            | lookup join languages_lookup on language_code
+            | stats a = count(language_name), b = count(c)
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b"));
+        var join = as(agg.child(), Join.class);
+        var lookupColumn = Expressions.attribute(aliased(aggs.get(0), Count.class).field());
+        assertThat(join.right().outputSet().contains(lookupColumn), is(true));
+        var innerCount = Expressions.attribute(aliased(aggs.get(1), Count.class).field());
+        assertThat(join.left().outputSet().contains(innerCount), is(true));
+    }
+
+    /**
+     * {@code RERANK} writes its score into the existing {@code _score}, so above it {@code s} holds the search score while
+     * {@code _score} holds the rerank score.
+     */
+    public void testRerankOverwrittenScoreIsNotResolved() {
+        var plan = optimize(defaultAnalyzer().addAnalysisTestsInferenceResolution().query("""
+            from test metadata _score
+            | eval s = _score
+            | rerank "query" on first_name with { "inference_id" : "reranking-inference-id" }
+            | stats a = max(s), b = max(_score)
+            """));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b"));
+        var rerankScore = as(agg.child(), Rerank.class).scoreAttribute().id();
+        assertThat(Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id(), not(rerankScore));
+        assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), is(rerankScore));
+    }
+
+    /**
+     * Pushing {@code RERANK} below the projection of {@code s} renames its score and aliases it back under the input's
+     * {@code _score} id. The {@code INLINE STATS} keeps that projection on the join's left-hand side, below the aggregate.
+     */
+    public void testRerankScoreAliasedBackIsNotResolved() {
+        var plan = optimize(defaultAnalyzer().addAnalysisTestsInferenceResolution().query("""
+            from test metadata _score
+            | eval s = _score
+            | rerank "query" on first_name with { "inference_id" : "reranking-inference-id" }
+            | inline stats c = count(*)
+            | stats a = max(s), b = max(_score), mc = max(c)
+            """));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b", "mc"));
+        var searchScore = Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id();
+        assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), not(searchScore));
+        var join = as(agg.child(), InlineJoin.class);
+        var project = as(join.left(), Project.class);
+        var projectInput = project.child().outputSet();
+        assertTrue(project.projections().stream().anyMatch(p -> p instanceof Alias alias && projectInput.contains(alias.toAttribute())));
+    }
+
+    /**
+     * Grouping by {@code _score} folds the alias of the renamed {@code RERANK} score, back under the input's {@code _score} id,
+     * into the aggregate, while {@code max(s)} reads the search score under that same id.
+     */
+    public void testRerankScoreGroupingIsNotResolved() {
+        var plan = optimize(defaultAnalyzer().addAnalysisTestsInferenceResolution().query("""
+            from test metadata _score
+            | eval s = _score
+            | rerank "query" on first_name with { "inference_id" : "reranking-inference-id" }
+            | stats a = max(s), b = max(_score) by _score
+            """));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("a", "b", "_score"));
+        var rerankScore = as(agg.child(), Rerank.class).scoreAttribute().id();
+        assertThat(Expressions.attribute(aliased(aggs.get(0), Max.class).field()).id(), not(rerankScore));
+        assertThat(Expressions.attribute(aliased(aggs.get(1), Max.class).field()).id(), is(rerankScore));
     }
 }

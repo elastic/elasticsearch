@@ -19,12 +19,14 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.Releasables;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SumLongAsDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -219,6 +221,43 @@ public class SumLongAsDoubleAggregatorFunctionTests extends AggregatorFunctionTe
                 // The partials can nearly cancel each other, so the error is relative to their size, not to the total.
                 double magnitude = Math.max(Math.abs(sum(a).doubleValue()), Math.abs(sum(b).doubleValue()));
                 assertThat(((DoubleBlock) r).getDouble(0), closeTo(expected.doubleValue(), Math.max(1, magnitude) * 1e-15));
+            }
+        }
+        driverContext.finish();
+        assertDriverContext(driverContext);
+    }
+
+    /**
+     * A function that only receives intermediate input, like the one that reduces on a node, forwards the partial as it is,
+     * correction included, instead of adding it to an empty sum and rounding the correction away.
+     */
+    public void testIntermediateOnlyInputKeepsTheCorrection() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        double value = 0x1p54;
+        double delta = 3.0;
+        try (SumLongAsDoubleAggregatorFunction reducer = new SumLongAsDoubleAggregatorFunction(List.of(0, 1, 2))) {
+            Page input = new Page(
+                blockFactory.newConstantDoubleBlockWith(value, 1),
+                blockFactory.newConstantDoubleBlockWith(delta, 1),
+                blockFactory.newConstantBooleanBlockWith(true, 1)
+            );
+            try {
+                reducer.addIntermediateInput(input);
+            } finally {
+                input.releaseBlocks();
+            }
+            Block[] out = new Block[3];
+            reducer.evaluateIntermediate(out, 0, driverContext);
+            Page output = new Page(out);
+            try {
+                // The pair may be renormalized, what has to survive is value + delta.
+                BigDecimal forwarded = new BigDecimal(((DoubleBlock) out[0]).getDouble(0)).add(
+                    new BigDecimal(((DoubleBlock) out[1]).getDouble(0))
+                );
+                assertThat(forwarded, comparesEqualTo(new BigDecimal(value).add(new BigDecimal(delta))));
+            } finally {
+                output.releaseBlocks();
             }
         }
         driverContext.finish();

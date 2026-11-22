@@ -25,6 +25,8 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 
 public final class SumLongAsDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
@@ -157,7 +159,8 @@ public final class SumLongAsDoubleGroupingAggregatorFunction implements Grouping
      * Adds the values of a page that all belong to one group. This is the loop of
      * {@link SumLongAsDoubleAggregatorFunction}: the low and the high 32 bits of the values are summed apart, each in a
      * {@code long} that they can't overflow, which are two plain sums that the jvm vectorizes. Then the sum of the
-     * page, which is exact, is added to the compensated sum of the group.
+     * page, which is exact, is rounded once to a value and a correction, which are added to the compensated sum of the group
+     * together.
      */
     private void addConstantGroup(int positionOffset, int positions, int groupId, LongArrayVector vector) {
         int end = positionOffset + positions;
@@ -170,10 +173,13 @@ public final class SumLongAsDoubleGroupingAggregatorFunction implements Grouping
         }
         // The sum is high * 2^32 + low. Move what low has above 32 bits into high, then it is mid * 2^32 + the low 32 bits.
         long mid = high + (low >>> 32);
-        // It doesn't fit in a double, but these three parts of it do, without rounding: each has 32 bits.
-        state.add((mid >> 32) * 0x1p64, groupId);
-        state.add((mid & LOW_MASK) * 0x1p32, groupId);
-        state.add(low & LOW_MASK, groupId);
+        // Round the exact sum of the page once, keeping the rounding error as the correction, and add that pair to the group in a
+        // single step. Adding the parts of the sum one by one is not safe: the first of them can be huge and, added to a small
+        // sum of the group, rounds that sum away before the parts cancel out.
+        BigInteger exact = BigInteger.valueOf(mid).shiftLeft(32).add(BigInteger.valueOf(low & LOW_MASK));
+        double value = exact.doubleValue();
+        double delta = exact.subtract(new BigDecimal(value).toBigInteger()).doubleValue();
+        state.add(value, delta, groupId);
     }
 
     private void addRawInput(int positionOffset, IntVector groups, LongBlock block) {

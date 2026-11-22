@@ -191,9 +191,11 @@ public final class SumLongAsDoubleAggregatorFunction implements AggregatorFuncti
             return;
         }
         if (merged == null) {
-            merged = new CompensatedSum();
+            // Starting from the partial itself keeps its correction, adding it to an empty sum would round it away.
+            merged = new CompensatedSum(value.getDouble(0), delta.getDouble(0));
+        } else {
+            merged.add(value.getDouble(0), delta.getDouble(0));
         }
-        merged.add(value.getDouble(0), delta.getDouble(0));
         seen = true;
     }
 
@@ -224,10 +226,15 @@ public final class SumLongAsDoubleAggregatorFunction implements AggregatorFuncti
         BigInteger exact = exactSum();
         double value = exact.doubleValue();
         double delta = exact.subtract(new BigDecimal(value).toBigInteger()).doubleValue();
-        CompensatedSum total = new CompensatedSum(value, delta);
-        if (merged != null) {
-            total.add(merged.value(), merged.delta());
+        if (merged == null) {
+            return new CompensatedSum(value, delta);
         }
+        if (exact.signum() == 0) {
+            // No raw input: forward the partials as they are, adding them to an empty sum would round their correction away.
+            return merged;
+        }
+        CompensatedSum total = new CompensatedSum(value, delta);
+        total.add(merged.value(), merged.delta());
         return total;
     }
 

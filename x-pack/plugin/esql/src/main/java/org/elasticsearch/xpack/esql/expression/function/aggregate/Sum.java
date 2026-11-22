@@ -105,9 +105,14 @@ public class Sum extends NumericAggregate
     public static final TransportVersion ESQL_SUM_LONG_AS_DOUBLE = TransportVersion.fromName("esql_sum_long_as_double");
 
     /**
-     * Mode for {@link #longOverflowMode}, summing the {@code long}s as {@code double}s, so there is no overflow. The
-     * {@code long}s are summed exactly and converted to a {@code double} once, instead of converting each of them first, which
-     * is what {@code SUM(TO_DOUBLE(long))} does. The result is a {@code double}.
+     * Mode for {@link #longOverflowMode}, summing the {@code long}s as {@code double}s, so there is no overflow. The result is
+     * a {@code double}.
+     * <p>
+     *     Without grouping, the {@code long}s of a page are summed exactly and converted to a {@code double} once, instead of
+     *     converting each of them first, which is what {@code SUM(TO_DOUBLE(long))} does. With grouping that only holds for a
+     *     page whose rows all belong to one group; otherwise every {@code long} is converted and added to the compensated sum
+     *     of its group, so the result is not exact and can differ in the last digits. Merging partial results is never exact.
+     * </p>
      * <p>
      *     Only {@link Avg#surrogate(TransportVersion)} sets it, and only if all the nodes support it, see
      *     {@link #ESQL_SUM_LONG_AS_DOUBLE}.

@@ -106,6 +106,46 @@ public class SumLongAsDoubleGroupingAggregatorFunctionTests extends PartitionedG
     }
 
     /**
+     * A page of one group that sums to a negative number is added to a group that already has a sum. The small sum of the group
+     * must survive: it is not allowed to be rounded away by a large part of the sum of the page.
+     */
+    public void testConstantGroupPageAfterAnotherPage() {
+        assertThat(sumOfConstantGroupPages(new long[] { 1, 2 }, new long[] { -1, -2 }), equalTo(0.0));
+        long[] first = LongStream.generate(() -> randomLongBetween(-1000, 1000)).limit(between(1, 100)).toArray();
+        long[] second = LongStream.generate(() -> randomLongBetween(-1000, 1000)).limit(between(1, 100)).toArray();
+        long[] both = LongStream.concat(Arrays.stream(first), Arrays.stream(second)).toArray();
+        assertThat(sumOfConstantGroupPages(first, second), equalTo(exactSum(both, 0, both.length)));
+    }
+
+    /** Adds each page to group {@code 0} with a constant vector of group ids and returns the sum of the group. */
+    private double sumOfConstantGroupPages(long[]... pages) {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        try (
+            GroupingAggregatorFunction agg = aggregatorFunction().groupingAggregator(driverContext, List.of(0));
+            IntVector selected = blockFactory.newIntArrayVector(new int[] { 0 }, 1);
+            GroupingAggregatorEvaluationContext evalContext = new GroupingAggregatorEvaluationContext(driverContext)
+        ) {
+            for (long[] values : pages) {
+                try (
+                    Page page = new Page(blockFactory.newLongArrayVector(values, values.length).asBlock());
+                    GroupingAggregatorFunction.AddInput add = agg.prepareProcessRawInputPage(new SeenGroupIds.Empty(), page);
+                    IntVector group = blockFactory.newConstantIntVector(0, values.length)
+                ) {
+                    add.add(0, group);
+                }
+            }
+            Block[] blocks = new Block[1];
+            try (GroupingAggregatorFunction.PreparedForEvaluation prepared = agg.prepareEvaluateFinal(selected, evalContext)) {
+                prepared.evaluate(blocks, 0, selected);
+            }
+            try (DoubleBlock result = (DoubleBlock) blocks[0]) {
+                return result.getDouble(0);
+            }
+        }
+    }
+
+    /**
      * Sums {@code values[0..split)} into one group and the rest into another, each with a constant vector of group ids.
      */
     private double[] sumConstantGroups(long[] values, int split) {

@@ -59,6 +59,7 @@ import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.StreamingPageOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
@@ -190,6 +191,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -1557,6 +1559,23 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     /**
      * With no build values to load, the matches are still expanded: the probe row repeats once for each.
      */
+    /**
+     * A probe row with more matches than fit in a page is spread over several, each holding at most as many matches as a
+     * {@code LOOKUP JOIN} lookup page.
+     */
+    public void testRepeatedKeyHashJoinSplitsManyMatchesIntoLookupSizedPages() throws IOException {
+        int pageSize = LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE;
+        int matches = 2 * pageSize + between(1, pageSize - 1);
+        long[] buildKeys = new long[matches];
+        Arrays.fill(buildKeys, 1);
+        long[] buildValues = LongStream.range(0, matches).toArray();
+        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, longs(1), longs(10), longs(buildKeys), longs(buildValues));
+
+        List<Page> pages = runHashJoin(mapHashJoin(join));
+        assertThat(pages.stream().map(Page::getPositionCount).toList(), equalTo(List.of(pageSize, pageSize, matches - 2 * pageSize)));
+        assertThat(longRows(pages).stream().map(row -> row.get(1)).toList(), equalTo(LongStream.range(0, matches).boxed().toList()));
+    }
+
     public void testRepeatedKeyHashJoinWithoutBuildValuesStillExpandsMatches() throws IOException {
         HashJoin join = repeatedKeyHashJoin(JoinTypes.INNER, longs(1, 2), longs(10, 20), longs(1, 1, 2), null);
         assertThat(longRows(runHashJoin(mapHashJoin(join))), equalTo(List.of(List.of(10L, 1L), List.of(10L, 1L), List.of(20L, 2L))));

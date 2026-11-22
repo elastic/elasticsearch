@@ -92,6 +92,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
@@ -317,11 +318,6 @@ public class LocalExecutionPlanner {
      * a sibling with nothing. Eval saw no idle drivers at 5 or more pages per driver.
      */
     static final int MIN_PAGES_PER_LIMIT_DRIVER = ExternalLimitSplits.MIN_PAGES_PER_LIMIT_DRIVER;
-
-    /**
-     * Rows per page that {@link MvExpandOperator} emits. TODO estimate the row size and use the context's page size.
-     */
-    private static final int MV_EXPAND_BLOCK_SIZE = 5000;
 
     private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
@@ -1897,7 +1893,8 @@ public class LocalExecutionPlanner {
         if (join.repeatedKeys()) {
             source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, true, join.source()), layout);
             // A probe row gets one position for each build row it matches: give each match a row of its own before loading its values.
-            source = source.with(new MvExpandOperator.Factory(positionsChannel, MV_EXPAND_BLOCK_SIZE), layout);
+            // Pages hold as many matches as LOOKUP JOIN's lookup pages, so a probe row with many matches doesn't make one huge page.
+            source = source.with(new MvExpandOperator.Factory(positionsChannel, LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE), layout);
         } else {
             source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
         }
@@ -3006,10 +3003,11 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
+        int blockSize = 5000;// TODO estimate row size and use context.pageSize()
         Layout.Builder layout = source.layout.builder();
         layout.replace(mvExpandExec.target().id(), mvExpandExec.expanded().id());
         return source.with(
-            new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), MV_EXPAND_BLOCK_SIZE),
+            new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
         );
     }

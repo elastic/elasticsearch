@@ -14,7 +14,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheSettings;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,7 +29,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -241,13 +238,8 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
     /** Pulls the per-driver statistics sink out of the profile, merged across drivers, keyed by file path. */
     private static Map<String, List<Map<String, Object>>> capturedSourceMetadata(EsqlQueryResponse response) {
         Map<String, List<Map<String, Object>>> merged = new HashMap<>();
-        for (var profile : response.profile().drivers()) {
-            for (var status : profile.operators()) {
-                if (status.status() instanceof AsyncExternalSourceOperator.Status external) {
-                    external.capturedSourceMetadata()
-                        .forEach((path, list) -> merged.computeIfAbsent(path, k -> new ArrayList<>()).addAll(list));
-                }
-            }
+        for (var status : externalScanStatuses(response)) {
+            status.capturedSourceMetadata().forEach((path, list) -> merged.computeIfAbsent(path, k -> new ArrayList<>()).addAll(list));
         }
         return merged;
     }
@@ -260,9 +252,7 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
             sb.append(i).append(',').append(i).append(',').append(TS_BASE_MILLIS + i).append(',').append(PAD).append('\n');
         }
         if (gzip) {
-            try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(file))) {
-                out.write(sb.toString().getBytes(StandardCharsets.UTF_8));
-            }
+            writeGzipped(file, sb.toString());
         } else {
             Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
         }

@@ -113,6 +113,11 @@ public final class CountingMtimeStorageObject implements StorageObject {
     }
 
     @Override
+    public void close() throws IOException {
+        delegate.close();
+    }
+
+    @Override
     public void abortStream(InputStream stream) throws IOException {
         delegate.abortStream(stream);
     }

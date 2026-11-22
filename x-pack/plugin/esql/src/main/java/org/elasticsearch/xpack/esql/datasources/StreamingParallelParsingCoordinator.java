@@ -2485,10 +2485,9 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * The source's last-modified, probed on first use and reused by every later chunk, so a store carrying
-         * no last-modified hint costs one HEAD per file rather than one per chunk. The loser of a race re-reads
-         * after its own publish fails, so every chunk of one file carries the winner's instant. Either
-         * non-answer is final for this read, as it is for the row readers, which probe once at open and stop
-         * caching the file on a null or a throw.
+         * no last-modified hint costs one HEAD per file rather than one per chunk. Either non-answer is final
+         * for this read, as it is for the row readers, which probe once at open and stop caching the file on
+         * a null or a throw.
          */
         @Nullable
         private Instant pinnedSourceMtime() {
@@ -2499,6 +2498,7 @@ public final class StreamingParallelParsingCoordinator {
                     probed = Optional.ofNullable(storageObject.lastModified());
                 } catch (IOException e) {
                     probed = Optional.empty(); // No pin, so the publish guard leaves the file a safe miss.
+                    logger.debug("no last-modified for [{}]; statistics for this read are uncacheable", storageObject.path(), e);
                 }
                 pinnedSourceMtime.compareAndSet(null, probed);
                 cached = pinnedSourceMtime.get();

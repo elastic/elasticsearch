@@ -12,7 +12,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import java.util.List;
 
 /**
- * {@link AggregatorFunctionSupplier} for {@link SumLongAsDoubleAggregatorFunction}. Its intermediate state is the one of
+ * {@link AggregatorFunctionSupplier} for {@link SumLongAsDoubleAggregatorFunction} and
+ * {@link SumLongAsDoubleGroupingAggregatorFunction}. Their intermediate state is the one of
  * {@code SumDoubleAggregatorFunctionSupplier}, see {@link SumLongAsDoubleAggregatorFunction} for why.
  */
 public final class SumLongAsDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
@@ -25,7 +26,7 @@ public final class SumLongAsDoubleAggregatorFunctionSupplier implements Aggregat
 
     @Override
     public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-        return SumDoubleGroupingAggregatorFunction.intermediateStateDesc();
+        return SumLongAsDoubleGroupingAggregatorFunction.intermediateStateDesc();
     }
 
     @Override
@@ -34,8 +35,8 @@ public final class SumLongAsDoubleAggregatorFunctionSupplier implements Aggregat
     }
 
     @Override
-    public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-        throw new UnsupportedOperationException("sum of longs as doubles is only implemented without grouping");
+    public SumLongAsDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
+        return new SumLongAsDoubleGroupingAggregatorFunction(channels, driverContext);
     }
 
     @Override

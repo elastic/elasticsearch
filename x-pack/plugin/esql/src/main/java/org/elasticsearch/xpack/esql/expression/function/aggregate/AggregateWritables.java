@@ -41,7 +41,6 @@ public class AggregateWritables {
             StdDev.ENTRY,
             Variance.ENTRY,
             Sum.ENTRY,
-            SumLongAsDouble.ENTRY,
             Top.ENTRY,
             Values.ENTRY,
             Last.ENTRY,

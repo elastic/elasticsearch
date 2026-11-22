@@ -43,8 +43,8 @@ import java.util.List;
  *     the size of an ulp of that partial, and the same one that the partials of {@code SUM} of a {@code double} have.
  * </p>
  * <p>
- *     Only the non-grouping form exists. Intermediate input is merged with a {@link CompensatedSum}, so this function can
- *     be used for any {@link AggregatorMode}.
+ *     This is the non-grouping form, see {@link SumLongAsDoubleGroupingAggregatorFunction} for the grouping one. Intermediate
+ *     input is merged with a {@link CompensatedSum}, so this function can be used for any {@link AggregatorMode}.
  * </p>
  */
 public final class SumLongAsDoubleAggregatorFunction implements AggregatorFunction {

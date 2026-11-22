@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StddevOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SumLongAsDouble;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumSerializationTests;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
@@ -309,9 +308,6 @@ public class ApproximationSupportTests extends ESTestCase {
         // These aggs don't occur in a correct query.
         SumSerializationTests.OldSum.class,
         AvgSerializationTests.OldAvg.class,
-        // Never in a user query: the local optimizer of a data node swaps it in for the SUM of an AVG, but not in a sampled
-        // aggregate, because the correction of an approximated sum only knows the Sum function.
-        SumLongAsDouble.class,
         ToPartial.class,
         FromPartial.class,
 

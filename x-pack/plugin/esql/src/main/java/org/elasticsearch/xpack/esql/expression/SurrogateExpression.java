@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
@@ -28,4 +29,15 @@ public interface SurrogateExpression {
      * be replaced.
      */
     Expression surrogate();
+
+    /**
+     * Like {@link #surrogate()}, for surrogates that may only be used if all the nodes that run the query support them:
+     * {@code minTransportVersion} is the minimum version of those nodes, see
+     * {@link org.elasticsearch.xpack.esql.session.Versioned}. Unlike a
+     * {@link org.elasticsearch.xpack.esql.capabilities.TransportVersionAware} expression, which is replaced once the plan
+     * has its shape, this picks the surrogate itself.
+     */
+    default Expression surrogate(TransportVersion minTransportVersion) {
+        return surrogate();
+    }
 }

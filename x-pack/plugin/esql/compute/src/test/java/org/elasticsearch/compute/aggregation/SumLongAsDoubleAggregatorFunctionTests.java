@@ -216,7 +216,9 @@ public class SumLongAsDoubleAggregatorFunctionTests extends AggregatorFunctionTe
             Block[] result = new Block[1];
             merged.evaluateFinal(result, 0, driverContext);
             try (Block r = result[0]) {
-                assertThat(((DoubleBlock) r).getDouble(0), closeTo(expected.doubleValue(), Math.abs(expected.doubleValue()) * 1e-15));
+                // The partials can nearly cancel each other, so the error is relative to their size, not to the total.
+                double magnitude = Math.max(Math.abs(sum(a).doubleValue()), Math.abs(sum(b).doubleValue()));
+                assertThat(((DoubleBlock) r).getDouble(0), closeTo(expected.doubleValue(), Math.max(1, magnitude) * 1e-15));
             }
         }
         driverContext.finish();
@@ -284,10 +286,6 @@ public class SumLongAsDoubleAggregatorFunctionTests extends AggregatorFunctionTe
         }
         driverContext.finish();
         assertDriverContext(driverContext);
-    }
-
-    public void testGroupingIsNotSupported() {
-        expectThrows(UnsupportedOperationException.class, () -> aggregatorFunction().groupingAggregator(driverContext(), List.of(0)));
     }
 
     private void assertExactSum(long[] values, boolean[] mask) {

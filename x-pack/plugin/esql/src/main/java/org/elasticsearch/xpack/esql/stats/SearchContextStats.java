@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper.TimestampFieldType;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -245,6 +246,9 @@ public class SearchContextStats implements SearchStats {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
     }
 
+    /** Mappers whose queries round the literal to the stored precision, which reading the child does not do. */
+    private static final Set<String> ROUNDS_QUERY_LITERALS = Set.of("float", "half_float", "scaled_float");
+
     @Override
     public boolean nestedQueriesAllowed() {
         for (SearchExecutionContext context : contexts) {
@@ -294,7 +298,8 @@ public class SearchContextStats implements SearchStats {
             MappedFieldType fieldType = context.getFieldType(field.string());
             if (fieldType != null
                 && (dataType(fieldType) != type
-                    || fieldType instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.hasNormalizer())) {
+                    || fieldType instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.hasNormalizer()
+                    || ROUNDS_QUERY_LITERALS.contains(fieldType.typeName()))) {
                 return false;
             }
         }

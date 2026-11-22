@@ -163,6 +163,44 @@ setup:
   - match: { documents_found: 2 }
 
 ---
+"a nested scaled_float is compared as read, not as Lucene rounds the literal":
+  - do:
+      indices.create:
+        index: na_scaled
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            dynamic: strict
+            properties:
+              id: { type: keyword }
+              items:
+                type: nested
+                properties:
+                  s: { type: scaled_float, scaling_factor: 100 }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "na_scaled", "_id": "one" } }
+          - { "id": "one", "items": [ { "s": 1.0 } ] }
+  - match: { errors: false }
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_scaled | WHERE NESTED_ANY(items.s == 1.001) | KEEP id | LIMIT 10'
+  - length: { values: 0 }
+  - do:
+      esql.query:
+        allow_partial_results: false
+        body:
+          query: 'FROM na_scaled | WHERE NOT NESTED_ANY(items.s == 1.001) | KEEP id | LIMIT 10'
+  - match:
+      values:
+      - ["one"]
+
+---
 "an untranslatable nested predicate filters in memory":
   - do:
       esql.query:

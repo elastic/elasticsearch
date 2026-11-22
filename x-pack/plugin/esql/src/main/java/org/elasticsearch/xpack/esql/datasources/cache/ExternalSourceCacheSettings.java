@@ -60,9 +60,10 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Whether this node serves reads from the external-source cache: with it off a read neither reads from the
-     * cache nor, in the row formats that harvest them, collects statistics for it. Planning still resolves
-     * schema and file metadata and pays more for them — the loader runs on every resolve, not only on a miss.
+     * Whether this node serves reads from the external-source cache: with it off a read planned while it is off
+     * neither reads from the cache nor, in the row formats that harvest them, collects statistics for it, while a
+     * scan already running keeps the scope it was built with. Planning still resolves schema and file metadata
+     * and pays more for them — the loader runs on every resolve, not only on a miss.
      * <p>
      * Turning it off also clears the cache, so turning it back on leaves the node cold.
      * <p>

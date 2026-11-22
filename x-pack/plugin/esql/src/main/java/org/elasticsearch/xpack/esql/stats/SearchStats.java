@@ -11,8 +11,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Map;
 
@@ -29,6 +31,22 @@ public interface SearchStats {
 
     boolean hasDocValues(FieldName field);
 
+    /**
+     * Whether every shard here can query {@code field}, read as {@code type}: see
+     * {@link SearchContextStats#isQueryable(SearchExecutionContext, String, DataType, boolean)}. At least one must hold the field.
+     */
+    default boolean isQueryable(FieldName field, DataType type, boolean comparesValuesAsRead) {
+        return hasDocValues(field);
+    }
+
+    /**
+     * Whether a shard here reads {@code field} as the key of a {@code flattened} field, a {@code keyword} whatever the type of the
+     * field other indices map.
+     */
+    default boolean readsKey(FieldName field) {
+        return false;
+    }
+
     boolean hasExactSubfield(FieldName field);
 
     long count();
@@ -40,6 +58,46 @@ public interface SearchStats {
     Object min(FieldName field);
 
     Object max(FieldName field);
+
+    /**
+     * The smallest and largest value of {@code field}, as the segment metadata (points or a doc values skipper) reports them,
+     * for the case where that answer is exactly what a scan of the field would give.
+     * <p>
+     * Unlike {@link #min} and {@link #max}, which are estimates good enough to choose between plans, this is exact. It is
+     * therefore {@code null}, meaning "ask the data instead", unless all of the following hold:
+     * <ul>
+     *   <li>the field is a {@code date}, {@code date_nanos}, {@code long}, {@code integer}, {@code short} or {@code byte}, which
+     *       every shard that maps it reads as the same ES|QL type ({@code integer}, {@code short} and {@code byte} all read as
+     *       {@code integer}), with doc values and with points or a doc values skipper;</li>
+     *   <li>no segment has deleted documents: the metadata still covers a deleted document, and document level security hides
+     *       documents the same way;</li>
+     *   <li>no shard may hold the field outside of its mapping, where a scan would still read it;</li>
+     *   <li>no shard applies a filter to its queries, such as an index alias filter, which the segments do not reflect.</li>
+     * </ul>
+     * Multi-valued fields are fine: the metadata covers every value, as do the minimum and maximum of a multi-valued field.
+     */
+    default ExactMinMax exactMinMax(FieldName field) {
+        return null;
+    }
+
+    /**
+     * The bounds {@link #exactMinMax} reports. Dates are the milliseconds or nanoseconds since the epoch.
+     *
+     * @param hasValues {@code false} when no document holds a value, which makes {@code MIN} and {@code MAX} {@code null}
+     * @param type      the ES|QL type that every shard reads the field as, not the mapping type: {@code integer}, {@code short} and
+     *                  {@code byte} mappings are all {@code INTEGER}. A caller can tell whether it reads the field as that type without
+     *                  converting the values. {@code null} if no shard maps the field.
+     */
+    record ExactMinMax(boolean hasValues, long min, long max, DataType type) {
+        public static ExactMinMax noValues(DataType type) {
+            return new ExactMinMax(false, 0L, 0L, type);
+        }
+
+        public ExactMinMax {
+            assert hasValues || (min == 0L && max == 0L) : "bounds of a field without values must be zero";
+            assert min <= max;
+        }
+    }
 
     boolean isSingleValue(FieldName field);
 

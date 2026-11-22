@@ -71,6 +71,14 @@ public class BytesRefSwissHashTests extends ESTestCase {
         this.expectedIdPageCount = expectedIdPageCount;
     }
 
+    public void testPackedIdAndHashOffsets() {
+        assertEquals(2_147_483_640L, BytesRefSwissHash.idAndHashOffset(268_435_455));
+        assertEquals(2_147_483_648L, BytesRefSwissHash.idAndHashOffset(268_435_456));
+        assertEquals(4_294_967_288L, BytesRefSwissHash.idAndHashOffset(536_870_911));
+        assertEquals(4_294_967_296L, BytesRefSwissHash.idAndHashOffset(536_870_912));
+        assertEquals(8_589_934_584L, BytesRefSwissHash.idAndHashOffset(1_073_741_823));
+    }
+
     public void testValues() {
         Set<BytesRef> values = randomValues(count);
         BytesRef[] v = values.toArray(new BytesRef[0]);
@@ -93,6 +101,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
             for (int i = 0; i < v.length; i++) {
                 assertThat(addType.add(hash, v[i]), equalTo(-1L - i));
             }
+
             assertThat(hash.size(), equalTo((long) v.length));
 
             for (int i = 0; i < v.length; i++) {
@@ -231,6 +240,14 @@ public class BytesRefSwissHashTests extends ESTestCase {
         assertEquals(BytesRefSwissHash.hash64(value), BytesRefSwissHash.hash64(value.bytes, value.offset, value.length));
     }
 
+    public void testExceedsMaxSize() {
+        try (var hash = new BytesRefSwissHash(new TestRecycler(), NoopCircuitBreaker.INSTANCE, BigArrays.NON_RECYCLING_INSTANCE)) {
+            int requested = randomIntBetween(BytesRefSwissHash.MAX_SIZE + 1, Integer.MAX_VALUE);
+            var error = expectThrows(IllegalArgumentException.class, () -> hash.ensureCapacity(requested));
+            assertThat(error.getMessage(), equalTo("maximum hash size [939524096] exceeded: requested [" + requested + "]"));
+        }
+    }
+
     private void assertStatus(BytesRefSwissHash hash) {
         SwissHash.Status status = hash.status();
 
@@ -245,6 +262,26 @@ public class BytesRefSwissHashTests extends ESTestCase {
             SwissHash.BigCoreStatus s = (SwissHash.BigCoreStatus) status;
             assertThat(s.idPages(), equalTo(expectedIdPageCount));
             // We don't assert keyPages because BytesRefSwissHash doesn't track them (BytesRefArray does)
+        }
+    }
+
+    public void testConcurrentFind() {
+        Set<BytesRef> values = randomValues(count);
+        BytesRef[] v = values.toArray(new BytesRef[0]);
+        BytesRef notFound = randomValueOtherThanMany(values::contains, () -> new BytesRef(randomByteArrayOfLength(between(1, 20))));
+
+        TestRecycler recycler = new TestRecycler();
+        BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, NoopCircuitBreaker.INSTANCE, bigArrays)) {
+            for (int i = 0; i < v.length; i++) {
+                assertThat(addType.add(hash, v[i]), equalTo((long) i));
+            }
+            startInParallel(between(2, 8), t -> {
+                for (int i = 0; i < v.length; i++) {
+                    assertThat(hash.find(v[i]), equalTo((long) i));
+                }
+                assertThat(hash.find(notFound), equalTo(-1L));
+            });
         }
     }
 

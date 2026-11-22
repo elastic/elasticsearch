@@ -216,15 +216,17 @@ public final class SimdJsonDirectWalker {
                         handler.endArray();
                     }
                     case '"' -> {
+                        // One stringField call site on purpose. With a call in each branch, C2 inlines the handler twice,
+                        // which doubles the compiled size of this method and slows the field loop.
+                        byte[] strBuf = buffer;
+                        int strOff = valIdx + 1;
                         int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                        if (len >= 0) {
-                            handler.stringField(fieldName, buffer, valIdx + 1, len);
-                        } else {
-                            int rawLen = scalarStringLength(buffer, valIdx + 1);
-                            byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                            int parsed = stringParser.parseString(buffer, valIdx, unescaped);
-                            handler.stringField(fieldName, unescaped, 0, parsed);
+                        if (len < 0) {
+                            strBuf = unescapeString(buffer, valIdx);
+                            len = unescapedLength;
+                            strOff = 0;
                         }
+                        handler.stringField(fieldName, strBuf, strOff, len);
                     }
                     case 't' -> {
                         validateTrue(buffer, valIdx);
@@ -353,15 +355,15 @@ public final class SimdJsonDirectWalker {
 
             switch (valByte) {
                 case '"' -> {
+                    byte[] strBuf = buffer;
+                    int strOff = valIdx + 1;
                     int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                    if (len >= 0) {
-                        handler.stringField(fieldName, buffer, valIdx + 1, len);
-                    } else {
-                        int rawLen = scalarStringLength(buffer, valIdx + 1);
-                        byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                        int parsed = stringParser.parseString(buffer, valIdx, unescaped);
-                        handler.stringField(fieldName, unescaped, 0, parsed);
+                    if (len < 0) {
+                        strBuf = unescapeString(buffer, valIdx);
+                        len = unescapedLength;
+                        strOff = 0;
                     }
+                    handler.stringField(fieldName, strBuf, strOff, len);
                 }
                 case 't' -> {
                     validateTrue(buffer, valIdx);
@@ -1077,6 +1079,16 @@ public final class SimdJsonDirectWalker {
     // ------------------------------------------------------------------
     // String helpers
     // ------------------------------------------------------------------
+
+    private int unescapedLength;
+
+    /** Unescapes a string value into a new buffer, leaving the length in {@link #unescapedLength}. Kept out of the field loop. */
+    private byte[] unescapeString(byte[] buffer, int valIdx) {
+        int rawLen = scalarStringLength(buffer, valIdx + 1);
+        byte[] out = new byte[rawLen + StringParser.DESTINATION_PADDING];
+        unescapedLength = stringParser.parseString(buffer, valIdx, out);
+        return out;
+    }
 
     private static int scalarStringLength(byte[] buffer, int start) {
         int i = start;

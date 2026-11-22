@@ -29,7 +29,7 @@ The following fields identify the source that produced each row:
 | Metadata field | Type | Description |
 |---------------|------|-------------|
 | `_class` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What kind of source the row came from: `index`, `view`, `subquery`, or `dataset`. |
-| `_name` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the view name on a view, `null` on a subquery, and the dataset name on a dataset. |
+| `_name` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | What the source is called: the index name on an index, the view name on a view, the name of a [`LET`](/reference/query-languages/esql/directives/let.md) named subquery {applies_to}`stack: ga 9.7+`, `null` on any other subquery, and the dataset name on a dataset. |
 
 ### Index metadata fields
 
@@ -41,7 +41,7 @@ The following fields describe index and document metadata:
 | [`_ignored`](/reference/elasticsearch/mapping-reference/mapping-ignored-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Names every field in a document that was ignored when the document was indexed. |
 | [`_index`](/reference/elasticsearch/mapping-reference/mapping-index-field.md) | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | Index name. |
 | `_index_mode` | [keyword](/reference/elasticsearch/mapping-reference/keyword.md) | [Index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting). For example: `standard`, `lookup`, or `logsdb`. |
-| `_score` | [`float`](/reference/elasticsearch/mapping-reference/number.md) | Query relevance score (when enabled). Scores are updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md). |
+| `_score` | [`float`](/reference/elasticsearch/mapping-reference/number.md) | Query relevance score (when enabled). Scores are updated when using [full text search functions](/reference/query-languages/esql/functions-operators/search-functions.md). {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A [runtime search](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring) scores without BM25 and contributes to `_score` only after it runs. |
 | `_size` | [`integer`](/reference/elasticsearch/mapping-reference/number.md) | Size in bytes of the original `_source` field when the [mapper-size plugin](../../elasticsearch-plugins/mapper-size.md) is enabled. |
 | [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) | Special `_source` type | Original JSON document body passed at index time (or a reconstructed version if [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled). |
 | `_version` | [`long`](/reference/elasticsearch/mapping-reference/number.md) | Document version number |

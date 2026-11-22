@@ -131,7 +131,7 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
                 100,
                 10,
                 Runnable::run
-            ).fileList(fileList).schemaMap(schemas).producerBlockFactory(TEST_BLOCK_FACTORY).build();
+            ).fileList(fileList).schemaMap(schemas).build();
             Page page = drainSinglePage(factory, newDriverContext());
             try {
                 assertEquals(1, page.getPositionCount());
@@ -195,12 +195,7 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
             100,
             10,
             sameThread
-        )
-            .fileList(fileList)
-            .partitionColumnNames(Set.of("_index"))
-            .partitionValues(Map.of("_index", hivePartitionValue))
-            .producerBlockFactory(TEST_BLOCK_FACTORY)
-            .build();
+        ).fileList(fileList).partitionColumnNames(Set.of("_index")).partitionValues(Map.of("_index", hivePartitionValue)).build();
 
         return drainSinglePage(factory, driverContext);
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -165,6 +166,9 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
+    /** The breaker the context charges, or {@code null} for the request breaker of the index. */
+    @Nullable
+    private final CircuitBreaker circuitBreaker;
 
     DefaultSearchContext(
         ReaderContext readerContext,
@@ -185,6 +189,7 @@ final class DefaultSearchContext extends SearchContext {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
+        this.circuitBreaker = circuitBreaker;
         this.currentThreadDirectoryMetricsCapture = currentThreadDirectoryMetricsCapture;
         boolean success = false;
         try {
@@ -213,8 +218,13 @@ final class DefaultSearchContext extends SearchContext {
                 );
             } else {
                 Executor searchPool = executor;
+                // the tasks searching segments in parallel work for this shard
+                Executor shardExecutor = TaskLoadAttribution.charging(
+                    executor,
+                    readerContext.indexShard().shardSearchStats().searchLoadTarget()
+                );
                 // Always wrap: cache and directory metrics must be collected on worker threads.
-                this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(executor, currentThreadDirectoryMetricsCapture);
+                this.metricsAwareExecutor = new DirectoryMetricsAwareExecutor(shardExecutor, currentThreadDirectoryMetricsCapture);
                 executor = this.metricsAwareExecutor;
 
                 this.searcher = new ContextIndexSearcher(
@@ -992,7 +1002,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public CircuitBreaker circuitBreaker() {
-        return indexService.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        return circuitBreaker != null ? circuitBreaker : indexService.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
     @Override

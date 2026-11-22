@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.conventions.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo
 import org.gradle.process.CommandLineArgumentProvider
 
@@ -51,6 +51,10 @@ gradlePlugin {
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
+    }
+    distributionLayout {
+      id = 'elasticsearch.distribution-layout'
+      implementationClass = 'org.elasticsearch.gradle.internal.distribution.DistributionLayoutPlugin'
     }
     distroTest {
       id = 'elasticsearch.distro-test'
@@ -240,9 +244,9 @@ gradlePlugin {
       id = 'elasticsearch.yaml-rest-compat-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
     }
-    cacheTestFixtures {
-        id = 'elasticsearch.cache-test-fixtures'
-        implementationClass = 'org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin'
+    dockerImageCache {
+        id = 'elasticsearch.docker-image-cache'
+        implementationClass = 'org.elasticsearch.gradle.internal.docker.DockerImageCachePlugin'
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'

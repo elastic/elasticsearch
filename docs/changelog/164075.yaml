@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 164075
+summary: Fix CCE for non-object settings in inference PUT
+type: bug

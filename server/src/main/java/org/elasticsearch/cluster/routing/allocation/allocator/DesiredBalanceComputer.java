@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -237,7 +238,7 @@ public class DesiredBalanceComputer {
                             .type() != Decision.Type.NO) {
                         // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will
                         // not be added to the cluster state:
-                        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
+                        RecoveryPriority recoveryPriority = RecoveryPriority.UNKNOWN;
                         final var targetShard = routingNodes.relocateShard(
                             shardRouting,
                             targetNodeId,

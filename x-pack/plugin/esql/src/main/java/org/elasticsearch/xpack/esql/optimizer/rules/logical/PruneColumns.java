@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
@@ -95,6 +96,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                     case RegexExtract re -> pruneUnusedRegexExtract(re, used, recheck);
                     case DenseVector dv -> pruneUnusedDenseVector(dv, used, recheck);
                     case Highlight h -> pruneUnusedHighlight(h, used, recheck);
+                    case NestedExpand expand -> pruneNestedExpand(expand, used);
                     default -> p;
                 };
             } while (recheck.get());
@@ -104,6 +106,26 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // preserve the state before going to the next node
             return p;
         });
+    }
+
+    /** Drops child columns nothing above the expansion reads, so their loaders and scripts do not run. */
+    private static LogicalPlan pruneNestedExpand(NestedExpand expand, AttributeSet.Builder used) {
+        if (expand.bound() == false) {
+            return expand;
+        }
+        List<Attribute> kept = new ArrayList<>();
+        List<String> paths = new ArrayList<>();
+        for (int i = 0; i < expand.expanded().size(); i++) {
+            Attribute attribute = expand.expanded().get(i);
+            if (used.contains(attribute)) {
+                kept.add(attribute);
+                paths.add(expand.paths().get(i));
+            }
+        }
+        if (kept.size() == expand.expanded().size()) {
+            return expand;
+        }
+        return new NestedExpand(expand.source(), expand.child(), null, expand.path(), kept, paths);
     }
 
     private static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {

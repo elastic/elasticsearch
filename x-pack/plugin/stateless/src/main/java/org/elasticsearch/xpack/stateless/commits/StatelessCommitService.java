@@ -72,7 +72,7 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.StatelessThreadPools;
 import org.elasticsearch.xpack.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.HollowShardRecoveryState;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.utils.WaitForVersion;
 
@@ -239,6 +240,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     );
 
     public static final String BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC = "es.bcc.notification_time.histogram";
+    public static final String NOTIFICATION_UPLOADED_ATTRIBUTE_KEY = "es_notification_uploaded";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
@@ -364,8 +366,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccNotificationTimeHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC,
-                "Histogram for time in milliseconds from sending a new-uploaded-commit notification until the search tier responds "
-                    + "(or the notification timeout fires), broken down by the ["
+                "Histogram for time in milliseconds from sending a new-commit notification until the search tier responds (or the "
+                    + "notification timeout fires for uploaded commits), broken down by whether the commit was uploaded ["
+                    + NOTIFICATION_UPLOADED_ATTRIBUTE_KEY
+                    + "] and, for uploaded commits, by the ["
                     + BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY
                     + "] size bucket",
                 "ms"
@@ -422,7 +426,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public void markRecoveredBcc(
         ShardId shardId,
         BatchedCompoundCommit recoveredBcc,
-        Set<BlobFile> otherBlobs,
+        Set<BccBlob> otherBlobs,
         Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
     ) {
         assert recoveredBcc != null;
@@ -993,6 +997,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             @Override
             public void onResponse(BccUploadResult uploadResult) {
                 maybeLogSlowBccUpload(virtualBcc, uploadResult);
+                metrics.recordBccUploadCompleted(virtualBcc.getTotalSizeInBytes(), uploadResult);
                 final BatchedCompoundCommit uploadedBcc = uploadResult.batchedCompoundCommit();
                 logger.debug(
                     "{} uploaded BCC [{}] (last cc generation [{}]), marking as uploaded",
@@ -1121,7 +1126,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         gen,
                         () -> bccNotificationTimeHistogram.record(
                             threadPool.relativeTimeInMillis() - notificationSentAt,
-                            Map.of(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(bccBlobLength))
+                            Map.of(
+                                NOTIFICATION_UPLOADED_ATTRIBUTE_KEY,
+                                true,
+                                BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY,
+                                BccUploadMetrics.bccSizeBucket(bccBlobLength)
+                            )
                         )
                     );
                     if (commitState.isClosed()) {
@@ -1420,31 +1430,24 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * including blobs pending async deletion. Blobs created after relocation started are never uploaded
      * ({@link ShardCommitState#pauseUpload}) and can be excluded by the caller passing the latest uploaded BCC generation.
      */
-    public Set<BlobFile> getTrackedUploadedBlobFilesUpTo(ShardId shardId, long maxUploadedGeneration) {
-        Set<BlobFile> blobFiles = new HashSet<>();
+    public Set<BccBlob> getTrackedUploadedBccBlobsUpTo(ShardId shardId, long maxUploadedGeneration) {
+        Set<BccBlob> bccBlobs = new HashSet<>();
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         // The order of loops is the reverse of BlobReference#closeInternal to avoid missing pending deletes.
         for (var primaryTermAndGeneration : commitState.primaryTermAndGenToBlobReference.keySet()) {
             if (primaryTermAndGeneration.generation() > maxUploadedGeneration) {
                 continue;
             }
-            blobFiles.add(
-                new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation()), primaryTermAndGeneration)
-            );
+            bccBlobs.add(new BccBlob(primaryTermAndGeneration));
         }
         // We also need to include all blobs pending deletion as they are deleted asynchronously.
         for (var staleCompoundCommit : commitCleaner.getPendingDeletes(shardId)) {
             if (staleCompoundCommit.primaryTermAndGeneration().generation() > maxUploadedGeneration) {
                 continue;
             }
-            blobFiles.add(
-                new BlobFile(
-                    BatchedCompoundCommit.blobNameFromGeneration(staleCompoundCommit.primaryTermAndGeneration().generation()),
-                    staleCompoundCommit.primaryTermAndGeneration()
-                )
-            );
+            bccBlobs.add(new BccBlob(staleCompoundCommit.primaryTermAndGeneration()));
         }
-        return blobFiles;
+        return bccBlobs;
     }
 
     // Package private for testing only
@@ -1454,12 +1457,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public record RecoveryInfoFromSource(
         @Nullable SourceBlobsInfo sourceBlobsInfo,
-        Set<BlobFile> lastCommitBlobs,
+        Set<BccBlob> lastCommitBlobs,
         boolean lastCommitIsHollow,
-        boolean hasRecentIdLookup
+        boolean hasRecentIdLookup,
+        @Nullable HollowShardRecoveryState hollowRecoveryState
     ) {}
 
-    public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}
+    public record SourceBlobsInfo(BccBlob latestBccBlob, long latestBlobFileLength, Set<BccBlob> otherBlobs) {}
 
     public @Nullable RecoveryInfoFromSource getRecoveryInfoFromSourceEntry(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
@@ -1652,7 +1656,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.splitTargetCopyExecutor = new ThrottledTaskRunner(
                 "copy-to-split-targets[" + shardId + "]",
                 1,
-                threadPool.executor(StatelessPlugin.SHARD_WRITE_THREAD_POOL)
+                threadPool.executor(StatelessThreadPools.SHARD_WRITE_THREAD_POOL)
             ).asExecutor();
             this.allocationPrimaryTerm = allocationPrimaryTerm;
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
@@ -1694,7 +1698,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void markBccRecovered(
             BatchedCompoundCommit recoveredBcc,
-            Set<BlobFile> otherBlobs,
+            Set<BccBlob> otherBlobs,
             Iterator<Consumer<RecoveredCommitsReleasable>> extraReferenceConsumers
         ) {
             assert recoveredBcc != null;
@@ -1724,9 +1728,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
-            for (BlobFile nonRecoveredBlobFile : otherBlobs) {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
-                    PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlobFile.termAndGeneration();
+            for (BccBlob nonRecoveredBlob : otherBlobs) {
+                if (BccBlob.startsWithBlobPrefix(nonRecoveredBlob.blobName())) {
+                    PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlob.termAndGeneration();
 
                     Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
                     // We don't know which CCs are included in the non-recovered BCCs,
@@ -1752,7 +1756,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         () -> format(
                             "%s found object store file which does not match compound commit file naming pattern [%s]",
                             shardId,
-                            nonRecoveredBlobFile
+                            nonRecoveredBlob
                         )
                     );
                 }
@@ -2587,7 +2591,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + " state="
                     + state;
 
-            lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            final long sentAt = threadPool.relativeTimeInMillis();
+            lastNewCommitNotificationSentTimestamp = sentAt;
             statelessCommitNotificationPublisher.sendNewCommitNotification(
                 shardRoutingTable,
                 lastCompoundCommit,
@@ -2595,12 +2600,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 maxUploadedBccTermAndGen,
                 clusterService.state().version(),
                 clusterService.localNode().getId(),
-                ActionListener.wrap(Void -> {
+                ActionListener.runBefore(ActionListener.wrap(Void -> {
                     // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                     // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload
                     // notification
                     notifyCommitNotificationSuccessListeners(lastCompoundCommit.generation());
-                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e))
+                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e)),
+                    () -> bccNotificationTimeHistogram.record(
+                        threadPool.relativeTimeInMillis() - sentAt,
+                        Map.of(NOTIFICATION_UPLOADED_ATTRIBUTE_KEY, false)
+                    )
+                )
             );
         }
 

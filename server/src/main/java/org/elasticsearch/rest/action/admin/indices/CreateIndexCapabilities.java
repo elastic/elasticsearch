@@ -62,16 +62,22 @@ public class CreateIndexCapabilities {
     private static final String SLICE_INDEXING_CAPABILITY = "slice_indexing";
 
     /**
+     * Support for the {@code index.sort} expression setting.
+     */
+    private static final String INDEX_SORT_EXPRESSION_CAPABILITY = "index_sort_expression";
+
+    /**
      * Support for {@code doc_values.on_failure=ignore}. Always advertised now that the feature is no longer behind a flag; kept so
      * mixed-version yaml tests still skip against older nodes where the capability was not yet advertised.
      */
     private static final String DOC_VALUES_ON_FAILURE_CAPABILITY = "doc_values_on_failure";
 
     /**
-     * Support for the implicit {@code _unmapped} flattened sink ({@code index.mapping.flattened_unmapped_fields.enabled}). Advertised only
-     * when the feature flag is on, so yaml tests can gate on it and skip on builds where the sink is unavailable.
+     * Support for root {@code dynamic:flattened}, which absorbs unmapped fields into the {@code _unmapped} sink of strict columnar indices.
+     * Advertised only when the feature flag is on, so yaml tests can gate on it and skip on builds where the sink is unavailable. Replaces
+     * {@code flattened_unmapped_fields}, which older nodes advertise without accepting {@code dynamic: flattened}.
      */
-    private static final String FLATTENED_UNMAPPED_FIELDS_CAPABILITY = "flattened_unmapped_fields";
+    private static final String DYNAMIC_FLATTENED_CAPABILITY = "dynamic_flattened";
 
     public static final Set<String> CAPABILITIES;
 
@@ -94,8 +100,9 @@ public class CreateIndexCapabilities {
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             caps.add(SLICE_INDEXING_CAPABILITY);
         }
+        caps.add(INDEX_SORT_EXPRESSION_CAPABILITY);
         if (FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            caps.add(FLATTENED_UNMAPPED_FIELDS_CAPABILITY);
+            caps.add(DYNAMIC_FLATTENED_CAPABILITY);
         }
         CAPABILITIES = Set.copyOf(caps);
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.DoubleRangeBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.unit.UnitAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -100,7 +102,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         PostOptimizationVerificationAware,
         ThreeOptionalArguments,
         ConfigurationFunction,
-        AnyNullIsNull {
+        AnyNullIsNull,
+        UnitAware.PreservesUnit {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Bucket.class)
@@ -380,15 +383,18 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         signatures = {
             @Signature(params = { "date", "date_period|time_duration" }, returnType = "date"),
             @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING" }, returnType = "date"),
-            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date"),
+            @Signature(params = { "date", "integer|long", "date|STRING", "date|STRING", "named_parameters" }, returnType = "date"),
             @Signature(params = { "date_nanos", "date_period|time_duration" }, returnType = "date_nanos"),
             @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING" }, returnType = "date_nanos"),
-            @Signature(params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "object" }, returnType = "date_nanos"),
+            @Signature(
+                params = { "date_nanos", "integer|long", "date|STRING", "date|STRING", "named_parameters" },
+                returnType = "date_nanos"
+            ),
             // unsigned_long is in NUMERIC but not supported by BUCKET; list the accepted numerics explicitly.
             @Signature(params = { "integer|long|double", "double|integer|long" }, returnType = "double"),
             @Signature(params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double" }, returnType = "double"),
             @Signature(
-                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "object" },
+                params = { "integer|long|double", "integer", "integer|long|double", "integer|long|double", "named_parameters" },
                 returnType = "double"
             ),
             // Histograms are bucketed like numbers, but return the non-empty double_range buckets.
@@ -1064,6 +1070,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return field;
     }
 
+    @Override
+    public Expression unitSource() {
+        return field;
+    }
+
     public Expression buckets() {
         return buckets;
     }
@@ -1137,20 +1148,40 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         return configuration.equals(other.configuration) && offset == other.offset && roundingConvention == other.roundingConvention;
     }
 
+    /**
+     * The rounding of a date bucket, or null when its arguments are not constant or make no sense.
+     */
+    @Nullable
+    public Rounding dateRounding(FoldContext foldContext) {
+        if ((constant(buckets, foldContext)
+            && (from == null || constant(from, foldContext))
+            && (to == null || constant(to, foldContext))) == false) {
+            return null;
+        }
+        // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
+        // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
+        // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
+        // zero/negative values at fold time, so they don't reach here in an impossible state.
+        if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).longValue() <= 0) {
+            return null;
+        }
+        return getDateRounding(foldContext).getUnprepared();
+    }
+
+    private static boolean constant(Expression e, FoldContext foldContext) {
+        return e.foldable() && e.fold(foldContext) != null;
+    }
+
     protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
         if ((buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) == false) {
             return null;
         }
         DataType fieldType = field.dataType();
         if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
-            // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
-            // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
-            // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
-            // zero/negative values at fold time, so they don't reach here in an impossible state.
-            if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).longValue() <= 0) {
+            Rounding rounding = dateRounding(foldContext);
+            if (rounding == null) {
                 return null;
             }
-            Rounding rounding = getDateRounding(foldContext).getUnprepared();
             Rounding.Interval interval = rounding.getInterval();
             return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
         }

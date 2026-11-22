@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
 
 import java.util.List;
@@ -202,14 +204,32 @@ public final class ExternalSourceSettings {
         return concurrency > 0 ? concurrency : defaultBlobStoreConcurrency(settings);
     }
 
+    /**
+     * S3/Azure SDK HTTP pool size for the same {@link #MAX_CONCURRENT_REQUESTS} knob — not a new setting.
+     * Positive {@code N} becomes {@code N + 1} so a truncated GET can abort while its replacement starts
+     * (including {@code N = 1}). {@code 0} (unlimited permits) uses {@link #defaultBlobStoreConcurrency}
+     * rather than a 1-connection pool.
+     */
+    public static int sdkConnectionPoolSize(Settings settings) {
+        return sdkConnectionPoolSize(blobStoreConcurrency(settings), defaultBlobStoreConcurrency(settings));
+    }
+
+    static int sdkConnectionPoolSize(int permits, int unlimitedFallback) {
+        if (permits <= 0) {
+            return unlimitedFallback;
+        }
+        return Math.addExact(permits, 1);
+    }
+
     static final int MAX_CONCURRENT_REQUESTS_UPPER_BOUND = 500;
 
     /**
-     * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
-     * that bounds in-flight data reads ({@code StorageProviderRegistry}) and the backend SDK HTTP connection pools
-     * (S3 Netty {@code maxConcurrency}, Azure reactor-netty {@code ConnectionProvider}), and — via
-     * {@link #blobStoreConcurrency(Settings)} — the metadata-discovery fan-out. Set to 0 to disable permit-based
-     * concurrency limiting entirely.
+     * The single external-read concurrency knob, per scheme, per node. There is no second setting.
+     * {@code N} is the permit ceiling that bounds in-flight data reads ({@code StorageProviderRegistry}).
+     * S3/Azure SDK HTTP pools are {@link #sdkConnectionPoolSize(Settings)} ({@code N + 1}, or the default
+     * pool when {@code N} is 0/unlimited) so a truncated GET can abort while its replacement starts.
+     * GCS has no SDK pool cap. Also sizes — via {@link #blobStoreConcurrency(Settings)} — the
+     * metadata-discovery fan-out. Set to 0 to disable permit-based concurrency limiting entirely.
      * <p>
      * The default is {@link #defaultBlobStoreConcurrency(Settings)} rather than a fixed literal: CPU slope
      * {@code allocatedProcessors * 3} clamped to
@@ -318,13 +338,10 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * How long a worker waits for the cluster state it lacks (a node that has just joined and not yet applied its first
-     * state, or one that has not yet applied a dataset change the coordinator planned from) before failing the query with
-     * a retryable 503. Only a worker that has to wait does: the coordinator's only choice for a query's external splits,
-     * or the last worker of the walk those splits take once every other one declined them. A worker with another still
-     * to try declines at once instead. One bound per request, whatever it has to wait for in turn. The first state is applied within a
-     * couple of seconds on a healthy node; the default leaves room for a slow one without parking a query for the length
-     * of a master timeout. {@code 0} fails at once.
+     * How long a node waits for the cluster state before failing the query with a retryable 503: a worker behind the
+     * state the coordinator planned from, or a coordinator waiting for a joining worker ({@code ExternalWorkerReadiness});
+     * each wait bounded on its own. Not documented: a healthy node applies a state in well under a second, so this is an
+     * escape hatch, not a knob to tune. {@code 0} fails at once.
      */
     public static final Setting<TimeValue> WORKER_READY_TIMEOUT = Setting.timeSetting(
         "esql.external.worker_ready_timeout",
@@ -363,17 +380,86 @@ public final class ExternalSourceSettings {
     );
 
     /**
+     * Floor of the heap-derived {@link #MAX_DISCOVERED_FILES} default. An explicit setting may go down to 1.
+     */
+    static final int MIN_DISCOVERED_FILES_DEFAULT = 25_000;
+
+    /**
+     * Ceiling of the heap-derived default and the setting's max. Degenerate globs that visit more keys
+     * than they keep still hit {@link #MAX_LISTED_OBJECTS} first (default
+     * {@value #MAX_LISTED_OBJECTS_DEFAULT}). This bound is the kept-file / planning cap.
+     */
+    static final int MAX_DISCOVERED_FILES_LIMIT = 10_000_000;
+
+    /**
+     * Default {@link #MAX_LISTED_OBJECTS}. About 10,000 S3 {@code ListObjectsV2} pages at 1,000
+     * keys/page. Equal to {@link #MAX_DISCOVERED_FILES_LIMIT} so a matching listing can keep the
+     * heap-derived file cap; operators can raise it toward {@link #MAX_LISTED_OBJECTS_LIMIT}.
+     */
+    static final int MAX_LISTED_OBJECTS_DEFAULT = 10_000_000;
+
+    /**
+     * Max of {@link #MAX_LISTED_OBJECTS}. Visit-count only: kept files still stop at
+     * {@link #MAX_DISCOVERED_FILES}.
+     */
+    static final int MAX_LISTED_OBJECTS_LIMIT = 100_000_000;
+
+    /**
+     * Share of max heap one query's discovered-file planning may occupy when the operator has not set
+     * {@link #MAX_DISCOVERED_FILES}. 15% of heap is 25% of the default request breaker (60%), so a listing
+     * at the derived cap stays under the breaker and a second cap-sized query can still run.
+     */
+    static final int DISCOVERED_FILES_HEAP_PERCENT = 15;
+
+    /**
+     * Breaker-charged bytes per kept file used to size the default cap: listing floor plus schema-map
+     * allowance plus one phase-2 split shell. That is the lower bound. Hive layouts also bill
+     * {@link Phase2Reservation#perMap(int)} per file for per-file partition keys and
+     * {@link Phase2Reservation#VIEW_BYTES} when both map layers are live (~0.7 KiB extra at one
+     * per-file key), so a Hive listing at the cap sits closer to 25% of heap than 15%. Compact
+     * listings weigh less live; the breaker keeps this floor, so the file-count 400 fires before a
+     * mid-planning circuit break.
+     */
+    static final long PLANNING_BYTES_PER_DISCOVERED_FILE = FileList.LISTING_BYTES_PER_ENTRY
+        + ExternalSourceResolver.SCHEMA_MAP_BYTES_PER_FILE + Phase2Reservation.SHELL_BYTES;
+
+    /**
+     * Default {@link #MAX_DISCOVERED_FILES} from max heap: 15% of heap divided by
+     * {@link #PLANNING_BYTES_PER_DISCOVERED_FILE}, clamped to
+     * [{@value #MIN_DISCOVERED_FILES_DEFAULT}, {@value #MAX_DISCOVERED_FILES_LIMIT}].
+     * Heap {@code <= 0} (tests, misreported JVM) yields the floor.
+     */
+    public static int defaultMaxDiscoveredFiles(long heapBytes) {
+        if (heapBytes <= 0L) {
+            return MIN_DISCOVERED_FILES_DEFAULT;
+        }
+        long raw = heapBytes * DISCOVERED_FILES_HEAP_PERCENT / (PLANNING_BYTES_PER_DISCOVERED_FILE * 100);
+        if (raw < MIN_DISCOVERED_FILES_DEFAULT) {
+            return MIN_DISCOVERED_FILES_DEFAULT;
+        }
+        if (raw > MAX_DISCOVERED_FILES_LIMIT) {
+            return MAX_DISCOVERED_FILES_LIMIT;
+        }
+        return (int) raw;
+    }
+
+    /**
      * Hard cap on the number of files glob expansion keeps after listing filters ({@code _file.*})
      * before aborting. Protects against degenerate globs (e.g. {@code s3://bucket/*}) on large buckets.
-     * Default: 25,000 — generous for legitimate use, catches truly degenerate cases. Planning memory for
-     * the kept files is charged to the request breaker, so raising this cap fails a query that does not
-     * fit with a circuit-breaking exception instead of exhausting the heap.
+     * <p>
+     * The default is {@link #defaultMaxDiscoveredFiles(long)} rather than a fixed literal:
+     * {@value #DISCOVERED_FILES_HEAP_PERCENT}% of the node's max heap divided by the per-file planning
+     * charge (listing floor + schema-map + phase-2 shell), clamped to
+     * [{@value #MIN_DISCOVERED_FILES_DEFAULT}, {@value #MAX_DISCOVERED_FILES_LIMIT}].
+     * An explicit value overrides the formula and is not clipped by heap; planning memory for the kept
+     * files is charged to the request breaker, so a cap the node cannot hold fails with a
+     * circuit-breaking exception instead of exhausting the heap.
      */
     public static final Setting<Integer> MAX_DISCOVERED_FILES = Setting.intSetting(
         "esql.external.max_discovered_files",
-        25_000,
+        s -> Integer.toString(defaultMaxDiscoveredFiles(JvmInfo.jvmInfo().getMem().getHeapMax().getBytes())),
         1,
-        1000000,
+        MAX_DISCOVERED_FILES_LIMIT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -384,15 +470,17 @@ public final class ExternalSourceSettings {
      * objects than the query will keep. Applied independently to each glob listing, not to the query
      * as a whole: a comma-separated resource of {@code N} globs does {@code N} listings, each against
      * this cap. A rewrite-empty fallback can list the same glob a second time. The kept-files cap
-     * ({@link #MAX_DISCOVERED_FILES}) is shared across that comma list. Default: 1,000,000 — about
-     * 1,000 S3 {@code ListObjectsV2} pages at the default page size of 1,000 keys. Operators can
-     * raise it; the default is not the max.
+     * ({@link #MAX_DISCOVERED_FILES}) is shared across that comma list. Default:
+     * {@value #MAX_LISTED_OBJECTS_DEFAULT} — about 10,000 S3 {@code ListObjectsV2} pages at the
+     * default page size of 1,000 keys, matching {@link #MAX_DISCOVERED_FILES_LIMIT} so a tight glob
+     * can keep the heap-derived file cap. Operators can raise it up to
+     * {@value #MAX_LISTED_OBJECTS_LIMIT}.
      */
     public static final Setting<Integer> MAX_LISTED_OBJECTS = Setting.intSetting(
         "esql.external.max_listed_objects",
-        1_000_000,
+        MAX_LISTED_OBJECTS_DEFAULT,
         1,
-        10_000_000,
+        MAX_LISTED_OBJECTS_LIMIT,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -493,6 +581,17 @@ public final class ExternalSourceSettings {
             );
         }
     }
+
+    /**
+     * Internal decoded-byte cap for text-format schema inference (CSV, TSV, NDJSON). Not a dataset key:
+     * {@code schema_sample_size} is the user control for type quality, and this is the safety rail that
+     * stops a file of wide rows from pulling an unbounded prefix onto the coordinator. Shared across
+     * files the same way the row sample is (see {@code FormatReader#withSchemaSampleShare}), never
+     * below {@code FormatReader#MIN_SHARED_SCHEMA_SAMPLE_BYTES}. 32 MiB matches ClickHouse's
+     * {@code input_format_max_bytes_to_read_for_schema_inference}. A first record wider than the cap
+     * cannot infer; declare a schema.
+     */
+    public static final ByteSizeValue DEFAULT_SCHEMA_SAMPLE_BYTES = ByteSizeValue.ofMb(32);
 
     /**
      * Deprecated pre-rename key for {@link #WORKLOAD_IDENTITY_ENABLED}, from before the external-dataset settings

@@ -10,39 +10,49 @@ package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.LongAccumulator;
 
 public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     private final float visitRatio;
     private final int numCands;
     private final int k;
     private final SetOnce<AbstractMaxScoreKnnCollector> collector = new SetOnce<>();
-    private final LongAccumulator accumulator;
+    private final SharedMinCompetitiveScore sharedScore;
     private final IVFSegmentScan segmentScan;
 
-    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator) {
-        this(visitRatio, numCands, k, accumulator, null);
+    /**
+     * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
+     */
+    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, @Nullable SharedMinCompetitiveScore sharedScore) {
+        this(visitRatio, numCands, k, sharedScore, null);
     }
 
     /**
+     * @param sharedScore minimum competitive score shared across leaves, or {@code null} when there is nothing to share
      * @param segmentScan shared by the parts of one segment's search that run on different threads, or null when the
      *                    segment is searched by a single call
      */
-    public IVFKnnSearchStrategy(float visitRatio, int numCands, int k, LongAccumulator accumulator, IVFSegmentScan segmentScan) {
+    public IVFKnnSearchStrategy(
+        float visitRatio,
+        int numCands,
+        int k,
+        @Nullable SharedMinCompetitiveScore sharedScore,
+        @Nullable IVFSegmentScan segmentScan
+    ) {
         this.visitRatio = visitRatio;
         this.numCands = numCands;
         this.k = k;
-        this.accumulator = accumulator;
+        this.sharedScore = sharedScore;
         this.segmentScan = segmentScan;
     }
 
     void setCollector(AbstractMaxScoreKnnCollector collector) {
         this.collector.set(collector);
-        if (accumulator != null) {
-            collector.updateMinCompetitiveDocScore(accumulator.get());
+        if (sharedScore != null) {
+            collector.updateMinCompetitiveDocScore(sharedScore.get());
         }
     }
 
@@ -78,21 +88,20 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
 
     /**
      * This method is called when the next block of vectors is processed.
-     * It accumulates the minimum competitive document score from the collector
-     * and updates the accumulator with the most competitive score.
-     * If the current score in the accumulator is greater than the minimum competitive
+     * It publishes the minimum competitive document score from the collector to the shared score.
+     * If the current shared score is greater than the minimum competitive
      * document score in the collector, it updates the collector's minimum competitive document score.
      */
     @Override
     public void nextVectorsBlock() {
-        if (accumulator == null) {
+        if (sharedScore == null) {
             return;
         }
         assert this.collector.get() != null : "Collector must be set before nextVectorsBlock is called";
         AbstractMaxScoreKnnCollector knnCollector = this.collector.get();
         long collectorScore = knnCollector.getMinCompetitiveDocScore();
-        accumulator.accumulate(collectorScore);
-        long currentScore = accumulator.get();
+        sharedScore.publish(collectorScore);
+        long currentScore = sharedScore.get();
         if (currentScore > collectorScore) {
             knnCollector.updateMinCompetitiveDocScore(currentScore);
         }

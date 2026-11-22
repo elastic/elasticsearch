@@ -40,6 +40,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
+import org.elasticsearch.lucene.store.ThreadConfinedArena;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
@@ -48,10 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.LongAccumulator;
 import java.util.function.LongSupplier;
-
-import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 
 /**
  * Base class for IVF kNN vector queries. {@link #k} is the final result size (after any outer rescore) - callers
@@ -181,36 +179,53 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // per-segment using the Two-Signal model with segment-size awareness.
         final float visitRatio = providedVisitRatio;
         final boolean slices = ContextIndexSearcher.ivfSlicesEnabled(indexSearcher);
-        final LongAccumulator longAccumulator = slices == false && indexSearcher.getIndexReader().leaves().size() > 1
-            ? new LongAccumulator(Long::max, LEAST_COMPETITIVE)
-            : null;
+        IvfSegmentConfig[] resolvedPerLeaf = new IvfSegmentConfig[leafReaderContexts.size()];
+        float maxRescoreOversampleAcrossLeaves = 1f;
+        int leavesWithField = 0;
+        for (int i = 0; i < leafReaderContexts.size(); i++) {
+            LeafReader leafReader = leafReaderContexts.get(i).reader();
+            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            if (fieldInfo != null) {
+                resolvedPerLeaf[i] = ivfQueryConfigResolver.resolve(fieldInfo, leafReader);
+                maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, resolvedPerLeaf[i].rescoreOversample());
+                leavesWithField++;
+            }
+        }
+
+        // Sharing a cutoff only helps when more than one leaf can search. The sliced path does not use it.
+        final SharedMinCompetitiveScore sharedScore = slices == false && leavesWithField > 1 ? new SharedMinCompetitiveScore() : null;
+        final int maxLeafBudget = leafCollectorBudget(maxRescoreOversampleAcrossLeaves);
 
         List<IVFScoringManager.LeafSearch> leafSearches = new ArrayList<>(leafReaderContexts.size());
-        float maxRescoreOversampleAcrossLeaves = 1f;
-        for (LeafReaderContext context : leafReaderContexts) {
-            LeafReader leafReader = context.reader();
-            FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
-            float segmentOversample = 1f;
-            IvfSegmentConfig resolved = null;
-            if (fieldInfo != null) {
-                resolved = ivfQueryConfigResolver.resolve(fieldInfo, leafReader);
-                segmentOversample = resolved.rescoreOversample();
-                maxRescoreOversampleAcrossLeaves = Math.max(maxRescoreOversampleAcrossLeaves, segmentOversample);
+        for (int i = 0; i < leafReaderContexts.size(); i++) {
+            LeafReaderContext context = leafReaderContexts.get(i);
+            IvfSegmentConfig resolved = resolvedPerLeaf[i];
+
+            if (resolved == null) {
+                // No FieldInfo for the field, so the segment has no vectors and cannot return hits.
+                // It is still listed, with no collector manager, so perLeafResults stays aligned with leaf ordinals.
+                leafSearches.add(new IVFScoringManager.LeafSearch(context, null, false));
+                continue;
             }
 
-            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(
-                IvfSegmentConfig.leafCollectorBudget(k, segmentOversample),
-                longAccumulator
-            );
+            // A leaf's cutoff is only safe to share if at least mergeK unique docs score above it. Overspill duplicates can fill
+            // part of a queue, so only leaves with the largest budget guarantee that. A smaller leaf's cutoff would make other leaves
+            // drop docs that belong in the merged top mergeK, so those leaves only read the shared cutoff.
+            int leafBudget = leafCollectorBudget(resolved.rescoreOversample());
+            SharedMinCompetitiveScore leafSharedScore = sharedScore == null || leafBudget >= maxLeafBudget
+                ? sharedScore
+                : sharedScore.readOnly();
+            IVFCollectorManager knnCollectorManagerForSegment = getKnnCollectorManager(leafBudget, leafSharedScore);
 
             // Preconditioning might differ per segment when they are calibrated, so, potentially,
             // each carries its own preconditioner. The transform is therefore applied inside
             // getLeafResults against that segment's own preconditioner, producing a segment-local
             // query. The shared query field is never mutated, so segments that disagree on
             // preconditioning (and the exact-rescore query) each see the correct vector.
-            final boolean usePrecondition = resolved != null && resolved.usePrecondition();
+            final boolean usePrecondition = resolved.usePrecondition();
             leafSearches.add(new IVFScoringManager.LeafSearch(context, knnCollectorManagerForSegment, usePrecondition));
         }
+
         TopDocs[] perLeafResults = slices
             ? new IVFScoringManager(this, filterWeight, visitRatio, leafSearches, ContextIndexSearcher.maximumParallelSlices(indexSearcher))
                 .search(taskExecutor)
@@ -219,7 +234,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             this.rawPerLeafResults = perLeafResults;
         }
 
-        int mergeK = leafSearches.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
+        final int mergeK = leafReaderContexts.isEmpty() ? k : IvfSegmentConfig.shardMergeBudget(k, maxRescoreOversampleAcrossLeaves);
         TopDocs topK = mergeLeafResults(mergeK, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
@@ -287,7 +302,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     ) throws IOException {
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafSearches.size());
         for (IVFScoringManager.LeafSearch leaf : leafSearches) {
-            tasks.add(() -> searchLeaf(leaf.ctx(), filterWeight, leaf.collectorManager(), visitRatio, leaf.usePrecondition()));
+            if (leaf.collectorManager() == null) {
+                tasks.add(() -> NO_RESULTS);
+            } else {
+                tasks.add(() -> searchLeaf(leaf.ctx(), filterWeight, leaf.collectorManager(), visitRatio, leaf.usePrecondition()));
+            }
         }
         return taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
     }
@@ -299,7 +318,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         float visitRatio,
         boolean usePrecondition
     ) throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition);
+        TopDocs results = ThreadConfinedArena.withConfinedArena(
+            () -> getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio, usePrecondition)
+        );
         return keepBestCopies(results, ctx.docBase);
     }
 
@@ -478,8 +499,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return numCands;
     }
 
-    protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
-        return new IVFCollectorManager(k, longAccumulator);
+    protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
+        return new IVFCollectorManager(k, sharedScore);
+    }
+
+    /** Per-leaf collector size for a segment with the given rescore oversample. */
+    int leafCollectorBudget(float segmentOversample) {
+        return IvfSegmentConfig.leafCollectorBudget(k, segmentOversample);
     }
 
     @Override
@@ -489,11 +515,16 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static class IVFCollectorManager implements KnnCollectorManager {
         private final int k;
-        final LongAccumulator longAccumulator;
+        private final SharedMinCompetitiveScore sharedScore;
 
-        IVFCollectorManager(int k, LongAccumulator longAccumulator) {
+        IVFCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
             this.k = k;
-            this.longAccumulator = longAccumulator;
+            this.sharedScore = sharedScore;
+        }
+
+        /** Creates the search strategy for this leaf, wired to the cross-leaf shared score. */
+        IVFKnnSearchStrategy newSearchStrategy(float visitRatio, int numCands, int queryK) {
+            return new IVFKnnSearchStrategy(visitRatio, numCands, queryK, sharedScore);
         }
 
         @Override

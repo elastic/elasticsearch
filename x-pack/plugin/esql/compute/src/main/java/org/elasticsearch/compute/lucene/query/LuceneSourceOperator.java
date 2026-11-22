@@ -47,6 +47,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
+import org.elasticsearch.lucene.search.IndexedSpatialQueries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -169,7 +170,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 needsScore,
                 directoryBytesRead,
                 singleValueQueryWarnings,
-                minCompetitive
+                minCompetitive,
+                false
             );
         }
 
@@ -207,8 +209,11 @@ public class LuceneSourceOperator extends LuceneOperator {
          * <p>
          * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
          * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
-         * beats rebuilding scorers per segment when the limit fires early; {@link org.apache.lucene.search.MatchAllDocsQuery}
-         * and {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
+         * beats rebuilding scorers per segment when the limit fires early. Indexed spatial filters (geo and cartesian
+         * distance and geometry queries) keep {@code SHARD} for the same reason, but only on this branch: their scorers
+         * walk a BKD tree, and recording them in {@link #isCostlyToBuildScorer} would force a no-limit scan onto
+         * {@link PartitioningStrategy#SEGMENT}. {@link org.apache.lucene.search.MatchAllDocsQuery} and
+         * {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
          * {@code minCostForDoc}) keep {@code SHARD}. Only a scan-heavy filter with {@code cost ≥ minCostForDoc} (e.g. a
          * doc-values-only field with no BKD index) is promoted to {@link PartitioningStrategy#DOC}, because those scans
          * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
@@ -220,7 +225,10 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         private static PartitioningStrategy limitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc) {
-            if (containsCostlyClause(query)) {
+            // Indexed spatial scorers walk the BKD tree inside scorerSupplier.get(). A DOC split repeats that walk
+            // per slice, which is slower when LIMIT matches early. Keep those queries on SHARD without marking them
+            // costly: the no-limit path still parallelizes a large circle with DOC.
+            if (containsCostlyClause(query) || IndexedSpatialQueries.containsIndexedSpatialQuery(query)) {
                 return SHARD;
             }
             Query unwrapped = unwrapQuery(query);
@@ -404,9 +412,10 @@ public class LuceneSourceOperator extends LuceneOperator {
         boolean needsScore,
         LongSupplier directoryBytesRead,
         QueryWarnings singleValueQueryWarnings,
-        @Nullable MinCompetitiveQuery.Factory minCompetitive
+        @Nullable MinCompetitiveQuery.Factory minCompetitive,
+        boolean reuseScorers
     ) {
-        super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings);
+        super(refCounteds, driverContext, maxPageSize, sliceQueue, directoryBytesRead, singleValueQueryWarnings, reuseScorers);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;

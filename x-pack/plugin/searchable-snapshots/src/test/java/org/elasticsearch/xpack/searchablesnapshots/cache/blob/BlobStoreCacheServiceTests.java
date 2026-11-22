@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -28,24 +30,23 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class BlobStoreCacheServiceTests extends ESTestCase {
@@ -135,16 +136,132 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
         BlobStoreCacheService blobCacheService = new BlobStoreCacheService(mockClient, SNAPSHOT_BLOB_CACHE_INDEX);
         blobCacheService.start();
 
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future);
-        assertThat(future.actionGet(), nullValue());
+        final AtomicBoolean completed = new AtomicBoolean();
+        blobCacheService.putAsync(
+            repository,
+            snapshotId,
+            indexId,
+            shardId,
+            fileName,
+            range,
+            BytesArray.EMPTY,
+            0L,
+            () -> assertTrue(completed.compareAndSet(false, true))
+        );
+        assertTrue(completed.get());
 
         blobCacheService.stop();
 
-        future = new PlainActionFuture<>();
-        blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future);
-        IllegalStateException exception = expectThrows(IllegalStateException.class, future::actionGet);
-        assertThat(exception.getMessage(), containsString("Blob cache service is closed"));
+        final AtomicBoolean completedAfterShutdown = new AtomicBoolean();
+        blobCacheService.putAsync(
+            repository,
+            snapshotId,
+            indexId,
+            shardId,
+            fileName,
+            range,
+            BytesArray.EMPTY,
+            0L,
+            () -> assertTrue(completedAfterShutdown.compareAndSet(false, true))
+        );
+        assertTrue(completedAfterShutdown.get());
+        // The client is mocked to complete writes synchronously; only the call before shutdown may submit a write.
+        verify(mockClient).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), any(ActionListener.class));
+    }
+
+    /** A synchronous submission failure must not complete both through a listener and an outer cleanup path. */
+    public void testSynchronousPutFailureCompletesOnce() {
+        assertPutFailureCompletesOnce(true);
+    }
+
+    /** A deferred failure retains the permit until the completion handle has been released. */
+    public void testDeferredPutFailureCompletesOnce() {
+        assertPutFailureCompletesOnce(false);
+    }
+
+    private void assertPutFailureCompletesOnce(boolean synchronousFailure) {
+        final AtomicReference<ActionListener<DocWriteResponse>> pendingListener = new AtomicReference<>();
+        final BlobStoreCacheService service = new BlobStoreCacheService(mockClient, SNAPSHOT_BLOB_CACHE_INDEX) {
+            @Override
+            protected void innerPut(IndexRequest request, ActionListener<DocWriteResponse> listener) {
+                if (synchronousFailure) {
+                    throw new IllegalStateException("simulated submission failure");
+                }
+                pendingListener.set(listener);
+            }
+        };
+        service.start();
+        try {
+            final AtomicInteger completions = new AtomicInteger();
+            service.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, Releasables.assertOnce(() -> {
+                assertEquals(1, service.getInFlightCacheFills());
+                completions.incrementAndGet();
+            }));
+            if (synchronousFailure == false) {
+                assertEquals(0, completions.get());
+                assertEquals(1, service.getInFlightCacheFills());
+                pendingListener.get().onFailure(new IllegalStateException("simulated asynchronous failure"));
+            }
+            assertEquals(1, completions.get());
+            assertEquals(0, service.getInFlightCacheFills());
+            assertTrue(service.waitForInFlightCacheFillsToComplete(0L, TimeUnit.SECONDS));
+        } finally {
+            service.stop();
+        }
+    }
+
+    /** A successful deferred write retains its permit until its completion handle has been released. */
+    public void testDeferredPutSuccessCompletesOnce() {
+        final AtomicReference<ActionListener<DocWriteResponse>> pendingListener = new AtomicReference<>();
+        // Override transport submission so the test controls when the indexing operation succeeds.
+        final BlobStoreCacheService service = new BlobStoreCacheService(mockClient, SNAPSHOT_BLOB_CACHE_INDEX) {
+            @Override
+            protected void innerPut(IndexRequest request, ActionListener<DocWriteResponse> listener) {
+                assertTrue(pendingListener.compareAndSet(null, listener));
+            }
+        };
+        service.start();
+        try {
+            final AtomicInteger completions = new AtomicInteger();
+            service.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, Releasables.assertOnce(() -> {
+                assertEquals(1, service.getInFlightCacheFills());
+                completions.incrementAndGet();
+            }));
+            assertEquals(0, completions.get());
+            assertEquals(1, service.getInFlightCacheFills());
+            assertFalse(service.waitForInFlightCacheFillsToComplete(0L, TimeUnit.SECONDS));
+            assertNotNull(pendingListener.get());
+            pendingListener.get().onResponse(new IndexResponse(shardId, "id", UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, 1L, true));
+            assertEquals(1, completions.get());
+            assertEquals(0, service.getInFlightCacheFills());
+            assertTrue(service.waitForInFlightCacheFillsToComplete(0L, TimeUnit.SECONDS));
+        } finally {
+            service.stop();
+        }
+    }
+
+    /** Failure to acquire a permit completes without handing ownership to a submission listener. */
+    public void testInterruptedPutCompletesOnce() {
+        final BlobStoreCacheService service = new BlobStoreCacheService(mockClient, SNAPSHOT_BLOB_CACHE_INDEX) {
+            @Override
+            protected void innerPut(IndexRequest request, ActionListener<DocWriteResponse> listener) {
+                fail("interrupted preparation must not submit a write");
+            }
+        };
+        service.start();
+        try {
+            final AtomicInteger completions = new AtomicInteger();
+            Thread.currentThread().interrupt();
+            service.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, Releasables.assertOnce(() -> {
+                assertEquals(0, service.getInFlightCacheFills());
+                completions.incrementAndGet();
+            }));
+            assertEquals(1, completions.get());
+            assertEquals(0, service.getInFlightCacheFills());
+        } finally {
+            Thread.interrupted();
+            service.stop();
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -175,23 +292,31 @@ public class BlobStoreCacheServiceTests extends ESTestCase {
 
         assertThat(blobCacheService.getInFlightCacheFills(), equalTo(0));
 
-        final List<PlainActionFuture<Void>> futures = new ArrayList<>(nbThreads);
+        final AtomicInteger completions = new AtomicInteger();
         for (int i = 0; i < nbThreads; i++) {
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             threadPool.generic()
                 .execute(
-                    () -> blobCacheService.putAsync(repository, snapshotId, indexId, shardId, fileName, range, BytesArray.EMPTY, 0L, future)
+                    () -> blobCacheService.putAsync(
+                        repository,
+                        snapshotId,
+                        indexId,
+                        shardId,
+                        fileName,
+                        range,
+                        BytesArray.EMPTY,
+                        0L,
+                        completions::incrementAndGet
+                    )
                 );
-            futures.add(future);
         }
 
         assertBusy(() -> assertThat(blobCacheService.getInFlightCacheFills(), equalTo(nbThreads)));
         assertFalse(blobCacheService.waitForInFlightCacheFillsToComplete(0L, TimeUnit.SECONDS));
-        assertTrue(futures.stream().noneMatch(Future::isDone));
+        assertEquals(0, completions.get());
 
         latch.countDown();
 
         assertTrue(blobCacheService.waitForInFlightCacheFillsToComplete(30L, TimeUnit.SECONDS));
-        assertTrue(futures.stream().allMatch(Future::isDone));
+        assertEquals(nbThreads, completions.get());
     }
 }

@@ -3,16 +3,13 @@ navigation_title: "Manage in UI"
 description: "Create, view, and edit ES|QL Data Federation datasets with the Add dataset wizard in Kibana."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
   - id: kibana
 ---
 
 # Create and manage datasets in the {{kib}} UI
-
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
 
 In the {{kib}} UI, you create and manage datasets from the **Datasets** tab under **Data management** > **{{esql}} Data Federation**.
 
@@ -116,12 +113,10 @@ To change a dataset:
 
 1. Click **More actions** ({icon}`ellipsis`) at the end of the dataset's row.
 2. Select **Edit**. The wizard opens with the dataset's current configuration.
-3. Update the settings in any step.
+3. Update the settings in any step. You can't change the **Dataset name**.
 4. On the **Review** step, click **Save**.
 
-:::{warning}
-Changing the **Dataset name** saves the dataset under the new name and then deletes the dataset with the old name. Queries that use the old name stop working.
-:::
+To use a different name, [add a new dataset](#add-a-new-dataset) with that name, then delete the old one. Queries and views that use the old name stop working.
 
 ## Next steps
 

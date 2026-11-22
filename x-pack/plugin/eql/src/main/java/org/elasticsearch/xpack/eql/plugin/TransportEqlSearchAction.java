@@ -18,8 +18,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
-import org.elasticsearch.common.logging.activity.ActivityLogger;
+import org.elasticsearch.common.logging.activity.QueryInterceptor;
 import org.elasticsearch.common.logging.activity.QueryLogger;
+import org.elasticsearch.common.logging.activity.QuerySinkRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
@@ -47,8 +48,8 @@ import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
-import org.elasticsearch.xpack.eql.logging.EqlLogContext;
-import org.elasticsearch.xpack.eql.logging.EqlLogContextBuilder;
+import org.elasticsearch.xpack.eql.logging.EqlCaptureContext;
+import org.elasticsearch.xpack.eql.logging.EqlCaptureContextBuilder;
 import org.elasticsearch.xpack.eql.logging.EqlLogProducer;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -79,7 +80,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private final PlanExecutor planExecutor;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
-    private final ActivityLogger<EqlLogContext> activityLogger;
+    private final QueryInterceptor<EqlCaptureContext> queryInterceptor;
 
     @Inject
     public TransportEqlSearchAction(
@@ -92,6 +93,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         NamedWriteableRegistry registry,
         Client client,
         BigArrays bigArrays,
+        QuerySinkRegistry querySinkRegistry,
         ActionLoggingFieldsProvider fieldProvider,
         ActivityLogWriterProvider logWriterProvider
     ) {
@@ -117,12 +119,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             threadPool,
             bigArrays
         );
-        this.activityLogger = new QueryLogger<>(
-            clusterService.getClusterSettings(),
-            new EqlLogProducer(),
-            logWriterProvider,
-            fieldProvider
-        );
+        var queryLogger = new QueryLogger<>(clusterService.getClusterSettings(), new EqlLogProducer(), logWriterProvider, fieldProvider);
+        this.queryInterceptor = querySinkRegistry.createInterceptor(queryLogger);
     }
 
     @Override
@@ -152,7 +150,16 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
     @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        loggedOperation(planExecutor, task, request, username(securityContext), transportService, clusterService, activityLogger, listener);
+        loggedOperation(
+            planExecutor,
+            task,
+            request,
+            username(securityContext),
+            transportService,
+            clusterService,
+            queryInterceptor,
+            listener
+        );
     }
 
     @Override
@@ -191,7 +198,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 username(securityContext),
                 transportService,
                 clusterService,
-                activityLogger,
+                queryInterceptor,
                 listener
             );
         }
@@ -204,12 +211,12 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         String username,
         TransportService transportService,
         ClusterService clusterService,
-        ActivityLogger<EqlLogContext> activityLogger,
+        QueryInterceptor<EqlCaptureContext> activityInterceptor,
         ActionListener<EqlSearchResponse> operationListener
     ) {
-        activityLogger.wrapAndRun(
+        activityInterceptor.wrapAndRun(
             operationListener,
-            new EqlLogContextBuilder(task, request),
+            new EqlCaptureContextBuilder(task, request),
             (l) -> operation(planExecutor, task, request, username, transportService, clusterService, l)
         );
     }
@@ -291,7 +298,10 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 new TaskId(nodeId, task.getId()),
                 task,
                 transportService.getRemoteClusterService().crossProjectEnabled(),
-                request.getResolvedIndexExpressions()
+                request.getResolvedIndexExpressions(),
+                // Reuse the coordinator's already-resolved field-caps if the caller (e.g. the ES|QL EQL source command)
+                // supplied it, so the engine skips its own resolution; null (every other caller) means self-resolve.
+                request.takePreResolvedFieldCaps()
             );
             planExecutor.eql(cfg, request.query(), params, wrap(r -> {
                 EqlSearchResponse response = createResponse(r, task.getExecutionId());

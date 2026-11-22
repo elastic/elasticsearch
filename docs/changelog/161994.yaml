@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 161968
-pr: 161994
-summary: Emit one warning for non-loadable PUNKs
-type: bug

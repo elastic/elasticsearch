@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 158658
-summary: ESQL:DS. Resume short obj reads. fail closed
+summary: Resume whole-file gzip reads that hit an early end of file, and fail them as HTTP 503 instead of HTTP 400
 type: bug

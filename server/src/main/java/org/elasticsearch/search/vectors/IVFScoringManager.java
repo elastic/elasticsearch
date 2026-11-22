@@ -23,9 +23,11 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
+import org.elasticsearch.lucene.store.ThreadConfinedArena;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.vectors.AbstractIVFKnnVectorQuery.IVFCollectorManager;
 
@@ -51,8 +53,11 @@ final class IVFScoringManager {
      */
     private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
 
-    /** How one leaf is searched: as a whole (shapes that cannot be split) or in parts that share a scan. */
-    record LeafSearch(LeafReaderContext ctx, IVFCollectorManager collectorManager, boolean usePrecondition) {}
+    /**
+     * How one leaf is searched: as a whole (shapes that cannot be split) or in parts that share a scan. {@code collectorManager}
+     * is null when the leaf has no vectors for the field, so it has no hits.
+     */
+    record LeafSearch(LeafReaderContext ctx, @Nullable IVFCollectorManager collectorManager, boolean usePrecondition) {}
 
     private final AbstractIVFKnnVectorQuery query;
     private final Weight filterWeight;
@@ -234,12 +239,18 @@ final class IVFScoringManager {
 
     private void search(Leaf leaf) throws IOException {
         LeafSearch search = leaf.search;
+        if (search.collectorManager() == null) {
+            return;
+        }
         if (leaf.splittable == false) {
             leaf.setWhole(
-                query.getLeafResults(search.ctx(), filterWeight, search.collectorManager(), visitRatio, search.usePrecondition())
+                ThreadConfinedArena.withConfinedArena(
+                    () -> query.getLeafResults(search.ctx(), filterWeight, search.collectorManager(), visitRatio, search.usePrecondition())
+                )
             );
             return;
         }
+        // parts share state across threads, so their native scratch stays on auto arenas rather than a thread-confined one
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, query.numCands, query.k, null, leaf.scan);
         AbstractMaxScoreKnnCollector collector = search.collectorManager().newCollector(Integer.MAX_VALUE, strategy, search.ctx());
         strategy.setCollector(collector);

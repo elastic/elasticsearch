@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.prometheus.rest.PrometheusInstantQueryRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusLabelValuesRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusLabelsRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusMetadataRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryExemplarsRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteRestAction;
 import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction;
@@ -49,8 +51,9 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     );
 
     /**
-     * The default and maximum timeout of PromQL queries run through the {@code query} and {@code query_range} endpoints, mirroring
-     * Prometheus' {@code -query.timeout} flag. A per-request {@code timeout} parameter can only lower it. {@code -1} disables it.
+     * The default and maximum timeout of PromQL queries run through the {@code query}, {@code query_range} and {@code query_exemplars}
+     * endpoints, mirroring Prometheus' {@code -query.timeout} flag. A per-request {@code timeout} parameter can only lower it. {@code -1}
+     * disables it.
      * {@code 0} is rejected because in Prometheus it makes every query time out immediately, the opposite of disabling it.
      */
     static final Setting<TimeValue> PROMETHEUS_QUERY_TIMEOUT = Setting.timeSetting(
@@ -70,6 +73,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
     private final SetOnce<PrometheusIndexTemplateRegistry> indexTemplateRegistry = new SetOnce<>();
     private final SetOnce<IndexingPressure> indexingPressure = new SetOnce<>();
     private final SetOnce<Recycler<BytesRef>> recycler = new SetOnce<>();
+    private final SetOnce<CircuitBreakerService> circuitBreakerService = new SetOnce<>();
     private final boolean enabled;
     private volatile TimeValue queryTimeout;
     private final long maxProtobufContentLengthBytes;
@@ -85,6 +89,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
         ClusterService clusterService = services.clusterService();
         indexingPressure.set(services.indexingPressure());
         recycler.set(services.bigArrays().bytesRefRecycler());
+        circuitBreakerService.set(services.bigArrays().breakerService());
         queryTimeout = PROMETHEUS_QUERY_TIMEOUT.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROMETHEUS_QUERY_TIMEOUT, value -> queryTimeout = value);
         indexTemplateRegistry.set(
@@ -130,6 +135,7 @@ public class PrometheusPlugin extends Plugin implements ActionPlugin {
                 new PrometheusSeriesRestAction(),
                 new PrometheusQueryRangeRestAction(() -> queryTimeout),
                 new PrometheusInstantQueryRestAction(() -> queryTimeout),
+                new PrometheusQueryExemplarsRestAction(() -> queryTimeout, circuitBreakerService.get()),
                 new PrometheusLabelsRestAction(),
                 new PrometheusLabelValuesRestAction(),
                 new PrometheusMetadataRestAction(),

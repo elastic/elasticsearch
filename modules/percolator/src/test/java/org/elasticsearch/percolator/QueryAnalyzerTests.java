@@ -51,12 +51,14 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.percolator.QueryAnalyzer.QueryExtraction;
 import org.elasticsearch.percolator.QueryAnalyzer.Range;
 import org.elasticsearch.percolator.QueryAnalyzer.Result;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -988,6 +990,22 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertFalse(result.verified);
         assertThat(result.minimumShouldMatch, equalTo(4));
         assertThat(result.extractions.size(), equalTo(6));
+    }
+
+    public void testPointRangeQuery_indexVersion() {
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
+        Result result = QueryAnalyzer.analyze(IntPoint.newRangeQuery("_field", 10, 20), previous);
+        assertThat(result.minimumShouldMatch, equalTo(1));
+        assertThat(result.extractions.size(), equalTo(1));
+
+        Query box = LatLonPoint.newBoxQuery("_field", 52.1, 52.3, 4.4, 4.6);
+        assertEquals(Result.UNKNOWN, QueryAnalyzer.analyze(box, previous));
+        // A box crossing the dateline is a disjunction of two boxes
+        assertEquals(Result.UNKNOWN, QueryAnalyzer.analyze(LatLonPoint.newBoxQuery("_field", -10, 10, 170, -170), previous));
+
+        result = QueryAnalyzer.analyze(box, IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
+        assertThat(result.minimumShouldMatch, equalTo(2));
+        assertThat(result.extractions.size(), equalTo(2));
     }
 
     public void testPointRangeQuery_lowerUpperReversed() {

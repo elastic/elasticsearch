@@ -57,6 +57,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -77,6 +78,7 @@ import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -574,6 +576,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         MemoryIndex memoryIndex = new MemoryIndex(false);
         memoryIndex.addField(new LatLonPoint("location", 52.2, 4.5), new WhitespaceAnalyzer());
         memoryIndex.addField(new LatLonPoint("location", 52.4, 4.3), new WhitespaceAnalyzer());
+        memoryIndex.addField(new IntPoint("number", 7), new WhitespaceAnalyzer());
         // Shapes index four of their seven dimensions, a one-dimensional range field indexes two
         for (Field field : LatLonShape.createIndexableFields("shape", 52.2, 4.5)) {
             memoryIndex.addField(field, new WhitespaceAnalyzer());
@@ -597,6 +600,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             containsInAnyOrder(
                 new RangeField("location", 0),
                 new RangeField("location", 1),
+                new RangeField("number"),
                 new RangeField("shape", 0),
                 new RangeField("shape", 1),
                 new RangeField("shape", 2),
@@ -622,7 +626,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.PERCOLATOR_MULTI_DIMENSIONAL_RANGES);
         t = PercolatorFieldMapper.PercolatorFieldType.extractTermsAndRanges(indexReader, previous);
-        assertThat(t.v2().keySet(), empty());
+        assertThat(t.v2().keySet(), contains(new RangeField("number")));
     }
 
     public void testExtractRanges_geoBoundingBox() throws Exception {
@@ -655,6 +659,19 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             );
             assertThat(
                 document.getFields(percolatorFieldType.minimumShouldMatchField.name()),
+                transformedItemsMatch(IndexableField::numericValue, contains(2L))
+            );
+
+            // geo_shape with an envelope and the default relation, intersects, builds the same Lucene box query
+            Query envelope = new GeoShapeQueryBuilder("location", new Rectangle(4.4, 4.6, 52.3, 52.1)).toQuery(context);
+            DocumentParserContext envelopeContext = new TestDocumentParserContext();
+            fieldMapper.processQuery(envelope, envelopeContext);
+            assertThat(
+                envelopeContext.doc().getFields(percolatorFieldType.rangeField.name()).stream().map(IndexableField::binaryValue).toList(),
+                containsInAnyOrder(expectedRanges.toArray())
+            );
+            assertThat(
+                envelopeContext.doc().getFields(percolatorFieldType.minimumShouldMatchField.name()),
                 transformedItemsMatch(IndexableField::numericValue, contains(2L))
             );
 

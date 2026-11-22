@@ -351,18 +351,20 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * A build row with a multivalued key matches nothing and warns, as {@code LOOKUP JOIN} does for such a document in its
-     * lookup index. A build row with a null key matches nothing without a warning.
+     * A build row with a multivalued key matches nothing. A probe key equal to one of its values gets a warning, as a probe
+     * key that matches a multivalued document in a {@code LOOKUP JOIN} lookup index does, and other probe keys don't. A
+     * build row with a null key matches nothing without a warning.
      */
-    public void testRepeatedTableSkipsMultivaluedBuildKeysAndWarns() {
+    public void testRepeatedTableWarnsOnlyWhenProbeKeyHitsMultivaluedBuildKey() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext context = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        DriverContext quiet = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        DriverContext warned = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         LongBlock key;
         try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(4)) {
             builder.appendLong(7);
-            builder.beginPositionEntry().appendLong(7).appendLong(9).endPositionEntry();
+            builder.beginPositionEntry().appendLong(20).appendLong(30).endPositionEntry();
             builder.appendNull();
-            builder.appendLong(9);
+            builder.appendLong(20);
             key = builder.build();
         }
         try (key) {
@@ -372,18 +374,28 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                 true,
                 new TestWarningsSource("join")
             );
-            try (Operator operator = factory.get(context)) {
+            try (Operator operator = factory.get(quiet)) {
                 operator.addInput(new Page(blockFactory.newLongArrayVector(new long[] { 7, 9 }, 2).asBlock()));
                 try (Page output = operator.getOutput()) {
                     IntBlock matches = output.getBlock(1);
                     assertThat(toJavaObject(matches, 0), equalTo(0));
-                    assertThat(toJavaObject(matches, 1), equalTo(3));
+                    assertNull(toJavaObject(matches, 1));
+                }
+            }
+            try (Operator operator = factory.get(warned)) {
+                operator.addInput(new Page(blockFactory.newLongArrayVector(new long[] { 20, 30 }, 2).asBlock()));
+                try (Page output = operator.getOutput()) {
+                    IntBlock matches = output.getBlock(1);
+                    assertThat(toJavaObject(matches, 0), equalTo(3));
+                    assertNull(toJavaObject(matches, 1));
                 }
             }
         }
-        context.finish();
+        quiet.finish();
+        warned.finish();
+        assertTrue(quiet.warnings().isEmpty());
         assertThat(
-            context.warnings(),
+            warned.warnings(),
             contains(
                 "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
                 "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"

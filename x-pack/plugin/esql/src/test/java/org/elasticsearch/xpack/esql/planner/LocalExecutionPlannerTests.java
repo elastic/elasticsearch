@@ -1609,8 +1609,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * A build row with a multivalued key matches none of its values and warns, as {@code LOOKUP JOIN} does for such a document
-     * in its lookup index.
+     * A build row with a multivalued key matches none of its values, and a probe key equal to one of them warns, as in
+     * {@code LOOKUP JOIN}.
      */
     public void testRepeatedKeyHashJoinMultivaluedBuildKeyMatchesNothing() throws IOException {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();

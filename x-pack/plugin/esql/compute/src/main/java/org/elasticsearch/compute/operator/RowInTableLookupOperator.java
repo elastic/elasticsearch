@@ -83,12 +83,6 @@ import java.util.List;
  */
 public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOperator {
     /**
-     * The warning for a multivalued key on either side of a repeated-key join, which matches nothing. It names no join
-     * command, because the warning's first line already quotes the join's own text.
-     */
-    private static final String MULTIVALUE_WARNING = "JOIN encountered multi-value";
-
-    /**
      * A single key column of the lookup table: its field name and the block
      * of values (one value per table row).
      */
@@ -121,11 +115,6 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private final boolean repeatedKeys;
         private final WarningSourceLocation warningSource;
         /**
-         * Whether a repeated-key table skips build rows with a multivalued key, which every operator warns about, as
-         * {@code LOOKUP JOIN} does for such documents in its lookup index.
-         */
-        private final boolean multivaluedBuildKeys;
-        /**
          * The table shared by the operators this factory created, or {@code null} when no operator holds one.
          * Guarded by {@code this}.
          */
@@ -149,15 +138,11 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
             this.blockMapping = blockMapping;
             this.repeatedKeys = repeatedKeys;
             this.warningSource = warningSource;
-            this.multivaluedBuildKeys = repeatedKeys && Arrays.stream(keys).anyMatch(key -> key.block.doesHaveMultivaluedFields());
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
             Warnings warnings = repeatedKeys ? driverContext.createWarnings(warningSource) : Warnings.NOOP_WARNINGS;
-            if (multivaluedBuildKeys) {
-                warnings.registerException(IllegalArgumentException.class, MULTIVALUE_WARNING);
-            }
             /*
              * Build with the node-wide parent factory, which charges the request breaker, rather than this driver's:
              * the table outlives any single driver and is released from whichever driver closes last, so it must not
@@ -269,7 +254,10 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         try {
             warnOnMultivaluedKeys(mapped);
             // lookup increments any references we need to keep for the iterator
-            return appendBlocks(page, shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE));
+            return appendBlocks(
+                page,
+                shared.table.lookup(mapped, blockFactory, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, warnings)
+            );
         } finally {
             mapped.releaseBlocks();
         }
@@ -285,7 +273,7 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         }
         for (int k = 0; k < keys.getBlockCount(); k++) {
             if (keys.getBlock(k).doesHaveMultivaluedFields()) {
-                warnings.registerException(IllegalArgumentException.class, MULTIVALUE_WARNING);
+                warnings.registerException(IllegalArgumentException.class, RowInTableLookup.MULTIVALUED_KEY_WARNING);
                 return;
             }
         }

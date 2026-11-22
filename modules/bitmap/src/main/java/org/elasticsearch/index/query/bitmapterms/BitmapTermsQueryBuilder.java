@@ -17,6 +17,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.LeafQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -147,8 +150,19 @@ public class BitmapTermsQueryBuilder extends LeafQueryBuilder<BitmapTermsQueryBu
     }
 
     @Override
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
+        if (context.getFieldType(fieldName) == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
+        }
+        return this;
+    }
+
+    @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            throw new IllegalStateException("Rewrite first");
+        }
         if (!(fieldType instanceof NumberFieldMapper.NumberFieldType numberFieldType)
             || (numberFieldType.numberType() != NumberFieldMapper.NumberType.INTEGER
                 && numberFieldType.numberType() != NumberFieldMapper.NumberType.LONG)
@@ -171,11 +185,12 @@ public class BitmapTermsQueryBuilder extends LeafQueryBuilder<BitmapTermsQueryBu
             default -> throw new AssertionError("unexpected number type [" + numberFieldType.numberType() + "]");
         };
         // The two queries differ only in which index structure they merge against; the field's width
-        // is carried by the BitmapValues.
+        // is carried by the BitmapValues. They read the index by the concrete field's name, which differs
+        // from fieldName when that is an alias.
         if (numberFieldType.isIndexedWithTerms()) {
-            return new BitmapTermsQuery(fieldName, values);
+            return new BitmapTermsQuery(numberFieldType.name(), values);
         }
-        return new BitmapBKDQuery(fieldName, values);
+        return new BitmapBKDQuery(numberFieldType.name(), values);
     }
 
     private static IntBitmap integerValues(byte[] bitmapBytes) {

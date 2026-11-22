@@ -199,6 +199,28 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
         return max;
     }
 
+    /**
+     * The sum of all values in the vector. The sum of at most {@code Integer.MAX_VALUE} {@code int}s
+     * always fits in a {@code long} (its magnitude stays below {@code 2^62}), so no overflow check is
+     * needed. Only the first {@link #getPositionCount()} entries of the backing array are summed, since
+     * the array can be longer than the position count. Two independent accumulators shorten the
+     * loop-carried dependency chain. This is not cached, as it is expected to be called once per vector.
+     */
+    public long sum() {
+        final int count = getPositionCount();
+        long sum0 = 0;
+        long sum1 = 0;
+        int i = 0;
+        for (; i + 1 < count; i += 2) {
+            sum0 += values[i];
+            sum1 += values[i + 1];
+        }
+        if (i < count) {
+            sum0 += values[i];
+        }
+        return sum0 + sum1;
+    }
+
     @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);

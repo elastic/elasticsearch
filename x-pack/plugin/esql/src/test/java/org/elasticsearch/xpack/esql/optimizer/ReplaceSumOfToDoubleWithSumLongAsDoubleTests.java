@@ -9,18 +9,19 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumLongAsDouble;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceSumOfToDoubleWithSumLongAsDouble;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.planner.AggregateMapper;
 
 import java.util.List;
@@ -29,6 +30,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  * Tests {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceSumOfToDoubleWithSumLongAsDouble}, which runs as
@@ -88,27 +90,37 @@ public class ReplaceSumOfToDoubleWithSumLongAsDoubleTests extends AbstractLocalL
         );
     }
 
-    /** Spelling the conversion out gets the same treatment. */
-    public void testSumOfToDoubleOfLong() {
-        var plan = testAnalyzer().coordinatorPlan("FROM test | STATS s = SUM(TO_DOUBLE(long_noidx))");
-        var local = localPlan(plan, TEST_SEARCH_STATS);
-
-        Aggregate aggregate = aggregate(local);
-        assertThat(sumsOf(aggregate), hasSize(0));
-        assertThat(as(Alias.unwrap(aggregate.aggregates().get(0)), SumLongAsDouble.class).field().dataType(), equalTo(DataType.LONG));
+    /** A conversion the user spelled out has to keep rounding every value, so the sum stays as it is. */
+    public void testExplicitToDoubleIsUnchanged() {
+        assertNotReplaced("FROM test | STATS s = SUM(TO_DOUBLE(long_noidx))");
     }
 
-    /** The conversion is only removed if nothing else reads it. */
-    public void testToDoubleUsedElsewhereStays() {
-        var plan = testAnalyzer().coordinatorPlan("FROM test | EVAL d = TO_DOUBLE(long_noidx) | STATS s = SUM(d), m = MAX(d)");
-        var local = localPlan(plan, TEST_SEARCH_STATS);
+    /** Same for a conversion in an {@code EVAL}, which is inlined into the aggregate on the way. */
+    public void testExplicitToDoubleInEvalIsUnchanged() {
+        assertNotReplaced("FROM test | EVAL d = TO_DOUBLE(long_noidx) | STATS s = SUM(d)");
+    }
 
-        Aggregate aggregate = aggregate(local);
-        List<Object> functions = aggregate.aggregates().stream().map(a -> (Object) Alias.unwrap(a)).toList();
-        assertThat(functions.stream().filter(SumLongAsDouble.class::isInstance).count(), equalTo(1L));
-        assertThat(functions.stream().filter(Max.class::isInstance).count(), equalTo(1L));
-        Eval eval = as(aggregate.child(), Eval.class);
-        assertThat(eval.fields().stream().map(Alias::child).filter(ToDouble.class::isInstance).count(), equalTo(1L));
+    /**
+     * The sums of a sampled aggregate are scaled up by the sample probability, and that only knows a {@link Sum}, so a sampled
+     * aggregate keeps its sums, while the same aggregate, not sampled, gets the replacement.
+     */
+    public void testSampledAggregateIsUnchanged() {
+        var plan = testAnalyzer().coordinatorPlan("FROM test | STATS a = AVG(long_noidx)");
+        Aggregate aggregate = aggregate(plan);
+        var rule = new ReplaceSumOfToDoubleWithSumLongAsDouble();
+
+        Aggregate replaced = as(rule.apply(aggregate), Aggregate.class);
+        assertThat(replaced.aggregates().stream().map(Alias::unwrap).filter(SumLongAsDouble.class::isInstance).count(), equalTo(1L));
+
+        SampledAggregate sampled = new SampledAggregate(
+            aggregate.source(),
+            aggregate.child(),
+            aggregate.groupings(),
+            aggregate.aggregates(),
+            aggregate.aggregates(),
+            Literal.fromDouble(Source.EMPTY, 0.1)
+        );
+        assertThat(rule.apply(sampled), sameInstance(sampled));
     }
 
     public void testAvgOfIntegerIsUnchanged() {

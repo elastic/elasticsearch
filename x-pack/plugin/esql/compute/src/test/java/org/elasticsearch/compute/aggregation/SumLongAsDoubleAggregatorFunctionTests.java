@@ -223,6 +223,45 @@ public class SumLongAsDoubleAggregatorFunctionTests extends AggregatorFunctionTe
         assertDriverContext(driverContext);
     }
 
+    /**
+     * The coordinator merges the partials with the {@code SumDouble} reducer, not with this class, and that reducer rounds
+     * {@code value + delta} before it adds a partial in, so the correction of a partial can get lost there. That is a limit
+     * of the reducer, not of the partials, and it is the same one that partials of the plain {@code SumDouble} have. What has
+     * to hold is that partials that nearly cancel each other don't lose more than a rounding step of their own size.
+     */
+    public void testPartialsThatCancelOutMergeWithinARoundingStepInTheProductionReducer() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        long t = 1L << 54;
+        long[][] drivers = new long[][] { { t, 2 }, { -(t + 5), -1 } };
+        try (
+            SumLongAsDoubleAggregatorFunction first = new SumLongAsDoubleAggregatorFunction(List.of(0));
+            SumLongAsDoubleAggregatorFunction second = new SumLongAsDoubleAggregatorFunction(List.of(0));
+            SumDoubleAggregatorFunction reducer = new SumDoubleAggregatorFunction(driverContext, List.of(0, 1, 2))
+        ) {
+            addArray(blockFactory, first, drivers[0], null);
+            addArray(blockFactory, second, drivers[1], null);
+            for (SumLongAsDoubleAggregatorFunction partial : List.of(first, second)) {
+                Block[] intermediate = new Block[3];
+                partial.evaluateIntermediate(intermediate, 0, driverContext);
+                Page page = new Page(intermediate);
+                try {
+                    reducer.addIntermediateInput(page);
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            Block[] result = new Block[1];
+            reducer.evaluateFinal(result, 0, driverContext);
+            try (Block r = result[0]) {
+                // (t + 2) + (-(t + 6)) = -4, and a partial of this size is only known to within its ulp.
+                assertThat(((DoubleBlock) r).getDouble(0), closeTo(-4.0, Math.ulp((double) t)));
+            }
+        }
+        driverContext.finish();
+        assertDriverContext(driverContext);
+    }
+
     public void testMergeIgnoresPartialsThatSawNothing() {
         DriverContext driverContext = driverContext();
         try (

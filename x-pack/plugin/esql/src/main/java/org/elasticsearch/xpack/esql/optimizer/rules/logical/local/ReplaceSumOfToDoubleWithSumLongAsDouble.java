@@ -20,13 +20,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Replaces {@code SUM(TO_DOUBLE(x))} over a {@code long} {@code x} with {@link SumLongAsDouble}, which adds up the {@code long}s
+ * Replaces the {@code SUM(TO_DOUBLE(x))} that {@code AVG} builds over a {@code long} {@code x} with {@link SumLongAsDouble}, which adds up the {@code long}s
  * themselves instead of converting each one to a {@code double} first and running a Kahan summation over them:
  * <pre>{@code
  *   Aggregate[[], [SUM($$sum, ...) AS s, COUNT(x) AS c]]
@@ -39,8 +38,10 @@ import java.util.List;
  *   \_Eval[[TODOUBLE(x) AS $$sum]]     <-- unused, dropped by the rules that prune unused columns
  *     \_EsRelation[...]
  * }</pre>
- * That is the shape of the {@code AVG} of a {@code long}, which {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Avg}
- * rewrites to {@code SUM(TO_DOUBLE(x)) / COUNT(x)}.
+ * That is the shape of the {@code AVG} of a {@code long}, and only of that: a {@code TO_DOUBLE} that the user wrote keeps
+ * rounding every value. {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Avg} rewrites an average of a
+ * {@code long} to {@code SUM(TO_DOUBLE(x)) / COUNT(x)}, and gives the conversion the source of the sum, which is how this
+ * rule tells the two apart.
  * <p>
  *     This is a local, data node, rule on purpose. {@link SumLongAsDouble} has the intermediate state of {@link Sum} of a
  *     {@code double}, and the coordinator plans, and merges the partial results of, the original {@link Sum}. So no node needs
@@ -58,8 +59,10 @@ public class ReplaceSumOfToDoubleWithSumLongAsDouble extends OptimizerRules.Opti
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        // The grouping variant of the aggregator function isn't implemented.
-        if (aggregate.groupings().isEmpty() == false || aggregate instanceof TimeSeriesAggregate) {
+        // The grouping variant of the aggregator function isn't implemented. Only plain aggregates are replaced: the subclasses,
+        // like the time series and the sampled ones, give their aggregates a meaning that this rule doesn't know about. For
+        // example, the sums of a sampled aggregate are scaled up by the sample probability, and that only recognizes a Sum.
+        if (aggregate.groupings().isEmpty() == false || aggregate.getClass() != Aggregate.class) {
             return aggregate;
         }
 
@@ -91,8 +94,13 @@ public class ReplaceSumOfToDoubleWithSumLongAsDouble extends OptimizerRules.Opti
             return null;
         }
         Expression summed = aliases.resolve(sum.field(), sum.field());
-        if (summed instanceof ToDouble toDouble && toDouble.field() instanceof Attribute attribute && attribute.dataType() == DataType.LONG
-        // The sum reads the attribute itself now, so it has to be there for the aggregate to read.
+        // Avg builds the conversion with its own source, the one of the sum. A TO_DOUBLE that the user wrote has a source of its
+        // own, and that one has to keep rounding every value, so it isn't replaced.
+        if (summed instanceof ToDouble toDouble
+            && toDouble.source().equals(sum.source())
+            && toDouble.field() instanceof Attribute attribute
+            && attribute.dataType() == DataType.LONG
+            // The sum reads the attribute itself now, so it has to be there for the aggregate to read.
             && aggregate.child().outputSet().contains(attribute)) {
             return attribute;
         }

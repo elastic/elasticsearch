@@ -38,7 +38,9 @@ import java.util.List;
  *     this function keep working, because they exchange the same {@code (value, delta, seen)} columns and only the way the
  *     {@code value} is produced differs. The exact 128-bit sum is rounded to a {@code double} once, and the part that doesn't
  *     fit into the {@code double} is reported in {@code delta}, which {@link CompensatedSum} adds back when partial results
- *     are merged.
+ *     are merged. The sum is exact within one function. Merging partial results is not: the reducer of the plain sum rounds
+ *     {@code value + delta} before it adds a partial in, so it can lose the correction of a partial, which is an error of
+ *     the size of an ulp of that partial, and the same one that the partials of {@code SUM} of a {@code double} have.
  * </p>
  * <p>
  *     Only the non-grouping form exists. Intermediate input is merged with a {@link CompensatedSum}, so this function can

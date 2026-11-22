@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -172,6 +173,60 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
             assertThat("a disabled cache must write no per-file marker either", disabled, anEmptyMap());
         } finally {
             restoreCacheSetting();
+        }
+    }
+
+    /**
+     * {@code esql.external.cache.enabled} is the only one of the three harvest settings carrying
+     * {@code Setting.Property.Dynamic}: {@code esql.external.cache.stripe.size} and
+     * {@code esql.external.cache.stripe.columns} are node-scoped alone. So a node's harvest scope used to be
+     * fixed for the process and every read of a file resolved the same one, and now two reads of ONE file can
+     * straddle a toggle. What keeps that safe is the clear on the false edge -- {@code setEnabled(false)} calls
+     * {@code clearAll()} -- so nothing measured before the toggle can be served after it. This pins that edge
+     * against a single file, which the arms above cannot: each of them deliberately reads its own.
+     *
+     * <p>Row counts are what the assertions read, through {@code documentsFound}: a warm fold answers
+     * {@code COUNT(*)} without reading a row, so {@code 0} is a served answer and the file's own total is a
+     * scan. Every step also asserts the value, because the failure that matters is a wrong count rather than
+     * a slow one.
+     *
+     * <p>It does not reach a straddle INSIDE one query -- two splits of one file whose operator factories are
+     * built either side of the settings update. That is a race between cluster-state propagation and execution,
+     * so it has no deterministic form here. What bounds it instead is that a half-measured file commits no
+     * whole-file count at all: {@code ExternalSourceCacheService.foldStripeFragments} takes
+     * {@code lastOrdinal} only from a fragment chain reaching EOF, and a truncated read being unservable is
+     * pinned end to end by {@code ExternalTruncatedReadNeverWarmsIT}.
+     */
+    public void testTogglingTheCacheOffAndOnLeavesTheSameFileCold() throws Exception {
+        Path dir = createTempDir();
+        writeCsv(dir.resolve("part-0.csv"), false);
+        String dirUri = StoragePath.fileUri(dir);
+        if (dirUri.endsWith("/") == false) {
+            dirUri += "/";
+        }
+        String count = "FROM " + registerDataset("toggle_csv", dirUri + "*.csv", Map.of()) + " | STATS c = COUNT(*)";
+        try {
+            setCacheEnabled(true);
+            assertCountRowsRead("the first read of the file has nothing to answer from and must scan it", count, ROWS);
+            assertCountRowsRead("control: the clean scan's statistics must warm the next COUNT(*)", count, 0);
+
+            setCacheEnabled(false);
+            assertCountRowsRead("a disabled cache must serve nothing warm, even for a file already measured", count, ROWS);
+
+            setCacheEnabled(true);
+            assertCountRowsRead("turning the cache off cleared it, so the same file must be cold again", count, ROWS);
+        } finally {
+            restoreCacheSetting();
+        }
+    }
+
+    /** Runs a {@code COUNT(*)}, asserts the answer is the file's true total, and asserts how it was reached. */
+    private void assertCountRowsRead(String reason, String query, long rowsRead) {
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows.size(), equalTo(1));
+            assertThat("the count must be the file's true total", ((Number) rows.get(0).get(0)).longValue(), equalTo((long) ROWS));
+            assertThat(reason, response.documentsFound(), equalTo(rowsRead));
         }
     }
 

@@ -103,6 +103,7 @@ toc:
           - file: esql/directives/directives.md
             children:
               - file: esql/directives/set.md
+              - file: esql/directives/let.md
           - file: esql/esql-commands.md
             children:
               - file: esql/commands/source-commands.md

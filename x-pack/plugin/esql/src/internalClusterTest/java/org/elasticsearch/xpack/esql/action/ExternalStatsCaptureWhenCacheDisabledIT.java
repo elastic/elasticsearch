@@ -20,7 +20,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +32,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -282,15 +286,18 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
 
     private static final String PAD = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 
+    /** A {@link Writer} over a gzip stream, so the fixture is never held whole in memory. */
+    private static Writer gzipWriter(Path file) throws IOException {
+        OutputStreamWriter w = new OutputStreamWriter(new GZIPOutputStream(Files.newOutputStream(file)), StandardCharsets.UTF_8);
+        return new BufferedWriter(w);
+    }
+
     private static void writeCsv(Path file, boolean gzip) throws IOException {
-        StringBuilder sb = new StringBuilder("id,value,ts,pad\n");
-        for (int i = 0; i < ROWS; i++) {
-            sb.append(i).append(',').append(i).append(',').append(TS_BASE_MILLIS + i).append(',').append(PAD).append('\n');
-        }
-        if (gzip) {
-            writeGzipped(file, sb.toString());
-        } else {
-            Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
+        try (Writer w = gzip ? gzipWriter(file) : Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+            w.write("id,value,ts,pad\n");
+            for (int i = 0; i < ROWS; i++) {
+                w.write(i + "," + i + "," + (TS_BASE_MILLIS + i) + "," + PAD + "\n");
+            }
         }
     }
 

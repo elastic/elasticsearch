@@ -1497,7 +1497,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
      * {@code org} key, while the admin gets both. A regression would be silent here, since naming the field used to hide its key.
      */
     public void testFieldLevelSecurityFieldDeniedAndNamedWithUnmappedFieldsLoadAll() throws Exception {
-        assumeUnmappedFieldsLoadAll();
+        // The query filters on unmapped fields, so there are no rows where they are not stored (columnar logsdb).
+        assumeUnmappedFieldsLoadAllDiscoverable();
         String query = "SET unmapped_fields=\"LOAD_ALL\"; FROM "
             + INDEX_PARTIAL_MAPPING
             + " | WHERE org == \"sales\" OR org == \"engineering\" OR salary IS NOT NULL | EVAL named = org | SORT salary | LIMIT 10"

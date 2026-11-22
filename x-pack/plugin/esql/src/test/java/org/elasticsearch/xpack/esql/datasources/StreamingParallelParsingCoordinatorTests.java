@@ -406,8 +406,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         );
 
         // The control above always gets an answer, so on its own it also passes against a memo that caches
-        // only successful lookups -- which would still pay a HEAD per chunk on exactly the stores the probe is
-        // dear on. These two pin the other outcomes: no last-modified header, and a probe that fails outright.
+        // only successful lookups -- which would still pay a metadata request per chunk on exactly the stores
+        // the probe is dear on. These two pin the other outcomes: no last-modified header, and a probe that
+        // fails outright.
         AtomicInteger noMtime = new AtomicInteger();
         streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), noMtime, new TestFileStorageObject(MTIME_PROBE_PATH, null));
         assertThat("a source with no last-modified is probed once, not per chunk", noMtime.get(), Matchers.equalTo(1));

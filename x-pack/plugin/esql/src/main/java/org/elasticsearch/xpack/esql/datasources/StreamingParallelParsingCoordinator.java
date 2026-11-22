@@ -2484,10 +2484,11 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         /**
-         * The source's last-modified, probed on first use and reused by every later chunk, so a store carrying
-         * no last-modified hint costs one HEAD per file rather than one per chunk. Either non-answer is final
-         * for this read, as it is for the row readers, which probe once at open and stop caching the file on
-         * a null or a throw.
+         * The source's last-modified, probed on first use and reused by every later chunk, so a store that
+         * serves no last-modified costs one metadata request per file rather than one per chunk -- GCS and
+         * Azure re-enter {@code fetchMetadata()} whenever their {@code cachedLastModified} is still null,
+         * which for such an object is every call. Either non-answer is final for this read, as it is for the
+         * row readers, which probe once at open and stop caching the file on a null or a throw.
          */
         @Nullable
         private Instant pinnedSourceMtime() {

@@ -595,13 +595,23 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
      * the reduce on the coordinator, also when that reduce isn't final and the node's response is the only one with aggregations.
      */
     public void testDocCountErrorOfSingleTermsResult() throws Exception {
-        SearchRequest originalRequest = new SearchRequest("index");
-        originalRequest.source(new SearchSourceBuilder().aggregation(new TermsAggregationBuilder("terms").field("f")));
-        SearchRequest searchRequest = randomBoolean() ? originalRequest : withoutFinalReduce(originalRequest);
-        boolean batched = randomBoolean();
-        // a node response, even an empty one, marks the reduce as batched, so the unbatched draw has none
-        int emptyResponses = batched ? randomIntBetween(0, 5) : 0;
+        SearchRequest finalReduceRequest = new SearchRequest("index");
+        finalReduceRequest.source(new SearchSourceBuilder().aggregation(new TermsAggregationBuilder("terms").field("f")));
         long docCountError = randomLongBetween(1, 100);
+        for (SearchRequest searchRequest : List.of(finalReduceRequest, withoutFinalReduce(finalReduceRequest))) {
+            String finalReduce = "final reduce [" + searchRequest.isFinalReduce() + "]";
+            assertEquals(
+                "batched, " + finalReduce,
+                Long.valueOf(docCountError),
+                reduceSingleTermsResult(searchRequest, true, docCountError)
+            );
+            assertEquals("unbatched, " + finalReduce, Long.valueOf(0), reduceSingleTermsResult(searchRequest, false, docCountError));
+        }
+    }
+
+    private Long reduceSingleTermsResult(SearchRequest searchRequest, boolean batched, long docCountError) throws Exception {
+        // a node response, even an empty one, marks the reduce as batched, so the unbatched case has none
+        int emptyResponses = batched ? randomIntBetween(0, 5) : 0;
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
         LongTerms terms = new LongTerms(
             "terms",
@@ -619,6 +629,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             docCountError
         );
 
+        Long reducedDocCountError;
         try (QueryPhaseResultConsumer consumer = newReducingConsumer(searchRequest, circuitBreaker, 1 + emptyResponses)) {
             if (batched) {
                 consumePartiallyReducedResult(consumer, 0);
@@ -648,11 +659,11 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             }
 
             InternalAggregations reduced = consumer.reduce().aggregations();
-            LongTerms reducedTerms = reduced.get("terms");
-            assertEquals(Long.valueOf(batched ? docCountError : 0), reducedTerms.getDocCountError());
             assertEquals(reduced.estimateHeapBytes(), circuitBreaker.getUsed());
+            reducedDocCountError = reduced.<LongTerms>get("terms").getDocCountError();
         }
         assertEquals(0L, circuitBreaker.getUsed());
+        return reducedDocCountError;
     }
 
     // with several clusters and ccs_minimize_roundtrips, each cluster skips the final reduce and the merging node does it

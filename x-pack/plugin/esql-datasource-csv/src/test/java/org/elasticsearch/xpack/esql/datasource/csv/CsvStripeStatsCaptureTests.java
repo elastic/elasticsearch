@@ -1521,12 +1521,12 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
         byte[] full = asciiCsv(1, 10);
 
         AtomicInteger noneProbes = new AtomicInteger();
-        readChunkAligned(countingObject(full, noneProbes), StripeColumnScope.NONE, 64);
+        readChunkAligned(countingObject(full, noneProbes), StripeColumnScope.NONE);
         assertEquals("a read that harvests nothing must not probe lastModified()", 0, noneProbes.get());
 
         // Control: the same read that DOES harvest must probe.
         AtomicInteger projectedProbes = new AtomicInteger();
-        readChunkAligned(countingObject(full, projectedProbes), StripeColumnScope.PROJECTED, 64);
+        readChunkAligned(countingObject(full, projectedProbes), StripeColumnScope.PROJECTED);
         assertThat("a harvesting read pins the mtime, so it must probe", projectedProbes.get(), greaterThan(0));
     }
 
@@ -1586,14 +1586,14 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /** A record-aligned chunk read with a positive grid, so the scope is the only thing that can stop the harvest. */
-    private List<Map<String, Object>> readChunkAligned(StorageObject o, StripeColumnScope scope, long stripeSize) throws Exception {
+    private List<Map<String, Object>> readChunkAligned(StorageObject o, StripeColumnScope scope) throws Exception {
         FormatReadContext ctx = FormatReadContext.builder()
             .batchSize(1000)
             .recordAligned(true)
             .firstSplit(true)
             .lastSplit(true)
             .splitStartByte(0L)
-            .stats(0L, stripeSize, true)
+            .stats(0L, 64L, true)
             .statsColumnScope(scope)
             .build();
         ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();

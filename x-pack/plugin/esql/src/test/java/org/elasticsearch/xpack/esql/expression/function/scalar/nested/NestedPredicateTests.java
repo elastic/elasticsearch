@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -79,8 +80,6 @@ public class NestedPredicateTests extends ESTestCase {
 
         assertThat(replaced.body(), equalTo(newBody));
         assertThat(replaced.path(), equalTo(predicate.path()));
-        assertThat(replaced.inputs(), equalTo(predicate.inputs()));
-        assertThat(replaced.relativePaths(), equalTo(predicate.relativePaths()));
         assertThat(replaced.queryBuilder(), equalTo(predicate.queryBuilder()));
         assertThat(replaced.configuration(), equalTo(predicate.configuration()));
     }
@@ -93,6 +92,27 @@ public class NestedPredicateTests extends ESTestCase {
         assertThat(withQuery.hashCode(), not(equalTo(predicate.hashCode())));
         assertThat(withQuery, equalTo(predicate.withQueryBuilder(QueryBuilders.matchAllQuery())));
         assertThat(withQuery.hashCode(), equalTo(predicate.withQueryBuilder(QueryBuilders.matchAllQuery()).hashCode()));
+    }
+
+    public void testRewritingTheBodyToOneThatReadsNoChildLoadsNoChild() {
+        NestedPredicate predicate = analyzedPredicate(EVALUABLE_QUERY);
+        assertThat(predicate.inputs(), is(not(empty())));
+
+        NestedPredicate replaced = predicate.replaceChildren(List.of(new Literal(Source.EMPTY, true, DataType.BOOLEAN)));
+
+        assertThat(replaced.inputs(), is(empty()));
+        assertThat(replaced.relativePaths(), is(empty()));
+    }
+
+    public void testRewritingTheBodyKeepsOnlyTheChildrenItStillReads() {
+        NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == \"a\" AND items.qty > 2) | LIMIT 10");
+        assertThat(predicate.relativePaths(), equalTo(List.of("sku", "qty")));
+        And body = (And) predicate.body();
+
+        NestedPredicate replaced = predicate.replaceChildren(List.of(body.right()));
+
+        assertThat(replaced.relativePaths(), equalTo(List.of("qty")));
+        assertThat(replaced.inputs(), equalTo(predicate.inputs().subList(1, 2)));
     }
 
     public void testRewritingTheChildrenToTheSameExpressionsChangesNothing() {

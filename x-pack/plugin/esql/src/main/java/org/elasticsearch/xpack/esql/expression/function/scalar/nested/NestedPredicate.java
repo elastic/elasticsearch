@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -203,9 +204,20 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
         return NodeInfo.create(this, NestedPredicate::new, path, body, inputs, relativePaths, queryBuilder, configuration());
     }
 
+    /** A rewritten body may no longer read some child fields, and those are not loaded. */
     @Override
     public NestedPredicate replaceChildren(List<Expression> newChildren) {
-        return new NestedPredicate(source(), path, newChildren.getFirst(), inputs, relativePaths, queryBuilder, configuration());
+        Expression newBody = newChildren.getFirst();
+        AttributeSet read = newBody.references();
+        List<Attribute> keptInputs = new ArrayList<>();
+        List<String> keptPaths = new ArrayList<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            if (read.contains(inputs.get(i))) {
+                keptInputs.add(inputs.get(i));
+                keptPaths.add(relativePaths.get(i));
+            }
+        }
+        return new NestedPredicate(source(), path, newBody, keptInputs, keptPaths, queryBuilder, configuration());
     }
 
     /** The inputs are loaded from the child documents by {@link NestedChildren}, so they are not columns of the parent row. */

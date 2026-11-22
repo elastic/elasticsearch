@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -272,16 +273,27 @@ public class MinMaxPushdownIT extends AbstractEsqlIntegTestCase {
                 + "), max = MAX("
                 + field
                 + ") | EVAL min = TO_LONG(min), max = TO_LONG(max)";
+            // the bounds of what is indexed, which is what the metadata holds
+            List<Long> indexed = switch (field) {
+                case "x" -> List.of(100L, 119L);
+                case "d" -> List.of(BASE_DATE, BASE_DATE + 19_000L);
+                case "dn" -> List.of(BASE_DATE * 1_000_000L, BASE_DATE * 1_000_000L + 19_000_000L);
+                default -> throw new IllegalArgumentException(field);
+            };
 
             Outcome metadata = profiled(query, null);
             assertThat(field, metadata.localSource, is(true));
+            assertThat(field, asLongs(metadata.row), equalTo(indexed));
 
             Outcome storedPlan = profiled(query, null, stored);
             // a filter that keeps every document makes the same query a scan for sure
             Outcome reference = profiled(query, QueryBuilders.rangeQuery("other").gte(0), stored);
             assertThat(field, reference.luceneSource, is(true));
             assertThat(field, reference.localSource, is(false));
-            assertThat(field, storedPlan.row, equalTo(reference.row));
+            // a number that is not in the stored source reads as null, a date still comes from its doc values
+            List<Long> scanned = isDate ? indexed : Arrays.asList(null, null);
+            assertThat(field + " as a scan reads it", asLongs(reference.row), equalTo(scanned));
+            assertThat(field, asLongs(storedPlan.row), equalTo(scanned));
             assertThat(field + " is answered from the metadata only if it is a date", storedPlan.localSource, is(isDate));
             assertThat(field, storedPlan.luceneSource, is(isDate == false));
         }

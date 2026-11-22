@@ -82,8 +82,11 @@ import java.util.List;
  * </p>
  */
 public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOperator {
-    /** The warning for a multivalued key, which matches nothing, on either side. The same as {@code LOOKUP JOIN}'s. */
-    private static final String MULTIVALUE_WARNING = "LOOKUP JOIN encountered multi-value";
+    /**
+     * The warning for a multivalued key on either side of a repeated-key join, which matches nothing. It names no join
+     * command, because the warning's first line already quotes the join's own text.
+     */
+    private static final String MULTIVALUE_WARNING = "JOIN encountered multi-value";
 
     /**
      * A single key column of the lookup table: its field name and the block

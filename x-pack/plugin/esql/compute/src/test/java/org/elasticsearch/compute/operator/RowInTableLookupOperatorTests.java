@@ -251,7 +251,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
                 firstContext.warnings(),
                 contains(
                     "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                    "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
                 )
             );
             assertTrue(secondContext.warnings().isEmpty());
@@ -345,7 +345,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             context.warnings(),
             contains(
                 "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
             )
         );
     }
@@ -386,7 +386,7 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
             context.warnings(),
             contains(
                 "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+                "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
             )
         );
     }

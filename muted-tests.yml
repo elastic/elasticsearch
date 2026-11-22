@@ -880,3 +880,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithoutPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/167009
+- class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testTripDropsClusterWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/167022

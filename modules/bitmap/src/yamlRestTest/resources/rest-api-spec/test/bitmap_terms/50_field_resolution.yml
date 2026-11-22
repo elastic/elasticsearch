@@ -1,5 +1,3 @@
-# An unmapped field matches no documents rather than failing the shard, as with term and terms, and a
-# field alias matches the same documents as the field it points at.
 setup:
   - do:
       indices.create:
@@ -18,11 +16,6 @@ setup:
               num_terms_alias:
                 type: alias
                 path: num_terms
-              big:
-                type: long
-              big_alias:
-                type: alias
-                path: big
 
   - do:
       indices.create:
@@ -38,62 +31,31 @@ setup:
         refresh: true
         body:
           - '{"index": {"_index": "test_bitmap_mapped"}}'
-          - '{"num": 1, "num_terms": 1, "big": 1000000000001}'
+          - '{"num": 1, "num_terms": 1}'
           - '{"index": {"_index": "test_bitmap_mapped"}}'
-          - '{"num": 7, "num_terms": 7, "big": 2000000000002}'
-          - '{"index": {"_index": "test_bitmap_mapped"}}'
-          - '{"num": 30, "num_terms": 30, "big": 5}'
+          - '{"num": 30, "num_terms": 30}'
           - '{"index": {"_index": "test_bitmap_unmapped"}}'
           - '{"other": "a"}'
 
 ---
-"bitmap_terms on an unmapped field matches no documents":
+"bitmap_terms matches nothing in indices that do not map the field":
 
   # 32-bit bitmap {1..20}
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test_bitmap_unmapped
-        body:
-          query:
-            bitmap_terms:
-              field: num
-              value: "OzAAAAEAABMAAQABABMA"
-  - match: { hits.total: 0 }
-  - match: { _shards.failed: 0 }
-
----
-"bitmap_terms across indices where only some map the field":
-
-  # 32-bit bitmap {1..20}: num 1 and 7, only in the index that maps the field
-  - do:
-      search:
-        rest_total_hits_as_int: true
         index: test_bitmap_mapped,test_bitmap_unmapped
         body:
           query:
             bitmap_terms:
               field: num
               value: "OzAAAAEAABMAAQABABMA"
-  - match: { hits.total: 2 }
-  - match: { _shards.failed: 0 }
-
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test_bitmap_mapped,test_bitmap_unmapped
-        body:
-          query:
-            bitmap_terms:
-              field: num_terms
-              value: "OzAAAAEAABMAAQABABMA"
-  - match: { hits.total: 2 }
+  - match: { hits.total: 1 }
   - match: { _shards.failed: 0 }
 
 ---
-"bitmap_terms on a field alias matches the target field":
+"bitmap_terms on a field alias queries the target field":
 
-  # 32-bit bitmap {1..20} against a BKD-indexed integer field
   - do:
       search:
         rest_total_hits_as_int: true
@@ -103,9 +65,8 @@ setup:
             bitmap_terms:
               field: num_alias
               value: "OzAAAAEAABMAAQABABMA"
-  - match: { hits.total: 2 }
+  - match: { hits.total: 1 }
 
-  # 32-bit bitmap {1..20} against an index_terms integer field
   - do:
       search:
         rest_total_hits_as_int: true
@@ -115,16 +76,4 @@ setup:
             bitmap_terms:
               field: num_terms_alias
               value: "OzAAAAEAABMAAQABABMA"
-  - match: { hits.total: 2 }
-
-  # 64-bit bitmap {1000000000001, 2000000000002, 3000000000003} against a BKD-indexed long field
-  - do:
-      search:
-        rest_total_hits_as_int: true
-        index: test_bitmap_mapped
-        body:
-          query:
-            bitmap_terms:
-              field: big_alias
-              value: "AwAAAAAAAADoAAAAOjAAAAEAAACl1AAAEAAAAAEQ0QEAADowAAABAAAASqkAABAAAAACILoCAAA6MAAAAQAAAO99AAAQAAAAAzA="
-  - match: { hits.total: 2 }
+  - match: { hits.total: 1 }

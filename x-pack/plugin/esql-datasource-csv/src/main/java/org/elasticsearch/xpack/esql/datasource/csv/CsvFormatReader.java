@@ -4843,6 +4843,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         && projectionDependentDrop == false
                         && statsColumnScope != StripeColumnScope.NONE) {
                         if (statsStripeSize > 0) {
+                            // Nothing on this branch reads columnStats, so the inline fold must never have been
+                            // armed. Pinned here rather than beside the gate that decides it, because removing
+                            // the gate's statsStripeSize term moves no output -- it only folds a min/max/null
+                            // per cell into an accumulator this branch then drops.
+                            assert columnStats == null : "the inline column fold must stay disarmed under a stripe grid";
                             // Chunk-parallel read: only per-stripe fragments are cacheable. Emit one
                             // stripe-addressed fragment per stripe this chunk touched (the coordinator
                             // interval-covers and folds them) if capture stayed aligned and non-empty;

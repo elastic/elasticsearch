@@ -1,0 +1,7 @@
+area: Search
+issues:
+ - 159108
+pr: 167036
+summary: Do not allow base64 encoded vectors when dims not already set for the vector
+  field
+type: bug

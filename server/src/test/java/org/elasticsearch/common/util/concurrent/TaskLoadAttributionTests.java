@@ -216,6 +216,40 @@ public class TaskLoadAttributionTests extends ESTestCase {
     }
 
     /**
+     * Retargeting charges the task so far to its target, and the rest to the new one.
+     */
+    public void testRetargetChargesTheTaskSoFarToItsTarget() {
+        onPoolThread(clocks -> {
+            Charges first = new Charges();
+            Charges second = new Charges();
+            TaskLoadAttribution.taskStarted(clocks.now);
+            TaskLoadAttribution.attribute(first);
+            clocks.cpu += 300;
+            TaskLoadAttribution.retarget(second, clocks.now + TASK_NANOS);
+            assertSame(second, TaskLoadAttribution.target());
+            assertThat(first, contains(new Charge(TASK_NANOS, 300)));
+            clocks.cpu += 200;
+            TaskLoadAttribution.taskCompleted(3 * TASK_NANOS, clocks.now + 3 * TASK_NANOS);
+            assertThat(first, contains(new Charge(TASK_NANOS, 300)));
+            assertThat(second, contains(new Charge(2 * TASK_NANOS, 200)));
+        });
+    }
+
+    /**
+     * Retargeting a task without a target charges it all to the new one.
+     */
+    public void testRetargetWithoutTargetChargesTheWholeTask() {
+        onPoolThread(clocks -> {
+            Charges charges = new Charges();
+            TaskLoadAttribution.taskStarted(clocks.now);
+            TaskLoadAttribution.retarget(charges, clocks.now + TASK_NANOS);
+            clocks.cpu += 300;
+            TaskLoadAttribution.taskCompleted(2 * TASK_NANOS, clocks.now + 2 * TASK_NANOS);
+            assertThat(charges, contains(new Charge(2 * TASK_NANOS, 300)));
+        });
+    }
+
+    /**
      * Outside a pool task nothing measures the CPU time, so the time counts as CPU time.
      */
     public void testOutsideAPoolTaskTheTimeCountsAsCpuTime() {

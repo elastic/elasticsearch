@@ -1369,8 +1369,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
-                // acquiring the search contexts and planning the batch with them is work for its shards
-                TaskLoadAttribution.attribute(load.charging(shardsLoad(shards)));
+                // acquiring the search contexts and planning the batch with them is work for its shards, also when the task
+                // that completed the previous batch runs it
+                TaskLoadAttribution.retarget(load.charging(shardsLoad(shards)), System.nanoTime());
                 var newContexts = new ArrayList<SearchContext>();
                 for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                     SearchContext context = null;

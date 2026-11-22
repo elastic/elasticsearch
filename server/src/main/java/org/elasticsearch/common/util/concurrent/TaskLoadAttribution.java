@@ -159,6 +159,24 @@ public final class TaskLoadAttribution {
     }
 
     /**
+     * Charges the task running on this thread to {@code target} from {@code nowNanos} on, and up to then to the target it had.
+     * Use it when the same task goes on with work for another target.
+     */
+    public static void retarget(Target target, long nowNanos) {
+        Task task = task();
+        if (task == null || task.running == false || task.target == target) {
+            return;
+        }
+        if (task.target != null) {
+            chargeSoFar(task.target, nowNanos);
+        }
+        task.target = target;
+        if (task.cpuReadNanos == UNREAD) {
+            readCpu(task);
+        }
+    }
+
+    /**
      * Whether the time of the task running on this thread is charged by its pool.
      */
     public static boolean chargedByPool() {

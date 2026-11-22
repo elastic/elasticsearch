@@ -77,7 +77,7 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
     /**
      * A parsing coordinator is built only above parallelism 1, and the marker is written by a coordinator, so the
      * early-close arms pin it rather than depending on the runner's processor count. A release build rejects
-     * pragmas unless the request opts in, which {@link #scan} does.
+     * pragmas unless the request opts in, which {@link #run} does.
      */
     @Override
     protected QueryPragmas getPragmas() {
@@ -264,9 +264,7 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
 
         try (
             EsqlQueryResponse response = run(
-                // acceptedPragmaRisks because a release build otherwise rejects the parallelism pragma at
-                // request validation.
-                syncEsqlQueryRequest("FROM " + dataset + " " + tail).pragmas(getPragmas()).acceptedPragmaRisks(true).profile(true),
+                syncEsqlQueryRequest("FROM " + dataset + " " + tail).profile(true),
                 TimeValue.timeValueMinutes(5)
             )
         ) {

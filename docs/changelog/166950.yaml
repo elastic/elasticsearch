@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166950
+summary: Push count by keyword to Lucene
+type: enhancement

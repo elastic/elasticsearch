@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plugin.TransportEsqlStreamQueryAction;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Iterator;
 import java.util.List;
@@ -49,6 +48,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.xpack.esql.action.NdjsonRowWriter.NEWLINE;
+import static org.elasticsearch.xpack.esql.action.RestEsqlStreamQueryAction.NDJSON_MEDIA_TYPE;
 
 /**
  * REST listener for the streaming ES|QL query endpoint. Subscribes to a {@link PageStreamPublisher}
@@ -99,8 +100,6 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 public class EsqlStreamResponseListener implements ActionListener<ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(EsqlStreamResponseListener.class);
-    private static final String NDJSON_CONTENT_TYPE = "application/x-ndjson";
-    private static final byte[] NEWLINE = "\n".getBytes(StandardCharsets.UTF_8);
 
     private final RestChannel channel;
     private final ThreadContext threadContext;
@@ -535,41 +534,35 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
+            return NDJSON_MEDIA_TYPE;
         }
     }
 
     private class NdjsonPageBodyPart implements ChunkedRestResponseBodyPart {
         private final Page page;
-        private final List<ColumnInfoImpl> cols;
-        private final boolean[] nullColumns;
-        private final ZoneId zoneId;
-
-        // Resume state across encodeChunk calls.
-        // target is the current chunk's output stream; set at the top of each encodeChunk and nulled
-        // before returning so that out never writes to a stream that has already been moved/closed.
-        private RecyclerBytesStreamOutput target;
-        private final OutputStream out = new OutputStream() {
+        // Holds the resume state across encodeChunk calls: the converters and the next row of the page.
+        private final NdjsonRowWriter rows;
+        private boolean encoded = false;           // true once the part is done: last row written, limit reached, or failure
+        // The rows and bytes of the chunk being written so far, counted by the limit below as each row is written. The limit check
+        // adds them to the totals of the response, which only include a chunk once it is done.
+        private int rowsInChunk;
+        private long bytesInChunk;
+        private final NdjsonRowWriter.RowLimit limit = new NdjsonRowWriter.RowLimit() {
             @Override
-            public void write(int b) throws IOException {
-                target.write(b);
+            public boolean reached() {
+                return options.reached(rowsWritten.get() + rowsInChunk, bytesWritten.get() + bytesInChunk);
             }
 
             @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                target.write(b, off, len);
+            public void rowWritten(int bytes) {
+                rowsInChunk++;
+                bytesInChunk += bytes;
             }
         };
-        private PositionToXContent[] converters;   // built once on the first encodeChunk
-        private BytesRef scratch;                  // built once on the first encodeChunk
-        private int nextRow = 0;                   // resume cursor into the page
-        private boolean encoded = false;           // true only after the last row has been written
 
         NdjsonPageBodyPart(Page page, List<ColumnInfoImpl> cols, boolean[] nullColumns, ZoneId zoneId) {
             this.page = page;
-            this.cols = cols;
-            this.nullColumns = nullColumns;
-            this.zoneId = zoneId;
+            this.rows = new NdjsonRowWriter(page, cols, nullColumns, zoneId);
         }
 
         @Override
@@ -593,58 +586,19 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                 throw new IllegalStateException("in-flight page was already released; the response is torn down");
             }
             final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-            target = chunkStream;
             try {
-                final int rowCount = page.getPositionCount();
-                final int colCount = cols.size();
-                if (converters == null) {
-                    // First chunk: build the converters once; they are reused for every row of the page.
-                    scratch = new BytesRef();
-                    converters = new PositionToXContent[colCount];
-                    for (int c = 0; c < colCount; c++) {
-                        if (nullColumns == null || nullColumns[c] == false) {
-                            converters[c] = PositionToXContent.positionToXContent(cols.get(c), page.getBlock(c), zoneId, scratch);
-                        }
-                    }
-                }
-                // Emit rows until the chunk reaches sizeHint. Each row is its own JSON value followed by a
-                // newline, so it gets its own builder (a builder cannot write two top-level values without
-                // a separator). Closing it flushes Jackson's internal write buffer through out into
-                // chunkStream, so size() is accurate to the row just written; without that it would only
-                // advance in ~8 KB steps. Measuring after the row (not before) guarantees at least one row
-                // per call, so a part with a tiny sizeHint still makes forward progress.
-                //
-                // The limits are checked after each row, which is the same as checking before the next one, except that
-                // it never produces an empty chunk. A limit that falls on the last row of the page is not acted on here:
-                // whether the result goes on is only known when the next signal arrives (see onNext and onComplete).
-                final long rowsBefore = rowsWritten.get();
-                final long bytesBefore = bytesWritten.get();
-                int rowsInChunk = 0;
-                boolean limitInsidePage = false;
-                while (nextRow < rowCount) {
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder(out)) {
-                        builder.startArray();
-                        for (int col = 0; col < colCount; col++) {
-                            if (converters[col] != null) {
-                                converters[col].positionToXContent(builder, channel.request(), nextRow);
-                            }
-                        }
-                        builder.endArray();
-                    }
-                    chunkStream.write(NEWLINE);
-                    nextRow++;
-                    rowsInChunk++;
-                    if (nextRow < rowCount && options.reached(rowsBefore + rowsInChunk, bytesBefore + chunkStream.size())) {
-                        limitInsidePage = true;
-                        break;
-                    }
-                    if (chunkStream.size() >= sizeHint) {
-                        break;
-                    }
-                }
-                rowsWritten.addAndGet(rowsInChunk);
+                // The writer writes rows until the chunk reaches sizeHint, the page ends or a limit is reached. It checks the limit
+                // before each row, and once more when the chunk is full, so a reached limit is reported by the call that wrote the
+                // last row and never costs an extra, empty chunk. A limit that falls on the last row of the page is not acted on
+                // here: whether the result goes on is only known when the next signal arrives (see onNext and onComplete).
+                rowsInChunk = 0;
+                bytesInChunk = 0;
+                final int written = rows.writeRows(chunkStream, channel.request(), sizeHint, limit);
+                assert written > 0 || rows.allRowsWritten() : "a page part is only created while the limit is not reached (see onNext)";
+                final boolean limitInsidePage = rows.stoppedAtLimit();
+                rowsWritten.addAndGet(written);
                 bytesWritten.addAndGet(chunkStream.size());
-                if (nextRow == rowCount || limitInsidePage) {
+                if (rows.allRowsWritten() || limitInsidePage) {
                     encoded = true;
                 }
                 if (limitInsidePage) {
@@ -652,14 +606,11 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
                     // first so that next_offset in the last line includes this chunk.
                     finishAtLimit();
                 }
-                final var result = chunkStream.moveToBytesReference();
-                target = null;
-                return result;
+                return chunkStream.moveToBytesReference();
             } catch (Exception e) {
                 logger.error("failure encoding page chunk", e);
                 encoded = true; // part is dead; never re-enter it
                 IOUtils.closeWhileHandlingException(chunkStream);
-                target = null;
                 releasePage();
                 throw e;
             } finally {
@@ -677,7 +628,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
+            return NDJSON_MEDIA_TYPE;
         }
     }
 
@@ -798,7 +749,7 @@ public class EsqlStreamResponseListener implements ActionListener<ActionResponse
 
         @Override
         public String getResponseContentTypeString() {
-            return NDJSON_CONTENT_TYPE;
+            return NDJSON_MEDIA_TYPE;
         }
     }
 

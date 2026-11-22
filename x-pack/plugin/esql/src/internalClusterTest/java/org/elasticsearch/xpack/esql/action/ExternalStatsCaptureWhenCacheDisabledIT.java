@@ -43,32 +43,20 @@ import static org.hamcrest.Matchers.not;
  *
  * <p>Statistics are harvested for that cache and nothing else: with it disabled,
  * {@code ExternalSourceCacheService.reconcileSourceStatsFromContributions} returns on its first line, so every
- * contribution a scan produces is discarded on the coordinator. Harvesting anyway is scan-path cost spent on a
- * result no one accepts.
+ * contribution a scan produces is discarded on the coordinator.
  *
- * <p>Two terms, which scale differently and so are asserted separately.
+ * <p>Two terms are asserted separately because they scale differently. <b>Measurements</b> — row counts and
+ * per-column min/max/null — scale with rows scanned. The <b>unclean-close marker</b> is one map per FILE, written
+ * by whichever parsing coordinator ran when a read did not drain cleanly, so it scales with file count and
+ * survives any fix scoped to the measurements.
  *
- * <ul>
- *   <li><b>Measurements</b> — per-stripe and whole-file row counts and per-column min/max/null. These scale with
- *       rows scanned, and a clean exhaustive scan is what produces them.</li>
- *   <li><b>The unclean-close marker</b> — one map per FILE, written by whichever parsing coordinator ran when a
- *       read did not drain cleanly. It scales with file count rather than bytes, so it survives any fix scoped to
- *       the measurements. It qualifies measurements for the reconciler, so with nothing to qualify and no
- *       reconcile to read it, it is pure overhead.</li>
- * </ul>
- *
- * <p>Reaching that marker takes care. A {@code LIMIT} pushed INTO the source does NOT reach it: a pushed limit
+ * <p>Reaching that marker takes care. A {@code LIMIT} pushed INTO the source does not reach it: a pushed limit
  * leaves {@code rowLimit != NO_LIMIT}, and {@code AsyncExternalSourceOperatorFactory.openWithParallelism} returns
- * null for that, so no coordinator is built and the single-threaded read writes no marker. The marker needs a read the
- * source runs uncapped that still stops short — a LIMIT behind a filter the planner cannot push, which installs a
- * downstream observed limiter instead. Hence the {@code EVAL}-derived predicate below, and the pinned parsing
- * parallelism, since a coordinator is only built above one.
+ * null for that, so no coordinator is built and the single-threaded read writes no marker. It needs a read the
+ * source runs uncapped that still stops short — hence the {@code EVAL}-derived predicate below, and the pinned
+ * parsing parallelism, since a coordinator is only built above one.
  *
- * <p>Each assertion of absence is preceded, in the same test, by the same query against an enabled cache. Without
- * that control an empty sink would also be what a test that stopped exercising the read path looks like.
- *
- * <p>Each arm reads its OWN directory and dataset: a shared one would let a later scan answer from an earlier
- * one's statistics and capture nothing for a reason this test is not about.
+ * <p>Each arm reads its own directory and dataset, so no scan can answer from an earlier one's statistics.
  */
 public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDataSourceIT {
 
@@ -83,10 +71,9 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
     }
 
     /**
-     * A parsing coordinator is built only above parallelism 1, and the marker is written by a coordinator — so the
+     * A parsing coordinator is built only above parallelism 1, and the marker is written by a coordinator, so the
      * early-close arms pin it rather than depending on the runner's processor count. A release build rejects
-     * pragmas at request validation unless the request opts in, which {@link #scan} does, so this holds in both
-     * build types.
+     * pragmas unless the request opts in, which {@link #scan} does.
      */
     @Override
     protected QueryPragmas getPragmas() {
@@ -94,9 +81,8 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
     }
 
     /**
-     * Pin every query to one coordinator, as the sibling warm-fold ITs do. The capture itself is read off the data
-     * node's operator status, but the enabled-cache control must be a genuine COLD scan, and what has already been
-     * harvested is held per coordinator.
+     * Pin every query to one coordinator, as the sibling warm-fold ITs do: the enabled-cache control must be a
+     * genuine COLD scan, and what has already been harvested is held per coordinator.
      */
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
@@ -118,8 +104,8 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
     }
 
     /**
-     * The measurement term. An exhaustive {@code COUNT(*)} is the shape that harvests most reliably: row count is
-     * recorded for every scope but {@code none}, so it does not depend on which columns the query projects.
+     * The measurement term. Row count is recorded for every scope but {@code none}, so an exhaustive
+     * {@code COUNT(*)} harvests without depending on which columns the query projects.
      */
     private void assertCleanScanHarvestOnlyWhenEnabled(String format) throws Exception {
         try {
@@ -131,8 +117,7 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
             Map<String, List<Map<String, Object>>> disabled = scan(format, "clean_off", "| STATS COUNT(*)", exhausted());
             assertThat("a disabled cache must harvest nothing", disabled, anEmptyMap());
 
-            // Back on, against a file neither earlier arm read: the flag is resolved per read through a
-            // supplier rather than captured once, so re-enabling restores harvesting.
+            // Back on, against a file neither earlier arm read: the flag is resolved per read, not captured once.
             setCacheEnabled(true);
             Map<String, List<Map<String, Object>>> reenabled = scan(format, "clean_again", "| STATS COUNT(*)", exhausted());
             assertThat("re-enabling the cache must put harvesting back", reenabled, not(anEmptyMap()));
@@ -178,24 +163,18 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
 
     /**
      * {@code esql.external.cache.enabled} is the only one of the three harvest settings carrying
-     * {@code Setting.Property.Dynamic}: {@code esql.external.cache.stripe.size} and
-     * {@code esql.external.cache.stripe.columns} are node-scoped alone. So a node's harvest scope used to be
-     * fixed for the process and every read of a file resolved the same one, and now two reads of ONE file can
-     * straddle a toggle. What keeps that safe is the clear on the false edge -- {@code setEnabled(false)} calls
-     * {@code clearAll()} -- so nothing measured before the toggle can be served after it. This pins that edge
+     * {@code Setting.Property.Dynamic}, so two reads of ONE file can now straddle a toggle. What keeps that safe
+     * is the clear on the false edge -- {@code setEnabled(false)} calls {@code clearAll()}. This pins that edge
      * against a single file, which the arms above cannot: each of them deliberately reads its own.
      *
-     * <p>Row counts are what the assertions read, through {@code documentsFound}: a warm fold answers
-     * {@code COUNT(*)} without reading a row, so {@code 0} is a served answer and the file's own total is a
-     * scan. Every step also asserts the value, because the failure that matters is a wrong count rather than
-     * a slow one.
+     * <p>The assertions read {@code documentsFound}: a warm fold answers {@code COUNT(*)} without reading a row,
+     * so {@code 0} is a served answer and the file's own total is a scan.
      *
-     * <p>It does not reach a straddle INSIDE one query -- two splits of one file whose operator factories are
-     * built either side of the settings update. That is a race between cluster-state propagation and execution,
-     * so it has no deterministic form here. What bounds it instead is that a half-measured file commits no
-     * whole-file count at all: {@code ExternalSourceCacheService.foldStripeFragments} takes
-     * {@code lastOrdinal} only from a fragment chain reaching EOF, and a truncated read being unservable is
-     * pinned end to end by {@code ExternalTruncatedReadNeverWarmsIT}.
+     * <p>It does not reach a straddle INSIDE one query -- two splits whose operator factories are built either
+     * side of the settings update -- which is a race against cluster-state propagation with no deterministic form
+     * here. What bounds that instead is that a half-measured file commits no whole-file count at all:
+     * {@code ExternalSourceCacheService.foldStripeFragments} takes {@code lastOrdinal} only from a fragment chain
+     * reaching EOF, and {@code ExternalTruncatedReadNeverWarmsIT} pins a truncated read being unservable.
      */
     public void testTogglingTheCacheOffAndOnLeavesTheSameFileCold() throws Exception {
         Path dir = createTempDir();

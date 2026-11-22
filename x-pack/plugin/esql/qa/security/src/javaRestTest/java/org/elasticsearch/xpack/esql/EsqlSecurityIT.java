@@ -213,6 +213,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
         client().performRequest(indexDoc);
     }
 
+    private void indexMinMaxDocument(int id, int n, String org) throws IOException {
+        Request indexDoc = new Request("PUT", "min-max-dls/_doc/" + id);
+        indexDoc.setJsonEntity("{\"n\":" + n + ",\"org\":\"" + org + "\"}");
+        client().performRequest(indexDoc);
+    }
+
     /**
      * Indexes a document with the shared FLS-test shape into either {@link #INDEX_PARTIAL_MAPPING} (where most fields
      * end up unmapped via {@code dynamic:false}) or {@link #INDEX_FULL_MAPPING} (where every field is mapped with its
@@ -335,6 +341,15 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("index", 1, 10.0, "sales");
         indexDocument("index", 2, 20.0, "engineering");
         refresh("index");
+
+        String minMaxMapping = """
+            "properties":{"n": {"type": "integer"}, "org": {"type": "keyword"}}
+            """;
+        createIndex("min-max-dls", indexSettings(), mappingPrefix() + minMaxMapping);
+        indexMinMaxDocument(1, 5, "marketing");
+        indexMinMaxDocument(2, 100, "sales");
+        indexMinMaxDocument(3, 1, "sales");
+        refresh("min-max-dls");
 
         createIndex("index-user1", indexSettings(), mappingPrefix() + mapping);
         indexDocument("index-user1", 1, 12.0, "engineering");
@@ -1470,6 +1485,27 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     )
                 )
         );
+    }
+
+    /**
+     * An ungrouped {@code MIN}/{@code MAX} over an integer field can be answered from segment metadata, which spans every document
+     * of the segment. Document-level security hides documents without deleting them from the segment, so the answer must still
+     * come from the documents the role may see.
+     */
+    public void testDLS_MinMaxIgnoresFilteredDocuments() throws Exception {
+        String query = "FROM min-max-dls | STATS min_n = MIN(n), max_n = MAX(n)";
+        List<MapMatcher> expectedColumns = List.of(column("min_n", "integer"), column("max_n", "integer"));
+
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(1, 100)))
+        );
+
+        Response dlsResp = runESQLCommand("dls_user", query);
+        assertOK(dlsResp);
+        assertMap(entityAsMap(dlsResp), matchesMap().extraOk().entry("columns", expectedColumns).entry("values", List.of(List.of(5, 5))));
     }
 
     public void testDLS_DoesNotExposeFilteredDocuments_WithUnmappedFieldsLoadAll() throws Exception {

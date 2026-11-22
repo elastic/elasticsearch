@@ -25,8 +25,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Replaces the {@code SUM(TO_DOUBLE(x))} that {@code AVG} builds over a {@code long} {@code x} with {@link SumLongAsDouble}, which adds up the {@code long}s
- * themselves instead of converting each one to a {@code double} first and running a Kahan summation over them:
+ * Replaces the {@code SUM(TO_DOUBLE(x))} that {@code AVG} builds over a {@code long} {@code x} with {@link SumLongAsDouble},
+ * which adds up the {@code long}s themselves instead of converting each one to a {@code double} first and running a Kahan
+ * summation over them:
  * <pre>{@code
  *   Aggregate[[], [SUM($$sum, ...) AS s, COUNT(x) AS c]]
  *   \_Eval[[TODOUBLE(x) AS $$sum]]
@@ -41,7 +42,9 @@ import java.util.List;
  * That is the shape of the {@code AVG} of a {@code long}, and only of that: a {@code TO_DOUBLE} that the user wrote keeps
  * rounding every value. {@link org.elasticsearch.xpack.esql.expression.function.aggregate.Avg} rewrites an average of a
  * {@code long} to {@code SUM(TO_DOUBLE(x)) / COUNT(x)}, and gives the conversion the source of the sum, which is how this
- * rule tells the two apart.
+ * rule tells the two apart. If the query also holds an equal, user-written, {@code TO_DOUBLE(x)}, the optimizer can merge
+ * the two before this rule runs, so the {@code AVG} may keep the old plan, or an explicit sum may get the exact one. The
+ * results differ only in the last digits.
  * <p>
  *     This is a local, data node, rule on purpose. {@link SumLongAsDouble} has the intermediate state of {@link Sum} of a
  *     {@code double}, and the coordinator plans, and merges the partial results of, the original {@link Sum}. So no node needs

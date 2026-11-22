@@ -207,18 +207,18 @@ public final class IntArrayVector extends AbstractVector implements IntVector {
      * loop-carried dependency chain. This is not cached, as it is expected to be called once per vector.
      */
     public long sum() {
-        final int count = getPositionCount();
-        long sum0 = 0;
+        final int size = getPositionCount();
         long sum1 = 0;
+        long sum2 = 0;
         int i = 0;
-        for (; i + 1 < count; i += 2) {
-            sum0 += values[i];
-            sum1 += values[i + 1];
+        for (; i < size - 1; i += 2) {
+            sum1 += values[i];
+            sum2 += values[i + 1];
         }
-        if (i < count) {
-            sum0 += values[i];
+        if ((size & 1) != 0) {
+            sum1 += values[size - 1];
         }
-        return sum0 + sum1;
+        return sum1 + sum2;
     }
 
     @Override

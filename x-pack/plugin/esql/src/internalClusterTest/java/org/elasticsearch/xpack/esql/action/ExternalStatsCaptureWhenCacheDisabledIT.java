@@ -302,18 +302,10 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
     }
 
     private static void writeNdjson(Path file) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < ROWS; i++) {
-            sb.append("{\"id\":")
-                .append(i)
-                .append(",\"value\":")
-                .append(i)
-                .append(",\"ts\":")
-                .append(TS_BASE_MILLIS + i)
-                .append(",\"pad\":\"")
-                .append(PAD)
-                .append("\"}\n");
+        try (Writer w = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+            for (int i = 0; i < ROWS; i++) {
+                w.write("{\"id\":" + i + ",\"value\":" + i + ",\"ts\":" + (TS_BASE_MILLIS + i) + ",\"pad\":\"" + PAD + "\"}\n");
+            }
         }
-        Files.writeString(file, sb.toString(), StandardCharsets.UTF_8);
     }
 }

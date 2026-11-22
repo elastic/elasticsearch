@@ -7,13 +7,18 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -43,6 +48,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -1531,6 +1537,63 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     /**
+     * The give-up line names the object, and an {@code https} dataset's resource is the user's own URL: a
+     * pre-signed one carries its signature in the query string, so the location the log names IS the credential.
+     * {@code ExternalFailuresTests} pins the redaction itself; this pins that both of this reader's call sites
+     * apply it, which no test of {@code redactHttpUrl} can. A store's own exception can quote the signed URL
+     * back, so each expectation also requires that no throwable rode along -- which is why the double throws
+     * with its own path in the message, as a storage SDK does.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader:DEBUG",
+        reason = "the give-up is a debug line, and this asserts neither its location nor a throwable carries the signature"
+    )
+    public void testAFailedMtimeProbeDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        byte[] full = twoColumnCsv(10);
+        try (MockLog mockLog = MockLog.capture(CsvFormatReader.class)) {
+            mockLog.addExpectation(giveUpWithoutAThrowable("the schema-resolution site", "resolve.csv"));
+            mockLog.addExpectation(giveUpWithoutAThrowable("the scan site", "scan.csv"));
+            // Paired with those two, so neither of them can pass by the line never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any line",
+                    CsvFormatReader.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*" + signature + "*"
+                )
+            );
+            new CsvFormatReader(blockFactory, "csv", List.of(".csv")).metadata(
+                failingMtimeObject(full, SIGNED_BASE + "resolve.csv?" + signature)
+            );
+            readChunkAligned(failingMtimeObject(full, SIGNED_BASE + "scan.csv?" + signature), StripeColumnScope.PROJECTED);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    private static final String SIGNED_BASE = "https://bucket.s3.example.com/data/";
+
+    /** Matches the give-up line for one object, and only on an event that carries no throwable. */
+    private static MockLog.LoggingExpectation giveUpWithoutAThrowable(String site, String objectName) {
+        return new MockLog.SeenEventExpectation(
+            site + ", naming the location without its query string",
+            CsvFormatReader.class.getCanonicalName(),
+            Level.DEBUG,
+            "*no last-modified for [" + SIGNED_BASE + objectName + "];*"
+        ) {
+            @Override
+            public boolean innerMatch(LogEvent event) {
+                return event.getThrown() == null; // the store's own message is not ours to redact
+            }
+        };
+    }
+
+    /** Serves the bytes but fails the mtime probe, as a store that carries no last-modified header does. */
+    private StorageObject failingMtimeObject(byte[] bytes, String path) {
+        return memoryObject(bytes, path, () -> { throw new IOException("this store serves no last-modified: " + path); });
+    }
+
+    /**
      * COUNT is documented as the row count alone, and on the direct-block path — the CSV default — nothing but
      * the scope kept per-column statistics out of its publish: the accumulator was built from the projected
      * attributes whenever the file was cacheable, and a whole-file publish is the one consumer that reads it.
@@ -1625,7 +1688,11 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
     }
 
     private StorageObject memoryObject(byte[] bytes, Instant fixedMtime) {
-        String uniquePath = "memory://" + UUID.randomUUID() + ".csv";
+        return memoryObject(bytes, "memory://" + UUID.randomUUID() + ".csv", () -> fixedMtime);
+    }
+
+    /** The mtime arrives through a supplier, so a case can make the probe fail as a store serving none does. */
+    private StorageObject memoryObject(byte[] bytes, String path, CheckedSupplier<Instant, IOException> mtime) {
         return new StorageObject() {
             @Override
             public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
@@ -1651,8 +1718,8 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
             }
 
             @Override
-            public Instant lastModified() {
-                return fixedMtime;
+            public Instant lastModified() throws IOException {
+                return mtime.get();
             }
 
             @Override
@@ -1662,7 +1729,7 @@ public class CsvStripeStatsCaptureTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of(uniquePath);
+                return StoragePath.of(path);
             }
         };
     }

@@ -734,7 +734,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "NDJSON read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
-                object.path(),
+                ExternalFailures.redactHttpUrl(object.path().toString()),
                 context.readSchema() == null ? "null" : "present(" + context.readSchema().size() + ")",
                 context.firstSplit(),
                 context.recordAligned(),

@@ -48,8 +48,8 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
     /**
      * Allow repeated build keys for callers that need every match, without relaxing the unique-key contract for other callers.
      * <p>
-     *     Repeated-key builds require every key component to be non-null. A caller that filters out rows with null keys must
-     *     filter the matching build-side values the same way, because the returned offsets index the rows in {@code keys}.
+     *     In a repeated-key build, a row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}. Warning
+     *     about a multivalued key is up to the caller. Other builds reject multivalued keys.
      * </p>
      */
     public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys, boolean repeatedKeys) {
@@ -64,7 +64,7 @@ public abstract sealed class RowInTableLookup implements Releasable permits Empt
                     "keys must have the same number of positions but [" + positions + "] != [" + keys[k].getPositionCount() + "]"
                 );
             }
-            if (keys[k].doesHaveMultivaluedFields()) {
+            if (repeatedKeys == false && keys[k].doesHaveMultivaluedFields()) {
                 throw new IllegalArgumentException("only single valued keys are supported");
             }
         }

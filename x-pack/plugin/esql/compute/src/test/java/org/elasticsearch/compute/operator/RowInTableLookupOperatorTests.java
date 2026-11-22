@@ -351,6 +351,47 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * A build row with a multivalued key matches nothing and warns, as {@code LOOKUP JOIN} does for such a document in its
+     * lookup index. A build row with a null key matches nothing without a warning.
+     */
+    public void testRepeatedTableSkipsMultivaluedBuildKeysAndWarns() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext context = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        LongBlock key;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(4)) {
+            builder.appendLong(7);
+            builder.beginPositionEntry().appendLong(7).appendLong(9).endPositionEntry();
+            builder.appendNull();
+            builder.appendLong(9);
+            key = builder.build();
+        }
+        try (key) {
+            var factory = new RowInTableLookupOperator.Factory(
+                new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) },
+                new int[] { 0 },
+                true,
+                new TestWarningsSource("join")
+            );
+            try (Operator operator = factory.get(context)) {
+                operator.addInput(new Page(blockFactory.newLongArrayVector(new long[] { 7, 9 }, 2).asBlock()));
+                try (Page output = operator.getOutput()) {
+                    IntBlock matches = output.getBlock(1);
+                    assertThat(toJavaObject(matches, 0), equalTo(0));
+                    assertThat(toJavaObject(matches, 1), equalTo(3));
+                }
+            }
+        }
+        context.finish();
+        assertThat(
+            context.warnings(),
+            contains(
+                "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+            )
+        );
+    }
+
+    /**
      * The driver that built the table can finish, closing its local breaker, while another driver still uses the
      * table. A closed local breaker keeps up to its maximum over-reservation of the bytes released to it, so the
      * table must be charged to the parent. These local breakers never pass released bytes on, which makes a wrong

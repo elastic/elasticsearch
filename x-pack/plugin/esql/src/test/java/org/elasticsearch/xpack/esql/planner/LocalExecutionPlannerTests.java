@@ -1591,19 +1591,63 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * A null build key fails the join: the caller must drop rows with a null key before the build side is materialized.
+     * A null key matches nothing, as in {@code LOOKUP JOIN}: the build row with one is never joined, and a probe row with one
+     * comes out once with null build values rather than matching it.
      */
-    public void testRepeatedKeyHashJoinNullBuildKeyThrows() {
+    public void testRepeatedKeyHashJoinNullKeyMatchesNothing() throws IOException {
+        HashJoin join = repeatedKeyHashJoin(
+            JoinTypes.LEFT,
+            longsWithNull(1L, null, 2L),
+            longs(10, 15, 20),
+            longsWithNull(1L, null, 1L),
+            longs(100, 200, 101)
+        );
+        assertThat(
+            longRows(runHashJoin(mapHashJoin(join))),
+            equalTo(List.of(List.of(10L, 100L, 1L), List.of(10L, 101L, 1L), Arrays.asList(15L, null, null), Arrays.asList(20L, null, 2L)))
+        );
+    }
+
+    /**
+     * A build row with a multivalued key matches none of its values and warns, as {@code LOOKUP JOIN} does for such a document
+     * in its lookup index.
+     */
+    public void testRepeatedKeyHashJoinMultivaluedBuildKeyMatchesNothing() throws IOException {
+        var blockFactory = TestBlockFactory.getNonBreakingInstance();
         Block buildKeys;
-        try (LongBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(3)) {
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
             builder.appendLong(1);
-            builder.appendNull();
-            builder.appendLong(1);
+            builder.beginPositionEntry().appendLong(1).appendLong(3).endPositionEntry();
+            builder.appendLong(3);
             buildKeys = builder.build();
         }
-        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, longs(1, 2), longs(10, 20), buildKeys, longs(100, 200, 101));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> runHashJoin(mapHashJoin(join)));
-        assertThat(e.getMessage(), equalTo("repeated-key lookup requires non-null build keys"));
+        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, longs(1, 3), longs(10, 30), buildKeys, longs(100, 200, 300));
+
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        List<List<Long>> rows = longRows(
+            runPlanned(planHashJoin(mapHashJoin(join)).driverFactories.get(0).driverSupplier().physicalOperation(), driverContext)
+        );
+        assertThat(rows, equalTo(List.of(List.of(10L, 100L, 1L), List.of(30L, 300L, 3L))));
+        assertThat(
+            driverContext.warnings(),
+            contains(
+                "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value"
+            )
+        );
+    }
+
+    private static Block longsWithNull(Long... values) {
+        try (LongBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(values.length)) {
+            for (Long value : values) {
+                if (value == null) {
+                    builder.appendNull();
+                } else {
+                    builder.appendLong(value);
+                }
+            }
+            return builder.build();
+        }
     }
 
     /**

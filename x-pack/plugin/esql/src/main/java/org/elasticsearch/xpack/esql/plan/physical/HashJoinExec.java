@@ -34,7 +34,7 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     private final List<Attribute> addedFields;
     /**
      * Whether the build side may repeat a key, so that a probe row comes out once for each build row it matches. Every build key
-     * must then be non-null and single-valued (see {@code RowInTableLookup#build}).
+     * must then be single-valued, and a null key matches nothing (see {@code RowInTableLookup#build}).
      */
     private final boolean repeatedKeys;
     private volatile List<Attribute> lazyOutput;

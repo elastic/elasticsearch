@@ -27,6 +27,8 @@ import java.util.List;
 
 /**
  * Keeps all build-side row offsets for each hash group so repeated keys can produce one output row per match.
+ * <p>
+ * A build row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}, so it stays out of the hash.
  */
 final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
     private final PackedValuesBlockHash hash;
@@ -35,28 +37,40 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
     private final IntArray rowIds;
 
     RepeatedKeyBlockHashRowInTableLookup(BlockFactory blockFactory, Block[] keys) {
-        int rowCount = keys[0].getPositionCount();
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keys.length);
         for (int k = 0; k < keys.length; k++) {
-            Block key = keys[k];
-            if (key.mayHaveNulls()) {
-                for (int p = 0; p < rowCount; p++) {
-                    if (key.isNull(p)) {
-                        throw new IllegalArgumentException("repeated-key lookup requires non-null build keys");
-                    }
-                }
-            }
-            groups.add(new BlockHash.GroupSpec(k, key.elementType()));
+            groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
         }
 
-        // The emit batch size counts ordinals, not bytes, and the hash keeps a buffer of that many ints while the table lives.
-        PackedValuesBlockHash builtHash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, 4096);
+        /*
+         * The hash would give a null key a group a null probe key finds, and a multivalued key a group for each of its values,
+         * so hash a copy of only the rows where every key holds one value. sourceRows maps each copied row to its row in keys.
+         */
+        IntArray sourceRows = null;
+        Block[] hashedKeys = keys;
+        PackedValuesBlockHash builtHash = null;
         IntArray offsets = null;
         IntArray rows = null;
         boolean success = false;
         try {
+            if (mayHaveUnmatchableRows(keys)) {
+                int keyRows = keys[0].getPositionCount();
+                sourceRows = blockFactory.bigArrays().newIntArray(keyRows, false);
+                int matchable = 0;
+                for (int row = 0; row < keyRows; row++) {
+                    if (isMatchable(keys, row)) {
+                        sourceRows.set(matchable++, row);
+                    }
+                }
+                if (matchable < keyRows) {
+                    hashedKeys = copyRows(blockFactory, keys, sourceRows, matchable);
+                }
+            }
+            int rowCount = hashedKeys[0].getPositionCount();
+            // The emit batch size counts ordinals, not bytes, and the hash keeps a buffer of that many ints while the table lives.
+            builtHash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, 4096);
             try (IntArray groupsByRow = blockFactory.bigArrays().newIntArray(rowCount, false)) {
-                builtHash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
+                builtHash.add(new Page(hashedKeys), new GroupingAggregatorFunction.AddInput() {
                     @Override
                     public void add(int positionOffset, IntArrayBlock groupIds) {
                         addBlock(positionOffset, groupIds);
@@ -75,7 +89,7 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                     }
 
                     /**
-                     * Build keys are single-valued and non-null, so each row has exactly one group.
+                     * The hashed keys are single-valued and non-null, so each row has exactly one group.
                      */
                     private void addBlock(int positionOffset, IntBlock groupIds) {
                         for (int p = 0; p < groupIds.getPositionCount(); p++) {
@@ -101,7 +115,7 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
                 rows = blockFactory.bigArrays().newIntArray(rowCount, false);
                 // Fill backwards so decrementing the end offsets yields ascending row ids and leaves the start offsets.
                 for (int row = rowCount - 1; row >= 0; row--) {
-                    rows.set(offsets.increment(groupsByRow.get(row), -1), row);
+                    rows.set(offsets.increment(groupsByRow.get(row), -1), hashedKeys == keys ? row : sourceRows.get(row));
                 }
             }
             this.hash = builtHash;
@@ -109,8 +123,58 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
             this.rowIds = rows;
             success = true;
         } finally {
+            Releasables.closeExpectNoException(sourceRows);
+            if (hashedKeys != keys) {
+                Releasables.closeExpectNoException(hashedKeys);
+            }
             if (success == false) {
                 Releasables.closeExpectNoException(builtHash, offsets, rows);
+            }
+        }
+    }
+
+    private static boolean mayHaveUnmatchableRows(Block[] keys) {
+        for (Block key : keys) {
+            if (key.mayHaveNulls() || key.mayHaveMultivaluedFields()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether every key holds exactly one value at {@code row}: a null holds none.
+     */
+    private static boolean isMatchable(Block[] keys, int row) {
+        for (Block key : keys) {
+            if (key.getValueCount(row) != 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Copies the first {@code count} rows listed in {@code sourceRows} out of each key.
+     */
+    private static Block[] copyRows(BlockFactory blockFactory, Block[] keys, IntArray sourceRows, int count) {
+        Block[] copies = new Block[keys.length];
+        boolean success = false;
+        try {
+            for (int k = 0; k < keys.length; k++) {
+                try (Block.Builder builder = keys[k].elementType().newBlockBuilder(count, blockFactory)) {
+                    for (int i = 0; i < count; i++) {
+                        int row = sourceRows.get(i);
+                        builder.copyFrom(keys[k], row, row + 1);
+                    }
+                    copies[k] = builder.build();
+                }
+            }
+            success = true;
+            return copies;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(copies);
             }
         }
     }

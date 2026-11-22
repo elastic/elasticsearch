@@ -737,14 +737,6 @@ public class EsqlSession {
                         finalConfiguration.flattenedKeys(minimumVersion)
                     );
 
-                    // Before the analyzeOnly return, so that validating a view whose body holds a JOIN on a subquery warns about it.
-                    try {
-                        SubqueryJoin.rejectUntilSupported(analyzedPlan.inner());
-                    } catch (Exception e) {
-                        listener.onFailure(e);
-                        return;
-                    }
-
                     if (request.analyzeOnly()) {
                         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
                         executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
@@ -804,6 +796,12 @@ public class EsqlSession {
                     // Capture the analyzed plan for failure-path logging: schema-resolved,
                     // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
                     planSnapshot = planSnapshot.withAnalyzed(plan);
+                    try {
+                        SubqueryJoin.rejectUntilSupported(plan);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        return;
+                    }
                     // Flag external-source usage on the execution info so the coordinator emits external-source-scoped
                     // operational metrics and query metering for any query whose analyzed plan references one, even if
                     // nothing ends up being scanned.

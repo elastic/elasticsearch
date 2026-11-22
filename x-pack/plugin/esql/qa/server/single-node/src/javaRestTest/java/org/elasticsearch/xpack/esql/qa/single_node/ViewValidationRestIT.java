@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -101,29 +100,6 @@ public class ViewValidationRestIT extends ESRestTestCase {
 
         // The view is saved regardless.
         ensureViewExists("view-validation-unknown-remote");
-    }
-
-    /**
-     * A JOIN on a subquery cannot run yet. Creating a view that holds one warns about it, as running the same query fails. The left
-     * key is null, so the optimizer removes the join: only the check right after analysis, not the {@code Mapper}'s, can reject it.
-     */
-    public void testJoinOnSubqueryEmitsWarning() throws IOException {
-        assumeTrue("LEFT OUTER JOIN requires snapshot builds", Build.current().isSnapshot());
-        createIndex("view-validation-index", null, "\"properties\": {\"k\": {\"type\": \"keyword\"}}");
-        String query = "FROM view-validation-index | EVAL k = null | LEFT OUTER JOIN (FROM view-validation-index) ON k";
-
-        Response response = putView("view-validation-subquery-join", query, true);
-        assertThat(response.getWarnings(), hasSize(1));
-        assertThat(response.getWarnings().getFirst(), containsString("JOIN on a subquery is not supported yet"));
-
-        Request request = new Request("POST", "/_query");
-        request.setJsonEntity("{\"query\": \"" + query + "\"}");
-        ResponseException e = expectThrows(
-            ResponseException.class,
-            containsString("JOIN on a subquery is not supported yet"),
-            () -> client().performRequest(request)
-        );
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
     public void testValidationDoesNotRecordQueryTelemetry() throws IOException {

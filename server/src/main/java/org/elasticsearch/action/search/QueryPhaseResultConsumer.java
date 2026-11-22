@@ -362,7 +362,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     ? aggReduceContextBuilder.forFinalReduction(topHitsToRelease)
                     : aggReduceContextBuilder.forPartialReduction(topHitsToRelease);
                 aggReduceContext.setHasBatchedResult(hasBatchedResults);
-                aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggsList.iterator(), resultSize, aggReduceContext);
+                // a merge result without aggregations (its shards all failed or were skipped) adds nothing to the lists, so don't count it
+                final int aggsCount = buffer.size() + localAggsList.size() + remoteAggsList.size();
+                aggs = aggregate(buffer.iterator(), localAggsList.iterator(), remoteAggsList.iterator(), aggsCount, aggReduceContext);
             } else {
                 aggs = null;
             }
@@ -482,15 +484,17 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             // we have to merge here in the same way we collect on a shard
             newTopDocs = topDocsList == null ? null : mergeTopDocs(topDocsList, topNSize, 0);
-            Iterator<DelayableWriteable<InternalAggregations>> localPartials = (lastMerge != null && lastMerge.reducedAggs != null)
+            final boolean hasLocalPartialAggs = lastMerge != null && lastMerge.reducedAggs != null;
+            Iterator<DelayableWriteable<InternalAggregations>> localPartials = hasLocalPartialAggs
                 ? Iterators.single(lastMerge.reducedAggs)
                 : Collections.emptyIterator();
+            final int aggsCount = toConsume.size() + (hasLocalPartialAggs ? 1 : 0);
             newAggs = hasAggs
                 ? aggregate(
                     toConsume.iterator(),
                     localPartials,
                     Collections.emptyIterator(),
-                    resultSetSize,
+                    aggsCount,
                     aggReduceContextBuilder.forPartialReduction(topHitsToRelease)
                 )
                 : null;

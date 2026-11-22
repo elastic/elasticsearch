@@ -55,6 +55,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -509,17 +510,17 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         assertEquals("a result arriving after close must be released too", 2, released.get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/165747")
     public void testFinalReduceWithOnlyBatchedResultsWithoutAggregations() throws Exception {
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
         int nodeResponses = randomIntBetween(1, 10);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
 
         try (
             QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
                 searchRequest,
                 executor,
-                NoopCircuitBreaker.INSTANCE,
+                circuitBreaker,
                 searchPhaseController,
                 () -> false,
                 SearchProgressListener.NOOP,
@@ -530,14 +531,92 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             )
         ) {
             for (int i = 0; i < nodeResponses; i++) {
-                consumer.addBatchedPartialResult(
-                    new SearchPhaseController.TopDocsStats(0),
-                    new QueryPhaseResultConsumer.MergeResult(List.of(), null, null, 0L)
-                );
+                consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), emptyMergeResult());
             }
 
             assertNull(consumer.reduce().aggregations());
         }
+        assertEquals("empty node responses must not leave a charge", 0L, circuitBreaker.getUsed());
+    }
+
+    /**
+     * Node responses without aggregations, from nodes whose shards all failed or were skipped, must not change the reduced aggregations.
+     */
+    public void testFinalReduceIgnoresBatchedResultsWithoutAggregations() throws Exception {
+        SearchRequest originalRequest = new SearchRequest("index");
+        originalRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
+        // from three shard results on, the first ones are partially reduced into a local merge result
+        originalRequest.setBatchedReduceSize(2);
+        // with several clusters and ccs_minimize_roundtrips, each cluster skips the final reduce and the merging node does it
+        SearchRequest searchRequest = randomBoolean()
+            ? originalRequest
+            : SearchRequest.subSearchRequest(
+                new TaskId("n", 1),
+                originalRequest,
+                new String[] { "index" },
+                originalRequest.indicesOptions(),
+                "remote",
+                0,
+                false
+            );
+        int shards = randomIntBetween(0, 5);
+        // without buffered shard results, a node response has to carry the aggregations
+        boolean batchedWithAggs = shards == 0 || randomBoolean();
+        int emptyResponses = randomIntBetween(1, 10);
+        double batchedSum = randomDoubleBetween(1, 100, true);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+
+        // the buffered shards plus one shard per node response
+        try (QueryPhaseResultConsumer consumer = newReducingConsumer(searchRequest, circuitBreaker, shards + 1 + emptyResponses)) {
+            CountDownLatch consumed = new CountDownLatch(shards);
+            for (int i = 0; i < shards; i++) {
+                QuerySearchResult result = queryResultWithAggs(i);
+                consumer.consumeResult(result, consumed::countDown);
+                result.decRef();
+            }
+            assertTrue(consumed.await(10, TimeUnit.SECONDS));
+
+            List<QueryPhaseResultConsumer.MergeResult> nodeResults = new ArrayList<>();
+            for (int i = 0; i < emptyResponses; i++) {
+                nodeResults.add(emptyMergeResult());
+            }
+            if (batchedWithAggs) {
+                // the node returns its shard as a partially reduced result, with the aggregations in the merge result
+                QuerySearchResult reducedOnNode = new QuerySearchResult(
+                    new ShardSearchContextId("", shards),
+                    new SearchShardTarget("node", new ShardId("index", "uuid", shards), null),
+                    null
+                );
+                reducedOnNode.setShardIndex(shards);
+                reducedOnNode.markAsPartiallyReduced();
+                consumer.consumeResult(reducedOnNode, () -> {});
+                reducedOnNode.decRef();
+
+                InternalAggregations aggs = InternalAggregations.from(List.of(new Sum("test", batchedSum, DocValueFormat.RAW, Map.of())));
+                nodeResults.add(
+                    new QueryPhaseResultConsumer.MergeResult(
+                        List.of(),
+                        null,
+                        DelayableWriteable.referencing(aggs),
+                        DelayableWriteable.getUncompressedSerializedSize(aggs)
+                    )
+                );
+            }
+            Collections.shuffle(nodeResults, random());
+            for (QueryPhaseResultConsumer.MergeResult nodeResult : nodeResults) {
+                consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), nodeResult);
+            }
+
+            InternalAggregations reduced = consumer.reduce().aggregations();
+            Sum sum = reduced.get("test");
+            assertEquals(shards + (batchedWithAggs ? batchedSum : 0), sum.value(), 1e-9);
+            assertEquals(reduced.estimateHeapBytes(), circuitBreaker.getUsed());
+        }
+        assertEquals(0L, circuitBreaker.getUsed());
+    }
+
+    private static QueryPhaseResultConsumer.MergeResult emptyMergeResult() {
+        return new QueryPhaseResultConsumer.MergeResult(List.of(), null, null, 0L);
     }
 
     public void testBatchedTopHitsFromOldConnectionAreReleasedOnDiscard() throws IOException {

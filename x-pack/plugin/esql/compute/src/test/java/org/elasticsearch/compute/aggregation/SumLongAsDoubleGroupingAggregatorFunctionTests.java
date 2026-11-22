@@ -66,6 +66,23 @@ public class SumLongAsDoubleGroupingAggregatorFunctionTests extends PartitionedG
     /**
      * With groups this is {@code SUM(TO_DOUBLE(x))}: the compensated sum of the values as doubles.
      */
+    /**
+     * Partitioning changes which pages hold a single group, and those are summed exactly while the others convert every long to a
+     * {@code double} first, so the results can differ in the last digits.
+     */
+    @Override
+    protected void assertTimeSeriesResults(List<TimeSeriesAggResult> singlePassResult, List<TimeSeriesAggResult> partitioningResult) {
+        assertThat(partitioningResult.size(), equalTo(singlePassResult.size()));
+        for (int i = 0; i < singlePassResult.size(); i++) {
+            TimeSeriesAggResult singlePass = singlePassResult.get(i);
+            TimeSeriesAggResult partitioned = partitioningResult.get(i);
+            assertThat(partitioned.tsid(), equalTo(singlePass.tsid()));
+            assertThat(partitioned.timestamp(), equalTo(singlePass.timestamp()));
+            double expected = (Double) singlePass.value();
+            assertThat(partitioned.value().toString(), (Double) partitioned.value(), closeTo(expected, tolerance(expected)));
+        }
+    }
+
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         CompensatedSum sum = new CompensatedSum();

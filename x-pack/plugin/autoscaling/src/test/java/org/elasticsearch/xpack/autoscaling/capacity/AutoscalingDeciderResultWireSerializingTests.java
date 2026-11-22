@@ -31,7 +31,17 @@ public class AutoscalingDeciderResultWireSerializingTests extends AbstractWireSe
 
     @Override
     protected AutoscalingDeciderResult mutateInstance(AutoscalingDeciderResult instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        AutoscalingCapacity requiredCapacity = instance.requiredCapacity();
+        AutoscalingDeciderResult.Reason reason = instance.reason();
+        switch (between(0, 1)) {
+            case 0 -> requiredCapacity = randomValueOtherThan(
+                requiredCapacity,
+                () -> randomBoolean() ? null : AutoscalingTestCase.randomAutoscalingCapacity()
+            );
+            case 1 -> reason = randomValueOtherThan(reason, () -> AutoscalingTestCase.randomAutoscalingDeciderResult().reason());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new AutoscalingDeciderResult(requiredCapacity, reason);
     }
 
 }

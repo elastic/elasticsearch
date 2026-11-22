@@ -44,7 +44,14 @@ public class GetAutoscalingCapacityActionResponseWireSerializingTests extends Ab
 
     @Override
     protected GetAutoscalingCapacityAction.Response mutateInstance(GetAutoscalingCapacityAction.Response instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        final SortedMap<String, AutoscalingDeciderResults> results = new TreeMap<>(instance.results());
+        if (randomBoolean()) {
+            results.put(randomValueOtherThanMany(results::containsKey, () -> randomAlphaOfLength(8)), randomAutoscalingDeciderResults());
+        } else {
+            final String key = randomFrom(results.keySet());
+            results.put(key, randomValueOtherThan(results.get(key), AutoscalingTestCase::randomAutoscalingDeciderResults));
+        }
+        return new GetAutoscalingCapacityAction.Response(Collections.unmodifiableSortedMap(results));
     }
 
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingPolicy;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
 
 public class GetAutoscalingPolicyActionResponseWireSerializingTests extends AbstractWireSerializingTestCase<
@@ -29,7 +30,7 @@ public class GetAutoscalingPolicyActionResponseWireSerializingTests extends Abst
 
     @Override
     protected GetAutoscalingPolicyAction.Response mutateInstance(GetAutoscalingPolicyAction.Response instance) {
-        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+        return new GetAutoscalingPolicyAction.Response(mutateAutoscalingPolicy(instance.policy()));
     }
 
     @Override

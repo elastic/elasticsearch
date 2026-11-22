@@ -99,6 +99,8 @@ public class ExternalStatsCaptureWhenCacheDisabledIT extends AbstractExternalDat
      */
     @Override
     public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
+        request.pragmas(getPragmas());
+        request.acceptedPragmaRisks(true);
         try {
             return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
         } catch (ElasticsearchTimeoutException e) {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166732
+summary: Fix storage byte counts when cancel races an in-flight object-store read
+type: bug

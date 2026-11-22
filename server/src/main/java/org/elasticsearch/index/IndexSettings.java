@@ -1134,8 +1134,10 @@ public final class IndexSettings {
     /**
      * Per-index switch for batch indexing. Defaults to {@code true} for strictly columnar index modes. Time series indices default
      * to {@code true} when the {@code tsdb_batch_indexing} feature flag is enabled ({@link BatchIndexingEnabled#TSDB_FEATURE_FLAG}),
-     * unless the deprecated {@link #TIME_SERIES_BATCH_INDEXING} is explicitly set, in which case they take its value. Other index
-     * modes default to {@code false}.
+     * unless the deprecated {@link #TIME_SERIES_BATCH_INDEXING} is explicitly set, in which case they take its value. Time series
+     * indices that route on {@link IndexMetadata#INDEX_ROUTING_PATH} rather than {@link IndexMetadata#INDEX_DIMENSIONS} default to
+     * {@code false}, because the batch path can't build their {@code _tsid} (not yet implemented). Other index modes default to
+     * {@code false}.
      * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
      * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
      * explicit {@code true} when the feature flag is off.
@@ -1205,6 +1207,11 @@ public final class IndexSettings {
         }
         if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
             return TIME_SERIES_BATCH_INDEXING.get(settings);
+        }
+        if (IndexMetadata.INDEX_DIMENSIONS.get(settings).isEmpty()) {
+            // Routing based on routing_path instead of based on the _tsid is not supported yet
+            // It doesn't cause failures, but always causes a fallback to sequential mode, costing performance
+            return false;
         }
         return true;
     }

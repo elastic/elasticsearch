@@ -79,7 +79,9 @@ public class SumLongAsDoubleGroupingAggregatorFunctionTests extends PartitionedG
             assertThat(partitioned.tsid(), equalTo(singlePass.tsid()));
             assertThat(partitioned.timestamp(), equalTo(singlePass.timestamp()));
             double expected = (Double) singlePass.value();
-            assertThat(partitioned.value().toString(), (Double) partitioned.value(), closeTo(expected, tolerance(expected)));
+            // A series has at most two longs. Converting a long to a double is off by at most half an ulp of 2^63, and so is the
+            // rounding of a sum, so a few of those is all the difference there can be.
+            assertThat(partitioned.value().toString(), (Double) partitioned.value(), closeTo(expected, 2 * Math.ulp(0x1p63)));
         }
     }
 
@@ -133,6 +135,8 @@ public class SumLongAsDoubleGroupingAggregatorFunctionTests extends PartitionedG
         assertThat(sumOfConstantGroupPages(new long[] { -(1L << 54), 0 }, new long[] { 1L << 54, 1 }), equalTo(1.0));
         // A power of two is a double, so the first page leaves no correction behind. A correction that the group already holds is
         // still combined with the next value by the shared compensated sum, which is the limit that is documented.
+        // The sum of the group has a correction when the next page cancels its large part.
+        assertThat(sumOfConstantGroupPages(new long[] { 1L << 62, 255 }, new long[] { -255, -(1L << 62) }), equalTo(0.0));
         long big = 1L << between(54, 60);
         assertThat(sumOfConstantGroupPages(new long[] { -big, 0 }, new long[] { big, 1 }), equalTo(1.0));
         long[] first = LongStream.generate(() -> randomLongBetween(-1000, 1000)).limit(between(1, 100)).toArray();

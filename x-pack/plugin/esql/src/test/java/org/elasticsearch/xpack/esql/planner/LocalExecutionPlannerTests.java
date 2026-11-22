@@ -1567,10 +1567,13 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
      */
     public void testRepeatedKeyHashJoinMultivaluedProbeKeyMatchesNothing() throws IOException {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
-        LongBlock.Builder probeKeys = blockFactory.newLongBlockBuilder(2);
-        probeKeys.beginPositionEntry().appendLong(1).appendLong(3).endPositionEntry();
-        probeKeys.appendLong(3);
-        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, probeKeys.build(), longs(10, 30), longs(1, 3), longs(100, 300));
+        Block probeKeys;
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+            builder.beginPositionEntry().appendLong(1).appendLong(3).endPositionEntry();
+            builder.appendLong(3);
+            probeKeys = builder.build();
+        }
+        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, probeKeys, longs(10, 30), longs(1, 3), longs(100, 300));
 
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         List<List<Long>> rows = longRows(

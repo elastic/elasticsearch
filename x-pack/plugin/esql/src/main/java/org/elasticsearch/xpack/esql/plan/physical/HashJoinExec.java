@@ -25,8 +25,8 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 /**
  * Joins its left side's rows to the rows of local data, the build side, on equal keys.
  * <p>
- * Never serialized: the {@code Mapper} only places it above the exchange, on the coordinator, and a data node builds its own from
- * the logical join that reaches it inside a {@link FragmentExec}.
+ * Never serialized: the {@code Mapper} only puts it in the coordinator's plan, never below an exchange, and a data node builds
+ * its own from the logical join that reaches it inside a {@link FragmentExec}.
  */
 public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     private final List<Attribute> leftFields;

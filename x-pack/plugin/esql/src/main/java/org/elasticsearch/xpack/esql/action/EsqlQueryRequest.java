@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -83,6 +84,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      * Runtime-only state of the node that runs the query: it is not serialized.
      */
     private transient Map<String, ViewQuerySettings> viewSettings = Map.of();
+    /**
+     * The {@code @timestamp} range the request filter asks for, once the query has got far enough to extract it.
+     * Runtime-only state of the node that runs the query: it is not serialized, and kept when the query fails.
+     */
+    private transient TimestampBounds requestedTimeRange;
     /**
      * Values from the canonical {@code settings.{}} block; merged into {@link #requestSettings} by
      * {@link #applyCanonicalRequestSettings()}. A setting that also has a legacy top-level body field
@@ -457,6 +463,21 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     /** The settings each resolved view's definition applies, by view name; empty if the query resolved no views (yet). */
     public Map<String, ViewQuerySettings> viewSettings() {
         return viewSettings;
+    }
+
+    /** Records the {@code @timestamp} range the request filter asks for. Not serialized. */
+    public void setRequestedTimeRange(@Nullable TimestampBounds requestedTimeRange) {
+        this.requestedTimeRange = requestedTimeRange;
+    }
+
+    /**
+     * The {@code @timestamp} range the request filter asks for, as the bounds that planning uses, or {@code null} if the filter has
+     * no range with both bounds or the query failed before it was extracted. A range in the query itself, such as
+     * {@code WHERE @timestamp > NOW() - 1 hour}, is not taken into account.
+     */
+    @Nullable
+    public TimestampBounds requestedTimeRange() {
+        return requestedTimeRange;
     }
 
     Map<QuerySettingDef<?>, Object> canonicalRequestSettings() {

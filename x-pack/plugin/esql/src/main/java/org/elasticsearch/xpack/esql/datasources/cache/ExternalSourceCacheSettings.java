@@ -60,18 +60,14 @@ public final class ExternalSourceCacheSettings {
     );
 
     /**
-     * Whether this node serves reads from the external-source cache: with it off a read planned while it is off
-     * neither reads from the cache nor, in the row formats that harvest them, collects statistics for it, while a
-     * scan already running keeps the scope it was built with. Planning still resolves schema and file metadata
-     * and pays more for them — the loader runs on every resolve, not only on a miss.
+     * Whether this node serves reads from the external-source cache. With it off, a read planned while it is off
+     * neither reads the cache nor collects statistics for it in the formats that harvest them, and planning pays
+     * more: the schema and file-metadata loaders run on every resolve, not only on a miss. A scan already
+     * running keeps the scope it was built with, so turning this off does not stop its collection.
      * <p>
-     * Turning it off also clears the cache, so turning it back on leaves the node cold.
-     * <p>
-     * Node-scoped, so set it cluster-wide: off at a data node and on at the coordinator, that node harvests
-     * nothing and the coordinator never warms for its files.
-     * <p>
-     * It does not reach the footer caches, which have their own budgets ({@link #FOOTER_CACHE_SIZE},
-     * {@link #FOOTER_PARSED_CACHE_SIZE}).
+     * Off also clears the cache, so switching it back on leaves the node cold. Node-scoped, so a node left off
+     * harvests nothing and the coordinator never warms for its files; the footer caches are not reached and
+     * carry their own budgets.
      */
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
         "esql.external.cache.enabled",

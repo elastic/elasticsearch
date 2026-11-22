@@ -37,7 +37,7 @@ import java.util.Set;
  * <ol>
  *   <li>for <em>every</em> include group, {@code f} matches <em>at least one</em> pattern in that
  *       group (OR within a group, AND across groups), and</li>
- *   <li>{@code f} matches no glob exclude (a {@code DROP} wildcard) and equals no exact exclude (an already-output column name).</li>
+ *   <li>{@code f} matches no glob exclude (a {@code DROP} wildcard) and equals no exact exclude (a name removed by {@code DROP}).</li>
  * </ol>
  * This mirrors KEEP semantics: terms listed in one {@code KEEP} command are alternatives, while
  * chained {@code KEEP} commands intersect their selections. For example,
@@ -130,8 +130,9 @@ public final class UnmappedFieldsPattern implements NamedWriteable, UnmappedFiel
             switch (removal) {
                 case UnresolvedNamePattern pattern -> globs.add(pattern.glob());
                 case UnresolvedAttribute attribute -> names.add(attribute.name());
-                default -> {
+                case UnsupportedAttribute ignored -> {
                 }
+                default -> throw new IllegalStateException("Unsupported DROP removal [" + removal + "]");
             }
         }
         return excludes(globs).withAdditionalExcludes(names);

@@ -44,6 +44,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Runs csv-spec queries over an index whose mapping lost one keyword field ({@code dynamic: false}) with
@@ -543,6 +544,16 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 if (anyRemovedValue && expectedColumn == false) {
                     return actual;
                 }
+                // And the other way round: the key must still be there, with the value of the column. The object is not stripped when it
+                // differs, so a key that wrongly disappears fails the comparison with the expected results instead of passing unnoticed.
+                if (expectedColumn && alreadyAColumn) {
+                    int column = names.indexOf(removedField);
+                    for (int i = 0; i < rows.size(); i++) {
+                        if (sortedDistinctValues(rows.get(i).get(column)).equals(sortedDistinctValues(removedValues.get(i))) == false) {
+                            return actual;
+                        }
+                    }
+                }
                 names.remove(unmappedColumn);
                 types.remove(unmappedColumn);
                 rows.forEach(row -> row.remove(unmappedColumn));
@@ -607,6 +618,18 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         return new StacklessAssumptionViolatedException(
             "known issue " + issue + ": [" + testId + "] " + what + " when [" + index + "." + removedField + "] is removed from the mapping"
         );
+    }
+
+    /**
+     * The values of a keyword cell or of a key, to compare them loosely: a multivalued column is sorted and deduplicated, while the
+     * array in the {@code _source} keeps the order and the duplicates of the document.
+     */
+    private static List<String> sortedDistinctValues(Object cell) {
+        if (cell == null) {
+            return List.of();
+        }
+        Stream<?> values = cell instanceof List<?> list ? list.stream() : Stream.of(cell);
+        return values.map(String::valueOf).distinct().sorted().toList();
     }
 
     private static Object asKeyword(Object sourceValue) {

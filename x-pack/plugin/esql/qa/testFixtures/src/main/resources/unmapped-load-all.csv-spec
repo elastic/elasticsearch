@@ -8666,3 +8666,69 @@ bar:keyword | _index:keyword  | _unmapped_fields:_source
 b1          | cross_mapping_a | "{""bar"":""b1""}"
 b2          | cross_mapping_b | null
 ;
+
+// RENAME renames a column and no key, so a DROP of the new name has no key to remove: unmapped_message stays, whether DROP names the
+// column or matches it with a wildcard.
+loadAllRenameThenDropOfTheNewNameKeepsTheKey
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_only_keep_and_drop_reach_keys
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| RENAME unmapped_message AS renamed
+| DROP renamed
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+;
+
+loadAllRenameThenWildcardDropOfTheNewNameKeepsTheKey
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_only_keep_and_drop_reach_keys
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| RENAME unmapped_message AS renamed
+| DROP renamed*
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+;
+
+// A wildcard DROP that matches the original name removes the key, though no column of that name is left after the RENAME. The exact name
+// is rejected, because the column is gone: see DetermineUnmappedFieldsToKeepTests#testDropOfARenamedAwayNameIsUnknown.
+loadAllRenameThenWildcardDropOfTheOriginalNameRemovesTheKey
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_only_keep_and_drop_reach_keys
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| RENAME unmapped_message AS renamed
+| DROP unmapped_mess*
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | renamed:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | 43              | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+;
+
+// DROP removes what it matches everywhere, so dropping a column that EVAL created also removes the key of the same name. This is the
+// visible change of the rule: the EVAL result and the key are both gone, though they are different values.
+loadAllDropOfAnEvalColumnRemovesTheKeyOfTheSameName
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_only_keep_and_drop_reach_keys
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data
+| WHERE message == "42"
+| EVAL unmapped_message = "computed"
+| DROP unmapped_message
+;
+
+@timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+;

@@ -4354,8 +4354,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         + fullPath()
                         + "] of type ["
                         + typeName()
-                        + "] cannot infer [dims] from an encoded vector for an empty field; set [dims] in the mapping or index the first vector as an "
-                        + "array of numbers"
+                        + "] has no [dims] and cannot infer them from an encoded vector; set [dims] in the mapping or index the first "
+                        + "vector as an array of numbers"
                 );
             }
             int dims = fieldType().element.parseDimensionCount(context);

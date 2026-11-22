@@ -253,38 +253,47 @@ setup:
 
   # [0.8837743, 0.6310808, 0.7800066, 0.0] - is encoded as 'P2I/CD8hjoM/R66DAAAAAA=='
   - do:
-      catch: /Field \[my_vector_float\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      catch: /Field \[my_vector_float\] of type \[dense_vector\] has no \[dims\] and cannot infer them from an encoded vector/
       index:
         index: knn_base64_vector_index_no_dims
         id: "1"
         body:
           my_vector_float: "P2I/CD8hjoM/R66DAAAAAA=="
 
+  - match: { status: 400 }
+
   # [1.5, 2.0, -3.25, 4.0] as bfloat16 - is encoded as 'P8BAAMBQQIA='
   - do:
-      catch: /Field \[my_vector_bfloat16\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      catch: /Field \[my_vector_bfloat16\] of type \[dense_vector\] has no \[dims\] and cannot infer them from an encoded vector/
       index:
         index: knn_base64_vector_index_no_dims
         id: "1"
         body:
           my_vector_bfloat16: "P8BAAMBQQIA="
 
+  - match: { status: 400 }
+
   # [-128, 127, 10, 0] - is encoded as 'gH8KAA=='
   - do:
-      catch: /Field \[my_vector_byte\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      catch: /Field \[my_vector_byte\] of type \[dense_vector\] has no \[dims\] and cannot infer them from an encoded vector/
       index:
         index: knn_base64_vector_index_no_dims
         id: "1"
         body:
           my_vector_byte: "gH8KAA=="
 
+  - match: { status: 400 }
+
+  # the same 4 bytes as a 32-bit vector
   - do:
-      catch: /Field \[my_vector_bit\] of type \[dense_vector\] cannot infer \[dims\] from an encoded vector/
+      catch: /Field \[my_vector_bit\] of type \[dense_vector\] has no \[dims\] and cannot infer them from an encoded vector/
       index:
         index: knn_base64_vector_index_no_dims
         id: "1"
         body:
           my_vector_bit: "gH8KAA=="
+
+  - match: { status: 400 }
 
   - do:
       indices.get_mapping:
@@ -328,10 +337,6 @@ setup:
           my_vector_float: [0.2509804, -0.039215684, -0.11764706]
           my_vector_byte: [64, -10, -30]
 
-  - do:
-      cluster.health:
-        wait_for_events: languid
-
   # [0.8837743, 0.6310808, 0.7800066] - is encoded as 'P2I/CD8hjoM/R66D'
   # [-128, 127, 10] - is encoded as 'gH8K'
   - do:
@@ -341,6 +346,10 @@ setup:
         body:
           my_vector_float: "P2I/CD8hjoM/R66D"
           my_vector_byte: "gH8K"
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:

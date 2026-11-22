@@ -99,6 +99,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1666,51 +1667,27 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     /**
-     * The byte length of a base64 encoded vector doesn't determine its dimensions, e.g. a float field accepts both float32 and
+     * The byte length of an encoded vector doesn't determine its dimensions, e.g. a float field accepts both float32 and
      * bfloat16 encodings, so a field without dimensions rejects an encoded vector rather than guessing them.
      */
-    public void testBase64EncodedVectorWithoutDimensionsIsRejected() throws IOException {
+    public void testEncodedVectorWithoutDimensionsIsRejected() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::dimensionlessMapping));
-        Object encoded = getSampleValueForDocument(true);
+        Object encoded = switch (elementType) {
+            case FLOAT, BFLOAT16 -> getSampleValueForDocument(true);
+            // byte and bit fields also accept hex
+            case BYTE, BIT -> randomBoolean()
+                ? getSampleValueForDocument(true)
+                : HexFormat.of().formatHex(randomByteArrayOfLength(elementType.vectorLength(dims)));
+        };
 
         Exception e = expectThrows(
             DocumentParsingException.class,
             () -> mapperService.documentMapper().parse(source(b -> b.field("field", encoded)))
         );
-        assertThat(e.getMessage(), containsString("Field [field] of type [dense_vector] cannot infer [dims] from an encoded vector for an empty field"));
-    }
-
-    public void testHexEncodedVectorWithoutDimensionsIsRejected() throws IOException {
-        ElementType hexElementType = randomFrom(ElementType.BYTE, ElementType.BIT);
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> new DenseVectorMappingBuilder().elementType(hexElementType).index(indexed).build(b))
+        assertThat(
+            e.getMessage(),
+            containsString("Field [field] of type [dense_vector] has no [dims] and cannot infer them from an encoded vector")
         );
-
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapperService.documentMapper().parse(source(b -> b.field("field", "807f0a")))
-        );
-        assertThat(e.getMessage(), containsString("Field [field] of type [dense_vector] cannot infer [dims] from an encoded vector"));
-    }
-
-    public void testEncodedVectorWithoutDimensionsFromADynamicTemplateIsRejected() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> {
-            b.startArray("dynamic_templates");
-            b.startObject().startObject("vectors");
-            b.field("match", "vec*");
-            b.startObject("mapping");
-            dimensionlessMapping(b);
-            b.endObject();
-            b.endObject().endObject();
-            b.endArray();
-        }));
-        Object encoded = getSampleValueForDocument(true);
-
-        Exception e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapperService.documentMapper().parse(source(b -> b.field("vec", encoded)))
-        );
-        assertThat(e.getMessage(), containsString("Field [vec] of type [dense_vector] cannot infer [dims] from an encoded vector"));
     }
 
     /**
@@ -1719,30 +1696,33 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     public void testEncodedVectorInfersDimensionsOnOlderIndices() throws IOException {
         IndexVersion version = IndexVersionUtils.getPreviousVersion(IndexVersions.DENSE_VECTOR_ENCODED_VECTOR_REQUIRES_DIMS);
         MapperService mapperService = createMapperService(version, fieldMapping(this::dimensionlessMapping));
-        Object encoded;
-        if (elementType == ElementType.BFLOAT16) {
-            // dimensions are inferred as if each component took four bytes, which only holds for a float32 encoding
-            ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * dims);
-            buffer.asFloatBuffer().put(randomNormalizedVector(dims));
-            encoded = Base64.getEncoder().encodeToString(buffer.array());
-        } else {
-            encoded = getSampleValueForDocument(true);
-        }
+        Object encoded = switch (elementType) {
+            // older indices infer the dimensions of float and bfloat16 fields assuming float32 values
+            case FLOAT, BFLOAT16 -> {
+                ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * dims);
+                buffer.asFloatBuffer().put(randomNormalizedVector(dims));
+                yield Base64.getEncoder().encodeToString(buffer.array());
+            }
+            case BYTE, BIT -> getSampleValueForDocument(true);
+        };
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", encoded)));
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
 
-        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("\"dims\":" + dims));
+        assertThat(((DenseVectorFieldType) mapperService.fieldType("field")).getVectorDimensions(), equalTo(dims));
     }
 
+    /**
+     * Indexing an array of numbers first, as the error for an encoded vector suggests, lets later documents use encoded vectors.
+     */
     public void testEncodedVectorIsAcceptedOnceDimensionsAreInferredFromAnArray() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::dimensionlessMapping));
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", getSampleValueForDocument(false))));
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, MapperService.MergeReason.MAPPING_AUTO_UPDATE, doc.dynamicMappingsUpdate().string());
-        assertThat(mapperService.documentMapper().mappingSource().string(), containsString("\"dims\":" + dims));
+        assertThat(((DenseVectorFieldType) mapperService.fieldType("field")).getVectorDimensions(), equalTo(dims));
 
         doc = mapperService.documentMapper().parse(source(b -> b.field("field", getSampleValueForDocument(true))));
         assertNull(doc.dynamicMappingsUpdate());

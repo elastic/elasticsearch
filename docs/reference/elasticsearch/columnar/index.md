@@ -226,7 +226,7 @@ Fields that you map explicitly, and fields that match a [dynamic template](docs-
 - From the search `fields` option with `include_unmapped: true`, under their original paths. Values are returned as strings, in document order.
 - With {{esql}}, under [`SET unmapped_fields="load"`](/reference/query-languages/esql/esql-unmapped-fields.md), which loads them as `keyword` values. Multiple values of a field outside a `nested` object are returned sorted and without duplicates.
 
-Query DSL queries on these fields match no documents, they can't be used in aggregations or sorts, and they aren't listed by the field capabilities API.
+Query DSL queries on these fields match no documents. You can't use the fields in aggregations or sorts, and the field capabilities API doesn't list them.
 
 The following rules also apply:
 

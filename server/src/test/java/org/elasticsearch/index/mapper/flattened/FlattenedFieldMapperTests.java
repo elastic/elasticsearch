@@ -912,7 +912,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
      * indexing by default, so an unmapped null on its own must index next to an unmapped value too.
      */
     public void testIndexedUnmappedSinkNullOnlyDocumentInColumnarMode() throws IOException {
-        assumeTrue("requires the unmapped sink", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         MapperService mapperService = createMapperService(
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR).getName())

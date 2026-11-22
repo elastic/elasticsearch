@@ -2,7 +2,7 @@
 navigation_title: "Sizing and performance"
 description: "Size your Elasticsearch cluster for ES|QL Data Federation workloads on Amazon S3, by file format, compression, and query concurrency."
 applies_to:
-  stack: preview 9.6+, experimental =9.5
+  stack: preview 9.6+
   serverless: preview
 products:
   - id: elasticsearch
@@ -33,7 +33,7 @@ Data federation and index workloads share the same query engine, but their read 
 
 What differs is the work of reading data from outside the cluster. Three stages are unique to this path, and they drive the memory a query needs and the time it takes:
 
-* **Schema inference.** Text files carry no description of their own columns, so {{es}} establishes one by [sampling rows](esql-data-federation-schema.md) from the dataset's files. This happens before the scan, and it reads from S3, so it costs time and storage requests. How much depends on the number of columns and, with the `union_by_name` and `strict` [resolution strategies](esql-data-federation-schema.md#choose-a-schema-resolution-strategy), on how many files the query reads, because both sample every one of them. `first_file_wins`, the default from 9.6, samples one. [Specify a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) with [`dynamic`](esql-data-federation-schema.md#mapping-properties) set to `false` to skip it.
+* **Schema inference.** Text files carry no description of their own columns, so {{es}} establishes one by [sampling rows](esql-data-federation-schema.md) from the dataset's files. This happens before the scan, and it reads from S3, so it costs time and storage requests. How much depends on the number of columns and, with the `union_by_name` and `strict` [resolution strategies](esql-data-federation-schema.md#choose-a-schema-resolution-strategy), on how many files the query reads, because both sample every one of them. `first_file_wins`, the default, samples one. [Specify a mapping](esql-data-federation-schema.md#declare-a-schema-explicitly) with [`dynamic`](esql-data-federation-schema.md#mapping-properties) set to `false` to skip it.
 * **Split distribution.** The files a query reads are divided into units of work called splits, which are distributed across the data nodes. For uncompressed text, [`target_split_size`](esql-data-federation-dataset-settings.md#target-split-size) sets how large each one is. Parquet takes its splits from the row groups listed in the file footer instead, and a compressed text file is one split whatever that setting says. How many a node reads at once follows its core count.
 * **Staging and decompression buffers.** {{es}} allocates memory to hold the data fetched from Amazon S3, and further memory to decompress it and to parse it into the columnar form the query engine works on. Compressed data is decompressed into bounded, recycled buffers rather than expanded whole, so what a reader holds follows how many buffers are in flight rather than how well the data compresses.
 

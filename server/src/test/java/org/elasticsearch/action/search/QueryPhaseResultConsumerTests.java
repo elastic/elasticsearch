@@ -45,7 +45,11 @@ import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -547,18 +551,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         originalRequest.source(new SearchSourceBuilder().aggregation(new SumAggregationBuilder("test")));
         // from three shard results on, the first ones are partially reduced into a local merge result
         originalRequest.setBatchedReduceSize(2);
-        // with several clusters and ccs_minimize_roundtrips, each cluster skips the final reduce and the merging node does it
-        SearchRequest searchRequest = randomBoolean()
-            ? originalRequest
-            : SearchRequest.subSearchRequest(
-                new TaskId("n", 1),
-                originalRequest,
-                new String[] { "index" },
-                originalRequest.indicesOptions(),
-                "remote",
-                0,
-                false
-            );
+        SearchRequest searchRequest = randomBoolean() ? originalRequest : withoutFinalReduce(originalRequest);
         int shards = randomIntBetween(0, 5);
         // without buffered shard results, a node response has to carry the aggregations
         boolean batchedWithAggs = shards == 0 || randomBoolean();
@@ -581,26 +574,8 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 nodeResults.add(emptyMergeResult());
             }
             if (batchedWithAggs) {
-                // the node returns its shard as a partially reduced result, with the aggregations in the merge result
-                QuerySearchResult reducedOnNode = new QuerySearchResult(
-                    new ShardSearchContextId("", shards),
-                    new SearchShardTarget("node", new ShardId("index", "uuid", shards), null),
-                    null
-                );
-                reducedOnNode.setShardIndex(shards);
-                reducedOnNode.markAsPartiallyReduced();
-                consumer.consumeResult(reducedOnNode, () -> {});
-                reducedOnNode.decRef();
-
-                InternalAggregations aggs = InternalAggregations.from(List.of(new Sum("test", batchedSum, DocValueFormat.RAW, Map.of())));
-                nodeResults.add(
-                    new QueryPhaseResultConsumer.MergeResult(
-                        List.of(),
-                        null,
-                        DelayableWriteable.referencing(aggs),
-                        DelayableWriteable.getUncompressedSerializedSize(aggs)
-                    )
-                );
+                consumePartiallyReducedResult(consumer, shards);
+                nodeResults.add(mergeResultOf(new Sum("test", batchedSum, DocValueFormat.RAW, Map.of())));
             }
             Collections.shuffle(nodeResults, random());
             for (QueryPhaseResultConsumer.MergeResult nodeResult : nodeResults) {
@@ -613,6 +588,107 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             assertEquals(reduced.estimateHeapBytes(), circuitBreaker.getUsed());
         }
         assertEquals(0L, circuitBreaker.getUsed());
+    }
+
+    /**
+     * Reducing a single terms result resets its doc count error, unless a data node partially reduced it. Then the error must survive
+     * the reduce on the coordinator, also when that reduce isn't final and the node's response is the only one with aggregations.
+     */
+    public void testDocCountErrorOfSingleTermsResult() throws Exception {
+        SearchRequest originalRequest = new SearchRequest("index");
+        originalRequest.source(new SearchSourceBuilder().aggregation(new TermsAggregationBuilder("terms").field("f")));
+        SearchRequest searchRequest = randomBoolean() ? originalRequest : withoutFinalReduce(originalRequest);
+        boolean batched = randomBoolean();
+        // a node response, even an empty one, marks the reduce as batched, so the unbatched draw has none
+        int emptyResponses = batched ? randomIntBetween(0, 5) : 0;
+        long docCountError = randomLongBetween(1, 100);
+        CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofMb(64));
+        LongTerms terms = new LongTerms(
+            "terms",
+            BucketOrder.key(true),
+            BucketOrder.count(false),
+            1,
+            1,
+            Map.of(),
+            DocValueFormat.RAW,
+            // the error is only kept when the node returned shard_size buckets
+            1,
+            false,
+            0,
+            List.of(new LongTerms.Bucket(1, 10, InternalAggregations.EMPTY, false, 0, DocValueFormat.RAW)),
+            docCountError
+        );
+
+        try (QueryPhaseResultConsumer consumer = newReducingConsumer(searchRequest, circuitBreaker, 1 + emptyResponses)) {
+            if (batched) {
+                consumePartiallyReducedResult(consumer, 0);
+                List<QueryPhaseResultConsumer.MergeResult> nodeResults = new ArrayList<>();
+                nodeResults.add(mergeResultOf(terms));
+                for (int i = 0; i < emptyResponses; i++) {
+                    nodeResults.add(emptyMergeResult());
+                }
+                Collections.shuffle(nodeResults, random());
+                for (QueryPhaseResultConsumer.MergeResult nodeResult : nodeResults) {
+                    consumer.addBatchedPartialResult(new SearchPhaseController.TopDocsStats(0), nodeResult);
+                }
+            } else {
+                QuerySearchResult result = new QuerySearchResult(
+                    new ShardSearchContextId("", 0),
+                    new SearchShardTarget("node", new ShardId("index", "uuid", 0), null),
+                    null
+                );
+                result.topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]), Float.NaN),
+                    new DocValueFormat[0]
+                );
+                result.aggregations(InternalAggregations.from(List.of(terms)));
+                result.setShardIndex(0);
+                consumer.consumeResult(result, () -> {});
+                result.decRef();
+            }
+
+            InternalAggregations reduced = consumer.reduce().aggregations();
+            LongTerms reducedTerms = reduced.get("terms");
+            assertEquals(Long.valueOf(batched ? docCountError : 0), reducedTerms.getDocCountError());
+            assertEquals(reduced.estimateHeapBytes(), circuitBreaker.getUsed());
+        }
+        assertEquals(0L, circuitBreaker.getUsed());
+    }
+
+    // with several clusters and ccs_minimize_roundtrips, each cluster skips the final reduce and the merging node does it
+    private static SearchRequest withoutFinalReduce(SearchRequest request) {
+        return SearchRequest.subSearchRequest(
+            new TaskId("n", 1),
+            request,
+            new String[] { "index" },
+            request.indicesOptions(),
+            "remote",
+            0,
+            false
+        );
+    }
+
+    // a data node returns its shards as partially reduced results, with the top docs and aggregations in its merge result
+    private static void consumePartiallyReducedResult(QueryPhaseResultConsumer consumer, int shardIndex) {
+        QuerySearchResult result = new QuerySearchResult(
+            new ShardSearchContextId("", shardIndex),
+            new SearchShardTarget("node", new ShardId("index", "uuid", shardIndex), null),
+            null
+        );
+        result.setShardIndex(shardIndex);
+        result.markAsPartiallyReduced();
+        consumer.consumeResult(result, () -> {});
+        result.decRef();
+    }
+
+    private static QueryPhaseResultConsumer.MergeResult mergeResultOf(InternalAggregation aggregation) {
+        InternalAggregations aggs = InternalAggregations.from(List.of(aggregation));
+        return new QueryPhaseResultConsumer.MergeResult(
+            List.of(),
+            null,
+            DelayableWriteable.referencing(aggs),
+            DelayableWriteable.getUncompressedSerializedSize(aggs)
+        );
     }
 
     private static QueryPhaseResultConsumer.MergeResult emptyMergeResult() {

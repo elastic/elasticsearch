@@ -29,6 +29,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -66,9 +67,11 @@ public class ParquetMergerGroupPlanTests extends ESTestCase {
             inputs.add(write(schema, file * 5_000L, 5_000, true));
         }
 
-        final List<MessageType> groups = ParquetMerger.planGroups(inputs, schema, 2);
+        final ParquetMerger.Plan plan = ParquetMerger.plan(inputs, schema, 2);
+        final List<MessageType> groups = plan.groups();
 
-        assertThat(groups.size(), equalTo(2));
+        assertThat(groups.size(), equalTo(Math.min(2 * ParquetMerger.GROUPS_PER_THREAD, numbers + 1)));
+        assertThat("the threads take the most expensive group first", plan.dispatchOrder()[0], equalTo(0));
         assertThat(groups.get(0).getFields().stream().map(Type::getName).toList(), equalTo(List.of("text")));
         assertCoverTheSchemaInOrder(groups, schema);
     }
@@ -86,9 +89,16 @@ public class ParquetMergerGroupPlanTests extends ESTestCase {
         );
         final int parallelism = between(1, 40);
 
-        final List<MessageType> groups = ParquetMerger.planGroups(inputs, schema, parallelism);
+        final ParquetMerger.Plan plan = ParquetMerger.plan(inputs, schema, parallelism);
+        final List<MessageType> groups = plan.groups();
 
-        assertThat(groups.size(), equalTo(Math.min(parallelism, columns)));
+        assertThat(groups.size(), equalTo(parallelism == 1 ? 1 : Math.min(parallelism * ParquetMerger.GROUPS_PER_THREAD, columns)));
+        final int[] order = plan.dispatchOrder().clone();
+        Arrays.sort(order);
+        for (int i = 0; i < order.length; i++) {
+            assertThat("the dispatch order has each group once", order[i], equalTo(i));
+        }
+        assertThat(order.length, equalTo(groups.size()));
         assertCoverTheSchemaInOrder(groups, schema);
     }
 
@@ -97,7 +107,7 @@ public class ParquetMergerGroupPlanTests extends ESTestCase {
             .addField(Types.optional(PrimitiveTypeName.INT64).named("a"))
             .addField(Types.optional(PrimitiveTypeName.INT64).named("b"))
             .named("doc");
-        assertThat(ParquetMerger.planGroups(List.of(write(schema, 0, 10, false)), schema, 1), equalTo(List.of(schema)));
+        assertThat(ParquetMerger.plan(List.of(write(schema, 0, 10, false)), schema, 1).groups(), equalTo(List.of(schema)));
     }
 
     /** The groups meet after each input row group, so an input with a very large one would make the row groups of the output coarse. */
@@ -107,7 +117,7 @@ public class ParquetMergerGroupPlanTests extends ESTestCase {
             .addField(Types.optional(PrimitiveTypeName.INT64).named("b"))
             .named("doc");
         final ParquetMerger.Input large = write(schema, 0, 100_001, false);
-        assertThat(ParquetMerger.planGroups(List.of(large), schema, 4), equalTo(List.of(schema)));
+        assertThat(ParquetMerger.plan(List.of(large), schema, 4).groups(), equalTo(List.of(schema)));
     }
 
     private static void assertCoverTheSchemaInOrder(List<MessageType> groups, MessageType schema) {

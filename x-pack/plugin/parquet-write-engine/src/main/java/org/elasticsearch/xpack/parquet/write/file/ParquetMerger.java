@@ -37,11 +37,12 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Merges the small local Parquet files that bulks wrote into one large file with row groups of the configured size and a real
@@ -193,8 +194,8 @@ public final class ParquetMerger {
      * waits for all of them. The merge is serial, as with the method above, when the parallelism is 1, when the schema has one field, or
      * when an input has a row group that is too large for the groups to meet after it (a row group of a compacted file).
      *
-     * <p>The executor must not be one that the caller runs on, or the tasks may never get a thread. A task that the executor rejects runs
-     * on the calling thread.
+     * <p>The executor must not be one that the caller runs on, or the tasks may never get a thread. A task that the executor rejects is
+     * not needed: the other workers, and the calling thread, take its groups.
      */
     public static Merged mergeInputs(
         Directory directory,
@@ -206,7 +207,8 @@ public final class ParquetMerger {
         Executor executor,
         int parallelism
     ) throws IOException {
-        final List<MessageType> groups = executor == null ? List.of(outputSchema) : planGroups(inputs, outputSchema, parallelism);
+        final Plan plan = executor == null ? Plan.serial(outputSchema) : plan(inputs, outputSchema, parallelism);
+        final List<MessageType> groups = plan.groups();
         long rows = 0;
         String tempName = null;
         boolean success = false;
@@ -223,7 +225,7 @@ public final class ParquetMerger {
                         rows += copyRows(input, outputSchema, writer);
                     }
                 } else {
-                    rows = copyInParallel(inputs, groups, writer, executor);
+                    rows = copyInParallel(inputs, plan, writer, executor, parallelism);
                 }
                 writer.finish();
             }
@@ -262,15 +264,34 @@ public final class ParquetMerger {
     private static final long MAX_PARALLEL_INPUT_ROWS = 100_000;
 
     /**
-     * Splits the fields of the output into at most {@code parallelism} contiguous groups of about the same cost, or returns the whole
-     * schema as the only group when the merge has to be serial. The cost of a field is an estimate of the time to encode its column
-     * chunks in a sample of the inputs, from the number of values and the bytes that they had before compression.
+     * How many groups there are for each thread. The columns of a group are encoded by one thread, so the groups cannot be balanced
+     * better than the cost of the most expensive column, and an estimate of the cost is never exact. A thread that takes the next group
+     * when it has finished one balances the rest by itself, at the price of one more read of the footer of each input for each group. On
+     * 600,000 real rows 1 to 3 groups for each thread merged equally fast and 4 were slower.
      */
-    static List<MessageType> planGroups(List<Input> inputs, MessageType outputSchema, int parallelism) throws IOException {
+    static final int GROUPS_PER_THREAD = 2;
+
+    /**
+     * The groups of the columns of a merge, and the order in which the threads take them (the most expensive first, so that the last
+     * groups that are taken are the cheap ones).
+     */
+    record Plan(List<MessageType> groups, int[] dispatchOrder) {
+        static Plan serial(MessageType schema) {
+            return new Plan(List.of(schema), new int[] { 0 });
+        }
+    }
+
+    /**
+     * Splits the fields of the output into at most {@code parallelism} times {@link #GROUPS_PER_THREAD} contiguous groups of about the
+     * same cost, or returns the whole schema as the only group when the merge has to be serial. The cost of a field is an estimate of the
+     * time to encode its column chunks in a sample of the inputs, from the number of values and the bytes that they had before
+     * compression.
+     */
+    static Plan plan(List<Input> inputs, MessageType outputSchema, int parallelism) throws IOException {
         final int fields = outputSchema.getFieldCount();
-        final int wanted = Math.min(parallelism, fields);
-        if (wanted < 2 || inputs.isEmpty()) {
-            return List.of(outputSchema);
+        final int wanted = (int) Math.min((long) parallelism * GROUPS_PER_THREAD, fields);
+        if (parallelism < 2 || wanted < 2 || inputs.isEmpty()) {
+            return Plan.serial(outputSchema);
         }
         final long[] weight = new long[fields];
         Arrays.fill(weight, 1); // a field that the sample lacks still costs something
@@ -280,7 +301,7 @@ public final class ParquetMerger {
             try (ParquetFileReader reader = ParquetFileReader.open(input.file(), readOptions())) {
                 for (BlockMetaData block : reader.getFooter().getBlocks()) {
                     if (block.getRowCount() > MAX_PARALLEL_INPUT_ROWS) {
-                        return List.of(outputSchema);
+                        return Plan.serial(outputSchema);
                     }
                     for (ColumnChunkMetaData chunk : block.getColumns()) {
                         final String field = chunk.getPath().toArray()[0];
@@ -297,12 +318,14 @@ public final class ParquetMerger {
             remaining += w;
         }
         final List<MessageType> groups = new ArrayList<>(wanted);
+        final long[] groupWeight = new long[wanted];
         int start = 0;
         for (int group = 0; group < wanted; group++) {
             final int groupsLeft = wanted - group;
             int end;
             if (groupsLeft == 1) {
                 end = fields;
+                groupWeight[group] = remaining;
             } else {
                 // at least one field, and at least one for each group that follows
                 final long target = remaining / groupsLeft;
@@ -313,63 +336,87 @@ public final class ParquetMerger {
                     taken += weight[end++];
                 } while (end < maxEnd && taken < target);
                 remaining -= taken;
+                groupWeight[group] = taken;
             }
             groups.add(new MessageType(outputSchema.getName(), outputSchema.getFields().subList(start, end)));
             start = end;
         }
-        return groups;
+        final Integer[] order = new Integer[wanted];
+        for (int i = 0; i < wanted; i++) {
+            order[i] = i;
+        }
+        Arrays.sort(order, (x, y) -> Long.compare(groupWeight[y], groupWeight[x]));
+        final int[] dispatchOrder = new int[wanted];
+        for (int i = 0; i < wanted; i++) {
+            dispatchOrder[i] = order[i];
+        }
+        return new Plan(groups, dispatchOrder);
     }
 
     /**
-     * Copies the inputs one after the other. For each input every group is a task: the calling thread runs the first and the executor the
-     * others, and all are done before the next input starts, because the writer cuts a row group only between inputs. A failure of one
-     * task makes the others stop at their next row group, and the method waits for all of them before it throws, because nothing may
-     * write to the output (or read a stream that the caller closes) after it returns.
+     * Copies the inputs one after the other. For each input up to {@code parallelism} workers take the groups one at a time, the most
+     * expensive first: the calling thread is one worker and the executor runs the others. All are done before the next input starts,
+     * because the writer cuts a row group only between inputs. A worker that the executor rejects is not needed, because the others take
+     * its groups. A failure of one worker makes the others stop before their next group (and at their next row group of an input), and
+     * the method waits for all of them before it throws, because nothing may write to the output (or read a stream that the caller
+     * closes) after it returns.
      */
-    private static long copyInParallel(List<Input> inputs, List<MessageType> groups, ColumnarParquetWriter writer, Executor executor)
+    private static long copyInParallel(List<Input> inputs, Plan plan, ColumnarParquetWriter writer, Executor executor, int parallelism)
         throws IOException {
+        final List<MessageType> groups = plan.groups();
+        final int workers = Math.min(parallelism, groups.size());
         final AtomicBoolean failed = new AtomicBoolean();
         long rows = 0;
         for (Input input : inputs) {
-            final List<FutureTask<Long>> tasks = new ArrayList<>(groups.size());
-            final List<FutureTask<Long>> notStarted = new ArrayList<>();
-            for (int group = 1; group < groups.size(); group++) {
-                final int g = group;
-                final FutureTask<Long> task = new FutureTask<>(() -> copyGroup(input, g, groups.get(g), writer, failed));
-                tasks.add(task);
+            final AtomicInteger next = new AtomicInteger();
+            final long[] groupRows = new long[groups.size()]; // each index is written by one worker, and read after all have ended
+            final Callable<Void> worker = () -> {
+                try {
+                    int i;
+                    while (failed.get() == false && (i = next.getAndIncrement()) < groups.size()) {
+                        final int group = plan.dispatchOrder()[i];
+                        groupRows[group] = copyGroup(input, group, groups.get(group), writer, failed);
+                    }
+                    return null;
+                } catch (Exception | Error e) {
+                    failed.set(true);
+                    throw e;
+                }
+            };
+            final List<FutureTask<Void>> tasks = new ArrayList<>(workers);
+            for (int w = 1; w < workers; w++) {
+                final FutureTask<Void> task = new FutureTask<>(worker);
                 try {
                     executor.execute(task);
-                } catch (RejectedExecutionException e) {
-                    notStarted.add(task);
+                    tasks.add(task);
+                } catch (RuntimeException e) {
+                    break; // the executor does not take it (a rejection, or a shutdown): the workers that run take its groups
                 }
             }
-            final FutureTask<Long> first = new FutureTask<>(() -> copyGroup(input, 0, groups.get(0), writer, failed));
-            first.run();
-            tasks.add(0, first);
-            for (FutureTask<Long> task : notStarted) {
-                task.run();
+            final FutureTask<Void> own = new FutureTask<>(worker);
+            own.run();
+            tasks.add(0, own);
+            await(tasks, failed);
+            final long copied = groupRows[0];
+            for (long groupCopied : groupRows) {
+                if (groupCopied != copied) {
+                    throw new IllegalStateException("the groups copied different numbers of rows of [" + input.name() + "]");
+                }
             }
-            final long copied = await(tasks, failed);
             writer.inputDone(copied); // the one place where a row group can be cut
             rows += copied;
         }
         return rows;
     }
 
-    /** Waits for all tasks of one input, uninterruptibly, and returns the rows that every one of them copied. */
-    private static long await(List<FutureTask<Long>> tasks, AtomicBoolean failed) throws IOException {
+    /** Waits for all workers of one input, uninterruptibly. The first failure is thrown, and the others are added to it. */
+    private static void await(List<FutureTask<Void>> tasks, AtomicBoolean failed) throws IOException {
         Throwable failure = null;
         boolean interrupted = false;
-        long rows = -1;
-        for (FutureTask<Long> task : tasks) {
+        for (FutureTask<Void> task : tasks) {
             while (true) {
                 try {
-                    final long copied = task.get();
-                    if (rows >= 0 && copied != rows && failure == null) {
-                        failure = new IllegalStateException("the groups copied [" + rows + "] and [" + copied + "] rows of one input");
-                        failed.set(true);
-                    }
-                    rows = copied;
+                    task.get();
                     break;
                 } catch (ExecutionException e) {
                     failed.set(true);
@@ -402,7 +449,6 @@ public final class ParquetMerger {
                 default -> throw new IOException(failure);
             }
         }
-        return rows;
     }
 
     /** The values of the columns of one group in the row groups of an input, to the page stores of that group. */

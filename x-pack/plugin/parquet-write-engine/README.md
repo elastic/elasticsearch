@@ -138,6 +138,18 @@ any of them loses no row:
 5. write the high-water mark and the row count in the commit data, and remove the marker;
 6. delete the local files.
 
+Steps 3 to 6 of a run go on in the background (the `parquet_upload` pool) while the next run is merged, and the periodic flush does
+not wait for the upload of its last run, so the next flush merges while that upload goes on. Only one run is announced at a time: the
+marker of a run is written after the run before it is in the table, so a crash always has one marker to finish, and the recovery is the
+one above. The next flush skips the local files of the run that is uploading (they are neither leftovers nor new), waits for that upload
+before it writes its own marker, and counts the local bytes of that run out of the data that waits for a flush (otherwise a flush would
+start for data that is already being uploaded and write a tiny file). A flush that a caller waits for (the `_flush` API, with
+`wait_if_ongoing` true, which is the default) returns only when the rows of every run, also of an earlier flush, are in the table. An
+upload that fails in the background is logged and left to the next flush, which finishes the run from its marker. The close of the engine
+waits for an upload that runs. The rows of the last run of a periodic flush are in the table when its upload ends, which took about 12 s
+for a typical flush in a benchmark of 100 million rows with S3, and the files of that run stay on the disk and count for
+`max_local_size` until then.
+
 The merge copies the values from the column readers of the local files to the column writers of the merged file, with their repetition
 and definition levels, so no row is ever assembled (the merge before it built a parquet-mr `Group` for each row). A column has the same
 type and so the same levels in every file, and a column that an earlier file lacks becomes nulls. On 600,000 rows of 105 columns like
@@ -146,9 +158,11 @@ ClickBench's (68 integers, 10 longs, 27 keywords) with ZSTD, one thread on a lap
 binary columns, and the compression (about 14% of the samples).
 
 The merge can encode the columns on several threads (`index.parquet.flush_merge_parallelism`, 4 by default, 1 is the old behaviour).
-The columns are split into contiguous groups of about the same estimated cost (30 ns for each value and 3 ns for each byte before compression), and for each local file every group is a task: the
-thread of the flush runs the first, the `parquet_merge` pool runs the others, each task reads only the columns of its group from the
-file and encodes them into a page store of its own. The groups meet after each local file, and that is the only place where a row group
+The columns are split into contiguous groups of about the same estimated cost (30 ns for each value and 3 ns for each byte before
+compression), twice as many groups as threads. For each local file the threads take the groups one at a time, the most expensive first:
+the thread of the flush is one worker, the `parquet_merge` pool runs the others, and a worker that has finished a group takes the next, so
+an estimate that is wrong for a group does not leave the other threads waiting. Each worker reads only the columns of its group from the
+file and encodes them into a page store of that group. The groups meet after each local file, and that is the only place where a row group
 is cut, so a row group is at most one local file (5,000 rows) larger than `row_group_size`. The page stores are then written to the row
 group one after the other in the order of the columns. The uploaded file therefore has the same row groups, encodings, compression and
 page indexes as a serial merge makes. It is not byte for byte the same, because parquet-mr decides when to cut a page from the
@@ -448,8 +462,8 @@ loses its local rows. A real handoff (flush and block writes before the move, or
   4 shards that compact together in `ParquetCompactorTests`, 2 shards on one node in the cluster tests). The protocol does not depend on where
   the shards run, but a cluster with several data nodes is not tested.
 - Not tested: data streams, ILM and rollover, index sorting, shrink, split and clone, reindex into such an index, cross-cluster replication.
-- All shards of a node share three small thread pools (`parquet_flush`, `parquet_compaction` and `parquet_merge`, at most half the processors
-  each), so many shards that flush at once queue for them.
+- All shards of a node share four small thread pools (`parquet_flush`, `parquet_compaction`, `parquet_merge` and `parquet_upload`, at most half
+  the processors each), so many shards that flush at once queue for them.
 - A clean shutdown does not upload. The local files stay on the disk, and the shard finds them when it starts again. With `local`
   durability the rows are not safe against the loss of the disk before their flush; with `staged` they are in the staging files.
 - No relocation. A shard cannot move (the allocation decider refuses it, see "Placement: the shard is pinned"), a node shutdown of type

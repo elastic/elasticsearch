@@ -34,9 +34,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -71,6 +75,8 @@ public class ParquetFlusherTests extends ESTestCase {
     /** The threads of the merges of all the tests, and how many of them a merge uses (1 is the thread of the flush alone). */
     private ExecutorService mergeExecutor;
     private int mergeParallelism;
+    /** The thread of the uploads, or null for a flusher that uploads on its own thread after each merge. */
+    private ExecutorService uploadExecutor;
     /** What the engine reports as complete: every bulk with a range up to this has finished writing its local file. */
     private long completeThrough;
 
@@ -98,12 +104,17 @@ public class ParquetFlusherTests extends ESTestCase {
         completeThrough = Long.MAX_VALUE;
         mergeExecutor = Executors.newFixedThreadPool(3);
         mergeParallelism = between(1, 4);
+        uploadExecutor = randomBoolean() ? Executors.newFixedThreadPool(2) : null;
     }
 
     @After
     public void closeFixtures() throws Exception {
         mergeExecutor.shutdown();
         assertTrue(mergeExecutor.awaitTermination(30, TimeUnit.SECONDS));
+        if (uploadExecutor != null) {
+            uploadExecutor.shutdown();
+            assertTrue(uploadExecutor.awaitTermination(30, TimeUnit.SECONDS));
+        }
         store.close();
         directory.close();
     }
@@ -130,7 +141,9 @@ public class ParquetFlusherTests extends ESTestCase {
             () -> completeThrough,
             hooks,
             ParquetFlusher.RunListener.NONE,
-            mergeExecutor
+            mergeExecutor,
+            uploadExecutor,
+            () -> () -> {}
         );
     }
 
@@ -145,7 +158,9 @@ public class ParquetFlusherTests extends ESTestCase {
             () -> completeThrough,
             hooks,
             listener,
-            mergeExecutor
+            mergeExecutor,
+            uploadExecutor,
+            () -> () -> {}
         );
     }
 
@@ -269,6 +284,8 @@ public class ParquetFlusherTests extends ESTestCase {
         TestLocalFiles.write(directory, 500, 999, false);
         TestLocalFiles.write(directory, 1000, 1499, false);
         settings = new ParquetFlusher.Settings(1, 1 << 16, CompressionCodecName.SNAPPY, false); // a run for each file
+        // with a background upload the next run is already merged when the listener is told, and the test counts the merged files too
+        uploadExecutor = null;
 
         final List<String> seen = new ArrayList<>();
         final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE, () -> {
@@ -295,6 +312,175 @@ public class ParquetFlusherTests extends ESTestCase {
             )
         );
         assertFlushed(1500);
+    }
+
+    // ---- the upload of a run goes on in the background while the next run is merged ----
+
+    private void useBackgroundUploads() {
+        if (uploadExecutor != null) {
+            uploadExecutor.shutdown();
+        }
+        uploadExecutor = Executors.newFixedThreadPool(2);
+    }
+
+    /** Runs {@code action} when the {@code count}th time that the flush reaches {@code step}, on the thread that reaches it. */
+    private static ParquetFlusher.Hooks onStep(String step, int count, ParquetFlusher.Hooks action) {
+        final AtomicInteger reached = new AtomicInteger();
+        return reachedStep -> {
+            if (reachedStep.equals(step) && reached.incrementAndGet() == count) {
+                action.reached(reachedStep);
+            }
+        };
+    }
+
+    private static ParquetFlusher.Hooks both(ParquetFlusher.Hooks first, ParquetFlusher.Hooks second) {
+        return step -> {
+            first.reached(step);
+            second.reached(step);
+        };
+    }
+
+    private static void await(CountDownLatch latch) throws IOException {
+        try {
+            if (latch.await(30, TimeUnit.SECONDS) == false) {
+                throw new IOException("the test did not release the latch");
+            }
+        } catch (InterruptedException e) {
+            throw new IOException(e);
+        }
+    }
+
+    /**
+     * The second run is merged while the first one uploads, and its marker is written only after the first one is in the table: there is
+     * one marker, so a crash can always finish the run that the marker names.
+     */
+    public void testTheNextRunIsMergedWhileTheRunBeforeItUploadsAndItsMarkerWaitsForIt() throws Exception {
+        useBackgroundUploads();
+        TestLocalFiles.write(directory, 0, 499, false);
+        TestLocalFiles.write(directory, 500, 999, false);
+        settings = new ParquetFlusher.Settings(1, 1 << 16, CompressionCodecName.SNAPPY, false); // a run for each file
+        final CountDownLatch secondMerged = new CountDownLatch(1);
+        final ParquetFlusher.Hooks hooks = both(onStep("merged", 2, step -> secondMerged.countDown()), onStep("uploaded", 1, step -> {
+            // the upload of the first run does not end before the second run is merged
+            await(secondMerged);
+        }));
+
+        final ParquetFlusher.Result result = newFlusher(
+            both(
+                hooks,
+                onStep(
+                    "pending",
+                    2,
+                    step -> assertThat(
+                        "the first run is in the table when the marker of the second is written",
+                        ShardCommitData.uploadedThroughSeqNo(commits.userData()),
+                        equalTo(499L)
+                    )
+                )
+            )
+        ).flush();
+
+        assertThat(result.files(), equalTo(2));
+        assertFlushed(1000);
+    }
+
+    /** A flush that does not wait returns while its last upload runs, and the files of that run stay until it has finished. */
+    public void testAFlushThatDoesNotWaitReturnsWhileTheLastUploadRuns() throws Exception {
+        useBackgroundUploads();
+        final LocalParquetFiles.LocalFile file = TestLocalFiles.write(directory, 0, 499, false);
+        final CountDownLatch release = new CountDownLatch(1);
+        final ParquetFlusher flusher = newFlusher(onStep("uploaded", 1, step -> await(release)));
+
+        final ParquetFlusher.Result result = flusher.flush(false);
+
+        assertThat(result.files(), equalTo(1));
+        assertThat(flusher.uploadingLocalBytes(), equalTo(file.length()));
+        assertThat(ShardCommitData.uploadedThroughSeqNo(commits.userData()), equalTo(-1L));
+        assertThat("the marker is in the commit data", commits.userData().get(ShardCommitData.PENDING_UPLOAD), not(nullValue()));
+        assertThat("the local file stays", localFileNames(), hasSize(2)); // the file and the merged file
+        release.countDown();
+        flusher.flush(true); // nothing new: waits for the upload
+        assertThat(flusher.uploadingLocalBytes(), equalTo(0L));
+        assertFlushed(500);
+    }
+
+    /** The next flush merges its own files while the upload of the earlier one runs, and it never takes the files of that upload. */
+    public void testTheNextFlushMergesWhileTheUploadOfTheEarlierOneRunsAndDoesNotTakeItsFiles() throws Exception {
+        useBackgroundUploads();
+        TestLocalFiles.write(directory, 0, 499, false);
+        final CountDownLatch release = new CountDownLatch(1);
+        final CountDownLatch secondMerged = new CountDownLatch(1);
+        final ParquetFlusher flusher = newFlusher(
+            both(onStep("uploaded", 1, step -> await(release)), onStep("merged", 2, step -> secondMerged.countDown()))
+        );
+        flusher.flush(false);
+        TestLocalFiles.write(directory, 500, 999, false);
+
+        final AtomicReference<ParquetFlusher.Result> second = new AtomicReference<>();
+        final Thread thread = new Thread(() -> {
+            try {
+                second.set(flusher.flush(false));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        thread.start();
+        try {
+            assertTrue("the second flush merged while the first upload runs", secondMerged.await(30, TimeUnit.SECONDS));
+            release.countDown();
+            thread.join(30_000);
+            assertFalse(thread.isAlive());
+        } finally {
+            release.countDown();
+        }
+        assertThat("only its own file", second.get().rows(), equalTo(500L));
+        flusher.flush(true);
+        assertFlushed(1000);
+    }
+
+    /** A flush that waits also waits for the upload that an earlier flush left running. */
+    public void testAFlushThatWaitsWaitsForTheUploadOfAnEarlierFlush() throws Exception {
+        useBackgroundUploads();
+        TestLocalFiles.write(directory, 0, 499, false);
+        final CountDownLatch release = new CountDownLatch(1);
+        final ParquetFlusher flusher = newFlusher(onStep("uploaded", 1, step -> await(release)));
+        flusher.flush(false);
+
+        final AtomicBoolean finished = new AtomicBoolean();
+        final Thread thread = new Thread(() -> {
+            try {
+                flusher.flush(true);
+                finished.set(true);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        thread.start();
+        try {
+            thread.join(300);
+            assertTrue("it waits for the upload", thread.isAlive());
+            assertFalse(finished.get());
+        } finally {
+            release.countDown();
+        }
+        thread.join(30_000);
+        assertTrue(finished.get());
+        assertFlushed(500);
+    }
+
+    /** An upload that fails in the background is logged, and the next flush finishes the run from its marker. */
+    public void testAnUploadThatFailsInTheBackgroundIsFinishedByTheNextFlush() throws Exception {
+        useBackgroundUploads();
+        TestLocalFiles.write(directory, 0, 499, false);
+        final ParquetFlusher flusher = newFlusher(onStep("uploaded", 1, step -> { throw new IOException("the repository is down"); }));
+
+        flusher.flush(false); // does not fail: the upload is not its business any more
+        assertBusy(() -> assertThat(flusher.uploadingLocalBytes(), equalTo(0L)));
+        assertThat("the run is not in the table", ShardCommitData.uploadedThroughSeqNo(commits.userData()), equalTo(-1L));
+
+        flusher.flush(true);
+
+        assertFlushed(500);
     }
 
     public void testAListenerThatFailsDoesNotFailAFlushThatIsCommitted() throws Exception {
@@ -528,7 +714,9 @@ public class ParquetFlusherTests extends ESTestCase {
                 () -> Long.MAX_VALUE,
                 hooks,
                 ParquetFlusher.RunListener.NONE,
-                mergeExecutor
+                mergeExecutor,
+                uploadExecutor,
+                () -> () -> {}
             );
         }
 

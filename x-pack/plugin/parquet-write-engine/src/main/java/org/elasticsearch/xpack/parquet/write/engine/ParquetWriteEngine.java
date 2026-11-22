@@ -636,8 +636,10 @@ public class ParquetWriteEngine extends Engine {
     /** True when the local files have reached the size or the age at which they are uploaded. */
     @Override
     public boolean shouldPeriodicallyFlush() {
-        final long bytes = localBytes.get();
-        if (bytes == 0 || activeFlushes.get() > 0) {
+        // the run that is uploading in the background is on the disk, and it is not data that waits for a flush
+        final ParquetFlusher current = flusher;
+        final long bytes = localBytes.get() - (current == null ? 0 : current.uploadingLocalBytes());
+        if (bytes <= 0 || activeFlushes.get() > 0) {
             return false;
         }
         final Settings settings = engineConfig.getIndexSettings().getSettings();
@@ -668,7 +670,7 @@ public class ParquetWriteEngine extends Engine {
                         return new FlushResult(true, flushGeneration.get());
                     }
                     try {
-                        flushLocalFiles();
+                        flushLocalFiles(waitIfOngoing);
                         return new FlushResult(false, flushGeneration.incrementAndGet());
                     } finally {
                         flushLock.unlock();
@@ -678,8 +680,14 @@ public class ParquetWriteEngine extends Engine {
         }));
     }
 
-    /** Merges the complete local files, uploads them and lists them in the table. Runs under the flush lock. */
-    private void flushLocalFiles() throws IOException {
+    /**
+     * Merges the complete local files, uploads them and lists them in the table. Runs under the flush lock.
+     *
+     * @param waitForUploads true for a flush that a caller waits for (the {@code _flush} API): the rows of every run are in the table when
+     *                       it returns. The periodic flush does not wait for the upload of its last run, so that the next flush can merge
+     *                       while it goes on (see {@link ParquetFlusher#flush(boolean)}).
+     */
+    private void flushLocalFiles(boolean waitForUploads) throws IOException {
         try {
             ParquetFlusher current = flusher;
             if (current == null) {
@@ -693,15 +701,20 @@ public class ParquetWriteEngine extends Engine {
                     // the space of a run that is uploaded is free at once: a flush of several runs takes minutes, and bulks must not be
                     // rejected for the whole time because of a counter that counts the files that are already gone
                     this::refreshLocalFiles,
-                    engineConfig.getThreadPool().executor(ParquetThreadPools.MERGE)
+                    engineConfig.getThreadPool().executor(ParquetThreadPools.MERGE),
+                    engineConfig.getThreadPool().executor(ParquetThreadPools.UPLOAD),
+                    // the close of the engine waits for an upload that goes on after its flush has returned
+                    this::acquireEnsureOpenRef
                 );
                 flusher = current;
             }
             final long start = System.nanoTime();
-            final ParquetFlusher.Result result = current.flush();
+            final ParquetFlusher.Result result = current.flush(waitForUploads);
             if (result.files() > 0) {
                 logger.info(
-                    "flushed [{}] files with [{}] rows ([{}]) to the repository in [{}]",
+                    waitForUploads
+                        ? "flushed [{}] files with [{}] rows ([{}]) to the repository in [{}]"
+                        : "merged [{}] files with [{}] rows ([{}]) in [{}], the upload of the last one may still run",
                     result.files(),
                     result.rows(),
                     ByteSizeValue.ofBytes(result.bytes()),

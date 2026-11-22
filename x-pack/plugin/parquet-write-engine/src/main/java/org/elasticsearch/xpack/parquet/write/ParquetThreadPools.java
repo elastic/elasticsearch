@@ -26,7 +26,9 @@ import java.util.List;
  * pools of the snapshots are.
  *
  * <p>The columns of a merge are encoded on a third pool. The thread of a flush or of a compaction waits for those tasks, so they cannot
- * run on the pool of the waiter: a pool in which every thread is a flush that waits would have no thread left for the tasks.
+ * run on the pool of the waiter: a pool in which every thread is a flush that waits would have no thread left for the tasks. The upload
+ * of a merged file has a pool of its own for the same reason, and because an upload that blocks for a long time on a slow repository must
+ * not take a thread from the merges.
  */
 public final class ParquetThreadPools {
 
@@ -34,6 +36,8 @@ public final class ParquetThreadPools {
     public static final String COMPACTION = "parquet_compaction";
     /** The tasks that encode a group of the columns of a merge, for the thread of a flush that waits for them. */
     public static final String MERGE = "parquet_merge";
+    /** The upload of a merged file, which goes on while the next run of a flush is merged. */
+    public static final String UPLOAD = "parquet_upload";
 
     private ParquetThreadPools() {}
 
@@ -42,7 +46,8 @@ public final class ParquetThreadPools {
         return List.of(
             new ScalingExecutorBuilder(FLUSH, 1, max, TimeValue.timeValueSeconds(30), false),
             new ScalingExecutorBuilder(COMPACTION, 1, max, TimeValue.timeValueSeconds(30), false),
-            new ScalingExecutorBuilder(MERGE, 1, max, TimeValue.timeValueSeconds(30), false)
+            new ScalingExecutorBuilder(MERGE, 1, max, TimeValue.timeValueSeconds(30), false),
+            new ScalingExecutorBuilder(UPLOAD, 1, max, TimeValue.timeValueSeconds(30), false)
         );
     }
 }

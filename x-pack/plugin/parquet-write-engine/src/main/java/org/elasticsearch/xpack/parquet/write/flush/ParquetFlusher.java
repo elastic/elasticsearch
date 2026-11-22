@@ -14,6 +14,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.parquet.write.file.IndexInputFile;
@@ -24,12 +25,15 @@ import org.elasticsearch.xpack.parquet.write.table.ShardTable;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.FutureTask;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -117,6 +121,20 @@ public final class ParquetFlusher {
     private final RunListener runListener;
     /** Runs the tasks of the groups of a merge, see {@link ParquetMerger}; null merges on the thread of the flush. */
     private final Executor mergeExecutor;
+    /** Runs the upload of a run while the next run is merged; null uploads on the thread of the flush, after each merge. */
+    private final Executor uploadExecutor;
+    /** Held from the start of an upload until its end, so that the engine does not close under it. */
+    private final Supplier<Releasable> uploadGuard;
+    /** Serializes the changes of the schema of the table (by a merge) and the append of a file (by an upload), which run on two threads. */
+    private final Object tableLock = new Object();
+    /** The upload that runs in the background, and that a later flush (or {@link #flush(boolean)} with true) waits for. */
+    private volatile InFlight inFlight;
+
+    /**
+     * An upload of a run that goes on after the flush that started it has returned. The marker of the run is in the commit data until the
+     * upload has finished, so a crash or a failure is recovered like any other: the next flush finishes the run.
+     */
+    private record InFlight(Pending pending, long localBytes, FutureTask<Void> task) {}
 
     /**
      * @param completeThroughSeqNo the highest sequence number {@code n} such that every bulk with a range up to {@code n} has finished
@@ -163,6 +181,28 @@ public final class ParquetFlusher {
         RunListener runListener,
         Executor mergeExecutor
     ) {
+        this(directory, commits, table, settings, completeThroughSeqNo, hooks, runListener, mergeExecutor, null, () -> () -> {});
+    }
+
+    /**
+     * @param uploadExecutor runs the upload of a run so that the next run is merged meanwhile, and the last upload of a flush that does not
+     *                       wait is still running when the flush returns. It must not be an executor that the flush or the merge runs on.
+     * @param uploadGuard    called when an upload starts; the result is closed when it ends
+     */
+    public ParquetFlusher(
+        Directory directory,
+        ShardCommitData commits,
+        ShardTable table,
+        Supplier<Settings> settings,
+        LongSupplier completeThroughSeqNo,
+        Hooks hooks,
+        RunListener runListener,
+        Executor mergeExecutor,
+        Executor uploadExecutor,
+        Supplier<Releasable> uploadGuard
+    ) {
+        this.uploadExecutor = uploadExecutor;
+        this.uploadGuard = uploadGuard;
         this.mergeExecutor = mergeExecutor;
         this.directory = directory;
         this.commits = commits;
@@ -173,12 +213,36 @@ public final class ParquetFlusher {
         this.runListener = runListener;
     }
 
+    /** {@link #flush(boolean)} that returns when everything that it took is in the table. */
+    public Result flush() throws IOException {
+        return flush(true);
+    }
+
     /**
      * Uploads the local files up to the complete bound. A flush with no such file does nothing, and a file above the bound stays for the
      * next flush.
+     *
+     * <p>With an upload executor the upload of a run goes on while the next run is merged, and with {@code waitForUploads} false the
+     * upload of the last run goes on after this method has returned: its rows are in the table later, and the next flush merges its own
+     * files first and then waits for that upload. Until then the files of that run stay in the directory and
+     * {@link #uploadingLocalBytes()} counts them. A failure of that upload is logged, and the next flush finishes the run from its marker.
+     *
+     * @param waitForUploads whether the rows of every run, also of an earlier flush, are in the table when the method returns
      */
-    public Result flush() throws IOException {
-        recoverPending();
+    public Result flush(boolean waitForUploads) throws IOException {
+        InFlight running = inFlight;
+        if (running != null && running.task().isDone()) {
+            // An upload of an earlier flush has ended. If it failed it logged why, and its marker is still in the commit data, so the
+            // recovery below finishes the run.
+            inFlight = null;
+            running = null;
+        }
+        if (running == null) {
+            recoverPending();
+        }
+        // The files of a run that is being uploaded are neither leftovers nor to do. This is read before the commit data, so that a run
+        // that ends in between has its files skipped here or its commit seen below.
+        final long uploadingThrough = running == null ? -1 : running.pending().to();
 
         // The bound is read before the directory is listed: a file at or below it is complete when it is listed.
         final long complete = completeThroughSeqNo.getAsLong();
@@ -192,6 +256,8 @@ public final class ParquetFlusher {
             if (file.toSeqNo() <= through) {
                 delete(file.name()); // a leftover of a crash after the table listed its rows
                 deletedLeftovers = true;
+            } else if (file.toSeqNo() <= uploadingThrough) {
+                continue; // being uploaded by an earlier flush
             } else if (file.toSeqNo() <= complete) {
                 todo.add(file);
             }
@@ -203,13 +269,39 @@ public final class ParquetFlusher {
         int files = 0;
         long rows = 0;
         long bytes = 0;
-        for (List<LocalFile> run : runs(todo, settings.get().maxFileBytes())) {
-            final ParquetMerger.Merged merged = flushRun(run);
-            rows += merged.rows();
-            bytes += merged.length();
-            files++;
+        try {
+            for (List<LocalFile> run : runs(todo, settings.get().maxFileBytes())) {
+                final Merged merged = mergeRun(run);
+                // one marker at a time: the run before this one must be in the table before this one is announced
+                awaitUpload();
+                final Pending pending = writeMarker(merged);
+                startUpload(pending, merged.localBytes());
+                rows += merged.merged().rows();
+                bytes += merged.merged().length();
+                files++;
+            }
+            if (waitForUploads) {
+                awaitUpload();
+            }
+        } catch (IOException | RuntimeException | Error e) {
+            // a flush that fails does not leave an upload behind that a later flush, or a recovery after a restart, could meet half way
+            try {
+                awaitUpload();
+            } catch (IOException | RuntimeException | Error suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
         }
         return new Result(files, rows, bytes);
+    }
+
+    /**
+     * The local bytes of the run that is being uploaded in the background, which are still in the directory but must not count as data
+     * that waits for a flush.
+     */
+    public long uploadingLocalBytes() {
+        final InFlight running = inFlight;
+        return running == null || running.task().isDone() ? 0 : running.localBytes();
     }
 
     /**
@@ -249,14 +341,21 @@ public final class ParquetFlusher {
         return runs;
     }
 
-    private ParquetMerger.Merged flushRun(List<LocalFile> run) throws IOException {
+    /** A run that is merged: its file, and the local bytes that it was made from. */
+    private record Merged(ParquetMerger.Merged merged, long from, long to, long localBytes) {}
+
+    /** Step 1: merge, with the ids of the table (adding the columns that this run has and the table lacks). */
+    private Merged mergeRun(List<LocalFile> run) throws IOException {
         final long from = run.get(0).fromSeqNo();
         final long to = run.get(run.size() - 1).toSeqNo();
         final Settings now = settings.get();
 
-        // 1. merge, with the ids of the table (adding the columns that this run has and the table lacks)
         final MessageType union = ParquetMerger.unionSchema(directory, run);
-        final MessageType schema = ShardTable.withFieldIds(union, table.ensureColumns(union));
+        final Map<String, Integer> ids;
+        synchronized (tableLock) {
+            ids = table.ensureColumns(union);
+        }
+        final MessageType schema = ShardTable.withFieldIds(union, ids);
         final String mergedName = LocalParquetFiles.mergedName(from, to);
         delete(mergedName); // the leftover of an earlier try of this range that did not get to the pending marker
         final long mergeStart = System.nanoTime();
@@ -279,17 +378,87 @@ public final class ParquetFlusher {
             now.mergeParallelism()
         );
         hooks.reached("merged");
+        long localBytes = 0;
+        for (LocalFile file : run) {
+            localBytes += file.length();
+        }
+        return new Merged(merged, from, to, localBytes);
+    }
 
-        // 2. the pending marker
-        final Pending pending = new Pending(mergedName, from, to, merged.rows(), ShardTable.newAttempt());
+    /** Step 2: the pending marker. */
+    private Pending writeMarker(Merged run) throws IOException {
+        final Pending pending = new Pending(run.merged().name(), run.from(), run.to(), run.merged().rows(), ShardTable.newAttempt());
         final Map<String, String> userData = commits.userData();
         userData.put(ShardCommitData.PENDING_UPLOAD, pending.encode());
         commits.commit(userData);
         hooks.reached("pending");
+        return pending;
+    }
 
-        // 3 to 6
-        uploadAndPublish(pending);
-        return merged;
+    /** Steps 3 to 6, on the upload executor if there is one, and then {@link #awaitUpload} is what waits for them. */
+    private void startUpload(Pending pending, long localBytes) throws IOException {
+        if (uploadExecutor == null) {
+            uploadAndPublish(pending);
+            return;
+        }
+        final Releasable guard = uploadGuard.get();
+        final FutureTask<Void> task = new FutureTask<>(() -> {
+            try {
+                uploadAndPublish(pending);
+                return null;
+            } catch (IOException | RuntimeException e) {
+                logger.warn("could not upload the run [{}]; the next flush finishes it", pending.name(), e);
+                throw e;
+            } finally {
+                guard.close();
+            }
+        });
+        try {
+            uploadExecutor.execute(task);
+        } catch (RuntimeException e) {
+            guard.close();
+            uploadAndPublish(pending); // the executor does not take it (it is shut down): upload on this thread
+            return;
+        }
+        inFlight = new InFlight(pending, localBytes, task);
+    }
+
+    /** Waits for the upload that runs in the background, uninterruptibly, and throws what made it fail. */
+    private void awaitUpload() throws IOException {
+        final InFlight running = inFlight;
+        if (running == null) {
+            return;
+        }
+        boolean interrupted = false;
+        Throwable failure = null;
+        while (true) {
+            try {
+                running.task().get();
+                break;
+            } catch (ExecutionException e) {
+                failure = e.getCause();
+                break;
+            } catch (InterruptedException e) {
+                interrupted = true; // the upload goes on, and the rows are not safe to forget until it ends
+            }
+        }
+        inFlight = null;
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+            final InterruptedIOException e = new InterruptedIOException("interrupted while a run was uploaded");
+            if (failure != null) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+        if (failure != null) {
+            switch (failure) {
+                case IOException e -> throw e;
+                case RuntimeException e -> throw e;
+                case Error e -> throw e;
+                default -> throw new IOException(failure);
+            }
+        }
     }
 
     /** Steps 3 to 6 for a merged file that exists in the directory. */
@@ -314,7 +483,9 @@ public final class ParquetFlusher {
             length,
             new IndexInputFile(directory, pending.name())
         );
-        table.append(file, pending.to());
+        synchronized (tableLock) {
+            table.append(file, pending.to());
+        }
         hooks.reached("appended");
 
         finish(pending);
@@ -388,6 +559,13 @@ public final class ParquetFlusher {
         }
         final Pending pending = Pending.decode(value);
         logger.info("finishing the flush of [{}] that did not complete", pending.name());
+        // A flush that failed or crashed while it merged the next run (the upload of this one ran meanwhile) left a merged file that has no
+        // marker. It is made again from the local files, which are all still here.
+        for (LocalFile file : LocalParquetFiles.listMerged(directory)) {
+            if (file.name().equals(pending.name()) == false) {
+                delete(file.name());
+            }
+        }
         // The exact key: a file of another history or of another attempt with the same range is not ours.
         if (table.isListed(table.dataLocation(pending.from(), pending.to(), pending.attempt()))) {
             finish(pending);

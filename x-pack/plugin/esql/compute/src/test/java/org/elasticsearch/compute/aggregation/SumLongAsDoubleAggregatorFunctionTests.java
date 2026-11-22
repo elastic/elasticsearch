@@ -228,6 +228,34 @@ public class SumLongAsDoubleAggregatorFunctionTests extends AggregatorFunctionTe
     }
 
     /**
+     * The final result of a function that only received a partial rounds {@code value + delta}, because the pair may not be
+     * normalized, for example after a sampled aggregate scaled the two apart.
+     */
+    public void testFinalOfAnUnnormalizedPartialRoundsValuePlusDelta() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        try (SumLongAsDoubleAggregatorFunction reducer = new SumLongAsDoubleAggregatorFunction(List.of(0, 1, 2))) {
+            Page input = new Page(
+                blockFactory.newConstantDoubleBlockWith(0x1p54, 1),
+                blockFactory.newConstantDoubleBlockWith(3.0, 1),
+                blockFactory.newConstantBooleanBlockWith(true, 1)
+            );
+            try {
+                reducer.addIntermediateInput(input);
+            } finally {
+                input.releaseBlocks();
+            }
+            Block[] out = new Block[1];
+            reducer.evaluateFinal(out, 0, driverContext);
+            try (Block r = out[0]) {
+                assertThat(((DoubleBlock) r).getDouble(0), equalTo(0x1p54 + 4.0));
+            }
+        }
+        driverContext.finish();
+        assertDriverContext(driverContext);
+    }
+
+    /**
      * A function that only receives intermediate input, like the one that reduces on a node, forwards the partial as it is,
      * correction included, instead of adding it to an empty sum and rounding the correction away.
      */

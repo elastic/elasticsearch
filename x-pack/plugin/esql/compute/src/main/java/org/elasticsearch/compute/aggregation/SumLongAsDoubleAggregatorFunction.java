@@ -215,7 +215,10 @@ public final class SumLongAsDoubleAggregatorFunction implements AggregatorFuncti
             blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
             return;
         }
-        blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(total().value(), 1);
+        CompensatedSum total = total();
+        // The pair may not be normalized, for example after a sampled aggregate scaled its two parts apart, so round value + delta.
+        double result = Double.isFinite(total.value()) ? total.value() + total.delta() : total.value();
+        blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(result, 1);
     }
 
     /**

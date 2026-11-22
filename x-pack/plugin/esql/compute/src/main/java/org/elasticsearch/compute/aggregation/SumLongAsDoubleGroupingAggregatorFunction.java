@@ -160,7 +160,7 @@ public final class SumLongAsDoubleGroupingAggregatorFunction implements Grouping
      * {@link SumLongAsDoubleAggregatorFunction}: the low and the high 32 bits of the values are summed apart, each in a
      * {@code long} that they can't overflow, which are two plain sums that the jvm vectorizes. Then the sum of the
      * page, which is exact, is rounded once to a value and a correction, which are added to the compensated sum of the group
-     * together.
+     * one after the other.
      */
     private void addConstantGroup(int positionOffset, int positions, int groupId, LongArrayVector vector) {
         int end = positionOffset + positions;
@@ -173,13 +173,17 @@ public final class SumLongAsDoubleGroupingAggregatorFunction implements Grouping
         }
         // The sum is high * 2^32 + low. Move what low has above 32 bits into high, then it is mid * 2^32 + the low 32 bits.
         long mid = high + (low >>> 32);
-        // Round the exact sum of the page once, keeping the rounding error as the correction, and add that pair to the group in a
-        // single step. Adding the parts of the sum one by one is not safe: the first of them can be huge and, added to a small
-        // sum of the group, rounds that sum away before the parts cancel out.
+        // Round the exact sum of the page once, keeping the rounding error as the correction. The value is added before the
+        // correction: they must not be combined first, because that rounds the correction away when the value then cancels
+        // the sum of the group. Adding the parts of the sum one by one is not safe either: the first of them can be huge and,
+        // added to a small sum of the group, rounds that sum away before the parts cancel out.
         BigInteger exact = BigInteger.valueOf(mid).shiftLeft(32).add(BigInteger.valueOf(low & LOW_MASK));
         double value = exact.doubleValue();
         double delta = exact.subtract(new BigDecimal(value).toBigInteger()).doubleValue();
-        state.add(value, delta, groupId);
+        state.add(value, groupId);
+        if (delta != 0.0) {
+            state.add(delta, groupId);
+        }
     }
 
     private void addRawInput(int positionOffset, IntVector groups, LongBlock block) {

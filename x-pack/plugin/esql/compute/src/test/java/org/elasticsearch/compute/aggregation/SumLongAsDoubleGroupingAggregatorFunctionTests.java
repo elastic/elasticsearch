@@ -111,6 +111,13 @@ public class SumLongAsDoubleGroupingAggregatorFunctionTests extends PartitionedG
      */
     public void testConstantGroupPageAfterAnotherPage() {
         assertThat(sumOfConstantGroupPages(new long[] { 1, 2 }, new long[] { -1, -2 }), equalTo(0.0));
+        // The second page is 2^54 + 1, which is a value and a correction. The value cancels the sum of the group, then the correction
+        // stays.
+        assertThat(sumOfConstantGroupPages(new long[] { -(1L << 54), 0 }, new long[] { 1L << 54, 1 }), equalTo(1.0));
+        // A power of two is a double, so the first page leaves no correction behind. A correction that the group already holds is
+        // still combined with the next value by the shared compensated sum, which is the limit that is documented.
+        long big = 1L << between(54, 60);
+        assertThat(sumOfConstantGroupPages(new long[] { -big, 0 }, new long[] { big, 1 }), equalTo(1.0));
         long[] first = LongStream.generate(() -> randomLongBetween(-1000, 1000)).limit(between(1, 100)).toArray();
         long[] second = LongStream.generate(() -> randomLongBetween(-1000, 1000)).limit(between(1, 100)).toArray();
         long[] both = LongStream.concat(Arrays.stream(first), Arrays.stream(second)).toArray();

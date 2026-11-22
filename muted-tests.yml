@@ -864,3 +864,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testTripFailsQueryWithoutPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/166996
+- class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
+  tasks:
+  - :modules:aggregations:yamlRestTest
+  method: test {yaml=aggregations/terms_include_exclude_regex/a build predicted to exceed the request breaker is refused, and the reservation is released}
+  issue: https://github.com/elastic/elasticsearch/issues/167016

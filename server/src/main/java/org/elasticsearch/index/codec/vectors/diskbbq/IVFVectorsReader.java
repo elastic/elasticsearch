@@ -458,7 +458,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         final IVFSegmentScan scan = shared != null ? shared : IVFSegmentScan.single();
         // the plan gets its own vector values: parts of a shared scan visit postings while the plan's iterator runs
         if (scan.openIfNeeded(
-            () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo), scan.parts())
+            () -> planScan(fieldInfo, entry, queryTarget, knnCollector, acceptDocs, esAcceptDocs, vectorValues(fieldInfo))
         ) == false || scan.isDone()) {
             return; // no vectors in this segment / slice, or other parts already finished it
         }
@@ -521,8 +521,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         KnnCollector knnCollector,
         AcceptDocs acceptDocs,
         ESAcceptDocs esAcceptDocs,
-        KnnVectorValues values,
-        int prefetchDepth
+        KnnVectorValues values
     ) throws IOException {
         final IndexInput centroids = entry.centroidSlice(ivfCentroids);
         final int numVectors = getNumberOfVectors(entry, values, centroids, esAcceptDocs);
@@ -558,9 +557,11 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             values,
             visitRatio
         );
-        // prefetch one posting list ahead per part searching the segment, so each part's next list is on its way
+        // Prefetch one posting list ahead, however many parts search the segment. A shared scan lists its whole budget through
+        // this iterator, so one ahead already prefetches every listed posting list; deeper would only reach past the budget,
+        // into posting lists the search may never visit.
         // TODO we may want to prefetch more, with a limit so we don't prefetch many lists we won't end up scoring
-        CentroidIterator postings = new PrefetchingCentroidIterator(centroidOrder, entry.postingListSlice(ivfClusters), prefetchDepth);
+        CentroidIterator postings = new PrefetchingCentroidIterator(centroidOrder, entry.postingListSlice(ivfClusters));
         return new IVFSegmentScan.Plan(
             postings,
             maxVectorsToVisit(entry, visitRatio, numVectors),

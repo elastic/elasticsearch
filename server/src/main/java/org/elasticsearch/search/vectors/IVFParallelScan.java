@@ -109,7 +109,7 @@ final class IVFParallelScan {
         }
         List<int[]> split = new ArrayList<>();
         for (int i = 0; i < leaves.length; i++) {
-            leaves[i].scan = new IVFSegmentScan(Math.max(1, parts[i]));
+            leaves[i].scan = new IVFSegmentScan();
             if (parts[i] > 1) {
                 leaves[i].scan.pause(); // opening claims nothing
                 split.add(new int[] { i });
@@ -247,6 +247,9 @@ final class IVFParallelScan {
                 )
             );
             return;
+        }
+        if (leaf.scan.isDone()) {
+            return; // the other parts took all the work: return before allocating a collector or building accepted docs
         }
         // parts share state across threads, so their native scratch stays on auto arenas rather than a thread-confined one
         IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, query.numCands, query.k, null, leaf.scan);

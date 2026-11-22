@@ -24,18 +24,26 @@ import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FilterIndexInput;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFSegmentScan;
 import org.elasticsearch.index.codec.vectors.diskbbq.es95.ES950DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -125,6 +133,63 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         }
     }
 
+    /**
+     * A segment's search prefetches the same posting lists however many parts share its scan. The listing walks the budget
+     * once, prefetching each posting list as it goes, so reading further ahead per part would only reach past the budget, into
+     * posting lists the search may never visit (on serverless, each one a possible download).
+     */
+    public void testPartsPrefetchWhatASearchOnItsOwnPrefetches() throws Exception {
+        int dims = randomIntBetween(8, 64);
+        IndexWriterConfig config = newIndexWriterConfig().setCodec(
+            TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, randomIntBetween(2, 4)))
+        );
+        ExecutorService threads = Executors.newFixedThreadPool(8);
+        Set<String> prefetched = ConcurrentHashMap.newKeySet();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                int numDocs = randomIntBetween(4_000, 8_000);
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(new KnnFloatVectorField(FIELD, randomVector(dims), VectorSimilarityFunction.DOT_PRODUCT));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(new PrefetchRecordingDirectory(dir, prefetched))) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+                warmUp(threads, leaf, dims); // compiled code only, so near-equal centroids are ordered the same in every search
+                for (int q = 0; q < 10; q++) {
+                    float[] query = randomVector(dims);
+                    Bits accept = randomAcceptBits(leaf);
+                    // a small budget, so the segment has posting lists past it
+                    float visitRatio = randomFloatBetween(0.01f, 0.1f, true);
+                    int parts = randomIntBetween(2, 8);
+                    Set<String> alone = prefetches(prefetched, () -> runParts(threads, leaf, query, accept, visitRatio, null, 1, -1));
+                    Set<String> one = prefetches(
+                        prefetched,
+                        () -> runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(), 1, -1)
+                    );
+                    Set<String> many = prefetches(
+                        prefetched,
+                        () -> runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(), parts, -1)
+                    );
+                    assertFalse("the search prefetches posting lists", alone.isEmpty());
+                    assertEquals("one part", alone, one);
+                    assertEquals(parts + " parts", alone, many);
+                }
+            }
+        } finally {
+            terminate(threads);
+        }
+    }
+
+    /** The ranges prefetched while {@code search} runs. */
+    private static Set<String> prefetches(Set<String> prefetched, CheckedRunnable<Exception> search) throws Exception {
+        prefetched.clear();
+        search.run();
+        return Set.copyOf(prefetched);
+    }
+
     private record Result(long visited, int[] docs, float[] scores) {}
 
     /**
@@ -151,7 +216,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         Result notOpened
     ) throws Exception {
         int parts = randomIntBetween(1, 8);
-        IVFSegmentScan scan = new IVFSegmentScan(parts);
+        IVFSegmentScan scan = new IVFSegmentScan();
         scan.pause();
         List<MaxScoreTopKnnCollector> collectors = new ArrayList<>(runParts(threads, leaf, query, accept, visitRatio, scan, 1, -1));
         scan.resume();
@@ -173,7 +238,7 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
         int parts,
         int failingPart
     ) throws Exception {
-        return merge(runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(parts), parts, failingPart));
+        return merge(runParts(threads, leaf, query, accept, visitRatio, new IVFSegmentScan(), parts, failingPart));
     }
 
     /**
@@ -274,6 +339,54 @@ public class IVFSegmentScanConcurrencyTests extends ESTestCase {
             v[i] /= (float) Math.sqrt(norm);
         }
         return v;
+    }
+
+    /**
+     * Records every range prefetched from its files, as file, start and length, so a test can compare what different searches
+     * read ahead. A real directory is wrapped rather than mocked: the reader opens, slices and clones its inputs as usual.
+     */
+    private static final class PrefetchRecordingDirectory extends FilterDirectory {
+        private final Set<String> prefetched;
+
+        PrefetchRecordingDirectory(Directory in, Set<String> prefetched) {
+            super(in);
+            this.prefetched = prefetched;
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            return new PrefetchRecordingInput(name, 0, in.openInput(name, context), prefetched);
+        }
+    }
+
+    /** An input that records its prefetches by their position in the file, and wraps its slices and clones the same way. */
+    private static final class PrefetchRecordingInput extends FilterIndexInput {
+        private final String file;
+        private final long start; // where this input starts in the file
+        private final Set<String> prefetched;
+
+        PrefetchRecordingInput(String file, long start, IndexInput in, Set<String> prefetched) {
+            super("PrefetchRecordingInput(" + in + ")", in);
+            this.file = file;
+            this.start = start;
+            this.prefetched = prefetched;
+        }
+
+        @Override
+        public void prefetch(long offset, long length) throws IOException {
+            prefetched.add(file + "@" + (start + offset) + "+" + length);
+            in.prefetch(offset, length);
+        }
+
+        @Override
+        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+            return new PrefetchRecordingInput(file, start + offset, in.slice(sliceDescription, offset, length), prefetched);
+        }
+
+        @Override
+        public PrefetchRecordingInput clone() {
+            return new PrefetchRecordingInput(file, start, in.clone(), prefetched);
+        }
     }
 
     /** Yields at random to shuffle which part claims which posting; optionally fails on its first collect. */

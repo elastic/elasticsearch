@@ -101,7 +101,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.IntFunction;
@@ -227,17 +226,16 @@ public class ContextIndexSearcherTests extends ESTestCase {
     }
 
     /**
-     * A search that splits its own work (DiskBBQ's parallel scan) may use the calling thread plus the executor's idle
-     * threads: only the caller when every thread is busy, and never more than the searcher's maximum.
+     * A search that splits its own work (DiskBBQ's parallel scan) may cut it into as many tasks as the searcher's maximum
+     * number of slices, and into one when the searcher has no executor.
      */
-    public void testMaximumParallelTasksFollowsIdleThreads() throws Exception {
+    public void testMaximumParallelTasks() throws Exception {
         int threads = randomIntBetween(2, 5);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threads);
-        CountDownLatch release = new CountDownLatch(1);
         try (Directory directory = newDirectory()) {
             indexDocs(directory);
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                ContextIndexSearcher searcher = new ContextIndexSearcher(
+                ContextIndexSearcher withExecutor = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
                     IndexSearcher.getDefaultQueryCache(),
@@ -247,18 +245,19 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     threads,
                     1
                 );
-                searcher.setIdleThreads(() -> executor.getMaximumPoolSize() - executor.getActiveCount());
-                assertEquals("an idle pool: the searcher's maximum", threads, ContextIndexSearcher.maximumParallelTasks(searcher));
-                for (int i = 0; i < threads; i++) {
-                    executor.execute(() -> safeAwait(release));
-                }
-                // the pool's active count is approximate, so wait for it rather than read it once
-                assertBusy(() -> assertEquals("a busy pool: the caller alone", 1, ContextIndexSearcher.maximumParallelTasks(searcher)));
-                release.countDown();
-                assertBusy(() -> assertEquals(threads, ContextIndexSearcher.maximumParallelTasks(searcher)));
+                assertEquals("the searcher's maximum", threads, ContextIndexSearcher.maximumParallelTasks(withExecutor));
+                ContextIndexSearcher withoutExecutor = new ContextIndexSearcher(
+                    directoryReader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    randomBoolean()
+                );
+                assertEquals("no executor", 1, ContextIndexSearcher.maximumParallelTasks(withoutExecutor));
+                IndexSearcher plain = new IndexSearcher(directoryReader, executor);
+                assertEquals("not a ContextIndexSearcher", 1, ContextIndexSearcher.maximumParallelTasks(plain));
             }
         } finally {
-            release.countDown();
             terminate(executor);
         }
     }

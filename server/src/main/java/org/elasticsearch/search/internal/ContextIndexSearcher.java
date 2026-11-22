@@ -57,7 +57,6 @@ import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
-import java.util.function.IntSupplier;
 import java.util.stream.Collectors;
 
 /**
@@ -83,7 +82,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private final ExecutionAccounting executionAccounting;
     private final boolean ownsExecutionAccounting;
     private boolean ivfParallelScanEnabled;
-    private IntSupplier idleThreads; // the executor's idle threads right now; null when unknown
 
     private final MutableQueryTimeout cancellable;
 
@@ -219,22 +217,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Tells searches that split their own work (DiskBBQ's parallel scan) how many of the executor's threads are idle when
-     * they decide how to split, so that a busy node splits less, or not at all.
-     */
-    public void setIdleThreads(IntSupplier idleThreads) {
-        this.idleThreads = idleThreads;
-    }
-
-    /**
-     * How many tasks a search on {@code searcher} may run in parallel right now: its maximum number of slices (Elasticsearch
-     * sets it to the search pool's size while the pool's queue is short), and no more than the calling thread plus the
-     * executor's idle threads, when known; 1 when it has no executor.
+     * How many tasks a search on {@code searcher} may run in parallel: its maximum number of slices (Elasticsearch sets it to
+     * the search pool's size while the pool's queue is short, else 1); 1 when it has no executor. A query may cut its work
+     * into that many tasks: tasks that no free thread picks up run on the calling thread, as with any Lucene search.
      */
     public static int maximumParallelTasks(IndexSearcher searcher) {
         if (searcher instanceof ContextIndexSearcher cis && cis.hasExecutor) {
-            int tasks = Math.max(1, cis.maximumNumberOfSlices);
-            return cis.idleThreads == null ? tasks : Math.min(tasks, 1 + Math.max(0, cis.idleThreads.getAsInt()));
+            return Math.max(1, cis.maximumNumberOfSlices);
         }
         return 1;
     }

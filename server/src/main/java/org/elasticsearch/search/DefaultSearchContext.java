@@ -217,7 +217,6 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                Executor searchPool = executor;
                 // the tasks searching segments in parallel work for this shard
                 Executor shardExecutor = TaskLoadAttribution.charging(
                     executor,
@@ -237,9 +236,6 @@ final class DefaultSearchContext extends SearchContext {
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
-                if (searchPool instanceof ThreadPoolExecutor tpe) {
-                    this.searcher.setIdleThreads(() -> tpe.getMaximumPoolSize() - tpe.getActiveCount());
-                }
             }
             if (circuitBreaker != null) {
                 this.searcher.setCircuitBreaker(circuitBreaker);

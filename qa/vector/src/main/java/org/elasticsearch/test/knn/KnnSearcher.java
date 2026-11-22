@@ -104,7 +104,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntConsumer;
 
@@ -800,9 +799,6 @@ public class KnnSearcher {
                 Integer.getInteger("bench.max_tasks", searchThreads),
                 1
             );
-        if (executor instanceof ThreadPoolExecutor pool) {
-            searcher.setIdleThreads(() -> pool.getMaximumPoolSize() - pool.getActiveCount());
-        }
         searcher.setIvfParallelScanEnabled(Boolean.parseBoolean(parallelScan));
         logger.info(
             "searching with ContextIndexSearcher, ivf parallel scan: {}, max parallel tasks: {}",

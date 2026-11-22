@@ -49,7 +49,6 @@ public final class IVFSegmentScan {
     private static final int UNLISTED = Integer.MAX_VALUE;
 
     private final boolean shared;
-    private final int parts;
     private Plan plan;
     private boolean empty;
     private boolean wholeClaimed;
@@ -68,29 +67,18 @@ public final class IVFSegmentScan {
     private final AtomicReference<PostingVisitor> tail = new AtomicReference<>();
     private final ConcurrentMap<Integer, QuantizedQuery> quantizedQueries = new ConcurrentHashMap<>();
 
-    /**
-     * A scan shared by {@code parts} searches of one segment (sizing how far ahead posting lists are prefetched); parts must
-     * use collectors of the same size.
-     */
-    public IVFSegmentScan(int parts) {
-        this(true, parts);
+    /** A scan shared by the searches ("parts") of one segment; parts must use collectors of the same size. */
+    public IVFSegmentScan() {
+        this(true);
     }
 
-    private IVFSegmentScan(boolean shared, int parts) {
-        if (parts < 1) {
-            throw new IllegalArgumentException("parts must be at least 1, got: " + parts);
-        }
+    private IVFSegmentScan(boolean shared) {
         this.shared = shared;
-        this.parts = parts;
     }
 
     /** A scan used by a single search on its own; it reads "collector full" from the collector itself. */
     static IVFSegmentScan single() {
-        return new IVFSegmentScan(false, 1);
-    }
-
-    int parts() {
-        return parts;
+        return new IVFSegmentScan(false);
     }
 
     /** The query quantized per centroid by the parts' visitors, shared so that each centroid's is computed once. */
@@ -114,9 +102,10 @@ public final class IVFSegmentScan {
 
     /**
      * True once no part starting now could claim a posting list, so it need not prepare to visit any: the search is over, or
-     * every posting it may claim is taken and the tail is not its to take (a listed posting is unfinished, or paused).
+     * every posting it may claim is taken and the tail is not its to take (a listed posting is unfinished, or paused). Parts
+     * that start late check it before allocating anything.
      */
-    boolean isDone() {
+    public boolean isDone() {
         PostingMetadata[] postings = listed;
         boolean nothingToClaim = postings != null && nextListed.get() >= claimLimit && completedListed.get() < postings.length;
         return failed || tail.get() != null || nothingToClaim;

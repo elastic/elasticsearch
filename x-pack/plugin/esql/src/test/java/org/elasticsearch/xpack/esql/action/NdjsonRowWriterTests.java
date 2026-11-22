@@ -68,11 +68,15 @@ public class NdjsonRowWriterTests extends ESTestCase {
         try (RecyclerBytesStreamOutput chunk = new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
             int rows = writer.writeRows(chunk, ToXContent.EMPTY_PARAMS, sizeHint, limit);
             String text = chunk.bytes().utf8ToString();
-            List<String> lines = text.isEmpty() ? List.of() : List.of(text.split("\n"));
-            assertThat("the returned count is the number of lines written", rows, equalTo(lines.size()));
-            if (rows > 0) {
-                assertTrue("every row ends with a newline", text.endsWith("\n"));
+            if (rows == 0) {
+                assertThat("no row is written, so no byte is written either", text, equalTo(""));
+                return List.of();
             }
+            assertTrue("every row ends with a newline", text.endsWith("\n"));
+            // Only the newline of the last row is removed, and empty lines are kept (the -1), so a blank line anywhere in the chunk
+            // is counted and fails the check below.
+            List<String> lines = List.of(text.substring(0, text.length() - 1).split("\n", -1));
+            assertThat("the returned count is the number of lines written", rows, equalTo(lines.size()));
             return lines;
         }
     }

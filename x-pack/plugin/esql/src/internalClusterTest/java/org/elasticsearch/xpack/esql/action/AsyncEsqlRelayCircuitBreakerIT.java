@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -47,7 +48,8 @@ import static org.hamcrest.Matchers.lessThan;
  * <p>
  * The query runs on a data node. The requests go through a coordinating only node with a {@value #RELAY_REQUEST_LIMIT} request
  * breaker, which a response with {@value #DOCS} rows doesn't fit in, and one with {@value #HELD_DOCS} rows does, both while it arrives
- * and as the pages read from it.
+ * and as the pages read from it. A second coordinating only node with a {@value #DECODING_RELAY_REQUEST_LIMIT} request breaker fits
+ * the response with {@value #HELD_DOCS} rows while it arrives, but not the pages read from it on top.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
@@ -57,6 +59,7 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
     private static final int HELD_DOCS = 8;
     private static final int PAYLOAD_CHARS = 4000;
     private static final String RELAY_REQUEST_LIMIT = "200kb";
+    private static final String DECODING_RELAY_REQUEST_LIMIT = "50kb";
 
     private String owner;
     private String relay;
@@ -141,6 +144,42 @@ public class AsyncEsqlRelayCircuitBreakerIT extends AbstractEsqlIntegTestCase {
             response.decRef();
         }
         assertBusy(() -> assertThat(relayBreaker.getUsed(), equalTo(0L)));
+    }
+
+    /**
+     * A response that fits while it arrives, but not with the pages read from it, fails with a 429 while its pages are read. The
+     * reservation and the pages read so far are released.
+     */
+    public void testRelayedResponseTripsWhileReadingPages() throws Exception {
+        assertRelayedResponseTripsWhileReadingPages(false);
+    }
+
+    public void testRelayedStopResponseTripsWhileReadingPages() throws Exception {
+        assertRelayedResponseTripsWhileReadingPages(true);
+    }
+
+    private void assertRelayedResponseTripsWhileReadingPages(boolean stop) throws Exception {
+        startCluster();
+        String id = submit(HELD_DOCS);
+        String decodingRelay = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder()
+                .put("indices.breaker.request.type", "memory")
+                .put("indices.breaker.request.limit", DECODING_RELAY_REQUEST_LIMIT)
+                .build()
+        );
+        CircuitBreaker breaker = internalCluster().getInstance(CircuitBreakerService.class, decodingRelay)
+            .getBreaker(CircuitBreaker.REQUEST);
+        long tripsBefore = breaker.getTrippedCount();
+
+        // A trip while the response is read reaches the caller wrapped by the transport, which only the get action unwraps.
+        Exception e = expectThrows(Exception.class, () -> rowsThrough(decodingRelay, id, stop));
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        CircuitBreakingException trip = (CircuitBreakingException) ExceptionsHelper.unwrap(e, CircuitBreakingException.class);
+        assertNotNull(trip);
+        // The keyword bytes of the pages trip, not the reservation, which the response fits in while it arrives.
+        assertThat(trip.getMessage(), containsString("[<reused_arrays>]"));
+        assertThat(breaker.getTrippedCount(), greaterThan(tripsBefore));
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(0L)));
     }
 
     /**

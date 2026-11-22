@@ -227,10 +227,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
     }
 
     /**
-     * A search that splits its own work (DiskBBQ slices) may use the calling thread plus the executor's idle threads: only
-     * the caller when every thread is busy, and never more than the searcher's maximum.
+     * A search that splits its own work (DiskBBQ's parallel scan) may use the calling thread plus the executor's idle
+     * threads: only the caller when every thread is busy, and never more than the searcher's maximum.
      */
-    public void testMaximumParallelSlicesFollowsIdleThreads() throws Exception {
+    public void testMaximumParallelTasksFollowsIdleThreads() throws Exception {
         int threads = randomIntBetween(2, 5);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(threads);
         CountDownLatch release = new CountDownLatch(1);
@@ -248,14 +248,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     1
                 );
                 searcher.setIdleThreads(() -> executor.getMaximumPoolSize() - executor.getActiveCount());
-                assertEquals("an idle pool: the searcher's maximum", threads, ContextIndexSearcher.maximumParallelSlices(searcher));
+                assertEquals("an idle pool: the searcher's maximum", threads, ContextIndexSearcher.maximumParallelTasks(searcher));
                 for (int i = 0; i < threads; i++) {
                     executor.execute(() -> safeAwait(release));
                 }
                 // the pool's active count is approximate, so wait for it rather than read it once
-                assertBusy(() -> assertEquals("a busy pool: the caller alone", 1, ContextIndexSearcher.maximumParallelSlices(searcher)));
+                assertBusy(() -> assertEquals("a busy pool: the caller alone", 1, ContextIndexSearcher.maximumParallelTasks(searcher)));
                 release.countDown();
-                assertBusy(() -> assertEquals(threads, ContextIndexSearcher.maximumParallelSlices(searcher)));
+                assertBusy(() -> assertEquals(threads, ContextIndexSearcher.maximumParallelTasks(searcher)));
             }
         } finally {
             release.countDown();

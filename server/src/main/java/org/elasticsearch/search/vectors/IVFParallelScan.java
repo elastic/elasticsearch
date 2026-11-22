@@ -41,14 +41,14 @@ import java.util.concurrent.Callable;
 import java.util.stream.IntStream;
 
 /**
- * Runs one IVF query over a shard's leaves the way Elasticsearch slices a search, in slices of about equal work: small leaves
+ * Scans a shard's leaves for one IVF query in parallel, in tasks of about equal work on the searcher's executor: small leaves
  * are grouped into one task, and a leaf with a lot of work is split into parts, separate tasks that share the leaf's
  * {@link IVFSegmentScan}. Owns the per-part collectors and reduces them to one {@link TopDocs} per leaf, in leaf order.
  */
-final class IVFScoringManager {
+final class IVFParallelScan {
 
     /**
-     * No more slices than cores: more cannot run at once and only add per-slice work. The search pool has more threads than
+     * No more tasks than cores: more cannot run at once and only add per-task work. The search pool has more threads than
      * that (1.5 per core), so its size alone is not enough.
      */
     private static final int PROCESSORS = Runtime.getRuntime().availableProcessors();
@@ -66,20 +66,20 @@ final class IVFScoringManager {
     private final Leaf[] leaves;
 
     /**
-     * @param maxParallelSlices how many slices the searcher runs in parallel (1 without an executor): the query is cut into
-     *                          at most that many slices, and no more than there are cores
+     * @param maxParallelTasks how many tasks the searcher runs in parallel (1 without an executor): the query is cut into
+     *                         at most that many tasks, and no more than there are cores
      */
-    IVFScoringManager(
+    IVFParallelScan(
         AbstractIVFKnnVectorQuery query,
         Weight filterWeight,
         float visitRatio,
         List<LeafSearch> leafSearches,
-        int maxParallelSlices
+        int maxParallelTasks
     ) throws IOException {
         this.query = query;
         this.filterWeight = filterWeight;
         this.visitRatio = visitRatio;
-        this.parallelism = Math.min(maxParallelSlices, PROCESSORS);
+        this.parallelism = Math.min(maxParallelTasks, PROCESSORS);
         this.leaves = new Leaf[leafSearches.size()];
         for (int i = 0; i < leaves.length; i++) {
             LeafReaderContext ctx = leafSearches.get(i).ctx();
@@ -100,10 +100,10 @@ final class IVFScoringManager {
             work[i] = leaves[i].work;
             splittable[i] = leaves[i].splittable;
         }
-        int[][] slices = slices(work, splittable, parallelism);
+        int[][] tasks = tasks(work, splittable, parallelism);
         int[] parts = new int[leaves.length];
-        for (int[] slice : slices) {
-            for (int leaf : slice) {
+        for (int[] task : tasks) {
+            for (int leaf : task) {
                 parts[leaf]++;
             }
         }
@@ -119,7 +119,7 @@ final class IVFScoringManager {
         for (Leaf leaf : leaves) {
             leaf.scan.resume();
         }
-        run(executor, slices);
+        run(executor, tasks);
         TopDocs[] results = new TopDocs[leaves.length];
         for (int i = 0; i < leaves.length; i++) {
             results[i] = AbstractIVFKnnVectorQuery.keepBestCopies(leaves[i].hits(), leaves[i].search.ctx().docBase);
@@ -127,52 +127,50 @@ final class IVFScoringManager {
         return results;
     }
 
-    private void run(TaskExecutor executor, int[][] slices) throws IOException {
-        List<Callable<Void>> tasks = new ArrayList<>(slices.length);
-        for (int[] slice : slices) {
-            tasks.add(() -> {
-                for (int leaf : slice) {
+    private void run(TaskExecutor executor, int[][] tasks) throws IOException {
+        List<Callable<Void>> callables = new ArrayList<>(tasks.length);
+        for (int[] task : tasks) {
+            callables.add(() -> {
+                for (int leaf : task) {
                     search(leaves[leaf]);
                 }
                 return null;
             });
         }
-        executor.invokeAll(tasks);
+        executor.invokeAll(callables);
     }
 
     /**
-     * Elasticsearch's slicing rule ({@code ContextIndexSearcher#computeSlices}) with posting entries instead of docs, plus
-     * Lucene's partitions of big leaves: aim for {@code parallelism} slices of equal work, none with less than
-     * {@link ContextIndexSearcher#MINIMUM_DOCS_PERCENT_PER_SLICE} of the total. A leaf with at least a slice's work gets its
-     * share of the slices, rounded, as parts of its own (one if it cannot be split). The other leaves are grouped, by
-     * decreasing work, until a group has a slice's work; what is left over makes a slice of its own if it has the minimum
-     * share and a slice is free, else joins the least loaded slices. Returns the leaf indices of each slice; a split leaf
-     * appears in several.
+     * The rule Elasticsearch uses to cut a search into Lucene slices ({@code ContextIndexSearcher#computeSlices}), with posting
+     * entries instead of docs, plus Lucene's partitions of big leaves: aim for {@code parallelism} tasks of equal work, none
+     * with less than {@link ContextIndexSearcher#MINIMUM_DOCS_PERCENT_PER_SLICE} of the total. A leaf with at least a task's
+     * work gets its share of the tasks, rounded, as parts of its own (one if it cannot be split). The other leaves are grouped,
+     * by decreasing work, until a group has a task's work; what is left over makes a task of its own if it has the minimum
+     * share and a task is free, else joins the least loaded tasks. Returns the leaf indices of each task; a split leaf appears
+     * in several.
      */
-    static int[][] slices(long[] work, boolean[] splittable, int parallelism) {
+    static int[][] tasks(long[] work, boolean[] splittable, int parallelism) {
         double minShare = ContextIndexSearcher.MINIMUM_DOCS_PERCENT_PER_SLICE;
-        int maxSlices = (int) Math.min(parallelism, Math.round(1 / minShare));
+        int maxTasks = (int) Math.min(parallelism, Math.round(1 / minShare));
         long total = Arrays.stream(work).sum();
-        if (total == 0 || maxSlices == 1) {
+        if (total == 0 || maxTasks == 1) {
             return new int[][] { IntStream.range(0, work.length).toArray() };
         }
-        double sliceWork = (double) total / maxSlices;
+        double taskWork = (double) total / maxTasks;
         Integer[] order = new Integer[work.length];
         Arrays.setAll(order, i -> i);
         Arrays.sort(order, Comparator.comparingLong((Integer i) -> work[i]).reversed());
-        List<List<Integer>> slices = new ArrayList<>();
+        List<List<Integer>> tasks = new ArrayList<>();
         List<Long> loads = new ArrayList<>();
         List<Integer> rest = new ArrayList<>();
         for (int leaf : order) {
-            long parts = work[leaf] < sliceWork
-                ? 0
-                : Math.min(Math.round(work[leaf] / sliceWork), (long) (work[leaf] / (minShare * total)));
-            parts = Math.min(splittable[leaf] ? parts : Math.min(parts, 1), maxSlices - slices.size());
+            long parts = work[leaf] < taskWork ? 0 : Math.min(Math.round(work[leaf] / taskWork), (long) (work[leaf] / (minShare * total)));
+            parts = Math.min(splittable[leaf] ? parts : Math.min(parts, 1), maxTasks - tasks.size());
             if (parts == 0) {
                 rest.add(leaf);
             }
             for (long p = 0; p < parts; p++) {
-                slices.add(new ArrayList<>(List.of(leaf)));
+                tasks.add(new ArrayList<>(List.of(leaf)));
                 loads.add(work[leaf] / parts);
             }
         }
@@ -181,25 +179,25 @@ final class IVFScoringManager {
         for (int leaf : rest) {
             group.add(leaf);
             groupWork += work[leaf];
-            if (groupWork > sliceWork && slices.size() < maxSlices) {
-                slices.add(group);
+            if (groupWork > taskWork && tasks.size() < maxTasks) {
+                tasks.add(group);
                 loads.add(groupWork);
                 group = new ArrayList<>();
                 groupWork = 0;
             }
         }
-        if (slices.isEmpty() || (groupWork >= minShare * total && slices.size() < maxSlices)) {
-            slices.add(group);
+        if (tasks.isEmpty() || (groupWork >= minShare * total && tasks.size() < maxTasks)) {
+            tasks.add(group);
         } else {
             for (int leaf : group) {
                 int least = loads.indexOf(Collections.min(loads));
-                slices.get(least).add(0, leaf); // ahead of the part, which then claims what the other parts left
+                tasks.get(least).add(0, leaf); // ahead of the part, which then claims what the other parts left
                 loads.set(least, loads.get(least) + work[leaf]);
             }
         }
-        return slices.stream()
-            .filter(slice -> slice.isEmpty() == false)
-            .map(slice -> slice.stream().mapToInt(i -> i).toArray())
+        return tasks.stream()
+            .filter(task -> task.isEmpty() == false)
+            .map(task -> task.stream().mapToInt(i -> i).toArray())
             .toArray(int[][]::new);
     }
 

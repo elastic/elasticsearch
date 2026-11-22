@@ -178,7 +178,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
         // per-segment using the Two-Signal model with segment-size awareness.
         final float visitRatio = providedVisitRatio;
-        final boolean slices = ContextIndexSearcher.ivfSlicesEnabled(indexSearcher);
+        final boolean parallelScan = ContextIndexSearcher.ivfParallelScanEnabled(indexSearcher);
         IvfSegmentConfig[] resolvedPerLeaf = new IvfSegmentConfig[leafReaderContexts.size()];
         float maxRescoreOversampleAcrossLeaves = 1f;
         int leavesWithField = 0;
@@ -192,11 +192,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
         }
 
-        // Sharing a cutoff only helps when more than one leaf can search. The sliced path does not use it.
-        final SharedMinCompetitiveScore sharedScore = slices == false && leavesWithField > 1 ? new SharedMinCompetitiveScore() : null;
+        // Sharing a cutoff only helps when more than one leaf can search. The parallel scan does not use it.
+        final SharedMinCompetitiveScore sharedScore = parallelScan == false && leavesWithField > 1 ? new SharedMinCompetitiveScore() : null;
         final int maxLeafBudget = leafCollectorBudget(maxRescoreOversampleAcrossLeaves);
 
-        List<IVFScoringManager.LeafSearch> leafSearches = new ArrayList<>(leafReaderContexts.size());
+        List<IVFParallelScan.LeafSearch> leafSearches = new ArrayList<>(leafReaderContexts.size());
         for (int i = 0; i < leafReaderContexts.size(); i++) {
             LeafReaderContext context = leafReaderContexts.get(i);
             IvfSegmentConfig resolved = resolvedPerLeaf[i];
@@ -204,7 +204,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             if (resolved == null) {
                 // No FieldInfo for the field, so the segment has no vectors and cannot return hits.
                 // It is still listed, with no collector manager, so perLeafResults stays aligned with leaf ordinals.
-                leafSearches.add(new IVFScoringManager.LeafSearch(context, null, false));
+                leafSearches.add(new IVFParallelScan.LeafSearch(context, null, false));
                 continue;
             }
 
@@ -223,11 +223,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             // query. The shared query field is never mutated, so segments that disagree on
             // preconditioning (and the exact-rescore query) each see the correct vector.
             final boolean usePrecondition = resolved.usePrecondition();
-            leafSearches.add(new IVFScoringManager.LeafSearch(context, knnCollectorManagerForSegment, usePrecondition));
+            leafSearches.add(new IVFParallelScan.LeafSearch(context, knnCollectorManagerForSegment, usePrecondition));
         }
 
-        TopDocs[] perLeafResults = slices
-            ? new IVFScoringManager(this, filterWeight, visitRatio, leafSearches, ContextIndexSearcher.maximumParallelSlices(indexSearcher))
+        TopDocs[] perLeafResults = parallelScan
+            ? new IVFParallelScan(this, filterWeight, visitRatio, leafSearches, ContextIndexSearcher.maximumParallelTasks(indexSearcher))
                 .search(taskExecutor)
             : searchLeaves(taskExecutor, filterWeight, visitRatio, leafSearches);
         if (postFilterDelegate) {
@@ -298,10 +298,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TaskExecutor taskExecutor,
         Weight filterWeight,
         float visitRatio,
-        List<IVFScoringManager.LeafSearch> leafSearches
+        List<IVFParallelScan.LeafSearch> leafSearches
     ) throws IOException {
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafSearches.size());
-        for (IVFScoringManager.LeafSearch leaf : leafSearches) {
+        for (IVFParallelScan.LeafSearch leaf : leafSearches) {
             if (leaf.collectorManager() == null) {
                 tasks.add(() -> NO_RESULTS);
             } else {

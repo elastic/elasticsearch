@@ -40,54 +40,54 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class IVFScoringManagerTests extends ESTestCase {
+public class IVFParallelScanTests extends ESTestCase {
 
     public void testForceMergedLeafGetsOnePartPerThread() {
-        assertSlices(new long[] { 72_000 }, all(1), 8, copies(new int[] { 0 }, 8));
-        assertSlices(new long[] { 72_000 }, all(1), 16, copies(new int[] { 0 }, 10)); // no slice under 10% of the work
-        assertSlices(new long[] { 72_000 }, all(1), 1, new int[][] { { 0 } });
+        assertTasks(new long[] { 72_000 }, all(1), 8, copies(new int[] { 0 }, 8));
+        assertTasks(new long[] { 72_000 }, all(1), 16, copies(new int[] { 0 }, 10)); // no task under 10% of the work
+        assertTasks(new long[] { 72_000 }, all(1), 1, new int[][] { { 0 } });
     }
 
     public void testASmallFreshLeafJoinsAPartOfTheBigOne() {
-        // the big leaf holds 7.9 slices' worth of work: rounded, it keeps every thread busy
+        // the big leaf holds 7.9 tasks' worth of work: rounded, it keeps every thread busy
         int[][] expected = copies(new int[] { 0 }, 8);
         expected[0] = new int[] { 1, 0 };
-        assertSlices(new long[] { 71_000, 1_000 }, all(2), 8, expected);
+        assertTasks(new long[] { 71_000, 1_000 }, all(2), 8, expected);
     }
 
-    public void testSmallLeavesAreGroupedIntoSlicesOfEqualWork() {
+    public void testSmallLeavesAreGroupedIntoTasksOfEqualWork() {
         long[] equal = new long[12];
         Arrays.fill(equal, 1_000);
-        assertSlices(equal, all(equal.length), 8, new int[][] { { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, { 8, 9 }, { 10, 11 } });
+        assertTasks(equal, all(equal.length), 8, new int[][] { { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }, { 8, 9 }, { 10, 11 } });
         long[] tiered = { 4_000, 2_000, 1_000, 500, 250, 125 };
-        assertSlices(tiered, all(tiered.length), 4, new int[][] { { 0 }, { 0 }, { 1 }, { 2, 3, 4, 5 } });
+        assertTasks(tiered, all(tiered.length), 4, new int[][] { { 0 }, { 0 }, { 1 }, { 2, 3, 4, 5 } });
     }
 
-    public void testLeftoversJoinTheLeastLoadedSlices() {
-        assertSlices(new long[] { 100, 2_500, 100, 100 }, all(4), 4, new int[][] { { 0, 1 }, { 2, 1 }, { 3, 1 }, { 1 } });
-        assertSlices(new long[] { 1_000, 1_000, 50 }, all(3), 4, new int[][] { { 2, 0 }, { 0 }, { 1 }, { 1 } });
+    public void testLeftoversJoinTheLeastLoadedTasks() {
+        assertTasks(new long[] { 100, 2_500, 100, 100 }, all(4), 4, new int[][] { { 0, 1 }, { 2, 1 }, { 3, 1 }, { 1 } });
+        assertTasks(new long[] { 1_000, 1_000, 50 }, all(3), 4, new int[][] { { 2, 0 }, { 0 }, { 1 }, { 1 } });
     }
 
     public void testNoPartHasLessThanTenPercentOfTheWork() {
-        // 15% of the work is 1.5 slices' worth with 10 slices; split in two, each part would hold 7.5%
+        // 15% of the work is 1.5 tasks' worth with 10 tasks; split in two, each part would hold 7.5%
         int[][] expected = copies(new int[] { 1 }, 9);
         expected[8] = new int[] { 0 };
-        assertSlices(new long[] { 1_500, 8_500 }, all(2), 16, expected);
+        assertTasks(new long[] { 1_500, 8_500 }, all(2), 16, expected);
     }
 
-    public void testRoundingNeverMakesMoreSlicesThanThreads() {
-        // three leaves hold 2.5 slices' worth each: rounded up, they would make 9 slices for 8 threads
+    public void testRoundingNeverMakesMoreTasksThanThreads() {
+        // three leaves hold 2.5 tasks' worth each: rounded up, they would make 9 tasks for 8 threads
         long[] work = { 2_500, 2_500, 2_500, 500 };
         int[][] expected = { { 3, 0 }, { 0 }, { 0 }, { 1 }, { 1 }, { 1 }, { 2 }, { 2 } };
-        assertSlices(work, all(work.length), 8, expected);
+        assertTasks(work, all(work.length), 8, expected);
     }
 
     public void testLeavesThatCannotBeSplitStayWhole() {
-        assertSlices(new long[] { 10_000, 100 }, new boolean[] { false, true }, 4, new int[][] { { 1, 0 } });
+        assertTasks(new long[] { 10_000, 100 }, new boolean[] { false, true }, 4, new int[][] { { 1, 0 } });
     }
 
-    /** Whatever the shape: at most one slice per thread and core, none under 10% of the work, every leaf searched once. */
-    public void testSlicesKeepTheirGuarantees() {
+    /** Whatever the shape: at most one task per thread and core, none under 10% of the work, every leaf searched once. */
+    public void testTasksKeepTheirGuarantees() {
         for (int iter = 0; iter < 200; iter++) {
             int leaves = randomIntBetween(1, 50);
             long[] work = new long[leaves];
@@ -97,11 +97,11 @@ public class IVFScoringManagerTests extends ESTestCase {
                 splittable[i] = randomBoolean();
             }
             int parallelism = randomIntBetween(1, 32);
-            int[][] slices = IVFScoringManager.slices(work, splittable, parallelism);
-            assertTrue(slices.length + " slices for " + parallelism, slices.length <= Math.min(parallelism, 10));
+            int[][] tasks = IVFParallelScan.tasks(work, splittable, parallelism);
+            assertTrue(tasks.length + " tasks for " + parallelism, tasks.length <= Math.min(parallelism, 10));
             int[] parts = new int[leaves];
-            for (int[] slice : slices) {
-                for (int leaf : slice) {
+            for (int[] task : tasks) {
+                for (int leaf : task) {
                     parts[leaf]++;
                 }
             }
@@ -110,18 +110,18 @@ public class IVFScoringManagerTests extends ESTestCase {
                 assertTrue("leaf " + i + " cannot be split", splittable[i] || parts[i] == 1);
             }
             long total = Arrays.stream(work).sum();
-            for (int[] slice : slices) {
+            for (int[] task : tasks) {
                 double load = 0;
-                for (int leaf : slice) {
+                for (int leaf : task) {
                     load += (double) work[leaf] / parts[leaf];
                 }
-                assertTrue(load + " of " + total, slices.length == 1 || load >= 0.1 * total * (1 - 1e-9));
+                assertTrue(load + " of " + total, tasks.length == 1 || load >= 0.1 * total * (1 - 1e-9));
             }
         }
     }
 
-    /** With slices on, a shard returns exactly what one-task-per-leaf search returns. */
-    public void testSlicedSearchMatchesPerLeafSearch() throws IOException {
+    /** With the parallel scan on, a shard returns exactly what one-task-per-leaf search returns. */
+    public void testParallelScanMatchesPerLeafSearch() throws IOException {
         int dims = randomIntBetween(8, 32);
         IndexWriterConfig config = newIndexWriterConfig().setCodec(
             TestUtil.alwaysKnnVectorsFormat(new ES950DiskBBQVectorsFormat(64, randomIntBetween(2, 8)))
@@ -153,7 +153,7 @@ public class IVFScoringManagerTests extends ESTestCase {
                     Query filter = randomBoolean() ? null : new TermQuery(new Term("tag", "a"));
                     float visitRatio = randomFrom(0f, 0.05f, 0.3f, 0.5f);
                     int k = randomIntBetween(1, 50);
-                    assertSlicedMatchesPerLeaf(reader, executor, vector, k, filter, visitRatio);
+                    assertParallelScanMatchesPerLeaf(reader, executor, vector, k, filter, visitRatio);
                 }
             }
         } finally {
@@ -191,7 +191,7 @@ public class IVFScoringManagerTests extends ESTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
-                assertSlicedMatchesPerLeaf(reader, executor, VectorTestUtils.randomNormalizedFloatVector(dims), 10, null, 0.5f);
+                assertParallelScanMatchesPerLeaf(reader, executor, VectorTestUtils.randomNormalizedFloatVector(dims), 10, null, 0.5f);
             }
         } finally {
             terminate(executor);
@@ -219,8 +219,8 @@ public class IVFScoringManagerTests extends ESTestCase {
         return new IVFKnnFloatVectorQuery("v", vector, k, k, filter, visitRatio, resolver);
     }
 
-    /** Searches with the ContextIndexSearcher Elasticsearch uses; a null executor runs every slice on the caller. */
-    private static TopDocs searchWith(DirectoryReader reader, ExecutorService executor, boolean slices, Query query, int k)
+    /** Searches with the ContextIndexSearcher Elasticsearch uses; a null executor runs every task on the caller. */
+    private static TopDocs searchWith(DirectoryReader reader, ExecutorService executor, boolean parallelScan, Query query, int k)
         throws IOException {
         IndexSearcher plain = new IndexSearcher(reader);
         ContextIndexSearcher searcher = executor == null
@@ -235,12 +235,12 @@ public class IVFScoringManagerTests extends ESTestCase {
                 4,
                 1
             );
-        searcher.setIvfSlicesEnabled(slices);
+        searcher.setIvfParallelScanEnabled(parallelScan);
         return searcher.search(query, k);
     }
 
-    /** Searches with slices on or off, and checks both paths return the same hits for the same work. */
-    private static void assertSlicedMatchesPerLeaf(
+    /** Searches with the parallel scan on or off, and checks both paths return the same hits for the same work. */
+    private static void assertParallelScanMatchesPerLeaf(
         DirectoryReader reader,
         ExecutorService executor,
         float[] vector,
@@ -250,33 +250,33 @@ public class IVFScoringManagerTests extends ESTestCase {
     ) throws IOException {
         IVFKnnFloatVectorQuery perLeafQuery = query(vector, k, filter, visitRatio);
         TopDocs perLeaf = searchWith(reader, executor, false, perLeafQuery, k);
-        IVFKnnFloatVectorQuery slicedQuery = query(vector, k, filter, visitRatio);
-        TopDocs sliced = searchWith(reader, executor, true, slicedQuery, k);
-        assertEquals("vector ops", perLeafQuery.totalVectorOps(), slicedQuery.totalVectorOps());
-        assertEquals(perLeaf.scoreDocs.length, sliced.scoreDocs.length);
+        IVFKnnFloatVectorQuery parallelQuery = query(vector, k, filter, visitRatio);
+        TopDocs parallel = searchWith(reader, executor, true, parallelQuery, k);
+        assertEquals("vector ops", perLeafQuery.totalVectorOps(), parallelQuery.totalVectorOps());
+        assertEquals(perLeaf.scoreDocs.length, parallel.scoreDocs.length);
         for (int i = 0; i < perLeaf.scoreDocs.length; i++) {
-            assertEquals(perLeaf.scoreDocs[i].doc, sliced.scoreDocs[i].doc);
-            assertEquals(perLeaf.scoreDocs[i].score, sliced.scoreDocs[i].score, 0f);
+            assertEquals(perLeaf.scoreDocs[i].doc, parallel.scoreDocs[i].doc);
+            assertEquals(perLeaf.scoreDocs[i].score, parallel.scoreDocs[i].score, 0f);
         }
     }
 
-    private static void assertSlices(long[] work, boolean[] splittable, int parallelism, int[][] expected) {
-        int[][] actual = IVFScoringManager.slices(work, splittable, parallelism);
+    private static void assertTasks(long[] work, boolean[] splittable, int parallelism, int[][] expected) {
+        int[][] actual = IVFParallelScan.tasks(work, splittable, parallelism);
         List<String> actualList = new ArrayList<>();
-        for (int[] slice : actual) {
-            actualList.add(Arrays.toString(slice));
+        for (int[] task : actual) {
+            actualList.add(Arrays.toString(task));
         }
         List<String> expectedList = new ArrayList<>();
-        for (int[] slice : expected) {
-            expectedList.add(Arrays.toString(slice));
+        for (int[] task : expected) {
+            expectedList.add(Arrays.toString(task));
         }
         assertEquals(expectedList, actualList);
     }
 
-    private static int[][] copies(int[] slice, int n) {
-        int[][] slices = new int[n][];
-        Arrays.fill(slices, slice);
-        return slices;
+    private static int[][] copies(int[] task, int n) {
+        int[][] tasks = new int[n][];
+        Arrays.fill(tasks, task);
+        return tasks;
     }
 
     private static boolean[] all(int n) {

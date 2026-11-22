@@ -283,11 +283,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     );
 
     /**
-     * Lets a DiskBBQ (IVF) kNN query slice its work the way Lucene slices a search: small segments grouped into one task,
-     * large segments split into parts that run on the search pool.
+     * Lets a DiskBBQ (IVF) kNN query scan a shard in parallel, in tasks of about equal work on the search pool: small segments
+     * grouped into one task, large segments split into parts that share the segment's scan.
      */
-    public static final Setting<Boolean> IVF_SLICES_ENABLED = Setting.boolSetting(
-        "search.vectors.ivf.slices.enabled",
+    public static final Setting<Boolean> IVF_PARALLEL_SCAN_ENABLED = Setting.boolSetting(
+        "search.vectors.ivf.parallel_scan.enabled",
         true,
         Property.NodeScope,
         Property.Dynamic
@@ -469,7 +469,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final int prewarmingMaxPoolFactorThreshold;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
-    private volatile boolean ivfSlicesEnabled;
+    private volatile boolean ivfParallelScanEnabled;
     private volatile boolean enableFetchPhaseChunked;
     private volatile int fetchPhaseMaxInFlightChunks;
     private volatile int fetchPhaseTargetChunkBytes;
@@ -591,8 +591,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_WORKER_THREADS_ENABLED, this::setEnableSearchWorkerThreads);
 
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
-        ivfSlicesEnabled = IVF_SLICES_ENABLED.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(IVF_SLICES_ENABLED, this::setIvfSlicesEnabled);
+        ivfParallelScanEnabled = IVF_PARALLEL_SCAN_ENABLED.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(IVF_PARALLEL_SCAN_ENABLED, this::setIvfParallelScanEnabled);
         batchQueryPhase = BATCHED_QUERY_PHASE.get(settings);
         enableFetchPhaseChunked = FETCH_PHASE_CHUNKED_ENABLED.get(settings);
         fetchPhaseMaxInFlightChunks = FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(settings);
@@ -642,8 +642,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.enableQueryPhaseParallelCollection = enableQueryPhaseParallelCollection;
     }
 
-    private void setIvfSlicesEnabled(boolean ivfSlicesEnabled) {
-        this.ivfSlicesEnabled = ivfSlicesEnabled;
+    private void setIvfParallelScanEnabled(boolean ivfParallelScanEnabled) {
+        this.ivfParallelScanEnabled = ivfParallelScanEnabled;
     }
 
     private void setEnableFetchPhaseChunked(boolean enableFetchPhaseChunked) {
@@ -2323,7 +2323,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 breaker,
                 this::directoryMetricsDelta
             );
-            searchContext.searcher().setIvfSlicesEnabled(ivfSlicesEnabled);
+            searchContext.searcher().setIvfParallelScanEnabled(ivfParallelScanEnabled);
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
             // during rewrite and normalized / evaluate templates etc.

@@ -777,13 +777,14 @@ public class KnnSearcher {
     }
 
     /**
-     * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_slices} is set, the {@link ContextIndexSearcher} Elasticsearch
-     * searches with, with DiskBBQ slices turned on or off; comparing slices must use the same searcher in both arms. Like Elasticsearch, it runs at most as many slices in parallel
-     * as the pool has threads, unless {@code -Dbench.max_slices} says otherwise.
+     * A plain {@link IndexSearcher}, or, when {@code -Dbench.ivf_parallel_scan} is set, the {@link ContextIndexSearcher}
+     * Elasticsearch searches with, with DiskBBQ's parallel scan turned on or off; comparing the two must use the same searcher
+     * in both arms. Like Elasticsearch, it runs at most as many tasks in parallel as the pool has threads, unless
+     * {@code -Dbench.max_tasks} says otherwise.
      */
     private static IndexSearcher newSearcher(DirectoryReader reader, ExecutorService executor, int searchThreads) throws IOException {
-        String slices = System.getProperty("bench.ivf_slices");
-        if (slices == null) {
+        String parallelScan = System.getProperty("bench.ivf_parallel_scan");
+        if (parallelScan == null) {
             return executor == null ? new IndexSearcher(reader) : new IndexSearcher(reader, executor);
         }
         IndexSearcher plain = new IndexSearcher(reader);
@@ -796,17 +797,17 @@ public class KnnSearcher {
                 plain.getQueryCachingPolicy(),
                 false,
                 executor,
-                Integer.getInteger("bench.max_slices", searchThreads),
+                Integer.getInteger("bench.max_tasks", searchThreads),
                 1
             );
         if (executor instanceof ThreadPoolExecutor pool) {
             searcher.setIdleThreads(() -> pool.getMaximumPoolSize() - pool.getActiveCount());
         }
-        searcher.setIvfSlicesEnabled(Boolean.parseBoolean(slices));
+        searcher.setIvfParallelScanEnabled(Boolean.parseBoolean(parallelScan));
         logger.info(
-            "searching with ContextIndexSearcher, ivf slices: {}, max parallel slices: {}",
-            Boolean.parseBoolean(slices),
-            ContextIndexSearcher.maximumParallelSlices(searcher)
+            "searching with ContextIndexSearcher, ivf parallel scan: {}, max parallel tasks: {}",
+            Boolean.parseBoolean(parallelScan),
+            ContextIndexSearcher.maximumParallelTasks(searcher)
         );
         return searcher;
     }

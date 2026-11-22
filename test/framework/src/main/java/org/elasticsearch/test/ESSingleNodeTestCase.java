@@ -290,7 +290,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             settingBuilder.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         // DiskBBQ slicing must return the same hits as searching each segment whole
-        settingBuilder.put(SearchService.IVF_SLICES_ENABLED.getKey(), randomBoolean());
+        settingBuilder.put(SearchService.IVF_PARALLEL_SCAN_ENABLED.getKey(), randomBoolean());
         Settings settings = settingBuilder.build();
 
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());

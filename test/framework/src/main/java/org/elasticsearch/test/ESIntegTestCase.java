@@ -2742,7 +2742,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         // DiskBBQ slicing must return the same hits as searching each segment whole
-        initialNodeSettings.put(SearchService.IVF_SLICES_ENABLED.getKey(), randomBoolean());
+        initialNodeSettings.put(SearchService.IVF_PARALLEL_SCAN_ENABLED.getKey(), randomBoolean());
         return new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

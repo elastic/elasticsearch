@@ -82,7 +82,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /** Shared with the searchers derived by {@link #withQueryCache}; only the searcher that created it sets the breaker and closes it. */
     private final ExecutionAccounting executionAccounting;
     private final boolean ownsExecutionAccounting;
-    private boolean ivfSlicesEnabled;
+    private boolean ivfParallelScanEnabled;
     private IntSupplier idleThreads; // the executor's idle threads right now; null when unknown
 
     private final MutableQueryTimeout cancellable;
@@ -209,32 +209,32 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         executionAccounting.setBreaker(circuitBreaker);
     }
 
-    public void setIvfSlicesEnabled(boolean ivfSlicesEnabled) {
-        this.ivfSlicesEnabled = ivfSlicesEnabled;
+    public void setIvfParallelScanEnabled(boolean ivfParallelScanEnabled) {
+        this.ivfParallelScanEnabled = ivfParallelScanEnabled;
     }
 
-    /** Whether DiskBBQ (IVF) kNN queries on {@code searcher} slice their work across segments and within large segments. */
-    public static boolean ivfSlicesEnabled(IndexSearcher searcher) {
-        return searcher instanceof ContextIndexSearcher cis && cis.ivfSlicesEnabled;
+    /** Whether DiskBBQ (IVF) kNN queries on {@code searcher} scan in parallel, across segments and within large segments. */
+    public static boolean ivfParallelScanEnabled(IndexSearcher searcher) {
+        return searcher instanceof ContextIndexSearcher cis && cis.ivfParallelScanEnabled;
     }
 
     /**
-     * Tells searches that split their own work (DiskBBQ slices) how many of the executor's threads are idle when they decide
-     * how to split, so that a busy node splits less, or not at all.
+     * Tells searches that split their own work (DiskBBQ's parallel scan) how many of the executor's threads are idle when
+     * they decide how to split, so that a busy node splits less, or not at all.
      */
     public void setIdleThreads(IntSupplier idleThreads) {
         this.idleThreads = idleThreads;
     }
 
     /**
-     * How many slices a search on {@code searcher} may run in parallel right now: its maximum number of slices (Elasticsearch
+     * How many tasks a search on {@code searcher} may run in parallel right now: its maximum number of slices (Elasticsearch
      * sets it to the search pool's size while the pool's queue is short), and no more than the calling thread plus the
      * executor's idle threads, when known; 1 when it has no executor.
      */
-    public static int maximumParallelSlices(IndexSearcher searcher) {
+    public static int maximumParallelTasks(IndexSearcher searcher) {
         if (searcher instanceof ContextIndexSearcher cis && cis.hasExecutor) {
-            int slices = Math.max(1, cis.maximumNumberOfSlices);
-            return cis.idleThreads == null ? slices : Math.min(slices, 1 + Math.max(0, cis.idleThreads.getAsInt()));
+            int tasks = Math.max(1, cis.maximumNumberOfSlices);
+            return cis.idleThreads == null ? tasks : Math.min(tasks, 1 + Math.max(0, cis.idleThreads.getAsInt()));
         }
         return 1;
     }

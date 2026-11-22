@@ -1,0 +1,6 @@
+area: Distributed/Snapshot/Restore
+issues:
+  - 166842
+pr: 167042
+summary: Prevent stale snapshot operations from modifying repository data
+type: bug

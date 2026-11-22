@@ -131,6 +131,22 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             : currentState;
     }
 
+    /**
+     * Removes only the cleanup with the given UUID: if another master dropped it and started a replacement cleanup then the replacement
+     * must be left alone.
+     */
+    private static ClusterState removeInProgressCleanup(final ClusterState currentState, String cleanupUUID) {
+        final List<RepositoryCleanupInProgress.Entry> entries = RepositoryCleanupInProgress.get(currentState).entries();
+        final List<RepositoryCleanupInProgress.Entry> remaining = entries.stream()
+            .filter(e -> e.uuid().equals(cleanupUUID) == false)
+            .toList();
+        return remaining.size() == entries.size()
+            ? currentState
+            : ClusterState.builder(currentState)
+                .putCustom(RepositoryCleanupInProgress.TYPE, new RepositoryCleanupInProgress(remaining))
+                .build();
+    }
+
     @Override
     protected void masterOperation(
         Task task,
@@ -173,6 +189,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                 "cleanup repository [" + repositoryName + "][" + repositoryStateId + ']',
                 new ClusterStateUpdateTask() {
 
+                    private final RepositoryCleanupInProgress.Entry cleanupEntry = RepositoryCleanupInProgress.startedEntry(
+                        projectId,
+                        repositoryName,
+                        repositoryStateId
+                    );
+
                     private boolean startedCleanup = false;
 
                     @Override
@@ -208,12 +230,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             );
                         }
                         return ClusterState.builder(currentState)
-                            .putCustom(
-                                RepositoryCleanupInProgress.TYPE,
-                                new RepositoryCleanupInProgress(
-                                    List.of(RepositoryCleanupInProgress.startedEntry(projectId, repositoryName, repositoryStateId))
-                                )
-                            )
+                            .putCustom(RepositoryCleanupInProgress.TYPE, new RepositoryCleanupInProgress(List.of(cleanupEntry)))
                             .build();
                     }
 
@@ -231,7 +248,12 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                 result -> after(null, new RepositoryCleanupResult(result)),
                                 e -> after(e, null)
                             ),
-                            l -> blobStoreRepository.cleanup(repositoryStateId, newState.nodes().getMaxDataNodeCompatibleIndexVersion(), l)
+                            l -> blobStoreRepository.cleanup(
+                                repositoryStateId,
+                                cleanupEntry.uuid(),
+                                newState.nodes().getMaxDataNodeCompatibleIndexVersion(),
+                                l
+                            )
                         );
                     }
 
@@ -260,7 +282,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             new ClusterStateUpdateTask() {
                                 @Override
                                 public ClusterState execute(ClusterState currentState) {
-                                    return removeInProgressCleanup(currentState);
+                                    return removeInProgressCleanup(currentState, cleanupEntry.uuid());
                                 }
 
                                 @Override

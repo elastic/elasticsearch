@@ -34,11 +34,15 @@ public class RepositoryCleanupInProgressTests extends SimpleDiffableWireSerializ
         "project_id_in_snapshots_deletions_and_repo_cleanup"
     );
 
+    private static final TransportVersion REPOSITORY_CLEANUP_ENTRY_UUID = TransportVersion.fromName("repository_cleanup_entry_uuid");
+
     private Supplier<ProjectId> projectIdSupplier;
+    private Supplier<String> uuidSupplier;
 
     @Before
-    public void initProjectIdSupplier() throws Exception {
+    public void initSuppliers() throws Exception {
         projectIdSupplier = ESTestCase::randomProjectIdOrDefault;
+        uuidSupplier = ESTestCase::randomUUID;
     }
 
     @Override
@@ -88,11 +92,17 @@ public class RepositoryCleanupInProgressTests extends SimpleDiffableWireSerializ
     }
 
     private RepositoryCleanupInProgress.Entry randomCleanupEntry() {
-        return RepositoryCleanupInProgress.startedEntry(projectIdSupplier.get(), randomIdentifier(), randomLongBetween(0, 9999));
+        return new RepositoryCleanupInProgress.Entry(
+            projectIdSupplier.get(),
+            randomIdentifier(),
+            randomLongBetween(0, 9999),
+            uuidSupplier.get()
+        );
     }
 
     public void testSerializationBwc() throws IOException {
         projectIdSupplier = () -> ProjectId.DEFAULT;
+        uuidSupplier = () -> RepositoryCleanupInProgress.Entry.UNKNOWN_UUID;
         final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
@@ -107,6 +117,7 @@ public class RepositoryCleanupInProgressTests extends SimpleDiffableWireSerializ
 
     public void testDiffSerializationBwc() throws IOException {
         projectIdSupplier = () -> ProjectId.DEFAULT;
+        uuidSupplier = () -> RepositoryCleanupInProgress.Entry.UNKNOWN_UUID;
         final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
@@ -121,6 +132,34 @@ public class RepositoryCleanupInProgressTests extends SimpleDiffableWireSerializ
         final NamedDiff<ClusterState.Custom> diffFromStream = RepositoryCleanupInProgress.readDiffFrom(in);
 
         assertThat(diffFromStream.apply(before), equalTo(after));
+    }
+
+    /** A node which predates the cleanup UUID neither sends nor expects one, so the entry reads back with the unknown UUID. */
+    public void testCleanupUuidSerializationBwc() throws IOException {
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(REPOSITORY_CLEANUP_ENTRY_UUID);
+        final var original = new RepositoryCleanupInProgress.Entry(
+            ProjectId.DEFAULT,
+            randomIdentifier(),
+            randomNonNegativeLong(),
+            randomUUID()
+        );
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        original.writeTo(out);
+
+        final var in = out.bytes().streamInput();
+        in.setTransportVersion(oldVersion);
+        assertThat(
+            RepositoryCleanupInProgress.Entry.readFrom(in),
+            equalTo(
+                new RepositoryCleanupInProgress.Entry(
+                    original.projectId(),
+                    original.repository(),
+                    original.repositoryStateId(),
+                    RepositoryCleanupInProgress.Entry.UNKNOWN_UUID
+                )
+            )
+        );
     }
 
     public void testChunking() {

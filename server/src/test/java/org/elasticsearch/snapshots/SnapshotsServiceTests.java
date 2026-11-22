@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -62,6 +64,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_C
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -730,6 +733,66 @@ public class SnapshotsServiceTests extends ESTestCase {
                 containsString("[repo-b/snap-b] indices:")
             )
         );
+    }
+
+    public void testFailedFinalizationRemovesSnapshotFromDeletions() {
+        final String repoName = "test-repo";
+        final Snapshot snapshot = snapshot(repoName, "snapshot");
+        final SnapshotId otherSnapshotId = new SnapshotId("other", uuid());
+        final ClusterState clusterState = withDeletion(
+            stateWithSnapshots(repoName, snapshotEntry(snapshot, Map.of(), Map.of())),
+            repoName,
+            snapshot.getSnapshotId(),
+            otherSnapshotId
+        );
+
+        final ClusterState updatedState = SnapshotsServiceUtils.stateWithoutFailedSnapshot(
+            clusterState,
+            snapshot,
+            FinalizeSnapshotContext.UpdatedShardGenerations.EMPTY
+        );
+
+        assertThat(SnapshotsInProgress.get(updatedState).forRepo(repoName), empty());
+        assertThat(SnapshotDeletionsInProgress.get(updatedState).getEntries().get(0).snapshots(), equalTo(List.of(otherSnapshotId)));
+    }
+
+    /**
+     * A finalization which failed because another master took over must not strip its snapshot from a deletion which still applies to it,
+     * see #166842.
+     */
+    public void testStaleFailedFinalizationLeavesDeletionsUntouched() {
+        final String repoName = "test-repo";
+        final Snapshot snapshot = snapshot(repoName, "snapshot");
+        final ClusterState clusterState = withDeletion(
+            stateWithSnapshots(repoName, snapshotEntry(snapshot("test-repo", "unrelated"), Map.of(), Map.of())),
+            repoName,
+            snapshot.getSnapshotId()
+        );
+
+        assertSame(
+            clusterState,
+            SnapshotsServiceUtils.stateWithoutFailedSnapshot(clusterState, snapshot, FinalizeSnapshotContext.UpdatedShardGenerations.EMPTY)
+        );
+    }
+
+    private static ClusterState withDeletion(ClusterState state, String repoName, SnapshotId... snapshotIds) {
+        return ClusterState.builder(state)
+            .putCustom(
+                SnapshotDeletionsInProgress.TYPE,
+                SnapshotDeletionsInProgress.of(
+                    List.of(
+                        new SnapshotDeletionsInProgress.Entry(
+                            ProjectId.DEFAULT,
+                            repoName,
+                            Arrays.asList(snapshotIds),
+                            randomNonNegativeLong(),
+                            randomNonNegativeLong(),
+                            SnapshotDeletionsInProgress.State.WAITING
+                        )
+                    )
+                )
+            )
+            .build();
     }
 
     private static DiscoveryNodes discoveryNodes(String localNodeId) {

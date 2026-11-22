@@ -112,6 +112,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
 
     @Override
     public void deleteSnapshots(
+        String deleteUUID,
         Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,

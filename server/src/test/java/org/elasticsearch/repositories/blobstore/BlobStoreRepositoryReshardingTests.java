@@ -408,6 +408,7 @@ public class BlobStoreRepositoryReshardingTests extends IndexShardTestCase {
             listener -> repository.finalizeSnapshot(
                 new FinalizeSnapshotContext(
                     false,
+                    false,
                     updatedShardGenerations,
                     repositoryGeneration,
                     Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build(),

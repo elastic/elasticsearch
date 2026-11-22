@@ -104,6 +104,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         super.finalizeSnapshot(
             new FinalizeSnapshotContext(
                 finalizeSnapshotContext.serializeProjectMetadata(),
+                finalizeSnapshotContext.requireSnapshotInProgress(),
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
                 metadataToSnapshot(

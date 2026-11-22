@@ -124,6 +124,14 @@ public class SnapshotDeletionsInProgressTests extends SimpleDiffableWireSerializ
         );
     }
 
+    public void testRemovingAbsentEntryIsANoOp() {
+        // an entry may already have been removed by another master, even if that leaves no entries at all
+        final String absentUuid = randomUUID();
+        assertSame(SnapshotDeletionsInProgress.EMPTY, SnapshotDeletionsInProgress.EMPTY.withRemovedEntry(absentUuid));
+        final SnapshotDeletionsInProgress nonEmpty = SnapshotDeletionsInProgress.EMPTY.withAddedEntry(randomDeletionEntry());
+        assertSame(nonEmpty, nonEmpty.withRemovedEntry(absentUuid));
+    }
+
     public void testSerializationBwc() throws IOException {
         projectIdSupplier = () -> ProjectId.DEFAULT;
         final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP);

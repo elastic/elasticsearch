@@ -1015,7 +1015,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
         final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
         repositoriesService.repository(deleteEntry.projectId(), deleteEntry.repository())
-            .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new ActionListener<>() {
+            .deleteSnapshots(deleteEntry.uuid(), snapshotIds, repositoryData.getGenId(), minNodeVersion, new ActionListener<>() {
                 @Override
                 public void onResponse(RepositoryData updatedRepoData) {
                     removeSnapshotDeletionFromClusterState(
@@ -2536,6 +2536,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 repo.finalizeSnapshot(
                     new FinalizeSnapshotContext(
                         serializeProjectMetadata,
+                        true,
                         updatedShardGenerations,
                         repositoryData.getGenId(),
                         metaForSnapshot,
@@ -2704,22 +2705,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final ClusterState updatedState = SnapshotsServiceUtils.stateWithoutSnapshot(
-                    currentState,
-                    snapshot,
-                    updatedShardGenerations
-                );
-                // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
-                return SnapshotsServiceUtils.updateWithSnapshots(
-                    updatedState,
-                    null,
-                    SnapshotsServiceUtils.deletionsWithoutSnapshots(
-                        SnapshotDeletionsInProgress.get(updatedState),
-                        Collections.singletonList(snapshot.getSnapshotId()),
-                        snapshot.getProjectId(),
-                        snapshot.getRepository()
-                    )
-                );
+                return SnapshotsServiceUtils.stateWithoutFailedSnapshot(currentState, snapshot, updatedShardGenerations);
             }
 
             @Override

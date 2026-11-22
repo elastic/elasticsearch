@@ -114,6 +114,7 @@ public class InvalidRepository extends AbstractLifecycleComponent implements Rep
 
     @Override
     public void deleteSnapshots(
+        String deleteUUID,
         Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,

@@ -201,6 +201,10 @@ public interface Repository extends LifecycleComponent {
     /**
      * Deletes snapshots
      *
+     * @param deleteUUID                   the UUID of the {@link org.elasticsearch.cluster.SnapshotDeletionsInProgress.Entry} that this
+     *                                     deletion is running on behalf of; the {@link RepositoryData} is only updated if that entry is
+     *                                     still in the cluster state, since otherwise another master has dropped this deletion and other
+     *                                     operations may have started writing to the repository.
      * @param snapshotIds                  snapshot ids to delete
      * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
      * @param minimumNodeVersion           the minimum {@link IndexVersion} across the nodes in the cluster, with which the repository
@@ -213,6 +217,7 @@ public interface Repository extends LifecycleComponent {
      *                                     exceptionally.
      */
     void deleteSnapshots(
+        String deleteUUID,
         Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,

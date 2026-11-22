@@ -562,6 +562,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
                     false,
+                    false,
                     UpdatedShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),

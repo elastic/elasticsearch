@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -55,6 +57,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -67,7 +70,9 @@ import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -86,11 +91,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -111,6 +118,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -239,6 +247,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 newRepositoryData,
                 newRepositoryData.getGenId(),
                 IndexVersion.current(),
+                NO_AUTHORITY_CHECK,
                 Function.identity(),
                 ActionTestUtils.assertNoSuccessListener(e -> {
                     assertThat(
@@ -358,6 +367,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     fresherRepositoryData,
                     repositoryData.getGenId(),
                     IndexVersion.current(),
+                    NO_AUTHORITY_CHECK,
                     Function.identity(),
                     listener
                 )
@@ -449,12 +459,336 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         snapshotDetailsAsserter.accept(AbstractSnapshotIntegTestCase.getRepositoryData(repository).getSnapshotDetails(snapshotId));
     }
 
+    /**
+     * A stale operation (one that another master has dropped from the cluster state) must be rejected when it tries to set the pending
+     * repository generation, even though the generations it expects are all still correct. Nothing may be written to the repository.
+     */
+    public void testWriteIndexGenRejectsStaleOperationBeforeSettingPendingGeneration() throws IOException {
+        final BlobStoreRepository repository = setupRepo();
+        writeIndexGen(repository, generateRandomRepoData(), RepositoryData.EMPTY_REPO_GEN);
+        final RepositoryData currentData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final long safeGeneration = repository.metadata.generation();
+        final long pendingGeneration = repository.metadata.pendingGeneration();
+        final long latestIndexBlobId = repository.latestIndexBlobId();
+
+        final RepositoryData newData = addRandomSnapshotsToRepoData(currentData, true);
+        final Exception e = safeAwaitFailure(
+            RepositoryData.class,
+            listener -> repository.writeIndexGen(newData, currentData.getGenId(), IndexVersion.current(), state -> {
+                throw new IllegalStateException("stale operation");
+            }, Function.identity(), listener)
+        );
+        assertThat(e, instanceOf(RepositoryException.class));
+        assertThat(e.getMessage(), containsString("Failed to execute cluster state update [set pending repository generation"));
+        assertThat(asInstanceOf(IllegalStateException.class, e.getCause()).getMessage(), equalTo("stale operation"));
+
+        assertThat(repository.metadata.generation(), equalTo(safeGeneration));
+        assertThat(repository.metadata.pendingGeneration(), equalTo(pendingGeneration));
+        assertThat(repository.latestIndexBlobId(), equalTo(latestIndexBlobId));
+        assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), equalTo(currentData));
+    }
+
+    /**
+     * An operation which loses its authority after the pending generation was set must be rejected when it tries to set the safe
+     * generation, so that the {@link RepositoryData} it wrote is never exposed and the operation proceeds no further (in particular, to
+     * deleting blobs which the new {@link RepositoryData} no longer references). The {@code index-N} blob it already wrote is deliberately
+     * retained, along with {@code index.latest}: a best-effort reader may adopt it as a complete generation, so deleting it later could
+     * remove a generation which has by then become the safe one.
+     */
+    public void testWriteIndexGenRejectsStaleOperationBeforeSettingSafeGeneration() throws IOException {
+        final BlobStoreRepository repository = setupRepo();
+        writeIndexGen(repository, generateRandomRepoData(), RepositoryData.EMPTY_REPO_GEN);
+        final RepositoryData currentData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final long safeGeneration = repository.metadata.generation();
+        final long latestIndexBlobId = repository.latestIndexBlobId();
+        assertThat(latestIndexBlobId, equalTo(safeGeneration));
+
+        final AtomicInteger authorityChecks = new AtomicInteger();
+        final RepositoryData newData = addRandomSnapshotsToRepoData(currentData, true);
+        final Exception e = safeAwaitFailure(
+            RepositoryData.class,
+            listener -> repository.writeIndexGen(newData, currentData.getGenId(), IndexVersion.current(), state -> {
+                // the operation is valid when it sets the pending generation but is dropped from the cluster state before the safe one
+                if (authorityChecks.incrementAndGet() > 1) {
+                    throw new IllegalStateException("stale operation");
+                }
+            }, Function.identity(), listener)
+        );
+        assertThat(authorityChecks.get(), equalTo(2));
+        assertThat(e, instanceOf(RepositoryException.class));
+        assertThat(e.getMessage(), containsString("Failed to execute cluster state update [set safe repository generation"));
+        assertThat(asInstanceOf(IllegalStateException.class, e.getCause()).getMessage(), equalTo("stale operation"));
+
+        // the safe generation did not advance, and the pending generation is the one reserved for the rejected write
+        assertThat(repository.metadata.generation(), equalTo(safeGeneration));
+        assertThat(repository.metadata.pendingGeneration(), equalTo(safeGeneration + 1));
+        // the rejected index-N and index.latest are left alone
+        assertTrue(
+            repository.blobContainer()
+                .blobExists(OperationPurpose.SNAPSHOT_METADATA, BlobStoreRepository.INDEX_FILE_PREFIX + (safeGeneration + 1))
+        );
+        assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(safeGeneration + 1));
+        assertThat(repository.latestIndexBlobId(), equalTo(safeGeneration + 1));
+        // the repository is still readable at the safe generation
+        assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), equalTo(currentData));
+    }
+
+    /**
+     * The {@code index-N} left behind by a rejected {@link BlobStoreRepository#writeIndexGen} is not referenced by the cluster state and
+     * is never reused, because later writes reserve a greater pending generation. It is removed as an obsolete generation by the next
+     * successful snapshot finalization.
+     */
+    public void testRejectedIndexGenerationIsCleanedUpBySubsequentWrite() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+        final SnapshotId firstSnapshot = new SnapshotId("snap-0", UUIDs.randomBase64UUID());
+        final RepositoryData committedData = finalizeEmptySnapshot(repository, firstSnapshot, RepositoryData.EMPTY_REPO_GEN);
+        final long committedGeneration = committedData.getGenId();
+        assertThat(repository.metadata.generation(), equalTo(committedGeneration));
+        assertThat(repository.metadata.pendingGeneration(), equalTo(committedGeneration));
+
+        // a write of the next generation which is rejected when it tries to set the safe generation
+        final long rejectedGeneration = committedGeneration + 1;
+        final AtomicInteger authorityChecks = new AtomicInteger();
+        final Exception e = safeAwaitFailure(
+            RepositoryData.class,
+            listener -> repository.writeIndexGen(committedData, committedGeneration, IndexVersion.current(), state -> {
+                if (authorityChecks.incrementAndGet() > 1) {
+                    throw new IllegalStateException("stale operation");
+                }
+            }, Function.identity(), listener)
+        );
+        assertThat(e, instanceOf(RepositoryException.class));
+        assertThat(e.getMessage(), containsString("Failed to execute cluster state update [set safe repository generation"));
+        final String rejectedBlob = INDEX_FILE_PREFIX + rejectedGeneration;
+        assertTrue(repository.blobContainer().blobExists(OperationPurpose.SNAPSHOT_METADATA, rejectedBlob));
+        assertThat(repository.metadata.generation(), equalTo(committedGeneration));
+        assertThat(repository.metadata.pendingGeneration(), equalTo(rejectedGeneration));
+        assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), equalTo(committedData));
+
+        // a valid write advances from the committed generation, skipping the rejected one
+        final SnapshotId secondSnapshot = new SnapshotId("snap-1", UUIDs.randomBase64UUID());
+        final RepositoryData newData = finalizeEmptySnapshot(repository, secondSnapshot, committedGeneration);
+        final long newGeneration = rejectedGeneration + 1;
+        assertThat(newData.getGenId(), equalTo(newGeneration));
+        assertThat(repository.metadata.generation(), equalTo(newGeneration));
+        assertThat(repository.metadata.pendingGeneration(), equalTo(newGeneration));
+
+        // finalization removes the obsolete root blobs in the background
+        assertBusy(() -> {
+            assertFalse(repository.blobContainer().blobExists(OperationPurpose.SNAPSHOT_METADATA, rejectedBlob));
+            assertFalse(repository.blobContainer().blobExists(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX + committedGeneration));
+        });
+        assertTrue(repository.blobContainer().blobExists(OperationPurpose.SNAPSHOT_METADATA, INDEX_FILE_PREFIX + newGeneration));
+        assertThat(repository.latestIndexBlobId(), equalTo(newGeneration));
+        final RepositoryData finalData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        assertThat(finalData.getGenId(), equalTo(newGeneration));
+        assertThat(Set.copyOf(finalData.getSnapshotIds()), equalTo(Set.of(firstSnapshot, secondSnapshot)));
+    }
+
+    /** Finalizes a snapshot of no indices, adding it to the {@link RepositoryData} of the given generation. */
+    private static RepositoryData finalizeEmptySnapshot(BlobStoreRepository repository, SnapshotId snapshotId, long repositoryGeneration) {
+        final var noShardGenerations = new UpdatedShardGenerations(ShardGenerations.EMPTY, ShardGenerations.EMPTY);
+        return safeAwait(
+            (ActionListener<RepositoryData> listener) -> repository.finalizeSnapshot(
+                new FinalizeSnapshotContext(
+                    false,
+                    false,
+                    noShardGenerations,
+                    repositoryGeneration,
+                    Metadata.builder().build(),
+                    new SnapshotInfo(
+                        new Snapshot(TEST_REPO_NAME, snapshotId),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        null,
+                        1L,
+                        0,
+                        List.of(),
+                        false,
+                        Map.of(),
+                        0L,
+                        Map.of()
+                    ),
+                    IndexVersion.current(),
+                    listener,
+                    () -> {}
+                )
+            )
+        );
+    }
+
+    /**
+     * A failure of the safe generation update that is not an authority loss may still be committed by a newer master, so the written
+     * {@code index-N} must be left in place.
+     */
+    public void testWriteIndexGenKeepsBlobOnNonAuthorityFailureOfSafeGenerationUpdate() throws IOException {
+        final BlobStoreRepository repository = setupRepo();
+        writeIndexGen(repository, generateRandomRepoData(), RepositoryData.EMPTY_REPO_GEN);
+        final RepositoryData currentData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final long safeGeneration = repository.metadata.generation();
+
+        final RepositoryData newData = addRandomSnapshotsToRepoData(currentData, true);
+        final Exception e = safeAwaitFailure(
+            RepositoryData.class,
+            listener -> repository.writeIndexGen(
+                newData,
+                currentData.getGenId(),
+                IndexVersion.current(),
+                NO_AUTHORITY_CHECK,
+                // the filter runs inside the safe generation update, after the authority check passed
+                state -> { throw new IllegalStateException("not an authority failure"); },
+                listener
+            )
+        );
+        assertThat(e, instanceOf(RepositoryException.class));
+        assertThat(e.getMessage(), containsString("Failed to execute cluster state update [set safe repository generation"));
+        assertTrue(
+            repository.blobContainer()
+                .blobExists(OperationPurpose.SNAPSHOT_METADATA, BlobStoreRepository.INDEX_FILE_PREFIX + (safeGeneration + 1))
+        );
+    }
+
+    /** A valid operation passes the authority check in both cluster state updates and completes as before. */
+    public void testWriteIndexGenRunsAuthorityCheckInBothClusterStateUpdates() {
+        final BlobStoreRepository repository = setupRepo();
+        final AtomicInteger authorityChecks = new AtomicInteger();
+        final RepositoryData data = generateRandomRepoData();
+        final RepositoryData written = safeAwait(
+            (ActionListener<RepositoryData> listener) -> repository.writeIndexGen(
+                data,
+                RepositoryData.EMPTY_REPO_GEN,
+                IndexVersion.current(),
+                state -> authorityChecks.incrementAndGet(),
+                Function.identity(),
+                listener
+            )
+        );
+        assertThat(authorityChecks.get(), equalTo(2));
+        assertThat(written, equalTo(data));
+        assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), equalTo(data));
+        assertThat(repository.metadata.generation(), equalTo(repository.metadata.pendingGeneration()));
+    }
+
+    /**
+     * A repository cleanup is dropped from the cluster state on master failover. A stale cleanup, which still holds the expected
+     * generation, must not write {@link RepositoryData} and must therefore not go on to delete anything.
+     */
+    public void testStaleCleanupDoesNotUpdateRepositoryDataOrDeleteBlobs() throws IOException {
+        final BlobStoreRepository repository = setupRepo();
+        writeIndexGen(repository, generateRandomRepoData(), RepositoryData.EMPTY_REPO_GEN);
+        final RepositoryData repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+
+        // an index directory which RepositoryData does not reference, so that the cleanup has something to delete
+        final String unreferencedIndexId = UUIDs.randomBase64UUID();
+        final var unreferencedIndexContainer = repository.blobStore()
+            .blobContainer(repository.basePath().add("indices").add(unreferencedIndexId));
+        unreferencedIndexContainer.writeBlob(OperationPurpose.SNAPSHOT_DATA, "blob", new BytesArray(new byte[] { 1 }), true);
+        final long latestIndexBlobId = repository.latestIndexBlobId();
+
+        // there is no cleanup in the cluster state
+        final Exception e = safeAwaitFailure(
+            DeleteResult.class,
+            listener -> repository.cleanup(repositoryData.getGenId(), "stale-cleanup", IndexVersion.current(), listener)
+        );
+        assertThat(e, instanceOf(RepositoryException.class));
+        assertThat(
+            asInstanceOf(IllegalStateException.class, e.getCause()).getMessage(),
+            containsString("repository cleanup [stale-cleanup] is no longer in the cluster state")
+        );
+
+        assertThat(repository.latestIndexBlobId(), equalTo(latestIndexBlobId));
+        assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), equalTo(repositoryData));
+        assertTrue(unreferencedIndexContainer.blobExists(OperationPurpose.SNAPSHOT_DATA, "blob"));
+    }
+
+    /**
+     * After failover a replacement cleanup can start at the very same repository generation as the cleanup it replaced, so the
+     * generation cannot identify the cleanup: only the entry that matches the cleanup's own UUID may authorize writes.
+     */
+    public void testCleanupIsAuthorizedByCleanupUuidNotGeneration() throws IOException {
+        final BlobStoreRepository repository = setupRepo();
+        writeIndexGen(repository, generateRandomRepoData(), RepositoryData.EMPTY_REPO_GEN);
+        final RepositoryData repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final long generation = repositoryData.getGenId();
+
+        final String unreferencedIndexId = UUIDs.randomBase64UUID();
+        final var unreferencedIndexContainer = repository.blobStore()
+            .blobContainer(repository.basePath().add("indices").add(unreferencedIndexId));
+        unreferencedIndexContainer.writeBlob(OperationPurpose.SNAPSHOT_DATA, "blob", new BytesArray(new byte[] { 1 }), true);
+        final long latestIndexBlobId = repository.latestIndexBlobId();
+
+        // only the replacement cleanup, at the same repository generation, is in the cluster state
+        final var currentCleanup = RepositoryCleanupInProgress.startedEntry(repository.getProjectId(), TEST_REPO_NAME, generation);
+        final var oldCleanup = RepositoryCleanupInProgress.startedEntry(repository.getProjectId(), TEST_REPO_NAME, generation);
+        assertThat(oldCleanup.uuid(), not(equalTo(currentCleanup.uuid())));
+        setCleanupsInProgress(List.of(currentCleanup));
+        try {
+            final Exception e = safeAwaitFailure(
+                DeleteResult.class,
+                listener -> repository.cleanup(generation, oldCleanup.uuid(), IndexVersion.current(), listener)
+            );
+            assertThat(e, instanceOf(RepositoryException.class));
+            assertThat(
+                asInstanceOf(IllegalStateException.class, e.getCause()).getMessage(),
+                containsString("repository cleanup [" + oldCleanup.uuid() + "] is no longer in the cluster state")
+            );
+            assertThat(repository.latestIndexBlobId(), equalTo(latestIndexBlobId));
+            assertThat(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), equalTo(repositoryData));
+            assertTrue(unreferencedIndexContainer.blobExists(OperationPurpose.SNAPSHOT_DATA, "blob"));
+
+            // the current cleanup is authorized and does its job
+            safeAwait(
+                (ActionListener<DeleteResult> listener) -> repository.cleanup(
+                    generation,
+                    currentCleanup.uuid(),
+                    IndexVersion.current(),
+                    listener
+                )
+            );
+            assertFalse(unreferencedIndexContainer.blobExists(OperationPurpose.SNAPSHOT_DATA, "blob"));
+            assertThat(repository.latestIndexBlobId(), equalTo(latestIndexBlobId + 1));
+        } finally {
+            setCleanupsInProgress(List.of());
+        }
+    }
+
+    private void setCleanupsInProgress(List<RepositoryCleanupInProgress.Entry> entries) {
+        safeAwait(
+            (ActionListener<Void> l) -> getInstanceFromNode(ClusterService.class).submitUnbatchedStateUpdateTask(
+                "set cleanups in progress",
+                new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return ClusterState.builder(currentState)
+                            .putCustom(RepositoryCleanupInProgress.TYPE, new RepositoryCleanupInProgress(entries))
+                            .build();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        l.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        l.onResponse(null);
+                    }
+                }
+            )
+        );
+    }
+
+    /** These tests write {@link RepositoryData} directly, without any operation in the cluster state on whose behalf they do so. */
+    private static final Consumer<ClusterState> NO_AUTHORITY_CHECK = state -> {};
+
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) {
         safeAwait(
             (ActionListener<RepositoryData> listener) -> repository.writeIndexGen(
                 repositoryData,
                 generation,
                 IndexVersion.current(),
+                NO_AUTHORITY_CHECK,
                 Function.identity(),
                 listener
             )

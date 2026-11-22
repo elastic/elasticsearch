@@ -94,7 +94,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      * entries.
      */
     public SnapshotDeletionsInProgress withRemovedEntry(String deleteUUID) {
-        List<Entry> updatedEntries = new ArrayList<>(entries.size() - 1);
+        List<Entry> updatedEntries = new ArrayList<>(Math.max(entries.size() - 1, 0));
         boolean removed = false;
         for (Entry entry : entries) {
             if (entry.uuid().equals(deleteUUID)) {

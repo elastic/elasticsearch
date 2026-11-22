@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -200,6 +201,117 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> without snapshots in progress, finally recreate repository to reset corrupted state");
         createRepository(repoName, "mock", Settings.builder().put(repoSettings));
         assertNotEquals(RepositoryData.CORRUPTED_REPO_GEN, getRepositoryMetadata(repoName).generation());
+    }
+
+    /**
+     * A deletion which another master dropped from the cluster state (e.g. after failing to retry it) must not update the repository data
+     * when this master resumes it, even though the repository generation it expects is still the current one. See #166842.
+     */
+    public void testStaleDeleteCannotUpdateRepositoryData() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        createIndexWithContent("index-one");
+        final List<String> snapshotNames = createNSnapshots(repoName, 2);
+        final String staleDeletedSnapshot = snapshotNames.get(0);
+        final long generationBeforeDelete = getRepositoryData(repoName).getGenId();
+
+        blockMasterOnWriteIndexFile(repoName);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, staleDeletedSnapshot);
+        waitForBlock(masterName, repoName);
+        awaitNDeletionsInProgress(1);
+
+        logger.info("--> dropping the deletion from the cluster state, as another master would");
+        updateClusterState(
+            state -> ClusterState.builder(state).putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).build()
+        );
+        unblockNode(repoName, masterName);
+
+        final var exception = expectThrows(Exception.class, () -> deleteFuture.get(60, TimeUnit.SECONDS));
+        final var rootCause = Throwables.getRootCause(exception);
+        assertThat(rootCause, instanceOf(IllegalStateException.class));
+        assertThat(rootCause.getMessage(), containsString("snapshot deletion ["));
+        assertThat(rootCause.getMessage(), containsString("is no longer in the cluster state"));
+        awaitNoMoreRunningOperations();
+
+        logger.info("--> the stale deletion did not change the repository data, and no snapshot data was lost");
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        assertThat(repositoryData.getGenId(), equalTo(generationBeforeDelete));
+        assertThat(
+            repositoryData.getSnapshotIds().stream().map(SnapshotId::getName).collect(Collectors.toSet()),
+            equalTo(Set.copyOf(snapshotNames))
+        );
+        for (String snapshotName : snapshotNames) {
+            assertRestorable(repoName, snapshotName, "index-one");
+        }
+
+        logger.info("--> a valid deletion of the same snapshot still succeeds");
+        assertAcked(startDeleteSnapshot(repoName, staleDeletedSnapshot).get());
+        assertThat(
+            getRepositoryData(repoName).getSnapshotIds().stream().map(SnapshotId::getName).collect(Collectors.toSet()),
+            equalTo(Set.of(snapshotNames.get(1)))
+        );
+        assertRestorable(repoName, snapshotNames.get(1), "index-one");
+    }
+
+    /**
+     * Reproduces the sequence in #166842: a deletion stalls before listing the repository and is dropped by another master, which then
+     * writes the data of a newer snapshot. When the original master resumes, the deletion lists the newer snapshot's not-yet-referenced
+     * blobs, so it must not update the repository data nor remove them.
+     */
+    public void testStaleDeleteDoesNotRemoveDataOfNewerSnapshot() throws Exception {
+        final String masterName = internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        createIndexWithContent("index-one");
+        final List<String> snapshotNames = createNSnapshots(repoName, 1);
+
+        logger.info("--> blocking the master before the deletion lists the repository contents");
+        blockNodeOnAnyFiles(repoName, masterName);
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, snapshotNames.get(0));
+        waitForBlock(masterName, repoName);
+        awaitNDeletionsInProgress(1);
+
+        logger.info("--> dropping the deletion from the cluster state and writing the shard data of a newer snapshot of a new index");
+        updateClusterState(
+            state -> ClusterState.builder(state).putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).build()
+        );
+        createIndexWithContent("index-two");
+        final ActionFuture<CreateSnapshotResponse> newerSnapshotFuture = startFullSnapshot(repoName, "newer-snapshot");
+        awaitClusterState(state -> {
+            final List<SnapshotsInProgress.Entry> entries = SnapshotsInProgress.get(state).forRepo(repoName);
+            return entries.size() == 1 && entries.get(0).state().completed();
+        });
+
+        unblockNode(repoName, masterName);
+        final var exception = expectThrows(Exception.class, () -> deleteFuture.get(60, TimeUnit.SECONDS));
+        assertThat(Throwables.getRootCause(exception), instanceOf(IllegalStateException.class));
+
+        assertSuccessful(newerSnapshotFuture);
+        awaitNoMoreRunningOperations();
+
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        assertThat(
+            repositoryData.getSnapshotIds().stream().map(SnapshotId::getName).collect(Collectors.toSet()),
+            equalTo(Set.of(snapshotNames.get(0), "newer-snapshot"))
+        );
+        assertRestorable(repoName, snapshotNames.get(0), "index-one");
+        assertRestorable(repoName, "newer-snapshot", "index-two");
+    }
+
+    private void assertRestorable(String repoName, String snapshotName, String indexName) {
+        final String restoredIndexName = "restored-" + snapshotName + "-" + indexName;
+        final RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+            .setIndices(indexName)
+            .setRenamePattern(".+")
+            .setRenameReplacement(restoredIndexName)
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
+        assertHitCount(prepareSearch(restoredIndexName).setSize(0), 1);
+        assertAcked(indicesAdmin().prepareDelete(restoredIndexName));
     }
 
     public void testDeletesAreBatched() throws Exception {

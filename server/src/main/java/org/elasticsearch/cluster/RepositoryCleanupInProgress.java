@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +36,8 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
     private static final TransportVersion PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP = TransportVersion.fromName(
         "project_id_in_snapshots_deletions_and_repo_cleanup"
     );
+
+    private static final TransportVersion REPOSITORY_CLEANUP_ENTRY_UUID = TransportVersion.fromName("repository_cleanup_entry_uuid");
 
     private final List<Entry> entries;
 
@@ -113,13 +116,32 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
         return TransportVersion.zero();
     }
 
-    public record Entry(ProjectId projectId, String repository, long repositoryStateId) implements Writeable, RepositoryOperation {
+    /**
+     * A running repository cleanup.
+     *
+     * @param uuid identifies this particular cleanup. A replacement cleanup can be started at the same {@code repositoryStateId} after a
+     *             master failover drops the original one, so the repository generation alone cannot tell the two apart. Entries received
+     *             from nodes which predate the {@code uuid} have {@link #UNKNOWN_UUID}, which no running cleanup ever matches.
+     */
+    public record Entry(ProjectId projectId, String repository, long repositoryStateId, String uuid)
+        implements
+            Writeable,
+            RepositoryOperation {
+
+        public static final String UNKNOWN_UUID = "_na_";
+
+        public Entry(ProjectId projectId, String repository, long repositoryStateId) {
+            this(projectId, repository, repositoryStateId, UUIDs.randomBase64UUID());
+        }
 
         public static Entry readFrom(StreamInput in) throws IOException {
             final ProjectId projectId = in.getTransportVersion().supports(PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
                 ? ProjectId.readFrom(in)
                 : ProjectId.DEFAULT;
-            return new Entry(projectId, in.readString(), in.readLong());
+            final String repository = in.readString();
+            final long repositoryStateId = in.readLong();
+            final String uuid = in.getTransportVersion().supports(REPOSITORY_CLEANUP_ENTRY_UUID) ? in.readString() : UNKNOWN_UUID;
+            return new Entry(projectId, repository, repositoryStateId, uuid);
         }
 
         @Override
@@ -153,6 +175,9 @@ public final class RepositoryCleanupInProgress extends AbstractNamedDiffable<Clu
             }
             out.writeString(repository);
             out.writeLong(repositoryStateId);
+            if (out.getTransportVersion().supports(REPOSITORY_CLEANUP_ENTRY_UUID)) {
+                out.writeString(uuid);
+            }
         }
     }
 }

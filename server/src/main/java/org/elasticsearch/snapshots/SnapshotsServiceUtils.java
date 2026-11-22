@@ -896,6 +896,40 @@ public class SnapshotsServiceUtils {
     }
 
     /**
+     * Removes a snapshot whose finalization failed from the cluster state, together with its references in the deletions in progress.
+     * <p>
+     * If the snapshot is no longer in progress then another master already finalized or removed it, and whoever did so also updated the
+     * deletions that refer to it. In that case the state is returned unchanged: a stale finalization failure must not strip the snapshot
+     * from a deletion which still applies to it, or that deletion would complete without deleting the snapshot.
+     *
+     * @return the updated cluster state, or {@code currentState} if the snapshot is not in progress
+     */
+    public static ClusterState stateWithoutFailedSnapshot(
+        ClusterState currentState,
+        Snapshot snapshot,
+        FinalizeSnapshotContext.UpdatedShardGenerations updatedShardGenerations
+    ) {
+        if (SnapshotsInProgress.get(currentState)
+            .forRepo(snapshot.getProjectId(), snapshot.getRepository())
+            .stream()
+            .noneMatch(entry -> entry.snapshot().equals(snapshot))) {
+            return currentState;
+        }
+        final ClusterState updatedState = stateWithoutSnapshot(currentState, snapshot, updatedShardGenerations);
+        // now check if there are any delete operations that refer to the just failed snapshot and remove the snapshot from them
+        return updateWithSnapshots(
+            updatedState,
+            null,
+            deletionsWithoutSnapshots(
+                SnapshotDeletionsInProgress.get(updatedState),
+                Collections.singletonList(snapshot.getSnapshotId()),
+                snapshot.getProjectId(),
+                snapshot.getRepository()
+            )
+        );
+    }
+
+    /**
      * Determines the minimum {@link IndexVersion} that the snapshot repository must be compatible with
      * from the current nodes in the cluster and the contents of the repository.
      * The minimum version is determined as the lowest version found across all snapshots in the

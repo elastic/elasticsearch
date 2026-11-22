@@ -454,6 +454,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 repository.finalizeSnapshot(
                     new FinalizeSnapshotContext(
                         false,
+                        false,
                         new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
                         ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).getGenId(),
                         Metadata.builder()

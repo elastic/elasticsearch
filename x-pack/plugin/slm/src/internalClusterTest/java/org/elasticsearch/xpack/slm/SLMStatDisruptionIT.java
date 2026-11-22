@@ -255,6 +255,7 @@ public class SLMStatDisruptionIT extends AbstractSnapshotIntegTestCase {
         public void finalizeSnapshot(FinalizeSnapshotContext fsc) {
             var newFinalizeContext = new FinalizeSnapshotContext(
                 false,
+                fsc.requireSnapshotInProgress(),
                 fsc.updatedShardGenerations(),
                 fsc.repositoryStateId(),
                 fsc.clusterMetadata(),

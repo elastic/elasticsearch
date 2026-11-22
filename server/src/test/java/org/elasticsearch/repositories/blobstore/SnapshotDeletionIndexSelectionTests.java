@@ -270,6 +270,7 @@ public class SnapshotDeletionIndexSelectionTests extends ESSingleNodeTestCase {
 
         @Override
         public void deleteSnapshots(
+            String deleteUUID,
             Set<SnapshotId> snapshotIds,
             long repositoryDataGeneration,
             IndexVersion minimumNodeVersion,
@@ -277,7 +278,14 @@ public class SnapshotDeletionIndexSelectionTests extends ESSingleNodeTestCase {
             Runnable onCompletion
         ) {
             touchedIndexIds.clear();
-            super.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, repositoryDataUpdateListener, onCompletion);
+            super.deleteSnapshots(
+                deleteUUID,
+                snapshotIds,
+                repositoryDataGeneration,
+                minimumNodeVersion,
+                repositoryDataUpdateListener,
+                onCompletion
+            );
         }
 
         private class TrackingBlobStore implements BlobStore {

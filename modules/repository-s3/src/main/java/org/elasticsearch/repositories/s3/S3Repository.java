@@ -665,6 +665,7 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     public void deleteSnapshots(
+        String deleteUUID,
         Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
@@ -676,19 +677,26 @@ class S3Repository extends MeteredBlobStoreRepository {
             new ActionListener<>() {
                 @Override
                 public void onResponse(ActionListener<Void> multipartUploadCleanupListener) {
-                    S3Repository.super.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, new ActionListener<>() {
-                        @Override
-                        public void onResponse(RepositoryData repositoryData) {
-                            multipartUploadCleanupListener.onResponse(null);
-                            repositoryDataUpdateListener.onResponse(repositoryData);
-                        }
+                    S3Repository.super.deleteSnapshots(
+                        deleteUUID,
+                        snapshotIds,
+                        repositoryDataGeneration,
+                        minimumNodeVersion,
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(RepositoryData repositoryData) {
+                                multipartUploadCleanupListener.onResponse(null);
+                                repositoryDataUpdateListener.onResponse(repositoryData);
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            multipartUploadCleanupListener.onFailure(e);
-                            repositoryDataUpdateListener.onFailure(e);
-                        }
-                    }, onCompletion);
+                            @Override
+                            public void onFailure(Exception e) {
+                                multipartUploadCleanupListener.onFailure(e);
+                                repositoryDataUpdateListener.onFailure(e);
+                            }
+                        },
+                        onCompletion
+                    );
                 }
 
                 @Override

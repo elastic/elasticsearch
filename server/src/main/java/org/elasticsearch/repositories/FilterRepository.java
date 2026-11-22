@@ -95,13 +95,21 @@ public class FilterRepository implements Repository {
 
     @Override
     public void deleteSnapshots(
+        String deleteUUID,
         Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
         ActionListener<RepositoryData> repositoryDataUpdateListener,
         Runnable onCompletion
     ) {
-        in.deleteSnapshots(snapshotIds, repositoryDataGeneration, minimumNodeVersion, repositoryDataUpdateListener, onCompletion);
+        in.deleteSnapshots(
+            deleteUUID,
+            snapshotIds,
+            repositoryDataGeneration,
+            minimumNodeVersion,
+            repositoryDataUpdateListener,
+            onCompletion
+        );
     }
 
     @Override

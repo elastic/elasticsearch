@@ -28,6 +28,7 @@ import java.util.Set;
 public final class FinalizeSnapshotContext extends DelegatingActionListener<RepositoryData, RepositoryData> {
 
     private final boolean serializeProjectMetadata;
+    private final boolean requireSnapshotInProgress;
     private final UpdatedShardGenerations updatedShardGenerations;
 
     /**
@@ -48,6 +49,10 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     /**
      * @param serializeProjectMetadata serialize only the project metadata of the cluster metadata
+     * @param requireSnapshotInProgress whether the snapshot must still have an entry in {@link SnapshotsInProgress} whenever the
+     *                                {@link RepositoryData} is updated, see {@link #ensureSnapshotInProgress}. This must be {@code true}
+     *                                for any snapshot tracked in the cluster state, and is only {@code false} for callers which write
+     *                                snapshots directly into a repository without any cluster state entry.
      * @param updatedShardGenerations updated shard generations for both live and deleted indices
      * @param repositoryStateId       the unique id identifying the state of the repository when the snapshot began
      * @param clusterMetadata         cluster metadata
@@ -60,6 +65,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
      */
     public FinalizeSnapshotContext(
         boolean serializeProjectMetadata,
+        boolean requireSnapshotInProgress,
         UpdatedShardGenerations updatedShardGenerations,
         long repositoryStateId,
         Metadata clusterMetadata,
@@ -70,6 +76,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
     ) {
         super(listener);
         this.serializeProjectMetadata = serializeProjectMetadata;
+        this.requireSnapshotInProgress = requireSnapshotInProgress;
         this.updatedShardGenerations = updatedShardGenerations;
         this.repositoryStateId = repositoryStateId;
         this.clusterMetadata = clusterMetadata;
@@ -80,6 +87,10 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     public boolean serializeProjectMetadata() {
         return serializeProjectMetadata;
+    }
+
+    public boolean requireSnapshotInProgress() {
+        return requireSnapshotInProgress;
     }
 
     public long repositoryStateId() {
@@ -105,6 +116,27 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
     public Map<RepositoryShardId, Set<ShardGeneration>> obsoleteShardGenerations() {
         assert obsoleteGenerations.get() != null : "must only be called after #updatedClusterState";
         return obsoleteGenerations.get();
+    }
+
+    /**
+     * Verifies that the snapshot being finalized still has an entry in the given cluster state, if {@link #requireSnapshotInProgress()}.
+     * The entry is removed when the snapshot is finalized or fails, possibly by another master, in which case this finalization is stale
+     * and must not update the {@link RepositoryData} even if its generation still matches: other operations may have started writing to
+     * the repository since.
+     *
+     * @throws IllegalStateException if the snapshot has no entry in the given cluster state.
+     */
+    public void ensureSnapshotInProgress(ClusterState state) {
+        if (requireSnapshotInProgress == false) {
+            return;
+        }
+        final var snapshot = snapshotInfo.snapshot();
+        for (final var entry : SnapshotsInProgress.get(state).forRepo(snapshot.getProjectId(), snapshot.getRepository())) {
+            if (entry.snapshot().equals(snapshot)) {
+                return;
+            }
+        }
+        throw new IllegalStateException(snapshot + " is no longer in the cluster state, cannot update repository data");
     }
 
     /**

@@ -1010,6 +1010,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void deleteSnapshots(
+        String deleteUUID,
         Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
@@ -1020,6 +1021,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotIds,
             repositoryDataGeneration,
             minimumNodeVersion,
+            state -> ensureDeletionInProgress(state, deleteUUID),
             repositoryDataUpdateListener.delegateFailureAndWrap((l, snapshotsDeletion) -> snapshotsDeletion.runDelete(l, onCompletion))
         );
     }
@@ -1035,14 +1037,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * </ul>
      *
      * @param repositoryDataGeneration         Generation of {@link RepositoryData} at start of process
+     * @param cleanupUUID                      UUID of the {@link RepositoryCleanupInProgress.Entry} on whose behalf this cleanup runs
      * @param repositoryFormatIndexVersion     Repository format version
      * @param listener                         Listener to complete when done
      */
-    public void cleanup(long repositoryDataGeneration, IndexVersion repositoryFormatIndexVersion, ActionListener<DeleteResult> listener) {
+    public void cleanup(
+        long repositoryDataGeneration,
+        String cleanupUUID,
+        IndexVersion repositoryFormatIndexVersion,
+        ActionListener<DeleteResult> listener
+    ) {
         createSnapshotsDeletion(
             Set.of(),
             repositoryDataGeneration,
             repositoryFormatIndexVersion,
+            state -> ensureCleanupInProgress(state, cleanupUUID),
             listener.delegateFailureAndWrap((delegate, snapshotsDeletion) -> snapshotsDeletion.runCleanup(delegate))
         );
     }
@@ -1051,6 +1060,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Set<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
+        Consumer<ClusterState> authorityCheck,
         ActionListener<SnapshotsDeletion> listener
     ) {
         if (isReadOnly()) {
@@ -1066,6 +1076,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     snapshotIds,
                     repositoryDataGeneration,
                     SnapshotsServiceUtils.minCompatibleVersion(minimumNodeVersion, originalRepositoryData, snapshotIds),
+                    authorityCheck,
                     originalRootBlobs,
                     blobStore().blobContainer(indicesPath()).children(OperationPurpose.SNAPSHOT_DATA),
                     originalRepositoryData
@@ -1116,6 +1127,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final boolean useShardGenerations;
 
         /**
+         * Verifies against the cluster state that this operation may still modify the repository, see
+         * {@link BlobStoreRepository#writeIndexGen}.
+         */
+        private final Consumer<ClusterState> authorityCheck;
+
+        /**
          * All blobs in the repository root at the start of the operation, obtained by listing the repository contents. Note that this may
          * include some blobs which are no longer referenced by the current {@link RepositoryData}, but which have not yet been removed by
          * the cleanup that follows an earlier deletion. This cleanup may still be ongoing (we do not wait for it to complete before
@@ -1164,6 +1181,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Set<SnapshotId> snapshotIds,
             long originalRepositoryDataGeneration,
             IndexVersion repositoryFormatIndexVersion,
+            Consumer<ClusterState> authorityCheck,
             Map<String, BlobMetadata> originalRootBlobs,
             Map<String, BlobContainer> originalIndexContainers,
             RepositoryData originalRepositoryData
@@ -1172,6 +1190,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             this.originalRepositoryDataGeneration = originalRepositoryDataGeneration;
             this.repositoryFormatIndexVersion = repositoryFormatIndexVersion;
             this.useShardGenerations = SnapshotsServiceUtils.useShardGenerations(repositoryFormatIndexVersion);
+            this.authorityCheck = authorityCheck;
             this.originalRootBlobs = originalRootBlobs;
             this.originalIndexContainers = originalIndexContainers;
             this.originalRepositoryData = originalRepositoryData;
@@ -1586,7 +1605,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Updating the root RepositoryData blob
 
         private void updateRepositoryData(RepositoryData newRepositoryData, ActionListener<RepositoryData> listener) {
-            writeIndexGen(newRepositoryData, originalRepositoryDataGeneration, repositoryFormatIndexVersion, Function.identity(), listener);
+            writeIndexGen(
+                newRepositoryData,
+                originalRepositoryDataGeneration,
+                repositoryFormatIndexVersion,
+                authorityCheck,
+                Function.identity(),
+                listener
+            );
         }
 
         // ---------------------------------------------------------------------------------------------------------------------------------
@@ -2107,6 +2133,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     ),
                     repositoryStateId,
                     repositoryMetaVersion,
+                    finalizeSnapshotContext::ensureSnapshotInProgress,
                     new Function<>() {
                         @Override
                         public ClusterState apply(ClusterState state) {
@@ -3015,10 +3042,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * <p>
      * We therefore cannot safely clean up apparently-dangling blobs after a failure here. Instead, we defer any cleanup until after the
      * next successful root-blob write, which may happen on a different master node or possibly even in a different cluster.
+     * <p>
+     * This also applies when the {@code authorityCheck} rejects the final step because the operation is no longer in the cluster state:
+     * the root blob with generation {@code G} (and {@code index.latest}) are deliberately left in place. The blob is a complete
+     * {@link RepositoryData}, and a repository in best-effort mode (e.g. one started while the pending generation exceeds the safe
+     * generation, or a read-only one) adopts the highest root blob it finds, so deleting it asynchronously could remove a generation
+     * which has meanwhile become the safe generation. Nothing can reuse generation {@code G}, because later writes reserve a greater
+     * pending generation, and the next successful write removes the blob as an obsolete generation.
      *
      * @param repositoryData RepositoryData to write
      * @param expectedGen    expected repository generation at the start of the operation
      * @param version        version of the repository metadata to write
+     * @param authorityCheck verifies that the operation on whose behalf this write is happening is still present in the cluster state,
+     *                       throwing an exception if not. It runs within each of the cluster state updates executed by this method, because
+     *                       the generation checks alone cannot detect an operation that another master has since dropped, and writing
+     *                       {@link RepositoryData} for such an operation could lead to the cleanup of blobs belonging to newer operations.
      * @param stateFilter    filter for the last cluster state update executed by this method
      * @param listener       completion listener
      */
@@ -3026,6 +3064,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         RepositoryData repositoryData,
         long expectedGen,
         IndexVersion version,
+        Consumer<ClusterState> authorityCheck,
         Function<ClusterState, ClusterState> stateFilter,
         ActionListener<RepositoryData> listener
     ) {
@@ -3060,6 +3099,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final var project = currentState.metadata().getProject(projectId);
                 final RepositoryMetadata meta = getRepoMetadata(project);
                 final String repoName = metadata.name();
+
+                authorityCheck.accept(currentState);
 
                 if (RepositoriesService.isReadOnly(meta.settings())) {
                     // Last resort check: we shouldn't have been able to mark the repository as readonly while the operation that led to
@@ -3223,6 +3264,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             submitUnbatchedTask(setSafeGenerationSource, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
+                    authorityCheck.accept(currentState);
                     final var project = currentState.metadata().getProject(projectId);
                     final RepositoryMetadata meta = getRepoMetadata(project);
                     if (meta.generation() != expectedGen) {
@@ -3254,6 +3296,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 @Override
                 public void onFailure(Exception e) {
+                    // Must complete on the master thread, see SnapshotsService#runNextRepositoryDataWriteTask
                     delegate.onFailure(
                         new RepositoryException(
                             metadata.name(),
@@ -3381,6 +3424,48 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final long latestGeneration = latestIndexBlobId();
         final RepositoryData actualRepositoryData = getRepositoryData(latestGeneration);
         return Tuple.tuple(latestGeneration, actualRepositoryData.getClusterUUID());
+    }
+
+    /**
+     * Verifies that the snapshot deletion with the given UUID is still in the cluster state. If another master dropped it (e.g. after
+     * failing to run it) then this node must not use any listing of the repository it made on behalf of the deletion, since other
+     * operations may have started writing to the repository since.
+     */
+    private void ensureDeletionInProgress(ClusterState state, String deleteUUID) {
+        for (final var entry : SnapshotDeletionsInProgress.get(state).getEntries()) {
+            if (entry.uuid().equals(deleteUUID) && entry.projectId().equals(getProjectId()) && entry.repository().equals(metadata.name())) {
+                return;
+            }
+        }
+        throw new IllegalStateException(
+            Strings.format(
+                "%s snapshot deletion [%s] is no longer in the cluster state, cannot update repository data",
+                toStringShort(),
+                deleteUUID
+            )
+        );
+    }
+
+    /**
+     * Verifies that the repository cleanup with the given UUID is still in the cluster state. Cleanups are dropped from the cluster state
+     * on master failover, after which other operations, including a replacement cleanup at the same repository generation, may start
+     * writing to the repository. Hence the UUID rather than the repository generation identifies the cleanup.
+     */
+    private void ensureCleanupInProgress(ClusterState state, String cleanupUUID) {
+        for (final var entry : RepositoryCleanupInProgress.get(state).entries()) {
+            if (entry.uuid().equals(cleanupUUID)
+                && entry.projectId().equals(getProjectId())
+                && entry.repository().equals(metadata.name())) {
+                return;
+            }
+        }
+        throw new IllegalStateException(
+            Strings.format(
+                "%s repository cleanup [%s] is no longer in the cluster state, cannot update repository data",
+                toStringShort(),
+                cleanupUUID
+            )
+        );
     }
 
     /**

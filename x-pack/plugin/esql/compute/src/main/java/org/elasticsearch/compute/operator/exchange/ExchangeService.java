@@ -361,7 +361,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 listener.onResponse(new ExchangeResponse(null, true));
             } else {
                 final CancellableTask task = (CancellableTask) exchangeTask;
-                task.addListener(() -> sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled())));
+                task.addListener(() -> {
+                    sinkHandler.onFailure(new TaskCancelledException("request cancelled " + task.getReasonCancelled()));
+                    // The fetch is cancelled with the query, or with the group of computes it belongs to. A compute on this node
+                    // unregisters the sink when it ends, but there may be none: the ban refuses a compute request that arrives
+                    // after it, and the request may never have been sent. The coordinator does not close a remote sink once a
+                    // fetch has been answered as finished, which onFailure just did, so unregister the sink here.
+                    sinks.remove(exchangeId, sinkHandler);
+                });
                 // Remember the id before the fetch runs. fetchPageAsync(sourcesFinished) finishes the buffer and can
                 // remove the handler from a completion listener on this thread; a compute request arriving in that
                 // window must still see the marker rather than a sink that was never opened.

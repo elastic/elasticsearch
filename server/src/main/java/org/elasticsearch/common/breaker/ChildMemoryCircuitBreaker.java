@@ -103,6 +103,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /** Heap taken by parsing request content, see {@link org.elasticsearch.common.xcontent.ParsedContentReservation}. */
     public static final String CATEGORY_PARSED_REQUEST = "parsed_request";
 
+    /** Large chunks of REST responses waiting to be written to the client, see {@link org.elasticsearch.rest.RestController}. */
+    public static final String CATEGORY_REST_RESPONSE = "rest_response";
+
     private static final Set<String> KNOWN_CATEGORIES = Set.of(
         CATEGORY_QUERY,
         CATEGORY_QUERY_TOKENS,
@@ -113,7 +116,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         CATEGORY_PREALLOCATE,
         CATEGORY_MSEARCH,
         CATEGORY_TERMS,
-        CATEGORY_PARSED_REQUEST
+        CATEGORY_PARSED_REQUEST,
+        CATEGORY_REST_RESPONSE
     );
 
     /**
@@ -369,6 +373,15 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     void recordHeldDelta(long bytes, String label) {
         this.memoryHeldMeter.add(bytes, heldAttributes(label));
+    }
+
+    /**
+     * Moves the bytes in the held gauge only. The used bytes do not change, not even briefly.
+     */
+    @Override
+    public void moveHeld(long bytes, String fromLabel, String toLabel) {
+        recordHeldDelta(bytes, toLabel);
+        recordHeldDelta(-bytes, fromLabel);
     }
 
     private void adjustUsedBytes(long bytes) {

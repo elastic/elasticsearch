@@ -132,6 +132,21 @@ public final class DataSourceCounters {
             cpuTotal += v;
         }
         counters.inc("datasources.queries.cpu_nanos.total", cpuTotal);
+        // The CPU of the queries that failed or were cancelled: not billed, so not part of the keys above, which keep matching the
+        // billing signal.
+        for (int o = 0; o < DataSourceUsageAccumulator.OUTCOME_COUNT; o++) {
+            if (o == DataSourceUsageAccumulator.OUTCOME_SUCCESS) {
+                continue;
+            }
+            String prefix = "datasources.queries.cpu_nanos.by_outcome." + DataSourceUsageAccumulator.OUTCOME_NAMES.get(o) + ".";
+            long unsuccessfulCpuTotal = 0;
+            for (int i = 0; i < DataSourceUsageAccumulator.CPU_COMPONENT_COUNT; i++) {
+                long v = acc.queryCpuNanos(o, i);
+                counters.inc(prefix + DataSourceUsageAccumulator.CPU_COMPONENT_NAMES.get(i), v);
+                unsuccessfulCpuTotal += v;
+            }
+            counters.inc(prefix + "total", unsuccessfulCpuTotal);
+        }
 
         // ---- time histograms (no type/format attribute) ----
         List<String> ts = DataSourceUsageAccumulator.TIME_SUFFIXES;

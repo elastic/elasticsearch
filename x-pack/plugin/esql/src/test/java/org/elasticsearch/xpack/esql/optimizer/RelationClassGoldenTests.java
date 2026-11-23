@@ -117,6 +117,58 @@ public class RelationClassGoldenTests extends GoldenTestCase {
         );
     }
 
+    /**
+     * A {@code LET} named subquery is a subquery the user named: it answers "subquery" for _class and the subquery name for _name.
+     */
+    public void testBothColumnsOnASingleLetBinding() {
+        runSubqueryGoldenTest("""
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM low METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
+    /**
+     * Two {@code LET} named subqueries in one FROM each answer their own subquery name.
+     */
+    public void testBothColumnsAcrossLetBindings() {
+        runSubqueryGoldenTest("""
+            LET top = (FROM employees | WHERE salary > 1200 | KEEP emp_no);
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM top, low METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
+    /**
+     * A {@code LET} named subquery beside an index: the index branch answers "index" and its concrete index name.
+     */
+    public void testBothColumnsOnLetBindingBesideIndex() {
+        runSubqueryGoldenTest("""
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM employees, low METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
+    /**
+     * A {@code LET} named subquery, a literal subquery and an index in one FROM: each is its own branch of the FROM, so the named subquery
+     * answers its name while the unnamed subquery beside it answers null.
+     */
+    public void testBothColumnsOnLetBindingBesideSubqueryAndIndex() {
+        runSubqueryGoldenTest("""
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM employees, low, (FROM employees | WHERE salary > 1200 | KEEP emp_no) METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
+    /**
+     * The same named subquery twice in one FROM: two branches keyed by the subquery name (the second uniquified), both answering it.
+     */
+    public void testBothColumnsOnRepeatedLetBinding() {
+        runSubqueryGoldenTest("""
+            LET low = (FROM employees | WHERE salary <= 1200 | KEEP emp_no);
+            FROM low, low METADATA _class, _name
+            | KEEP emp_no, _class, _name""");
+    }
+
     private void runGoldenTest(String query) {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
         builder(query).stages(STAGES).datasetMetadata(datasetMetadata()).externalSourceResolution(externalSourceResolution()).run();

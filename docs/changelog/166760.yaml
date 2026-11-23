@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164668
+pr: 166760
+summary: Accept the unmapped_fields setting in the request body
+type: enhancement

@@ -10,7 +10,9 @@
 package org.elasticsearch.foreign.processor;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Tests that {@link LibraryProcessor} writes a {@code META-INF/services/org.elasticsearch.foreign.LibraryProvider}
@@ -45,6 +47,36 @@ public class ServicesFileTests extends ProcessorTestCase {
         List<String> entries = Arrays.stream(content.split("\n")).filter(s -> s.isBlank() == false).toList();
         assertEquals("Services file should list exactly one provider, got: " + entries, 1, entries.size());
         assertEquals("test.MyLib$Provider", entries.get(0));
+    }
+
+    /**
+     * The services file must list providers in sorted order, independent of the order in which javac
+     * hands the annotated sources to the processor. That order follows source-file order, which in real
+     * builds depends on filesystem iteration order, so relying on it makes the jar non-reproducible.
+     */
+    public void testProvidersSortedIndependentOfSourceOrder() throws Exception {
+        List<String> simpleNames = List.of("Zeta", "Mid", "Alpha");
+        Map<String, String> sources = new LinkedHashMap<>();
+        for (String simpleName : simpleNames) {
+            sources.put("test." + simpleName, """
+                package test;
+                import org.elasticsearch.foreign.LibrarySpecification;
+                import org.elasticsearch.foreign.Function;
+                @LibrarySpecification(name = "testlib")
+                public interface %s {
+                    @Function("native_add")
+                    int add(int a, int b);
+                }
+                """.formatted(simpleName));
+        }
+
+        CompilationResult result = compile(sources);
+        assertTrue("Expected compilation to succeed but got errors: " + result.errors(), result.success());
+
+        String content = result.readResource(SERVICES_PATH);
+        assertNotNull("Expected services file at " + SERVICES_PATH, content);
+        List<String> entries = Arrays.stream(content.split("\n")).filter(s -> s.isBlank() == false).toList();
+        assertEquals(List.of("test.Alpha$Provider", "test.Mid$Provider", "test.Zeta$Provider"), entries);
     }
 
     /**

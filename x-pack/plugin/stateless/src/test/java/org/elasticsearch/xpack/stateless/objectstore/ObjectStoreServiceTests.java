@@ -1159,6 +1159,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 BccBlob.parseGenerationFromBlobName(uploadedBlobs.get(latestToCopyIndex))
             );
 
+            // Test commits with newer terms aren't copied
+            final var newerTermContainer = node.objectStoreService.getProjectBlobContainer(node.shardId, primaryTerm + 1);
+            newerTermContainer.writeBlob(
+                OperationPurpose.INDICES,
+                BccBlob.blobNameFromGeneration(latestCommitToCopy.generation() - 1),
+                randomBytesReference(between(1, 100)),
+                true
+            );
+
             var destinationShardId = new ShardId(node.shardId.getIndex(), node.shardId.getId() + 1);
             node.objectStoreService.copyShard(task, node.shardId, destinationShardId, latestCommitToCopy);
 

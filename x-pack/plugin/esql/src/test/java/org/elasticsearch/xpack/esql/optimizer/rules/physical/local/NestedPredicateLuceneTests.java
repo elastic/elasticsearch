@@ -160,6 +160,62 @@ public class NestedPredicateLuceneTests extends ESTestCase {
         assertThat(only(planned).queryBuilder(), sameInstance(existing));
     }
 
+    public void testAnExactConjunctFiltersChildrenAndTheRestStays() {
+        NestedPredicate predicate = predicate("items.sku == \"a\" AND items.qty + 1 > 2");
+
+        NestedPredicate planned = only(new EvaluateNestedPredicateInLucene().apply(eval(predicate), context(queryableAsRead(predicate))));
+
+        assertThat(planned.queryBuilder(), is(nullValue()));
+        assertThat(planned.childFilter(), instanceOf(SingleValueQuery.Builder.class));
+        SingleValueQuery.Builder child = (SingleValueQuery.Builder) planned.childFilter();
+        assertThat(child.field(), equalTo("items.sku"));
+        assertThat(child.next(), equalTo(QueryBuilders.termQuery("items.sku", "a").boost(Query.NO_SCORE_BOOST)));
+        assertThat(planned.relativePaths(), equalTo(List.of("qty")));
+    }
+
+    public void testTwoExactConjunctsAreOneChildFilter() {
+        NestedPredicate predicate = predicate("items.sku == \"a\" AND items.qty > 10 AND items.qty + 1 > 2");
+
+        NestedPredicate planned = only(new EvaluateNestedPredicateInLucene().apply(eval(predicate), context(queryableAsRead(predicate))));
+
+        assertThat(planned.queryBuilder(), is(nullValue()));
+        assertThat(planned.childFilter(), instanceOf(BoolQueryBuilder.class));
+        assertThat(((BoolQueryBuilder) planned.childFilter()).must(), hasSize(2));
+        assertThat(planned.relativePaths(), equalTo(List.of("qty")));
+    }
+
+    public void testAFullyExactConjunctionStillMatchesTheParentInLucene() {
+        NestedPredicate predicate = predicate("items.sku == \"a\" AND items.qty > 10");
+
+        NestedPredicate planned = only(new EvaluateNestedPredicateInLucene().apply(eval(predicate), context(queryableAsRead(predicate))));
+
+        assertThat(planned.queryBuilder(), instanceOf(NestedQueryBuilder.class));
+        assertThat(planned.childFilter(), is(nullValue()));
+    }
+
+    public void testANotConjunctIsNotExtracted() {
+        NestedPredicate predicate = predicate("NOT items.sku == \"a\" AND items.qty + 1 > 2");
+        EvalExec eval = eval(predicate);
+
+        assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(queryableAsRead(predicate))), equalTo(eval));
+    }
+
+    public void testAnUnqueryableExactConjunctStaysInThePredicate() {
+        NestedPredicate predicate = predicate("items.sku == \"a\" AND items.qty + 1 > 2");
+        Map<String, DataType> withoutSku = new HashMap<>(queryableAsRead(predicate));
+        withoutSku.remove("items.sku");
+        EvalExec eval = eval(predicate);
+
+        assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(withoutSku)), equalTo(eval));
+    }
+
+    public void testExpensiveQueriesLeaveTheConjunctionInPlace() {
+        NestedPredicate predicate = predicate("items.sku == \"a\" AND items.qty + 1 > 2");
+        EvalExec eval = eval(predicate);
+
+        assertThat(new EvaluateNestedPredicateInLucene().apply(eval, context(stats(queryableAsRead(predicate), false))), equalTo(eval));
+    }
+
     private static void assertEvaluatedByTheNestedQuery(PhysicalPlan plan, NestedPredicate predicate) {
         PhysicalPlan planned = new EvaluateNestedPredicateInLucene().apply(plan, context(queryableAsRead(predicate)));
 

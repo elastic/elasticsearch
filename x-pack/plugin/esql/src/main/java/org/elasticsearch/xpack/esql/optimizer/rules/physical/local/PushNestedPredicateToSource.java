@@ -15,6 +15,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware.FinishedTranslatable;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware.Translatable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -118,6 +120,71 @@ public final class PushNestedPredicateToSource extends PhysicalOptimizerRules.Pa
         Query child = matchAll ? new MatchAll(predicate.source()) : TRANSLATOR_HANDLER.asQuery(children, childPredicate);
         QueryBuilder nested = new NestedQuery(predicate.source(), predicate.path(), child, ScoreMode.None).toQueryBuilder();
         return new Translation(nested, translatable);
+    }
+
+    /**
+     * Keeps an exact conjunct as a query over child documents and leaves every other conjunct to be evaluated.
+     * A negated, approximate, or unqueryable conjunct stays in the residual. When nothing can be separated, or the
+     * whole predicate is the exact part, {@code predicate} is returned unchanged: the exact whole is a nested query.
+     */
+    static NestedPredicate exactChildFilter(NestedPredicate predicate, LucenePushdownPredicates children, SearchStats stats) {
+        if (stats.nestedQueriesAllowed() == false) {
+            return predicate;
+        }
+        Expression rewritten = predicate.childPredicate();
+        if (rewritten == null) {
+            return predicate;
+        }
+        List<Expression> original = Predicates.splitAnd(predicate.body());
+        List<Expression> translated = Predicates.splitAnd(rewritten);
+        if (original.size() != translated.size()) {
+            return predicate;
+        }
+        List<QueryBuilder> filters = new ArrayList<>();
+        List<Expression> residual = new ArrayList<>();
+        for (int i = 0; i < original.size(); i++) {
+            Expression conjunct = translated.get(i);
+            if (exactChildConjunct(conjunct, children, stats)) {
+                filters.add(TRANSLATOR_HANDLER.asQuery(children, conjunct).toQueryBuilder());
+            } else {
+                residual.add(original.get(i));
+            }
+        }
+        if (filters.isEmpty() || residual.isEmpty()) {
+            return predicate;
+        }
+        return predicate.withChildFilter(must(filters), Predicates.combineAnd(residual));
+    }
+
+    private static boolean exactChildConjunct(Expression conjunct, LucenePushdownPredicates children, SearchStats stats) {
+        if (conjunct instanceof Not) {
+            return false;
+        }
+        AttributeSet referenced = conjunct.references();
+        if (referenced.isEmpty()) {
+            return false;
+        }
+        for (Attribute attribute : referenced) {
+            if (attribute instanceof FieldAttribute field) {
+                if (stats.nestedFieldIsQueryable(field.fieldName(), field.dataType()) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return translatable(conjunct, children) == Translatable.YES;
+    }
+
+    private static QueryBuilder must(List<QueryBuilder> filters) {
+        if (filters.size() == 1) {
+            return filters.getFirst();
+        }
+        var bool = QueryBuilders.boolQuery();
+        for (QueryBuilder filter : filters) {
+            bool.must(filter);
+        }
+        return bool;
     }
 
     record Translation(QueryBuilder query, Translatable translatable) {

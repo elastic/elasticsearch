@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -168,6 +169,23 @@ public final class NestedPredicate extends EsqlConfigurationFunction {
 
     public NestedPredicate withChildFilter(QueryBuilder childFilter) {
         return new NestedPredicate(source(), path, body, inputs, relativePaths, queryBuilder, childFilter, configuration());
+    }
+
+    /**
+     * Applies {@code childFilter} and replaces the body with the conjuncts it does not cover. Inputs the new body does
+     * not read are dropped, so those fields are not loaded.
+     */
+    public NestedPredicate withChildFilter(QueryBuilder childFilter, Expression body) {
+        AttributeSet used = body.references();
+        List<Attribute> keptInputs = new ArrayList<>();
+        List<String> keptPaths = new ArrayList<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            if (used.contains(inputs.get(i))) {
+                keptInputs.add(inputs.get(i));
+                keptPaths.add(relativePaths.get(i));
+            }
+        }
+        return new NestedPredicate(source(), path, body, keptInputs, keptPaths, queryBuilder, childFilter, configuration());
     }
 
     /** The full names of the child fields this predicate reads. */

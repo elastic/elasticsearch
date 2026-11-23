@@ -97,6 +97,22 @@ public class NestedPredicateSerializationTests extends AbstractExpressionSeriali
         assertThat(copy.relativePaths(), equalTo(predicate.relativePaths()));
     }
 
+    public void testAChildFilterOfTheNodeThatPlansItIsNotSerialized() throws IOException {
+        NestedPredicate predicate = analyzedPredicate("FROM ne | WHERE NESTED_ANY(items.sku == \"a\") | LIMIT 10").withChildFilter(
+            QueryBuilders.matchAllQuery()
+        );
+        assertThat(predicate.childFilter(), is(notNullValue()));
+        NestedPredicate copy = (NestedPredicate) SerializationTestUtils.serializeDeserialize(
+            (Expression) predicate,
+            PlanStreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(Expression.class)
+        );
+        assertThat(copy.childFilter(), is(nullValue()));
+        assertThat(copy.path(), equalTo(predicate.path()));
+        assertThat(copy.inputs().size(), equalTo(predicate.inputs().size()));
+        assertThat(copy.relativePaths(), equalTo(predicate.relativePaths()));
+    }
+
     public void testRoundTripsAPredicateOverTheCollection() throws IOException {
         SerializationTestUtils.assertSerialization(analyzedPredicate("FROM ne | EVAL hit = NESTED_ANY(items, true) | LIMIT 10"));
     }

@@ -160,11 +160,10 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
-import org.elasticsearch.xpack.esql.ml.EsqlDatafeedQueryParser;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
@@ -395,9 +394,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<QueryMetricsListener> metricsCollectors = new ArrayList<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
-    // TODO(https://github.com/elastic/elasticsearch/issues/166310): Tech Preview workaround for ML datafeeds, removed when ML builds on
-    // DESCRIBE.
-    private final SetOnce<EsqlDatafeedQueryParser.Services> datafeedParserServices = new SetOnce<>();
 
     /** Closed by {@link #close()} on node shutdown to release S3/Azure workload-identity resources. */
     private volatile DataSourceModule dataSourceModule;
@@ -512,6 +508,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         AtomicInteger maxDiscoveredFiles = new AtomicInteger();
         AtomicInteger maxGlobExpansion = new AtomicInteger();
         AtomicInteger maxListedObjects = new AtomicInteger();
+        AtomicInteger maxDirectoryListings = new AtomicInteger();
         var clusterSettings = services.clusterService().getClusterSettings();
         // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
         // are not in ClusterSettings then) and watches cluster state when they are. Resolution and split discovery
@@ -520,6 +517,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, maxDirectoryListings::set);
         if (federationRegistered) {
             clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
         }
@@ -532,7 +530,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             cacheService,
             maxDiscoveredFiles::get,
             maxGlobExpansion::get,
-            maxListedObjects::get
+            maxListedObjects::get,
+            maxDirectoryListings::get
         );
 
         // Create DataSourceModule with all discovered plugins.
@@ -652,20 +651,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             var request = PreparedEsqlQueryRequest.analyzeOnly(statement, "view [" + viewName + "]");
             services.client().execute(EsqlQueryAction.INSTANCE, request, listener.map(response -> null));
         });
-        // One instance for queries and datafeeds, so both read the inference settings the same way.
-        InferenceService inferenceService = new InferenceService(services.client(), services.clusterService());
-        // TODO(https://github.com/elastic/elasticsearch/issues/166310): see datafeedParserServices.
-        datafeedParserServices.set(
-            new EsqlDatafeedQueryParser.Services(
-                parser,
-                services.clusterService(),
-                services.projectResolver(),
-                viewService,
-                services.crossProjectModeDecider(),
-                inferenceService,
-                getLicenseState()
-            )
-        );
         DataSourceService dataSourceService = new DataSourceService(
             services.clusterService(),
             crudValidators,
@@ -696,7 +681,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.indicesService().getAnalysis(),
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
-                maxListedObjects::get
+                maxListedObjects::get,
+                maxDirectoryListings::get
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -717,7 +703,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             viewService,
             new MlAnomaliesView(viewService),
-            inferenceService,
             new FederationLicense(this::getLicenseState),
             dataSourceService,
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
@@ -784,6 +769,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
                 EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+                EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
+                EsqlFlags.ESQL_MAX_PARENTHESES_COUNT,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -939,6 +926,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(DriverStatus.ENTRY);
         entries.add(AbstractPageMappingOperator.Status.ENTRY);
         entries.add(FetchDocsSourceOperator.Status.ENTRY);
+        entries.add(FetchOperator.Status.ENTRY);
         entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
         entries.add(AggregationOperator.Status.ENTRY);
         entries.add(EsqlQueryStatus.ENTRY);
@@ -1039,15 +1027,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 false
             )
         );
-    }
-
-    /** The services {@link EsqlDatafeedQueryParser} parses with. Available once {@code createComponents} has run. */
-    public EsqlDatafeedQueryParser.Services datafeedParserServices() {
-        EsqlDatafeedQueryParser.Services services = datafeedParserServices.get();
-        if (services == null) {
-            throw new IllegalStateException("the ES|QL plugin has not created its components yet");
-        }
-        return services;
     }
 
     @Override

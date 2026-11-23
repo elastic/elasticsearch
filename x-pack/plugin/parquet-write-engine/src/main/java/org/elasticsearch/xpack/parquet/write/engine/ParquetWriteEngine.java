@@ -15,13 +15,18 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -51,6 +56,7 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.parquet.write.ParquetFormatSettings;
@@ -62,11 +68,14 @@ import org.elasticsearch.xpack.parquet.write.file.LocalParquetFiles;
 import org.elasticsearch.xpack.parquet.write.file.MultiValuedFields;
 import org.elasticsearch.xpack.parquet.write.flush.ParquetFlusher;
 import org.elasticsearch.xpack.parquet.write.flush.ShardCommitData;
+import org.elasticsearch.xpack.parquet.write.staging.StagedFileAdopter;
 import org.elasticsearch.xpack.parquet.write.table.ShardTable;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +85,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -97,7 +107,14 @@ public class ParquetWriteEngine extends Engine {
 
     private static final String NOT_SUPPORTED = "the Parquet write engine accepts only batches of documents with auto-generated ids";
 
-    private final Object writeLock = new Object();
+    /**
+     * Keeps the counters of the local files equal to the directory. A bulk holds the read side from the moment its file can become
+     * visible until its counters are updated, so bulks of a shard write in parallel. The recount after a flush ({@link #refreshLocalFiles})
+     * takes the write side, so it never sees a file that is not counted yet, and never counts a file twice.
+     */
+    private final ReentrantReadWriteLock localFilesLock = new ReentrantReadWriteLock();
+    /** Guards the few fields that every finished bulk updates, and that must only move forward. */
+    private final Object writeStatsLock = new Object();
     private final LocalCheckpointTracker tracker;
     private final String historyUUID;
     private final AtomicLong localRows = new AtomicLong();
@@ -125,6 +142,10 @@ public class ParquetWriteEngine extends Engine {
     /** The table of the index, opened with the flusher; the compactor works on the same table. */
     private volatile ShardTable table;
     private final Object tableLock = new Object();
+    /** True once the staged files of the lost stores of this shard have been adopted (or there was nothing to adopt). */
+    private final AtomicBoolean stagedFilesAdopted = new AtomicBoolean();
+    /** True while an adoption runs: only one may. */
+    private final AtomicBoolean adopting = new AtomicBoolean();
     /** The timer that looks for files to compact when no flush asks for it. */
     private volatile Scheduler.Cancellable compactionTimer;
     /** True while a compaction of this shard runs: only one may, and a flush that uploads again while it runs does not start another. */
@@ -186,6 +207,7 @@ public class ParquetWriteEngine extends Engine {
                     config.getThreadPool().executor(ParquetThreadPools.COMPACTION)
                 );
             success = true;
+            scheduleAdoption();
         } catch (IOException e) {
             throw new EngineCreationFailureException(shardId, "failed to open the Parquet write engine", e);
         } finally {
@@ -215,62 +237,21 @@ public class ParquetWriteEngine extends Engine {
                 acceptedCount++;
             }
         }
-        final long firstSeqNo;
-        synchronized (writeLock) {
-            ensureOpen();
-            final long maxLocalBytes = ParquetFormatSettings.MAX_LOCAL_SIZE.get(engineConfig.getIndexSettings().getSettings()).getBytes();
-            if (acceptedCount > 0 && localBytes.get() >= maxLocalBytes) {
-                // The upload does not keep up, or the repository is down. A 429 tells the client to retry, and the rows are not lost.
-                throw new EsRejectedExecutionException(
-                    "the local Parquet files of shard ["
-                        + shardId
-                        + "] hold ["
-                        + localBytes.get()
-                        + "] bytes, which reaches [index.parquet.max_local_size]; they are uploaded by the next flush",
-                    false
-                );
-            }
-            firstSeqNo = tracker.getMaxSeqNo() + 1;
-            if (acceptedCount > 0) {
-                final MappingLookup lookup = engineConfig.getMapperService().mappingLookup();
-                final ColumnBatch columns = engineBatch.columns().toColumnBatch();
-                final LocalParquetFiles.LocalFile file;
-                try {
-                    file = BatchParquetWriter.write(
-                        store.directory(),
-                        columns,
-                        lookup,
-                        accepted,
-                        firstSeqNo,
-                        CompressionCodecName.valueOf(
-                            ParquetFormatSettings.LOCAL_COMPRESSION.get(engineConfig.getIndexSettings().getSettings()).name()
-                        ),
-                        multiValuedFields()
-                    );
-                } catch (IOException e) {
-                    failEngine("failed to write a Parquet file", e);
-                    throw e;
-                } catch (LinkageError e) {
-                    // A deployment problem (a class that is missing or fails to initialize, a native library that does not load) and not a
-                    // broken shard, so the engine stays open. The error must become an exception here: nothing above this call completes
-                    // the bulk when an Error is thrown on the write thread.
-                    throw LinkageFailures.asException("write a Parquet file", e);
-                }
-                // Only now, with the file durable, are the sequence numbers taken: a failed write leaves no gap.
-                final long reserved = tracker.generateSeqNos(acceptedCount);
-                assert reserved == firstSeqNo : reserved + " != " + firstSeqNo;
-                for (long seqNo = firstSeqNo; seqNo < firstSeqNo + acceptedCount; seqNo++) {
-                    tracker.markSeqNoAsProcessed(seqNo);
-                    tracker.markSeqNoAsPersisted(seqNo);
-                }
-                localRows.addAndGet(file.rows());
-                localBytes.addAndGet(file.length());
-                if (oldestLocalNanos == 0) {
-                    oldestLocalNanos = System.nanoTime();
-                }
-                lastWriteNanos = System.nanoTime();
-                lastWriteLocation = new Translog.Location(0, firstSeqNo + acceptedCount - 1, 0);
-            }
+        // With staged durability the repository must work before anything is written: a missing repository, or a table that another index
+        // owns, fails the bulk and leaves no local file and no gap in the sequence numbers.
+        final ShardTable stagingTable = acceptedCount > 0 && isStaged() ? openTableForStaging() : null;
+        LocalParquetFiles.LocalFile written = null;
+        long firstSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        if (acceptedCount > 0) {
+            rejectWhenLocalFilesAreFull();
+            // The sequence numbers are taken before the write, so that bulks write their files in parallel. A bulk that fails to write
+            // leaves a gap, which the engine tolerates (the ranges are in the names of the files and the rows come from the footers).
+            firstSeqNo = tracker.generateSeqNos(acceptedCount);
+            written = writeLocalFile(engineBatch, accepted, firstSeqNo, acceptedCount, stagingTable != null);
+        }
+        if (stagingTable != null && written != null) {
+            // The uploads of concurrent bulks of the shard overlap; the bulk is acknowledged after this returns
+            stage(stagingTable, written, acceptedCount);
         }
         final List<IndexResult> results = new ArrayList<>(docCount);
         long seqNo = firstSeqNo;
@@ -285,6 +266,181 @@ public class ParquetWriteEngine extends Engine {
             }
         }
         return results;
+    }
+
+    /**
+     * A 429 when the local files have reached {@code index.parquet.max_local_size}. The check is not exact: bulks that are writing at that
+     * moment add their files, so the size can pass the limit by what they write. It happens before the sequence numbers are taken, so
+     * a rejected bulk leaves no gap, and the client can send it again.
+     */
+    private void rejectWhenLocalFilesAreFull() {
+        final long maxLocalBytes = ParquetFormatSettings.MAX_LOCAL_SIZE.get(engineConfig.getIndexSettings().getSettings()).getBytes();
+        final long bytes = localBytes.get();
+        if (bytes >= maxLocalBytes) {
+            // The upload does not keep up, or the repository is down. A 429 tells the client to retry, and the rows are not lost.
+            throw new EsRejectedExecutionException(
+                "the local Parquet files of shard ["
+                    + shardId
+                    + "] hold ["
+                    + bytes
+                    + "] bytes, which reaches [index.parquet.max_local_size]; they are uploaded by the next flush",
+                false
+            );
+        }
+    }
+
+    /**
+     * Writes the local file of a bulk for the sequence numbers {@code [firstSeqNo, firstSeqNo + count - 1]} that the caller reserved, and
+     * marks them processed, so that the flush may take the file. Bulks run this in parallel.
+     *
+     * <p>The range of a file becomes eligible for a flush only when every lower sequence number is processed too (see
+     * {@link ParquetFlusher}), because the flush records the highest range it uploaded and deletes every file below it as a leftover. So
+     * a bulk that does not write a file must still mark its range processed, or the flush would never get past it.
+     */
+    private LocalParquetFiles.LocalFile writeLocalFile(
+        EngineBatch engineBatch,
+        boolean[] accepted,
+        long firstSeqNo,
+        int count,
+        boolean staged
+    ) throws IOException {
+        LocalParquetFiles.LocalFile file = null;
+        localFilesLock.readLock().lock();
+        try {
+            ensureOpen();
+            final MappingLookup lookup = engineConfig.getMapperService().mappingLookup();
+            final ColumnBatch columns = engineBatch.columns().toColumnBatch();
+            try {
+                file = BatchParquetWriter.write(
+                    store.directory(),
+                    columns,
+                    lookup,
+                    accepted,
+                    firstSeqNo,
+                    CompressionCodecName.valueOf(
+                        ParquetFormatSettings.LOCAL_COMPRESSION.get(engineConfig.getIndexSettings().getSettings()).name()
+                    ),
+                    multiValuedFields()
+                );
+            } catch (IOException e) {
+                failEngine("failed to write a Parquet file", e);
+                throw e;
+            } catch (LinkageError e) {
+                // A deployment problem (a class that is missing or fails to initialize, a native library that does not load) and not a
+                // broken shard, so the engine stays open. The error must become an exception here: nothing above this call completes
+                // the bulk when an Error is thrown on the write thread.
+                throw LinkageFailures.asException("write a Parquet file", e);
+            }
+            // The file is durable and visible. The counters change before the lock is released, so that a recount sees both or neither.
+            localRows.addAndGet(file.rows());
+            localBytes.addAndGet(file.length());
+            synchronized (writeStatsLock) {
+                if (oldestLocalNanos == 0) {
+                    oldestLocalNanos = System.nanoTime();
+                }
+                lastWriteNanos = System.nanoTime();
+                final Translog.Location location = new Translog.Location(0, firstSeqNo + count - 1, 0);
+                if (lastWriteLocation.compareTo(location) < 0) {
+                    lastWriteLocation = location; // only forward: bulks finish in any order
+                }
+            }
+            return file;
+        } finally {
+            try {
+                for (long seqNo = firstSeqNo; seqNo < firstSeqNo + count; seqNo++) {
+                    tracker.markSeqNoAsProcessed(seqNo);
+                    if (staged == false || file == null) {
+                        // with staged durability the rows are persisted when the staged copy is uploaded, unless there is no file
+                        tracker.markSeqNoAsPersisted(seqNo);
+                    }
+                }
+            } finally {
+                localFilesLock.readLock().unlock();
+            }
+        }
+    }
+
+    /**
+     * The table of the index for a bulk with staged durability. A failure is the failure of the bulk, with a status that tells the
+     * client to retry: the shard is fine, the repository is not.
+     */
+    private ShardTable openTableForStaging() {
+        try {
+            return openTable();
+        } catch (IOException | RuntimeException e) {
+            throw new ElasticsearchStatusException(
+                "cannot stage the bulk for shard [{}]: the repository [{}] or the table is not usable",
+                RestStatus.SERVICE_UNAVAILABLE,
+                e,
+                shardId,
+                ParquetFormatSettings.REPOSITORY.get(engineConfig.getIndexSettings().getSettings())
+            );
+        } catch (LinkageError e) {
+            throw LinkageFailures.asException("open the table to stage a bulk", e);
+        }
+    }
+
+    /**
+     * Copies the local file of a bulk to the staging directory of the repository, and only then marks its sequence numbers persisted.
+     * A failure discards the bulk: the local file is deleted (its sequence numbers stay used, which is a gap that the engine tolerates,
+     * because the ranges are in the names of the files and the rows come from the footers), and the client gets an error and may retry.
+     * A flush can have picked the local file up already. Then its rows are in the table, and they are durable.
+     */
+    private void stage(ShardTable table, LocalParquetFiles.LocalFile file, int rows) {
+        final String attempt = ShardTable.newAttempt();
+        String stagedName = null;
+        try {
+            try (IndexInput in = store.directory().openInput(file.name(), IOContext.DEFAULT)) {
+                stagedName = table.stageFile(
+                    file.fromSeqNo(),
+                    file.toSeqNo(),
+                    attempt,
+                    new BufferedInputStream(new InputStreamIndexInput(in, file.length())),
+                    file.length()
+                );
+            } catch (NoSuchFileException e) {
+                // flushed already: the rows are in the table
+            }
+        } catch (IOException | RuntimeException | LinkageError e) {
+            discard(table, file, stagedName != null ? stagedName : ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo(), attempt));
+            markPersisted(file.fromSeqNo(), rows);
+            if (e instanceof LinkageError linkage) {
+                throw LinkageFailures.asException("stage a bulk", linkage);
+            }
+            throw new ElasticsearchStatusException(
+                "could not stage the bulk for shard [{}] in the repository, so it is not acknowledged",
+                RestStatus.SERVICE_UNAVAILABLE,
+                e,
+                shardId
+            );
+        }
+        markPersisted(file.fromSeqNo(), rows);
+    }
+
+    private void markPersisted(long firstSeqNo, int rows) {
+        for (long seqNo = firstSeqNo; seqNo < firstSeqNo + rows; seqNo++) {
+            tracker.markSeqNoAsPersisted(seqNo);
+        }
+    }
+
+    /** Best effort: the local file of a bulk that failed to stage, and the blob that may have been written. */
+    private void discard(ShardTable table, LocalParquetFiles.LocalFile file, String stagedName) {
+        try {
+            store.directory().deleteFile(file.name());
+        } catch (IOException e) {
+            // already gone (a flush took it), or it stays and a flush uploads it: the client got an error, so it may have retried
+            logger.debug(() -> Strings.format("could not delete the local file [%s] of a bulk that was not staged", file.name()), e);
+        }
+        try {
+            table.deleteStaged(List.of(stagedName));
+        } catch (IOException | RuntimeException e) {
+            logger.debug(() -> Strings.format("could not delete the staged file [%s] of a bulk that was not acknowledged", stagedName), e);
+        }
+        try {
+            refreshLocalFiles();
+        } catch (IOException e) {
+            logger.debug("could not count the local files after a bulk that was not staged", e);
+        }
     }
 
     /**
@@ -322,11 +478,9 @@ public class ParquetWriteEngine extends Engine {
 
     @Override
     public NoOpResult noOp(NoOp noOp) {
-        synchronized (writeLock) {
-            tracker.advanceMaxSeqNo(noOp.seqNo());
-            tracker.markSeqNoAsProcessed(noOp.seqNo());
-            tracker.markSeqNoAsPersisted(noOp.seqNo());
-        }
+        tracker.advanceMaxSeqNo(noOp.seqNo());
+        tracker.markSeqNoAsProcessed(noOp.seqNo());
+        tracker.markSeqNoAsPersisted(noOp.seqNo());
         return new NoOpResult(noOp.primaryTerm(), noOp.seqNo());
     }
 
@@ -470,6 +624,7 @@ public class ParquetWriteEngine extends Engine {
                     new StoreCommitData(store),
                     openTable(),
                     this::flushSettings,
+                    tracker::getProcessedCheckpoint,
                     ParquetFlusher.Hooks.NONE
                 );
                 flusher = current;
@@ -602,6 +757,64 @@ public class ParquetWriteEngine extends Engine {
         return fields;
     }
 
+    /**
+     * Starts the adoption of the staged files of lost stores, once, on the flush pool. It is called when the engine starts and by every
+     * tick of the timer until it has succeeded, because the repository can be unavailable at the start. Only for staged durability.
+     */
+    private void scheduleAdoption() {
+        if (isStaged() == false || stagedFilesAdopted.get() || isClosed.get() || adopting.compareAndSet(false, true) == false) {
+            return;
+        }
+        try {
+            engineConfig.getThreadPool().executor(ParquetThreadPools.FLUSH).execute(() -> {
+                try {
+                    adoptStagedFiles();
+                } finally {
+                    adopting.set(false);
+                }
+            });
+        } catch (RuntimeException e) {
+            adopting.set(false); // the pool is shut down
+            logger.debug("could not schedule the adoption of staged files", e);
+        }
+    }
+
+    private void adoptStagedFiles() {
+        if (store.tryIncRef() == false) {
+            return;
+        }
+        try {
+            final StagedFileAdopter.Result result = new StagedFileAdopter(
+                store.directory(),
+                openTable(),
+                this::flushSettings,
+                isClosed::get,
+                StagedFileAdopter.Hooks.NONE
+            ).adopt();
+            if (result.files() > 0) {
+                logger.info(
+                    "adopted [{}] staged files with [{}] rows of [{}] lost histories of shard [{}]",
+                    result.files(),
+                    result.rows(),
+                    result.histories(),
+                    shardId
+                );
+                // the adopted rows are in a new version of the table
+                publishTableVersion();
+            }
+            if (isClosed.get() == false) {
+                stagedFilesAdopted.set(true);
+            }
+        } catch (LinkageError e) {
+            logger.warn("adoption of staged files failed", LinkageFailures.asException("adopt the staged files", e));
+        } catch (Exception e) {
+            // for example a repository that is not available yet: the next tick of the timer tries again
+            logger.warn("adoption of staged files failed; the next tick tries again", e);
+        } finally {
+            store.decRef();
+        }
+    }
+
     /** The table of the index, opened at the first use: by a flush, or by the compaction timer after a restart. */
     private ShardTable openTable() throws IOException {
         ShardTable opened = table;
@@ -624,6 +837,7 @@ public class ParquetWriteEngine extends Engine {
      * table to compact, and should not get one from a timer.
      */
     private void compactionTick() {
+        scheduleAdoption(); // not only for compaction: the repository may have been down when the engine started
         if (isClosed.get() || ParquetFormatSettings.COMPACTION_ENABLED.get(engineConfig.getIndexSettings().getSettings()) == false) {
             return;
         }
@@ -736,8 +950,16 @@ public class ParquetWriteEngine extends Engine {
         return new ParquetFlusher.Settings(
             ParquetFormatSettings.MAX_FILE_SIZE.get(settings).getBytes(),
             ParquetFormatSettings.ROW_GROUP_SIZE.get(settings).getBytes(),
-            CompressionCodecName.valueOf(ParquetFormatSettings.COMPRESSION.get(settings).name())
+            CompressionCodecName.valueOf(ParquetFormatSettings.COMPRESSION.get(settings).name()),
+            isStaged()
         );
+    }
+
+    /** Whether a bulk is acknowledged only after a copy of its file is in the repository. */
+    private boolean isStaged() {
+        return ParquetFormatSettings.DURABILITY.get(
+            engineConfig.getIndexSettings().getSettings()
+        ) == ParquetFormatSettings.Durability.STAGED;
     }
 
     /**
@@ -747,7 +969,9 @@ public class ParquetWriteEngine extends Engine {
     private void refreshLocalFiles() throws IOException {
         final Map<String, String> userData = new StoreCommitData(store).userData();
         final long uploadedThrough = ShardCommitData.uploadedThroughSeqNo(userData);
-        synchronized (writeLock) {
+        // The write side waits for the bulks that are writing, and keeps new ones out while it lists the directory.
+        localFilesLock.writeLock().lock();
+        try {
             long rows = 0;
             long bytes = 0;
             for (LocalParquetFiles.LocalFile file : LocalParquetFiles.list(store.directory())) {
@@ -759,7 +983,11 @@ public class ParquetWriteEngine extends Engine {
             localRows.set(rows);
             localBytes.set(bytes);
             uploadedRows.set(ShardCommitData.uploadedRows(userData));
-            oldestLocalNanos = rows == 0 ? 0 : System.nanoTime();
+            synchronized (writeStatsLock) {
+                oldestLocalNanos = rows == 0 ? 0 : System.nanoTime();
+            }
+        } finally {
+            localFilesLock.writeLock().unlock();
         }
     }
 

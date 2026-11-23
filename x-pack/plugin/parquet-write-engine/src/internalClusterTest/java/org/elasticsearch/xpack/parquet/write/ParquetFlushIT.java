@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.parquet.write;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.store.Directory;
+import org.apache.parquet.hadoop.ParquetFileReader;
+import org.apache.parquet.hadoop.metadata.BlockMetaData;
+import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -28,6 +32,9 @@ import org.elasticsearch.test.JnaCleanerThreadsFilter;
 import org.elasticsearch.test.NettyGlobalThreadsFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.esql.datasource.parquet.PlainCompressionCodecFactory;
+import org.elasticsearch.xpack.esql.datasource.parquet.PlainParquetReadOptions;
+import org.elasticsearch.xpack.parquet.write.file.IndexInputFile;
 import org.elasticsearch.xpack.parquet.write.file.LocalParquetFiles;
 import org.elasticsearch.xpack.parquet.write.file.TestParquetBytes;
 import org.elasticsearch.xpack.parquet.write.table.CatalogEntry;
@@ -42,6 +49,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -141,6 +149,7 @@ public class ParquetFlushIT extends ESIntegTestCase {
                         .put("index.mode", "columnar")
                         .put("index.number_of_shards", shards)
                         .put("index.parquet.repository", REPOSITORY)
+                        .put("index.parquet.durability", randomFrom("local", "staged"))
                         .put("index.parquet.local_compression", randomFrom("uncompressed", "snappy", "zstd"))
                         .put(extra.build())
                 )
@@ -237,6 +246,107 @@ public class ParquetFlushIT extends ESIntegTestCase {
         assertThat(counts.size(), equalTo(rows));
         assertThat(counts.first(), equalTo(0L));
         assertThat(counts.last(), equalTo(rows - 1L));
+    }
+
+    /**
+     * Bulks of one shard write their local files in parallel, and flushes (the periodic one and explicit ones) run while they do. A flush
+     * must not upload the file of a higher range while a bulk of a lower range is still writing, because it would then delete the lower
+     * file as a leftover. After all of it, every row is in the table once, in files with contiguous ranges.
+     */
+    public void testConcurrentBulksAndFlushesLoseNoRow() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.flush_threshold_size", "1kb"));
+        final int writers = 4;
+        final int bulksEach = 10;
+        final int docsPerBulk = 1_500;
+        final AtomicInteger writersDone = new AtomicInteger();
+        final AtomicInteger flushes = new AtomicInteger();
+
+        startInParallel(writers + 1, task -> {
+            if (task == writers) {
+                // flushes until every writer is done
+                while (writersDone.get() < writers) {
+                    assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+                    flushes.incrementAndGet();
+                }
+                return;
+            }
+            try {
+                for (int b = 0; b < bulksEach; b++) {
+                    final int from = (task * bulksEach + b) * docsPerBulk;
+                    assertFalse(bulk(from, from + docsPerBulk).hasFailures());
+                }
+            } finally {
+                writersDone.incrementAndGet();
+            }
+        });
+
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+        assertThat("explicit flushes ran during the writes", flushes.get(), greaterThan(0));
+        assertThat(
+            indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(),
+            equalTo((long) writers * bulksEach * docsPerBulk)
+        );
+        assertUploaded(1, writers * bulksEach * docsPerBulk);
+        assertThat("local files", localFiles(0), equalTo(0L));
+    }
+
+    /**
+     * A bulk is written column by column as one row group with one page for each column, whatever its size, and the page and the
+     * footer have the counts of the rows. The server hands the engine at most 5,000 documents at a time, and the long keywords make a
+     * column of each file 2 MB, over the default size of a page (1 MB). The flush has to read the files back and upload every row once.
+     * (This guards the structure of the files. It also passed when I wrote the files with the default page limits of parquet-mr.)
+     */
+    public void testALocalFileHasOneRowGroupAndOnePageForEachColumnWhateverItsSize() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.compaction.enabled", false));
+        final int rows = 30_000;
+        final String padding = "x".repeat(400);
+        final BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        for (int i = 0; i < rows; i++) {
+            bulk.add(
+                new IndexRequest(INDEX).source(
+                    "@timestamp",
+                    BASE_TIMESTAMP + i * 1000L,
+                    "host.name",
+                    "host-" + i + "-" + padding,
+                    "count",
+                    i,
+                    "bytes",
+                    i % 1000
+                )
+            );
+        }
+        assertFalse(bulk.get().hasFailures());
+
+        // the local files, before a flush merges them
+        final Directory directory = shard(0).store().directory();
+        final List<LocalParquetFiles.LocalFile> local = LocalParquetFiles.list(directory);
+        assertThat(local.size(), greaterThan(1));
+        long rowsInFiles = 0;
+        for (LocalParquetFiles.LocalFile file : local) {
+            try (
+                ParquetFileReader reader = ParquetFileReader.open(
+                    new IndexInputFile(directory, file.name()),
+                    PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+                )
+            ) {
+                assertThat(reader.getFooter().getBlocks(), hasSize(1));
+                final BlockMetaData block = reader.getFooter().getBlocks().get(0);
+                rowsInFiles += block.getRowCount();
+                for (ColumnChunkMetaData column : block.getColumns()) {
+                    final OffsetIndex pages = reader.readOffsetIndex(column);
+                    assertThat(file.name() + " pages of " + column.getPath(), pages.getPageCount(), equalTo(1));
+                    assertThat(file.name() + " values of " + column.getPath(), column.getValueCount(), equalTo(block.getRowCount()));
+                }
+            }
+        }
+        assertThat(rowsInFiles, equalTo((long) rows));
+
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+
+        assertUploaded(1, rows);
+        assertThat("local files", localFiles(0), equalTo(0L));
     }
 
     public void testFlushUploadsTheRowsOfEveryShardAsFilesOfOneTable() throws Exception {
@@ -342,8 +452,8 @@ public class ParquetFlushIT extends ESIntegTestCase {
     }
 
     public void testAFlushThatFailsKeepsTheRowsLocallyAndAFlushLaterSucceeds() throws Exception {
-        // no repository yet: the flush cannot open the table
-        createIndex(1, Settings.builder());
+        // no repository yet: the flush cannot open the table (with staged durability the bulk would already fail)
+        createIndex(1, Settings.builder().put("index.parquet.durability", "local"));
         assertFalse(bulk(0, 1_000).hasFailures());
 
         final BroadcastResponse failed = indicesAdmin().prepareFlush(INDEX).get();
@@ -444,7 +554,9 @@ public class ParquetFlushIT extends ESIntegTestCase {
 
     public void testAnIndexThatUsesTheBasePathOfAnotherIndexIsRefusedAndKeepsItsRowsLocally() throws Exception {
         registerRepository();
-        createIndex(1, Settings.builder().put("index.parquet.base_path", "shared/table").put("index.parquet.compaction.enabled", false));
+        // the repository directory is shared by the tests of this class, and a table belongs to one index: the path is new for every run
+        final String sharedPath = "shared/table-" + randomAlphaOfLength(8).toLowerCase(java.util.Locale.ROOT);
+        createIndex(1, Settings.builder().put("index.parquet.base_path", sharedPath).put("index.parquet.compaction.enabled", false));
         assertFalse(bulk(0, 500).hasFailures());
         assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
 
@@ -458,7 +570,8 @@ public class ParquetFlushIT extends ESIntegTestCase {
                         .put("index.mode", "columnar")
                         .put("index.number_of_shards", 1)
                         .put("index.parquet.repository", REPOSITORY)
-                        .put("index.parquet.base_path", "shared/table")
+                        .put("index.parquet.durability", "local")
+                        .put("index.parquet.base_path", sharedPath)
                 )
                 .setMapping("count", "type=long")
         );
@@ -475,7 +588,7 @@ public class ParquetFlushIT extends ESIntegTestCase {
         assertThat(indicesAdmin().prepareStats(other).get().getTotal().getDocs().getCount(), equalTo(1L));
         assertThat(localFilesOf(other), greaterThan(0L));
         // the table at the shared path holds the one data file of the first index, below the history of its shard
-        final Path data = repoRoot.resolve(REPOSITORY).resolve("shared").resolve("table").resolve("data").resolve("shard-0");
+        final Path data = repoRoot.resolve(REPOSITORY).resolve(sharedPath).resolve("data").resolve("shard-0");
         try (var files = java.nio.file.Files.walk(data)) {
             assertThat(files.filter(f -> f.toString().endsWith(".parquet")).count(), equalTo(1L));
         }

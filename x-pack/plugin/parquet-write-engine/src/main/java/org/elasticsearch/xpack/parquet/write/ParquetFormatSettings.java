@@ -81,6 +81,34 @@ public final class ParquetFormatSettings {
         }
     }, Property.IndexScope, Property.Final);
 
+    /** When a bulk is acknowledged: with its file on the local disk only, or also with a copy of the file in the object store. */
+    public enum Durability {
+        /**
+         * The bulk is acknowledged when its local file is durable. The loss of the node or of its disk loses every acknowledged row that
+         * no flush has uploaded yet.
+         */
+        LOCAL,
+        /**
+         * The bulk is acknowledged when a copy of its file is also in the repository, below {@code staging/}. The copy plays the role of
+         * the translog: a shard that starts with a new store adopts the staged files of the old history. A flush deletes the staged files
+         * that it has put in the table. The repository must exist and accept writes at the time of the bulk.
+         */
+        STAGED;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public static final Setting<Durability> DURABILITY = Setting.enumSetting(
+        Durability.class,
+        "index.parquet.durability",
+        Durability.STAGED,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /** The compression of the files that are uploaded. */
     public enum Compression {
         UNCOMPRESSED,
@@ -232,6 +260,7 @@ public final class ParquetFormatSettings {
             INDEX_FORMAT,
             REPOSITORY,
             BASE_PATH,
+            DURABILITY,
             CATALOG_ENABLED,
             CATALOG_NAMESPACE,
             COMPRESSION,

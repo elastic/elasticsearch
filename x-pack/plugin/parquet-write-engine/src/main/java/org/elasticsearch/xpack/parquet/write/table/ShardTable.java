@@ -73,6 +73,9 @@ public final class ShardTable {
 
     static final Pattern DATA_FILE = Pattern.compile(".*/data/shard-(\\d+)/([^/]+)/(\\d{19})-(\\d{19})-([^/]+)\\.parquet");
 
+    /** The name of a staged blob, which is the name of a data file: range and attempt. */
+    private static final Pattern STAGED_FILE = Pattern.compile("(\\d{19})-(\\d{19})-([^/]+)\\.parquet");
+
     /** Table properties that name the index that owns the table. */
     static final String OWNER_INDEX_UUID = "elasticsearch.index_uuid";
     static final String OWNER_INDEX = "elasticsearch.index";
@@ -287,6 +290,92 @@ public final class ShardTable {
                     + "], which tables do not support yet"
             );
         };
+    }
+
+    // ---- staged files: the copies of the local files that make a bulk durable before a flush ----
+
+    /** A blob in the staging directory of this shard and history. */
+    public record StagedFile(String name, long fromSeqNo, long toSeqNo, long bytes) {
+        public long rows() {
+            return toSeqNo - fromSeqNo + 1;
+        }
+    }
+
+    /** The directory of the staged files of this shard in its current history, with the slash at the end. */
+    public String stagingLocation() {
+        return io.rootLocation() + "/staging/shard-" + shard + "/" + historyUuid + "/";
+    }
+
+    private BlobContainer stagingContainer() {
+        return io.containerOf(stagingLocation() + "x");
+    }
+
+    /**
+     * Copies the bytes of a local file to the staging directory. The key has a new attempt, and the write is a put-if-absent: a key is
+     * written once. A bulk is acknowledged only after this returns.
+     *
+     * @return the name of the staged blob, for a delete after a failed bulk
+     */
+    public String stageFile(long fromSeqNo, long toSeqNo, String attempt, InputStream bytes, long length) throws IOException {
+        final String name = dataFileName(fromSeqNo, toSeqNo, attempt);
+        stagingContainer().writeBlob(RepositoryFileIO.PURPOSE, name, bytes, length, true);
+        return name;
+    }
+
+    /** The staged files of this shard and history in the order of their sequence numbers. */
+    public List<StagedFile> listStaged() throws IOException {
+        final List<StagedFile> files = new ArrayList<>();
+        for (var entry : stagingContainer().listBlobs(RepositoryFileIO.PURPOSE).entrySet()) {
+            final Matcher matcher = STAGED_FILE.matcher(entry.getKey());
+            if (matcher.matches()) {
+                files.add(
+                    new StagedFile(
+                        entry.getKey(),
+                        Long.parseLong(matcher.group(1)),
+                        Long.parseLong(matcher.group(2)),
+                        entry.getValue().length()
+                    )
+                );
+            }
+        }
+        files.sort((a, b) -> Long.compare(a.fromSeqNo(), b.fromSeqNo()));
+        return files;
+    }
+
+    /**
+     * The histories of this shard that have a staging directory with at least one blob: the current one, and the ones of stores that were
+     * lost. A history whose staged files were all deleted has no blob, so it is not listed.
+     */
+    public List<String> listStagedHistories() throws IOException {
+        // the container of the directory that holds the directories of the histories: any name below it gives it
+        final BlobContainer shardStaging = io.containerOf(io.rootLocation() + "/staging/shard-" + shard + "/x");
+        final List<String> histories = new ArrayList<>();
+        for (var entry : shardStaging.children(RepositoryFileIO.PURPOSE).entrySet()) {
+            histories.add(entry.getKey());
+        }
+        histories.sort(String::compareTo);
+        return histories;
+    }
+
+    /** A reader of a staged file of this shard and history, with ranged reads. */
+    public InputFile stagedInputFile(StagedFile file) {
+        return new BlobInputFile(stagingContainer(), file.name(), file.bytes());
+    }
+
+    /** This table seen as another history of the same shard: its files and its staged files, and nothing of this history. */
+    public ShardTable forHistory(String otherHistoryUuid) {
+        return new ShardTable(table, io, shard, otherHistoryUuid);
+    }
+
+    public String historyUuid() {
+        return historyUuid;
+    }
+
+    /** Deletes staged blobs of this shard and history. A name that does not exist is not an error. */
+    public void deleteStaged(Collection<String> names) throws IOException {
+        if (names.isEmpty() == false) {
+            stagingContainer().deleteBlobsIgnoringIfNotExists(RepositoryFileIO.PURPOSE, names.iterator());
+        }
     }
 
     // ---- data files ----

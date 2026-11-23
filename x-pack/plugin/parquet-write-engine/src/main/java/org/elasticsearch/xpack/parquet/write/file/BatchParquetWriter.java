@@ -21,12 +21,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.parquet.column.ParquetProperties;
-import org.apache.parquet.conf.PlainParquetConfiguration;
-import org.apache.parquet.example.data.Group;
-import org.apache.parquet.example.data.simple.SimpleGroupFactory;
-import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.column.ColumnWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -115,7 +110,6 @@ public final class BatchParquetWriter {
             schemaBuilder.addField(source.parquetField());
         }
         final MessageType schema = schemaBuilder.named("doc");
-        final SimpleGroupFactory factory = new SimpleGroupFactory(schema);
 
         final long lastSeqNo = firstSeqNo + rows - 1;
         final String finalName = LocalParquetFiles.name(firstSeqNo, lastSeqNo);
@@ -123,24 +117,23 @@ public final class BatchParquetWriter {
         boolean success = false;
         try (IndexOutput out = directory.createTempOutput(LocalParquetFiles.TEMP_PREFIX, "parquet", IOContext.DEFAULT)) {
             tempName = out.getName();
+            // The bulk is one row group, and each column is written on its own, straight from its cursor to the column writer of
+            // parquet-mr.
+            // A row group of a bulk is small, and the merge of the flush makes the row groups that readers want.
             try (
-                ParquetWriter<Group> writer = ExampleParquetWriter.builder(new IndexOutputFile(out))
-                    .withConf(new PlainParquetConfiguration())
-                    .withCodecFactory(new ParquetCodecs())
-                    .withType(schema)
-                    .withCompressionCodec(codec)
-                    .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
-                    .build()
+                ColumnarParquetWriter writer = new ColumnarParquetWriter(
+                    new IndexOutputFile(out),
+                    schema,
+                    codec,
+                    Long.MAX_VALUE,
+                    ColumnarParquetWriter.columnProperties()
+                )
             ) {
-                for (int doc = 0; doc < accepted.length; doc++) {
-                    final Group group = accepted[doc] ? factory.newGroup() : null;
-                    for (ColumnSource source : sources) {
-                        source.consume(doc, group);
-                    }
-                    if (group != null) {
-                        writer.write(group);
-                    }
+                for (int i = 0; i < sources.size(); i++) {
+                    sources.get(i).writeColumn(writer.columnWriter(i), accepted);
                 }
+                writer.rowsWrittenByColumns(rows);
+                writer.finish();
             }
             success = true;
         } finally {
@@ -189,15 +182,21 @@ public final class BatchParquetWriter {
     }
 
     /**
-     * One mapped column read in document order. A flat column has at most one value for a document (a document with more is an error),
-     * and a list column reads all the values of a document in one call of {@code read}.
+     * One mapped column, written on its own. A flat column has at most one value for a document (a document with more is an error), and a
+     * list column has all the values of a document in a row. A document that is not accepted is not written, but its values are read, to
+     * move the cursor on.
+     *
+     * <p>The levels that a value gets: a flat optional column has the definition level 1 for a value and 0 for a null. A list (see
+     * {@link ParquetLists}) has the definition level 3 for an element, 2 for a null element, 1 for an empty list and 0 for a null list,
+     * and the repetition level 0 for the first element of a row and 1 for the others.
      */
     private abstract static class ColumnSource {
+        /** The definition level of a value of a flat column, and of an element of a list. */
+        static final int FLAT_VALUE = 1;
+        static final int LIST_ELEMENT = 3;
+        static final int LIST_NULL_ELEMENT = 2;
+
         final String name;
-        /** The document of the next value of the column. */
-        int nextDoc = -1;
-        /** The document that {@link #read} is reading: a list column reads all the values of that document. */
-        int currentDoc = -1;
 
         ColumnSource(String name) {
             this.name = name;
@@ -205,26 +204,11 @@ public final class BatchParquetWriter {
 
         abstract org.apache.parquet.schema.Type parquetField();
 
-        /** Moves the cursor to its first value. */
-        abstract void start();
+        /** Writes the column for the documents {@code d} of the batch with {@code accepted[d]}, in the order of the batch. */
+        abstract void writeColumn(ColumnWriter writer, boolean[] accepted);
 
-        /** Reads the value of the current document into the group (which is null for a document that is not written) and moves on. */
-        abstract void read(Group group);
-
-        final void consume(int doc, Group group) {
-            if (nextDoc == -1) {
-                start();
-            }
-            if (nextDoc == doc) {
-                currentDoc = doc;
-                read(group);
-                final int following = nextDoc;
-                if (following == doc) {
-                    throw new IllegalArgumentException("field [" + name + "] has more than one value in a document");
-                }
-            } else {
-                assert nextDoc > doc : "column [" + name + "] is at [" + nextDoc + "] but the batch is at [" + doc + "]";
-            }
+        static IllegalArgumentException moreThanOneValue(String name) {
+            return new IllegalArgumentException("field [" + name + "] has more than one value in a document");
         }
 
         static ColumnSource of(Column column, MappingLookup lookup, Set<String> multiValuedFields) {
@@ -304,7 +288,6 @@ public final class BatchParquetWriter {
         private final LongColumn column;
         private final PrimitiveType.PrimitiveTypeName physical;
         private final LogicalTypeAnnotation logical;
-        private LongTupleCursor cursor;
 
         LongSource(String name, LongColumn column, PrimitiveType.PrimitiveTypeName physical, LogicalTypeAnnotation logical) {
             super(name);
@@ -320,30 +303,44 @@ public final class BatchParquetWriter {
         }
 
         @Override
-        void start() {
-            cursor = column.tuples();
-            nextDoc = cursor.nextDoc();
-        }
-
-        @Override
-        void read(Group group) {
-            if (group != null) {
-                addNumber(group, name, physical, cursor.longValue());
+        void writeColumn(ColumnWriter writer, boolean[] accepted) {
+            final LongTupleCursor cursor = column.tuples();
+            int next = cursor.nextDoc();
+            for (int doc = 0; doc < accepted.length; doc++) {
+                if (next == doc) {
+                    if (accepted[doc]) {
+                        writeNumber(writer, physical, cursor.longValue(), 0, FLAT_VALUE);
+                    }
+                    next = cursor.nextDoc();
+                    if (next == doc) {
+                        throw moreThanOneValue(name);
+                    }
+                } else {
+                    assert next > doc : "column [" + name + "] is at [" + next + "] but the batch is at [" + doc + "]";
+                    if (accepted[doc]) {
+                        writer.writeNull(0, 0);
+                    }
+                }
             }
-            nextDoc = cursor.nextDoc();
         }
     }
 
-    /** Adds a value of a numeric column to a group, as the column type needs it. */
-    private static void addNumber(Group group, String field, PrimitiveType.PrimitiveTypeName physical, long value) {
+    /** Writes a value of a numeric column, as the column type needs it. */
+    private static void writeNumber(
+        ColumnWriter writer,
+        PrimitiveType.PrimitiveTypeName physical,
+        long value,
+        int repetitionLevel,
+        int definitionLevel
+    ) {
         switch (physical) {
-            case INT32 -> group.add(field, Math.toIntExact(value));
-            case INT64 -> group.add(field, value);
+            case INT32 -> writer.write(Math.toIntExact(value), repetitionLevel, definitionLevel);
+            case INT64 -> writer.write(value, repetitionLevel, definitionLevel);
             // a float and a double are in the sortable encoding of Lucene, which keeps the order of the numbers
-            case FLOAT -> group.add(field, NumericUtils.sortableIntToFloat(Math.toIntExact(value)));
-            case DOUBLE -> group.add(field, NumericUtils.sortableLongToDouble(value));
-            case BOOLEAN -> group.add(field, value != 0);
-            default -> throw new IllegalStateException("column [" + field + "] has the unexpected type [" + physical + "]");
+            case FLOAT -> writer.write(NumericUtils.sortableIntToFloat(Math.toIntExact(value)), repetitionLevel, definitionLevel);
+            case DOUBLE -> writer.write(NumericUtils.sortableLongToDouble(value), repetitionLevel, definitionLevel);
+            case BOOLEAN -> writer.write(value != 0, repetitionLevel, definitionLevel);
+            default -> throw new IllegalStateException("a column has the unexpected type [" + physical + "]");
         }
     }
 
@@ -352,7 +349,6 @@ public final class BatchParquetWriter {
         private final LongColumn column;
         private final PrimitiveType.PrimitiveTypeName physical;
         private final LogicalTypeAnnotation logical;
-        private LongTupleCursor cursor;
 
         LongListSource(String name, LongColumn column, PrimitiveType.PrimitiveTypeName physical, LogicalTypeAnnotation logical) {
             super(name);
@@ -367,19 +363,26 @@ public final class BatchParquetWriter {
         }
 
         @Override
-        void start() {
-            cursor = column.tuples();
-            nextDoc = cursor.nextDoc();
-        }
-
-        @Override
-        void read(Group group) {
-            final Group list = group == null ? null : group.addGroup(name);
-            while (nextDoc == currentDoc) {
-                if (list != null) {
-                    addNumber(list.addGroup(ParquetLists.LIST), ParquetLists.ELEMENT, physical, cursor.longValue());
+        void writeColumn(ColumnWriter writer, boolean[] accepted) {
+            final LongTupleCursor cursor = column.tuples();
+            int next = cursor.nextDoc();
+            for (int doc = 0; doc < accepted.length; doc++) {
+                if (next == doc) {
+                    // the cursor has at least one value for this document, so the list is never empty
+                    int repetitionLevel = 0;
+                    while (next == doc) {
+                        if (accepted[doc]) {
+                            writeNumber(writer, physical, cursor.longValue(), repetitionLevel, LIST_ELEMENT);
+                        }
+                        repetitionLevel = 1;
+                        next = cursor.nextDoc();
+                    }
+                } else {
+                    assert next > doc : "column [" + name + "] is at [" + next + "] but the batch is at [" + doc + "]";
+                    if (accepted[doc]) {
+                        writer.writeNull(0, 0);
+                    }
                 }
-                nextDoc = cursor.nextDoc();
             }
         }
     }
@@ -391,7 +394,6 @@ public final class BatchParquetWriter {
      */
     private static final class BinaryListSource extends ColumnSource {
         private final BinaryColumn column;
-        private ObjectTupleCursor<BytesRef> cursor;
 
         BinaryListSource(String name, BinaryColumn column) {
             super(name);
@@ -404,31 +406,44 @@ public final class BatchParquetWriter {
         }
 
         @Override
-        void start() {
-            cursor = column.tuples();
-            nextDoc = cursor.nextDoc();
-        }
-
-        @Override
-        void read(Group group) {
-            if (group != null) {
-                final BytesRef blob = cursor.value();
-                final ByteArrayDataInput in = new ByteArrayDataInput(blob.bytes, blob.offset, blob.length);
-                final int slots = in.readVInt();
-                if (slots > 0) {
-                    final Group list = group.addGroup(name);
-                    for (int slot = 0; slot < slots; slot++) {
-                        final int lengthPlusOne = in.readVInt();
-                        final Group item = list.addGroup(ParquetLists.LIST);
-                        if (lengthPlusOne > 0) {
-                            final byte[] value = new byte[lengthPlusOne - 1];
-                            in.readBytes(value, 0, value.length);
-                            item.add(ParquetLists.ELEMENT, Binary.fromConstantByteArray(value));
+        void writeColumn(ColumnWriter writer, boolean[] accepted) {
+            final ObjectTupleCursor<BytesRef> cursor = column.tuples();
+            int next = cursor.nextDoc();
+            for (int doc = 0; doc < accepted.length; doc++) {
+                if (next == doc) {
+                    if (accepted[doc]) {
+                        final BytesRef blob = cursor.value();
+                        final ByteArrayDataInput in = new ByteArrayDataInput(blob.bytes, blob.offset, blob.length);
+                        final int slots = in.readVInt();
+                        if (slots > 0) {
+                            for (int slot = 0; slot < slots; slot++) {
+                                final int repetitionLevel = slot == 0 ? 0 : 1;
+                                final int lengthPlusOne = in.readVInt();
+                                if (lengthPlusOne > 0) {
+                                    final int length = lengthPlusOne - 1;
+                                    // the bytes are in the blob, which stays as it is while this document is written
+                                    writer.write(
+                                        Binary.fromReusedByteArray(blob.bytes, in.getPosition(), length),
+                                        repetitionLevel,
+                                        LIST_ELEMENT
+                                    );
+                                    in.skipBytes(length);
+                                } else {
+                                    writer.writeNull(repetitionLevel, LIST_NULL_ELEMENT);
+                                }
+                            }
+                        } else {
+                            writer.writeNull(0, 0);
                         }
+                    }
+                    next = cursor.nextDoc();
+                } else {
+                    assert next > doc : "column [" + name + "] is at [" + next + "] but the batch is at [" + doc + "]";
+                    if (accepted[doc]) {
+                        writer.writeNull(0, 0);
                     }
                 }
             }
-            nextDoc = cursor.nextDoc();
         }
     }
 
@@ -453,19 +468,17 @@ public final class BatchParquetWriter {
         }
 
         @Override
-        void start() {
-            nextDoc = Integer.MAX_VALUE; // no value in any document
-        }
-
-        @Override
-        void read(Group group) {
-            throw new IllegalStateException("column [" + name + "] has no values");
+        void writeColumn(ColumnWriter writer, boolean[] accepted) {
+            for (boolean accept : accepted) {
+                if (accept) {
+                    writer.writeNull(0, 0);
+                }
+            }
         }
     }
 
     private static final class BinarySource extends ColumnSource {
         private final BinaryColumn column;
-        private ObjectTupleCursor<BytesRef> cursor;
 
         BinarySource(String name, BinaryColumn column) {
             super(name);
@@ -478,24 +491,30 @@ public final class BatchParquetWriter {
         }
 
         @Override
-        void start() {
-            cursor = column.tuples();
-            nextDoc = cursor.nextDoc();
-        }
-
-        @Override
-        void read(Group group) {
-            if (group != null) {
-                group.add(name, toBinary(cursor.value()));
+        void writeColumn(ColumnWriter writer, boolean[] accepted) {
+            final ObjectTupleCursor<BytesRef> cursor = column.tuples();
+            int next = cursor.nextDoc();
+            for (int doc = 0; doc < accepted.length; doc++) {
+                if (next == doc) {
+                    if (accepted[doc]) {
+                        writer.write(reused(cursor.value()), 0, FLAT_VALUE);
+                    }
+                    next = cursor.nextDoc();
+                    if (next == doc) {
+                        throw moreThanOneValue(name);
+                    }
+                } else {
+                    assert next > doc : "column [" + name + "] is at [" + next + "] but the batch is at [" + doc + "]";
+                    if (accepted[doc]) {
+                        writer.writeNull(0, 0);
+                    }
+                }
             }
-            nextDoc = cursor.nextDoc();
         }
     }
 
     private static final class DictionarySource extends ColumnSource {
         private final DictionaryColumn column;
-        private OrdinalsTupleCursor cursor;
-        private List<BytesRef> dictionary;
 
         DictionarySource(String name, DictionaryColumn column) {
             super(name);
@@ -508,26 +527,35 @@ public final class BatchParquetWriter {
         }
 
         @Override
-        void start() {
-            dictionary = column.dictionary();
-            cursor = column.tuples();
-            nextDoc = cursor.nextDoc();
-        }
-
-        @Override
-        void read(Group group) {
-            if (group != null) {
-                group.add(name, toBinary(dictionary.get(cursor.ordValue())));
+        void writeColumn(ColumnWriter writer, boolean[] accepted) {
+            final List<BytesRef> dictionary = column.dictionary();
+            final OrdinalsTupleCursor cursor = column.tuples();
+            int next = cursor.nextDoc();
+            for (int doc = 0; doc < accepted.length; doc++) {
+                if (next == doc) {
+                    if (accepted[doc]) {
+                        writer.write(reused(dictionary.get(cursor.ordValue())), 0, FLAT_VALUE);
+                    }
+                    next = cursor.nextDoc();
+                    if (next == doc) {
+                        throw moreThanOneValue(name);
+                    }
+                } else {
+                    assert next > doc : "column [" + name + "] is at [" + next + "] but the batch is at [" + doc + "]";
+                    if (accepted[doc]) {
+                        writer.writeNull(0, 0);
+                    }
+                }
             }
-            nextDoc = cursor.nextDoc();
         }
     }
 
-    /** A copy, because the cursors reuse their buffers. */
-    private static Binary toBinary(BytesRef bytes) {
-        final byte[] copy = new byte[bytes.length];
-        System.arraycopy(bytes.bytes, bytes.offset, copy, 0, bytes.length);
-        return Binary.fromConstantByteArray(copy);
+    /**
+     * The bytes of a value without a copy. The cursors reuse their buffers, so the binary is marked as reused: the writers of parquet-mr
+     * copy a binary that they keep (the dictionary and the statistics) and write the others at once.
+     */
+    private static Binary reused(BytesRef bytes) {
+        return Binary.fromReusedByteArray(bytes.bytes, bytes.offset, bytes.length);
     }
 
     /**

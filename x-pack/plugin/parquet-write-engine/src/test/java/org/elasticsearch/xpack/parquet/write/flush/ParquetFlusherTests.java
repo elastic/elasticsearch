@@ -64,6 +64,8 @@ public class ParquetFlusherTests extends ESTestCase {
     private Directory directory;
     private InMemoryCommitData commits;
     private ParquetFlusher.Settings settings;
+    /** What the engine reports as complete: every bulk with a range up to this has finished writing its local file. */
+    private long completeThrough;
 
     /** The one commit of the shard: the keys of the server stay as they are. */
     private static final class InMemoryCommitData implements ShardCommitData {
@@ -85,7 +87,8 @@ public class ParquetFlusherTests extends ESTestCase {
         store = new FsBlobStore(4096, createTempDir(), false);
         directory = new ByteBuffersDirectory();
         commits = new InMemoryCommitData();
-        settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, CompressionCodecName.SNAPPY);
+        settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, CompressionCodecName.SNAPPY, false);
+        completeThrough = Long.MAX_VALUE;
     }
 
     @After
@@ -97,7 +100,7 @@ public class ParquetFlusherTests extends ESTestCase {
     /** What a restart does: the temporary files of unfinished writes go, and the table is opened again. */
     private ParquetFlusher newFlusher(ParquetFlusher.Hooks hooks) throws IOException {
         LocalParquetFiles.deleteTemporaryFiles(directory);
-        return new ParquetFlusher(directory, commits, TestTables.open(store, LOCATION, 0), () -> settings, hooks);
+        return new ParquetFlusher(directory, commits, TestTables.open(store, LOCATION, 0), () -> settings, () -> completeThrough, hooks);
     }
 
     private static ParquetFlusher.Hooks crashAt(String crashStep) {
@@ -174,12 +177,49 @@ public class ParquetFlusherTests extends ESTestCase {
         assertThat(TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(0));
     }
 
+    /**
+     * Bulks write their files in parallel, so the file of a higher range can exist while a lower one is still being written. A flush
+     * that took the higher file would record its range as uploaded, and then delete the lower file as a leftover when it appears.
+     */
+    public void testAFileAboveTheCompleteBoundStaysForTheNextFlushSoALateLowerFileIsNeverLost() throws Exception {
+        TestLocalFiles.write(directory, 0, 99, false);
+        TestLocalFiles.write(directory, 200, 299, false); // the bulk of the range 100 to 199 is still writing
+        completeThrough = 99;
+
+        final ParquetFlusher.Result first = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(first.files(), equalTo(1));
+        assertThat(first.rows(), equalTo(100L));
+        assertThat(ShardCommitData.uploadedThroughSeqNo(commits.userData()), equalTo(99L));
+        assertThat("the file above the bound is untouched", localFileNames(), hasSize(1));
+
+        TestLocalFiles.write(directory, 100, 199, false); // the late bulk finishes
+        completeThrough = 299;
+
+        final ParquetFlusher.Result second = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(second.rows(), equalTo(200L));
+        assertFlushed(300);
+    }
+
+    public void testAFlushWithOnlyFilesAboveTheCompleteBoundDoesNothing() throws Exception {
+        TestLocalFiles.write(directory, 100, 199, false);
+        completeThrough = 50;
+
+        final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(result.files(), equalTo(0));
+        assertThat(commits.userData().get(ShardCommitData.UPLOADED_THROUGH_SEQ_NO), nullValue());
+        assertThat(localFileNames(), hasSize(1));
+        assertThat(TestTables.open(store, LOCATION, 0).uploadedFiles(), hasSize(0));
+    }
+
     public void testTheMaximumFileSizeSplitsTheFlushIntoSeveralFiles() throws Exception {
         final var a = TestLocalFiles.write(directory, 0, 499, false);
         final var b = TestLocalFiles.write(directory, 500, 999, false);
         TestLocalFiles.write(directory, 1000, 1499, false);
         // room for two of the three local files
-        settings = new ParquetFlusher.Settings(a.length() + b.length() + 1, 1 << 16, CompressionCodecName.SNAPPY);
+        settings = new ParquetFlusher.Settings(a.length() + b.length() + 1, 1 << 16, CompressionCodecName.SNAPPY, false);
 
         final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE).flush();
 
@@ -326,7 +366,7 @@ public class ParquetFlusherTests extends ESTestCase {
             CompressionCodecName.SNAPPY,
             CompressionCodecName.ZSTD
         );
-        settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, codec);
+        settings = new ParquetFlusher.Settings(1L << 30, 1 << 16, codec, false);
         TestLocalFiles.write(directory, 0, 999, false);
 
         newFlusher(ParquetFlusher.Hooks.NONE).flush();
@@ -343,7 +383,7 @@ public class ParquetFlusherTests extends ESTestCase {
 
         ParquetFlusher flusher(ParquetFlusher.Hooks hooks) throws IOException {
             LocalParquetFiles.deleteTemporaryFiles(directory);
-            return new ParquetFlusher(directory, commits, table(), () -> settings, hooks);
+            return new ParquetFlusher(directory, commits, table(), () -> settings, () -> Long.MAX_VALUE, hooks);
         }
 
         ShardTable table() {
@@ -440,5 +480,97 @@ public class ParquetFlusherTests extends ESTestCase {
 
         other.flusher(ParquetFlusher.Hooks.NONE).flush();
         assertThat(other.table().uploadedFiles(), hasSize(1));
+    }
+
+    // ---- staged durability: the flush deletes the staged copies of the rows that it has put in the table ----
+
+    private void stage(ShardTable table, LocalParquetFiles.LocalFile local) throws IOException {
+        try (var in = directory.openInput(local.name(), org.apache.lucene.store.IOContext.DEFAULT)) {
+            table.stageFile(
+                local.fromSeqNo(),
+                local.toSeqNo(),
+                ShardTable.newAttempt(),
+                new java.io.BufferedInputStream(new org.elasticsearch.common.lucene.store.InputStreamIndexInput(in, local.length())),
+                local.length()
+            );
+        }
+    }
+
+    private void useStagedDurability() {
+        settings = new ParquetFlusher.Settings(settings.maxFileBytes(), settings.rowGroupBytes(), settings.codec(), true);
+    }
+
+    public void testAFlushDeletesTheStagedCopiesOfTheRowsThatItUploaded() throws Exception {
+        useStagedDurability();
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        stage(table, TestLocalFiles.write(directory, 0, 99, false));
+        stage(table, TestLocalFiles.write(directory, 100, 249, false));
+        assertThat(table.listStaged(), hasSize(2));
+
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertFlushed(250);
+        assertThat(table.listStaged(), hasSize(0));
+    }
+
+    public void testAFlushLeavesTheStagedCopiesOfBulksThatCameAfterItsFiles() throws Exception {
+        useStagedDurability();
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        stage(table, TestLocalFiles.write(directory, 0, 99, false));
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+        // a bulk whose copy is in staging and whose local file the next flush has not seen
+        stage(table, TestLocalFiles.write(directory, 100, 149, false));
+
+        // a flush that has nothing new still looks only at the range below the high-water mark
+        final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(result.files(), equalTo(1));
+        assertThat(table.listStaged(), hasSize(0));
+    }
+
+    public void testACrashBeforeTheStagedCopiesAreDeletedLeavesThemForTheNextFlush() throws Exception {
+        useStagedDurability();
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        stage(table, TestLocalFiles.write(directory, 0, 99, false));
+        expectThrows(IOException.class, () -> newFlusher(crashAt("cleaned")).flush());
+        // the crash is after the cleanup of the local files: the staged copy of the rows that the table lists stays
+        assertThat(table.listStaged(), hasSize(1));
+        assertThat(table.uploadedFiles(), hasSize(1));
+
+        // a flush with no local file at all still deletes it
+        final ParquetFlusher.Result result = newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(result.files(), equalTo(0));
+        assertThat(table.listStaged(), hasSize(0));
+        assertFlushed(100);
+    }
+
+    public void testALeftoverStagedCopyBelowTheMarkIsDeletedButOneAboveItIsNot() throws Exception {
+        useStagedDurability();
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        stage(table, TestLocalFiles.write(directory, 0, 99, false));
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+        // a staging upload that finished after the flush: below the mark, redundant
+        final byte[] bytes = new byte[] { 1 };
+        table.stageFile(0, 99, "late", new java.io.ByteArrayInputStream(bytes), bytes.length);
+        // the copy of a bulk above the mark whose local file is not in this directory: it must stay (it is adopted, or it is not ours)
+        table.stageFile(100, 149, "above", new java.io.ByteArrayInputStream(bytes), bytes.length);
+
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        final List<ShardTable.StagedFile> left = table.listStaged();
+        assertThat(left, hasSize(1));
+        assertThat(left.get(0).fromSeqNo(), equalTo(100L));
+    }
+
+    public void testWithLocalDurabilityTheFlushDoesNotTouchStaging() throws Exception {
+        final ShardTable table = TestTables.open(store, LOCATION, 0);
+        final byte[] bytes = new byte[] { 1 };
+        table.stageFile(0, 99, "a", new java.io.ByteArrayInputStream(bytes), bytes.length);
+        TestLocalFiles.write(directory, 0, 99, false);
+
+        newFlusher(ParquetFlusher.Hooks.NONE).flush();
+
+        assertThat(table.listStaged(), hasSize(1));
     }
 }

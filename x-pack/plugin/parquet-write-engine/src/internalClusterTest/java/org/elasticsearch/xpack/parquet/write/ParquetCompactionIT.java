@@ -135,6 +135,7 @@ public class ParquetCompactionIT extends ESIntegTestCase {
                         .put("index.mode", "columnar")
                         .put("index.number_of_shards", shards)
                         .put("index.parquet.repository", REPOSITORY)
+                        .put("index.parquet.durability", randomFrom("local", "staged"))
                         .put(extra.build())
                 )
                 .setMapping(mapping)
@@ -330,7 +331,8 @@ public class ParquetCompactionIT extends ESIntegTestCase {
 
     public void testAnIndexThatNeverFlushedGetsNoTableFromTheTimer() throws Exception {
         registerRepository();
-        createIndex(1, Settings.builder().put("index.parquet.compaction.interval", "1s"));
+        // local durability: staged durability opens the table at the first bulk
+        createIndex(1, Settings.builder().put("index.parquet.compaction.interval", "1s").put("index.parquet.durability", "local"));
         assertFalse(bulk(0, 100).hasFailures()); // local files only
         final Path tableDirectory = repoRoot.resolve(REPOSITORY).resolve(INDEX).resolve(resolveIndex(INDEX).getUUID());
 

@@ -13,7 +13,9 @@ an Iceberg table that someone else wrote (see "Mounting files and tables").
 
 ## What an index of this format does
 
-- Every shard bulk is written to a local Parquet file before the bulk returns. This is the acknowledgement point.
+- Every shard bulk is written to a local Parquet file before the bulk returns. With the default `index.parquet.durability: staged` a
+  copy of the file is also in the repository, below `staging/`, before the bulk is acknowledged (see "Durability: when a bulk is
+  acknowledged"). With `local` the acknowledgement point is the local file only.
 - A flush merges the complete local files, uploads the result to a snapshot repository (`s3`, or `fs` for tests), and appends it to the
   Iceberg table of the index.
 - After an upload, a background compaction merges small uploaded files into larger ones with one atomic Iceberg commit.
@@ -104,6 +106,7 @@ fields of the types above before the bulk (not tested here).
 | `index.storage_format` | `native` | `parquet` selects this engine. Final. |
 | `index.parquet.repository` | none | The snapshot repository that holds the files. Final, required. |
 | `index.parquet.base_path` | `<index name>/<index uuid>` | The path of the table below the base path of the repository. Final. |
+| `index.parquet.durability` | `staged` | `staged`: a bulk is acknowledged after a copy of its file is in the repository. `local`: after the local file only. Final. See "Durability: when a bulk is acknowledged". |
 | `index.parquet.catalog.enabled` | `true` | Every commit of the table creates or updates its entry in the catalog of the repository (see "The catalog"). Final. |
 | `index.parquet.catalog.namespace` | `default` | The namespace of the table in the catalog. A dotted value is a nested namespace (`prod.eu` is the directory `prod/eu`). Final. |
 | `index.parquet.compression` | `zstd` | Compression of uploaded files (`uncompressed`, `snappy`, `zstd`). |
@@ -144,6 +147,19 @@ any of them loses no row:
 4. append it to the Iceberg table, which is the moment readers see the rows;
 5. write the high-water mark and the row count in the commit data, and remove the marker;
 6. delete the local files.
+
+The merge copies the values from the column readers of the local files to the column writers of the merged file, with their repetition
+and definition levels, so no row is ever assembled (the merge before it built a parquet-mr `Group` for each row). A column has the same
+type and so the same levels in every file, and a column that an earlier file lacks becomes nulls. On 600,000 rows of 105 columns like
+ClickBench's (68 integers, 10 longs, 27 keywords) with ZSTD, one thread on a laptop, the merge took 6.2 s where the row-wise merge took
+11.2 s, and the files had the same size. The rest of the time is parquet-mr itself: the dictionaries, the min/max statistics of the
+binary columns, and the compression (about 14% of the samples). A merge of the columns on several threads is not built.
+
+The local file of a bulk is written the same way, column by column: each mapped column is read from its cursor of Lucene's column
+batch and written to the column writer of parquet-mr, with no `Group` for each row. A bulk is one row group with one page for each
+column (the server hands the engine at most 5,000 documents at a time, and the merge of the flush makes the row groups that readers
+want). In a test node with one shard, four clients, local durability and 105 fields like ClickBench's, bulk indexing went from about
+88,000 to about 180,000 documents per second with this change (a laptop, the time of parsing and of the client included).
 
 On start, the engine finishes a flush that a crash cut off. The table, and not the commit, is the source of truth for what is uploaded.
 
@@ -308,6 +324,7 @@ column is served as 0 and 1. Nested and repeated columns are unmapped.
 | `.engine` | `ParquetWriteEngine`, the shard tables, the commit data, the handling of linkage errors |
 | `.file` | the local files, the batch writer, the merger, the codecs, input files for a directory and for a blob |
 | `.flush` | the flusher and its crash protocol |
+| `.staging` | the adoption of the staged files of lost stores |
 | `.compaction` | the compactor and its policy |
 | `.table` | the Iceberg table of a shard, its `FileIO` and `TableOperations` over a blob store, the metrics of a file, the table location, and `TableReader`, which reads a table without writing it |
 | `org.elasticsearch.xpack.parquet.read.dv` | (copied from the reader) the doc values format of the stubs, its producer, windows, skippers and page cache |
@@ -332,6 +349,10 @@ Notes for test authors:
 
 - A cluster test needs `addMockInternalEngine()` to return false (an index can have only one engine) and `beforeIndexDeletion()` to do
   nothing (the base class searches every shard). Use `numberOfReplicas()` of 0 or a cluster with one data node.
+- The default durability is `staged`, so the repository must exist when the first bulk arrives, and the table is created by that bulk (and
+  by the adoption when the engine starts). A test that bulks before it registers a repository, or that counts on "no table until the first
+  flush", sets `index.parquet.durability: local`. The other cluster tests pick one of the two at random. A test that wipes the data of a
+  node (`ParquetNodeLossIT`) needs a dedicated master, which keeps the cluster state.
 - A node with assertions on asserts that it knows the extension of every file in the store. Set `es.allow_unknown_lucene_file_extensions`
   to true (the QA project does). A node without assertions does not need it.
 - The S3 fixture of the ES|QL tests ignores conditional writes. The QA project uses its own fixture with the AWS consistency model.
@@ -351,6 +372,51 @@ distribution, so installing them again fails at boot with a duplicate key. What 
    shards you test.
 4. A disk that is nearly full keeps the shard unassigned (the high watermark), and the bulks then fail with `unavailable_shards_exception`.
    Use a node setting or `cluster.routing.allocation.disk.threshold_enabled: false` for a benchmark.
+
+## Durability: when a bulk is acknowledged
+
+The engine has no translog, and its replicas are search replicas that only read the table, so the file of a bulk is the only copy of its
+rows until a flush has uploaded them. The setting
+`index.parquet.durability` (final) says where that copy is when the bulk is acknowledged.
+
+- `local`: the local file is durable (written and renamed). The loss of the node or of its disk loses every acknowledged row that no flush
+  has uploaded yet, which is up to `flush_threshold_size` or `flush_threshold_age` of data.
+- `staged` (the default): after the local file, the same bytes are uploaded to
+  `<table>/staging/shard-<n>/<history uuid>/<from>-<to>-<attempt>.parquet`, and only then is the bulk acknowledged. This is the role of the
+  translog in stateless Elasticsearch. The key has an attempt and the upload is a put-if-absent, as for data files. `staging/` is outside
+  `data/`, so readers and Iceberg never see it.
+
+What a bulk does with `staged`: it opens the table before it writes anything, so a repository that is missing or a table that another
+index owns fails the bulk (HTTP 503) with no local file and no gap in the sequence numbers. It then takes its sequence numbers, writes
+the local file, and uploads the staged copy. None of these steps holds a shard-wide lock, so the local files and the uploads of
+concurrent bulks of a shard overlap (a profile of a run with one shard and 8 clients showed the bulks waiting for each other on a lock
+that was held during the write of the local file). If the write or the upload fails, the local file is deleted, the bulk fails (a 503 for
+the upload), and its sequence numbers stay used (a gap, which the engine tolerates because the ranges are in the names and the rows come
+from the footers). A bulk that is rejected with a 429 takes no sequence numbers.
+
+Because bulks finish in any order, a flush uploads only the local files whose range is at or below the processed checkpoint of the
+shard, which means that every bulk with a lower range has finished (a failed bulk marks its range as processed too). A flush records the
+highest range that it uploaded and deletes every local file below it as a leftover, so a file of a higher range must never be uploaded
+while a lower range is still being written. The limit `index.parquet.max_local_size` is checked before a bulk writes, so bulks that are
+writing at that moment can take the local size a little past it. The client may retry. A flush that picked the local file up before
+the failure has put the rows in the table anyway, which is the at-least-once behaviour that a lost response also gives.
+
+A flush deletes the staged copies of the rows that it has put in the table: after the local files, and at its start for any copy at or
+below the high-water mark (a leftover of a crash, or of an upload that finished after the flush). A failed delete is only logged.
+
+**After the loss of a node and its disk** the shard has no copy: the primary stays unassigned. A human runs `POST _cluster/reroute` with
+`allocate_empty_primary` and `accept_data_loss: true` (the store is lost, the rows are not), and the shard starts with a new history. The
+engine then **adopts** the staged files of every other history of the shard (`StagedFileAdopter`): for each old history it deletes the staged
+files at or below that history's high-water mark in the table, merges the other staged files into files of the table (reading the staged
+blobs with ranged reads, as the compactor reads data files), uploads them below `data/shard-<n>/<old history>/` and appends them, and then
+deletes the staged files. The rows keep their old history and sequence numbers. The table is the record of what was adopted, so the steps
+are idempotent: a crash after the append leaves staged files below the new mark, which the next run deletes, and a crash before it
+merges the run again. It runs once after the engine starts, on the flush pool, and the timer of the compaction retries it until it has
+succeeded (the repository can be down at the start).
+
+The cost: every bulk waits for one object-store PUT, which is typically tens of milliseconds on S3, and the write availability depends on
+the object store. One small object is created for each shard bulk and deleted by a flush. Not measured on S3, only on an `fs` repository
+(see the findings of the plan), which has no latency.
 
 ## Shard histories and the names of data files
 
@@ -388,8 +454,7 @@ anywhere; a replica with another role (which the role strategy never creates) is
 
 What a user sees: a primary whose node has to go (a shutdown of type remove or replace, an allocation filter, a disk watermark) cannot
 leave. The allocation explain output says that it cannot remain and has no target, and the decider names the reason; a node shutdown stays
-stalled. Raising `number_of_replicas` gives a yellow index whose replica stays unassigned, with the same explanation. A node that dies still
-loses its local rows. A real handoff (flush and block writes before the move, or ship the local files as recovery files) is future work.
+stalled. A node that dies still loses its local rows with `local` durability (with `staged` they are adopted, see "Durability"). A real handoff (flush and block writes before the move, or ship the local files as recovery files) is future work.
 
 ## Known limits and open questions
 
@@ -406,11 +471,12 @@ loses its local rows. A real handoff (flush and block writes before the move, or
 - Not tested: data streams, ILM and rollover, index sorting, shrink, split and clone, reindex into such an index, cross-cluster replication.
 - All shards of a node share two small thread pools (`parquet_flush` and `parquet_compaction`, at most half the processors each), so many
   shards that flush at once queue for them.
-- A clean shutdown does not upload. The local files stay on the disk, and the shard finds them when it starts again. The rows are not safe
-  against the loss of the disk before their flush.
+- A clean shutdown does not upload. The local files stay on the disk, and the shard finds them when it starts again. With `local`
+  durability the rows are not safe against the loss of the disk before their flush; with `staged` they are in the staging files.
 - No relocation of the primary. It cannot move (the allocation decider refuses it, see "Placement: the shard is pinned"), a node shutdown of
-  type remove or replace stalls on such a primary, and the loss of a node loses the rows that are not uploaded yet (there is no translog,
-  and a search replica cannot be promoted). Search replicas move freely. Snapshots of such an index copy only the empty commit, and a restore gives a new history (see "Shard histories and the names of
+  type remove or replace stalls on such a primary, and the loss of a node loses the rows that are not uploaded yet with `local` durability
+  (with `staged` they are adopted, see "Durability"; a search replica cannot be promoted). Search replicas move freely. Snapshots of such
+  an index copy only the empty commit, and a restore gives a new history (see "Shard histories and the names of
   data files").
 - A lossless handoff of the primary is not built. Without it, the decider pins the shard (see "Placement: the shard is pinned"). To let
   a primary move, the old node must upload every local row after it blocks writes and before it hands off to the new node. The server gives
@@ -427,6 +493,14 @@ loses its local rows. A real handoff (flush and block writes before the move, or
   flush. The alternative that needs no handoff is manual: flush, then let the shard become unassigned and allocate an empty primary with
   `accept_data_loss`. The rows are safe in the table, and the new primary gets a new history (see "Shard histories and the names of data
   files"), but the index is red until then.
+- Staged durability, not covered: a PUT that succeeded and whose response was lost makes a bulk fail although its staged copy exists, and
+  adoption later puts those rows in the table (at-least-once, like a retry). A **zombie** primary (a node that is only cut off from the
+  cluster) can keep flushing its history while a new primary adopts the staged files of the same history: nothing fences it, and the table
+  can list overlapping files. `_stats` does not count adopted rows (they belong to an old history). Orphan blobs that an adoption crashed
+  on stay, because the writer of that history may be alive. The shard stays red after a node loss until someone runs
+  `allocate_empty_primary`; automatic allocation (an `ExistingShardsAllocator`, as stateless has) is not built. A node shutdown of type
+  remove or replace still stalls on the pinned primary. Staged copies of the same history are not used to rebuild missing local files, so
+  they do not give a lossless relocation yet. The latency of the PUT is not measured on S3, only on an `fs` repository.
 - The catalog entry is a file of our own format, with no compare-and-set (it can lag by a version, see "The catalog"). Spark, Trino and DuckDB
   need a shim to use it. An implementation of Iceberg's `Catalog` interface over the entries, the Hadoop-catalog layout, and a REST catalog
   client are not built.

@@ -466,4 +466,48 @@ public class ShardTableTests extends ESTestCase {
 
         assertThat(e.getMessage(), containsString("does not name the index that owns it"));
     }
+
+    // ---- staged files ----
+
+    public void testStagedFilesAreListedByRangeAndDeleted() throws Exception {
+        final ShardTable table = open(0);
+        final byte[] bytes = new byte[] { 1, 2, 3 };
+
+        final String second = table.stageFile(100, 149, "b", new java.io.ByteArrayInputStream(bytes), bytes.length);
+        final String first = table.stageFile(0, 99, "a", new java.io.ByteArrayInputStream(bytes), bytes.length);
+
+        final List<ShardTable.StagedFile> staged = table.listStaged();
+        assertThat(staged, hasSize(2));
+        assertThat(staged.get(0).name(), equalTo(first));
+        assertThat(staged.get(0).fromSeqNo(), equalTo(0L));
+        assertThat(staged.get(0).rows(), equalTo(100L));
+        assertThat(staged.get(0).bytes(), equalTo(3L));
+        assertThat(staged.get(1).name(), equalTo(second));
+        assertThat(staged.get(1).toSeqNo(), equalTo(149L));
+        assertThat("staged files are not data files", table.uploadedFiles(), hasSize(0));
+
+        table.deleteStaged(List.of(first, "no-such-blob.parquet"));
+
+        assertThat(table.listStaged().stream().map(ShardTable.StagedFile::name).toList(), equalTo(List.of(second)));
+    }
+
+    public void testAStagedKeyIsWrittenOnce() throws Exception {
+        final ShardTable table = open(0);
+        final byte[] bytes = new byte[] { 1 };
+        table.stageFile(0, 9, "same", new java.io.ByteArrayInputStream(bytes), bytes.length);
+
+        expectThrows(java.io.IOException.class, () -> table.stageFile(0, 9, "same", new java.io.ByteArrayInputStream(bytes), bytes.length));
+    }
+
+    public void testStagedFilesOfAnotherHistoryAreNotListed() throws Exception {
+        final ShardTable old = TestTables.open(store, LOCATION, 0, "history-old");
+        final ShardTable fresh = TestTables.open(store, LOCATION, 0, "history-new");
+        final byte[] bytes = new byte[] { 1 };
+
+        old.stageFile(0, 9, "a", new java.io.ByteArrayInputStream(bytes), bytes.length);
+
+        assertThat(old.listStaged(), hasSize(1));
+        assertThat(fresh.listStaged(), hasSize(0));
+        assertThat(old.stagingLocation(), containsString("/staging/shard-0/history-old/"));
+    }
 }

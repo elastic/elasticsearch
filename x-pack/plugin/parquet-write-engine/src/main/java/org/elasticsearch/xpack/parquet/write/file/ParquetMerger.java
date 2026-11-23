@@ -11,20 +11,17 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.column.ParquetProperties;
+import org.apache.parquet.column.ColumnDescriptor;
+import org.apache.parquet.column.ColumnReader;
+import org.apache.parquet.column.ColumnWriter;
+import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReadStore;
-import org.apache.parquet.conf.PlainParquetConfiguration;
-import org.apache.parquet.example.data.Group;
-import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.example.data.simple.convert.GroupRecordConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
-import org.apache.parquet.hadoop.ParquetWriter;
-import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
-import org.apache.parquet.io.ColumnIOFactory;
+import org.apache.parquet.hadoop.metadata.FileMetaData;
 import org.apache.parquet.io.InputFile;
-import org.apache.parquet.io.MessageColumnIO;
-import org.apache.parquet.io.RecordReader;
+import org.apache.parquet.io.api.GroupConverter;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
@@ -32,14 +29,20 @@ import org.apache.parquet.schema.Types;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Merges the small local Parquet files that bulks wrote into one large file with row groups of the configured size and a real
- * compression codec. It decodes the rows and encodes them again on purpose: a copy of the row groups would keep the tiny row groups of
+ * compression codec. It decodes the values and encodes them again on purpose: a copy of the row groups would keep the tiny row groups of
  * the bulks, and those are what readers handle worst.
+ *
+ * <p>The values go from the column readers of the input to the column writers of the output with their repetition and definition levels,
+ * and no row is ever assembled. An earlier version built a {@code Group} for each row and spent most of its time in that. This is safe
+ * because a column has the same type, and so the same levels, in every file (see {@link #unionSchemaOf}). The row groups are cut like
+ * the parquet-mr writer does it, by the size of the buffered data.
  *
  * <p>The files of one index come from one mapping that only grows, so a later file can have columns that an earlier file does not have.
  * The merged schema has all of them, and the rows of an earlier file get a null for the columns that it lacks.
@@ -150,29 +153,24 @@ public final class ParquetMerger {
         CompressionCodecName codec,
         long rowGroupBytes
     ) throws IOException {
-        final SimpleGroupFactory factory = new SimpleGroupFactory(outputSchema);
-        final List<String> outputColumns = new ArrayList<>();
-        for (Type field : outputSchema.getFields()) {
-            outputColumns.add(field.getName());
-        }
         long rows = 0;
         String tempName = null;
         boolean success = false;
         try (IndexOutput out = directory.createTempOutput(LocalParquetFiles.TEMP_PREFIX, "parquet", IOContext.DEFAULT)) {
             tempName = out.getName();
             try (
-                ParquetWriter<Group> writer = ExampleParquetWriter.builder(new BatchParquetWriter.IndexOutputFile(out))
-                    .withConf(new PlainParquetConfiguration())
-                    .withCodecFactory(new ParquetCodecs())
-                    .withType(outputSchema)
-                    .withCompressionCodec(codec)
-                    .withRowGroupSize(rowGroupBytes)
-                    .withWriterVersion(ParquetProperties.WriterVersion.PARQUET_1_0)
-                    .build()
+                ColumnarParquetWriter writer = new ColumnarParquetWriter(
+                    new BatchParquetWriter.IndexOutputFile(out),
+                    outputSchema,
+                    codec,
+                    rowGroupBytes,
+                    ColumnarParquetWriter.rowProperties()
+                )
             ) {
                 for (Input input : inputs) {
-                    rows += copyRows(input, outputSchema, outputColumns, factory, writer);
+                    rows += copyRows(input, outputSchema, writer);
                 }
+                writer.finish();
             }
             success = true;
         } finally {
@@ -190,75 +188,103 @@ public final class ParquetMerger {
         return new Merged(outputName, directory.fileLength(outputName), rows);
     }
 
-    private static long copyRows(
-        Input input,
-        MessageType outputSchema,
-        List<String> outputColumns,
-        SimpleGroupFactory factory,
-        ParquetWriter<Group> writer
-    ) throws IOException {
+    private static long copyRows(Input input, MessageType outputSchema, ColumnarParquetWriter writer) throws IOException {
         long rows = 0;
         try (ParquetFileReader reader = ParquetFileReader.open(input.file(), readOptions())) {
-            final MessageType inputSchema = reader.getFooter().getFileMetaData().getSchema();
-            final MessageColumnIO columnIO = new ColumnIOFactory().getColumnIO(inputSchema);
+            final FileMetaData metaData = reader.getFooter().getFileMetaData();
+            final MessageType inputSchema = metaData.getSchema();
+            final Map<String, ColumnDescriptor> inputColumns = new HashMap<>();
+            for (ColumnDescriptor column : inputSchema.getColumns()) {
+                inputColumns.put(String.join(".", column.getPath()), column);
+            }
+            final List<ColumnDescriptor> outputColumns = outputSchema.getColumns();
+            // the converter is only a required argument of the read store: no value is ever converted
+            final GroupConverter converter = new GroupRecordConverter(inputSchema).getRootConverter();
             PageReadStore pages;
             while ((pages = reader.readNextRowGroup()) != null) {
-                final RecordReader<Group> recordReader = columnIO.getRecordReader(pages, new GroupRecordConverter(inputSchema));
-                for (long i = 0; i < pages.getRowCount(); i++) {
-                    final Group in = recordReader.read();
-                    final Group out = factory.newGroup();
-                    for (String column : outputColumns) {
-                        if (inputSchema.containsField(column) == false) {
-                            continue; // an earlier file that lacks a column that was added later: a null
-                        }
-                        final int index = inputSchema.getFieldIndex(column);
-                        if (in.getFieldRepetitionCount(index) == 0) {
-                            continue; // a null, or a list with no value
-                        }
-                        final Type outputType = outputSchema.getType(column);
-                        if (ParquetLists.isList(outputType)) {
-                            copyList(in.getGroup(index, 0), out.addGroup(column), column, ParquetLists.elementOf(outputType));
-                        } else {
-                            copyValue(in, index, out, column, outputType.asPrimitiveType().getPrimitiveTypeName(), 0);
-                        }
-                    }
-                    writer.write(out);
-                    rows++;
+                final ColumnReadStoreImpl readStore = new ColumnReadStoreImpl(pages, converter, inputSchema, metaData.getCreatedBy());
+                final ColumnCopier[] copiers = new ColumnCopier[outputColumns.size()];
+                for (int i = 0; i < copiers.length; i++) {
+                    final ColumnDescriptor target = outputColumns.get(i);
+                    final ColumnDescriptor source = inputColumns.get(String.join(".", target.getPath()));
+                    // a column that an earlier file lacks (added later by a mapping update) is a null in every row
+                    copiers[i] = source == null
+                        ? new ColumnCopier(writer, i, null, target, input.name())
+                        : new ColumnCopier(writer, i, readStore.getColumnReader(source), target, input.name());
                 }
+                final long count = pages.getRowCount();
+                for (long row = 0; row < count; row++) {
+                    for (ColumnCopier copier : copiers) {
+                        copier.copyRecord();
+                    }
+                    writer.endRecord();
+                }
+                rows += count;
             }
         }
         return rows;
     }
 
-    /** The elements of a list column, with the null elements (a list item without an element). */
-    private static void copyList(Group inList, Group outList, String column, PrimitiveType element) {
-        final int items = inList.getFieldRepetitionCount(ParquetLists.LIST);
-        for (int i = 0; i < items; i++) {
-            final Group inItem = inList.getGroup(ParquetLists.LIST, i);
-            final Group outItem = outList.addGroup(ParquetLists.LIST);
-            if (inItem.getFieldRepetitionCount(ParquetLists.ELEMENT) > 0) {
-                copyValue(
-                    inItem,
-                    inItem.getType().getFieldIndex(ParquetLists.ELEMENT),
-                    outItem,
-                    ParquetLists.ELEMENT,
-                    element.getPrimitiveTypeName(),
-                    0
-                );
+    /**
+     * Copies the values of one column of the current row group of an input to the output, one record (a row) at a time. A record is the
+     * values up to the next one with the repetition level 0, which is one value for a flat column and all the elements of a list.
+     */
+    private static final class ColumnCopier {
+        private final ColumnarParquetWriter writer;
+        private final int index;
+        /** Null when the input file has no such column. */
+        private final ColumnReader reader;
+        private final int maxDefinitionLevel;
+        private final PrimitiveType.PrimitiveTypeName type;
+        private long remaining;
+
+        ColumnCopier(ColumnarParquetWriter writer, int index, ColumnReader reader, ColumnDescriptor target, String inputName) {
+            this.writer = writer;
+            this.index = index;
+            this.reader = reader;
+            this.maxDefinitionLevel = target.getMaxDefinitionLevel();
+            this.type = target.getPrimitiveType().getPrimitiveTypeName();
+            if (reader != null) {
+                final ColumnDescriptor source = reader.getDescriptor();
+                if (source.getMaxDefinitionLevel() != target.getMaxDefinitionLevel()
+                    || source.getMaxRepetitionLevel() != target.getMaxRepetitionLevel()
+                    || source.getPrimitiveType().getPrimitiveTypeName() != type) {
+                    // the levels of one column are the same in every file; copying them as they are would write a broken file otherwise
+                    throw new IllegalStateException(
+                        "column [" + String.join(".", target.getPath()) + "] has other levels or another type in [" + inputName + "]"
+                    );
+                }
+                this.remaining = reader.getTotalValueCount();
             }
         }
-    }
 
-    /** One value of a primitive field, at {@code position} of the repeated field {@code index} of {@code in}. */
-    private static void copyValue(Group in, int index, Group out, String field, PrimitiveType.PrimitiveTypeName type, int position) {
-        switch (type) {
-            case INT32 -> out.add(field, in.getInteger(index, position));
-            case INT64 -> out.add(field, in.getLong(index, position));
-            case FLOAT -> out.add(field, in.getFloat(index, position));
-            case DOUBLE -> out.add(field, in.getDouble(index, position));
-            case BOOLEAN -> out.add(field, in.getBoolean(index, position));
-            case BINARY -> out.add(field, in.getBinary(index, position));
-            default -> throw new IllegalStateException("column [" + field + "] has the unsupported type [" + type + "]");
+        void copyRecord() {
+            final ColumnWriter out = writer.columnWriter(index);
+            if (reader == null) {
+                out.writeNull(0, 0);
+                return;
+            }
+            do {
+                final int repetitionLevel = reader.getCurrentRepetitionLevel();
+                final int definitionLevel = reader.getCurrentDefinitionLevel();
+                if (definitionLevel < maxDefinitionLevel) {
+                    out.writeNull(repetitionLevel, definitionLevel); // a null, an empty list or a list with no value
+                } else {
+                    switch (type) {
+                        case INT32 -> out.write(reader.getInteger(), repetitionLevel, definitionLevel);
+                        case INT64 -> out.write(reader.getLong(), repetitionLevel, definitionLevel);
+                        case FLOAT -> out.write(reader.getFloat(), repetitionLevel, definitionLevel);
+                        case DOUBLE -> out.write(reader.getDouble(), repetitionLevel, definitionLevel);
+                        case BOOLEAN -> out.write(reader.getBoolean(), repetitionLevel, definitionLevel);
+                        case BINARY -> out.write(reader.getBinary(), repetitionLevel, definitionLevel);
+                        default -> throw new IllegalStateException(
+                            "column [" + reader.getDescriptor() + "] has the unsupported type [" + type + "]"
+                        );
+                    }
+                }
+                reader.consume();
+                remaining--;
+            } while (remaining > 0 && reader.getCurrentRepetitionLevel() != 0);
         }
     }
 }

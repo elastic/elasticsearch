@@ -111,6 +111,7 @@ public class ParquetFlushTriggersIT extends ESIntegTestCase {
                         .put("index.mode", "columnar")
                         .put("index.number_of_shards", 1)
                         .put("index.parquet.repository", REPOSITORY)
+                        .put("index.parquet.durability", randomFrom("local", "staged"))
                         .put(extra.build())
                 )
                 .setMapping("count", "type=long")

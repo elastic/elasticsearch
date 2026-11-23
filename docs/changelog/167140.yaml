@@ -1,0 +1,7 @@
+area: Data streams
+issues:
+ - 167120
+pr: 167140
+summary: "DLM frozen tier: indices never marked when default repository is set only\
+  \ in `elasticsearch.yml` [#167120]"
+type: bug

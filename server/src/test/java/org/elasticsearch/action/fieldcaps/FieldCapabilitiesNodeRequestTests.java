@@ -97,7 +97,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) {
-        switch (random().nextInt(8)) {
+        switch (random().nextInt(10)) {
             case 0 -> {
                 List<ShardId> shardIds = randomShardIds(instance.shardIds().size() + 1);
                 return new FieldCapabilitiesNodeRequest(
@@ -230,8 +230,22 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    false,
+                    instance.includeEmptyFields() == false,
                     instance.includeTimeSeriesStats()
+                );
+            }
+            case 9 -> {
+                return new FieldCapabilitiesNodeRequest(
+                    instance.shardIds(),
+                    instance.fields(),
+                    instance.filters(),
+                    instance.allowedTypes(),
+                    instance.originalIndices(),
+                    instance.indexFilter(),
+                    instance.nowInMillis(),
+                    instance.runtimeFields(),
+                    instance.includeEmptyFields(),
+                    instance.includeTimeSeriesStats() == false
                 );
             }
             default -> throw new IllegalStateException("The test should only allow 8 parameters mutated");

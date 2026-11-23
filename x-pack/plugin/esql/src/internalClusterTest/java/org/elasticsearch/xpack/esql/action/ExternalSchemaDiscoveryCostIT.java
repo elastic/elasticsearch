@@ -66,8 +66,9 @@ public class ExternalSchemaDiscoveryCostIT extends AbstractExternalDataSourceIT 
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        // Above the shipped 25,000 default. The counts in this harness stay under that default; the raise
-        // is what lets a wider count be measured instead of refused. The cap applies to schema resolution too.
+        // Above the heap-derived default on small test heaps. The counts in this harness stay under
+        // that default; the raise is what lets a wider count be measured instead of refused. The cap
+        // applies to schema resolution too.
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExternalSourceSettings.MAX_DISCOVERED_FILES.getKey(), 200_000)

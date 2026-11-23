@@ -1639,7 +1639,8 @@ public class LocalExecutionPlanner {
                 field.child(),
                 layout,
                 context.shardContexts,
-                context.analysisRegistry()
+                context.analysisRegistry(),
+                context.plannerSettings
             );
             outputLayout.append(field.toAttribute());
             pendingAliases.add(field.id());
@@ -2525,7 +2526,7 @@ public class LocalExecutionPlanner {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
         }
         if (splitCount > 1) {
-            instanceCount = limitDriverCount(pushedLimit, pageSize, splitCount, context.queryPragmas().taskConcurrency());
+            instanceCount = limitDriverCount(pushedLimit, pageSize, splitCount, context.queryPragmas().taskConcurrency(context.settings()));
         }
         instanceCount = capInstanceCountByCoveringSplits(instanceCount, pushedLimit, externalSource.splits(), externalSource.config());
         int effectiveBufferSize = externalSourceBufferSize(pushedLimit, instanceCount, pageSize);
@@ -2569,7 +2570,7 @@ public class LocalExecutionPlanner {
             .schemaMap(externalSource.schemaMap())
             .partitionColumnNames(partitionColumnNames)
             .sliceQueue(sliceQueue)
-            .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .parsingParallelism(context.queryPragmas().parsingParallelism(context.settings()))
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
@@ -2773,7 +2774,14 @@ public class LocalExecutionPlanner {
         // TODO: should this be extracted into a separate eval block?
         return source.with(
             new FilterOperatorFactory(
-                EvalMapper.toEvaluator(context.foldCtx(), condition, source.layout, context.shardContexts, context.analysisRegistry())
+                EvalMapper.toEvaluator(
+                    context.foldCtx(),
+                    condition,
+                    source.layout,
+                    context.shardContexts,
+                    context.analysisRegistry(),
+                    context.plannerSettings
+                )
             ),
             source.layout
         );

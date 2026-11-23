@@ -14,7 +14,8 @@ import java.util.Map;
  * One usage record as the Usage API receives it, and the unit that is summed downstream.
  * <p>
  * The {@code id} is stable: a record that is sent again after a failure carries the same id, so the Usage API sees a duplicate
- * and never counts it twice. This is the guard against over-counting. {@code quantityMillis} is the counted CPU time of
+ * and never counts it twice. This is the guard against over-counting. {@code usageTimestamp} is the start of the period that the
+ * quantity covers, because billing attributes a record to the range that contains it. {@code quantityMillis} is the counted CPU time of
  * {@code periodSeconds} seconds of activity of one node, in milliseconds. {@code usageType} must match, character for
  * character, the key of the transform that interprets it (see {@link UsageTypes}). {@code exemption} is null for counted usage; usage
  * of queries that did not succeed is exported in separate records that carry an {@link Exemption} and is never mixed into a counted

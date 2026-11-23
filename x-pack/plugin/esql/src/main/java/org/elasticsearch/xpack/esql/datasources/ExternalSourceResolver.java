@@ -498,6 +498,11 @@ public class ExternalSourceResolver {
         return listingService.maxListedObjects();
     }
 
+    /** Live {@link ExternalSourceSettings#MAX_DIRECTORY_LISTINGS} cap. Visible for wiring tests. */
+    public int maxDirectoryListings() {
+        return listingService.maxDirectoryListings();
+    }
+
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
         this(executor, dataSourceModule, Settings.EMPTY, null);
     }
@@ -623,6 +628,34 @@ public class ExternalSourceResolver {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(
+            executor,
+            dataSourceModule,
+            settings,
+            cacheService,
+            isCancelled,
+            metadataReadConcurrency,
+            threadContext,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            null
+        );
+    }
+
+    public ExternalSourceResolver(
+        Executor executor,
+        DataSourceModule dataSourceModule,
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable BooleanSupplier isCancelled,
+        int metadataReadConcurrency,
+        @Nullable ThreadContext threadContext,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         if (metadataReadConcurrency < 1) {
             throw new IllegalArgumentException("metadataReadConcurrency must be >= 1, got: " + metadataReadConcurrency);
         }
@@ -633,7 +666,14 @@ public class ExternalSourceResolver {
         this.dataSourceModule = dataSourceModule;
         this.settings = settings;
         this.cacheService = cacheService;
-        this.listingService = new DatasetListingService(settings, cacheService, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects);
+        this.listingService = new DatasetListingService(
+            settings,
+            cacheService,
+            maxDiscoveredFiles,
+            maxGlobExpansion,
+            maxListedObjects,
+            maxDirectoryListings
+        );
         this.isCancelled = isCancelled;
         this.metrics = dataSourceModule == null ? ExternalSourceMetrics.NOOP : dataSourceModule.externalSourceMetrics();
         this.metadataReadConcurrency = metadataReadConcurrency;
@@ -5273,7 +5313,8 @@ public class ExternalSourceResolver {
                     extents,
                     planningMemory(),
                     listingCancellation(),
-                    folderRange
+                    folderRange,
+                    listingService.maxDirectoryListings()
                 );
             } catch (Exception e) {
                 listener.onFailure(e);

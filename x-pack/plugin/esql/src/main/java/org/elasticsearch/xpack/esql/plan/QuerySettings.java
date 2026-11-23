@@ -120,7 +120,7 @@ public final class QuerySettings {
           absent from `_source`. Also loads partially mapped fields from `_source` in the indices where they are unmapped,
           even if the query doesn't reference them.
         {applies_to}`stack: preview =9.4, ga 9.5+`
-        - `LOAD_ALL` : Does everything `LOAD` does, and also returns every unmapped field that the query does not name, in a
+        - `LOAD_ALL` : Does everything `LOAD` does, and also returns all unmapped fields in a
           single `_unmapped_fields` column. That column holds, for each row, a JSON object of the row's unmapped `_source` fields.
           Refer to [Load all unmapped fields](/reference/query-languages/esql/esql-unmapped-fields.md#esql-unmapped-fields-load-all).
           {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`

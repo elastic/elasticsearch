@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 
 import java.util.List;
 import java.util.Map;
@@ -50,8 +52,21 @@ public class DedupGenerator implements CommandGenerator {
                     || dt.isCounter())) {
                 return EMPTY_DESCRIPTION;
             }
+            // DEDUP also rejects union-type columns, which come back as unsupported with all of their types.
+            if (dt == DataType.UNSUPPORTED && Dedup.isUnionType(c.originalTypes())) {
+                return EMPTY_DESCRIPTION;
+            }
+            // When every subquery has a column as unsupported, original_types only shows the first subquery's types, which can hide
+            // a union type in another subquery that DEDUP rejects.
+            if (dt == DataType.UNSUPPORTED && hasUnionAll(previousCommands)) {
+                return EMPTY_DESCRIPTION;
+            }
         }
         return new CommandDescription(DEDUP, this, " | DEDUP ", Map.of());
+    }
+
+    private static boolean hasUnionAll(List<CommandDescription> previousCommands) {
+        return previousCommands.stream().anyMatch(command -> Boolean.TRUE.equals(command.context().get(FromGenerator.HAS_UNION_ALL)));
     }
 
     @Override

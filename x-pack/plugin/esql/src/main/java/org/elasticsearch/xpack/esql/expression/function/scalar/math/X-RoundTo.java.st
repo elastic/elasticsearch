@@ -26,6 +26,15 @@ import java.util.Arrays;
  * This class is generated. Edit {@code X-RoundTo.java.st} instead.
  */
 class RoundTo$Type$ {
+$if(long)$
+    // BUCKET(100) chooses 10s buckets for a 15minutes range
+    private static final long TEN_SECONDS_MILLIS = 10_000L;
+    // BUCKET(100) chooses 1-minute buckets for a 1-hour range
+    private static final long ONE_MINUTE_MILLIS = 60_000L;
+    // BUCKET(100) chooses 5-minute buckets for a 6-hour range (not common)
+    private static final long FIVE_MINUTES_MILLIS = 300_000L;
+
+$endif$
     interface Build {
         ExpressionEvaluator.Factory build(
             Source source,
@@ -60,6 +69,17 @@ class RoundTo$Type$ {
 $if(long||int)$
                     $type$ interval = extractFixedInterval(f);
                     if (interval > 0) {
+$if(long)$
+                        if (interval == TEN_SECONDS_MILLIS) {
+                            yield new RoundToLongTenSecondsMillisEvaluator.Factory(source, field, f[0], f[f.length - 1]);
+                        }
+                        if (interval == ONE_MINUTE_MILLIS) {
+                            yield new RoundToLongOneMinuteMillisEvaluator.Factory(source, field, f[0], f[f.length - 1]);
+                        }
+                        if (interval == FIVE_MINUTES_MILLIS) {
+                            yield new RoundToLongFiveMinutesMillisEvaluator.Factory(source, field, f[0], f[f.length - 1]);
+                        }
+$endif$
                         yield new RoundTo$Type$FixedIntervalEvaluator.Factory(source, field, f[0], f[f.length - 1], interval);
                     }
 $endif$
@@ -149,6 +169,23 @@ $if(long||int)$
         return field - (field - first) % interval;
     }
 
+$if(long)$
+    @Evaluator(extraName = "TenSecondsMillis")
+    static long processTenSecondsMillis(long field, @Fixed long first, @Fixed long last) {
+        return processFixed(field, first, last, TEN_SECONDS_MILLIS);
+    }
+
+    @Evaluator(extraName = "OneMinuteMillis")
+    static long processOneMinuteMillis(long field, @Fixed long first, @Fixed long last) {
+        return processFixed(field, first, last, ONE_MINUTE_MILLIS);
+    }
+
+    @Evaluator(extraName = "FiveMinutesMillis")
+    static long processFiveMinutesMillis(long field, @Fixed long first, @Fixed long last) {
+        return processFixed(field, first, last, FIVE_MINUTES_MILLIS);
+    }
+
+$endif$
     @Evaluator(extraName = "FixedIntervalUp")
     static $type$ processFixedUp($type$ field, @Fixed $type$ first, @Fixed $type$ last, @Fixed $type$ interval) {
         if (field <= first) {

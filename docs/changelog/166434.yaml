@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 166276
+pr: 166434
+summary: Charge relayed get async search responses to the request breaker
+type: enhancement

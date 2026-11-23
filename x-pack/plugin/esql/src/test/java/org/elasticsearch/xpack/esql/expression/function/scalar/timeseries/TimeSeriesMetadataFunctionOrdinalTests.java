@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.junit.After;
-import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,15 +56,15 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
         "{\"cluster\":\"prod\",\"pod\":\"one\"}",
         "{\"cluster\":\"prod\",\"pod\":\"two\"}",
         "{\"cluster\":\"qa\",\"pod\":\"three\"}" };
+    /** Label containers as the source holds them, labels in any order. */
+    private static final String[] UNSORTED_CONTAINERS = {
+        "{\"pod\":\"one\",\"cluster\":\"prod\"}",
+        "{\"pod\":\"two\",\"cluster\":\"prod\"}",
+        "{\"cluster\":\"qa\",\"pod\":\"three\"}" };
     /** 15 rows over 3 entries: dense. */
     private static final Integer[] DENSE = { 0, 1, 0, 2, 1, 0, 1, 2, 0, 0, 1, 2, 2, 0, 1 };
 
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
-
-    @BeforeClass
-    public static void requireTimeSeriesType() {
-        assumeTrue("_timeseries is under construction", DataType.TIME_SERIES_METADATA_DATA_TYPE.supportedVersion().supportedLocally());
-    }
 
     public void testReadReusesOrdinals() {
         assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS, DENSE, true);
@@ -145,7 +144,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
      * plain values, and asserts both give the same values, the first as a constant block when {@code constant}.
      */
     private void assertConstant(Function<Expression, Expression> function, String labels, boolean constant) {
-        Expression expression = function.apply(field("labels", DataType.TIME_SERIES_METADATA_DATA_TYPE));
+        Expression expression = function.apply(field("labels", DataType.KEYWORD));
         int positions = DENSE.length;
         List<List<String>> once;
         try (
@@ -165,6 +164,20 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
         }
     }
 
+    public void testUnsortedReadReusesOrdinals() {
+        // A keyword _timeseries is the source's JSON object, in the source's order: each entry is read into the canonical form.
+        assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), UNSORTED_CONTAINERS, DENSE, true);
+    }
+
+    public void testUnsortedDropReusesOrdinals() {
+        assertDictionaryPath(
+            c -> new TimeSeriesMetadataFilter(Source.EMPTY, c, List.of(keyword("pod")), true),
+            UNSORTED_CONTAINERS,
+            DENSE,
+            true
+        );
+    }
+
     public void testSparseKeepsRows() {
         Integer[] ordinals = { 0, 1, 2 };
         assertDictionaryPath(c -> new TimeSeriesMetadataPath(Source.EMPTY, c, keyword("pod")), CONTAINERS, ordinals, false);
@@ -180,7 +193,7 @@ public class TimeSeriesMetadataFunctionOrdinalTests extends ESTestCase {
         Integer[] ordinals,
         boolean reusesOrdinals
     ) {
-        Expression expression = function.apply(field("labels", DataType.TIME_SERIES_METADATA_DATA_TYPE));
+        Expression expression = function.apply(field("labels", DataType.KEYWORD));
         String[] rows = new String[ordinals.length];
         for (int p = 0; p < ordinals.length; p++) {
             rows[p] = ordinals[p] == null ? null : dictionary[ordinals[p]];

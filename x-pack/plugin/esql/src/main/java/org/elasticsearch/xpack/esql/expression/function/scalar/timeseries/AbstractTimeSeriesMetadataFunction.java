@@ -36,17 +36,25 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-/** Internal function that evaluates expressions on metadata container {@link DataType#TIME_SERIES_METADATA_DATA_TYPE}. */
+/**
+ * Internal function that evaluates expressions on a metadata container: the keyword {@code _timeseries} JSON object of a series'
+ * dimensions, which reads as the label container it holds.
+ */
 public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunction {
     protected AbstractTimeSeriesMetadataFunction(Source source, List<Expression> arguments) {
         super(source, arguments);
@@ -79,7 +87,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         // A null metadata container is the empty one.
         TypeResolution resolution = isType(
             children().getFirst(),
-            type -> type == DataType.TIME_SERIES_METADATA_DATA_TYPE,
+            type -> type == DataType.KEYWORD,
             sourceText(),
             ParamOrdinal.FIRST,
             "_timeseries"
@@ -116,9 +124,10 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
     }
 
     /**
-     * Evaluates a label container function. The label container is the canonical JSON object - labels sorted by name - so every
-     * function streams over it: a read stops at its label, and a rewrite copies the labels it keeps in their order, writing a set
-     * label at its sorted position, which keeps the result canonical.
+     * Evaluates a label container function. A keyword {@code _timeseries} is the JSON object of a series' dimensions as the source
+     * holds them, so it is first read into the canonical form - labels sorted by name, see {@link #canonical} - and every function
+     * streams over that: a read stops at its label, and a rewrite copies the labels it keeps in their order, writing a set label
+     * at its sorted position, which keeps the result canonical.
      * <p>
      * When the other arguments are constant on a page, the result depends on the label containers alone: a constant label
      * container is evaluated once, and a dictionary encoded one once per dictionary entry.
@@ -184,8 +193,8 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
                      * does, the values per entry are copied out to the rows.
                      *
                      * TODO(sidosera): filters, hash joins and top-n copy a dictionary encoded block out to its rows, so a page
-                     * above them holds no dictionary and the function runs once per row. Restore the ordinals there; a typed
-                     * label container should only ever be dictionary encoded.
+                     * above them holds no dictionary and the function runs once per row. Restore the ordinals there; a label
+                     * container should only ever be dictionary encoded.
                      */
                     OrdinalBytesRefVector dictionary = vector.asOrdinals();
                     if (dictionary != null && dictionary.isDense()) {
@@ -215,7 +224,8 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
             BytesRef bytes = new BytesRef();
             try (
                 BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positions);
-                BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "ts_metadata")
+                BreakingBytesRefBuilder scratch = new BreakingBytesRefBuilder(driverContext.breaker(), "ts_metadata");
+                BreakingBytesRefBuilder canonical = new BreakingBytesRefBuilder(driverContext.breaker(), "ts_metadata_source")
             ) {
                 for (int p = 0; p < positions; p++) {
                     BytesRef labels = null;
@@ -223,7 +233,7 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
                         if (containers.getValueCount(p) != 1) {
                             throw new IllegalArgumentException("The label container must be single-valued");
                         }
-                        labels = containers.getBytesRef(containers.getFirstValueIndex(p), bytes);
+                        labels = canonical(containers.getBytesRef(containers.getFirstValueIndex(p), bytes), canonical);
                     }
                     try {
                         eval(labels, arguments, constant ? 0 : p, result, scratch);
@@ -247,6 +257,79 @@ public abstract class AbstractTimeSeriesMetadataFunction extends EsqlScalarFunct
         @Override
         public final void close() {
             Releasables.closeExpectNoException(labelContainer, Releasables.wrap(arguments));
+        }
+
+        /**
+         * The label container of the JSON object {@code source} of a series' dimensions, written to {@code scratch}: labels named as
+         * PromQL names them, sorted by name, each holding its non-empty values in source order, one value written as a string and
+         * several as an array. Equal label sets get equal bytes, so the result can key joins and groups.
+         * <p>
+         * TODO: an empty value is left out, so a series whose label is empty and one that lacks the label have the same label
+         * container. Prometheus has no empty label, so data written by it never holds such a pair.
+         */
+        static BytesRef canonical(BytesRef source, BreakingBytesRefBuilder scratch) {
+            scratch.clear();
+            try (XContentBuilder builder = jsonBuilder(scratch)) {
+                builder.startObject();
+                for (var label : readSource(source).entrySet()) {
+                    write(builder, label.getKey(), label.getValue());
+                }
+                builder.endObject();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Invalid label container", e);
+            }
+            return scratch.bytesRefView();
+        }
+
+        private static SortedMap<String, List<String>> readSource(BytesRef source) throws IOException {
+            try (XContentParser parser = parser(source)) {
+                var labels = new TreeMap<String, List<String>>();
+                readSourceObject(parser, "", labels);
+                end(parser);
+                return labels;
+            }
+        }
+
+        private static void readSourceObject(XContentParser parser, String prefix, Map<String, List<String>> labels) throws IOException {
+            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+                String field = prefix + parser.currentName();
+                token = parser.nextToken();
+                if (token == XContentParser.Token.START_OBJECT) {
+                    readSourceObject(parser, field + ".", labels);
+                    continue;
+                }
+                var values = new ArrayList<String>();
+                if (token == XContentParser.Token.START_ARRAY) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        readSourceValue(parser, token, field, values);
+                    }
+                } else {
+                    readSourceValue(parser, token, field, values);
+                }
+                String label = PromqlLabels.labelName(field);
+                if (label.isEmpty()) {
+                    throw new IllegalArgumentException("time-series label names must be non-empty");
+                }
+                if (labels.containsKey(label)) {
+                    throw new IllegalArgumentException("multiple dimension fields resolve to time-series label [" + label + "]");
+                }
+                if (values.isEmpty() == false) {
+                    labels.put(label, values);
+                }
+            }
+        }
+
+        /** Scalars keep their source text; null and empty values are left out. */
+        private static void readSourceValue(XContentParser parser, XContentParser.Token token, String field, List<String> values)
+            throws IOException {
+            if (token.isValue()) {
+                String value = parser.text();
+                if (value.isEmpty() == false) {
+                    values.add(value);
+                }
+            } else if (token != XContentParser.Token.VALUE_NULL) {
+                throw new IllegalArgumentException("time-series dimension [" + field + "] must contain values");
+            }
         }
 
         /** Opens {@code labels}, positioned on its object. */

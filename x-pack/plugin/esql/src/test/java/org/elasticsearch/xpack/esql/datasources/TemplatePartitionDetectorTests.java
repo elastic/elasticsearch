@@ -479,6 +479,33 @@ public class TemplatePartitionDetectorTests extends ESTestCase {
         );
     }
 
+    public void testWalkLayoutRightAlignsAwsLogs() {
+        StoragePath prefix = StoragePath.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/");
+        TemplatePartitionDetector.WalkLayout layout = TemplatePartitionDetector.walkLayout(
+            prefix,
+            "*/*/*/*.log.gz",
+            "AWSLogs/{account}/vpcflowlogs/{region}/{year}/{month}/{day}"
+        );
+        assertNotNull(layout);
+        assertEquals(Set.of("year", "month", "day"), layout.placeholderKeys());
+        assertEquals("012345678901", layout.prefixBindings().get("account"));
+        assertEquals("us-east-1", layout.prefixBindings().get("region"));
+        assertEquals(3, layout.depth());
+        assertTrue(layout.level(0).isPlaceholder());
+        assertEquals("year", layout.level(0).name());
+        Map<String, String> bound = layout.bindings("/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/11");
+        assertEquals("2026", bound.get("year"));
+        assertEquals("11", bound.get("month"));
+        assertFalse(bound.containsKey("day"));
+    }
+
+    public void testWalkLayoutRejectsGlobstar() {
+        assertNull(TemplatePartitionDetector.walkLayout(StoragePath.of("s3://bucket/logs/"), "**/*.parquet", "{year}"));
+        assertFalse(TemplatePartitionDetector.walkableGlob("**/*.parquet"));
+        assertFalse(TemplatePartitionDetector.walkableGlob("logs/*/" + "**/*.parquet"));
+        assertTrue(TemplatePartitionDetector.walkableGlob("*/*.parquet"));
+    }
+
     private static Map<String, Object> values(PartitionMetadata result, List<StorageEntry> files, String path) {
         for (int i = 0; i < files.size(); i++) {
             if (files.get(i).path().toString().equals(path)) {

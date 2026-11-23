@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -50,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.assumeHighlightImplicitQueryAndFieldsEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
@@ -686,6 +688,18 @@ public class VerifierTests extends AnalyzerTestCase {
         defaultAnalyzer().error(
             "from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no",
             equalTo("1:60: Unknown column [m]")
+        );
+    }
+
+    public void testDescribeVerifiesItsInput() {
+        assumeTrue("requires DESCRIBE", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
+        defaultAnalyzer().error(
+            "from test | where 1 | describe",
+            equalTo("1:19: Condition expression needs to be boolean, found [INTEGER]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats c = count(*) by emp_no | where c + 1 | describe | keep name",
+            equalTo("1:50: Condition expression needs to be boolean, found [LONG]")
         );
     }
 
@@ -2155,15 +2169,22 @@ public class VerifierTests extends AnalyzerTestCase {
                    (where true)
             | where match(t, "cat")
             """);
-        // an explicit null column is the same shape, and equally empty
+        // a null of the merged type is equally empty
         fullText().query("""
+            from test
+            | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+                   (eval t = to_text(null))
+            | where match(t, "cat")
+            """);
+        // an explicit null column is null-typed, and nothing widens it to the merged type, so it conflicts on data type
+        fullText().error("""
             from test
             | fork (eval t = to_text(concat(title, body), {"analyzer": "whitespace"}))
                    (eval t = null)
             | where match(t, "cat")
-            """);
-        // ... but only in this order. A null-typed branch coming first represents the column in the merged output
-        // and nothing widens it, so the populated branch conflicts on data type before the analyzers are compared.
+            """, containsString("Column [t] has conflicting data types in FORK branches: [NULL] and [TEXT]"));
+        // ... in either order. A null-typed branch coming first represents the column in the merged output, so it is
+        // the populated branch that is reported.
         fullText().error("""
             from test
             | fork (eval t = null)
@@ -5948,6 +5969,24 @@ public class VerifierTests extends AnalyzerTestCase {
             | STATS mc = max(network.cost) BY cluster, pod, region
             | STATS d = sum(mc) BY WITHOUT(region)
             """, containsString("WITHOUT is only supported in time-series queries (i.e. TS | ...) at the moment"));
+    }
+
+    public void testSubqueryJoinNotSupported() {
+        assumeTrue("requires snapshot builds", new EsqlConfig(TEST_FUNCTION_REGISTRY).isDevVersion());
+        // The unmapped_fields settings check that ResolveUnmapped neither rewrites nor rejects the unresolved keys first.
+        for (String setting : List.of("", "SET unmapped_fields=\"nullify\"; ", "SET unmapped_fields=\"load\"; ")) {
+            for (String key : List.of("language_code", "does_not_exist")) {
+                analyzer().addEmployees()
+                    .addLanguages()
+                    .statementError(
+                        setting + """
+                            FROM employees
+                            | EVAL language_code = languages
+                            | LEFT OUTER JOIN (FROM languages) ON\s""" + key,
+                        allOf(containsString("Found 1 problem"), containsString("line 3:3: JOIN on a subquery is not supported yet"))
+                    );
+            }
+        }
     }
 
     private TestAnalyzer defaultAnalyzer() {

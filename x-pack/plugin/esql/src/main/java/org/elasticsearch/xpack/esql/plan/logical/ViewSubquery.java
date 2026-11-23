@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * A {@link NamedSubquery} that carries the view name it was resolved from.
  * <p>
  * The type itself states "this branch is a view": view resolution and compaction test for it, so a plain
- * {@link NamedSubquery} (a named {@code LET} binding) is never mistaken for one. After view resolution, a
+ * {@link NamedSubquery} (a {@code LET} named subquery) is never mistaken for one. After view resolution, a
  * post-processing pass converts {@link UnionAll} nodes containing {@code ViewSubquery} children into {@link BranchPlan}.
  * <p>
  * This class should only be used during query re-writing and not survive analysis, so it needs no serialization of its

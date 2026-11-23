@@ -1594,8 +1594,9 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_FORK_NULL_FILL_DATE_NANOS,
 
         /**
-         * A FORK may follow a subquery, a view or a LET binding that itself contains a FORK. Each of them is its own FORK scope, so the
-         * two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still rejected while parsing.
+         * A FORK may follow a subquery, a view or a LET named subquery that itself contains a FORK. Each of them is its own FORK
+         * scope, so the two FORKs are not consecutive on one pipeline. Two FORKs the user wrote on the same pipeline are still
+         * rejected while parsing.
          */
         ALLOW_FORK_ACROSS_SUBQUERY_VIEW_LET_BOUNDARY,
 
@@ -3189,6 +3190,12 @@ public class EsqlCapabilities {
         EQL_COMMAND_LOOKUP_JOIN(Build.current().isSnapshot()),
 
         /**
+         * The EQL source command takes its number of matches only from {@code WITH {"size"}} (EQL's default of 10, with a warning when
+         * used) and {@code LIMIT} only trims rows. Snapshot-only, gated together with {@link #EQL_COMMAND}. Added in #165563.
+         */
+        EQL_COMMAND_SIZE_INDEPENDENT_OF_LIMIT(Build.current().isSnapshot()),
+
+        /**
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT,
@@ -4654,13 +4661,13 @@ public class EsqlCapabilities {
          * A {@code LET} clause binds a subquery plan to a name that can be referenced
          * in the main query as a relation or as an {@code IN} operand.
          */
-        NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET,
 
         /**
-         * {@code METADATA _class, _name} on a {@code LET} binding referenced in {@code FROM} answers {@code subquery} and the
-         * binding name, instead of {@code null} for both.
+         * {@code METADATA _class, _name} on a {@code LET} named subquery referenced in {@code FROM} answers {@code subquery} and the
+         * subquery name, instead of {@code null} for both.
          */
-        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME(Build.current().isSnapshot()),
+        NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
 
         /**
          * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
@@ -4944,6 +4951,11 @@ public class EsqlCapabilities {
         DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
+         */
+        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+
+        /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation
          * with a filter combined several aggregate functions, such as {@code max(...) - min(...) WHERE ...}.
          */
@@ -4975,16 +4987,17 @@ public class EsqlCapabilities {
         INTO_COMMAND(Build.current().isSnapshot()),
 
         /**
-         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
-         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
-         * for a request without the header. Before this, every query was counted as {@code rest}.
+         * {@code NESTED_EXPAND} turns one parent row into one row per object of a mapped nested field.
+         * Snapshot-only until the command is advertised.
          */
-        USAGE_QUERIES_BY_CLIENT,
+        NESTED_EXPAND(Build.current().isSnapshot()),
 
         /**
          * Streaming execution on {@code POST /_query/stream}: the response streams a columns line, one line
          * per row and a last line (with {@code complete} and {@code next_offset}) as NDJSON as rows are produced.
          * Replaces {@link #STREAMING}: streaming no longer runs on {@code POST /_query}.
+         * Also covers the body fields {@code max_rows} and {@code max_bytes}, which end the response early, and
+         * {@code store}, of which only {@code none} is accepted.
          * Snapshot-only while the streaming protocol is still changing.
          */
         STREAMING_V2(Build.current().isSnapshot()),
@@ -4996,6 +5009,24 @@ public class EsqlCapabilities {
          * of scoring, as it does for a single source.
          */
         FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
+
+        /**
+         * A filter with should clauses still requires one of them when other filters are pushed next to it.
+         */
+        FIX_DISJUNCTION_COMBINED_WITH_PUSHED_FILTER,
+
+        /**
+         * Makes {@code FIRST}, {@code LAST}, {@code EARLIEST} and {@code LATEST} in {@code TS} queries return a real sample of a
+         * time series, like outside of {@code TS}. {@code EARLIEST} returned the last value of the time series whose last sample
+         * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
+         */
+        FIX_TS_FIRST_LAST_SAMPLES,
+
+        /**
+         * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
+         * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
+         */
+        UNMAPPED_FIELDS_IN_REQUEST_BODY,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

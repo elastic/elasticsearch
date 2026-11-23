@@ -977,6 +977,29 @@ public class KeywordFieldMapperColumnarCompatibilityTests extends AbstractColumn
         );
     }
 
+    /** A null next to a real value is not a second value without a null_value, so a single-valued field accepts {@code ["a",null]}. */
+    public void testRealValueWithNullIsSingleValuedWithoutNullValue() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("multi_value", false).endObject()),
+            columnarSettings(),
+            batch("value and null", 1L, doc("d1", 1L, "{\"f\":[\"a\",null]}"), doc("d2", 2L, "{\"f\":[null,\"b\"]}"))
+        );
+        final var mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("multi_value", false).endObject())
+        );
+        mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",null]}", "{\"f\":[null,\"b\"]}");
+    }
+
+    /** With a null_value the null in {@code ["a",null]} is a real second value, so a single-valued field rejects it. */
+    public void testRealValueWithNullIsMultiValuedWithNullValue() throws IOException {
+        final var mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "keyword").field("multi_value", false).field("null_value", "NA").endObject())
+        );
+        expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":[\"a\",null]}"));
+    }
+
     /**
      * A nullability=false field whose array holds no non-null value has no value, so under on_failure=ignore the batch path records it in
      * _ignored as the row path does, and still writes the doc values any other array writes, null slots included. Both in-order layouts

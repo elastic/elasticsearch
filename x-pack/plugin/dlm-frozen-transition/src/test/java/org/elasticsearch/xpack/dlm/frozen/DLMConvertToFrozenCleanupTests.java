@@ -213,9 +213,6 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         String dataStreamName = "my-data-stream";
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
         String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
-        buildAndSetProjectState(null, indexName, cloneIndexName);
-        addFrozenIndexToDataStream(dataStreamName, frozenIndexName, mountedSnapshotSettings(randomFrom(indexName, cloneIndexName)));
-
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             index,
             projectId,
@@ -224,15 +221,22 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
             () -> licenseState,
             Clock.systemUTC()
         );
-        convert.maybeCleanup(cloneIndexName);
 
-        // Should NOT have issued a modify data streams request
-        assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
+        for (String mountedSourceIndex : List.of(indexName, cloneIndexName)) {
+            capturedDeleteRequests.clear();
+            buildAndSetProjectState(null, indexName, cloneIndexName);
+            addFrozenIndexToDataStream(dataStreamName, frozenIndexName, mountedSnapshotSettings(mountedSourceIndex));
 
-        // Should have issued two delete requests: clone and original
-        assertThat(capturedDeleteRequests.size(), is(2));
-        assertThat(capturedDeleteRequests.get(0).indices(), hasItemInArray(cloneIndexName));
-        assertThat(capturedDeleteRequests.get(1).indices(), hasItemInArray(indexName));
+            convert.maybeCleanup(cloneIndexName);
+
+            // Should NOT have issued a modify data streams request
+            assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
+
+            // Should have issued two delete requests: clone and original
+            assertThat(capturedDeleteRequests.size(), is(2));
+            assertThat(capturedDeleteRequests.get(0).indices(), hasItemInArray(cloneIndexName));
+            assertThat(capturedDeleteRequests.get(1).indices(), hasItemInArray(indexName));
+        }
     }
 
     /**

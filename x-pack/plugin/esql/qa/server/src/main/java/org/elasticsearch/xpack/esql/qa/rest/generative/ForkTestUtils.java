@@ -19,18 +19,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXEMPLARS
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INTO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_COMPLETION_RERANK_FUSE_HIGHLIGHT_MMR;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_FORK;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_ROW;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_STATS;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_VIEWS;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.PROMQL_COMMAND_V0;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.junit.Assume.assumeFalse;
@@ -60,21 +48,6 @@ public class ForkTestUtils {
             testCase.requiredCapabilities.contains(INTO_COMMAND.capabilityName())
         );
 
-        assumeFalse(
-            "LOAD_ALL fork wrapping of existing csv-specs is not covered yet",
-            testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_V2.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_STATS.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_FORK.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_COMPLETION_RERANK_FUSE_HIGHLIGHT_MMR.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_ROW.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_VIEWS.capabilityName())
-                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN.capabilityName())
-        );
         assumeFalse(
             "Tests using PROMQL are not supported for now",
             testCase.requiredCapabilities.contains(PROMQL_COMMAND_V0.capabilityName())

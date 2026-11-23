@@ -507,11 +507,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
   method: testCaseInsensitiveEquality {UNMAPPED_CONTAINER}
   issue: https://github.com/elastic/elasticsearch/issues/164863
-- class: org.elasticsearch.test.test.CircuitBreakerForMockArraysIT
-  tasks:
-  - :test:framework:integTest
-  method: testLeakingRecyclerBackedByteArrayIsDetected
-  issue: https://github.com/elastic/elasticsearch/issues/164889
 - class: org.elasticsearch.xpack.ml.qa.MlYamlRestIT
   tasks:
   - :x-pack:plugin:ml:qa:single-node-tests:yamlRestTest
@@ -641,11 +636,6 @@ tests:
   - :x-pack:plugin:downsample:internalClusterTest
   method: testConcurrentRequestsForDifferentTargets
   issue: https://github.com/elastic/elasticsearch/issues/165848
-- class: org.elasticsearch.xpack.esql.datasource.parquet.ParquetPreWarmReleaseTests
-  tasks:
-  - :x-pack:plugin:esql-datasource-parquet:test
-  method: testConcurrentCompressedTwoPhase
-  issue: https://github.com/elastic/elasticsearch/issues/165927
 - class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
   tasks:
   - :server:internalClusterTest
@@ -655,11 +645,6 @@ tests:
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/165944
-- class: org.elasticsearch.xpack.stateless.recovery.StatelessRecoveryMetricsIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRecoveryMetricPublicationOnIndexingShardRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/166001
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -850,3 +835,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testChargeIsHeldUntilTheDeletedQueryStops
   issue: https://github.com/elastic/elasticsearch/issues/167149
+- class: org.elasticsearch.xpack.ml.integration.EsqlDatafeedNodeChurnIT
+  tasks:
+  - :x-pack:plugin:ml:internalClusterTest
+  method: testNodeChurnDuringRealtimeShouldRecoverAndKeepDatafeedStarted
+  issue: https://github.com/elastic/elasticsearch/issues/166780

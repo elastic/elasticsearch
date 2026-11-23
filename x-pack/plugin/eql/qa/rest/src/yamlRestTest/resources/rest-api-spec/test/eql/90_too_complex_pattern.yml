@@ -14,6 +14,12 @@ setup:
         body:
           mappings:
             properties:
+              "@timestamp":
+                type: date
+              event:
+                properties:
+                  category:
+                    type: keyword
               process_name:
                 type: keyword
   - do:

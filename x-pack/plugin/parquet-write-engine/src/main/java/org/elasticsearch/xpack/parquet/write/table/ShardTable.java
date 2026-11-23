@@ -169,12 +169,19 @@ public final class ShardTable {
 
     /**
      * Makes sure that the table has every column of {@code schema}, and returns the id of each column by name. A column that the table
-     * lacks is added with the next id. Shards add columns concurrently, so a column that appears between the check and the update is
+     * lacks is added with the next id, after the table is read from the repository again, and nothing is read when the table object already
+     * has every column. Shards add columns concurrently, so a column that appears between the check and the update is
      * simply found at the next try.
      */
     public Map<String, Integer> ensureColumns(MessageType schema) {
+        // The table is read again only when a column is missing from what this table object knows. The id of a column never changes, so
+        // a column that is known stays right, and a flush asks for the same columns for every run: the refresh reads the metadata file
+        // from the repository, which took 42 seconds on the flush thread in a benchmark when one read was slow.
+        boolean refresh = false;
         for (int attempt = 0; attempt < 20; attempt++) {
-            table.refresh();
+            if (refresh) {
+                table.refresh();
+            }
             final Map<String, Types.NestedField> columns = new HashMap<>();
             for (Types.NestedField column : table.schema().columns()) {
                 columns.put(column.name(), column);
@@ -207,6 +214,10 @@ public final class ShardTable {
             }
             if (missing.isEmpty()) {
                 return wanted;
+            }
+            if (refresh == false) {
+                refresh = true; // another shard may have added the columns already: look at the table in the repository first
+                continue;
             }
             try {
                 final var update = table.updateSchema();

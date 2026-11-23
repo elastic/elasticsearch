@@ -18,8 +18,13 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.GraalVMThreadsFilter;
@@ -33,6 +38,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +48,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -121,6 +128,101 @@ public class ShardTableTests extends ESTestCase {
             new IndexInputFile(directory, merged.name())
         );
         table.append(file, merged.toSeqNo());
+    }
+
+    /** A store that counts the reads and the lists that reach it, for a test of what a call needs from the repository. */
+    private static final class CountingBlobStore implements BlobStore {
+        private final BlobStore delegate;
+        final AtomicInteger reads = new AtomicInteger();
+
+        CountingBlobStore(BlobStore delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public BlobContainer blobContainer(BlobPath path) {
+            return new CountingContainer(delegate.blobContainer(path), reads);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+    }
+
+    private static final class CountingContainer extends FilterBlobContainer {
+        private final AtomicInteger reads;
+
+        CountingContainer(BlobContainer delegate, AtomicInteger reads) {
+            super(delegate);
+            this.reads = reads;
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new CountingContainer(child, reads);
+        }
+
+        @Override
+        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+            reads.incrementAndGet();
+            return super.readBlob(purpose, blobName);
+        }
+
+        @Override
+        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+            reads.incrementAndGet();
+            return super.readBlob(purpose, blobName, position, length);
+        }
+
+        @Override
+        public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+            reads.incrementAndGet();
+            return super.listBlobs(purpose);
+        }
+
+        @Override
+        public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
+            reads.incrementAndGet();
+            return super.listBlobsByPrefix(purpose, blobNamePrefix);
+        }
+    }
+
+    /**
+     * A flush asks for the columns of its run once for every run, and they are the same almost every time. That must not read the table
+     * from the repository again (a slow read there stalled the flush thread for 42 seconds in a benchmark), but a column that the table
+     * object does not know must still be looked for in the repository first, because another shard may have added it, and then be added.
+     */
+    public void testEnsuringColumnsThatTheTableHasReadsNothingAndANewColumnReadsTheRepository() throws Exception {
+        final CountingBlobStore counting = new CountingBlobStore(store);
+        final ShardTable table = TestTables.open(counting, LOCATION, 0);
+        final MessageType schema = TestLocalFiles.schema(false);
+        final Map<String, Integer> ids = table.ensureColumns(schema);
+
+        counting.reads.set(0);
+        for (int i = 0; i < between(2, 10); i++) {
+            assertThat(table.ensureColumns(schema), equalTo(ids));
+        }
+        assertThat("no read for columns that the table has", counting.reads.get(), equalTo(0));
+
+        final Map<String, Integer> later = table.ensureColumns(TestLocalFiles.schema(true));
+
+        assertThat(later, equalTo(Map.of("count", 1, "@timestamp", 2, "host.name", 3, "extra", 4)));
+        assertThat("a column that is missing is looked for in the repository", counting.reads.get(), greaterThan(0));
+
+        // another shard added a column: this table object finds it in the repository, and does not add it again
+        final ShardTable other = TestTables.open(store, LOCATION, 1);
+        final MessageType withNew = org.apache.parquet.schema.Types.buildMessage()
+            .addField(
+                org.apache.parquet.schema.Types.optional(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64).named("count")
+            )
+            .addField(
+                org.apache.parquet.schema.Types.optional(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64).named("brand-new")
+            )
+            .named("doc");
+        final Map<String, Integer> added = other.ensureColumns(withNew);
+        assertThat(table.ensureColumns(withNew), equalTo(added));
+        assertThat(table.schema().columns().stream().filter(c -> c.name().equals("brand-new")).count(), equalTo(1L));
     }
 
     public void testColumnsGetStableIdsInTheOrderTheyAppear() throws Exception {

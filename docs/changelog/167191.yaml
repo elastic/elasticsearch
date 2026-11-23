@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 167191
+summary: Unregister exchange sink when its fetch is cancelled
+type: bug

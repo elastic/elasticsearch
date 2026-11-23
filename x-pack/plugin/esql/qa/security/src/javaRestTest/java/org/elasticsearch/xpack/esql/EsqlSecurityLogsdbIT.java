@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.List;
-
 /**
  * Reruns the entire {@link EsqlSecurityIT} field-level-security suite with the FLS indices in {@code logsdb} mode, proving that ESQL
  * FLS enforcement is identical whether {@code _source} is stored or reconstructed from doc values / {@code _ignored_source}.
@@ -51,12 +49,12 @@ public class EsqlSecurityLogsdbIT extends EsqlSecurityIT {
     }
 
     /**
-     * The granted text field reconstructs to null here (elastic/security#6714), so {@code FILLNULL ON *} fills it. The test still
-     * checks that {@code *} does not reach the denied field.
+     * The granted text field reconstructs to null here (elastic/security#6714), so {@code FILLNULL ON *} fills it, until that is fixed
+     * and it holds its own values again. The test accepts both, and still checks that {@code *} does not reach the denied field.
      */
     @Override
-    protected List<Object> partialValuesAfterFillNullAll() {
-        return List.of("redacted", "redacted");
+    protected boolean partialMayReadAsNull() {
+        return true;
     }
 
     // FLS drops the keyword synthetic-source delegate so a granted text field reconstructs to null

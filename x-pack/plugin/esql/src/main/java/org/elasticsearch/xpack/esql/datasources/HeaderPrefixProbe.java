@@ -40,12 +40,6 @@ final class HeaderPrefixProbe extends RangeStorageObject {
         return new EndTrackingStream(super.newStream());
     }
 
-    @Override
-    public void abortStream(InputStream stream) throws IOException {
-        // The delegate recognises only its own streams, so hand it the one this object wrapped.
-        super.abortStream(stream instanceof EndTrackingStream tracking ? tracking.wrapped : stream);
-    }
-
     private final class EndTrackingStream extends FilterInputStream {
         private final InputStream wrapped;
 

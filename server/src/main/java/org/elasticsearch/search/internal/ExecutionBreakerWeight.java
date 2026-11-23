@@ -15,7 +15,6 @@ import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.search.internal.ExecutionEstimators.ExecutionCharge;
 
 import java.io.IOException;
 
@@ -25,7 +24,7 @@ import java.io.IOException;
  * {@link LeafExecutionScope} that built it, or by {@link ContextIndexSearcher#searchLeaf} when there is none. A leaf the
  * estimator sizes at {@code 0} is not charged. Charges go through
  * {@link ContextIndexSearcher#chargeLeaf} rather than a cached accounting reference, so this survives a
- * {@link ContextIndexSearcher#setCircuitBreaker} swap. See {@link ExecutionEstimators} for the queries that are charged.
+ * {@link ContextIndexSearcher#setCircuitBreaker} swap. See {@link ExecutionCharge#forQuery} for the queries that are charged.
  */
 final class ExecutionBreakerWeight extends FilterWeight {
 
@@ -40,32 +39,32 @@ final class ExecutionBreakerWeight extends FilterWeight {
 
     @Override
     public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-        final ScorerSupplier inner = in.scorerSupplier(context);
-        if (inner == null) {
+        final ScorerSupplier scorerSupplier = in.scorerSupplier(context);
+        if (scorerSupplier == null) {
             return null;
         }
 
         return new ScorerSupplier() {
             @Override
             public Scorer get(long leadCost) throws IOException {
-                chargeLeaf(context, inner, leadCost);
-                return inner.get(leadCost);
+                chargeLeaf(context, scorerSupplier, leadCost);
+                return scorerSupplier.get(leadCost);
             }
 
             @Override
             public BulkScorer bulkScorer() throws IOException {
-                chargeLeaf(context, inner, Long.MAX_VALUE);
-                return inner.bulkScorer();
+                chargeLeaf(context, scorerSupplier, Long.MAX_VALUE);
+                return scorerSupplier.bulkScorer();
             }
 
             @Override
             public long cost() {
-                return inner.cost();
+                return scorerSupplier.cost();
             }
 
             @Override
             public void setTopLevelScoringClause() throws IOException {
-                inner.setTopLevelScoringClause();
+                scorerSupplier.setTopLevelScoringClause();
             }
         };
     }

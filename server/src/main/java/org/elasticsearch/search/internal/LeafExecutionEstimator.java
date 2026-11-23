@@ -24,9 +24,9 @@ interface LeafExecutionEstimator {
 
     /**
      * @param ctx      the leaf about to be scored
-     * @param inner    the query's own scorer supplier for {@code ctx}, whose {@link ScorerSupplier#cost()} may be read
+     * @param scorer    the query's own scorer supplier for {@code ctx}, whose {@link ScorerSupplier#cost()} may be read
      * @param leadCost the lead cost the scorer is built with, {@link Long#MAX_VALUE} for bulk scoring
      * @return the bytes to charge for {@code ctx}, {@code 0} if the scorer allocates nothing worth charging
      */
-    long bytesForLeaf(LeafReaderContext ctx, ScorerSupplier inner, long leadCost) throws IOException;
+    long bytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException;
 }

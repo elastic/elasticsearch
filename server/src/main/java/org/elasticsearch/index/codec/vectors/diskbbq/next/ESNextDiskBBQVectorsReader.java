@@ -43,6 +43,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.SlicedBlockRange;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.search.vectors.QueryTransformCache;
 import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -634,7 +635,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             fieldInfo,
             values,
             entry.postingListSlice(ivfClusters.clone()),
-            new QueryTarget.FloatQuery(query),
+            new QueryTarget.FloatQuery(query, QueryTransformCache.NONE),
             null,
             entry.centroidSlice(ivfCentroids.clone()),
             acceptDocs

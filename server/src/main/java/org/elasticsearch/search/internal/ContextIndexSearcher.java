@@ -381,7 +381,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (executionAccounting.breaker() == null) {
             return weight;
         }
-        final ExecutionCharge charge = ExecutionEstimators.forQuery(query);
+        final ExecutionCharge charge = ExecutionCharge.forQuery(query);
         if (charge == null) {
             return weight;
         }

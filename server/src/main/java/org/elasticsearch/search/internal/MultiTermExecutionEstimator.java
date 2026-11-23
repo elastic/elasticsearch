@@ -46,8 +46,8 @@ final class MultiTermExecutionEstimator implements LeafExecutionEstimator {
     }
 
     @Override
-    public long bytesForLeaf(LeafReaderContext ctx, ScorerSupplier inner, long leadCost) throws IOException {
-        return skipsDocIdSet(ctx) ? 0L : TermsQueryCostEstimator.executionBytesForLeaf(inner.cost(), ctx.reader().maxDoc());
+    public long bytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException {
+        return skipsDocIdSet(ctx) ? 0L : TermsQueryCostEstimator.executionBytesForLeaf(scorer.cost(), ctx.reader().maxDoc());
     }
 
     private boolean skipsDocIdSet(LeafReaderContext context) throws IOException {

@@ -34,13 +34,13 @@ final class PointRangeExecutionEstimator implements LeafExecutionEstimator {
     }
 
     @Override
-    public long bytesForLeaf(LeafReaderContext ctx, ScorerSupplier inner, long leadCost) throws IOException {
+    public long bytesForLeaf(LeafReaderContext ctx, ScorerSupplier scorer, long leadCost) throws IOException {
         final PointValues values = ctx.reader().getPointValues(pointRangeQuery.getField());
         if (values == null) {
             return 0L;
         }
         return PointRangeQueryCostEstimator.executionBytesForLeaf(
-            inner.cost(),
+            scorer.cost(),
             ctx.reader().maxDoc(),
             values.size() == values.getDocCount(),
             coversAllValues(values),

@@ -574,6 +574,10 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndexName;
         String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndexName;
 
+        DLMFrozenCleanupService cleanupService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenCleanupService.class);
+        // The scheduled pass would otherwise race the manual passes below; its initial delay is not configurable
+        cleanupService.stopThreadPools();
+
         CountDownLatch latch = registerDisruptionInterceptor("cluster:admin/snapshot/mount", () -> {
             ModifyDataStreamsAction.Request request = new ModifyDataStreamsAction.Request(
                 TEST_REQUEST_TIMEOUT,
@@ -602,7 +606,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertThat("The mounted index must exist before the orphan cleanup", projectMetadata.index(frozenIndexName), notNullValue());
         assertThat("The snapshot must exist before the orphan cleanup", dlmSnapshotNames(), equalTo(expectedSnapshotNames));
 
-        DLMFrozenCleanupService cleanupService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenCleanupService.class);
         cleanupService.checkForOrphanedResources();
         projectMetadata = getProjectMetadata();
         assertThat("The orphaned clone should be cleaned up", projectMetadata.index(cloneIndexName), nullValue());

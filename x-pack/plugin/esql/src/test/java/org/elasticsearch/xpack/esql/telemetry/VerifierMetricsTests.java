@@ -419,7 +419,6 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testLet() {
-        assumeTrue("requires NAMED_SUBQUERY_LET capability", EsqlCapabilities.Cap.NAMED_SUBQUERY_LET.isEnabled());
         Counters c = esql("""
             LET top = (from employees | sort salary DESC | limit 3);
             LET bottom = (from employees | sort salary ASC | limit 3);
@@ -468,7 +467,7 @@ public class VerifierMetricsTests extends ESTestCase {
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         // Mirror EsqlSession: LET and IN_SUBQUERY are not visible to the analyzer/verifier plan walk, so each is incremented
-        // once per query from the parsed statement. LET is counted when the statement has bindings, before LetResolver
+        // once per query from the parsed statement. LET is counted when the statement has named subqueries, before LetResolver
         // substitutes them into the plan. IN_SUBQUERY is counted on the LET-resolved plan, before InSubquery is resolved into
         // SemiJoin/AntiJoin/MarkJoin. Then analyze.
         // WHERE is counted by the analyzer/verifier plan walk via FeatureMetric.WHERE matching Filter/SemiJoin/AntiJoin in the

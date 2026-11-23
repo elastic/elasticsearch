@@ -159,16 +159,8 @@ public final class ConstantBytesRefVector extends AbstractVector implements Byte
      * fields from {@code _source}.
      */
     public static long ramBytesEstimated(BytesRef value, long overestimateThreshold, double overestimateFactor) {
-        return ramBytesEstimated(value.length, overestimateThreshold, overestimateFactor);
-    }
-
-    /**
-     * Estimates the RAM usage of a vector holding a value of {@code length} bytes, the same way as
-     * {@link #ramBytesEstimated(BytesRef, long, double)}. For reserving memory before the value is copied.
-     */
-    public static long ramBytesEstimated(int length, long overestimateThreshold, double overestimateFactor) {
-        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + length);
-        if (length > overestimateThreshold) {
+        long valueBytes = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
+        if (value.length > overestimateThreshold) {
             valueBytes = Math.round(valueBytes * overestimateFactor);
         }
         return BASE_RAM_BYTES_USED + valueBytes;

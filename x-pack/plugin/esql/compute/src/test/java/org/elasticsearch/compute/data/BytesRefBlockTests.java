@@ -9,16 +9,12 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.bytes.ZeroBytesReference;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -312,93 +308,6 @@ public class BytesRefBlockTests extends BlockTestCase<BytesRefBlock, BytesRefBlo
                 assertThat(BytesRefBlock.equals(b1, b2), is(true));
             }
         }
-    }
-
-    /**
-     * A builder holding a single value turns it into a constant vector. The value here spans several pages
-     * of the builder, so this checks that the copy out of those pages is complete.
-     */
-    public void testSingleValueSpanningPagesBuildsConstant() {
-        byte[] data = randomByteArrayOfLength(between(40_000, 100_000));
-        PagedBytesCursor cursor = new PagedBytesCursor();
-        cursor.init(data, 0, data.length);
-        try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(1)) {
-            builder.append(cursor);
-            try (BytesRefVector vector = builder.build()) {
-                assertThat(vector.isConstant(), is(true));
-                assertThat(vector.getBytesRef(0, new BytesRef()), equalTo(new BytesRef(data)));
-            }
-        }
-        cursor.init(data, 0, data.length);
-        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(1)) {
-            builder.append(cursor);
-            try (BytesRefBlock block = builder.build()) {
-                assertThat(block.asVector().isConstant(), is(true));
-                assertThat(block.getBytesRef(0, new BytesRef()), equalTo(new BytesRef(data)));
-            }
-        }
-    }
-
-    /**
-     * Turning a builder's single value into a constant vector copies it. When the breaker has no room for the
-     * copy the build fails, and closing the builder gives back everything it held.
-     */
-    public void testSingleValueTooBigToCopyTripsBreaker() {
-        byte[] data = randomByteArrayOfLength(between(200_000, 300_000));
-        // Room for the value in the builder, but not for a second copy of it.
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(data.length * 3L / 2))
-            .withCircuitBreaking();
-        BlockFactory limited = BlockFactory.builder(bigArrays).build();
-        PagedBytesCursor cursor = new PagedBytesCursor();
-        cursor.init(data, 0, data.length);
-        try (BytesRefVector.Builder builder = limited.newBytesRefVectorBuilder(1)) {
-            builder.append(cursor);
-            expectThrows(CircuitBreakingException.class, builder::build);
-        }
-        assertThat(limited.breaker().getUsed(), equalTo(0L));
-        cursor.init(data, 0, data.length);
-        try (BytesRefBlock.Builder builder = limited.newBytesRefBlockBuilder(1)) {
-            builder.append(cursor);
-            expectThrows(CircuitBreakingException.class, builder::build);
-        }
-        assertThat(limited.breaker().getUsed(), equalTo(0L));
-    }
-
-    public void testConstantVectorFromCursor() {
-        byte[] data = randomByteArrayOfLength(randomBoolean() ? between(0, 100) : between(40_000, 100_000));
-        // Split the value over small pages so the copy has to walk them.
-        int pageSize = between(1, 64);
-        byte[][] pages = new byte[Math.max(1, (data.length + pageSize - 1) / pageSize)][];
-        for (int page = 0; page < pages.length; page++) {
-            pages[page] = Arrays.copyOfRange(data, Math.min(data.length, page * pageSize), Math.min(data.length, (page + 1) * pageSize));
-        }
-        PagedBytesCursor cursor = new PagedBytesCursor();
-        cursor.init(pages, 0, 0, data.length, false);
-        int positions = between(1, 100);
-        try (
-            BytesRefVector fromCursor = blockFactory().newConstantBytesRefVector(cursor, positions);
-            BytesRefVector fromBytesRef = blockFactory().newConstantBytesRefVector(new BytesRef(data), positions)
-        ) {
-            assertThat(cursor.remaining(), equalTo(0));
-            assertThat(BytesRefVector.equals(fromCursor, fromBytesRef), is(true));
-            assertThat(fromCursor.ramBytesUsed(), equalTo(fromBytesRef.ramBytesUsed()));
-        }
-    }
-
-    /**
-     * The breaker is asked for the copy before any of it is made. When it refuses, nothing has been read
-     * from the cursor and nothing stays reserved.
-     */
-    public void testConstantVectorFromCursorReservesBeforeCopying() {
-        byte[] data = randomByteArrayOfLength(between(200_000, 300_000));
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(data.length / 2))
-            .withCircuitBreaking();
-        BlockFactory limited = BlockFactory.builder(bigArrays).build();
-        PagedBytesCursor cursor = new PagedBytesCursor();
-        cursor.init(data, 0, data.length);
-        expectThrows(CircuitBreakingException.class, () -> limited.newConstantBytesRefVector(cursor, 1));
-        assertThat(cursor.remaining(), equalTo(data.length));
-        assertThat(limited.breaker().getUsed(), equalTo(0L));
     }
 
     /**

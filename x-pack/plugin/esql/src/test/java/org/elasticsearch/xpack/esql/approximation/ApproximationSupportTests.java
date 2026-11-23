@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.NestedExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PackDims;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -109,6 +110,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesReduction;
@@ -205,6 +207,9 @@ public class ApproximationSupportTests extends ESTestCase {
         Fuse.class,
         FuseScoreEval.class,
 
+        // NESTED_EXPAND is snapshot-only and its expanded columns have no confidence-interval buckets yet.
+        NestedExpand.class,
+
         // These source commands makes no sense for approximation.
         Explain.class,
         ShowInfo.class,
@@ -245,6 +250,7 @@ public class ApproximationSupportTests extends ESTestCase {
         ResolvingProject.class,
         SemiJoin.class,
         SparklineGenerateEmptyBuckets.class,
+        SubqueryJoin.class,
 
         // internals
         Fetch.class,

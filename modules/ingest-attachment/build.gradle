@@ -8,6 +8,7 @@
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-heap-pressure-test'
 
 esplugin {
   description = 'Ingest processor that uses Apache Tika to extract contents'
@@ -54,6 +55,9 @@ configurations.testCompileClasspath {
 
 dependencies {
   clusterModules project(':modules:ingest-common')
+
+  heapPressureTestImplementation project(':test:framework')
+  heapPressureTestImplementation project(':test:test-clusters')
 
   // take over logging for all dependencies
   api "org.slf4j:slf4j-api:${versions.slf4}"

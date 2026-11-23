@@ -132,25 +132,35 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return new Sample(indices.kept(), indices.kept().size() + indices.dropped());
     }
 
-    private Map<String, Set<String>> lazyTypesToIndices;
-    private Map<String, Set<String>> lazyUnsupportedTypesToIndices;
+    private volatile Map<String, Set<String>> lazyTypesToIndices;
+    private volatile Map<String, Set<String>> lazyUnsupportedTypesToIndices;
 
     @Override
     public Map<String, Set<String>> getTypesToIndices() {
-        if (lazyTypesToIndices == null) {
-            lazyTypesToIndices = new TreeMap<>();
-            typesToIndices.forEach((type, indices) -> lazyTypesToIndices.put(type.typeName(), withSentinel(indices)));
+        Map<String, Set<String>> result = lazyTypesToIndices;
+        if (result == null) {
+            // Fill a local and publish it once: this field is shared by every thread that holds the plan.
+            result = new TreeMap<>();
+            for (Map.Entry<DataType, TruncatedIndices> entry : typesToIndices.entrySet()) {
+                result.put(entry.getKey().typeName(), withSentinel(entry.getValue()));
+            }
+            lazyTypesToIndices = result;
         }
-        return lazyTypesToIndices;
+        return result;
     }
 
     @Override
     public Map<String, Set<String>> getUnsupportedTypesToIndices() {
-        if (lazyUnsupportedTypesToIndices == null) {
-            lazyUnsupportedTypesToIndices = new TreeMap<>();
-            unsupportedTypesToIndices.forEach((type, indices) -> lazyUnsupportedTypesToIndices.put(type, withSentinel(indices)));
+        Map<String, Set<String>> result = lazyUnsupportedTypesToIndices;
+        if (result == null) {
+            // Fill a local and publish it once, like getTypesToIndices.
+            result = new TreeMap<>();
+            for (Map.Entry<String, TruncatedIndices> entry : unsupportedTypesToIndices.entrySet()) {
+                result.put(entry.getKey(), withSentinel(entry.getValue()));
+            }
+            lazyUnsupportedTypesToIndices = result;
         }
-        return lazyUnsupportedTypesToIndices;
+        return result;
     }
 
     private static Set<String> withSentinel(TruncatedIndices indices) {

@@ -2131,7 +2131,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader declared = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true);
         Exception binding = expectThrows(
-            IllegalArgumentException.class,
+            ExternalClientException.class,
             () -> declared.read(
                 createStorageObject(blob + ",ts," + blob + "\n1,2,3\n"),
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
@@ -6657,7 +6657,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      * kept windows: a header field may be as large as {@code max_field_size} allows, and escaping all of it to
      * show 256 characters spends six characters on every one. {@code checkUniqueAttributeNames} calls it on the
      * list it assembles rather than on each name, which is what
-     * {@link #testADuplicateListIsCutOnTheNamesTheHeaderSpelled} pins.
+     * {@link #testADuplicateListIsCutOnTheUnescapedNames} pins.
      */
     public void testAColumnNameCannotForgeTheRefusalClause() {
         String forgesInferenceDuplicate = "a'] has duplicate column names ['b";
@@ -6674,8 +6674,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader binding = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true);
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
-        IllegalArgumentException bound = expectThrows(
-            IllegalArgumentException.class,
+        ExternalClientException bound = expectThrows(
+            ExternalClientException.class,
             () -> binding.read(
                 createStorageObject(forgesBindDuplicate + ",ts," + forgesBindDuplicate + "\n1,2,3\n", "forge-bind.csv"),
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
@@ -6713,12 +6713,13 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     /**
      * The duplicate set is as wide as half the header, so the list the refusal renders is user-sized while the
-     * message is not. The cut is taken on the names as the header spells them and only the kept windows are
-     * escaped, which this pins through a header whose every name carries two brackets: escaping first would
-     * report a width six times the one the file has, and would spend a formatter call on each of those brackets
-     * to show 256 characters of them.
+     * message is not. The cut is taken on the unescaped list and only the two kept windows are escaped, which
+     * this pins through a header whose every name carries two brackets: escaping first would report a width six
+     * times the list's, and would spend a formatter call on each of those brackets to show 256 characters of
+     * them. The width the marker reports is the list's -- the names plus this message's four-character separator
+     * per gap -- so the figure below is built the way the code builds the list, not the way the header spells it.
      */
-    public void testADuplicateListIsCutOnTheNamesTheHeaderSpelled() {
+    public void testADuplicateListIsCutOnTheUnescapedNames() {
         List<String> names = new ArrayList<>();
         for (int i = 0; i < 200; i++) {
             names.add("[" + i + "]");
@@ -6731,8 +6732,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
 
         // LinkedHashSet order, so the list is the names in the order their second occurrence appeared.
-        int spelledWidth = String.join("', '", names).length();
-        assertThat(ex.getMessage(), containsString("(truncated, " + spelledWidth + " chars total)"));
+        int listWidth = String.join("', '", names).length();
+        assertThat(ex.getMessage(), containsString("(truncated, " + listWidth + " chars total)"));
         assertThat("the kept windows must be escaped", ex.getMessage(), containsString("\\u005B"));
 
         String rendered = ex.getMessage()
@@ -8978,7 +8979,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true);
         Exception e = expectThrows(
-            IllegalArgumentException.class,
+            ExternalClientException.class,
             () -> reader.read(
                 object,
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()

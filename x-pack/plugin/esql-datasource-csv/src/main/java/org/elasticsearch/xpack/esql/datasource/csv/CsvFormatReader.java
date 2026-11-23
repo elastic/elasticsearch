@@ -1368,18 +1368,31 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * A duplicate header name makes by-name binding ambiguous — a schema column could resolve to either file column.
      * The inference path rejects duplicate header names, so binding does too, rather than silently binding the first.
      * This is a genuine error (a malformed file), not the absent-column null-fill case.
+     * <p>
+     * Typed for the same reason {@link #checkUniqueAttributeNames} is, and the object clause is what makes the type
+     * load-bearing: {@code ExternalFailures.forwardableDetail} withholds an untyped message whole when
+     * {@code containsStoragePath} matches anywhere in it, and a user may call a file {@code logs.amazonaws.com.csv}.
+     * Untyped, this refusal loses its remedy for exactly the objects whose name the clause carries. Typed, it stands
+     * inside {@code classify}'s assertion on the same terms as the schema-path refusals.
      */
     private void rejectDuplicateHeaderNames(String[] headerNames, StorageObject object) {
         Set<String> seen = new HashSet<>(headerNames.length);
         for (String name : headerNames) {
             if (seen.add(name) == false) {
-                throw new IllegalArgumentException(
+                ExternalClientException bindEx = new ExternalClientException(
+                    ExternalException.Condition.MALFORMED_DATA,
+                    StoragePath.NONE,
+                    "",
+                    ""
+                );
+                bindEx.setDetail(
                     "the header"
                         + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
                         + " has duplicate column name ["
                         + ErrorExcerpts.summarizeEscaped(name)
                         + "]; columns cannot bind by name"
                 );
+                throw bindEx;
             }
         }
     }
@@ -1988,9 +2001,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * <p>
      * The cap and the escape are taken once on the assembled list, by {@link ErrorExcerpts#summarizeEscaped}:
      * the duplicate set is as wide as half the header, so escaping each name first spends six characters and one
-     * formatter call on every bracket or control character in a header to show 256 of them. Taken on the list,
-     * the marker counts the names as the header spells them, which is the one width a reader of this refusal has
-     * to go on.
+     * formatter call on every bracket or control character in a header to show 256 of them. The width the marker
+     * reports is the list's own -- the duplicate names, plus the four characters this message spends between each
+     * pair of them -- and not the header's spelling of the same names, which separates with one.
      */
     private static void checkUniqueAttributeNames(List<Attribute> attributes, String format, String sourceLocation) {
         Set<String> seen = new HashSet<>(attributes.size());
@@ -2008,6 +2021,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // than collapsing to nothing. The quotes and separators are part of the joined text and the brackets
             // go on after the cap, because the escape rewrites [ and ] and would spell this message's own
             // delimiters \u005B and \u005D. Only the names pass through it.
+            // The escape does not cover the quote, so a column name holding the separator itself renders as two
+            // entries. A name may hold anything, and spending an escape on the quote would buy a reader less
+            // than the brackets do, which are what carries the structure of the sentence around this list.
             StringJoiner rendered = new StringJoiner("', '");
             for (String dup : duplicates) {
                 rendered.add(dup);

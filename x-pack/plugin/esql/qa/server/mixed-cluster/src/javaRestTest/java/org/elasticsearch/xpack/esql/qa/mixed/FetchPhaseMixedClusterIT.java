@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -49,6 +50,10 @@ import static org.hamcrest.Matchers.not;
  * <p>
  * The cluster accepts the setting only through a master that knows it, one with the fetch phase. The tests of the setting
  * move the master where they need it with voting exclusions.
+ * <p>
+ * The serverless upgrade tests run this class against a stateless cluster, with their own task that a Gradle filter here
+ * doesn't reach, so it skips itself there. In a stateless cluster an index without replicas has no search shard, and
+ * voting exclusions don't exist.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class FetchPhaseMixedClusterIT extends ESRestTestCase {
@@ -87,6 +92,8 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
 
     @Before
     public void createIndexOnce() throws IOException {
+        // first, so a stateless cluster doesn't get an index it can't search
+        assumeFalse("the cluster is stateless", isStateless());
         if (indexExists(INDEX)) {
             return;
         }
@@ -357,5 +364,20 @@ public class FetchPhaseMixedClusterIT extends ESRestTestCase {
 
     private static boolean isOlder(String nodeVersion) {
         return Version.fromString(nodeVersion.replace("-SNAPSHOT", "")).before(Version.CURRENT);
+    }
+
+    /**
+     * Whether the cluster is stateless: some node has the role of indexing or searching shards.
+     */
+    private static boolean isStateless() throws IOException {
+        ObjectPath info = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/_nodes")));
+        Map<String, Object> nodes = info.evaluate("nodes");
+        for (String id : nodes.keySet()) {
+            List<String> roles = info.evaluate("nodes." + id + ".roles");
+            if (roles.contains(DiscoveryNodeRole.INDEX_ROLE.roleName()) || roles.contains(DiscoveryNodeRole.SEARCH_ROLE.roleName())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -1,0 +1,107 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.heap_attack;
+
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
+import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.test.ListMatcher;
+
+import java.io.IOException;
+import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+
+/**
+ * Heap-attack tests that fetch or aggregate big text, multi-valued and histogram fields.
+ */
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
+public class HeapAttackFieldsIT extends HeapAttackTestCase {
+
+    public void testFetchManyBigFields() throws IOException {
+        initManyBigFieldsIndex(100, "keyword");
+        Map<?, ?> response = fetchManyBigFields(100);
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < 1000; f++) {
+            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
+        }
+        assertMap(response, matchesMap().entry("columns", columns));
+    }
+
+    public void testFetchTooManyBigFields() throws IOException {
+        initManyBigFieldsIndex(500, "keyword");
+        // 500 docs is plenty to circuit break on most nodes
+        assertCircuitBreaks(attempt -> fetchManyBigFields(attempt * 500));
+    }
+
+    public void testAggManyBigTextFields() throws IOException {
+        int docs = 100;
+        int fields = 100;
+        initManyBigFieldsIndex(docs, "text");
+        Map<?, ?> response = aggManyBigFields(fields);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
+        assertMap(
+            response,
+            matchesMap().entry("columns", columns).entry("values", matchesList().item(matchesList().item(1024 * fields * docs)))
+        );
+    }
+
+    /**
+     * Aggregates on the {@code LENGTH} of a giant text field. Without
+     * splitting pages on load (#131053) this throws a {@link CircuitBreakingException}
+     * when it tries to load a giant field. With that change it finishes
+     * after loading many single-row pages.
+     */
+    public void testAggGiantTextField() throws IOException {
+        int docs = 100;
+        initGiantTextField(docs, false, 5);
+        Map<?, ?> response = aggGiantTextField();
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "sum").entry("type", "long"));
+        assertMap(
+            response,
+            matchesMap().entry("columns", columns).entry("values", matchesList().item(matchesList().item(1024 * 1024 * 5 * docs)))
+        );
+    }
+
+    public void testAggMvLongs() throws IOException {
+        int fieldValues = 100;
+        initMvLongsIndex(1, 3, fieldValues, false);
+        Map<?, ?> response = aggMvLongs(3);
+        ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(f00)").entry("type", "long"))
+            .item(matchesMap().entry("name", "f00").entry("type", "long"))
+            .item(matchesMap().entry("name", "f01").entry("type", "long"))
+            .item(matchesMap().entry("name", "f02").entry("type", "long"));
+        assertMap(response, matchesMap().entry("columns", columns));
+    }
+
+    public void testAggTooManyMvLongs() throws IOException {
+        initMvLongsIndex(1, 3, 1000, false);
+        // 3 fields is plenty on most nodes
+        assertCircuitBreaks(attempt -> aggMvLongs(attempt * 3));
+    }
+
+    public void testFetchMvLongs() throws IOException {
+        int fields = 100;
+        initMvLongsIndex(100, fields, 1000, false);
+        Map<?, ?> response = fetchMvLongs();
+        ListMatcher columns = matchesList();
+        for (int f = 0; f < fields; f++) {
+            columns = columns.item(matchesMap().entry("name", String.format(Locale.ROOT, "f%02d", f)).entry("type", "long"));
+        }
+        assertMap(response, matchesMap().entry("columns", columns));
+    }
+
+    public void testFetchTooManyMvLongs() throws IOException {
+        initMvLongsIndex(500, 100, 1000, false);
+        assertCircuitBreaks(attempt -> fetchMvLongs());
+    }
+}

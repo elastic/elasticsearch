@@ -1,0 +1,94 @@
+[[release-notes-8.19.26]]
+== {es} version 8.19.26
+
+coming[8.19.26]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[IMPORTANT]
+====
+This release contains security fixes.
+Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
+
+[[bug-8.19.26]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Keep the index sort's missing value when rounding composite sources {es-pull}165495[#165495] (issue: {es-issue}165493[#165493])
+
+Authorization::
+* Fix built-in roles synchronizer spinning forever on duplicate sync completion {es-pull}165643[#165643]
+* Share in-flight application privilege loads {es-pull}164884[#164884]
+
+CCR::
+* Retry CCR if remote unavailable {es-pull}165885[#165885]
+
+CCS::
+* Preserve requested pagination in interim async cross-cluster search responses {es-pull}163290[#163290] (issue: {es-issue}160954[#160954])
+
+ES|QL::
+* Fail cancelled queries instead of returning partial results {es-pull}163047[#163047] (issue: {es-issue}162919[#162919])
+* Fix `StringIndexOutOfBoundsException` in EsqlCCSUtils {es-pull}164790[#164790]
+* Fix unfolded null errors on functions {es-pull}162700[#162700] (issue: {es-issue}162639[#162639])
+* Publish lazily computed plan fields safely {es-pull}166189[#166189]
+* Truncate invalid input in ES|QL TO_IP warnings {es-pull}163347[#163347] (issue: {es-issue}163299[#163299])
+
+Geo::
+* Fix handling degenerated polygons in vector tiles {es-pull}164949[#164949] (issue: {es-issue}164908[#164908])
+
+Infra/Core::
+* Fix race when reading reindex data stream status {es-pull}164604[#164604] (issue: {es-issue}164473[#164473])
+
+Infra/Scripting::
+* Turn off ASM compute limits in Painless {es-pull}166227[#166227]
+
+Logs::
+* Fix(logsdb): map `host.name` in pre-8.18 mixed clusters {es-pull}165168[#165168] (issue: {es-issue}164178[#164178])
+* [8.19] Fixed a bug where FLS did not always filter companion fields correctly {es-pull}165476[#165476]
+
+Machine Learning::
+* Drop permanently rejected results documents from the anomaly detection persister queue {es-pull}164627[#164627] (issue: {es-issue}164625[#164625])
+* Fix NPE in transform stats without a node {es-pull}165935[#165935]
+* Fix get filters/data frame analytics/transforms completing the listener multiple times on a corrupt document {es-pull}164883[#164883]
+
+Mapping::
+* Reject index sort fields without an `IndexSorter` {es-pull}165267[#165267] (issue: {es-issue}165265[#165265])
+
+SLM::
+* Fix threading in SLM create-snapshot failure handling {es-pull}165528[#165528]
+
+Search::
+* Fix hang on truncated compressed input {es-pull}165840[#165840]
+* Fix source filtering for fields containing backslashes {es-pull}156238[#156238] (issue: {es-issue}136302[#136302])
+* Return 400 for `significant_terms` on floating point values {es-pull}165610[#165610]
+
+Searchable Snapshots::
+* Forbid changing searchable snapshot identity on restore {es-pull}164229[#164229]
+
+Snapshot/Restore::
+* Handle exception from `cloneShardSnapshot` {es-pull}164933[#164933]
+
+Transform::
+* Fix GET _transform never completing when size is 0, and honour timeout and cancellation in its dangling task check {es-pull}164829[#164829] (issue: {es-issue}164850[#164850])
+* Treat `SecurityExceptions` like `IndexNotFound` {es-pull}165350[#165350]
+
+[[enhancement-8.19.26]]
+[float]
+=== Enhancements
+
+Snapshot/Restore::
+* Add S3 client setting to omit request body checksums, overriding the `AWS_REQUEST_CHECKSUM_CALCULATION` environment variable and the `aws.requestChecksumCalculation` system property. {es-pull}164634[#164634]
+
+[[upgrade-8.19.26]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Bump bundled JDK to 27.0.1.1 {es-pull}166388[#166388]
+
+Security::
+* Upgrade commons-lang3 to 3.20.0 {es-pull}165875[#165875]
+
+

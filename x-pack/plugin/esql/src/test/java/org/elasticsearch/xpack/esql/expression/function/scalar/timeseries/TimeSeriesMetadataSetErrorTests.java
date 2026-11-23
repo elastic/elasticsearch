@@ -31,7 +31,7 @@ public class TimeSeriesMetadataSetErrorTests extends ErrorsForCasesWithoutExampl
 
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        // A null label container is the empty one and a null value removes the label; the label rules have their own test.
+        // A null metadata is the empty one and a null value removes the key; the key rules have their own test.
         // A text value is a string as valid as a keyword one, which the cases do not repeat.
         return super.testCandidates(cases, valid).filter(
             types -> types.get(0) != DataType.NULL

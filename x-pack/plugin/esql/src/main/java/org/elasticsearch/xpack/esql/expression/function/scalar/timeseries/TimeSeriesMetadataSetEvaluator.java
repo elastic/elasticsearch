@@ -24,27 +24,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Evaluates {@link TimeSeriesMetadataSet}: the label container with every field but the label copied, and the label written with
+ * Evaluates {@link TimeSeriesMetadataSet}: the metadata with every field but the key copied, and the key written with
  * the value at its path, at its sorted position in every object on the way; no value removes it.
  */
 final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFunction.AbstractEvaluator {
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TimeSeriesMetadataSetEvaluator.class);
 
-    private final ExpressionEvaluator labelContainer;
-    private final String label;
+    private final ExpressionEvaluator metadata;
+    private final String key;
     private final List<String> path;
     private final ExpressionEvaluator value;
 
     TimeSeriesMetadataSetEvaluator(
         DriverContext driverContext,
-        ExpressionEvaluator labelContainer,
-        String label,
+        ExpressionEvaluator metadata,
+        String key,
         List<String> path,
         ExpressionEvaluator value
     ) {
-        super(driverContext, labelContainer, value);
-        this.labelContainer = labelContainer;
-        this.label = label;
+        super(driverContext, metadata, value);
+        this.metadata = metadata;
+        this.key = key;
         this.path = path;
         this.value = value;
     }
@@ -61,7 +61,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
         scratch.clear();
         try (XContentBuilder builder = jsonBuilder(scratch)) {
             builder.startObject();
-            LabelWriter writer = new LabelWriter(builder);
+            MetadataWriter writer = new MetadataWriter(builder);
             if (container != null) {
                 try (XContentParser parser = parser(container)) {
                     copy(parser, "", 0, writer, values);
@@ -76,10 +76,10 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
     }
 
     /**
-     * Copies the object {@code parser} is in, at {@code prefix}, leaving the label out wherever a field holds it and writing it
+     * Copies the object {@code parser} is in, at {@code prefix}, leaving the key out wherever a field holds it and writing it
      * at its path. {@code depth} is the number of path keys leading to this object, or -1 when the object is off the path.
      */
-    private void copy(XContentParser parser, String prefix, int depth, LabelWriter writer, List<String> values) throws IOException {
+    private void copy(XContentParser parser, String prefix, int depth, MetadataWriter writer, List<String> values) throws IOException {
         boolean write = depth >= 0 && values.isEmpty() == false;
         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
             String name = parser.currentName();
@@ -87,7 +87,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
             XContentParser.Token token = parser.nextToken();
             int order = depth >= 0 ? name.compareTo(path.get(depth)) : -1;
             if (order == 0 && (token == XContentParser.Token.START_OBJECT) != (depth + 1 < path.size())) {
-                throw new IllegalArgumentException("time-series dimension [" + field + "] conflicts with label path " + path);
+                throw new IllegalArgumentException("time-series dimension [" + field + "] conflicts with key path " + path);
             }
             if (write && order > 0) {
                 write(writer, depth, values);
@@ -98,7 +98,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
                 copy(parser, field + ".", order == 0 ? depth + 1 : -1, writer, values);
                 writer.endObject();
                 write &= order != 0;
-            } else if (PromqlLabels.labelName(field).equals(label)) {
+            } else if (PromqlLabels.labelName(field).equals(key)) {
                 parser.skipChildren();
             } else {
                 writer.field(name).copyCurrentStructure(parser);
@@ -109,8 +109,8 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
         }
     }
 
-    /** Writes the label at the rest of its path, from {@code depth} on. */
-    private void write(LabelWriter writer, int depth, List<String> values) throws IOException {
+    /** Writes the key at the rest of its path, from {@code depth} on. */
+    private void write(MetadataWriter writer, int depth, List<String> values) throws IOException {
         for (int i = depth; i < path.size() - 1; i++) {
             writer.startObject(path.get(i));
         }
@@ -120,7 +120,7 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
         }
     }
 
-    /** The non-empty values at {@code position}: PromQL has no empty label, so an empty or missing value writes none. */
+    /** The non-empty values at {@code position}: PromQL reads an empty value as an absent key, so an empty or missing value writes none. */
     private static List<String> written(BytesRefBlock values, int position) {
         if (values.isNull(position)) {
             return List.of();
@@ -139,41 +139,33 @@ final class TimeSeriesMetadataSetEvaluator extends AbstractTimeSeriesMetadataFun
 
     @Override
     protected long shallowRamBytesUsed() {
-        long bytes = BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(label) + RamUsageEstimator.shallowSizeOf(path);
-        for (String key : path) {
-            bytes += RamUsageEstimator.sizeOf(key);
+        long bytes = BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(key) + RamUsageEstimator.shallowSizeOf(path);
+        for (String part : path) {
+            bytes += RamUsageEstimator.sizeOf(part);
         }
         return bytes;
     }
 
     @Override
     public String toString() {
-        return describe(labelContainer, label, path, value);
+        return describe(metadata, key, path, value);
     }
 
-    private static String describe(Object labelContainer, String label, List<String> path, Object value) {
-        return "TimeSeriesMetadataSetEvaluator[labelContainer="
-            + labelContainer
-            + ", label="
-            + label
-            + ", path="
-            + path
-            + ", value="
-            + value
-            + "]";
+    private static String describe(Object metadata, String key, List<String> path, Object value) {
+        return "TimeSeriesMetadataSetEvaluator[metadata=" + metadata + ", key=" + key + ", path=" + path + ", value=" + value + "]";
     }
 
-    record Factory(ExpressionEvaluator.Factory labelContainer, String label, List<String> path, ExpressionEvaluator.Factory value)
+    record Factory(ExpressionEvaluator.Factory metadata, String key, List<String> path, ExpressionEvaluator.Factory value)
         implements
             ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
-            return new TimeSeriesMetadataSetEvaluator(context, labelContainer.get(context), label, path, value.get(context));
+            return new TimeSeriesMetadataSetEvaluator(context, metadata.get(context), key, path, value.get(context));
         }
 
         @Override
         public String toString() {
-            return describe(labelContainer, label, path, value);
+            return describe(metadata, key, path, value);
         }
     }
 }

@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 public class TimeSeriesMetadataFilterErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        // Only the one-label signatures: error generation permutes every argument position, which longer signatures explode.
+        // Only the one-key signatures: error generation permutes every argument position, which longer signatures explode.
         return paramsToSuppliers(TimeSeriesMetadataFilterTests.parameters()).stream().filter(c -> c.types().size() == 2).toList();
     }
 
@@ -34,15 +34,15 @@ public class TimeSeriesMetadataFilterErrorTests extends ErrorsForCasesWithoutExa
 
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        // A null label container is the empty one, so only the label can be wrong there; the label rules have their own test.
-        // A text label is a string as valid as a keyword one, which the cases do not repeat.
+        // A null metadata is the empty one, so only the key can be wrong there; the key rules have their own test.
+        // A text key is a string as valid as a keyword one, which the cases do not repeat.
         return super.testCandidates(cases, valid).filter(types -> types.getFirst() != DataType.NULL && types.get(1) != DataType.TEXT);
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         if (signature.getFirst() == DataType.KEYWORD) {
-            // The label container is a keyword _timeseries, so only the label can be wrong.
+            // The metadata is a keyword _timeseries, so only the key can be wrong.
             return signature.get(1) == DataType.NULL
                 ? containsString("must be non-empty, single-valued strings")
                 : typeErrorMessage(signature, 1, "string");

@@ -35,8 +35,8 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
 
     private final boolean exclude;
 
-    public TimeSeriesMetadataFilter(Source source, Expression labelContainer, List<Expression> labels, boolean exclude) {
-        super(source, Stream.concat(Stream.of(labelContainer), labels.stream()).toList());
+    public TimeSeriesMetadataFilter(Source source, Expression metadata, List<Expression> keys, boolean exclude) {
+        super(source, Stream.concat(Stream.of(metadata), keys.stream()).toList());
         this.exclude = exclude;
     }
 
@@ -55,7 +55,7 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
         return ENTRY.name;
     }
 
-    /** Whether the requested labels are the ones removed rather than the ones kept. */
+    /** Whether the requested keys are the ones removed rather than the ones kept. */
     public boolean exclude() {
         return exclude;
     }
@@ -69,7 +69,7 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new TimeSeriesMetadataFilterEvaluator.Factory(
             toEvaluator.apply(children().getFirst()),
-            labels().stream().map(label -> foldLabelName(label, toEvaluator)).toList(),
+            keys().stream().map(key -> foldKey(key, toEvaluator)).toList(),
             exclude
         );
     }
@@ -81,7 +81,7 @@ public final class TimeSeriesMetadataFilter extends AbstractTimeSeriesMetadataFu
 
     @Override
     protected NodeInfo<TimeSeriesMetadataFilter> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataFilter::new, children().getFirst(), labels(), exclude);
+        return NodeInfo.create(this, TimeSeriesMetadataFilter::new, children().getFirst(), keys(), exclude);
     }
 
     @Override

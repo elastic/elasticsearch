@@ -26,9 +26,9 @@ import java.util.Objects;
 
 /**
  * Internal function that mutates a keyword {@code _timeseries} metadata container; the value replaces the dimension values, and a
- * missing or empty value removes the dimension. Several values write a multi-valued dimension. The label is written at {@code path},
- * the keys of the source field that holds it, such as {@code [labels, pod]}, so a label written back into a container where the
- * source held it reads as the source does; a field holding the label elsewhere is removed.
+ * missing or empty value removes the dimension. Several values write a multi-valued dimension. The key is written at {@code path},
+ * the source field that holds it, one name per object, such as {@code [labels, pod]}, so a key written back into a container where the
+ * source held it reads as the source does; a field holding the key elsewhere is removed.
  */
 public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -39,8 +39,8 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
 
     private final List<String> path;
 
-    public TimeSeriesMetadataSet(Source source, Expression labelContainer, Expression label, Expression value, List<String> path) {
-        super(source, List.of(labelContainer, label, value));
+    public TimeSeriesMetadataSet(Source source, Expression metadata, Expression key, Expression value, List<String> path) {
+        super(source, List.of(metadata, key, value));
         this.path = path;
     }
 
@@ -54,12 +54,12 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
         out.writeStringCollection(path);
     }
 
-    /** The keys of the source field the label is written to. */
+    /** The source field the key is written to, one name per object. */
     public List<String> path() {
         return path;
     }
 
-    public Expression label() {
+    public Expression key() {
         return children().get(1);
     }
 
@@ -81,15 +81,15 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new TimeSeriesMetadataSetEvaluator.Factory(
             toEvaluator.apply(children().getFirst()),
-            foldLabelName(label(), toEvaluator),
+            foldKey(key(), toEvaluator),
             path,
             toEvaluator.apply(value())
         );
     }
 
     @Override
-    public List<Expression> labels() {
-        return List.of(label());
+    public List<Expression> keys() {
+        return List.of(key());
     }
 
     @Override
@@ -100,10 +100,10 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
         if (resolution.unresolved()) {
             return resolution;
         }
-        String label = ((BytesRef) label().fold(FoldContext.small())).utf8ToString();
-        return path.isEmpty() == false && PromqlLabels.labelName(String.join(".", path)).equals(label)
+        String key = ((BytesRef) key().fold(FoldContext.small())).utf8ToString();
+        return path.isEmpty() == false && PromqlLabels.labelName(String.join(".", path)).equals(key)
             ? resolution
-            : new TypeResolution("[" + sourceText() + "] writes label [" + label + "] to path " + path + " of another label");
+            : new TypeResolution("[" + sourceText() + "] writes key [" + key + "] to path " + path + " of another key");
     }
 
     @Override
@@ -113,7 +113,7 @@ public final class TimeSeriesMetadataSet extends AbstractTimeSeriesMetadataFunct
 
     @Override
     protected NodeInfo<TimeSeriesMetadataSet> info() {
-        return NodeInfo.create(this, TimeSeriesMetadataSet::new, children().getFirst(), label(), value(), path);
+        return NodeInfo.create(this, TimeSeriesMetadataSet::new, children().getFirst(), key(), value(), path);
     }
 
     @Override

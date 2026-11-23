@@ -28,8 +28,8 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
         TimeSeriesMetadataPath::new
     );
 
-    public TimeSeriesMetadataPath(Source source, Expression labelContainer, Expression label) {
-        super(source, List.of(labelContainer, label));
+    public TimeSeriesMetadataPath(Source source, Expression metadata, Expression key) {
+        super(source, List.of(metadata, key));
     }
 
     private TimeSeriesMetadataPath(StreamInput in) throws IOException {
@@ -48,10 +48,7 @@ public final class TimeSeriesMetadataPath extends AbstractTimeSeriesMetadataFunc
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new TimeSeriesMetadataPathEvaluator.Factory(
-            toEvaluator.apply(children().get(0)),
-            foldLabelName(children().get(1), toEvaluator)
-        );
+        return new TimeSeriesMetadataPathEvaluator.Factory(toEvaluator.apply(children().get(0)), foldKey(children().get(1), toEvaluator));
     }
 
     @Override

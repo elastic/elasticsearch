@@ -28,15 +28,15 @@ public class TimeSeriesMetadataFilterSerializationTests extends AbstractExpressi
     @Override
     protected TimeSeriesMetadataFilter mutateInstance(TimeSeriesMetadataFilter instance) throws IOException {
         Source source = instance.source();
-        Expression labelContainer = instance.children().getFirst();
-        List<Expression> labels = instance.labels();
+        Expression metadata = instance.children().getFirst();
+        List<Expression> keys = instance.keys();
         boolean exclude = instance.exclude();
         switch (between(0, 2)) {
-            case 0 -> labelContainer = randomValueOtherThan(labelContainer, AbstractExpressionSerializationTests::randomChild);
-            case 1 -> labels = randomValueOtherThan(labels, () -> randomList(0, 10, AbstractExpressionSerializationTests::randomChild));
+            case 0 -> metadata = randomValueOtherThan(metadata, AbstractExpressionSerializationTests::randomChild);
+            case 1 -> keys = randomValueOtherThan(keys, () -> randomList(0, 10, AbstractExpressionSerializationTests::randomChild));
             case 2 -> exclude = exclude == false;
             default -> throw new AssertionError();
         }
-        return new TimeSeriesMetadataFilter(source, labelContainer, labels, exclude);
+        return new TimeSeriesMetadataFilter(source, metadata, keys, exclude);
     }
 }

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 166925
+pr: 166926
+summary: Close evaluator when `EvalOperator` breaker trips
+type: bug

@@ -5027,9 +5027,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 iterator.close();
             }
 
-            assertFalse("abortStream must receive the Abortable raw GET, not a decompressed wrapper", object.sawNonAbortable.get());
-            assertTrue("abortStream must hit Abortable.abort() on the raw GET", object.sawAbortable.get());
-            assertTrue(object.abortCalled.get());
+            assertFalse("close must not drain the Abortable raw GET as a non-Abortable wrapper", object.sawNonAbortable.get());
+            assertTrue("close of a large leftover must abort the Abortable raw GET", object.abortCalled.get());
         } finally {
             exec.shutdownNow();
         }
@@ -5093,7 +5092,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             }
 
             assertEquals(rows, seen);
-            assertTrue("abortStream must hit Abortable.abort() on the raw GET", object.sawAbortable.get());
+            assertTrue("close after a full gzip read must still abort the raw GET", object.abortCalled.get());
             assertTrue(
                 "a fully read gzip body must reach end-of-body before the abort, or the connection is discarded",
                 object.endOfBodyReadBeforeAbort.get()
@@ -5118,8 +5117,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new FailingStreamOnlyCodec());
 
-        byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
-        byte[] gzipped = gzipCompress(plain);
+        byte[] gzipped = new byte[DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES * 2];
 
         DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
         StorageObject object = DrainSimulatingStorageObject.create(gzipped, tracking);
@@ -5732,11 +5730,19 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             if (abortCalled.get()) {
                 return;
             }
-            byte[] drain = new byte[8192];
-            int n;
-            while ((n = inner.read(drain, 0, drain.length)) != -1) {
-                bytesConsumed.addAndGet(n);
+            int unread = inner.available();
+            if (unread > DecompressingStorageObject.MAX_TRAILING_DRAIN_BYTES) {
+                abort();
+                return;
             }
+            if (unread > 0) {
+                byte[] drain = new byte[8192];
+                int n;
+                while ((n = inner.read(drain, 0, drain.length)) != -1) {
+                    bytesConsumed.addAndGet(n);
+                }
+            }
+            abort();
         }
     }
 

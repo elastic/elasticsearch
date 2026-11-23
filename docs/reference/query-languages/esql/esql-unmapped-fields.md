@@ -43,6 +43,8 @@ The `unmapped_fields` setting accepts the following values, which range from str
 
 For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
+{applies_to}`stack: ga 9.7+` You can also send the setting in the `_query` request body, as `"settings": {"unmapped_fields": "LOAD_ALL"}`. A value set in the query with `SET` overrides the request body.
+
 :::{tip}
 :applies_to: stack: preview =9.4, ga 9.5+
 
@@ -87,7 +89,7 @@ Mapped fields are returned as columns as usual. Every unmapped field is returned
 - **Empty values are left out.** Explicit `null` values, empty arrays, and empty objects don't appear in the column.
 - **Fields you name become their own column, and stay part of `_unmapped_fields`, unless `KEEP` or `DROP` leaves them out.** A field that the query refers to, for example in `WHERE`, `KEEP`, or `EVAL`, is loaded the same way as with `LOAD`, as a `keyword` column. The field also stays in `_unmapped_fields`, with its value from `_source`. The same goes for a column that a command creates with the same name as an unmapped field, for example with `EVAL` or `RENAME`: it is a different column, and the unmapped field stays in `_unmapped_fields`.
   - A named field is always a `keyword` column, even when its value in `_source` is a number: `1` in `_unmapped_fields` becomes `"1"`, and an array of numbers becomes a multivalued `keyword`. To get the original type back, convert it, for example with `TO_LONG(field)` or `field::long`.
-- **Only `KEEP` and `DROP` change which fields `_unmapped_fields` holds.** `DROP unmapped_*` or `DROP unmapped_field` removes the matching fields from `_unmapped_fields`, as well as the columns that it matches. `KEEP @timestamp, unmapped_*` keeps only the matching fields in `_unmapped_fields`. A `KEEP` with only exact names doesn't return `_unmapped_fields` at all.
+- **Only `KEEP` and `DROP` change which fields `_unmapped_fields` holds.** `DROP unmapped_*` or `DROP unmapped_field` removes the matching fields from `_unmapped_fields`, as well as the columns that it matches. `KEEP @timestamp, unmapped_*` keeps only the matching fields in `_unmapped_fields`. A `KEEP` with only exact names doesn't return `_unmapped_fields` at all. An exact `DROP` resolves its name like any other reference: `DROP unmapped_message` removes the field from `_unmapped_fields`, even if no index maps it. But a name that the query no longer has fails with `Unknown column`: after `RENAME unmapped_message AS renamed`, the field stays in `_unmapped_fields`, but `DROP unmapped_message` fails, because no column has that name any more. A wildcard such as `DROP unmapped_mess*` removes the field from `_unmapped_fields` without dropping `renamed`.
 - **Commands and functions that take field patterns don't see them.** For example, full-text search functions such as `KQL` and `QSTR` don't search the fields in `_unmapped_fields`.
 - **Partially mapped fields behave as in `LOAD`.** Where a field is mapped in some of the queried indices only, {{esql}} reads it from the mapping where it exists and from `_source` where it doesn't, as long as the value can be converted to the type of the field. For a field whose type has no implicit conversion from `keyword`, such as `text`, the column is `null` for the documents of an index that doesn't map it, and a warning says so. For the documents of an index that doesn't map the field, the field stays part of `_unmapped_fields` either way, with its value from `_source`.
 
@@ -168,7 +170,7 @@ serverless: preview
 
 In addition to the restrictions above, `LOAD_ALL` has these limitations:
 
-- It supports most commands, and a query that uses another command fails with an error that lists the supported ones. Notably, the [`TS`](commands/ts.md) source command is not supported.
+- It supports most commands, and a query that uses another command fails with an error that lists the supported ones.
 - It doesn't apply inside [views](/reference/query-languages/esql/esql-views.md). The setting stops at a view's boundary: a view doesn't return an `_unmapped_fields` column, and the query returns `null` with a warning for an unmapped field that the view doesn't output. To load such fields, the view definition must itself `SET unmapped_fields="load"` and reference them. A view definition can't use `LOAD_ALL`. Indices and subqueries next to a view are loaded as usual.
 - Reading every unmapped field uses more memory than `LOAD`, especially on documents with many fields or large arrays. If you know which fields you need, name them and use `LOAD`.
 

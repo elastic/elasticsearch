@@ -82,6 +82,20 @@ the snippets into `docs.csv-spec`. This was supposed to be a temporary holding
 area until they were relocated, and we haven't had time to do that. Don't put
 more tests in there.
 
+### Only top-level files are part of the corpus
+
+Put new `.csv-spec` files directly in this directory. `CsvIT`, `EsqlSpecTestCase`
+and every test class that the build generates from the spec files (`EsqlSpec*`:
+`LOAD_ALL`, approximation, forced stored loading, fork, ...) read `/*.csv-spec`,
+which does not descend into subdirectories. A spec in a subdirectory is not run
+by any of them, and gets none of the generated variants, unless a suite selects
+it by an explicit pattern, as the data-source suites do for `datasources/`.
+
+Opting out is a choice, so `verifyDataSourceCsvSpecOwnership` in this project's
+`build.gradle` fails for a spec in a subdirectory that is not listed in
+`nonCorpusSpecDirs`, where each directory has the reason it is not part of the
+corpus.
+
 ## Embedding examples in the documentation
 
 Snippets from these tests can be embedded into the asciidoc documentation of

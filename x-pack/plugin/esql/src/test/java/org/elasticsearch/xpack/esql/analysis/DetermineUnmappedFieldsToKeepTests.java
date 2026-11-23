@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -69,7 +70,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testNoCommand() {
         UnmappedFieldsPattern pattern = patternFor("FROM test");
         assertKept(pattern, "unmapped_extra", "first_name_suffix", "address.city", "address.city.zip");
-        assertKeptAnyOtherName(pattern, excl());
+        assertKeptAnyName(pattern);
     }
 
     public void testKeepStar() {
@@ -135,6 +136,27 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
 
     public void testKeepThenDropOmitsUnmappedFieldsAttribute() {
         assertNoUnmappedFieldsAttribute("FROM test | KEEP salary | DROP salary");
+    }
+
+    /**
+     * METRICS_INFO and TS_INFO replace the columns of their input, like STATS, so nothing downstream asks for the unmapped fields and the
+     * relation is not given an {@code UnmappedFieldsAttribute}, which would make the shards read the whole {@code _source}. Nothing
+     * follows them here, so only the command itself can be the reason.
+     */
+    public void testMetricsInfoOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttributeOnTimeSeries("TS test | METRICS_INFO");
+    }
+
+    public void testTsInfoOmitsUnmappedFieldsAttribute() {
+        assertNoUnmappedFieldsAttributeOnTimeSeries("TS test | TS_INFO");
+    }
+
+    public void testTimeSeriesRowsKeepUnmappedFieldsAttribute() {
+        // The control for the two above: the same relation is given the attribute when the query returns its rows.
+        LogicalPlan plan = timeSeriesTest().statement(setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), hasSize(1));
+        EsRelation relation = EsqlTestUtils.singleValue(plan.collect(EsRelation.class));
+        assertThat(unmappedFieldsAttributes(relation), hasSize(1));
     }
 
     public void testStatsOmitsUnmappedFieldsAttribute() {
@@ -215,7 +237,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testMappedAndNamedFieldsAreNotExcluded() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | WHERE unmapped_extra == \"x\" AND salary > 0");
         assertKept(pattern, "unmapped_extra", "salary", "emp_no", "first_name_suffix");
-        assertKeptAnyOtherName(pattern, excl());
+        assertKeptAnyName(pattern);
     }
 
     /** DROP removes what it matches everywhere, so dropping a column that a command added removes the keys of that name as well. */
@@ -240,6 +262,45 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         assertKeptAnyOtherName(pattern, excl("salary"));
     }
 
+    /** One DROP with a name and a wildcard: the name goes to the exact excludes and the wildcard to the globs, both of the same command. */
+    public void testDropNameAndWildcardInTheSameCommand() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | DROP salary, first_name*");
+        assertNotKept(pattern, "salary", "first_name", "first_name_suffix");
+        assertKept(pattern, "unmapped_extra", "salary_bonus", "first");
+    }
+
+    /** An exact name that a DROP removes, inside a group that a KEEP includes by wildcard. */
+    public void testDropExactNameInsideKeptWildcardGroup() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | KEEP first* | DROP first_name_suffix");
+        assertKept(pattern, "first_name", "first_grade");
+        assertNotKept(pattern, "first_name_suffix", "unmapped_extra");
+    }
+
+    /** A DROP followed by a KEEP, the reverse of the order that the tests of chained commands use. */
+    public void testDropThenKeep() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | DROP first_name* | KEEP first*");
+        assertKept(pattern, "first_grade", "first");
+        assertNotKept(pattern, "first_name", "first_name_suffix", "unmapped_extra");
+    }
+
+    /** A backquoted star is part of the name: it removes the key named {@code first*}, not the keys that start with {@code first}. */
+    public void testDropBackquotedStarIsLiteral() {
+        UnmappedFieldsPattern pattern = patternFor("FROM test | DROP `first*`");
+        assertNotKept(pattern, "first*");
+        assertKept(pattern, "first_name_suffix", "firstly", "unmapped_extra");
+    }
+
+    /**
+     * After a RENAME no column has the old name, so a DROP of that exact name is rejected, though a wildcard that matches it is not and
+     * removes the key. A RENAME renames columns, not keys, so the key stays for a query that does not DROP it.
+     */
+    public void testDropOfARenamedAwayNameIsUnknown() {
+        test().statementError(setUnmappedLoadAll("FROM test | RENAME last_name AS x | DROP last_name"), containsString("Unknown column"));
+        UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME last_name AS x | DROP last_na*");
+        assertNotKept(pattern, "last_name", "last_name_suffix");
+        assertKept(pattern, "unmapped_extra");
+    }
+
     public void testDropWildcardDoesNotRemoveUnmappedFieldsColumn() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | DROP *unmapped_fields");
         assertKept(pattern, "unmapped_extra");
@@ -250,7 +311,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME last_name AS x");
         // The target of a RENAME does not take a source field of that name out of the unmapped fields
         assertKept(pattern, "unmapped_extra", "x");
-        assertKeptAnyOtherName(pattern, excl());
+        assertKeptAnyName(pattern);
     }
 
     public void testKeepThenEval() {
@@ -356,7 +417,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
     public void testRenameThenEval() {
         UnmappedFieldsPattern pattern = patternFor("FROM test | RENAME last_name AS x | EVAL y = 2");
         assertKept(pattern, "unmapped_extra", "x", "y");
-        assertKeptAnyOtherName(pattern, excl());
+        assertKeptAnyName(pattern);
     }
 
     public void testKeepWildcardThenRename() {
@@ -920,7 +981,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         );
         // language_code and language_name come from the lookup index and the EVAL; they do not hide a source field of that name
         assertKept(pattern, "unmapped_extra", "language_code", "language_name");
-        assertKeptAnyOtherName(pattern, excl());
+        assertKeptAnyName(pattern);
     }
 
     /**
@@ -978,7 +1039,7 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         );
         // language_name is the enrich output field, which does not hide a source field of that name
         assertKept(pattern, "unmapped_extra", "language_name");
-        assertKeptAnyOtherName(pattern, excl());
+        assertKeptAnyName(pattern);
     }
 
     public void testKeepWildcardBeforeEnrichIsRespected() {
@@ -1044,6 +1105,18 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
         }
     }
 
+    private TestAnalyzer timeSeriesTest() {
+        return test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES);
+    }
+
+    private void assertNoUnmappedFieldsAttributeOnTimeSeries(String query) {
+        LogicalPlan plan = timeSeriesTest().statement(setUnmappedLoadAll(query));
+        assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
+        for (EsRelation relation : plan.collect(EsRelation.class)) {
+            assertThat("expected no UnmappedFieldsAttribute on " + relation, unmappedFieldsAttributes(relation), empty());
+        }
+    }
+
     private void assertNoUnmappedFieldsAttribute(String query) {
         LogicalPlan plan = test().statement(setUnmappedLoadAll(query));
         assertThat(CollectionUtils.collect(plan.output(), UnmappedFieldsAttribute.class), empty());
@@ -1088,6 +1161,11 @@ public class DetermineUnmappedFieldsToKeepTests extends AnalyzerUnmappedTestBase
      */
     private static void assertKeptAnyOtherName(UnmappedFieldsPattern pattern, List<String> excluded) {
         assertKept(pattern, randomValueOtherThanMany(excluded::contains, () -> randomAlphaOfLength(10)));
+    }
+
+    /** For a pattern that excludes nothing, every name is kept. Asserted on a random name, see {@link #assertKeptAnyOtherName}. */
+    private static void assertKeptAnyName(UnmappedFieldsPattern pattern) {
+        assertKeptAnyOtherName(pattern, List.of());
     }
 
     private UnmappedFieldsPattern patternFor(String query) {

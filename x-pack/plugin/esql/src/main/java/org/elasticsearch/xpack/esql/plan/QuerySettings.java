@@ -58,6 +58,12 @@ import java.util.function.Supplier;
  *
  * Then add the constant to {@link #ALL} to register it. Read anywhere via
  * {@code MY_SETTING.get(resolvedSettings)}.
+ *
+ * <p>The documentation section of the setting is generated from its {@code @Param} annotation, and the list of
+ * places where it can also be set from its declaration, by running {@code QuerySettingsTests}. A setting that opts in with
+ * {@code withRequestBody()} must also be added to {@code EsqlQuerySettings} in the
+ * <a href="https://github.com/elastic/elasticsearch-specification">elasticsearch-specification</a> repository;
+ * {@code QuerySettingsTests#testRequestBodyExposedSettings} fails as a reminder.
  */
 public final class QuerySettings {
 
@@ -130,7 +136,7 @@ public final class QuerySettings {
         Special notes about the `LOAD` and `LOAD_ALL` options:
         - [`PROMQL`](/reference/query-languages/esql/commands/promql.md) is not supported with `LOAD` or `LOAD_ALL`.
         - Referencing subfields of `flattened` parents is not supported.
-        - `LOAD_ALL` supports a subset of commands, and notably not [`TS`](/reference/query-languages/esql/commands/ts.md).
+        - `LOAD_ALL` supports a subset of commands.
           Other commands fail with an error that lists the supported ones.
           {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
         - [Full-text search functions](/reference/query-languages/esql/functions-operators/search-functions.md) are supported,
@@ -168,6 +174,7 @@ public final class QuerySettings {
     )
         .withDefault(UnmappedResolution.DEFAULT)
         .withClusterDefault()
+        .withRequestBody()
         .withTelemetryLabels(
             Arrays.stream(UnmappedResolution.values()).map(UnmappedResolution::settingValue).toList(),
             UnmappedResolution::settingValue
@@ -240,6 +247,11 @@ public final class QuerySettings {
         description = "Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the "
             + "query. A boolean value `false` (default) disables query approximation and `true` enables it with "
             + "default settings. Map values enable query approximation with custom settings.\n\n"
+            + "When `approximation` is set in more than one place, for example in the request body and with `SET`, `rows` "
+            + "falls back to the less specific place if the more specific one doesn't set it. `confidence_level` always "
+            + "comes from the most specific place, so it resets to `0.90` when that place doesn't set it. A `false` value "
+            + "discards the values of the less specific places, so if a more specific place enables approximation "
+            + "again without setting `rows`, `rows` is the system default.\n\n"
             + "{applies_to}`{\"stack\": \"ga 9.6+\", \"serverless\": \"unavailable\"}` "
             + "The default itself is configurable. If a query does not specify a value, the "
             + "`esql.query.settings.approximation` cluster setting supplies it. If that cluster setting is not "

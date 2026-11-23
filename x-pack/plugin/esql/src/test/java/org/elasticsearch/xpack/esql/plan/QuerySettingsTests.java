@@ -586,6 +586,42 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(resolved, is(nullValue()));
     }
 
+    public void testResolveApproximationFalseDiscardsLessSpecificValues() {
+        // The cluster default sets rows, the request body disables approximation, and SET enables it again. Disabling
+        // discards the rows of the cluster default, so the query ends up with the system default, not 20000. The
+        // approximation documentation states this, so a change of this behavior must change that text too.
+        Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
+        requestParams.put(QuerySettings.APPROXIMATION, ApproximationSettings.EXPLICIT_NULL);
+        QuerySetting set = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "approximation", Literal.fromBoolean(Source.EMPTY, true))
+        );
+        ResolvedSettings resolved = QuerySettings.resolve(
+            clusterSetting(QuerySettings.APPROXIMATION, "{\"rows\": 20000}"),
+            Settings.EMPTY,
+            requestParams,
+            new EsqlStatement(null, List.of(set)),
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        ApproximationSettings approximation = QuerySettings.APPROXIMATION.get(resolved);
+        assertThat(approximation.rows(), is(nullValue()));
+        assertThat(approximation.confidenceLevel(), equalTo(0.9));
+
+        // A rows that the more specific place sets itself still applies.
+        QuerySetting setWithRows = new QuerySetting(
+            Source.EMPTY,
+            new Alias(Source.EMPTY, "approximation", approxMap("rows", Literal.integer(Source.EMPTY, 30000)))
+        );
+        ResolvedSettings resolvedWithRows = QuerySettings.resolve(
+            clusterSetting(QuerySettings.APPROXIMATION, "{\"rows\": 20000}"),
+            Settings.EMPTY,
+            requestParams,
+            new EsqlStatement(null, List.of(setWithRows)),
+            SNAPSHOT_CTX_WITH_CPS_ENABLED
+        );
+        assertThat(QuerySettings.APPROXIMATION.get(resolvedWithRows).rows(), equalTo(30000));
+    }
+
     private static ApproximationSettings resolveApproximation(ApproximationSettings requestValue, Expression querySetExpr) {
         Map<QuerySettingDef<?>, Object> requestParams = new HashMap<>();
         if (requestValue != null) {
@@ -605,9 +641,9 @@ public class QuerySettingsTests extends ESTestCase {
         return new MapExpression(Source.EMPTY, entries);
     }
 
-    public void testResolveUnmappedFieldsIsSetOnly() {
-        // UNMAPPED_FIELDS opted out of body exposure. The registry exposure flag is false.
-        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
+    public void testResolveUnmappedFieldsIsRequestBodyExposedWithoutAlias() {
+        // UNMAPPED_FIELDS is body-exposed under settings.{}, and has no top-level alias since there was no pre-existing field for it.
+        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(true));
         assertThat(QuerySettings.UNMAPPED_FIELDS.aliases().isEmpty(), is(true));
     }
 
@@ -697,6 +733,33 @@ public class QuerySettingsTests extends ESTestCase {
             DocsV3Support.callbacksFromSystemProperty()
         );
         toc.renderDocs();
+    }
+
+    public void testRequestBodyExposedSettings() {
+        // A tripwire for the request body schema, which is specified outside this repository: when this fails, update
+        // EsqlQuerySettings in elastic/elasticsearch-specification (specification/esql/_types/types.ts) to match.
+        // The docs line of where else each setting can be set is generated, so it follows without further changes.
+        Set<String> bodyExposed = new HashSet<>();
+        for (QuerySettingDef<?> def : QuerySettings.all()) {
+            if (def.requestBody()) {
+                bodyExposed.add(def.name());
+            }
+        }
+        assertThat(
+            bodyExposed,
+            equalTo(
+                Set.of(
+                    "project_routing",
+                    "time_zone",
+                    "unmapped_fields",
+                    "column_metadata",
+                    "wildcards_match_datasets",
+                    "wildcards_match_views",
+                    "approximation",
+                    "exemplars"
+                )
+            )
+        );
     }
 
     // ---- Cluster (operator) defaults: default < cluster < body < SET ----
@@ -1338,10 +1401,10 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("its own validator rejects its default"));
     }
 
-    public void testUnmappedFieldsIsClusterSettableButNotBodyExposed() {
-        // The sources are independent axes, not a ladder: unmapped_fields is SET-only on the request side and still
-        // takes an operator default.
-        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
+    public void testUnmappedFieldsIsClusterSettableAndBodyExposed() {
+        // The sources are independent axes, not a ladder: unmapped_fields is accepted under settings.{} in the request body and
+        // also takes an operator default.
+        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(true));
         assertNotNull(QuerySettings.UNMAPPED_FIELDS.clusterSetting());
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.UNMAPPED_FIELDS, "NULLIFY"),

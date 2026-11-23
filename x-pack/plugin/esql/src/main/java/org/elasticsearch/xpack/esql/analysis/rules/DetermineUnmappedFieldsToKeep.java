@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
@@ -176,7 +178,8 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      * allow-list.
      */
     private static UnmappedFieldsPattern computeUnmappedFieldsToKeep(LogicalPlan plan) {
-        if (plan instanceof Aggregate) {
+        // These replace the columns of their input with their own, so no unmapped field can reach their output.
+        if (plan instanceof Aggregate || plan instanceof MetricsInfo || plan instanceof TsInfo) {
             return UnmappedFieldsPattern.NONE;
         }
         UnmappedFieldsPattern fromChild = switch (plan) {

@@ -45,11 +45,13 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -378,6 +380,62 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             assertThat(userEntry.get(field), equalTo(keys.get(0) + j));
         }
         assertThat(keys.contains(userEntry.get(MATCH_FIELD)), is(true));
+    }
+
+    public void testIdenticalLookupsOfBulkShareSearches() {
+        String key = createSourceMatchIndex(1, 1).getFirst();
+        String policyName = "my-policy";
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(SOURCE_INDEX_NAME),
+            MATCH_FIELD,
+            List.of(DECORATE_FIELDS)
+        );
+        PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName, enrichPolicy);
+        client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
+        client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policyName))
+            .actionGet();
+
+        String pipelineName = "my-pipeline";
+        putJsonPipeline(pipelineName, Strings.format("""
+            {
+              "processors": [ { "enrich": { "policy_name": "%s", "field": "%s", "target_field": "users" } } ]
+            }""", policyName, MATCH_FIELD));
+
+        EnrichStatsAction.Response.CoordinatorStats before = coordinatorStats();
+        int numDocs = randomIntBetween(2, 256);
+        BulkRequest bulkRequest = new BulkRequest("my-index");
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest().id(Integer.toString(i)).setPipeline(pipelineName).source(Map.of(MATCH_FIELD, key)));
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat("Expected no failure, but " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures(), is(false));
+
+        for (int doc = 0; doc < numDocs; doc++) {
+            GetResponse getResponse = client().get(new GetRequest("my-index", Integer.toString(doc))).actionGet();
+            Map<?, ?> userEntry = (Map<?, ?>) getResponse.getSourceAsMap().get("users");
+            assertThat(userEntry, notNullValue());
+            for (int j = 0; j < DECORATE_FIELDS.length; j++) {
+                assertThat(userEntry.get(DECORATE_FIELDS[j]), equalTo(key + j));
+            }
+        }
+
+        EnrichStatsAction.Response.CoordinatorStats after = coordinatorStats();
+        long searches = after.executedSearchesTotal() - before.executedSearchesTotal();
+        long remoteRequests = after.remoteRequestsTotal() - before.remoteRequestsTotal();
+        // all lookups are identical, so every batch sent a single search
+        assertThat(searches, equalTo(remoteRequests));
+        assertThat(searches, allOf(greaterThanOrEqualTo(1L), lessThanOrEqualTo((long) numDocs)));
+    }
+
+    private EnrichStatsAction.Response.CoordinatorStats coordinatorStats() {
+        EnrichStatsAction.Response statsResponse = client().execute(
+            EnrichStatsAction.INSTANCE,
+            new EnrichStatsAction.Request(TEST_REQUEST_TIMEOUT)
+        ).actionGet();
+        assertThat(statsResponse.getCoordinatorStats().size(), equalTo(1));
+        return statsResponse.getCoordinatorStats().getFirst();
     }
 
     public void testFailureAfterEnrich() throws Exception {

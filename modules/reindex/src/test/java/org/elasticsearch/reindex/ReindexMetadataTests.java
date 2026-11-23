@@ -85,10 +85,15 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActi
         assertFalse(index.isRoutingFromSlice());
     }
 
+    /**
+     * A source of slice-enabled and other indices decides per hit, because the two carry different routing: a hit of a slice-enabled
+     * index has a slice and no routing, any other hit has plain routing or none. Into a destination without slices the slice is
+     * dropped and the plain routing is kept. Into a slice-enabled destination the other hits have no slice to keep, so the validator
+     * rejects that request up front unless the destination slice is given.
+     */
     public void testOnlySliceDroppedWhenSourceMixesSlicesAndPlainRouting() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         TestAction action = action();
-        // A source of slice-enabled and other indices decides per hit: the slice is dropped, the plain routing is kept.
         IndexRequest fromSlice = new IndexRequest();
         action.copyMetadata(
             AbstractAsyncBulkByPaginatedSearchAction.wrap(fromSlice),

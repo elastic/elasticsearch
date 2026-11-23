@@ -2,5 +2,5 @@ area: Mapping
 issues:
  - 166769
 pr: 166841
-summary: Correct error message when trying to run queries against archive index numeric fields that have no `doc_values`
+summary: Correct error message when trying to run queries against archive index points-based fields (numeric, ip, geo_point, date) that have no `doc_values`
 type: bug

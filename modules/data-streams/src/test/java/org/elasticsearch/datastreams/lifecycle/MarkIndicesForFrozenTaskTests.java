@@ -14,14 +14,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -83,22 +80,14 @@ public class MarkIndicesForFrozenTaskTests extends ESTestCase {
             .put(alreadyMarkedSameRepo, true)
             .build();
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadata).build();
-        MarkIndicesForFrozenTask task = new MarkIndicesForFrozenTask(PROJECT_ID, allIndices, ActionListener.noop());
+        MarkIndicesForFrozenTask noRepoTask = new MarkIndicesForFrozenTask(PROJECT_ID, allIndices, "", ActionListener.noop());
 
-        ClusterState newState = task.execute(state);
+        ClusterState newState = noRepoTask.execute(state);
         // No change, there is no default repo
         assertThat(newState, sameInstance(state));
 
-        // Add the repo to the settings
-        state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .persistentSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO).build())
-                    .build()
-            )
-            .putProjectMetadata(projectMetadata)
-            .build();
-
+        // The repository comes from the task, not from the cluster state metadata settings
+        MarkIndicesForFrozenTask task = new MarkIndicesForFrozenTask(PROJECT_ID, allIndices, REPO, ActionListener.noop());
         newState = task.execute(state);
         assertIndexMarked(newState, vanilla.getIndex().getName());
         assertIndexMarked(newState, withOtherCustom.getIndex().getName());

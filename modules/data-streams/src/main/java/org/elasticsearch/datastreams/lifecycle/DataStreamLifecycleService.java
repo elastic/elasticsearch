@@ -713,11 +713,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             indicesForFrozenConversion.size(),
             indicesForFrozenConversion.stream().map(Index::getName).toList()
         );
+        final String repository = defaultRepository;
         markIndicesForFrozenQueue.submitTask(
             "dlm-mark-[" + indicesForFrozenConversion.size() + "]-indices-for-frozen",
             new MarkIndicesForFrozenTask(
                 projectState.projectId(),
                 indicesForFrozenConversion,
+                repository,
                 ActionListener.wrap(
                     ackedResponse -> logger.info(
                         "DLM successfully marked {} indices as ready to be frozen: {}",

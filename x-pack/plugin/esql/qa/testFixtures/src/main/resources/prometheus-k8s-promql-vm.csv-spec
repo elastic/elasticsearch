@@ -1453,12 +1453,13 @@ required_capability: fix_ts_block_loader_passthrough_aliasing
 required_capability: promql_timeseries_metadata_functions
 required_capability: promql_set_operator_matching
 PROMQL index=prometheus-k8s step=10m result=((sum by (cluster) (network.eth0.tx) / on (cluster) sum by (cluster) (network.eth0.rx)) and on (cluster) sum by (cluster) (network.eth0.rx{cluster="prod"}))
+| EVAL result = ROUND(result, 6), step = step, cluster = cluster
 | SORT cluster, step;
 
-result:double      | step:datetime            | cluster:keyword
-1.103305785123967  | 2024-05-10T00:10:00.000Z | prod
-1.1411513859275053 | 2024-05-10T00:20:00.000Z | prod
-1.16072408118486   | 2024-05-10T00:30:00.000Z | prod
+result:double | step:datetime            | cluster:keyword
+1.103306      | 2024-05-10T00:10:00.000Z | prod
+1.141151      | 2024-05-10T00:20:00.000Z | prod
+1.160724      | 2024-05-10T00:30:00.000Z | prod
 ;
 
 // Labels are a set in PromQL: the match key packs both sides' label values in one shared order, so the order in which

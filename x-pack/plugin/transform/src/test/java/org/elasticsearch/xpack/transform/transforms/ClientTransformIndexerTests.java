@@ -1381,6 +1381,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                         0,
                         0,
                         List.of(),
+                        List.of(),
                         SearchResponse.Clusters.EMPTY,
                         // copy the pit from the request
                         searchRequest.pointInTimeBuilder() != null

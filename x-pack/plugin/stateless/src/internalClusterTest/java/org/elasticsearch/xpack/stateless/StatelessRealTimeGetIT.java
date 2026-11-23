@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -44,7 +46,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
@@ -565,6 +570,10 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.action.get.TransportGetAction:DEBUG,org.elasticsearch.index.engine.Engine:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/166620"
+    )
     public void testStress() throws Exception {
         int numOfShards = randomIntBetween(1, 3);
         int numOfReplicas = randomIntBetween(1, 2);
@@ -607,6 +616,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         var writersBusy = new CountDownLatch(writersCount);
         var readersCount = randomIntBetween(4, 5);
         var readersBusy = new CountDownLatch(readersCount);
+        var timeoutDiagnosticsLogged = new AtomicBoolean(false);
         var threads = new LinkedList<Thread>();
         Runnable writer = () -> {
             try {
@@ -643,11 +653,58 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
                     try {
                         id = randomBoolean() ? ids.poll(1, TimeUnit.SECONDS) : ids.peek();
                         if (id != null) {
+                            final long startNanos = System.nanoTime();
                             var getResponse = client().prepareGet(indexName, id).get(timeValueSeconds(30));
+                            final long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+                            if (elapsedMillis > 1_000) {
+                                // just for debugging purposes to see how many GETs were relatively slow
+                                logger.warn("GET with id {} took {} ms", id, elapsedMillis);
+                            }
                             assertTrue(Strings.format("could not GET id '%s'", id), getResponse.isExists());
                             safeSleep(randomLongBetween(1, 100));
                         }
                     } catch (ElasticsearchTimeoutException e) {
+                        if (!timeoutDiagnosticsLogged.compareAndSet(false, true)) {
+                            throw new AssertionError(Strings.format("Unable to GET id '%s' due to timeout", id), e);
+                        }
+                        // in case of a timeout we log more info with the hope of figuring out why the timeout occurred
+                        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                            var indexService = indicesService.indexService(resolveIndex(indexName));
+                            if (indexService == null) {
+                                continue;
+                            }
+                            for (IndexShard shard : indexService) {
+                                var engine = shard.getEngineOrNull();
+                                if (engine instanceof IndexEngine indexEngine) {
+                                    var map = indexEngine.getLiveVersionMap();
+                                    var archive = (StatelessLiveVersionMapArchive) getArchive(map);
+                                    logger.warn("shard {} on [{}] at generation [{}], last unsafe generation for gets [{}], "
+                                            + "version map unsafe for gets [{}], archive unsafe [{}], archive min safe generation [{}]",
+                                        shard.shardId(),
+                                        shard.routingEntry().currentNodeId(),
+                                        indexEngine.getCurrentGeneration(),
+                                        indexEngine.getLastUnsafeSegmentGenerationForGets(),
+                                        isUnsafeForGets(map),
+                                        archive.isUnsafe(),
+                                        archive.getMinSafeGeneration()
+                                    );
+                                } else {
+                                    logger.warn(
+                                        "{} shard {} on [{}] at generation [{}]",
+                                        shard.routingEntry().role(),
+                                        shard.shardId(),
+                                        shard.routingEntry().currentNodeId(),
+                                        engine == null ? "n/a" : engine.getLastCommittedSegmentInfos().getGeneration()
+                                    );
+                                }
+                            }
+                        }
+                        HotThreads.logLocalCurrentThreads(
+                            logger,
+                            Level.INFO,
+                            "threads after real-time GET of id [" + id + "] timed out",
+                            ReferenceDocs.LOGGING
+                        );
                         throw new AssertionError(Strings.format("Unable to GET id '%s' due to timeout", id), e);
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);

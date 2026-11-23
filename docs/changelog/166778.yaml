@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 166532
 pr: 166778
-summary: FILLNULL unmarks a null-only FORK column
+summary: FILLNULL unmarks a null-only FORK column (snapshot builds only, as FILLNULL is not released yet)
 type: bug

@@ -95,6 +95,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class CsvFormatReaderTests extends ESTestCase {
@@ -2146,7 +2147,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         assertThat(unknownType.getMessage(), containsString(blob.length() + " chars total"));
         assertThat(malformed.getMessage(), containsString((blob.length() + ":a:b".length()) + " chars total"));
-        assertThat(duplicates.getMessage(), containsString((blob.length() + "['']".length()) + " chars total"));
+        // The list's own brackets and quotes go on after the cap, so this count is the header token's width too.
+        assertThat(duplicates.getMessage(), containsString(blob.length() + " chars total"));
         assertThat(binding.getMessage(), containsString(blob.length() + " chars total"));
     }
 
@@ -6651,12 +6653,11 @@ public class CsvFormatReaderTests extends ESTestCase {
      * {@code cannot read [value] as [type]}, whose text is a cell rather than a header token — a different
      * population, and the open question of how far the escape perimeter runs.
      * <p>
-     * Three of them call {@link ErrorExcerpts#summarizeEscaped}, which cuts on the value and escapes only the
-     * two kept windows: a header field may be as large as {@code max_field_size} allows, and escaping all of
-     * it to show 256 characters spends six characters on every one. {@code checkUniqueAttributeNames} escapes
-     * without capping, its cap being on the list it assembles — a per-name cap inside that list would leave
-     * the list's marker counting the names as the message shortened them rather than as the header spelled
-     * them, which is the one number a reader of that refusal has to go on.
+     * All four call {@link ErrorExcerpts#summarizeEscaped}, which cuts on the value and escapes only the two
+     * kept windows: a header field may be as large as {@code max_field_size} allows, and escaping all of it to
+     * show 256 characters spends six characters on every one. {@code checkUniqueAttributeNames} calls it on the
+     * list it assembles rather than on each name, which is what
+     * {@link #testADuplicateListIsCutOnTheNamesTheHeaderSpelled} pins.
      */
     public void testAColumnNameCannotForgeTheRefusalClause() {
         String forgesInferenceDuplicate = "a'] has duplicate column names ['b";
@@ -6708,6 +6709,40 @@ public class CsvFormatReaderTests extends ESTestCase {
             not(containsString(forgesIllegalType.toUpperCase(Locale.ROOT)))
         );
         assertThat("the escape must have fired", illegalType.getMessage(), containsString("\\u005D"));
+    }
+
+    /**
+     * The duplicate set is as wide as half the header, so the list the refusal renders is user-sized while the
+     * message is not. The cut is taken on the names as the header spells them and only the kept windows are
+     * escaped, which this pins through a header whose every name carries two brackets: escaping first would
+     * report a width six times the one the file has, and would spend a formatter call on each of those brackets
+     * to show 256 characters of them.
+     */
+    public void testADuplicateListIsCutOnTheNamesTheHeaderSpelled() {
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            names.add("[" + i + "]");
+        }
+        String header = String.join(",", names) + "," + String.join(",", names);
+        String row = "1" + ",1".repeat(names.size() * 2 - 1);
+        ExternalClientException ex = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(createStorageObject(header + "\n" + row + "\n", "wide-duplicates.csv"))
+        );
+
+        // LinkedHashSet order, so the list is the names in the order their second occurrence appeared.
+        int spelledWidth = String.join("', '", names).length();
+        assertThat(ex.getMessage(), containsString("(truncated, " + spelledWidth + " chars total)"));
+        assertThat("the kept windows must be escaped", ex.getMessage(), containsString("\\u005B"));
+
+        String rendered = ex.getMessage()
+            .substring(ex.getMessage().indexOf("duplicate column names [") + "duplicate column names ".length());
+        rendered = rendered.substring(0, rendered.indexOf("; if the file"));
+        assertThat(
+            "the list is bounded by the cap, plus the brackets and quotes added after it",
+            rendered.length(),
+            lessThanOrEqualTo(ErrorExcerpts.MAX_EXCERPT_CHARS + 4)
+        );
     }
 
     /**

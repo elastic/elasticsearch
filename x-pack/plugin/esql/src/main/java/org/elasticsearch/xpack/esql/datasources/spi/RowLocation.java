@@ -17,10 +17,11 @@ import org.elasticsearch.core.Strings;
  * zero every time, which is the work splitting exists to avoid, so the message names the window the ordinal was
  * counted in and the reader of it starts from there.
  * <p>
- * The object name does not fully separate a glob's interleaved detail lines: {@link StoragePath#objectName()}
- * returns the last path segment, never the full URI, so objects sharing a basename share a token. What the
- * window clause does separate is two chunks of ONE object failing at the same ordinal, which
- * {@code InformationalWarningBudget} would otherwise deduplicate by exact string into a single warning.
+ * Neither clause identifies the read uniquely. {@link StoragePath#objectName()} returns the last path segment
+ * and never the full URI, so objects of a glob sharing a basename share a token; and the window clause tells two
+ * chunks of one object apart only where each names its own start byte, every split passing {@link #BYTE_UNKNOWN}
+ * rendering the same {@code counted within a split}. Where two failing rows render one string,
+ * {@code InformationalWarningBudget} deduplicates by exact string and the user is shown one warning.
  */
 public final class RowLocation {
 

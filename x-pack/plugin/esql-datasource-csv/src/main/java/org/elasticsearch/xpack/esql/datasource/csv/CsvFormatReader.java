@@ -1985,6 +1985,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link #rejectDuplicateHeaderNames} does for the identical condition: a glob over many objects fails the
      * whole query here, and without the name the user is told that one of their files duplicates a column
      * without being told which one.
+     * <p>
+     * The cap and the escape are taken once on the assembled list, by {@link ErrorExcerpts#summarizeEscaped}:
+     * the duplicate set is as wide as half the header, so escaping each name first spends six characters and one
+     * formatter call on every bracket or control character in a header to show 256 of them. Taken on the list,
+     * the marker counts the names as the header spells them, which is the one width a reader of this refusal has
+     * to go on.
      */
     private static void checkUniqueAttributeNames(List<Attribute> attributes, String format, String sourceLocation) {
         Set<String> seen = new HashSet<>(attributes.size());
@@ -1998,14 +2004,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         if (duplicates != null) {
-            // Render as ['a', '', 'b'] so empty-string names (a common cause via leading double commas)
-            // are visible instead of collapsing to [].
-            StringJoiner rendered = new StringJoiner(", ", "[", "]");
+            // Quoted so an empty-string name -- a common cause, via leading double commas -- is visible rather
+            // than collapsing to nothing. The quotes and separators are part of the joined text and the brackets
+            // go on after the cap, because the escape rewrites [ and ] and would spell this message's own
+            // delimiters \u005B and \u005D. Only the names pass through it.
+            StringJoiner rendered = new StringJoiner("', '");
             for (String dup : duplicates) {
-                // Escaped but not capped, unlike the sibling refusals: the cap here is on the assembled list
-                // below, and a per-name cap inside it would leave the list's own marker counting the names as
-                // this message shortened them rather than as the header spelled them.
-                rendered.add("'" + RowLocation.escapedForDisplay(dup) + "'");
+                rendered.add(dup);
             }
             ExternalClientException headerEx = new ExternalClientException(
                 ExternalException.Condition.MALFORMED_DATA,
@@ -2017,8 +2022,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 displayName(format)
                     + " header"
                     + RowLocation.objectClause(" of", sourceLocation)
-                    + " has duplicate column names "
-                    + ErrorExcerpts.summarize(rendered.toString())
+                    + " has duplicate column names ['"
+                    + ErrorExcerpts.summarizeEscaped(rendered.toString())
+                    + "']"
                     + "; if the file has no header row, set header_row=false"
             );
             throw headerEx;

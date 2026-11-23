@@ -16,6 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
@@ -29,6 +30,11 @@ import java.util.stream.Collectors;
  * The {@link UsageReporter} that runs the cycle: at every wall-clock multiple of the period it drains the {@link UsageAccumulator},
  * builds the records, adds them to the {@link PendingStore} and publishes them in batches. It only depends on the interfaces of the
  * pieces, so each of them can be replaced without touching the schedule.
+ * <p>
+ * The period given to the {@link UsageRecordBuilder} is the window the snapshot really covers: the time since the previous drain, or
+ * since this reporter was created, which is when the accumulator started, for the first one. It is the configured period only when
+ * every cycle runs on time, and it is shorter for the first cycle and longer after a cycle that overran boundaries, so a record is
+ * never stamped in a range that its usage did not happen in.
  * <p>
  * The invariants that keep the count safe: a snapshot is drained once and its records are in the store before anything is published,
  * so a failure of the publisher loses nothing that the store holds (a failure of the builder or the store after the drain loses that
@@ -52,6 +58,9 @@ public final class ScheduledUsageReporter implements UsageReporter {
     private final TimeValue flushTimeout;
     private final ThreadPool threadPool;
     private final Clock clock;
+
+    /** Where the window of the next drain starts; only used by the cycle that holds the permit. */
+    private Instant windowStart;
 
     /** Single flight: the one permit is held by the cycle that is running, or by the final flush. */
     private final Semaphore cycle = new Semaphore(1);
@@ -81,6 +90,7 @@ public final class ScheduledUsageReporter implements UsageReporter {
         this.flushTimeout = settings.requestTimeout();
         this.threadPool = threadPool;
         this.clock = clock;
+        this.windowStart = clock.instant().truncatedTo(ChronoUnit.MILLIS);
     }
 
     @Override
@@ -149,13 +159,26 @@ public final class ScheduledUsageReporter implements UsageReporter {
 
     /**
      * The first half of a cycle: drains the accumulator and puts the records in the store, before anything is published. A failure is
-     * logged once, and loses that period only.
+     * logged once, and loses that period only. The builder, not this method, decides whether a snapshot has usage to report, so that
+     * there is one definition of it. The window moves only when the drain itself succeeded: a drain that failed has not reset the sums,
+     * and the next one covers both windows.
+     * <p>
+     * The drain time is the id of the records, in milliseconds, so it must be later than the previous one: two records with the same id
+     * are taken for a retry and the later one is lost. Scheduled boundaries are already strictly increasing; this only bumps a call
+     * that would not be later than the previous drain, which the public {@link #tick} allows.
      */
     private void drain(Instant now) {
         try {
-            UsageSnapshot snapshot = accumulator.drain(now);
-            if (snapshot.isEmpty() == false) {
-                store.add(builder.build(snapshot, identity, period, now));
+            Instant drainTime = now.truncatedTo(ChronoUnit.MILLIS);
+            if (drainTime.isAfter(windowStart) == false) {
+                drainTime = windowStart.plusMillis(1);
+            }
+            UsageSnapshot snapshot = accumulator.drain(drainTime);
+            Duration window = Duration.between(windowStart, drainTime);
+            windowStart = drainTime;
+            List<UsageRecord> records = builder.build(snapshot, identity, window, drainTime);
+            if (records.isEmpty() == false) {
+                store.add(records);
             }
         } catch (Exception e) {
             logger.warn("failed to build the usage records of the period ending at [{}]", now, e);

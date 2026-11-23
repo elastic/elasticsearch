@@ -64,6 +64,8 @@ public class ScheduledUsageReporterTests extends ESTestCase {
     private static class ScriptedAccumulator implements UsageAccumulator {
         final List<Instant> drains = new ArrayList<>();
         boolean hasUsage = true;
+        /** When set, returned by the next drain instead of the usual snapshot. */
+        Map<Outcome, CpuComponents> nextUsage;
         RuntimeException failure;
 
         @Override
@@ -78,21 +80,33 @@ public class ScheduledUsageReporterTests extends ESTestCase {
                 throw failure;
             }
             Map<Outcome, CpuComponents> usage = hasUsage ? Map.of(Outcome.SUCCESS, new CpuComponents(0, 0, 2_000_000, 0)) : Map.of();
+            if (nextUsage != null) {
+                usage = nextUsage;
+                nextUsage = null;
+            }
             return new UsageSnapshot(drainTime, usage);
         }
     }
 
-    /** Builds {@link #recordsPerSnapshot} records per snapshot, with ids that depend only on the drain time, like the real builder. */
+    /**
+     * Builds {@link #recordsPerSnapshot} records per snapshot with usage, with ids that depend only on the drain time, like the real
+     * builder, which is also the one that decides that a snapshot has no usage. Records the period of every call.
+     */
     private static class ScriptedBuilder implements UsageRecordBuilder {
+        final List<Duration> periods = new ArrayList<>();
         int recordsPerSnapshot = 1;
         RuntimeException failure;
 
         @Override
         public List<UsageRecord> build(UsageSnapshot snapshot, SourceIdentity identity, Duration period, Instant creationTime) {
+            periods.add(period);
             if (failure != null) {
                 throw failure;
             }
             List<UsageRecord> records = new ArrayList<>();
+            if (snapshot.byOutcome().isEmpty()) {
+                return records;
+            }
             for (int i = 0; i < recordsPerSnapshot; i++) {
                 records.add(
                     new UsageRecord(
@@ -210,6 +224,68 @@ public class ScheduledUsageReporterTests extends ESTestCase {
         );
         assertThat(reporter.recordsSent(), equalTo(4L));
         assertThat(reporter.recordsPending(), equalTo(0));
+    }
+
+    public void testThePeriodOfTheRecordsIsTheWindowSinceThePreviousDrain() {
+        ScheduledUsageReporter reporter = reporter(10); // created at 10:03:20, when the accumulator starts
+
+        reporter.tick(at("2026-11-23T10:05:00Z"));
+        reporter.tick(at("2026-11-23T10:10:00Z"));
+        reporter.tick(at("2026-11-23T10:25:00Z")); // the cycles of 10:15 and 10:20 did not run
+
+        assertThat(builder.periods, contains(Duration.ofSeconds(100), Duration.ofMinutes(5), Duration.ofMinutes(15)));
+    }
+
+    public void testDrainsAtTheSameInstantOrEarlierGetLaterDrainTimesAndDistinctIds() {
+        ScheduledUsageReporter reporter = reporter(10);
+
+        reporter.tick(at("2026-11-23T10:05:00Z"));
+        reporter.tick(at("2026-11-23T10:05:00Z")); // the same instant
+        reporter.tick(at("2026-11-23T10:04:00Z")); // the clock went back
+
+        assertThat(
+            accumulator.drains,
+            contains(at("2026-11-23T10:05:00Z"), at("2026-11-23T10:05:00.001Z"), at("2026-11-23T10:05:00.002Z"))
+        );
+        assertThat(publisher.batches.stream().flatMap(List::stream).distinct().count(), equalTo(3L));
+        assertThat(reporter.recordsSent(), equalTo(3L));
+        assertThat(builder.periods, contains(Duration.ofSeconds(100), Duration.ofMillis(1), Duration.ofMillis(1)));
+    }
+
+    public void testTheWindowDoesNotMoveWhenTheDrainFails() {
+        ScheduledUsageReporter reporter = reporter(10);
+        accumulator.failure = new IllegalStateException("boom");
+        reporter.tick(at("2026-11-23T10:05:00Z"));
+        accumulator.failure = null;
+
+        reporter.tick(at("2026-11-23T10:10:00Z"));
+
+        // The failed drain did not reset the sums, so the next one covers both windows.
+        assertThat(builder.periods, contains(Duration.ofMinutes(6).plusSeconds(40)));
+    }
+
+    public void testTheWindowMovesWhenTheBuilderFails() {
+        ScheduledUsageReporter reporter = reporter(10);
+        builder.failure = new IllegalStateException("boom");
+        reporter.tick(at("2026-11-23T10:05:00Z"));
+        builder.failure = null;
+        builder.periods.clear();
+
+        reporter.tick(at("2026-11-23T10:10:00Z"));
+
+        // The usage of the failed window was drained and is lost, so the next record must not claim it.
+        assertThat(builder.periods, contains(Duration.ofMinutes(5)));
+    }
+
+    public void testTheBuilderDecidesWhetherASnapshotHasUsage() {
+        ScheduledUsageReporter reporter = reporter(10);
+        // The components add up to zero, so the snapshot says it is empty, but a builder that ignores negative components has usage.
+        accumulator.nextUsage = Map.of(Outcome.SUCCESS, new CpuComponents(-2_000_000, 0, 2_000_000, 0));
+
+        reporter.tick(at("2026-11-23T10:05:00Z"));
+
+        assertThat(builder.periods.size(), equalTo(1));
+        assertThat(reporter.recordsSent(), equalTo(1L));
     }
 
     public void testAPeriodWithoutUsagePublishesNothing() {

@@ -92,6 +92,25 @@ public class CrossIndexModeGenerativeRestRunnerTests extends ESTestCase {
         assertEquals(List.of("hello"), canon);
     }
 
+    /**
+     * A duplicates-only keyword MV (e.g. {@code ["false","false"]}) collapses to one value in
+     * standard mode, which then renders it as a scalar, while columnar keeps the list. After
+     * dedup the singleton list must unwrap to the scalar rendering so the two compare equal.
+     * Note this only absorbs the rendering difference: the scalar-vs-MV split also changes
+     * downstream function semantics (scalar functions return null on MV input), which is why
+     * {@code employees_incompatible} stays excluded.
+     */
+    public void testKeywordDuplicatesOnlyMvEqualsScalar() {
+        List<Column> schema = List.of(new Column("kw", "keyword", List.of()));
+
+        // Standard: scalar "false" (deduped from ["false","false"] by SortedSetDocValues)
+        List<List<Object>> stdRows = List.of(List.of("false"));
+        // Columnar: ["false","false"] (source order, duplicates kept)
+        List<List<Object>> colRows = List.of(List.of(List.of("false", "false")));
+
+        assertEquals(toCanonical(stdRows, schema), toCanonical(colRows, schema));
+    }
+
     // -----------------------------------------------------------------------
     // toCanonical — long MV: order absorbed, duplicates retained
     // -----------------------------------------------------------------------
@@ -155,12 +174,20 @@ public class CrossIndexModeGenerativeRestRunnerTests extends ESTestCase {
     // toCanonical — SKIP_VALUE_COLUMN_TYPES placeholder
     // -----------------------------------------------------------------------
 
-    /** geo_point columns are replaced by "~" regardless of value. */
-    public void testGeoPointColumnSkipped() {
+    /** flattened columns are replaced by "~" regardless of value. */
+    public void testFlattenedColumnSkipped() {
+        List<Column> schema = List.of(new Column("flat", "flattened", List.of()));
+        List<List<Object>> rows = List.of(List.of("{host.ip=[10.0.0.1, 10.0.0.2]}"));
+        List<String> canon = toCanonical(rows, schema);
+        assertEquals(List.of("~"), canon);
+    }
+
+    /** geo_point is no longer skipped: WKT rounding handles its precision difference. */
+    public void testGeoPointColumnNotSkipped() {
         List<Column> schema = List.of(new Column("loc", "geo_point", List.of()));
         List<List<Object>> rows = List.of(List.of("POINT (1.0 2.0)"));
         List<String> canon = toCanonical(rows, schema);
-        assertEquals(List.of("~"), canon);
+        assertEquals(List.of("POINT (1.0 2.0)"), canon);
     }
 
     // -----------------------------------------------------------------------

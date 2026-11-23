@@ -1220,16 +1220,17 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: {@code TS} is allowed
-     * in a view the caller reads with {@code LOAD_ALL}, but still rejected in a plain subquery next to it, which the caller's mode
-     * does reach.
+     * The {@code LOAD_ALL} command allow-list checks a view body under the view's own mode, not the caller's: a command that
+     * {@code LOAD_ALL} does not support, here {@code ROW}, is allowed in a view the caller reads with {@code LOAD_ALL}, but still
+     * rejected in a plain subquery next to it, which the caller's mode does reach. Use another command here when {@code ROW} is
+     * supported.
      */
     public void testLoadAllCommandAllowListStopsAtView() {
-        String body = "TS k8s | STATS rate = rate(network.total_bytes_in) BY tbucket = TBUCKET(1 hour)";
+        String body = "ROW a = 1";
         analyzer().addK8s().addView("v", body).statement(setUnmappedLoadAll("FROM v"));
         analyzer().addK8s()
             .addView("v", body)
-            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("TS")));
+            .statementError(setUnmappedLoadAll("FROM v, (" + body + ")"), containsString(Verifier.loadAllUnsupportedCommandMessage("ROW")));
     }
 
     private static List<String> outputNames(LogicalPlan plan) {
@@ -2449,20 +2450,16 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     /**
-     * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, which is rejected by the allow-list.
-     * The error names the source command ({@code TS}), not the internal node type. Tested both with and without a downstream STATS.
+     * The {@code TS} command creates an {@link EsRelation} with {@link IndexMode#TIME_SERIES}, like any other source. A time-series
+     * aggregation drops the {@code _unmapped_fields} column like any STATS, and a TS query without one returns it.
      */
-    public void testLoadAllModeRejectsTimeSeriesCommand() {
-        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
-            .statementError(
-                setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"),
-                containsString(Verifier.loadAllUnsupportedCommandMessage("TS"))
-            );
-        test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
-            .statementError(
-                setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"),
-                containsString(Verifier.loadAllUnsupportedCommandMessage("TS"))
-            );
+    public void testLoadAllModeAcceptsTimeSeriesCommand() {
+        LogicalPlan aggregated = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statement(setUnmappedLoadAll("TS test | STATS MAX(RATE(network.bytes_in)) BY host"));
+        assertThat(outputNames(aggregated), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        LogicalPlan rows = test().addIndex("test", "tsdb-mapping.json", IndexMode.TIME_SERIES)
+            .statement(setUnmappedLoadAll("TS test | SORT @timestamp | LIMIT 10"));
+        assertThat(outputNames(rows), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
     }
 
     /**

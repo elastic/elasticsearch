@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 166708
+summary: "ESQL:DS: Prune Parquet row groups for prefix mv_like/mv_rlike"
+type: enhancement

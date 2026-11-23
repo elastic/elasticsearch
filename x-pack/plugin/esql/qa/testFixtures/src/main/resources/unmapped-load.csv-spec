@@ -4780,3 +4780,63 @@ y:long | x:keyword
 2      | t
 0      | null
 ;
+
+// An OR across different fields, pushed to the shards as a bool of should clauses, must still filter when it is ANDed with a condition
+// on a field that is unmapped (pushed on its own, best effort, as a filter). The documents of ids 1 and 2 have tag "t", the one of 3 none.
+loadOrAcrossFieldsAndEqualityOnUnmappedField
+required_capability: optional_fields_v5
+required_capability: fix_disjunction_combined_with_pushed_filter
+
+SET unmapped_fields="load"\;
+FROM unmapped_compound_outputs
+| WHERE (id == "3" OR host == "c.example.net") AND tag == "t"
+| SORT id
+| KEEP id, tag
+;
+
+id:keyword | tag:keyword
+;
+
+loadOrAcrossFieldsAndEqualityOnUnmappedFieldKeepsTheMatchingRow
+required_capability: optional_fields_v5
+required_capability: fix_disjunction_combined_with_pushed_filter
+
+SET unmapped_fields="load"\;
+FROM unmapped_compound_outputs
+| WHERE (id == "1" OR host == "c.example.net") AND tag == "t"
+| SORT id
+| KEEP id, tag
+;
+
+id:keyword | tag:keyword
+1          | t
+;
+
+loadOrAcrossFieldsAndIsNullOnUnmappedField
+required_capability: optional_fields_v5
+required_capability: fix_disjunction_combined_with_pushed_filter
+
+SET unmapped_fields="load"\;
+FROM unmapped_compound_outputs
+| WHERE (id == "1" OR host == "www.example.co.uk") AND tag IS NULL
+| SORT id
+| KEEP id, tag
+;
+
+id:keyword | tag:keyword
+;
+
+// The query of #165754: the IS NOT NULL on the unmapped field drops out of the OR when the field is known to be null.
+loadOrWithIsNotNullAndIsNullOnTheSameUnmappedField
+required_capability: optional_fields_v5
+required_capability: fix_disjunction_combined_with_pushed_filter
+
+SET unmapped_fields="load"\;
+FROM unmapped_compound_outputs
+| WHERE (tag IS NOT NULL OR id == "x" OR url LIKE "nomatch*") AND tag IS NULL
+| SORT id
+| KEEP id, tag
+;
+
+id:keyword | tag:keyword
+;

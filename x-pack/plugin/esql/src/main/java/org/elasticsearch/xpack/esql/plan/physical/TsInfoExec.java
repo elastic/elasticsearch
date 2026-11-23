@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -76,8 +76,6 @@ public class TsInfoExec extends UnaryExec {
      * the input attributes of {@link Mode#FINAL} and {@link Mode#INTERMEDIATE}.
      * Analogous to {@link AggregateExec#intermediateAttributes()}.
      */
-    private static final TransportVersion ESQL_TS_INFO_LIMIT = TransportVersion.fromName("esql_ts_info_limit");
-
     private final List<Attribute> intermediateAttributes;
     private final List<Attribute> outputAttrs;
     private final Mode mode;
@@ -110,7 +108,7 @@ public class TsInfoExec extends UnaryExec {
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readEnum(Mode.class),
-            in.getTransportVersion().supports(ESQL_TS_INFO_LIMIT) ? in.readOptionalVInt() : null
+            TsInfo.limitOnWire(in.getTransportVersion()) ? in.readOptionalVInt() : null
         );
     }
 
@@ -121,7 +119,7 @@ public class TsInfoExec extends UnaryExec {
         out.writeNamedWriteableCollection(outputAttrs);
         out.writeNamedWriteableCollection(intermediateAttributes);
         out.writeEnum(mode);
-        if (out.getTransportVersion().supports(ESQL_TS_INFO_LIMIT)) {
+        if (TsInfo.limitOnWire(out.getTransportVersion())) {
             out.writeOptionalVInt(limit);
         }
     }

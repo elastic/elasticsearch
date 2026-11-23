@@ -505,4 +505,9 @@ class BulkPrimaryExecutionContext {
         }
         return true;
     }
+
+    boolean stillOnFirstItem() {
+        return currentIndex == 0;
+    }
+
 }

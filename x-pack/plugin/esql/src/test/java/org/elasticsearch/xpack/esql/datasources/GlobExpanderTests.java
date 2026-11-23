@@ -2725,7 +2725,7 @@ public class GlobExpanderTests extends ESTestCase {
 
     /**
      * A missing exact region folder stays on the spliced account prefix. The retry must not drop account and
-     * list {@code AWSLogs/}.
+     * list {@code AWSLogs/}. The empty prefix still keeps one sibling file as a schema-inference anchor.
      */
     public void testTemplateEmptySpliceRetryKeepsExactAccountPrefix() throws IOException {
         ListingWalkHarness provider = new ListingWalkHarness(awsVpcTree());
@@ -2736,23 +2736,46 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = GlobExpander.expand(AWS_LOGS_GLOB, provider, hints, templateAwsLogs(), MAX, MAX);
 
-        assertEquals(0, result.fileCount());
-        assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/no-such-region/"), provider.listedPrefixes());
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertEquals("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/01/b.log.gz", result.path(0).toString());
+        assertThat(provider.listedPrefixes(), hasItem("s3://bucket/AWSLogs/012345678901/vpcflowlogs/no-such-region/"));
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/AWSLogs/")));
         assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
     }
 
     /**
+     * {@code region == "eu-west-1"} on a us-east-1-only dataset must not throw “matched no files”: keep one
+     * sibling file as a schema-inference anchor. The exact prefix is still listed first.
+     */
+    public void testTemplateEmptyExactRegionKeepsInferenceAnchor() throws IOException {
+        ListingWalkHarness provider = new ListingWalkHarness(List.of(ListingWalkHarness.entry("s3://bucket/logs/us-east-1/a.parquet")));
+        var hints = List.of(hint("region", PartitionFilterHintExtractor.Operator.EQUALS, "eu-west-1"));
+        PartitionConfig config = new PartitionConfig(PartitionConfig.Strategy.TEMPLATE, "{region}");
+
+        FileList result = GlobExpander.expand("s3://bucket/logs/*/*.parquet", provider, hints, configMapOf(config), MAX, MAX);
+
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertEquals("s3://bucket/logs/us-east-1/a.parquet", result.path(0).toString());
+        assertThat(provider.listedPrefixes(), hasItem("s3://bucket/logs/eu-west-1/"));
+        assertThat(provider.listedPrefixes(), not(hasItem("s3://bucket/")));
+    }
+
+    /**
      * Local filesystem throws {@link NoSuchFileException} on a missing directory where S3 lists empty. TEMPLATE
-     * maps that throw to empty and still does not list {@code AWSLogs/}.
+     * maps that throw to an inference-anchor probe of the parent prefix and still does not list {@code AWSLogs/}.
      */
     public void testTemplateMissingLocalPrefixIsEmptyNotOriginalGlob() throws IOException {
+        List<StorageEntry> sibling = List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1));
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of(
                 "s3://bucket/AWSLogs/",
-                List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1)),
+                sibling,
                 "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/",
-                List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1))
+                sibling,
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs",
+                sibling
             )
         );
         provider.throwOnUnknownPrefix = true;
@@ -2763,9 +2786,10 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = GlobExpander.expand(AWS_LOGS_GLOB, provider, hints, templateAwsLogs(), MAX, MAX);
 
-        assertEquals(0, result.fileCount());
-        assertTrue(result.isResolved());
-        assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/no-such-region/"), provider.listedPrefixes);
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertEquals("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", result.path(0).toString());
+        assertThat(provider.listedPrefixes, hasItem("s3://bucket/AWSLogs/012345678901/vpcflowlogs/no-such-region/"));
         assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/AWSLogs/")));
     }
 
@@ -2893,12 +2917,15 @@ public class GlobExpanderTests extends ESTestCase {
 
     /** Async copy of {@link #testTemplateMissingLocalPrefixIsEmptyNotOriginalGlob}. */
     public void testTemplateMissingLocalPrefixIsEmptyAsync() throws Exception {
+        List<StorageEntry> sibling = List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1));
         PrefixAwareStubProvider provider = new PrefixAwareStubProvider(
             Map.of(
                 "s3://bucket/AWSLogs/",
-                List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1)),
+                sibling,
                 "s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/",
-                List.of(entry("s3://bucket/AWSLogs/012345678901/vpcflowlogs/us-east-1/2026/06/05/a.log.gz", 1))
+                sibling,
+                "s3://bucket/AWSLogs/012345678901/vpcflowlogs",
+                sibling
             )
         );
         provider.throwOnUnknownPrefix = true;
@@ -2909,9 +2936,9 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = expandSync(AWS_LOGS_GLOB, provider, hints, templateAwsLogs(), MAX, MAX, MAX, MAX, 4, () -> false);
 
-        assertEquals(0, result.fileCount());
-        assertTrue(result.isResolved());
-        assertEquals(List.of("s3://bucket/AWSLogs/012345678901/vpcflowlogs/no-such-region/"), provider.listedPrefixes);
+        assertEquals(1, result.fileCount());
+        assertTrue(result.isInferenceAnchor());
+        assertThat(provider.listedPrefixes, hasItem("s3://bucket/AWSLogs/012345678901/vpcflowlogs/no-such-region/"));
         assertThat(provider.listedPrefixes, not(hasItem("s3://bucket/AWSLogs/")));
     }
 

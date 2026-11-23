@@ -873,9 +873,11 @@ public final class GlobExpander {
      *
      * <p>TEMPLATE does not print a typed value into a {@code *} slot; only an exact string folder name is spliced.
      * The narrowed glob is already the longest exact prefix (string account/region still in the path, numeric
-     * month/day/hour left as {@code *}). An empty listing of that prefix is conclusive: retrying the original glob
-     * would drop those splices and list the dataset. A truncated empty still retries, but with that same prefix
-     * and the bound dropped.
+     * month/day/hour left as {@code *}). Matches stay on that prefix. An untruncated empty listing is a miss of
+     * that folder, not of the dataset: one inference-anchor file is probed from the parent prefix so the
+     * resolver can return zero rows with schema instead of “matched no files”. The probe is one LIST of the
+     * parent, not a flatten of the original glob. A truncated empty still retries that same prefix with the
+     * bound dropped.
      *
      * <p>A spelling miss with survivors is not an unfiltered re-list. A value filter that keeps nothing still
      * keeps one inference-anchor file from the excluded set when that prune is trusted, so that pass is not
@@ -964,12 +966,26 @@ public final class GlobExpander {
         if (failure == null && (narrowed.isResolved() == false || narrowed.fileCount() > 0)) {
             return narrowed;
         }
-        // An untruncated empty drain is conclusive: it saw every key under the prefix, so the dataset has none.
-        // A Hive rewrite listed a different prefix and cannot say that. TEMPLATE already listed the longest exact
-        // prefix, so retrying the original glob would only drop string splices. A truncated empty result was cut
-        // short by matches a partition-value or _file.* filter dropped - matches past the bound may survive it.
+        // An untruncated empty drain saw every key under the prefix. Hive retries the original glob because the
+        // splice may have missed a spelling. TEMPLATE keeps the exact prefix for matches; an empty miss still
+        // probes one parent-prefix file as a schema anchor so the resolver is not “matched no files”.
+        // A truncated empty result was cut short by matches a partition-value or _file.* filter dropped — matches
+        // past the bound may survive it.
         if (failure == null && narrowed.isTruncated() == false && retryOriginalGlobOnEmpty(rewritten, partitionConfig) == false) {
-            return narrowed;
+            FileList anchored = exactPrefixInferenceAnchor(
+                pattern,
+                effective,
+                provider,
+                hints,
+                partitionConfig,
+                nameFilter,
+                fileOrder,
+                memory,
+                cancelled,
+                maxDiscoveredFiles,
+                maxListedObjects
+            );
+            return anchored != null ? anchored : narrowed;
         }
         // Only the rewrite can throw spuriously — it may name a folder that does not exist, where the local
         // filesystem throws and object stores return empty. A bound cannot invent an IOException, so when it was
@@ -1034,10 +1050,65 @@ public final class GlobExpander {
 
     /**
      * Whether an untruncated empty rewrite should list the original glob. TEMPLATE already listed the exact
-     * prefix; retrying the original glob would drop string splices and flatten the dataset.
+     * prefix; retrying the original glob would drop string splices and flatten the dataset. An empty miss
+     * still takes {@link #exactPrefixInferenceAnchor} instead of returning {@link FileList#EMPTY}.
      */
     private static boolean retryOriginalGlobOnEmpty(boolean rewritten, PartitionConfig partitionConfig) {
         return rewritten && keepExactTemplatePrefix(partitionConfig) == false;
+    }
+
+    /**
+     * One glob-matching file under the parent of an empty exact-string TEMPLATE prefix. The leftover is a
+     * schema-inference anchor, not a flatten of the original glob. {@code null} when the parent cannot be
+     * listed or holds no glob match — then the empty prefix listing stands.
+     */
+    @Nullable
+    private static FileList exactPrefixInferenceAnchor(
+        String pattern,
+        String effective,
+        StorageProvider provider,
+        @Nullable List<PartitionFilterHint> hints,
+        PartitionConfig partitionConfig,
+        ExclusionConfig.NameFilter nameFilter,
+        FileOrderConfig fileOrder,
+        PlanningMemory memory,
+        BooleanSupplier cancelled,
+        int maxDiscoveredFiles,
+        int maxListedObjects
+    ) throws IOException {
+        if (keepExactTemplatePrefix(partitionConfig) == false || maxDiscoveredFiles <= 0 || effective.equals(pattern)) {
+            return null;
+        }
+        StoragePath emptyPrefix = StoragePath.of(effective).patternPrefix();
+        StoragePath parent = emptyPrefix.parentDirectory();
+        if (emptyPrefix.path().endsWith("/") && parent != null) {
+            parent = parent.parentDirectory();
+        }
+        if (parent == null) {
+            return null;
+        }
+        StoragePath original = StoragePath.of(pattern);
+        StorageEntry found = findAnchor(
+            provider,
+            List.of(parent),
+            original.patternPrefix(),
+            new GlobMatcher(original.globPart()),
+            nameFilter,
+            FileMetadataFilter.resolve(hints),
+            Set.of(),
+            cancelled,
+            maxListedObjects
+        );
+        if (found == null) {
+            return null;
+        }
+        List<StorageEntry> kept = new ArrayList<>(1);
+        kept.add(found);
+        fileOrder.apply(kept);
+        List<String> notices = new ArrayList<>();
+        PartitionMetadata meta = detectPartitions(kept, partitionConfig, notices::add);
+        reserveRetained(memory, 1, 0, true);
+        return inferenceAnchorListing(kept, pattern, meta, notices);
     }
 
     /**
@@ -1901,9 +1972,26 @@ public final class GlobExpander {
                     listener.onResponse(narrowed);
                     return;
                 }
-                // Same rule as the synchronous fallback above: an untruncated empty drain is conclusive.
+                // Same rule as the synchronous fallback: TEMPLATE empty miss probes an inference anchor.
                 if (narrowed.isTruncated() == false && retryOriginalGlobOnEmpty(finalRewritten, partitionConfig) == false) {
-                    listener.onResponse(narrowed);
+                    try {
+                        FileList anchored = exactPrefixInferenceAnchor(
+                            pattern,
+                            effective,
+                            provider,
+                            hints,
+                            partitionConfig,
+                            nameFilter,
+                            fileOrder,
+                            memory,
+                            isCancelled,
+                            maxDiscoveredFiles,
+                            maxListedObjects
+                        );
+                        listener.onResponse(anchored != null ? anchored : narrowed);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                     return;
                 }
                 logger.debug(
@@ -1936,7 +2024,24 @@ public final class GlobExpander {
                 // Local-filesystem missing prefix is empty, same as the sync path and same as S3. Other listing
                 // IO still fails. Neither case lists the original glob.
                 if (finalRewritten && keepExactPrefix && isMissingPrefix(narrowFailure)) {
-                    listener.onResponse(FileList.EMPTY);
+                    try {
+                        FileList anchored = exactPrefixInferenceAnchor(
+                            pattern,
+                            effective,
+                            provider,
+                            hints,
+                            partitionConfig,
+                            nameFilter,
+                            fileOrder,
+                            memory,
+                            isCancelled,
+                            maxDiscoveredFiles,
+                            maxListedObjects
+                        );
+                        listener.onResponse(anchored != null ? anchored : FileList.EMPTY);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
                     return;
                 }
                 // Only the rewrite can throw spuriously (a folder that does not exist on a local filesystem).

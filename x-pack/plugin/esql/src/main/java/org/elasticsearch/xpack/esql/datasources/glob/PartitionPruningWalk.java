@@ -1098,6 +1098,9 @@ final class PartitionPruningWalk {
                     return null;
                 }
                 ClassifiedLevel level = classifyListed(listed);
+                if (level == null) {
+                    return null;
+                }
                 if (applyPeeksIfNeeded(level) == false) {
                     return null;
                 }
@@ -1136,6 +1139,10 @@ final class PartitionPruningWalk {
                             level = classifyListed(listed);
                         } catch (Exception e) {
                             listener.onFailure(e);
+                            return;
+                        }
+                        if (level == null) {
+                            listener.onResponse(null);
                             return;
                         }
                         applyPeeksIfNeededAsync(level, concurrency, executor, new ActionListener<>() {
@@ -1349,8 +1356,10 @@ final class PartitionPruningWalk {
          * folder level are deferred until {@link #applyClassified} so a finish-survivors recursive
          * listing of the same parent does not double-count them. A glob-matching file at a folder
          * level breaks Hive detection; the caller's validation then rejects the walk. Unshaped dirs
-         * (junk, nested root) are descended untouched.
+         * (junk, nested root) are descended untouched. An empty directory name (S3 {@code foo//})
+         * returns {@code null} so the walk withdraws rather than binding the next folder.
          */
+        @Nullable
         private ClassifiedLevel classifyListed(StorageChildren[] listed) {
             int listedDirs = dirs.size();
             List<StoragePath> shapedDirs = new ArrayList<>();
@@ -1368,12 +1377,18 @@ final class PartitionPruningWalk {
                         levelFiles.add(file);
                     }
                     for (StoragePath sub : children.directories()) {
+                        String name = sub.objectName();
+                        if (name == null || name.isEmpty()) {
+                            // Empty path segment (S3 common prefix foo//). Binding the next folder
+                            // would prune a glob match. Withdraw.
+                            return ClassifiedLevel.withdrawn(listedDirs, levelFiles);
+                        }
                         if (role.isPlaceholder()) {
                             shapedDirs.add(sub);
                             shapedKeys.add(role.name());
-                            shapedValues.add(role.decodedFolder(sub.objectName()));
+                            shapedValues.add(role.decodedFolder(name));
                         } else if (role.isLiteral()) {
-                            if (role.literal().equals(sub.objectName())) {
+                            if (role.literal().equals(name)) {
                                 next.add(sub);
                             } else if (role.globSpelled() == false) {
                                 withdraw = true;
@@ -1392,13 +1407,19 @@ final class PartitionPruningWalk {
                         levelFiles.add(file);
                     }
                     for (StoragePath sub : children.directories()) {
-                        String key = PartitionValueMatcher.folderKey(sub.objectName());
+                        String name = sub.objectName();
+                        if (name == null || name.isEmpty()) {
+                            // Empty path segment (S3 common prefix foo//). Template alignment skips it;
+                            // binding the next folder would prune a glob match. Withdraw.
+                            return ClassifiedLevel.withdrawn(listedDirs, levelFiles);
+                        }
+                        String key = PartitionValueMatcher.folderKey(name);
                         if (key == null) {
                             next.add(sub);
                         } else {
                             shapedDirs.add(sub);
                             shapedKeys.add(key);
-                            shapedValues.add(PartitionValueMatcher.folderValue(sub.objectName()));
+                            shapedValues.add(PartitionValueMatcher.folderValue(name));
                         }
                     }
                 }

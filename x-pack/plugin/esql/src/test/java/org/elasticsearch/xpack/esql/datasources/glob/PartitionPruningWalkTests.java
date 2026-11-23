@@ -287,6 +287,28 @@ public class PartitionPruningWalkTests extends ESTestCase {
         }
     }
 
+    public void testEmptyPathSegmentWithdrawsWithoutFlatListing() throws Exception {
+        List<StorageEntry> tree = List.of(
+            ListingWalkHarness.entry("s3://bucket/logs/year=2026/month=10/day=14/f.parquet"),
+            ListingWalkHarness.entry("s3://bucket/logs/year=2026/month=10/day=14//ghost.parquet")
+        );
+        List<Expression> filters = List.of(window(LAST_DAY, NOW));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        ListingWalkHarness sequential = new ListingWalkHarness(tree);
+        assertNull(tryWalk(sequential, hints, pred, () -> false));
+        assertEquals(0, sequential.listObjectPages());
+
+        ListingWalkHarness parallel = new ListingWalkHarness(tree);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        try {
+            assertNull(tryWalkAsync(parallel, hints, pred, () -> false, 4, threadPool.generic()));
+            assertEquals(0, parallel.listObjectPages());
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     public void testParallelWalkNullChildSkipsUnstarted() throws Exception {
         List<StorageEntry> tree = wideHiveTree();
         FolderRangePredicate pred = folderRange(List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END)), DAY_SPEC);

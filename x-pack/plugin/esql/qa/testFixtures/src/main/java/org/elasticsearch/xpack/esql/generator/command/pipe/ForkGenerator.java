@@ -81,7 +81,7 @@ public class ForkGenerator implements CommandGenerator {
                         : executor.execute(previousResult.query() + command, previousResult.depth());
                     previousResult = result;
 
-                    continueExecuting = result.exception() == null && result.outputSchema().equals(previousOutput);
+                    continueExecuting = result.exception() == null && sameSchema(result.outputSchema(), previousOutput);
                     if (continueExecuting) {
                         previousCommands.add(current);
                     }
@@ -158,5 +158,18 @@ public class ForkGenerator implements CommandGenerator {
         List<List<Object>> output
     ) {
         return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
+    }
+
+    /**
+     * Compares names and types (including union types) but not {@link Column#indexMapped()}: {@code previousOutput} carries flags
+     * derived by the test, while a freshly executed schema has them all {@code true}, so comparing them would reject every branch
+     * whose input has a derived column.
+     */
+    static boolean sameSchema(List<Column> executed, List<Column> expected) {
+        return withoutIndexMapped(executed).equals(withoutIndexMapped(expected));
+    }
+
+    private static List<Column> withoutIndexMapped(List<Column> columns) {
+        return columns.stream().map(c -> new Column(c.name(), c.type(), c.originalTypes())).toList();
     }
 }

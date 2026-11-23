@@ -198,6 +198,7 @@ public class CsvTestsDataLoader {
         new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
         new TestDataset("nested_paths_mapped", "mapping-nested_paths_mapped.json", "nested_paths_mapped.csv"),
         new TestDataset("nested_paths_unmapped", "mapping-nested_paths_unmapped.json", "nested_paths_unmapped.csv"),
+        new TestDataset("nested_orders", "mapping-nested_orders.json", "nested_orders.csv"),
         new TestDataset("mv_expand_mapped", "mapping-mv_expand_mapped.json", "mv_expand_mapped.csv"),
         new TestDataset("mv_expand_unmapped", "mapping-mv_expand_unmapped.json", "mv_expand_unmapped.csv"),
         new TestDataset("change_point_mapped", "mapping-change_point_mapped.json", "change_point_mapped.csv"),
@@ -332,6 +333,14 @@ public class CsvTestsDataLoader {
             .withRequiredCapabilities(EsqlCapabilities.Cap.FIX_TS_BLOCK_LOADER_PASSTHROUGH_ALIASING),
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        // The same unmapped fields as k8s_unmapped, but in an index that stores its _source (the fields are read from it directly,
+        // not rebuilt from _ignored_source) and in a downsampled-shaped one.
+        new TestDataset("k8s_unmapped_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_downsampled_unmapped", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json")
+            .withTypeMapping(removeFields("event", "network.bytes_in", "network.cost"))
             .withDynamic("false"),
         new TestDataset("k8s_nonexistent", "k8s-mappings.json", "k8s_nonexistent.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
@@ -572,6 +581,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
+        new ViewConfig("fillnull_employees", List.of(EsqlCapabilities.Cap.FILLNULL)),
         new ViewConfig("employees_extra"),
         new ViewConfig("employees_via_alias"),
         new ViewConfig("partial_mapping_view"),
@@ -589,6 +599,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_promql_absent_label", List.of(EsqlCapabilities.Cap.PROMQL_ABSENT_LABEL_MATCHING)),
         new ViewConfig(
             "view_k8s_bare_rate_by_tbucket",
             List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS)

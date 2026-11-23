@@ -54,6 +54,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -64,6 +65,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -158,6 +160,7 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -171,6 +174,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.streaming.EsqlStreamResultsIndexDescriptor;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.MlAnomaliesView;
@@ -203,7 +207,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin {
+public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin, ShutdownAwarePlugin, SystemIndexPlugin {
 
     private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
 
@@ -504,6 +508,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         AtomicInteger maxDiscoveredFiles = new AtomicInteger();
         AtomicInteger maxGlobExpansion = new AtomicInteger();
         AtomicInteger maxListedObjects = new AtomicInteger();
+        AtomicInteger maxDirectoryListings = new AtomicInteger();
         var clusterSettings = services.clusterService().getClusterSettings();
         // initializeAndWatchIfRegistered seeds from node settings when federation is unregistered (the keys
         // are not in ClusterSettings then) and watches cluster state when they are. Resolution and split discovery
@@ -512,6 +517,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DISCOVERED_FILES, maxDiscoveredFiles::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_GLOB_EXPANSION, maxGlobExpansion::set);
         clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_LISTED_OBJECTS, maxListedObjects::set);
+        clusterSettings.initializeAndWatchIfRegistered(ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, maxDirectoryListings::set);
         if (federationRegistered) {
             clusterSettings.addSettingsUpdateConsumer(ExternalSourceCacheSettings.CACHE_ENABLED, cacheService::setEnabled);
         }
@@ -524,7 +530,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             cacheService,
             maxDiscoveredFiles::get,
             maxGlobExpansion::get,
-            maxListedObjects::get
+            maxListedObjects::get,
+            maxDirectoryListings::get
         );
 
         // Create DataSourceModule with all discovered plugins.
@@ -674,7 +681,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.indicesService().getAnalysis(),
                 maxDiscoveredFiles::get,
                 maxGlobExpansion::get,
-                maxListedObjects::get
+                maxListedObjects::get,
+                maxDirectoryListings::get
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -761,6 +769,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
                 EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
                 EsqlFlags.ESQL_TIME_SERIES_REDUCE_PER_INDEX,
+                EsqlFlags.ESQL_MAX_BINARY_OPERATORS_PER_EXPRESSION,
+                EsqlFlags.ESQL_MAX_PARENTHESES_COUNT,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -784,6 +794,23 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         settings.addAll(Federation.settings());
 
         return Collections.unmodifiableList(settings);
+    }
+
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return EsqlStreamResultsIndexDescriptor.FEATURE_FLAG.isEnabled()
+            ? List.of(EsqlStreamResultsIndexDescriptor.getSystemIndexDescriptor())
+            : List.of();
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "esql";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Stores the results of streamed ES|QL queries";
     }
 
     @Override
@@ -899,6 +926,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(DriverStatus.ENTRY);
         entries.add(AbstractPageMappingOperator.Status.ENTRY);
         entries.add(FetchDocsSourceOperator.Status.ENTRY);
+        entries.add(FetchOperator.Status.ENTRY);
         entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
         entries.add(AggregationOperator.Status.ENTRY);
         entries.add(EsqlQueryStatus.ENTRY);

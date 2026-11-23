@@ -461,9 +461,9 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
 
-            // _source: json
+            // _source: json, tagged with the arrow.json extension type
             // TODO: support also CBOR and SMILE with an additional formatting parameter
-            case SOURCE -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
+            case SOURCE -> new BlockArrowFormatter.AsJson(type);
 
             case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
             case DOUBLE_RANGE -> new BlockArrowFormatter.AsDoubleRange(type);
@@ -473,7 +473,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             case AGGREGATE_METRIC_DOUBLE -> new BlockArrowFormatter.AsAggregateMetricDouble(type);
             case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
-            case FLATTENED -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
+            case FLATTENED -> new BlockArrowFormatter.AsJson(type);
             // Geo grid cells don't fit in GeoArrow. Geohash and geohex are output as their long block value.
             // Geohash uses all 64 bits (60 bits of hash + 4 bits of level), so it's output as unsigned.
             // Geohex never sets bit 63, so signed int64 is fine.
@@ -482,7 +482,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case GEOHEX -> new BlockArrowFormatter.AsInt64(type);
             case GEOTILE -> new BlockArrowFormatter.AsGeoTile(type);
             case HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
-            case TDIGEST -> TO_BE_IMPLEMENTED_MARKER;
+            case TDIGEST -> new BlockArrowFormatter.AsTDigest(type);
 
             // Types that should not appear in ESQL outputs
             case SHORT -> null;

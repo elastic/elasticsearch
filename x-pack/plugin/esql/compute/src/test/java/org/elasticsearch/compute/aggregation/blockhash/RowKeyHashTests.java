@@ -107,6 +107,72 @@ public class RowKeyHashTests extends BlockHashTestCase {
         }
     }
 
+    /**
+     * {@code -0.0 == 0.0}, so the two are one key, alone and inside a multivalue.
+     */
+    public void testDoubleZeroSignsAreOneKey() {
+        try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(ElementType.DOUBLE), blockFactory)) {
+            Page vectors = new Page(blockFactory.newDoubleArrayVector(new double[] { 0.0, -0.0, 1.0 }, 3).asBlock());
+            int[] first;
+            try {
+                first = hash.add(vectors);
+            } finally {
+                vectors.releaseBlocks();
+            }
+            assertThat(first[0], equalTo(first[1]));
+            assertThat(first[0] == first[2], equalTo(false));
+            Page mixed = new Page(
+                BlockTestUtils.asBlock(
+                    blockFactory,
+                    ElementType.DOUBLE,
+                    Arrays.asList(List.of(0.0, -0.0), List.of(-0.0, 0.0), List.of(0.0, 1.0))
+                )
+            );
+            try {
+                int[] second = hash.add(mixed);
+                assertThat(second[0], equalTo(second[1]));
+                assertThat(second[0] == second[2], equalTo(false));
+            } finally {
+                mixed.releaseBlocks();
+            }
+        }
+    }
+
+    public void testFloatZeroSignsAreOneKey() {
+        try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(ElementType.FLOAT), blockFactory)) {
+            Page vectors = new Page(blockFactory.newFloatArrayVector(new float[] { 0.0f, -0.0f, 1.0f }, 3).asBlock());
+            int[] groups;
+            try {
+                groups = hash.add(vectors);
+            } finally {
+                vectors.releaseBlocks();
+            }
+            assertThat(groups[0], equalTo(groups[1]));
+            assertThat(groups[0] == groups[2], equalTo(false));
+        }
+    }
+
+    public void testDoubleRangeZeroSignsAreOneKey() {
+        Block ranges;
+        try (var builder = blockFactory.newDoubleRangeBlockBuilder(3)) {
+            builder.appendDoubleRange(0.0, 1.0);
+            builder.appendDoubleRange(-0.0, 1.0);
+            builder.appendDoubleRange(1.0, 2.0);
+            ranges = builder.build();
+        }
+        try (RowKeyHash hash = new RowKeyHash(new int[] { 0 }, List.of(ElementType.DOUBLE_RANGE), blockFactory)) {
+            Page page = new Page(ranges);
+            int[] groups;
+            try {
+                groups = hash.add(page);
+            } finally {
+                page.releaseBlocks();
+            }
+            assertThat(groups[0], equalTo(groups[1]));
+            assertThat(groups[0] == groups[2], equalTo(false));
+        }
+    }
+
     public void testCircuitBreaking() {
         CrankyCircuitBreakerService crankyService = new CrankyCircuitBreakerService();
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, crankyService);

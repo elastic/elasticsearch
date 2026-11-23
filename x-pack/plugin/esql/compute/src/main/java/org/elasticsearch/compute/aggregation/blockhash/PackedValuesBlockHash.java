@@ -965,7 +965,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                     case DOUBLE -> {
                         DoubleVector doubleVector = (DoubleVector) vector;
                         for (int i = 0; i < batchSize; i++) {
-                            DOUBLE_HANDLE.set(keys, i * keyLength + offset, doubleVector.getDouble(positionOffset + i));
+                            LONG_HANDLE.set(keys, i * keyLength + offset, doubleKeyRawBits(doubleVector.getDouble(positionOffset + i)));
                         }
                     }
                     case BOOLEAN -> {
@@ -1398,7 +1398,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                         if ((rowNulls[i] & bit) != 0) {
                             continue;
                         }
-                        DOUBLE_HANDLE.set(keyBuf, cursors[i], db.getDouble(db.getFirstValueIndex(positionOffset + i)));
+                        LONG_HANDLE.set(keyBuf, cursors[i], doubleKeyRawBits(db.getDouble(db.getFirstValueIndex(positionOffset + i))));
                         cursors[i] += Double.BYTES;
                     }
                 }
@@ -1472,7 +1472,7 @@ public final class PackedValuesBlockHash extends PartitionedBlockHash {
                     case DOUBLE -> {
                         DoubleVector dv = (DoubleVector) vector;
                         for (int i = 0; i < rows; i++) {
-                            DOUBLE_HANDLE.set(keyBuf, cursors[i], dv.getDouble(positionOffset + i));
+                            LONG_HANDLE.set(keyBuf, cursors[i], doubleKeyRawBits(dv.getDouble(positionOffset + i)));
                             cursors[i] += Double.BYTES;
                         }
                     }

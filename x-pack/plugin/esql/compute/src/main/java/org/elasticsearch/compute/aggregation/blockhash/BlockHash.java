@@ -320,6 +320,29 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     }
 
     /**
+     * The bits that key a {@code double} in a grouping hash. {@code -0.0 == 0.0}, so both key as the bits of
+     * {@code 0.0}; every NaN keys as the one canonical NaN, as {@link Double#doubleToLongBits} returns it.
+     */
+    public static long doubleKeyBits(double v) {
+        return v == 0.0 ? 0L : Double.doubleToLongBits(v);
+    }
+
+    /**
+     * The bits that key a {@code double} in a packed key encoding. {@code -0.0 == 0.0}, so both key as the bits of
+     * {@code 0.0}; every other value keeps its own bits, so NaNs with different bits stay different keys.
+     */
+    public static long doubleKeyRawBits(double v) {
+        return v == 0.0 ? 0L : Double.doubleToRawLongBits(v);
+    }
+
+    /**
+     * The bits that key a {@code float} in a packed key encoding, as {@link #doubleKeyRawBits} keys a {@code double}.
+     */
+    public static int floatKeyRawBits(float v) {
+        return v == 0.0f ? 0 : Float.floatToRawIntBits(v);
+    }
+
+    /**
      * Optionally hints to the blockhash to ensure the given capacity.
      * The blockhash may ignore the hint or resize upfront as an optimization
      * to avoid multiple resizes as the capacity is reached.

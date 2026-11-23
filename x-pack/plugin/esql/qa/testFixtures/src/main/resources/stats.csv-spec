@@ -5052,3 +5052,27 @@ ROW x = [1, 2], y = [1, 2]
 mx:integer | my:integer
 1          | 2
 ;
+
+statsByNegativeZeroCollapses
+required_capability: fix_negative_zero_group_keys
+
+ROW d = [0.0, -0.0]
+| MV_EXPAND d
+| STATS c = COUNT(*) BY d
+;
+
+c:long | d:double
+2      | 0.0
+;
+
+statsByMultipleKeysNegativeZeroCollapses
+required_capability: fix_negative_zero_group_keys
+
+ROW d = [0.0, -0.0], k = 1
+| MV_EXPAND d
+| STATS c = COUNT(*) BY d, k
+;
+
+c:long | d:double | k:integer
+2      | 0.0      | 1
+;

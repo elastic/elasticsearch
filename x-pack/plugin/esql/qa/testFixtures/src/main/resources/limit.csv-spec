@@ -1405,3 +1405,16 @@ foo                          | key1
 foo                          | key2
 foo                          | key3
 ;
+
+limitByNegativeZeroCollapses
+required_capability: esql_limit_by
+required_capability: fix_negative_zero_group_keys
+
+ROW d = [0.0, -0.0]
+| MV_EXPAND d
+| LIMIT 1 BY d
+;
+
+d:double
+0.0
+;

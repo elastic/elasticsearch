@@ -74,6 +74,54 @@ public class GroupKeyEncoderTests extends ComputeTestCase {
         }
     }
 
+    public void testDoubleZeroSignsSameKey() {
+        BlockFactory bf = blockFactory();
+        Page page = new Page(bf.newDoubleArrayVector(new double[] { 0.0, -0.0 }, 2).asBlock());
+        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.DOUBLE))) {
+            assertEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    /**
+     * NaNs with different bits stay different keys; only the sign of zero is dropped from the key.
+     */
+    public void testDoubleNaNsKeepTheirBits() {
+        BlockFactory bf = blockFactory();
+        double otherNan = Double.longBitsToDouble(Double.doubleToRawLongBits(Double.NaN) | 1L);
+        Page page = new Page(bf.newDoubleArrayVector(new double[] { Double.NaN, otherNan }, 2).asBlock());
+        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.DOUBLE))) {
+            assertNotEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testFloatZeroSignsSameKey() {
+        BlockFactory bf = blockFactory();
+        Page page = new Page(bf.newFloatArrayVector(new float[] { 0.0f, -0.0f }, 2).asBlock());
+        try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.FLOAT))) {
+            assertEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testDoubleRangeZeroSignsSameKey() {
+        BlockFactory bf = blockFactory();
+        try (var builder = bf.newDoubleRangeBlockBuilder(2)) {
+            builder.appendDoubleRange(0.0, 1.0);
+            builder.appendDoubleRange(-0.0, 1.0);
+            Page page = new Page(builder.build());
+            try (GroupKeyEncoder encoder = encoder(new int[] { 0 }, List.of(ElementType.DOUBLE_RANGE))) {
+                assertEquals(copy(encoder.encode(page, 0)), copy(encoder.encode(page, 1)));
+            } finally {
+                page.releaseBlocks();
+            }
+        }
+    }
+
     public void testDoubleRangeType() {
         BlockFactory bf = blockFactory();
         try (var builder = bf.newDoubleRangeBlockBuilder(4)) {

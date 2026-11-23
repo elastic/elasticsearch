@@ -613,11 +613,11 @@ public class MultivalueDedupeDoubleRange {
     }
 
     private void hashAdd(IntBlock.Builder builder, LongLongHashTable hash, DoubleRange v) {
-        appendFound(builder, hash.add(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to())));
+        appendFound(builder, hash.add(BlockHash.doubleKeyBits(v.from()), BlockHash.doubleKeyBits(v.to())));
     }
 
     private long hashLookup(LongLongHashTable hash, DoubleRange v) {
-        return hash.find(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to()));
+        return hash.find(BlockHash.doubleKeyBits(v.from()), BlockHash.doubleKeyBits(v.to()));
     }
 
     private void hashLookupSingle(IntBlock.Builder builder, LongLongHashTable hash, DoubleRange v) {

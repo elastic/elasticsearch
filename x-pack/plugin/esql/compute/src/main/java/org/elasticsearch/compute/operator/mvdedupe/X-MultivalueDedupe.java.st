@@ -767,9 +767,9 @@ $elseif(DoubleRange)$
 $endif$
     private void hashAdd(IntBlock.Builder builder, $Hash$Table hash, $type$ v) {
 $if(double)$
-        appendFound(builder, hash.add(Double.doubleToLongBits(v)));
+        appendFound(builder, hash.add(BlockHash.doubleKeyBits(v)));
 $elseif(DoubleRange)$
-        appendFound(builder, hash.add(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to())));
+        appendFound(builder, hash.add(BlockHash.doubleKeyBits(v.from()), BlockHash.doubleKeyBits(v.to())));
 $else$
         appendFound(builder, hash.add(v));
 $endif$
@@ -777,9 +777,9 @@ $endif$
 
     private long hashLookup($Hash$Table hash, $type$ v) {
 $if(double)$
-        return hash.find(Double.doubleToLongBits(v));
+        return hash.find(BlockHash.doubleKeyBits(v));
 $elseif(DoubleRange)$
-        return hash.find(Double.doubleToLongBits(v.from()), Double.doubleToLongBits(v.to()));
+        return hash.find(BlockHash.doubleKeyBits(v.from()), BlockHash.doubleKeyBits(v.to()));
 $else$
         return hash.find(v);
 $endif$

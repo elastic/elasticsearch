@@ -206,7 +206,7 @@ $endif$
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
 $if(double)$
-                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long v = doubleKeyBits(vector.getDouble(i));
 $elseif(BytesRef)$
                 BytesRef v = vector.getBytesRef(i, scratch);
 $else$
@@ -502,7 +502,7 @@ $endif$
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
 $if(double)$
-                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long v = doubleKeyBits(vector.getDouble(i));
 $elseif(BytesRef)$
                 BytesRef v = vector.getBytesRef(i, scratch);
 $else$

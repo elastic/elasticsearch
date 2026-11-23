@@ -131,6 +131,24 @@ public class SliceIndexingTests extends ESTestCase {
         assertThat(parsed.fromSlice(), equalTo(true));
     }
 
+    /**
+     * The path slice of a search, count or by-query request must be validated, or an invalid slice would reach the shards, where a
+     * slice that is not one is no restriction at all.
+     */
+    public void testParseSearchRoutingRejectsInvalidPathSlice() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        for (String slice : new String[] { "_all", "_reserved", "tenant a", "tenant-a,_all" }) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/my-index/" + slice + "/_search")
+                .withParams(Map.of("index", "my-index", "_slice", slice))
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request, true)
+            );
+            assertThat(e.getMessage(), containsString("invalid [_slice] value ["));
+        }
+    }
+
     public void testParseSearchRoutingFromPathSliceWithMultiIndex() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/index-a,index-b/tenant-a/_search")

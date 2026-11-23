@@ -70,6 +70,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+    private boolean allowPartialResultsDefaulted;
 
     private final Map<QuerySettingDef<?>, Object> requestSettings = new HashMap<>();
     /**
@@ -130,6 +131,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.onSnapshotBuild = source.onSnapshotBuild;
         this.acceptedPragmaRisks = source.acceptedPragmaRisks;
         this.allowPartialResults = source.allowPartialResults;
+        this.allowPartialResultsDefaulted = source.allowPartialResultsDefaulted;
         this.requestSettings.putAll(source.requestSettings);
         this.canonicalRequestSettings.putAll(source.canonicalRequestSettings);
         this.tables.putAll(source.tables);
@@ -357,7 +359,20 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = false;
         return this;
+    }
+
+    /** Applies the cluster default, for a request that did not set {@code allow_partial_results}. */
+    public EsqlQueryRequest defaultAllowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
+        this.allowPartialResultsDefaulted = true;
+        return this;
+    }
+
+    /** Whether the request itself asked for partial results, as opposed to getting them from the cluster default. */
+    public boolean allowPartialResultsRequested() {
+        return Boolean.TRUE.equals(allowPartialResults) && allowPartialResultsDefaulted == false;
     }
 
     @Override

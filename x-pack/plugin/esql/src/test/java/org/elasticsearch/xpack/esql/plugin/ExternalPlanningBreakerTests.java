@@ -668,6 +668,7 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             null,
             null,
             mock(PlannerSettings.Holder.class),
+            null,
             null
         );
         return new ComputeService(

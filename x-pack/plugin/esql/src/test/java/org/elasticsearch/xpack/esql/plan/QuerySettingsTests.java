@@ -605,9 +605,9 @@ public class QuerySettingsTests extends ESTestCase {
         return new MapExpression(Source.EMPTY, entries);
     }
 
-    public void testResolveUnmappedFieldsIsSetOnly() {
-        // UNMAPPED_FIELDS opted out of body exposure. The registry exposure flag is false.
-        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
+    public void testResolveUnmappedFieldsIsRequestBodyExposedWithoutAlias() {
+        // UNMAPPED_FIELDS is body-exposed under settings.{}, and has no top-level alias since there was no pre-existing field for it.
+        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(true));
         assertThat(QuerySettings.UNMAPPED_FIELDS.aliases().isEmpty(), is(true));
     }
 
@@ -1338,10 +1338,10 @@ public class QuerySettingsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("its own validator rejects its default"));
     }
 
-    public void testUnmappedFieldsIsClusterSettableButNotBodyExposed() {
-        // The sources are independent axes, not a ladder: unmapped_fields is SET-only on the request side and still
-        // takes an operator default.
-        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(false));
+    public void testUnmappedFieldsIsClusterSettableAndBodyExposed() {
+        // The sources are independent axes, not a ladder: unmapped_fields is accepted under settings.{} in the request body and
+        // also takes an operator default.
+        assertThat(QuerySettings.UNMAPPED_FIELDS.requestBody(), is(true));
         assertNotNull(QuerySettings.UNMAPPED_FIELDS.clusterSetting());
         ResolvedSettings resolved = QuerySettings.resolve(
             clusterSetting(QuerySettings.UNMAPPED_FIELDS, "NULLIFY"),

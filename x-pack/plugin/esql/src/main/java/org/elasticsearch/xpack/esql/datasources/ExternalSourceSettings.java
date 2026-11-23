@@ -204,14 +204,32 @@ public final class ExternalSourceSettings {
         return concurrency > 0 ? concurrency : defaultBlobStoreConcurrency(settings);
     }
 
+    /**
+     * S3/Azure SDK HTTP pool size for the same {@link #MAX_CONCURRENT_REQUESTS} knob — not a new setting.
+     * Positive {@code N} becomes {@code N + 1} so a truncated GET can abort while its replacement starts
+     * (including {@code N = 1}). {@code 0} (unlimited permits) uses {@link #defaultBlobStoreConcurrency}
+     * rather than a 1-connection pool.
+     */
+    public static int sdkConnectionPoolSize(Settings settings) {
+        return sdkConnectionPoolSize(blobStoreConcurrency(settings), defaultBlobStoreConcurrency(settings));
+    }
+
+    static int sdkConnectionPoolSize(int permits, int unlimitedFallback) {
+        if (permits <= 0) {
+            return unlimitedFallback;
+        }
+        return Math.addExact(permits, 1);
+    }
+
     static final int MAX_CONCURRENT_REQUESTS_UPPER_BOUND = 500;
 
     /**
-     * The single external-read concurrency knob, per scheme, per node. It sizes both the per-scheme permit semaphore
-     * that bounds in-flight data reads ({@code StorageProviderRegistry}) and the backend SDK HTTP connection pools
-     * (S3 Netty {@code maxConcurrency}, Azure reactor-netty {@code ConnectionProvider}), and — via
-     * {@link #blobStoreConcurrency(Settings)} — the metadata-discovery fan-out. Set to 0 to disable permit-based
-     * concurrency limiting entirely.
+     * The single external-read concurrency knob, per scheme, per node. There is no second setting.
+     * {@code N} is the permit ceiling that bounds in-flight data reads ({@code StorageProviderRegistry}).
+     * S3/Azure SDK HTTP pools are {@link #sdkConnectionPoolSize(Settings)} ({@code N + 1}, or the default
+     * pool when {@code N} is 0/unlimited) so a truncated GET can abort while its replacement starts.
+     * GCS has no SDK pool cap. Also sizes — via {@link #blobStoreConcurrency(Settings)} — the
+     * metadata-discovery fan-out. Set to 0 to disable permit-based concurrency limiting entirely.
      * <p>
      * The default is {@link #defaultBlobStoreConcurrency(Settings)} rather than a fixed literal: CPU slope
      * {@code allocatedProcessors * 3} clamped to
@@ -463,6 +481,24 @@ public final class ExternalSourceSettings {
         MAX_LISTED_OBJECTS_DEFAULT,
         1,
         MAX_LISTED_OBJECTS_LIMIT,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Ceiling on {@code listChildren} calls in one partition-pruning walk, counting issued requests
+     * rather than completed ones. When the walk would exceed this, it stops descending and either
+     * finishes the surviving folders or falls back to a flat listing of the prefix — the same
+     * finish-versus-flat rule as below the cap. Default 3000 is the observed 2111 {@code listChildren}
+     * for a 7-day hour-grain walk on the 154-prefix AWS Hive tree, plus headroom for a wider
+     * account/region fan-out. Peeks are already counted in that 2111. Operators can raise it; the
+     * default is not the max.
+     */
+    public static final Setting<Integer> MAX_DIRECTORY_LISTINGS = Setting.intSetting(
+        "esql.external.max_directory_listings",
+        3_000,
+        1,
+        1_000_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -780,6 +816,7 @@ public final class ExternalSourceSettings {
             FIRST_ATTEMPT_LISTING_FILES,
             MAX_DISCOVERED_FILES,
             MAX_LISTED_OBJECTS,
+            MAX_DIRECTORY_LISTINGS,
             MAX_GLOB_EXPANSION,
             MAX_DECOMPRESSION_RATIO,
             MAX_DECOMPRESSION_RATIO_ZSTD,

@@ -103,6 +103,7 @@ toc:
           - file: esql/directives/directives.md
             children:
               - file: esql/directives/set.md
+              - file: esql/directives/let.md
           - file: esql/esql-commands.md
             children:
               - file: esql/commands/source-commands.md
@@ -452,6 +453,7 @@ toc:
               - file: esql/esql-data-federation-schema.md
               - file: esql/esql-data-federation-dataset-settings.md
           - file: esql/esql-data-federation-querying.md
+          - file: esql/esql-data-federation-sizing-s3.md
           - file: esql/esql-data-federation-costs.md
             children:
               - file: esql/esql-data-federation-costs-s3.md

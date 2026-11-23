@@ -63,7 +63,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -140,7 +139,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -294,7 +292,7 @@ public class ComputeService {
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
-        this.batchIndexingEnabled = new BatchIndexingEnabled(this.clusterService.getClusterSettings());
+        this.batchIndexingEnabled = transportActionServices.batchIndexingEnabled();
         this.clusterService.getClusterSettings()
             .initializeAndWatch(
                 GROK_WATCHDOG_MAX_EXECUTION_TIME,
@@ -2211,10 +2209,8 @@ public class ComputeService {
             final String logicalPlanJson;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
-                // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
-                List<SearchExecutionContext> localContexts = new ArrayList<>();
-                shardContexts.iterable()
-                    .forEach(shardContext -> localContexts.add(((DefaultShardContext) shardContext).executionContext()));
+                // Planning sees the fields the plan reads as each shard resolves them
+                SearchStats localStats = SearchContextStats.fromShards(shardContexts.iterable());
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,
@@ -2222,7 +2218,7 @@ public class ComputeService {
                         context.configuration(),
                         context.foldCtx(),
                         plan,
-                        SearchContextStats.from(localContexts),
+                        localStats,
                         formatReaderRegistry,
                         coordinatorExternalSplits,
                         planTimeProfile,
@@ -2235,10 +2231,10 @@ public class ComputeService {
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
                         plannerSettings,
                         context.flags(),
-                        localContexts,
                         context.configuration(),
                         context.foldCtx(),
                         plan,
+                        localStats,
                         planTimeProfile
                     );
                     localPlan = localPlanResult.physicalPlan();

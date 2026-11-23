@@ -515,10 +515,11 @@ required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(avg without (cluster) (sum without (region) (max without (pod) (last_over_time(network.eth0.tx[5m])))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
+| EVAL result = ROUND(result, 6), _timeseries = _timeseries
 | SORT _timeseries;
 
-result:double     | _timeseries:keyword
-596.3333333333334 | {}
+result:double | _timeseries:keyword
+596.333333    | {}
 ;
 
 count_without_over_count_by
@@ -549,12 +550,13 @@ required_capability: promql_timeseries_metadata_functions
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00Z" end="2024-05-10T00:20:00Z" result=(max without (cluster) (sum without (pod) (avg_over_time(network.eth0.tx[5m]))))
 | WHERE step == "2024-05-10T00:10:00.000Z"
 | KEEP result, _timeseries
+| EVAL result = ROUND(result, 6), _timeseries = _timeseries
 | SORT _timeseries;
 
-result:double      | _timeseries:keyword
-1001.2166666666667 | "{""region"":""us""}"
-777.3333333333333  | "{""region"":[""eu"",""us""]}"
-1364.175           | {}
+result:double | _timeseries:keyword
+1001.216667   | "{""region"":""us""}"
+777.333333    | "{""region"":[""eu"",""us""]}"
+1364.175      | {}
 ;
 
 without_over_by_over_without

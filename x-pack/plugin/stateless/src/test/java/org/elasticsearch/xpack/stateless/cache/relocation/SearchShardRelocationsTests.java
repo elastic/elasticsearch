@@ -135,16 +135,30 @@ public class SearchShardRelocationsTests extends ESTestCase {
             List.of(new Relocation(SOURCE_A, TARGET)),
             // a shard that can be promoted to primary only lives on an index node, which is not a search node
             List.of(new Relocation(PRIMARY_NODE, INDEX_TARGET)),
-            Map.of(),
+            // the method expects the nodes to be marked for removal
+            Map.of(
+                SOURCE_A,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                SOURCE_B,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                SOURCE_C,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                TARGET,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                PRIMARY_NODE,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                "no-such-node",
+                SingleNodeShutdownMetadata.Type.REMOVE
+            ),
             List.of(SOURCE_A, SOURCE_A, SOURCE_B)
         );
 
-        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, SOURCE_A), equalTo(2));
-        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, SOURCE_B), equalTo(1));
-        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, SOURCE_C), equalTo(0));
-        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, TARGET), equalTo(0));
-        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, PRIMARY_NODE), equalTo(0));
-        assertThat(SearchShardRelocations.countPendingRelocationsOn(state, "no-such-node"), equalTo(0));
+        assertThat(SearchShardRelocations.countPendingRelocationsOnShuttingDownNode(state, SOURCE_A), equalTo(2));
+        assertThat(SearchShardRelocations.countPendingRelocationsOnShuttingDownNode(state, SOURCE_B), equalTo(1));
+        assertThat(SearchShardRelocations.countPendingRelocationsOnShuttingDownNode(state, SOURCE_C), equalTo(0));
+        assertThat(SearchShardRelocations.countPendingRelocationsOnShuttingDownNode(state, TARGET), equalTo(0));
+        assertThat(SearchShardRelocations.countPendingRelocationsOnShuttingDownNode(state, PRIMARY_NODE), equalTo(0));
+        assertThat(SearchShardRelocations.countPendingRelocationsOnShuttingDownNode(state, "no-such-node"), equalTo(0));
     }
 
     public void testHasPendingRelocationsOnlyWhileANodeMarkedForRemovalHoldsStartedSearchShards() {

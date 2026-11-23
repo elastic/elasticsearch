@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161898
+summary: Allow version digit groups beyond int range
+type: bug

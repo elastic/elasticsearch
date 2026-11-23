@@ -65,44 +65,22 @@ enum ValueCardinality {
     private static final int MAX_DEPTH = ExpressionBuilder.MAX_EXPRESSION_DEPTH;
 
     /**
-     * Whether {@code expression} is single-valued as {@code node} reads it.
+     * Whether {@code expression} is single-valued in the output of {@code plan}: the columns that it reads are columns that
+     * {@code plan} outputs.
      * <p>
-     * This is a helper for calling {@link #ofOutput}. Rules should usually prefer it. The two methods exist because the same column
-     * can be single-valued at one point of a pipeline and multi-valued at another. For example, consider {@code k} in the query
-     * {@code ... | EVAL k = ? | STATS COUNT(*) BY k}. There are two questions we could ask:
+     * Choosing {@code plan} needs care, because the same column can be single-valued at one point of a pipeline and multi-valued at
+     * another. For example, consider {@code k} in the query {@code ... | EVAL k = ? | STATS COUNT(*) BY k}. There are two questions
+     * we could ask:
      * <ol>
      *   <li>Is {@code k}, as the {@code STATS} reads it, single-valued? This depends on what the {@code EVAL} before the
-     *       {@code STATS} outputs. {@code ofReadBy} answers this question.</li>
-     *   <li>Is {@code k}, as the {@code STATS} outputs it, single-valued? Yes, a group key always has one value per group.
-     *       {@link #ofOutput} answers this question.</li>
+     *       {@code STATS} outputs, so pass the child of the {@code STATS}. A rewrite that recomputes values from the key needs this
+     *       answer.</li>
+     *   <li>Is {@code k}, as the {@code STATS} outputs it, single-valued? Yes, a group key always has one value per group. Pass the
+     *       {@code STATS} itself.</li>
      * </ol>
-     * The input of a node is usually the output of its child; this is not the case for {@code EVAL} and {@code ROW}. In these nodes a
-     * field can read an earlier field of the same node, as in {@code EVAL a = MV_MAX(x), k = a}. For them {@code ofReadBy} uses the
-     * output of the node itself, so {@code ofReadBy} and {@link #ofOutput} give the same answer.
-     */
-    static ValueCardinality ofReadBy(Expression expression, LogicalPlan node) {
-        if (node instanceof Eval || node instanceof Row) {
-            // These can read their own earlier fields, so evaluate over the node itself: EVAL a = MV_MAX(languages), k = a
-            return ofOutput(expression, node);
-        }
-        if (node instanceof Aggregate
-            || node instanceof Filter
-            || node instanceof OrderBy
-            || node instanceof Project
-            || node instanceof Limit
-            || node instanceof TopN) {
-            // These read the columns that their child outputs.
-            return ofOutput(expression, node.children().get(0));
-        }
-        return MAYBE_MULTI;
-    }
-
-    /**
-     * Whether {@code expression} is single-valued in the output of {@code plan}. Rules should generally use {@link #ofReadBy}, which
-     * picks the plan for them. This method is mainly for tests, which can ask about the output of any node directly.
-     * <p>
-     * What a node outputs and what it reads can give different answers for the same column. For a group key of a {@code STATS}, the
-     * output is always single-valued, but what the {@code STATS} reads may not be. See {@link #ofReadBy}.
+     * The columns that a node reads are usually the output of its child; this is not the case for {@code EVAL} and {@code ROW}. In
+     * these nodes a field can read an earlier field of the same node, as in {@code EVAL a = MV_MAX(x), k = a}. To ask about an
+     * expression of one of these nodes, pass the node itself.
      */
     static ValueCardinality ofOutput(Expression expression, LogicalPlan plan) {
         return ofExpression(expression, plan, 0);

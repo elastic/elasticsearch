@@ -135,33 +135,33 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         var plan = analyzerWithSingleValuedFields(Set.of()).query("FROM test | STATS c = COUNT(*) BY MV_MIN(languages), salary + 1");
         Aggregate aggregate = plan.collect(Aggregate.class).get(0);
         assertThat(aggregate.groupings(), hasSize(2));
-        assertThat(ValueCardinality.ofReadBy(aggregate.groupings().get(0), aggregate), equalTo(SINGLE));
-        assertThat(ValueCardinality.ofReadBy(aggregate.groupings().get(1), aggregate), equalTo(MAYBE_MULTI));
+        assertThat(ValueCardinality.ofOutput(aggregate.groupings().get(0), aggregate.child()), equalTo(SINGLE));
+        assertThat(ValueCardinality.ofOutput(aggregate.groupings().get(1), aggregate.child()), equalTo(MAYBE_MULTI));
     }
 
     /**
      * A grouping that is a column of the child, here a field of an earlier {@code EVAL} and a field of the source.
      */
-    public void testReadByAnAggregate() {
+    public void testGroupingsThatAreColumnsOfTheChild() {
         var plan = analyzerWithSingleValuedFields(Set.of()).query(
             "FROM test | EVAL a = MV_MIN(languages) | STATS c = COUNT(*) BY a, salary"
         );
         Aggregate aggregate = plan.collect(Aggregate.class).get(0);
         assertThat(aggregate.groupings(), hasSize(2));
-        assertThat(ValueCardinality.ofReadBy(aggregate.groupings().get(0), aggregate), equalTo(SINGLE));
-        assertThat(ValueCardinality.ofReadBy(aggregate.groupings().get(1), aggregate), equalTo(MAYBE_MULTI));
+        assertThat(ValueCardinality.ofOutput(aggregate.groupings().get(0), aggregate.child()), equalTo(SINGLE));
+        assertThat(ValueCardinality.ofOutput(aggregate.groupings().get(1), aggregate.child()), equalTo(MAYBE_MULTI));
     }
 
     /**
      * An {@code EVAL} field can read an earlier field of the same {@code EVAL}. That column is not output by the child, so asking about
-     * the output of the child cannot find it. {@code ofReadBy} picks the {@code EVAL} itself. The second assertion uses {@code ofOutput}
-     * because {@code ofReadBy} cannot ask the wrong question: it shows what a caller would get by choosing the plan itself.
+     * the output of the child cannot find it. The {@code EVAL} itself has to be passed, as in the first assertion. The second
+     * assertion shows the answer for the child: unknown.
      */
-    public void testReadByAnEvalIncludesItsOwnEarlierFields() {
+    public void testEvalFieldReadsAnEarlierFieldOfTheSameEval() {
         var plan = analyzerWithSingleValuedFields(Set.of()).query("FROM test | EVAL a = MV_MIN(languages), k = a");
         Eval eval = plan.collect(Eval.class).get(0);
         Expression definitionOfK = eval.fields().get(1).child();
-        assertThat(ValueCardinality.ofReadBy(definitionOfK, eval), equalTo(SINGLE));
+        assertThat(ValueCardinality.ofOutput(definitionOfK, eval), equalTo(SINGLE));
         assertThat(ValueCardinality.ofOutput(definitionOfK, eval.child()), equalTo(MAYBE_MULTI));
     }
 
@@ -199,7 +199,7 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         Attribute output = aggregate.output().stream().filter(a -> a.name().equals("languages")).findFirst().orElseThrow();
 
         assertThat(output.id(), equalTo(input.id()));
-        assertThat(ValueCardinality.ofReadBy(input, aggregate), equalTo(MAYBE_MULTI));
+        assertThat(ValueCardinality.ofOutput(input, aggregate.child()), equalTo(MAYBE_MULTI));
         assertThat(ValueCardinality.ofOutput(output, aggregate), equalTo(SINGLE));
     }
 
@@ -323,6 +323,6 @@ public class ValueCardinalityTests extends AbstractLogicalPlanOptimizerTests {
         // The last STATS is the one whose key the query asks about; collect lists the outermost first.
         Aggregate aggregate = aggregates.get(0);
         Attribute key = aggregate.child().output().stream().filter(a -> a.name().equals(keyName)).findFirst().orElseThrow();
-        return ValueCardinality.ofReadBy(key, aggregate);
+        return ValueCardinality.ofOutput(key, aggregate.child());
     }
 }

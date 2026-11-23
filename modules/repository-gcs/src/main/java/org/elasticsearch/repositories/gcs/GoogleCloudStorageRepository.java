@@ -29,6 +29,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
@@ -125,6 +126,27 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         ByteSizeValue.of(5, ByteSizeUnit.MB),
         ByteSizeValue.of(5, ByteSizeUnit.TB)
     );
+
+    /**
+     * Maximum number of blobs per GCS batch delete request. The GCS XML API splits batches at 100
+     * items and loops sub-batches serially on the calling thread, so raising this above 100 would
+     * silently serialize work inside a single worker and defeat the concurrency setting.
+     */
+    static final Setting<Integer> DELETE_OBJECTS_MAX_SIZE = Setting.intSetting(
+        "delete_objects_max_size",
+        GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH,
+        1,
+        GoogleCloudStorageBlobStore.MAX_DELETES_PER_BATCH
+    );
+
+    /**
+     * Maximum number of concurrent GCS batch delete requests. Each worker runs on the SNAPSHOT
+     * thread pool; the calling thread also participates so progress is guaranteed even when the
+     * pool is saturated. The default of 5 matches the SNAPSHOT pool size on nodes with a heap
+     * below 750 MB ({@link org.elasticsearch.threadpool.ThreadPool#halfAllocatedProcessorsMaxFive})
+     * and leaves headroom on larger nodes whose pool size is 10.
+     */
+    static final Setting<Integer> MAX_CONCURRENT_BATCH_DELETES = Setting.intSetting("max_concurrent_batch_deletes", 5, 1, 100);
 
     private final GoogleCloudStorageService storageService;
     private final ByteSizeValue chunkSize;
@@ -224,6 +246,9 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             multipartUploadChunkSize,
             BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
             statsCollector,
+            threadPool().executor(ThreadPool.Names.SNAPSHOT),
+            DELETE_OBJECTS_MAX_SIZE.get(metadata.settings()),
+            MAX_CONCURRENT_BATCH_DELETES.get(metadata.settings()),
             dataStorageClass,
             metadataStorageClass
         );

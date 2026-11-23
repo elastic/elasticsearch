@@ -142,7 +142,8 @@ public final class CircuitBreakingRegExp {
         return switch (re.kind) {
             case REGEXP_UNION, REGEXP_CONCATENATION -> leaves(re);
             case REGEXP_INTERSECTION -> new RegExp[] { re.exp1, re.exp2 };
-            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): REGEXP_DEPRECATED_COMPLEMENT was a unary operand here too
+            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): REGEXP_DEPRECATED_COMPLEMENT was a unary operand
+            // here too
             case REGEXP_OPTIONAL, REGEXP_REPEAT, REGEXP_REPEAT_MIN, REGEXP_REPEAT_MINMAX, REGEXP_COMPLEMENT -> new RegExp[] { re.exp1 };
             case REGEXP_CHAR, REGEXP_CHAR_RANGE, REGEXP_CHAR_CLASS, REGEXP_ANYCHAR, REGEXP_EMPTY, REGEXP_STRING, REGEXP_ANYSTRING,
                 REGEXP_AUTOMATON, REGEXP_INTERVAL -> NO_OPERANDS;
@@ -244,7 +245,8 @@ public final class CircuitBreakingRegExp {
                 // Our ports, charged as they allocate
                 case REGEXP_INTERSECTION -> intersection(in[0], in[1]);
                 // Lucene complements a negated character class ([^…]) with no work limit.
-                // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): REGEXP_DEPRECATED_COMPLEMENT used complement(in[0], DEFAULT_DETERMINIZE_WORK_LIMIT)
+                // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): REGEXP_DEPRECATED_COMPLEMENT used
+                // complement(in[0], DEFAULT_DETERMINIZE_WORK_LIMIT)
                 case REGEXP_COMPLEMENT -> complement(in[0], Integer.MAX_VALUE);
                 // A leaf, no larger than the pattern text that names it
                 case REGEXP_CHAR, REGEXP_CHAR_RANGE, REGEXP_CHAR_CLASS, REGEXP_ANYCHAR, REGEXP_EMPTY, REGEXP_STRING, REGEXP_ANYSTRING,

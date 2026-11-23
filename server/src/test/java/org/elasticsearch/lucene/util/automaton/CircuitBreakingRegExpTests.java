@@ -50,7 +50,8 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
             "a{0,3}",
             "a{1,3}",
             "a{3}",
-            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): this was DEPRECATED_COMPLEMENT coverage, not a literal tilde
+            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): this was DEPRECATED_COMPLEMENT coverage, not a
+            // literal tilde
             "~(ab)",
             "[^a-c]",
             "x",

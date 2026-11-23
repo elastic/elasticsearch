@@ -73,7 +73,8 @@ public class CircuitBreakingRegExpBenchmark {
         // a class of separate ranges carries one transition per range on each state
         DENSE_CLASS_REPEAT("[acegikmoqsuwy]{2000}"),
         INTERSECTION("[a-z]{5,10}&.{7}"),
-        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): ~ is a literal until complement is restored; this is not a product with ~(X)
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): ~ is a literal until complement is restored; this is not
+        // a product with ~(X)
         INTERSECTION_WITH_COMPLEMENT("[ab]{50}&~((a|b)*b(a|b){8})"),
         MIXED("(ab|cd){2000}(ef)?[0-9]{50}");
 

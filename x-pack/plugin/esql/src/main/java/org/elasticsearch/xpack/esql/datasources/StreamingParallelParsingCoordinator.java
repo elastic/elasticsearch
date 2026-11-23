@@ -1052,7 +1052,11 @@ public final class StreamingParallelParsingCoordinator {
                 try {
                     storageObject.close();
                 } catch (IOException e) {
-                    logger.warn("Failed to close storage object for [{}]", storageObject.path(), e);
+                    logger.warn(
+                        "Failed to close storage object for [{}]",
+                        ExternalFailures.redactHttpUrl(storageObject.path().toString()),
+                        e
+                    );
                 }
             }
         }
@@ -1081,7 +1085,11 @@ public final class StreamingParallelParsingCoordinator {
                 try {
                     stream.close();
                 } catch (Exception e) {
-                    logger.warn("Failed to release stream for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
+                    logger.warn(
+                        "Failed to release stream for [{}]",
+                        storageObject != null ? ExternalFailures.redactHttpUrl(storageObject.path().toString()) : "<stream>",
+                        e
+                    );
                 }
             }
         }
@@ -1106,7 +1114,11 @@ public final class StreamingParallelParsingCoordinator {
                     stream.close();
                 }
             } catch (Exception e) {
-                logger.warn("Failed to abort transport for [{}]", storageObject != null ? storageObject.path() : "<stream>", e);
+                logger.warn(
+                    "Failed to abort transport for [{}]",
+                    storageObject != null ? ExternalFailures.redactHttpUrl(storageObject.path().toString()) : "<stream>",
+                    e
+                );
             }
         }
 
@@ -1493,7 +1505,7 @@ public final class StreamingParallelParsingCoordinator {
                 // it is visible.
                 logger.warn(
                     () -> "could not read header columns from the first chunk of ["
-                        + (storageObject == null ? "<stream>" : storageObject.path())
+                        + (storageObject == null ? "<stream>" : ExternalFailures.redactHttpUrl(storageObject.path().toString()))
                         + "]",
                     e
                 );

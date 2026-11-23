@@ -456,7 +456,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             // Paired with the expectation above, so this cannot pass by the line never being logged at all.
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
-                    "no signature on any line",
+                    "no signature on any debug line",
                     StreamingParallelParsingCoordinator.class.getCanonicalName(),
                     Level.DEBUG,
                     "*" + signature + "*"

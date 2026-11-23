@@ -69,8 +69,12 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
     }
 
     @Override
-    protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
-        return new DiversifiedIVFKnnCollectorManager(k, sharedScore, parentsFilter);
+    protected IVFCollectorManager getKnnCollectorManager(
+        int k,
+        SharedMinCompetitiveScore sharedScore,
+        QueryTransformCache queryTransformCache
+    ) {
+        return new DiversifiedIVFKnnCollectorManager(k, sharedScore, queryTransformCache, parentsFilter);
     }
 
     @Override

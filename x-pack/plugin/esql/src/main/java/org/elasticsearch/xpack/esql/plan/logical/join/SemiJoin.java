@@ -51,4 +51,8 @@ public class SemiJoin extends AbstractInSubqueryJoin {
         return new LocalRelation(source, output(), EmptyLocalSupplier.EMPTY);
     }
 
+    @Override
+    protected boolean filterPathNarrowsSourceScan() {
+        return true;
+    }
 }

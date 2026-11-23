@@ -30,10 +30,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -211,7 +213,7 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
         String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
         buildAndSetProjectState(null, indexName, cloneIndexName);
-        addFrozenIndexToDataStream(dataStreamName, frozenIndexName);
+        addFrozenIndexToDataStream(dataStreamName, frozenIndexName, mountedSnapshotSettings(cloneIndexName));
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             index,
@@ -230,6 +232,39 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         assertThat(capturedDeleteRequests.size(), is(2));
         assertThat(capturedDeleteRequests.get(0).indices(), hasItemInArray(cloneIndexName));
         assertThat(capturedDeleteRequests.get(1).indices(), hasItemInArray(indexName));
+    }
+
+    /**
+     * Tests that when the original index is not in a data stream and an index with the expected frozen name is in a data stream,
+     * but that index is not the DLM-created mount of this transition's snapshot, cleanup throws an unrecoverable exception and
+     * deletes nothing.
+     */
+    public void testCleanupThrowsUnrecoverableWhenFrozenNamedIndexInDataStreamIsNotTheMount() {
+        String dataStreamName = "my-data-stream";
+        String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
+        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
+        buildAndSetProjectState(null, indexName, cloneIndexName);
+        Settings notCreatedByDlmSettings = Settings.builder()
+            .put(mountedSnapshotSettings(cloneIndexName))
+            .remove(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY)
+            .build();
+        Settings unrelatedSettings = randomFrom(Settings.EMPTY, mountedSnapshotSettings(randomAlphaOfLength(12)), notCreatedByDlmSettings);
+        addFrozenIndexToDataStream(dataStreamName, frozenIndexName, unrelatedSettings);
+
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            index,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        DLMUnrecoverableException exception = expectThrows(DLMUnrecoverableException.class, () -> convert.maybeCleanup(cloneIndexName));
+        assertThat(exception.getMessage(), containsString("no longer part of a data stream"));
+
+        assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
+        assertThat(capturedDeleteRequests.size(), is(0));
     }
 
     /**
@@ -316,11 +351,28 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
     }
 
     /**
+     * Returns the searchable snapshot settings that a DLM mount of the snapshot of {@code snapshotIndexName} has.
+     */
+    private static Settings mountedSnapshotSettings(String snapshotIndexName) {
+        return Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+            .put(
+                SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY,
+                DLMConvertToFrozen.snapshotName(snapshotIndexName)
+            )
+            .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, snapshotIndexName)
+            .put(DataStreamLifecycleService.DLM_CREATED_SETTING_KEY, true)
+            .build();
+    }
+
+    /**
      * Adds the frozen index, as the only backing index of a new data stream, to the project state that is already set.
      */
-    private void addFrozenIndexToDataStream(String dataStreamName, String frozenIndexName) {
+    private void addFrozenIndexToDataStream(String dataStreamName, String frozenIndexName, Settings frozenIndexSettings) {
         IndexMetadata frozenMetadata = IndexMetadata.builder(frozenIndexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .settings(
+                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(frozenIndexSettings).build()
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();

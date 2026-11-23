@@ -597,12 +597,18 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         );
         assertHitCount(prepareSearch(candidateIndexName), 1);
 
+        List<String> expectedSnapshotNames = List.of(DLMConvertToFrozen.snapshotName(cloneIndexName));
+        assertThat("The clone must exist before the orphan cleanup", projectMetadata.index(cloneIndexName), notNullValue());
+        assertThat("The mounted index must exist before the orphan cleanup", projectMetadata.index(frozenIndexName), notNullValue());
+        assertThat("The snapshot must exist before the orphan cleanup", dlmSnapshotNames(), equalTo(expectedSnapshotNames));
+
         DLMFrozenCleanupService cleanupService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenCleanupService.class);
         cleanupService.checkForOrphanedResources();
         projectMetadata = getProjectMetadata();
         assertThat("The orphaned clone should be cleaned up", projectMetadata.index(cloneIndexName), nullValue());
         assertThat("The orphaned mounted index should be cleaned up", projectMetadata.index(frozenIndexName), nullValue());
         assertThat("The original index must survive the cleanup", projectMetadata.index(candidateIndexName), notNullValue());
+        assertThat("The snapshot is protected by the mounted index in the first pass", dlmSnapshotNames(), equalTo(expectedSnapshotNames));
 
         cleanupService.checkForOrphanedResources();
         assertThat("The orphaned snapshot should be cleaned up", dlmSnapshotNames(), equalTo(List.of()));

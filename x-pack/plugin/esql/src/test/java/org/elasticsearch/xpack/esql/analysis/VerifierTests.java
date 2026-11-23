@@ -692,7 +692,6 @@ public class VerifierTests extends AnalyzerTestCase {
     }
 
     public void testDescribeVerifiesItsInput() {
-        assumeTrue("requires DESCRIBE", EsqlCapabilities.Cap.DESCRIBE_COMMAND.isEnabled());
         defaultAnalyzer().error(
             "from test | where 1 | describe",
             equalTo("1:19: Condition expression needs to be boolean, found [INTEGER]")

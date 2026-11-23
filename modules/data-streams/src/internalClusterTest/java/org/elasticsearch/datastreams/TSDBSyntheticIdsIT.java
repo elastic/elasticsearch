@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -1785,6 +1786,12 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
         } else if (rarely()) {
             settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED);
+            // in some cases we might have used randomBatchIndexing to set index.batch_indexing as extra settings
+            // that setting is not supported for TSDB with STORED source field mapper
+            // so we make sure to reset it here if enabled
+            if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+                extraSettings = Settings.builder().put(extraSettings).put(IndexSettings.BATCH_INDEXING.getKey(), false).build();
+            }
         }
         if (rarely()) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);

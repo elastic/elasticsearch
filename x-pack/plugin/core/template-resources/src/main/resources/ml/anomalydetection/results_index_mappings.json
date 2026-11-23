@@ -163,9 +163,6 @@
     "description" : {
       "type" : "text"
     },
-    "datafeed_id" : {
-      "type" : "keyword"
-    },
     "detector_index" : {
       "type" : "integer"
     },
@@ -243,9 +240,6 @@
     },
     "forecast_upper" : {
       "type" : "double"
-    },
-    "fingerprint" : {
-      "type" : "keyword"
     },
     "function" : {
       "type" : "keyword"
@@ -531,9 +525,6 @@
     },
     "snapshot_id" : {
       "type" : "keyword"
-    },
-    "source_end_ms" : {
-      "type" : "long"
     },
     "sparse_bucket_count" : {
       "type" : "long"

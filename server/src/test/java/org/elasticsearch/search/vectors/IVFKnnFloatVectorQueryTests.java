@@ -12,6 +12,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
@@ -23,6 +24,14 @@ import org.elasticsearch.index.codec.vectors.diskbbq.QuantEncoding;
 import org.elasticsearch.index.codec.vectors.diskbbq.TestIvfQueryConfigResolver;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCase<float[]> {
 
@@ -85,6 +94,61 @@ public class IVFKnnFloatVectorQueryTests extends AbstractIVFKnnVectorQueryTestCa
         // Queries with the same resolver config must still be equal
         assertEquals(q1, q3);
         assertEquals(q1.hashCode(), q3.hashCode());
+    }
+
+    /**
+     * A leaf that searches with another vector than the query's, such as one preconditioned for its segment, gets
+     * {@link QueryTransformCache#NONE} rather than the query's cache, which holds transformations of the query's vector.
+     */
+    public void testLeafWithAnotherVectorGetsNoTransformCache() throws IOException {
+        try (
+            Directory indexStore = getIndexStore("field", vector(0, 1), vector(1, 2), vector(0, 0));
+            IndexReader reader = DirectoryReader.open(indexStore)
+        ) {
+            for (boolean copiesQuery : new boolean[] { false, true }) {
+                TransformCacheCapturingQuery query = new TransformCacheCapturingQuery(new float[] { 0.0f, 1.0f }, copiesQuery);
+                newSearcher(reader).search(query, 10);
+                assertThat(query.captured, not(empty()));
+                if (copiesQuery) {
+                    assertThat(query.captured, everyItem(sameInstance(QueryTransformCache.NONE)));
+                } else {
+                    assertThat(query.captured, everyItem(not(sameInstance(QueryTransformCache.NONE))));
+                }
+            }
+        }
+    }
+
+    /** Records the transform cache of each leaf's search strategy, searching with a copy of the query vector if asked. */
+    private class TransformCacheCapturingQuery extends IVFKnnFloatVectorQuery {
+        private final boolean copiesQuery;
+        private final List<QueryTransformCache> captured = Collections.synchronizedList(new ArrayList<>());
+
+        TransformCacheCapturingQuery(float[] query, boolean copiesQuery) {
+            super("field", query, 10, 10, null, 0.05f, testResolver());
+            this.copiesQuery = copiesQuery;
+        }
+
+        @Override
+        protected float[] segmentQuery(LeafReaderContext context, boolean usePrecondition) throws IOException {
+            float[] segmentQuery = super.segmentQuery(context, usePrecondition);
+            return copiesQuery ? segmentQuery.clone() : segmentQuery;
+        }
+
+        @Override
+        protected IVFCollectorManager getKnnCollectorManager(
+            int k,
+            SharedMinCompetitiveScore sharedScore,
+            QueryTransformCache queryTransformCache
+        ) {
+            return new IVFCollectorManager(k, sharedScore, queryTransformCache) {
+                @Override
+                IVFKnnSearchStrategy newSearchStrategy(float visitRatio, int numCands, int queryK, boolean searchesQueryVector) {
+                    IVFKnnSearchStrategy strategy = super.newSearchStrategy(visitRatio, numCands, queryK, searchesQueryVector);
+                    captured.add(strategy.getQueryTransformCache());
+                    return strategy;
+                }
+            };
+        }
     }
 
     public void testToString() throws IOException {

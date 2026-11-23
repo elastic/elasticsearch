@@ -14,15 +14,19 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EvaluateNestedPredicateInLucene;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InjectRowPositionForRecordRef;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LoadNestedFromIndex;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushExpressionsToFieldLoad;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushMinMaxStatsToLocalSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushNestedPredicateToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
@@ -33,6 +37,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSample
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeDocValuesExtraction;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 
@@ -68,6 +73,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             throw new VerificationException(failures);
         }
         log.debug("Local Physical plan:\n{}", optimizedPlan);
+        PlanJsonLog.debug(PlanJsonLog.Stage.LOCAL_PHYSICAL, optimizedPlan);
         return optimizedPlan;
     }
 
@@ -81,9 +87,12 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new PushTopNToSource(),
             new PushLimitToSource(),
             new PushLimitToExternalSource(),
+            new PushNestedPredicateToSource(),
+            new EvaluateNestedPredicateInLucene(),
             new PushFiltersToSource(),
             new PushSampleToSource(),
             new ReplaceSampledStatsByExactStats(),
+            new PushMinMaxStatsToLocalSource(),
             new PushStatsToSource(),
             new PushStatsToExternalSource(),
             new PushTopNIntoExternalSource(),
@@ -108,6 +117,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             "Field extraction",
             Limiter.ONCE,
             new PushExpressionsToFieldLoad(), // It's important for this to run after Query and Tags
+            new LoadNestedFromIndex(),
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),

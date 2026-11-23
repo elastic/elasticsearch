@@ -23,6 +23,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
+import org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField;
 
 import java.io.IOException;
 import java.util.Map;
@@ -275,15 +276,16 @@ public class Segment implements Writeable {
                 o.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
                 o.writeBoolean(field.getReverse());
             } else if (field instanceof SortedNumericSortField) {
-                switch (((SortedNumericSortField) field).getNumericType()) {
-                    case INT -> o.writeByte(SORT_INT);
-                    case FLOAT -> o.writeByte(SORT_FLOAT);
-                    case DOUBLE -> o.writeByte(SORT_DOUBLE);
-                    case LONG -> o.writeByte(SORT_LONG);
-                    default -> throw new IOException("invalid index sort field:" + field);
-                }
+                o.writeByte(numericSortType(((SortedNumericSortField) field).getNumericType(), field));
                 o.writeGenericValue(field.getMissingValue());
                 o.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);
+                o.writeBoolean(field.getReverse());
+            } else if (field instanceof ColumnarNumericSortField columnar) {
+                // Written exactly like the SortedNumericSortField it describes, and read back as one: a segment's sort is only
+                // reported, never applied.
+                o.writeByte(numericSortType(field.getType(), field));
+                o.writeGenericValue(field.getMissingValue());
+                o.writeBoolean(columnar.maxMode());
                 o.writeBoolean(field.getReverse());
             } else if (field.getType().equals(SortField.Type.STRING)) {
                 o.writeByte(SORT_STRING_SINGLE);
@@ -293,6 +295,16 @@ public class Segment implements Writeable {
                 throw new IOException("invalid index sort field:" + field);
             }
         }, sort.getSort());
+    }
+
+    private static byte numericSortType(SortField.Type type, SortField field) throws IOException {
+        return switch (type) {
+            case INT -> SORT_INT;
+            case FLOAT -> SORT_FLOAT;
+            case DOUBLE -> SORT_DOUBLE;
+            case LONG -> SORT_LONG;
+            default -> throw new IOException("invalid index sort field:" + field);
+        };
     }
 
     private static void readRamTree(StreamInput in) throws IOException {

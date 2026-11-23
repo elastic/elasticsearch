@@ -3,7 +3,7 @@ navigation_title: "Security"
 description: "Secure ES|QL Data Federation by controlling access to data sources and datasets, encrypting credentials, and configuring privileges."
 applies_to:
   stack: preview 9.6+, experimental =9.5
-  serverless: unavailable
+  serverless: preview
 products:
   - id: elasticsearch
 ---
@@ -18,7 +18,7 @@ When a data source connects to a private bucket, its encrypted credentials are s
 
 ### Credential encryption
 
-When a data source includes credentials, {{es}} encrypts them with the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md) before storing them in the cluster state. If cluster state encryption isn't configured, a request that includes credentials returns a `503` error.
+When a data source includes credentials, {{es}} encrypts them with the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md) before storing them in the cluster state. If cluster state encryption isn't configured, a request that includes credentials returns a `503` error. To configure it, add an encryption password to the keystore of every node before you reload secure settings. Refer to [Configure the password on every node](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-configure-password).
 
 ### Credential masking
 

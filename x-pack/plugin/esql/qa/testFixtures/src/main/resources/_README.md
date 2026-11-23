@@ -82,6 +82,20 @@ the snippets into `docs.csv-spec`. This was supposed to be a temporary holding
 area until they were relocated, and we haven't had time to do that. Don't put
 more tests in there.
 
+### Only top-level files are part of the corpus
+
+Put new `.csv-spec` files directly in this directory. `CsvIT`, `EsqlSpecTestCase`
+and every test class that the build generates from the spec files (`EsqlSpec*`:
+`LOAD_ALL`, approximation, forced stored loading, fork, ...) read `/*.csv-spec`,
+which does not descend into subdirectories. A spec in a subdirectory is not run
+by any of them, and gets none of the generated variants, unless a suite selects
+it by an explicit pattern, as the data-source suites do for `datasources/`.
+
+Opting out is a choice, so `verifyDataSourceCsvSpecOwnership` in this project's
+`build.gradle` fails for a spec in a subdirectory that is not listed in
+`nonCorpusSpecDirs`, where each directory has the reason it is not part of the
+corpus.
+
 ## Embedding examples in the documentation
 
 Snippets from these tests can be embedded into the asciidoc documentation of
@@ -271,6 +285,34 @@ similarityScore:double | topIds:long
 0.9..1.0               | [100..200, {any}]
 ;
 ```
+
+### Query parameters
+
+Query parameters are declared with the `param:` directive, one per line, in the order they're sent:
+`param: name = <json>` for a named parameter and `param: <json>` for an unnamed one.
+The value is written as in the `params` array of the request, so strings are quoted, and named parameters
+can also be objects like `{"identifier": "first_name"}` or `{"pattern": "*_name"}`.
+As in the request, a test can't mix named and unnamed parameters.
+
+```csv-spec
+doubleParameterMarkers
+required_capability: double_parameter_markers_for_identifiers
+param: field = "last_name"
+param: last = "Koblick"
+FROM employees
+| WHERE ??field == ?last
+| KEEP emp_no, ??field
+;
+
+emp_no:integer | last_name:keyword
+10004          | Koblick
+;
+```
+
+Variants that look for field names in the query text, like `CsvLoadAllUnmappedKeywordIT`, skip tests where a
+parameter can be a field name: a `??` reference, or a parameter declared as an identifier or pattern.
+The cross-cluster tests skip tests that use parameters in the source command, like `PROMQL index=?idx ...`,
+and `CsvColumnarIT` and the exemplars smoke tests skip tests that take the `PROMQL` index from a parameter.
 
 ### Query pragmas
 

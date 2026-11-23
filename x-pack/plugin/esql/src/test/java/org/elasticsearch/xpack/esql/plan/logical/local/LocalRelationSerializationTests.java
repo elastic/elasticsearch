@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
@@ -26,6 +27,11 @@ public class LocalRelationSerializationTests extends AbstractLogicalPlanSerializ
         List<Attribute> output = randomFieldAttributes(1, 10, true);
         LocalSupplier supplier = randomLocalSupplier(output);
         return new LocalRelation(source, output, supplier);
+    }
+
+    public static LocalRelation randomLocalRelation(TransportVersion version) {
+        List<Attribute> output = randomFieldAttributes(1, 10, true, version);
+        return new LocalRelation(randomSource(), output, randomLocalSupplier(output));
     }
 
     private static LocalSupplier randomLocalSupplier(List<Attribute> attributes) {

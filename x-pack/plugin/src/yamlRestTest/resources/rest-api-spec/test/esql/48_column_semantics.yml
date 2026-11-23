@@ -6,8 +6,8 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ describe_command, column_metadata_field_semantics ]
-      reason: "column_metadata reports field semantics as _meta.field"
+          capabilities: [ describe_command ]
+      reason: "DESCRIBE and column_metadata report field semantics"
 
   - do:
       indices.create:
@@ -64,6 +64,14 @@ setup:
 
 ---
 "Field semantics in column metadata":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       esql.query:
         body:
@@ -93,6 +101,14 @@ setup:
 
 ---
 "No field semantics without column_metadata":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       esql.query:
         body:
@@ -104,6 +120,14 @@ setup:
 
 ---
 "Standard indices report units but not time-series roles":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       esql.query:
         body:
@@ -128,7 +152,40 @@ setup:
   - match: { values.0: [ "latency", "metric", "gauge", "ms", "Request latency", "mapped" ] }
 
 ---
+"DESCRIBE a bucket count bounded by the request filter":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ describe_interval ]
+      reason: "DESCRIBE reports the interval of date buckets"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS test_semantics | STATS avg = AVG(AVG_OVER_TIME(latency)) BY b = TBUCKET(20) | DESCRIBE | WHERE name == "b" | KEEP name, role, interval'
+          filter:
+            range:
+              "@timestamp":
+                gte: "2026-11-01T00:00:00Z"
+                lt: "2026-11-30T00:00:00Z"
+
+  - length: { values: 1 }
+  - match: { values.0: [ "b", "time", "1 week" ] }
+
+---
 "Grouping keys keep the semantics of the field they read":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ column_metadata_field_semantics ]
+      reason: "column_metadata reports field semantics as _meta.field"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

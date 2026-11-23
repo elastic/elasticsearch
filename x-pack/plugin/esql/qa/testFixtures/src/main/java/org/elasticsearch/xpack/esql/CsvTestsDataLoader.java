@@ -198,12 +198,17 @@ public class CsvTestsDataLoader {
         new TestDataset("unmapped_object_data", "mapping-unmapped_object_data.json", "unmapped_object_data.csv"),
         new TestDataset("nested_paths_mapped", "mapping-nested_paths_mapped.json", "nested_paths_mapped.csv"),
         new TestDataset("nested_paths_unmapped", "mapping-nested_paths_unmapped.json", "nested_paths_unmapped.csv"),
+        new TestDataset("nested_orders", "mapping-nested_orders.json", "nested_orders.csv"),
         new TestDataset("mv_expand_mapped", "mapping-mv_expand_mapped.json", "mv_expand_mapped.csv"),
         new TestDataset("mv_expand_unmapped", "mapping-mv_expand_unmapped.json", "mv_expand_unmapped.csv"),
         new TestDataset("change_point_mapped", "mapping-change_point_mapped.json", "change_point_mapped.csv"),
         new TestDataset("change_point_unmapped", "mapping-change_point_unmapped.json", "change_point_unmapped.csv"),
         new TestDataset("flattened_paths_mapped", "mapping-flattened_paths_mapped.json", "flattened_paths_mapped.csv"),
         new TestDataset("flattened_paths_unmapped", "mapping-flattened_paths_unmapped.json", "flattened_paths_unmapped.csv"),
+        new TestDataset("flattened_paths_keyword", "mapping-flattened_paths_keyword.json", "flattened_paths_keyword.csv"),
+        new TestDataset("flattened_paths_lookup", "mapping-flattened_paths_lookup.json", "flattened_paths_lookup.csv").withSetting(
+            "lookup-settings.json"
+        ),
         new TestDataset("unmapped_compound_outputs", "mapping-unmapped_compound_outputs.json", "unmapped_compound_outputs.csv"),
         new TestDataset("unmapped_compound_inputs", "mapping-unmapped_compound_inputs.json", "unmapped_compound_inputs.csv"),
         // Four indices that give the same conceptual "unmapped" field a different shape each, for LOAD_ALL multi-index expansion:
@@ -333,6 +338,14 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
+        // The same unmapped fields as k8s_unmapped, but in an index that stores its _source (the fields are read from it directly,
+        // not rebuilt from _ignored_source) and in a downsampled-shaped one.
+        new TestDataset("k8s_unmapped_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_downsampled_unmapped", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json")
+            .withTypeMapping(removeFields("event", "network.bytes_in", "network.cost"))
+            .withDynamic("false"),
         new TestDataset("k8s_nonexistent", "k8s-mappings.json", "k8s_nonexistent.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
@@ -365,19 +378,19 @@ public class CsvTestsDataLoader {
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE),
         new TestDataset("exemplars-cpu", "otel-exemplars-mappings.json", "exemplars.csv", "otel-metrics-settings.json").asDataStream()
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE),
         new TestDataset(
             "metrics-noexemplars",
             "otel-exemplar-source-metrics-mappings.json",
             "exemplar-source-metrics.csv",
             "otel-metrics-settings.json"
-        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
+        ).asDataStream().withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE),
         // Metrics with different fields than metrics-cpu and without an exemplar data stream (no exemplars-k8s data stream)
         new TestDataset("metrics-k8s", "k8s-mappings.json", "k8s.csv").asDataStream()
             .withSetting("k8s-settings.json")
-            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_DEVELOPMENT_V8),
+            .withRequiredCapabilities(EsqlCapabilities.Cap.EXEMPLARS_SETTING_RELEASE),
         new TestDataset(
             "promql-long-dimension",
             "promql-long-dimension-mappings.json",
@@ -572,6 +585,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
+        new ViewConfig("fillnull_employees", List.of(EsqlCapabilities.Cap.FILLNULL)),
         new ViewConfig("employees_extra"),
         new ViewConfig("employees_via_alias"),
         new ViewConfig("partial_mapping_view"),
@@ -589,6 +603,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_promql_absent_label", List.of(EsqlCapabilities.Cap.PROMQL_ABSENT_LABEL_MATCHING)),
         new ViewConfig(
             "view_k8s_bare_rate_by_tbucket",
             List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL_WITH_TS_DIMENSIONS)
@@ -612,6 +627,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("drop_unmapped_duration_wildcard_partial_mapping_view", List.of(EsqlCapabilities.Cap.SET_IN_VIEW_DEFINITIONS)),
         new ViewConfig("view_partial_mapping_loads_event_duration", List.of(EsqlCapabilities.Cap.SET_IN_VIEW_DEFINITIONS)),
         new ViewConfig("nested_partial_mapping_view"),
+        new ViewConfig("view_flattened_paths_mapped"),
         new ViewConfig("view_partially_unmapped_sample_data"),
         new ViewConfig("view_partially_unmapped_conflicting_sample_data"),
         new ViewConfig("view_languages"),

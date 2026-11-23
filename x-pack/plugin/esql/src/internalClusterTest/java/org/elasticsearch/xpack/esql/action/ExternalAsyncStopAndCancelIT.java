@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener;
+import org.elasticsearch.xpack.core.esql.QueryMetricsListener.Outcome;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
@@ -53,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -90,7 +93,8 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     private static final long TRICKLE_MILLIS = 10L;
 
     /** Counts down once the storage provider has been asked for the first read of the fixture; the test uses this to
-     *  observe that the query has actually started consuming bytes before it issues STOP / cancel. */
+     *  observe that the query has actually started consuming bytes before it issues STOP / cancel.
+     *  {@link ExternalQueryMemoryIT} also installs and releases these statics in its {@code @Before}/{@code @After}. */
     static volatile CountDownLatch requestArrived;
     /** Counted down by the test (in the {@code finally} block and by {@link #releaseSlowFile()}) to let the slow stream
      *  return EOF and shut its loop down rather than trickling forever. */
@@ -104,6 +108,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     /** Diagnostic counter — number of {@link SlowFileStorageProvider} reads that were forced into the trickle path.
      *  Non-zero means the source was actually slow at STOP / cancel time, not just slow on paper. */
     static final AtomicInteger trickleBytesServed = new AtomicInteger();
+    /** When non-null, the first trickle read parks here so a test can cancel or trip the breaker before
+     *  natural EOF. Null in this class: STOP/cancel tests rely on the timed trickle window. */
+    static volatile CountDownLatch trickleHold;
     /** When non-null, {@link SlowFileObject#exists()} / {@link SlowFileStorageProvider#exists} wait here so a test can
      *  issue STOP during planning, before any compute or exchange exists. */
     static volatile CountDownLatch planningHold;
@@ -119,6 +126,26 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
         @Override
         public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
             super.loadExtensions(loader);
+            loadMetricsCollectors(loader);
+        }
+    }
+
+    /** How the queries the metering listener was called for ended, in order; written by the SPI-instantiated collector. */
+    static final List<QueryMetricsListener.Outcome> meteredOutcomes = new CopyOnWriteArrayList<>();
+    /** The metrics of the last query the metering listener was called for. */
+    static volatile Map<String, Long> lastMeteredMetrics;
+
+    /** Wants every outcome, to check that a query that is cancelled is metered with the outcome that says so. */
+    public static final class OutcomeCollector implements QueryMetricsListener {
+        @Override
+        public void onQueryCompleted(Map<String, Long> metrics) {
+            throw new AssertionError("a listener that implements the outcome is called with the outcome");
+        }
+
+        @Override
+        public void onQueryCompleted(Outcome outcome, Map<String, Long> metrics) {
+            lastMeteredMetrics = metrics;
+            meteredOutcomes.add(outcome);
         }
     }
 
@@ -221,6 +248,21 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    private static void awaitTrickleHold() throws IOException {
+        CountDownLatch hold = trickleHold;
+        if (hold == null) {
+            return;
+        }
+        try {
+            if (hold.await(60, TimeUnit.SECONDS) == false) {
+                throw new IOException("trickle hold was not released");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("interrupted waiting for trickle hold", e);
+        }
+    }
+
     private static final class SlowFileObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final Path file;
@@ -291,13 +333,17 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 if (releaseHandler != null && releaseHandler.getCount() == 0) {
                     return -1;
                 }
+                trickleBytesServed.incrementAndGet();
+                awaitTrickleHold();
+                if (releaseHandler != null && releaseHandler.getCount() == 0) {
+                    return -1;
+                }
                 try {
                     Thread.sleep(TRICKLE_MILLIS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IOException("interrupted reading from slow fixture", e);
                 }
-                trickleBytesServed.incrementAndGet();
             }
             int b = delegate.read();
             if (b < 0) {
@@ -365,13 +411,17 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 if (releaseHandler != null && releaseHandler.getCount() == 0) {
                     return -1;
                 }
+                trickleBytesServed.incrementAndGet();
+                awaitTrickleHold();
+                if (releaseHandler != null && releaseHandler.getCount() == 0) {
+                    return -1;
+                }
                 try {
                     Thread.sleep(TRICKLE_MILLIS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     throw new IOException("interrupted reading from slow fixture", e);
                 }
-                trickleBytesServed.incrementAndGet();
             }
             int b = delegate.read();
             if (b < 0) {
@@ -436,9 +486,12 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     public void setUpSlowFile() throws Exception {
         requestArrived = new CountDownLatch(1);
         releaseHandler = new CountDownLatch(1);
+        trickleHold = null;
         planningHold = null;
         planningArrived = null;
         trickleBytesServed.set(0);
+        meteredOutcomes.clear();
+        lastMeteredMetrics = null;
 
         slowFile = createTempFile("external-slow-", ".csv");
         StringBuilder body = new StringBuilder("id:integer,value:integer\n");
@@ -475,6 +528,9 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     public void releaseSlowFile() {
         if (releaseHandler != null) {
             releaseHandler.countDown();
+        }
+        if (trickleHold != null) {
+            trickleHold.countDown();
         }
         if (planningHold != null) {
             planningHold.countDown();
@@ -629,7 +685,8 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     /**
      * Sync task-cancel: hard-fails with {@link TaskCancelledException}, no response body. Same path a client
      * disconnect takes via {@code RestCancellableNodeClient}. {@code setWaitForCompletion(true)} sequences cancel
-     * after task teardown so the queryFuture has observably failed before we release the trickle.
+     * after task teardown so the queryFuture has observably failed before we release the trickle. The query is metered, as
+     * cancelled, with the work it did before it was cancelled.
      */
     public void testSyncTaskCancelHardFailsWithNoRows() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
@@ -684,6 +741,15 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
                 trickleBytesServed.get(),
                 greaterThan(0)
             );
+            assertThat("the cancelled query is metered once, as cancelled", meteredOutcomes, equalTo(List.of(Outcome.CANCELLED)));
+            assertThat(lastMeteredMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
+            assertThat(lastMeteredMetrics.get(QueryMetricsListener.PLANNING_CPU_NANOS), greaterThan(0L));
+            assertThat(
+                "what the source read before the cancellation is reported",
+                lastMeteredMetrics.get(QueryMetricsListener.READ_NANOS),
+                greaterThan(0L)
+            );
+            assertThat(lastMeteredMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
         } finally {
             releaseHandler.countDown();
         }

@@ -85,7 +85,9 @@ public interface SourceFunction {
      * And every place has to come back with its own relation. A function whose rows follow from its arguments is
      * the one tempted to answer twice from a cached instance, and a relation the engine does not complete cannot
      * stand in two places: one page is released by whichever consumer reads it first, and one set of attribute
-     * ids would sit under two parents. That is refused, naming the function, and it is refused for a relation the
+     * ids would sit under two parents. Both are checked rather than taken on trust, and a new wrapper around a held
+     * page or a held column list is refused exactly as returning the same relation twice is. That is refused,
+     * naming the function, and it is refused for a relation the
      * engine completes as well: what runs downstream keys a leaf by identity and pairs it with a scope that
      * varies per place, so one object at two places is resolved once and the other place inherits that answer.
      * <p>

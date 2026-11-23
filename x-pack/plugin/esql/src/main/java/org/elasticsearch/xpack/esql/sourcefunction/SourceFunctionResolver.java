@@ -11,17 +11,22 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceFunctionRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,10 +36,13 @@ import java.util.concurrent.Executor;
  * Turns every {@link UnresolvedSourceFunctionRelation} the parser left in a plan into the leaf that reads.
  * <p>
  * The whole of what is common to every source function lives here. Four steps per call — resolve the name, check
- * the shape, run the function's own validation, bind — and two things the facility owns on every query's behalf:
- * the ceiling on how many calls one query may make, and refusing a returned relation that names a view. Everything
- * else a particular function needs — a privilege, a round-trip, a collaborator — belongs to that function, not
- * here. Nothing here reads a function's arguments, holds a collaborator, or itself checks a privilege.
+ * the shape, run the function's own validation, bind — and what the facility owns on every query's behalf: the
+ * ceiling on how many calls one query may make, refusing a returned relation that names a view, and refusing an
+ * answer no two places can hold, which is a relation returned twice, a page returned twice or a column id
+ * returned twice. It also refuses a function that bound nothing and one that answered with another call.
+ * Everything else a particular function needs — a privilege, a round-trip, a collaborator — belongs to that
+ * function, not here. Nothing here reads a function's arguments, holds a collaborator, or itself checks a
+ * privilege.
  * <p>
  * What it never does is change what a function handed back. A returned leaf is installed as it came, so nothing
  * here needs to know which kind of relation it is: this checks what it was given and stops there. The checks are
@@ -233,6 +241,28 @@ public class SourceFunctionResolver {
                 );
             }
         }
+        // Object identity is not the whole of the obligation, and on its own it enforces neither thing the
+        // paragraph above promises. Two DISTINCT relations can still carry the one page and the one set of
+        // attribute ids: a function holding a static column list and a cached Page, handing back a new
+        // LocalRelation around them per call, passes the check above and breaks both. So a relation built with
+        // rows is checked for what it actually shares. peek() is the right reader for that -- its contract
+        // forbids copying, where get() may -- and an empty supplier mints a fresh page per call, so an empty
+        // relation at two places is not mistaken for a shared one.
+        Map<Page, UnresolvedSourceFunctionRelation> pages = new IdentityHashMap<>(leaves.size());
+        Map<NameId, UnresolvedSourceFunctionRelation> ids = new HashMap<>();
+        for (int i = 0; i < leaves.size(); i++) {
+            if (relations[i] instanceof LocalRelation local) {
+                Page page = local.supplier().peek();
+                if (page != null && pages.put(page, leaves.get(i)) != null) {
+                    throw sharedBetweenPlaces(functions.get(i).name(), "page");
+                }
+                for (Attribute attribute : local.output()) {
+                    if (ids.put(attribute.id(), leaves.get(i)) != null) {
+                        throw sharedBetweenPlaces(functions.get(i).name(), "column, by its id,");
+                    }
+                }
+            }
+        }
         // One queue per leaf OBJECT, because that object stands at every place a FORK reached it and the walk
         // below is handed it once per place. Which of its relations lands at which place does not matter -- they
         // are answers to the one call -- so a queue is enough, and nothing depends on the two walks visiting in
@@ -276,8 +306,12 @@ public class SourceFunctionResolver {
      * than refused on a setting its author never saw.
      */
     private static void checkNoViewIsNamed(SourceFunction function, LeafPlan relation, ProjectMetadata projectMetadata) {
-        // Null where a caller has no cluster state to offer, which is every test driving the facility on its own:
-        // with no metadata there are no views, and a check over nothing is not the same as a check that passed.
+        // Null where a caller has no cluster state to offer. Every test driving the facility on its own passes
+        // null, and so does EsqlSession wherever its own project metadata is absent -- which it treats as a real
+        // possibility elsewhere -- so this is not a test-only arm. With no metadata there are no views to find,
+        // and that is not the same as having looked and found none: a function naming a view would go on to
+        // index resolution and reach the user as an unknown index, which is the outcome this check exists to
+        // prevent.
         if (projectMetadata == null) {
             return;
         }
@@ -305,5 +339,20 @@ public class SourceFunctionResolver {
                 }
             }
         }
+    }
+
+    /**
+     * The refusal for a function that answered two places with something they cannot both have. Worded the same
+     * way whichever thing it was, because what the author has to change is the same: answer each place afresh.
+     */
+    private static IllegalStateException sharedBetweenPlaces(String function, String what) {
+        return new IllegalStateException(
+            "source function ["
+                + function
+                + "] answered more than one place with the same "
+                + what
+                + " which cannot stand in both. A call under several FORK branches or LET references is asked"
+                + " once per place, and each place needs its own"
+        );
     }
 }

@@ -131,6 +131,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
+
     private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
 
     private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices(

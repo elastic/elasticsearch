@@ -749,6 +749,92 @@ public class SourceFunctionResolverTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("source function [caching_unresolved] answered more than one place"));
     }
 
+    /**
+     * Distinct relation objects are not enough, and this is the shape that proves it: a function holding one
+     * page, wrapping it in a new {@link LocalRelation} with freshly minted columns per call. Object identity
+     * passes it, and both places would still read the one page — whichever consumer gets there first releases
+     * the blocks the other is still holding.
+     */
+    public void testTwoPlacesAnsweredWithOnePageIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(
+                new SharingOnePage(),
+                new UnionAll(Source.EMPTY, List.of(named("sharing_one_page"), named("sharing_one_page")), List.of())
+            )
+        );
+        assertThat(e.getMessage(), containsString("source function [sharing_one_page] answered more than one place"));
+        assertThat(e.getMessage(), containsString("same page"));
+    }
+
+    /**
+     * And the other half of the obligation, which no page check would catch: its own page each time, and one
+     * static column list, so the two places carry attributes with the same {@code NameId}s. Ids are what the
+     * rest of the engine resolves references by, so one plan would carry the same ids under two parents.
+     */
+    public void testTwoPlacesAnsweredWithOneColumnIdIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(
+                new SharingColumnIds(),
+                new UnionAll(Source.EMPTY, List.of(named("sharing_column_ids"), named("sharing_column_ids")), List.of())
+            )
+        );
+        assertThat(e.getMessage(), containsString("source function [sharing_column_ids] answered more than one place"));
+        assertThat(e.getMessage(), containsString("same column, by its id,"));
+    }
+
+    /** One page held across calls, with columns minted fresh each time, so only the page is shared. */
+    private static class SharingOnePage implements SourceFunction {
+        private final LocalSupplier shared = counting(Source.EMPTY, 2).supplier();
+
+        @Override
+        public String name() {
+            return "sharing_one_page";
+        }
+
+        @Override
+        public SourceFunctionSignature signature() {
+            return SourceFunctionSignature.of(SourceFunctionSignature.string("x"));
+        }
+
+        @Override
+        public void toRelation(
+            SourceFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            Attribute column = new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG);
+            listener.onResponse(new LocalRelation(call.source(), List.of(column), shared));
+        }
+    }
+
+    /** The mirror: a page of its own each call, around one column list, so only the ids are shared. */
+    private static class SharingColumnIds implements SourceFunction {
+        private final List<Attribute> columns = List.of(new ReferenceAttribute(Source.EMPTY, "n", DataType.LONG));
+
+        @Override
+        public String name() {
+            return "sharing_column_ids";
+        }
+
+        @Override
+        public SourceFunctionSignature signature() {
+            return SourceFunctionSignature.of(SourceFunctionSignature.string("x"));
+        }
+
+        @Override
+        public void toRelation(
+            SourceFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            listener.onResponse(new LocalRelation(call.source(), columns, counting(Source.EMPTY, 2).supplier()));
+        }
+    }
+
     /** As {@link Caching}, but handing back a leaf the engine completes rather than one it does not. */
     private static class CachingUnresolved implements SourceFunction {
         private final UnresolvedRelation cached = new UnresolvedRelation(

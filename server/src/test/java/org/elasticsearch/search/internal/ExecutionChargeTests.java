@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Builds each charged query through the Lucene factory Elasticsearch uses and checks that {@link ExecutionEstimators} charges it,
+ * Builds each charged query through the Lucene factory Elasticsearch uses and checks that {@link ExecutionCharge} charges it,
  * so that a Lucene upgrade that changes the class a factory returns fails here rather than going uncharged.
  */
 public class ExecutionChargeTests extends ESTestCase {

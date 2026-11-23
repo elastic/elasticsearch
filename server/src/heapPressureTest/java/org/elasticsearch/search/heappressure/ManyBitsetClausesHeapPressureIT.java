@@ -81,19 +81,19 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
 
     /** {@code terms} on {@code ip}: each clause matches half the documents. */
     public void testIpTermsClauses() throws IOException {
-        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
+        assertTripsLargePointsExecution(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
             {"terms": {"ip": ["10.0.0.1", "172.16.%d.%d"]}}""", i / 256, i % 256)))));
     }
 
     /** {@code terms} on {@code long}: each clause matches half the documents. */
     public void testLongTermsClauses() throws IOException {
-        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
+        assertTripsLargePointsExecution(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
             {"terms": {"n": [0, %d]}}""", 1000 + i)))));
     }
 
     /** {@code geo_distance}: each clause matches about two thirds of the documents. */
     public void testGeoDistanceClauses() throws IOException {
-        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
+        assertTripsLargePointsExecution(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
             {"geo_distance": {"distance": "%dm", "loc": {"lat": 0, "lon": 0}}}""", 1_000_000 + i)))));
     }
 
@@ -102,7 +102,7 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
      * segment, which Lucene would answer without a bit set.
      */
     public void testGeoShapeOnGeoPointClauses() throws IOException {
-        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> {
+        assertTripsLargePointsExecution(n -> search(INDEX, searchBody(should(n, i -> {
             String top = Double.toString(9.0 - i * 0.0001);
             return Strings.format("""
                 {"geo_shape": {"loc": {"relation": "intersects", "shape": {"type": "polygon", "coordinates": [[
@@ -113,11 +113,11 @@ public class ManyBitsetClausesHeapPressureIT extends SearchHeapPressureTestCase 
 
     /** {@code range} on {@code long_range}: each clause intersects nearly every document. */
     public void testLongRangeFieldClauses() throws IOException {
-        assertTripsUnderPointsLabel(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
+        assertTripsLargePointsExecution(n -> search(INDEX, searchBody(should(n, i -> Strings.format("""
             {"range": {"r": {"gte": %d, "lte": 10000000}}}""", 1000 + i)))));
     }
 
-    private void assertTripsUnderPointsLabel(IntFunction<Request> request) throws IOException {
+    private void assertTripsLargePointsExecution(IntFunction<Request> request) throws IOException {
         assertTripsOnlyWhenLarge(request, FEW_CLAUSES, MANY_CLAUSES, "points-execution");
     }
 

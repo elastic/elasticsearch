@@ -22,11 +22,13 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDef
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
@@ -131,7 +133,8 @@ public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits Cou
         if (grouping == Grouping.WITHOUT) {
             List<Attribute> childOutput = child().output();
             if (childOutput.stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()))) {
-                Set<String> excluded = new HashSet<>();
+                // Like every aggregation, a without drops the metric name.
+                Set<String> excluded = new HashSet<>(List.of(LabelMatcher.NAME));
                 for (Attribute label : groupings) {
                     excluded.add(labelKey(label));
                 }
@@ -182,6 +185,10 @@ public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits Cou
     @Override
     public IntermediateResult translate(TranslationContext context) {
         List<String> keys = TranslationContext.mapFinite(groupings());
+        if (grouping() == WITHOUT && context.cmd().storesMetricName()) {
+            // Like every aggregation, a without drops the metric name.
+            keys = Stream.concat(keys.stream(), Stream.of(LabelMatcher.NAME)).distinct().toList();
+        }
         TranslationSchema childRequired = switch (grouping()) {
             case BY -> finite(keys);
             // without () keeps the child's label set; without (K) declares its own and widens every pending one by K

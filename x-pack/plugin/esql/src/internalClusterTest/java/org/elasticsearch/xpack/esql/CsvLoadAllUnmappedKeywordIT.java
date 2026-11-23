@@ -546,7 +546,8 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 }
                 // And the other way round: the key must still be there, with the value of the column. The object is not stripped when it
                 // differs, so a key that wrongly disappears fails the comparison with the expected results instead of passing unnoticed.
-                if (expectedColumn && alreadyAColumn) {
+                // Not for a query that projects, since a KEEP reaches the keys with its patterns only, and an exact name does not.
+                if (expectedColumn && alreadyAColumn && projectsColumns(testCase.query) == false) {
                     int column = names.indexOf(removedField);
                     for (int i = 0; i < rows.size(); i++) {
                         if (sortedDistinctValues(rows.get(i).get(column)).equals(sortedDistinctValues(removedValues.get(i))) == false) {

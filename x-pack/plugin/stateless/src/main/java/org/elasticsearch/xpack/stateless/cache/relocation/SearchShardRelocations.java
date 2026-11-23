@@ -24,13 +24,17 @@ final class SearchShardRelocations {
 
     /// The relocations from the node `sourceNodeId` to `targetNodeId`.
     static int countBetween(ClusterState state, String sourceNodeId, String targetNodeId) {
-        return countRelocationsToTarget(state, targetNodeId, sourceNodeId::equals);
+        return countInitializing(state, targetNodeId, shard -> sourceNodeId.equals(shard.relocatingNodeId()));
     }
 
     /// The relocations to `targetNodeId` from all the nodes marked for removal.
     static int countFromShuttingDownNodesTo(ClusterState state, String targetNodeId) {
         final var nodeShutdowns = state.metadata().nodeShutdowns();
-        return countRelocationsToTarget(state, targetNodeId, nodeShutdowns::isNodeMarkedForRemoval);
+        return countInitializing(
+            state,
+            targetNodeId,
+            shard -> shard.relocatingNodeId() != null && nodeShutdowns.isNodeMarkedForRemoval(shard.relocatingNodeId())
+        );
     }
 
     /// Whether a search node marked for removal still holds shards that have not begun to relocate. The master holds them back while it
@@ -50,15 +54,6 @@ final class SearchShardRelocations {
     static int countPendingRelocationsOnShuttingDownNode(ClusterState state, String nodeId) {
         assert state.metadata().nodeShutdowns().isNodeMarkedForRemoval(nodeId) : "node [" + nodeId + "] is not marked for removal";
         return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(ShardRoutingState.STARTED)).orElse(0);
-    }
-
-    /// The relocations to `targetNodeId` from the nodes that match `sourceNodeFilter`.
-    private static int countRelocationsToTarget(ClusterState state, String targetNodeId, Predicate<String> sourceNodeFilter) {
-        return countInitializing(
-            state,
-            targetNodeId,
-            shard -> shard.relocatingNodeId() != null && sourceNodeFilter.test(shard.relocatingNodeId())
-        );
     }
 
     /// The shards initializing on `targetNodeId` that match `shardFilter`.

@@ -7498,21 +7498,14 @@ public class GlobExpanderTests extends ESTestCase {
     }
 
     /**
-     * A leading {@code *} is an unknown parent; path-pruning {@code year} can drop files whose {@code year} is a
-     * data column. Single-value {@code ==} still splices {@code *}/year=2099/; empty splice retries the original
-     * glob with {@code forGlob == NONE} and lists everything. Stage 2 is not applied ({@code valueExcluded} stays
-     * empty). Cap 1 still throws.
+     * The glob names {@code year=*}, so integer {@code year == 2099} does not splice and the flat filter
+     * binds that key. Both folders miss; the listing keeps one inference anchor. Cap 1 does not throw.
+     * Walk stays off: a leading {@code *} is not {@code key=*}.
      */
-    public void testNonWalkableLeadingStarDoesNotOneFileAnchor() throws IOException {
+    public void testNonWalkableLeadingStarIntegerEqualsAllPrunedKeepsInferenceAnchor() throws IOException {
         List<StorageEntry> tree = List.of(entry("s3://bucket/x/year=2024/a.parquet", 100), entry("s3://bucket/y/year=2025/b.parquet", 100));
         var hints = List.of(hint("year", PartitionFilterHintExtractor.Operator.EQUALS, 2099));
-        FileList result = GlobExpander.expand("s3://bucket/*/year=*/*.parquet", new TreeStubProvider(tree), hints, HIVE_ON, MAX, MAX);
-        assertEquals(2, result.fileCount());
-        assertFalse(result.isInferenceAnchor());
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> GlobExpander.expand("s3://bucket/*/year=*/*.parquet", new TreeStubProvider(tree), hints, HIVE_ON, 1, MAX)
-        );
+        assertAllPrunedBothModes(tree, "s3://bucket/*/year=*/*.parquet", hints, 1);
     }
 
     /**

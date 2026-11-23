@@ -28,7 +28,7 @@ USER_AGENT : 'user_agent'               -> pushMode(EXPRESSION_MODE);
 TS_COLLAPSE : 'ts_collapse'             -> pushMode(EXPRESSION_MODE);
 IP_LOCATION : 'ip_location'             -> pushMode(EXPRESSION_MODE);
 // in development
-DEV_DESCRIBE : {this.isDevVersion()}? 'describe' -> pushMode(EXPRESSION_MODE);
+DEV_DESCRIBE : 'describe' {this.isDevVersion()}? -> pushMode(EXPRESSION_MODE);
 
 mode EXPRESSION_MODE;
 

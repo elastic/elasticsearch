@@ -5047,6 +5047,13 @@ public class EsqlCapabilities {
          */
         UNMAPPED_FIELDS_IN_REQUEST_BODY,
 
+        /**
+         * Grouping keys follow {@code ==} on floating point values: {@code -0.0} and {@code 0.0} are one group in
+         * {@code STATS BY}, {@code LIMIT BY} and {@code DEDUP}.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/167086">#167086</a>.
+         */
+        FIX_NEGATIVE_ZERO_GROUP_KEYS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

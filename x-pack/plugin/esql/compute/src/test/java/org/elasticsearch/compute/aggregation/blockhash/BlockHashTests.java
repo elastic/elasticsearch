@@ -376,6 +376,70 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    public void testDoubleHashNegativeZero() {
+        double[] values = new double[] { 0.0, -0.0, 1.0, -0.0 };
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=2, size="));
+                assertOrds(ordsAndKeys.ords(), 0, 0, 1, 0);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 2)));
+            } else {
+                assertThat(ordsAndKeys.description(), equalTo("DoubleBlockHash{channel=0, entries=2, seenNull=false}"));
+                assertOrds(ordsAndKeys.ords(), 1, 1, 2, 1);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 3)));
+            }
+            assertKeys(ordsAndKeys.keys(), 0.0, 1.0);
+        }, blockFactory.newDoubleArrayVector(values, values.length).asBlock());
+    }
+
+    /**
+     * The specialized hash maps every NaN to the canonical one, while the packed hash keeps each NaN's bits.
+     */
+    public void testDoubleHashNaNs() {
+        double otherNan = Double.longBitsToDouble(Double.doubleToRawLongBits(Double.NaN) | 1L);
+        double[] values = new double[] { Double.NaN, otherNan, 1.0 };
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=3, size="));
+                assertOrds(ordsAndKeys.ords(), 0, 1, 2);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
+                assertKeys(ordsAndKeys.keys(), Double.NaN, Double.NaN, 1.0);
+            } else {
+                assertThat(ordsAndKeys.description(), equalTo("DoubleBlockHash{channel=0, entries=2, seenNull=false}"));
+                assertOrds(ordsAndKeys.ords(), 1, 1, 2);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 3)));
+                assertKeys(ordsAndKeys.keys(), Double.NaN, 1.0);
+            }
+        }, blockFactory.newDoubleArrayVector(values, values.length).asBlock());
+    }
+
+    public void testDoubleHashNegativeZeroWithMultiValuedFields() {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(5)) {
+            builder.beginPositionEntry();
+            builder.appendDouble(-0.0);
+            builder.appendDouble(1.0);
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendDouble(0.0);
+            builder.appendDouble(1.0);
+            builder.endPositionEntry();
+            builder.appendDouble(0.0);
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:DOUBLE], entries=2, size="));
+                    assertOrds(ordsAndKeys.ords(), new int[] { 0, 1 }, new int[] { 0, 1 }, new int[] { 0 });
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 2)));
+                } else {
+                    assertThat(ordsAndKeys.description(), equalTo("DoubleBlockHash{channel=0, entries=2, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords(), new int[] { 1, 2 }, new int[] { 1, 2 }, new int[] { 1 });
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 3)));
+                }
+                assertKeys(ordsAndKeys.keys(), 0.0, 1.0);
+            }, builder);
+        }
+    }
+
     public void testBasicBytesRefHash() {
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(8)) {
             builder.appendBytesRef(new BytesRef("item-2"));

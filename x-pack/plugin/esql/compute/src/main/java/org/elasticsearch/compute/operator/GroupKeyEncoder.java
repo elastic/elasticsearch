@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.bytes.PagedBytesBuilder;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -87,7 +88,7 @@ public class GroupKeyEncoder implements Accountable, Releasable {
             case DOUBLE -> {
                 DoubleBlock b = (DoubleBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    row.append(Double.doubleToRawLongBits(b.getDouble(firstValueIndex + v)));
+                    row.append(BlockHash.doubleKeyRawBits(b.getDouble(firstValueIndex + v)));
                 }
             }
             case DOUBLE_RANGE -> {
@@ -95,14 +96,14 @@ public class GroupKeyEncoder implements Accountable, Releasable {
                 DoubleRangeBlockBuilder.DoubleRange scratch = new DoubleRangeBlockBuilder.DoubleRange();
                 for (int v = 0; v < valueCount; v++) {
                     DoubleRangeBlockBuilder.DoubleRange range = b.getDoubleRange(firstValueIndex + v, scratch);
-                    row.append(Double.doubleToRawLongBits(range.from()));
-                    row.append(Double.doubleToRawLongBits(range.to()));
+                    row.append(BlockHash.doubleKeyRawBits(range.from()));
+                    row.append(BlockHash.doubleKeyRawBits(range.to()));
                 }
             }
             case FLOAT -> {
                 FloatBlock b = (FloatBlock) block;
                 for (int v = 0; v < valueCount; v++) {
-                    row.append(Float.floatToRawIntBits(b.getFloat(firstValueIndex + v)));
+                    row.append(BlockHash.floatKeyRawBits(b.getFloat(firstValueIndex + v)));
                 }
             }
             case BOOLEAN -> {

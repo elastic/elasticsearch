@@ -90,7 +90,7 @@ final class DoubleBlockHash extends BlockHash {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long v = doubleKeyBits(vector.getDouble(i));
                 builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v))));
             }
             return builder.build();
@@ -129,7 +129,7 @@ final class DoubleBlockHash extends BlockHash {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                long v = Double.doubleToLongBits(vector.getDouble(i));
+                long v = doubleKeyBits(vector.getDouble(i));
                 long found = hash.find(v);
                 if (found < 0) {
                     builder.appendNull();

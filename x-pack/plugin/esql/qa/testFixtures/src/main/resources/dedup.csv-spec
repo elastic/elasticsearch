@@ -495,3 +495,16 @@ FROM employees, employees_incompatible
 c:long
 100
 ;
+
+dedupNegativeZeroCollapses
+required_capability: dedup_command
+required_capability: fix_negative_zero_group_keys
+
+ROW d = [0.0, -0.0]
+| MV_EXPAND d
+| DEDUP
+;
+
+d:double
+0.0
+;

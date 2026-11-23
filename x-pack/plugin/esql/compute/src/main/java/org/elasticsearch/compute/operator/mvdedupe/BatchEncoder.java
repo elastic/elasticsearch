@@ -12,6 +12,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -375,7 +376,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
             int before = dst.length();
             int after = before + Integer.BYTES;
             dst.grow(after);
-            intHandle.set(dst.bytes(), before, Float.floatToRawIntBits(((FloatBlock) block).getFloat(valueIndex)));
+            intHandle.set(dst.bytes(), before, BlockHash.floatKeyRawBits(((FloatBlock) block).getFloat(valueIndex)));
             dst.setLength(after);
             return Integer.BYTES;
         }
@@ -494,7 +495,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
          */
         protected final void encode(double v) {
             addingValue();
-            doubleHandle.set(bytes.bytes(), bytes.length(), v);
+            longHandle.set(bytes.bytes(), bytes.length(), BlockHash.doubleKeyRawBits(v));
             bytes.setLength(bytes.length() + Double.BYTES);
         }
     }
@@ -510,7 +511,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
             int after = before + Double.BYTES;
             dst.grow(after);
             double v = ((DoubleBlock) block).getDouble(valueIndex);
-            doubleHandle.set(dst.bytes(), before, v);
+            longHandle.set(dst.bytes(), before, BlockHash.doubleKeyRawBits(v));
             dst.setLength(after);
             return Double.BYTES;
         }
@@ -548,9 +549,9 @@ public abstract class BatchEncoder implements Releasable, Accountable {
 
         protected final void encode(DoubleRangeBlockBuilder.DoubleRange range) {
             addingValue();
-            doubleHandle.set(bytes.bytes(), bytes.length(), range.from());
+            longHandle.set(bytes.bytes(), bytes.length(), BlockHash.doubleKeyRawBits(range.from()));
             bytes.setLength(bytes.length() + Double.BYTES);
-            doubleHandle.set(bytes.bytes(), bytes.length(), range.to());
+            longHandle.set(bytes.bytes(), bytes.length(), BlockHash.doubleKeyRawBits(range.to()));
             bytes.setLength(bytes.length() + Double.BYTES);
         }
     }
@@ -568,8 +569,8 @@ public abstract class BatchEncoder implements Releasable, Accountable {
             int before = dst.length();
             int after = before + Double.BYTES * 2;
             dst.grow(after);
-            doubleHandle.set(dst.bytes(), before, range.from());
-            doubleHandle.set(dst.bytes(), before + Double.BYTES, range.to());
+            longHandle.set(dst.bytes(), before, BlockHash.doubleKeyRawBits(range.from()));
+            longHandle.set(dst.bytes(), before + Double.BYTES, BlockHash.doubleKeyRawBits(range.to()));
             dst.setLength(after);
             return Double.BYTES * 2;
         }

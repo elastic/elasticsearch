@@ -601,11 +601,11 @@ public class MultivalueDedupeDouble {
     }
 
     private void hashAdd(IntBlock.Builder builder, LongHashTable hash, double v) {
-        appendFound(builder, hash.add(Double.doubleToLongBits(v)));
+        appendFound(builder, hash.add(BlockHash.doubleKeyBits(v)));
     }
 
     private long hashLookup(LongHashTable hash, double v) {
-        return hash.find(Double.doubleToLongBits(v));
+        return hash.find(BlockHash.doubleKeyBits(v));
     }
 
     private void hashLookupSingle(IntBlock.Builder builder, LongHashTable hash, double v) {

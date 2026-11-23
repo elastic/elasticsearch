@@ -235,11 +235,6 @@ tests:
   tasks:
   - :x-pack:plugin:inference:internalClusterTest
   issue: https://github.com/elastic/elasticsearch/issues/158224
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackFieldsIT
-  tasks:
-  - :test:external-modules:test-esql-heap-attack:javaRestTest
-  method: testFetchTooManyBigFields
-  issue: https://github.com/elastic/elasticsearch/issues/158349
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:generativeTests

@@ -62,6 +62,14 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
         {"obj":{"vector8":[130.0,115.0,-1.02,15.555,-100.0],\
         "vector7":[229.90425,300.38586,-34.821266,15.522733,-199.69786]},"name":"cow.jpg"}""";
 
+    /** Vectors indexed as base64 strings, from {@code search.vectors/205_dense_vector_docvalue_fields_format}. */
+    private static final String BASE64_ORIGINAL_SOURCE = """
+        {"vec_bfloat16_indexed":"P8BAAMBQ","vec_bfloat16_dv":"P8BAAMBQ"}""";
+
+    /** {@link #BASE64_ORIGINAL_SOURCE} as a 9.4 node sends it during recovery: the indexed vector is synthesized as an array. */
+    private static final String BASE64_RECOVERED_SOURCE = """
+        {"vec_bfloat16_dv":"P8BAAMBQ","vec_bfloat16_indexed":[1.4975724,2.0021021,-3.2514138]}""";
+
     @Override
     protected String defaultMapping() {
         return """
@@ -80,6 +88,18 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
                   "type": "dense_vector",
                   "element_type": "bfloat16",
                   "dims": 5,
+                  "index": false
+                },
+                "vec_bfloat16_indexed": {
+                  "type": "dense_vector",
+                  "element_type": "bfloat16",
+                  "dims": 3,
+                  "index": true
+                },
+                "vec_bfloat16_dv": {
+                  "type": "dense_vector",
+                  "element_type": "bfloat16",
+                  "dims": 3,
                   "index": false
                 },
                 "obj": {
@@ -113,6 +133,16 @@ public class BFloat16VectorRecoveryTests extends EngineTestCase {
      */
     public void testTranslogOperationAsserterAcceptsRecoveredSourceWithVectorsInObject() throws IOException {
         assertSameOperation(OBJECT_ORIGINAL_SOURCE, OBJECT_RECOVERED_SOURCE);
+    }
+
+    public void testTranslogOperationAsserterAcceptsRecoveredSourceOfBase64Vectors() throws IOException {
+        assertSameOperation(BASE64_ORIGINAL_SOURCE, BASE64_RECOVERED_SOURCE);
+    }
+
+    public void testTranslogOperationAsserterRejectsDifferentBase64Vector() throws IOException {
+        // "P8BAAMBQ" is [1.5, 2.0, -3.25]
+        assertDifferentOperation(BASE64_ORIGINAL_SOURCE, """
+            {"vec_bfloat16_dv":"P8BAAMBQ","vec_bfloat16_indexed":[2.5,2.0,-3.25]}""");
     }
 
     public void testTranslogOperationAsserterRejectsDifferentVector() throws IOException {

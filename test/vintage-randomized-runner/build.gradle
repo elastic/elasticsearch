@@ -13,7 +13,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 dependencies {
-  api ("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+  api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
     exclude group: "junit", module: "junit"
   }
 
@@ -28,7 +28,9 @@ dependencies {
   }
 
   runtimeOnly "org.junit.jupiter:junit-jupiter:${versions.junit}"
-  runtimeOnly "org.junit.vintage:junit-vintage-engine:${versions.junit}"
+  runtimeOnly("org.junit.vintage:junit-vintage-engine:${versions.junit}") {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
   runtimeOnly "org.junit.platform:junit-platform-launcher:${versions.junit}"
 }
 

@@ -376,25 +376,30 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             return heapSizeComputedLocally;
         }
         // This node is both a master, and a new node during a rolling upgrade. We compute the new heap requirement here,
-        // but just as a sanity check use Math.max as we do not want a mixed-version cluster scaling down just because one of the
+        // but just as a sanity check use Math.max as we do not want a mixed version cluster scaling down just because one of the
         // two calculations is smaller.
         return Math.max(heapSizeComputedLocally, heapRequiredForOperation(clusterService.getSettings(), operationSize));
     }
 
     /**
-     * Heap an indexing node needs in order to accept an operation of {@code operationSizeInBytes} under this node's
-     * {@link IndexingPressure#MAX_OPERATION_SIZE}.
+     * Heap an indexing node needs in order to accept an operation of {@code operationSizeInBytes}
      */
     static long heapRequiredForOperation(Settings nodeSettings, long operationSizeInBytes) {
+        // The configured indexing-pressure cap, as text
         final String configured = nodeSettings.get(IndexingPressure.MAX_OPERATION_SIZE.getKey());
+        // No explicit value means use the setting's default, which is a percentage.
         final String limit = configured == null ? IndexingPressure.MAX_OPERATION_SIZE.getDefaultRaw(nodeSettings) : configured;
         if (limit.endsWith("%") == false) {
             return 0L;
         }
+        // The number before the % sign. "10%" becomes 10.
         final double percent = Double.parseDouble(limit.substring(0, limit.length() - 1));
+        // A 0% cap would divide by zero. Treat it as no heap requirement.
         if (percent == 0d) {
             return 0L;
         }
+        // Heap required so that this operation is that percent of the heap. E.g a 4MB operation that cannot use more than 10% of the heap
+        // has 40MB returned to the autoscaler
         return (long) Math.ceil(operationSizeInBytes * 100.0d / percent);
     }
 
@@ -553,9 +558,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
     /**
      * Record the largest raw indexing operation size published by a data node. The maximum is kept until
-     * {@link #INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING} elapses, matching
-     * {@link #updateIndexingOperationsHeapMemoryRequirements(long)}. Conversion to a heap requirement happens in
-     * {@link #minimumRequiredHeapForAcceptingLargeIndexingOps()} using this master's indexing-pressure limit.
+     * {@link #INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY_SETTING} elapses
      */
     public void updateLargestIndexingOperationSize(long operationSizeInBytes) {
         long nowInNanos = relativeTimeInNanosSupplier.getAsLong();
@@ -719,6 +722,9 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * Returns the current indexing operations heap memory requirements if they are still valid (not expired),
      * or {@code null} if they are expired or not set. When a raw operation and a legacy heap are both valid, the
      * returned deadline is the one belonging to the larger heap.
+     *
+     * NB: This is kind of messy code, but its lifespan will be only for a single serverless release (ie a single rolling upgrade)
+     * and will then be cleaned up in the follow up PR
      */
     public IndexingOperationsMemoryRequirements getValidIndexingOperationsHeapMemoryRequirements() {
         final long now = relativeTimeInNanos();

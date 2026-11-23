@@ -41,7 +41,7 @@ final class SearchShardRelocations {
 
     /// The search shards started on `nodeId`, which have not begun to relocate yet.
     static int countPendingRelocationsOn(ClusterState state, String nodeId) {
-        return countWithState(state, nodeId, ShardRoutingState.STARTED);
+        return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(ShardRoutingState.STARTED)).orElse(0);
     }
 
     /// Whether a search node marked for removal still holds shards that have not begun to relocate. The master holds them back while it
@@ -67,22 +67,9 @@ final class SearchShardRelocations {
 
     /// The shards initializing on `targetNodeId` that match `shardFilter`.
     private static int countInitializing(ClusterState state, String targetNodeId, Predicate<ShardRouting> shardFilter) {
-        return searchRoutingNode(state, targetNodeId).map(node -> countMatching(node, shardFilter)).orElse(0);
-    }
-
-    private static int countMatching(RoutingNode targetNode, Predicate<ShardRouting> shardFilter) {
-        int count = 0;
-        for (final ShardRouting shard : targetNode.initializing()) {
-            if (shardFilter.test(shard)) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    /// The shards of the search node `nodeId` in the state `shardState`.
-    private static int countWithState(ClusterState state, String nodeId, ShardRoutingState shardState) {
-        return searchRoutingNode(state, nodeId).map(node -> node.numberOfShardsWithState(shardState)).orElse(0);
+        return searchRoutingNode(state, targetNodeId).map(
+            node -> (int) node.shardsWithState(ShardRoutingState.INITIALIZING).filter(shardFilter).count()
+        ).orElse(0);
     }
 
     /// The `RoutingNode` of `nodeId` if it is a search node in the cluster. A search node only holds search shards, as a promotable shard

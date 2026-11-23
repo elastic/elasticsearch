@@ -248,6 +248,7 @@ public class MetricValidator {
             Map.entry("es.repositories.snapshots.shards.started.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.unsuccessful.histogram", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.shards.unsuccessful.total", REPO_SNAPSHOT_ATTRIBUTES),
+            Map.entry("es.repositories.snapshots.shards.metadata.duration.histogram", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.started.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.bytes.total", REPO_SNAPSHOT_ATTRIBUTES),
             Map.entry("es.repositories.snapshots.upload.read_time.total", REPO_SNAPSHOT_ATTRIBUTES),

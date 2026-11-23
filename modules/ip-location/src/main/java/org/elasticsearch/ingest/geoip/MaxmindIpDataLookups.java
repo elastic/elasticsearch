@@ -233,11 +233,12 @@ final class MaxmindIpDataLookups {
 
         @Override
         protected void transform(final Result<CacheableCityResponse> result, final IpLocationInfoCollector collector) {
+            String ip = result.ip();
             CacheableCityResponse response = result.result();
 
             for (DatabaseProperty property : this.properties) {
                 switch (property) {
-                    case IP -> collector.ip(result.ip());
+                    case IP -> collector.ip(ip);
                     case COUNTRY_IN_EUROPEAN_UNION -> {
                         if (response.isInEuropeanUnion != null) collector.countryInEuropeanUnion(response.isInEuropeanUnion);
                     }
@@ -363,11 +364,12 @@ final class MaxmindIpDataLookups {
 
         @Override
         protected void transform(final Result<CacheableCountryResponse> result, final IpLocationInfoCollector collector) {
+            String ip = result.ip();
             CacheableCountryResponse response = result.result();
 
             for (DatabaseProperty property : this.properties) {
                 switch (property) {
-                    case IP -> collector.ip(result.ip());
+                    case IP -> collector.ip(ip);
                     case COUNTRY_IN_EUROPEAN_UNION -> {
                         if (response.isInEuropeanUnion != null) collector.countryInEuropeanUnion(response.isInEuropeanUnion);
                     }
@@ -527,11 +529,13 @@ final class MaxmindIpDataLookups {
 
         @Override
         protected void transform(final Result<CacheableEnterpriseResponse> result, final IpLocationInfoCollector collector) {
+            String ip = result.ip();
+            String network = result.network();
             CacheableEnterpriseResponse response = result.result();
 
             for (DatabaseProperty property : this.properties) {
                 switch (property) {
-                    case IP -> collector.ip(result.ip());
+                    case IP -> collector.ip(ip);
                     case COUNTRY_CONFIDENCE -> {
                         if (response.countryConfidence != null) collector.countryConfidence(response.countryConfidence);
                     }
@@ -586,7 +590,7 @@ final class MaxmindIpDataLookups {
                         if (response.organizationName != null) collector.organizationName(response.organizationName);
                     }
                     case NETWORK -> {
-                        if (result.network() != null) collector.network(result.network());
+                        if (network != null) collector.network(network);
                     }
                     case HOSTING_PROVIDER -> collector.hostingProvider(response.isHostingProvider);
                     case TOR_EXIT_NODE -> collector.torExitNode(response.isTorExitNode);

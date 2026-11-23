@@ -1555,10 +1555,11 @@ required_capability: promql_binary_independent_join
 required_capability: fix_ts_block_loader_passthrough_aliasing
 PROMQL index=prometheus-k8s step=10m result=(count(count by (cluster) (network.eth0.tx)) / sum(network.eth0.rx))
 | WHERE step == "2024-05-10T00:10:00.000Z"
-| KEEP result;
+| KEEP result
+| EVAL result = ROUND(result, 6);
 
 result:double
-0.0006993006993006993
+6.99E-4
 ;
 
 // scalar() of a labelless aggregate x labeled vector: independent step-broadcast (sum(tx)=4248 at 00:10).

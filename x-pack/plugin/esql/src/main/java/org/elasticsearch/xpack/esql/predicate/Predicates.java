@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.predicate;
 
 /**
- * Three-valued composition of a {@link PredicateExpr}. A source refiner is used only when the source can evaluate that
- * leaf exactly in place. Otherwise the engine loads the columns and evaluates the leaf itself.
+ * Three-valued composition of a {@link PredicateExpr}. {@code AND} and {@code OR} evaluate the left side, then the right
+ * side on the remaining positions, in that order. A later pass must not reorder them: an expression can throw or warn,
+ * and the row that does so has to stay stable. A source refiner is used only when the source can evaluate that leaf
+ * exactly in place. Otherwise the engine loads the columns and evaluates the leaf itself.
  */
 public final class Predicates {
     private Predicates() {}

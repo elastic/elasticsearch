@@ -16,7 +16,8 @@ import java.util.Set;
  * Splits a predicate into a source candidate constraint and a residual the engine evaluates. The source is asked about
  * each top-level conjunct as a whole. An {@code OR} or {@code NOT} is not opened to reuse a guarantee that applies only
  * to one branch. A superset constraint stays in the residual. An exact true-set may drive a {@code WHERE}, and the
- * plan's {@link CandidateCoverage} says whether that stream is the final true set or only a superset of it.
+ * plan's {@link CandidateCoverage} says whether that stream is the final true set or only a superset of it. Coverage is
+ * fixed by this split when the plan is opened. A shard whose mappings support less opens its own plan.
  */
 public final class PredicatePlans {
     private PredicatePlans() {}

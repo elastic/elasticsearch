@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.esql.predicate;
 
 /**
- * A bounded, stable row space from any source. Positions stay valid for the life of the batch. {@link #sourceRow(int)}
- * is the source's identity for that position, so a later batch can refer to the same row. The batch is the execution
- * context for column access: loading is scoped to a selection, and the caller owns the returned column.
+ * A bounded row space from any source. Positions stay valid until the caller has finished evaluating this batch and
+ * closed every column loaded from it. The source may then release the batch. An operator that changes cardinality,
+ * such as expanding a child relation, builds a new batch and a new {@link RowSpace} rather than reusing these positions.
+ * Loading is scoped to a selection, and the caller owns the returned column.
  */
 public interface SelectionBatch {
     int positionCount();

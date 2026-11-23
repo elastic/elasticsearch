@@ -173,6 +173,26 @@ public class PredicateContractTests extends ESTestCase {
         assertThat(parents.nulls(), equalTo(SelectionMask.none(2)));
     }
 
+    public void testNestedPlanSealsWhenTheChildCursorEnds() {
+        MemoryBatch first = MemoryBatch.children(
+            new int[] { 0, 1, 2 },
+            new int[] { 0, 0, 1 },
+            Map.of("sku", new Object[] { "a", "b", "a" }, "qty", new Object[] { 1L, 50L, 1L }, "price", new Object[] { 10L, 50L, 1L })
+        );
+        MemoryBatch second = MemoryBatch.children(
+            new int[] { 3 },
+            new int[] { 1 },
+            Map.of("sku", new Object[] { "a" }, "qty", new Object[] { 10L }, "price", new Object[] { 20L })
+        );
+        PredicateExpr sameChild = new PredicateExpr.And(new FieldEquals("sku", "a"), new ProductGreaterThan("qty", "price", 100));
+        RowPredicate child = Predicates.compile(sameChild, new FullScanSource(List.of()));
+
+        PredicateResult parents = NestedAnyPlan.evaluate(2, pages(first, second), child);
+
+        assertThat(parents.trues(), equalTo(SelectionMask.of(false, true)));
+        assertThat(parents.nulls(), equalTo(SelectionMask.none(2)));
+    }
+
     public void testCategoryAloneIsAnExactTrueSet() {
         ExactIteratorSource source = new ExactIteratorSource(
             List.of(new Row("electronics", 1L, 1L), new Row(null, 1L, 1L), new Row("books", 1L, 1L))
@@ -200,6 +220,17 @@ public class PredicateContractTests extends ESTestCase {
 
         assertThat(result.trues(), equalTo(SelectionMask.of(true, false)));
         assertThat(result.nulls(), equalTo(SelectionMask.of(false, true)));
+    }
+
+    private static CandidateCursor pages(ChildBatch... batches) {
+        return new CandidateCursor() {
+            private int next;
+
+            @Override
+            public SelectionBatch nextBatch() {
+                return next < batches.length ? batches[next++] : null;
+            }
+        };
     }
 
     private static List<Row> sampleRows() {

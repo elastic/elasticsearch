@@ -9,6 +9,9 @@ mapped_pages:
 
 There are several token filters available which try to normalize special characters of a certain language.
 
+Albanian
+:   [`albanian_normalization`](https://github.com/apache/lucene/blob/main/lucene/analysis/common/src/java/org/apache/lucene/analysis/sq/AlbanianNormalizationFilter.java)
+
 Arabic
 :   [`arabic_normalization`](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ar/ArabicNormalizationFilter.html)
 

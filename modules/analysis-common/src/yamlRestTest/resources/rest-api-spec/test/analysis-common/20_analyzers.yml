@@ -29,6 +29,35 @@
     - match:  { detail.analyzer.tokens.1.position: 1 }
 
 ---
+"albanian":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                analyzer:
+                  my_analyzer:
+                    type: albanian
+
+    - do:
+        indices.analyze:
+          body:
+            text:     durimi
+            analyzer: albanian
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: dur }
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:     durimi
+            analyzer: my_analyzer
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: dur }
+
+---
 "bengali":
     - do:
         indices.analyze:

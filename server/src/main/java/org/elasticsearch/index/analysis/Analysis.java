@@ -43,6 +43,7 @@ import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
+import org.apache.lucene.analysis.sq.AlbanianAnalyzer;
 import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
@@ -101,6 +102,7 @@ public class Analysis {
     }
 
     private static final Map<String, Set<?>> NAMED_STOP_WORDS = Map.ofEntries(
+        entry("_albanian_", AlbanianAnalyzer.getDefaultStopSet()),
         entry("_arabic_", ArabicAnalyzer.getDefaultStopSet()),
         entry("_armenian_", ArmenianAnalyzer.getDefaultStopSet()),
         entry("_basque_", BasqueAnalyzer.getDefaultStopSet()),

@@ -39,12 +39,6 @@ import java.util.Iterator;
  * <p>
  * Charges are batched in {@link #CHARGE_BATCH_BYTES} steps, so short texts never touch the breaker. The charge is released on
  * {@link #close()}, which {@link CachingTokenFilter#close()} calls, since the cache is garbage from then on.
- * <p>
- * It also keeps each cached token from carrying a copy of an unrelated term. Every captured state clones the term attribute,
- * and Lucene's {@code CharTermAttributeImpl#clone} copies whatever bytes the last {@code getBytesRef()} call left in it. On a
- * token stream reused across requests those can belong to a long term from an earlier analysis: in a production heap dump each
- * cached two-character token cost about 4 KB this way. This filter calls {@code getBytesRef()} on every token, so only the
- * token's own bytes are copied. That part can go once Lucene's clone no longer copies those bytes.
  */
 public final class QueryTokenCacheAccountingFilter extends TokenFilter {
 
@@ -88,8 +82,10 @@ public final class QueryTokenCacheAccountingFilter extends TokenFilter {
             return false;
         }
         long bytes = fixedBytesPerToken();
-        if (termAtt != null) {
-            // Leaves only this token's bytes in the builder, see the class Javadoc.
+        // Analyzer streams expose TermToBytesRefAttribute via CharTermAttributeImpl. Since lucene#17020
+        // that clone no longer copies builder bytes, so getBytesRef() would overcharge. Count term bytes
+        // only when the stream has no CharTermAttribute: then clone still deep-copies the BytesRef.
+        if (termAtt != null && charTermAtt == null) {
             int length = termAtt.getBytesRef().length;
             if (length > 0) {
                 bytes += RamUsageEstimator.alignObjectSize((long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + ArrayUtil.oversize(length, 1));

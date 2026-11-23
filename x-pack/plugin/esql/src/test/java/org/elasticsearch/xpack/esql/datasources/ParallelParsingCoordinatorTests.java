@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -30,6 +31,8 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -677,6 +680,66 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 0L,
                 breaker.getUsed()
             );
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * The close warning names the object too, and WARN is on by default, so an unredacted location would put a
+     * pre-signed URL's signature where an operator is already reading. An early close -- the LIMIT or cancel
+     * shape -- is what closes the storage object here, so a store whose close fails fires the line on an
+     * otherwise ordinary read. The expectation reads the formatted message, which is what this call site
+     * builds; the throwable it attaches is the store's own and is not redacted here.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator:WARN",
+        reason = "the close give-up is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedCloseDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 500; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+        }
+        byte[] contentBytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        StorageObject obj = new FailingCloseStorageObject(contentBytes, path);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        // Guard: a single-segment file takes the fallback that hands back the reader's own iterator, and the
+        // coordinator close that this warning sits in never runs.
+        assertThat(
+            "test needs a genuinely multi-segment file or the close under test never runs",
+            ParallelParsingCoordinator.computeSegments(reader, obj, contentBytes.length, 4, 1).size(),
+            Matchers.greaterThan(1)
+        );
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (MockLog mockLog = MockLog.capture(ParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the close warning, naming the location without its query string",
+                    ParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to close storage object for [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    ParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 8, 4, exec);
+            assertTrue("workers should produce at least one page", iter.hasNext());
+            // Abandon without draining: the LIMIT / cancel shape, which is what closes the storage object.
+            iter.close();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             exec.shutdown();
             assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
@@ -3300,6 +3363,31 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://test");
+        }
+    }
+
+    /**
+     * Path + a {@code close()} that fails. An early close is what closes the storage object on this path, so
+     * this makes the close warning fire on a read that is otherwise unremarkable.
+     */
+    private static final class FailingCloseStorageObject extends InMemoryStorageObject {
+        private final StoragePath path;
+
+        FailingCloseStorageObject(byte[] data, String path) {
+            super(data);
+            this.path = StoragePath.of(path);
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public void close() throws IOException {
+            // Carries no location: the warning attaches this throwable in full, so a signature in its message
+            // would be the store's own leak rather than the call site's.
+            throw new IOException("this store cannot close");
         }
     }
 

@@ -30,6 +30,23 @@ import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
 
+    /**
+     * Counts the null positions of a block by checking each of them. This is the fallback for {@link Block#nullValuesCount()}
+     * implementations that have no cheaper way of doing it.
+     */
+    public static int nullValuesCount(Block block) {
+        if (block.mayHaveNulls() == false) {
+            return 0;
+        }
+        int count = 0;
+        for (int i = 0, positions = block.getPositionCount(); i < positions; i++) {
+            if (block.isNull(i)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public static final Block[] NO_BLOCKS = new Block[0];
 
     private BlockUtils() {}

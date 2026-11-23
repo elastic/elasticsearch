@@ -33,6 +33,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CircuitBreakingRegExpTests extends ESTestCase {
 
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): was RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT
     private static final int FLAGS = RegExp.ALL;
 
     /** One pattern per kind of parse-tree node, and the combinations whose sizes the costs model. */
@@ -49,6 +50,7 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
             "a{0,3}",
             "a{1,3}",
             "a{3}",
+            // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): this was DEPRECATED_COMPLEMENT coverage, not a literal tilde
             "~(ab)",
             "[^a-c]",
             "x",
@@ -99,9 +101,9 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
      * whose parsed kind is not the intended one is skipped rather than counted.
      */
     public void testSameLanguageAsLuceneOnComposedRegexps() {
+        // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): restore DEPRECATED_COMPLEMENT / "~" + left
         for (RegExp.Kind kind : List.of(
             RegExp.Kind.REGEXP_INTERSECTION,
-            RegExp.Kind.REGEXP_COMPLEMENT,
             RegExp.Kind.REGEXP_REPEAT_MINMAX,
             RegExp.Kind.REGEXP_REPEAT_MIN,
             RegExp.Kind.REGEXP_UNION,
@@ -123,7 +125,6 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
         int min = between(0, 3);
         return switch (kind) {
             case REGEXP_INTERSECTION -> left + "&" + right;
-            case REGEXP_COMPLEMENT -> "~" + left;
             case REGEXP_REPEAT_MINMAX -> left + "{" + min + "," + (min + between(0, 3)) + "}";
             case REGEXP_REPEAT_MIN -> left + "{" + min + ",}";
             case REGEXP_UNION -> left + "|" + right;
@@ -243,6 +244,7 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
     }
 
     /** An intersection with a complement written inside one pattern is a product, charged as it grows. */
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): unmute when ~(X) complement is restored.
     public void testIntersectionWithComplementIsCharged() {
         assertTripsSmallAndReleases("[ab]{200}&~((a|b)*b(a|b){10})", ByteSizeValue.ofMb(2));
     }
@@ -311,6 +313,7 @@ public class CircuitBreakingRegExpTests extends ESTestCase {
      * by the work left. The operand is parenthesised because {@code ~} binds tighter than a repeat: {@code ~x{2}} is
      * {@code (~x){2}}.
      */
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): unmute when ~(X) complement is restored.
     public void testNestedComplementsAreBoundedByTheWorkLeft() {
         String operand = "((a{100}){100})";
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));

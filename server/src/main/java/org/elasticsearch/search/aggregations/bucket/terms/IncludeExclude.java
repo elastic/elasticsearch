@@ -536,6 +536,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
         return incNumPartitions > 0;
     }
 
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): was RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT
     private static final int REGEX_FLAGS = RegExp.ALL;
 
     /**

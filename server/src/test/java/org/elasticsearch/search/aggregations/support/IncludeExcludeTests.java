@@ -298,6 +298,7 @@ public class IncludeExcludeTests extends ESTestCase {
      * {@code equals} compares the pattern text, so only the filters show whether a deserialized pattern compiles with the
      * same flags as the parsed one, that is whether {@code ~} is the complement operator on both sides of the wire.
      */
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): unmute when ~(X) complement is restored.
     public void testComplementOperatorSurvivesSerialization() throws IOException {
         IncludeExclude original = new IncludeExclude("a.*&~(.*e)", null, null, null);
         IncludeExclude copy = copyWriteable(original, writableRegistry(), IncludeExclude::new);

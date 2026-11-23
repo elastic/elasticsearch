@@ -12,10 +12,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.bulk.EscfBulkService;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -90,6 +92,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.topn.DocVectorEncoder;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
@@ -182,6 +185,8 @@ import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedChildren;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nested.NestedExpandOperator;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -216,6 +221,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalFieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -233,6 +239,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
+import org.elasticsearch.xpack.esql.plan.physical.NestedExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PackDimsExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -280,6 +287,7 @@ import java.util.Optional;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -325,6 +333,10 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final Client client;
+    // INTO writes through ESCF batches; null in planners that never plan an INTO
+    @Nullable
+    private final EscfBulkService escfBulkService;
+    private final BooleanSupplier batchIndexingSupported;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
@@ -337,6 +349,7 @@ public class LocalExecutionPlanner {
      * tied to the build they run under.
      */
     private final boolean snapshotBuild;
+    private final FetchOperatorProvider fetchOperators;
     @Nullable
     private final Executor parallelWorkerExecutor;
     private final int esqlWorkerPoolSize;
@@ -386,12 +399,15 @@ public class LocalExecutionPlanner {
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
         boolean snapshotBuild,
+        FetchOperatorProvider fetchOperators,
         @Nullable Executor parallelWorkerExecutor,
         int esqlWorkerPoolSize,
         MatcherWatchdog grokMatcherWatchdog,
         TransportVersion minTransportVersion,
         Client client,
-        ExternalComputeContext externalCompute
+        ExternalComputeContext externalCompute,
+        @Nullable EscfBulkService escfBulkService,
+        BooleanSupplier batchIndexingSupported
     ) {
 
         this.sessionId = sessionId;
@@ -413,6 +429,7 @@ public class LocalExecutionPlanner {
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.snapshotBuild = snapshotBuild;
+        this.fetchOperators = fetchOperators;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
         this.esqlWorkerPoolSize = esqlWorkerPoolSize;
         // Resolved once by the caller from the live ClusterSettings (the setting is dynamic), then shared
@@ -422,6 +439,8 @@ public class LocalExecutionPlanner {
         this.minTransportVersion = minTransportVersion;
         this.client = client;
         this.externalCompute = externalCompute;
+        this.escfBulkService = escfBulkService;
+        this.batchIndexingSupported = batchIndexingSupported;
     }
 
     /**
@@ -532,6 +551,8 @@ public class LocalExecutionPlanner {
             return planUnpackDims(unpackDims, context);
         } else if (node instanceof ExternalFieldExtractExec extExtract) {
             return planExternalFieldExtract(extExtract, context);
+        } else if (node instanceof FetchExec fetch) {
+            return planFetch(fetch, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -558,6 +579,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof NestedExpandExec nestedExpand) {
+            return planNestedExpand(nestedExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
         } else if (node instanceof HighlightExec highlight) {
@@ -1040,11 +1063,18 @@ public class LocalExecutionPlanner {
         Layout outputLayout = new Layout.Builder().append(into.output()).build();
         return switch (into.mode()) {
             case WRITE -> {
+                String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+                boolean discard = configuration.explainOnly();
+                if (discard == false) {
+                    IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported.getAsBoolean(), projectMetadata, target);
+                }
                 IntoPageWriter.Factory sink = IntoPageWriter.Factory.createFactory(
+                    escfBulkService,
                     client,
-                    into.destination(),
+                    blockFactory.breaker(),
+                    target,
                     into.sourceAttributes(),
-                    configuration.explainOnly() ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
+                    discard ? IntoPageWriter.Factory.Indexing.DISCARD : IntoPageWriter.Factory.Indexing.INDEX
                 );
                 yield source.with(
                     new IntoOperator.Factory(sink, alignPageToAttributes(into.sourceAttributes(), source.layout)),
@@ -1540,10 +1570,13 @@ public class LocalExecutionPlanner {
         ElementType[] elementTypes = new ElementType[source.layout.numberOfChannels()];
         TopNEncoder[] encoders = new TopNEncoder[source.layout.numberOfChannels()];
         List<Layout.ChannelSet> inverse = source.layout.inverse();
+        DocVectorEncoder docEncoder = fetchOperators.receivesDetachedDocuments()
+            ? DocVectorEncoder.detached()
+            : new DocVectorEncoder(context.shardContexts);
         for (int channel = 0; channel < inverse.size(); channel++) {
             var fieldExtractPreference = fieldExtractPreference(docValuesAttributes, inverse.get(channel).nameIds());
             elementTypes[channel] = PlannerUtils.toElementType(inverse.get(channel).type(), fieldExtractPreference);
-            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), context.shardContexts);
+            encoders[channel] = TopNExec.encoder(inverse.get(channel).type(), docEncoder);
         }
         List<TopNOperator.SortOrder> orders = order.stream().map(o -> {
             int sortByChannel = getAttributeChannel(o.child(), source.layout, "order by expression must be an attribute");
@@ -1606,7 +1639,8 @@ public class LocalExecutionPlanner {
                 field.child(),
                 layout,
                 context.shardContexts,
-                context.analysisRegistry()
+                context.analysisRegistry(),
+                context.plannerSettings
             );
             outputLayout.append(field.toAttribute());
             pendingAliases.add(field.id());
@@ -2588,10 +2622,6 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planEqlSource(EqlSourceExec eqlSource) {
         Layout.Builder layout = new Layout.Builder();
         layout.append(eqlSource.output());
-        // No pushed LIMIT and no WITH {"size"} → fall back to the ES|QL result-truncation cap, and warn at runtime
-        // if the response fills it (results may be incomplete).
-        int truncationCap = configuration.resultTruncationMaxSize(false);
-        boolean warnOnTruncation = EqlRequests.usesTruncationCapSize(eqlSource.options(), eqlSource.pushedLimit());
         EqlSearchRequest request = EqlRequests.build(
             eqlSource.query(),
             eqlSource.indices(),
@@ -2599,7 +2629,6 @@ public class LocalExecutionPlanner {
             eqlSource.options(),
             eqlSource.pushedLimit(),
             new EqlRequests.EnclosingQuery(
-                truncationCap,
                 // Bridge the enclosing ES|QL query's own contracts so an EQL source honors them like FROM does.
                 configuration.allowPartialResults(),
                 QuerySettings.PROJECT_ROUTING.get(configuration.resolvedSettings()),
@@ -2616,7 +2645,14 @@ public class LocalExecutionPlanner {
             request.preResolvedFieldCaps(preResolved);
         }
         return PhysicalOperation.fromSource(
-            new EqlSourceOperator.Factory(client, request, eqlSource.mode(), eqlSource.output(), eqlSource.source(), warnOnTruncation),
+            new EqlSourceOperator.Factory(
+                client,
+                request,
+                eqlSource.mode(),
+                eqlSource.output(),
+                eqlSource.source(),
+                EqlRequests.usesDefaultSize(eqlSource.options(), eqlSource.pushedLimit())
+            ),
             layout.build()
         );
     }
@@ -2738,7 +2774,14 @@ public class LocalExecutionPlanner {
         // TODO: should this be extracted into a separate eval block?
         return source.with(
             new FilterOperatorFactory(
-                EvalMapper.toEvaluator(context.foldCtx(), condition, source.layout, context.shardContexts, context.analysisRegistry())
+                EvalMapper.toEvaluator(
+                    context.foldCtx(),
+                    condition,
+                    source.layout,
+                    context.shardContexts,
+                    context.analysisRegistry(),
+                    context.plannerSettings
+                )
             ),
             source.layout
         );
@@ -2948,6 +2991,16 @@ public class LocalExecutionPlanner {
         return source.with(new GroupedLimitOperator.Factory(limitValue, groupKeys, elementTypes), source.layout);
     }
 
+    private PhysicalOperation planFetch(FetchExec fetch, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(fetch.child(), context);
+        Layout.ChannelAndType doc = source.layout.get(fetch.doc().id());
+        if (doc == null || doc.type() != DataType.DOC_DATA_TYPE) {
+            throw new IllegalStateException("fetch reads documents from [" + fetch.doc() + "] but the input has " + doc);
+        }
+        Layout layout = source.layout.builder().append(fetch.fetchedAttributes()).build();
+        return source.with(fetchOperators.fetchOperator(fetch, doc.channel()), layout);
+    }
+
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
         int blockSize = 5000;// TODO estimate row size and use context.pageSize()
@@ -2957,6 +3010,34 @@ public class LocalExecutionPlanner {
             new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
             layout.build()
         );
+    }
+
+    private PhysicalOperation planNestedExpand(NestedExpandExec expand, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(expand.child(), context);
+        int docChannel = -1;
+        for (Attribute attribute : expand.child().output()) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
+                docChannel = source.layout.get(attribute.id()).channel();
+                break;
+            }
+        }
+        if (docChannel < 0) {
+            throw new IllegalStateException("NESTED_EXPAND requires [_doc]");
+        }
+        Layout.Builder layout = source.layout.builder();
+        layout.append(expand.expanded());
+        List<DataType> types = expand.expanded().stream().map(Attribute::dataType).toList();
+        // Enumeration does not depend on how many child columns remain after pruning.
+        NestedChildren.Factory children = NestedChildren.factory(
+            context.shardContexts,
+            expand.path(),
+            expand.paths(),
+            types,
+            expand.expanded().stream().map(EsPhysicalOperationProviders::findUnionTypes).toList(),
+            context.plannerSettings,
+            configuration
+        );
+        return source.with(new NestedExpandOperator.Factory(docChannel, children, expand.path(), types), layout.build());
     }
 
     private PhysicalOperation planTimeSeriesCollapse(TimeSeriesCollapseExec collapse, LocalExecutionPlannerContext context) {

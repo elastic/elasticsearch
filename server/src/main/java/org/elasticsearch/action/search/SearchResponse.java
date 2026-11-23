@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitRamUsageEstimator;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -584,6 +587,28 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     void adoptCoordinatorFetchCharge(@Nullable Releasable charge) {
         assert coordinatorFetchCharge == null : "a coordinator fetch charge was already adopted";
         coordinatorFetchCharge = charge;
+    }
+
+    /**
+     * Charges this response, read from another node, to {@code circuitBreaker} until it is released. The charge is the
+     * {@code serializedBytes} it arrived with, plus the heap of each hit apart from its source and the sources of its inner hits, see
+     * {@link SearchHitRamUsageEstimator#estimateWithoutSources}. A source is a slice of the buffer the response was read from, which the
+     * serialized bytes already cover. Aggregations are charged by their serialized size only, as in
+     * {@link TransportMultiSearchAction#estimateActualBytes}.
+     * <p>
+     * The charge is made after the response was read, so it bounds what the node holds, not the peak of reading it.
+     *
+     * @throws CircuitBreakingException if this node cannot hold the response, in which case nothing is charged
+     */
+    public void chargeReadResponse(CircuitBreaker circuitBreaker, long serializedBytes, String label) {
+        assert serializedBytes >= 0 : "bytes must be non-negative";
+        long hitsBytes = 0;
+        for (SearchHit hit : hits.getHits()) {
+            hitsBytes += SearchHitRamUsageEstimator.estimateWithoutSources(hit);
+        }
+        long bytes = serializedBytes + hitsBytes;
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        adoptCoordinatorFetchCharge(Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, label)));
     }
 
     /**

@@ -20,8 +20,8 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 65 | Form-encoded `POST` | `Content-Type: application/x-www-form-urlencoded` | `406 Not Acceptable`.<br>{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Accepted when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true`, and the request is authenticated. TLS must terminate at {{es}}. Otherwise, use `GET` | Accepted | - |
-| 66 | `warnings` and `infos` | `quantile(2, x)` | Not returned. The only warning is `results truncated due to limit` | Returned | - |
+| 64 | Form-encoded `POST` | `Content-Type: application/x-www-form-urlencoded` | `406 Not Acceptable`.<br>{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Accepted when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true`, and the request is authenticated. TLS must terminate at {{es}}. Otherwise, use `GET` | Accepted | - |
+| 65 | `warnings` and `infos` | `quantile(2, x)` | Not returned. The only warning is `results truncated due to limit` | Returned | - |
 :::
 
 ### Expression queries [prometheus-compatibility-expression-queries]
@@ -37,7 +37,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 67 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939]({{es-issue}}149939) |
+| 66 | Query parameters that the [{{promql}} HTTP API](/reference/query-languages/promql/promql-http-api.md) doesn't list | `lookback_delta=1m`, `stats=all` | Configure clients to omit them. {{es}} returns `400 Bad Request` | [#149939]({{es-issue}}149939) |
 :::
 
 ### Querying metric metadata [prometheus-compatibility-querying-metric-metadata]
@@ -53,7 +53,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 68 | `help` in [`/api/v1/metadata`](/reference/query-languages/promql/promql-http-api.md#promql-http-api-metadata-endpoint) {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `GET /api/v1/metadata` | Empty | The metric's `HELP` text | [#157230]({{es-issue}}157230) |
+| 67 | `help` in [`/api/v1/metadata`](/reference/query-languages/promql/promql-http-api.md#promql-http-api-metadata-endpoint) {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` | `GET /api/v1/metadata` | Empty | The metric's `HELP` text | [#157230]({{es-issue}}157230) |
 :::
 
 ### Querying exemplars [prometheus-compatibility-querying-exemplars]
@@ -69,7 +69,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 69 | `start` and `end` of exemplar queries | `GET /api/v1/query_exemplars?query=up` | Required | Optional. Without them, all stored exemplars are considered | - |
-| 70 | `offset` in exemplar queries | `rate(m[5m] offset 1h)` | Only the exemplars that influenced the returned metric values and fall into the requested time range are returned. For example, with `offset 1h`, only exemplars older than one hour are returned, so a time range shorter than the offset returns no exemplars | The `offset` is ignored. The exemplars recorded in the requested time range are returned, even though they don't influence the metric values | - |
-| 71 | Number of exemplars | `GET /api/v1/query_exemplars` | At most the 10,000 most recent exemplars. Exemplars are stored like other documents and follow the retention of their data stream | All exemplars still held in the fixed-size in-memory exemplar storage | - |
+| 68 | `start` and `end` of exemplar queries | `GET /api/v1/query_exemplars?query=up` | Required | Optional. Without them, all stored exemplars are considered | - |
+| 69 | `offset` in exemplar queries | `rate(m[5m] offset 1h)` | Only the exemplars that influenced the returned metric values and fall into the requested time range are returned. For example, with `offset 1h`, only exemplars older than one hour are returned, so a time range shorter than the offset returns no exemplars | The `offset` is ignored. The exemplars recorded in the requested time range are returned, even though they don't influence the metric values | - |
+| 70 | Number of exemplars | `GET /api/v1/query_exemplars` | At most the 10,000 most recent exemplars. Exemplars are stored like other documents and follow the retention of their data stream | All exemplars still held in the fixed-size in-memory exemplar storage | - |
 :::

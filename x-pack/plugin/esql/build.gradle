@@ -214,7 +214,9 @@ tasks.named('splitPackagesAudit').configure {
   ignoreClasses(
     "org.elasticsearch.xpack.esql.core.util.*",
     "org.elasticsearch.xpack.esql.core.plugin.AbstractTransportQlAsyncGetResultsAction",
-    "org.elasticsearch.xpack.esql.core.package-info"
+    "org.elasticsearch.xpack.esql.core.package-info",
+    // reads RE2/J's package-private parser and compiler, so it sits in RE2/J's package
+    "com.google.re2j.Re2Programs"
   )
 }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -371,6 +372,8 @@ public class Re2RegExpTests extends ESTestCase {
 
     private static final List<String> QUANTIFIERS = List.of("*", "+", "?", "*?", "+?", "??", "{2}", "{0,2}", "{1,}", "{0}", "{1,2}?");
 
+    private static final AtomicInteger NAMES = new AtomicInteger();
+
     /** A random valid expression over {@link #ALPHABET}, nested at most {@code depth} groups deep. */
     private static String randomRegex(int depth) {
         StringBuilder regex = new StringBuilder();
@@ -390,7 +393,8 @@ public class Re2RegExpTests extends ESTestCase {
             case 0 -> Pattern.quote(Character.toString(randomFrom(ALPHABET)));
             case 1 -> randomFrom(CLASSES);
             case 2 -> randomFrom(ASSERTIONS);
-            case 3 -> randomFrom("(", "(?:", "(?P<n>") + randomRegex(depth - 1) + ")";
+            // a name only once, as RE2/J refuses one used twice
+            case 3 -> randomFrom("(", "(?:", "(?P<n" + NAMES.incrementAndGet() + ">") + randomRegex(depth - 1) + ")";
             case 4 -> randomFrom(FLAG_GROUPS) + randomRegex(depth - 1) + ")";
             default -> throw new AssertionError("unexpected term");
         };

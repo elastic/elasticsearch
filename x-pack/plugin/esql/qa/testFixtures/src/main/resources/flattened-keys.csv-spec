@@ -255,6 +255,61 @@ a
 k
 ;
 
+// [attributes.env] is a key of the flattened [attributes] in every branch, but the subquery drops it with its KEEP: the outer
+// KEEP still reads it from the main branch and null-fills it in the subquery, whatever the mode of unmapped fields.
+
+keyOnlyNamedAboveSubquery
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+
+FROM flattened_paths_mapped, (FROM flattened_paths_mapped | KEEP attributes.host)
+| KEEP attributes.env
+| SORT attributes.env
+;
+
+attributes.env:keyword
+prod
+null
+null
+null
+;
+
+keyOnlyNamedAboveSubqueryUnderLoad
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_with_fork_subqueries_and_views
+
+SET unmapped_fields="load"\;
+FROM flattened_paths_mapped, (FROM flattened_paths_mapped | KEEP attributes.host)
+| KEEP attributes.env
+| SORT attributes.env
+;
+
+attributes.env:keyword
+prod
+null
+null
+null
+;
+
+keyOnlyNamedAboveSubqueryUnderLoadAll
+required_capability: flattened_keys
+required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_v2
+
+SET unmapped_fields="load_all"\;
+FROM flattened_paths_mapped, (FROM flattened_paths_mapped | KEEP attributes.host)
+| KEEP attributes.env
+| SORT attributes.env
+;
+
+attributes.env:keyword
+prod
+null
+null
+null
+;
+
 keyInSubqueryUnderLoad
 required_capability: flattened_keys
 required_capability: subquery_in_from_command

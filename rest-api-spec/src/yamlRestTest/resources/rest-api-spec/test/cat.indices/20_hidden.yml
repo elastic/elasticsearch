@@ -17,14 +17,6 @@
         index: i*
   - match:
       $body: |
-        /^$/
-
-  - do:
-      cat.indices:
-        index: i*
-        expand_wildcards: ["all"]
-  - match:
-      $body: |
         /^(green  \s+
            open   \s+
            index1 \s+
@@ -38,6 +30,14 @@
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
+
+  - do:
+      cat.indices:
+        index: i*
+        expand_wildcards: ["open", "closed"]
+  - match:
+      $body: |
+        /^$/
 
 ---
 "Test cat indices output for dot-hidden index and dot-prefixed pattern":
@@ -59,7 +59,21 @@
       cat.indices: {}
   - match:
       $body: |
-        /^$/
+        /^(.*           # Accounts for system indices that get automatically generated
+           green  \s+
+           open   \s+
+           \.index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+           .*           # Accounts for system indices that get automatically generated
+         )
+         $/
 
   - do:
       cat.indices:
@@ -101,16 +115,8 @@
       cat.indices:
         index: "i*"
         # Can't use a bare wildcard here because Security replaces wildcards
-        # it with all matching authorized indices/aliases, including the visible
+        # with all matching authorized indices/aliases, including the visible
         # alias
-  - match:
-      $body: |
-        /^$/
-
-  - do:
-      cat.indices:
-        index: "i*"
-        expand_wildcards: ["open", "hidden"]
   - match:
       $body: |
         /^(green  \s+
@@ -126,6 +132,14 @@
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
+
+  - do:
+      cat.indices:
+        index: "i*"
+        expand_wildcards: ["open", "closed"]
+  - match:
+      $body: |
+        /^$/
 
   - do:
       cat.indices:
@@ -169,14 +183,6 @@
 
   - match:
       $body: |
-        /^$/
-
-  - do:
-      cat.indices:
-        index: i*
-        expand_wildcards: ["all"]
-  - match:
-      $body: |
         /^(green  \s+
            open   \s+
            index1 \s+
@@ -190,6 +196,14 @@
            (\d+|\d+[.]\d+)(kb|b) \s*
          )
          $/
+
+  - do:
+      cat.indices:
+        index: i*
+        expand_wildcards: ["open", "closed"]
+  - match:
+      $body: |
+        /^$/
 
   - do:
       cat.indices:
@@ -231,7 +245,21 @@
       cat.indices: {}
   - match:
       $body: |
-        /^$/
+        /^(.*           # Accounts for system indices that get automatically generated
+           green  \s+
+           open   \s+
+           index1 \s+
+           ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
+           1      \s+
+           0      \s+
+           0      \s+
+           0      \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s+
+           (\d+|\d+[.]\d+)(kb|b) \s*
+           .*           # Accounts for system indices that get automatically generated
+         )
+         $/
   - do:
       cat.indices:
         index: ".*"

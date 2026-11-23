@@ -18,6 +18,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -45,7 +46,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStri
  * Returns the direction type (inbound, outbound, internal, external) given
  * a source IP address, destination IP address, and a list of internal networks.
  */
-public class NetworkDirection extends EsqlScalarFunction {
+public class NetworkDirection extends EsqlScalarFunction implements AnyNullIsNull {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "NetworkDirection",

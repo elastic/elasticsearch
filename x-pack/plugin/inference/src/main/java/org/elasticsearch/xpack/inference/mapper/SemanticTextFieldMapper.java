@@ -432,6 +432,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
             Builder semanticIncoming = (Builder) incoming;
 
+            // Keep the existing inference_id when omitted: the default may now resolve to a different endpoint
+            if (semanticIncoming.inferenceId.isSet() == false) {
+                semanticIncoming.setInferenceId(inferenceId.get());
+            }
             final boolean isInferenceIdUpdate = semanticIncoming.inferenceId.get().equals(inferenceId.get()) == false;
             final boolean hasExplicitModelSettings = modelSettings.get() != null;
 

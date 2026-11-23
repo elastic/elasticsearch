@@ -40,6 +40,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
 
     private static ElasticsearchCluster buildCluster() {
         var cluster = ElasticsearchCluster.local()
+            .name("rolling-upgrade-cluster")
             .distribution(DistributionType.DEFAULT)
             .version(getOldClusterVersion(), isOldClusterDetachedVersion())
             .nodes(NODE_NUM)
@@ -51,6 +52,7 @@ public abstract class AbstractRollingUpgradeTestCase extends ParameterizedRollin
                 }
             })
             .setting("xpack.security.enabled", "false")
+            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
             .feature(FeatureFlag.TIME_SERIES_MODE);
 
         // Avoid triggering bogus assertion when serialized parsed mappings don't match with original mappings, because _source key is

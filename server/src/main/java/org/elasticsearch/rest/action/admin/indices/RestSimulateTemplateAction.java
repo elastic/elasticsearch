@@ -22,12 +22,17 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSimulateTemplateAction extends BaseRestHandler {
+    static final String SIMULATE_TEMPLATE_SHARD_COUNT_FIX = "simulate_template_shard_count_fix";
+
+    private static final Set<String> CAPABILITIES = Set.of(SIMULATE_TEMPLATE_SHARD_COUNT_FIX);
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(POST, "/_index_template/_simulate"), new Route(POST, "/_index_template/_simulate/{name}"));
@@ -63,5 +68,10 @@ public class RestSimulateTemplateAction extends BaseRestHandler {
             simulateRequest,
             new RestToXContentListener<>(channel)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

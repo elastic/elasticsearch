@@ -1957,6 +1957,39 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(syntheticSource, equalTo("{\"field\":{\"a_unmapped\":\"val_a\",\"e_unmapped\":\"val_e\",\"c_mapped\":\"val_c\"}}"));
     }
 
+    /**
+     * Mapped sub-fields that keep their values in stored fields must load them whether or not the flattened root has its own
+     * {@code ignore_above}, which decides if the root has an ignored-values stored field.
+     */
+    public void testSyntheticSourceMappedSubFieldStoredValues() throws IOException {
+        boolean rootIgnoreAbove = randomBoolean();
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("field");
+            {
+                b.field("type", "flattened");
+                if (rootIgnoreAbove) {
+                    b.field("ignore_above", 100);
+                }
+                b.startObject("properties");
+                {
+                    b.startObject("name").field("type", "keyword").field("ignore_above", 3).endObject();
+                    b.startObject("desc").field("type", "text").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        assertThat(
+            syntheticSource(mapper, b -> b.startObject("field").field("name", "too_long").endObject()),
+            equalTo("{\"field\":{\"name\":\"too_long\"}}")
+        );
+        assertThat(
+            syntheticSource(mapper, b -> b.startObject("field").field("desc", "some text").endObject()),
+            equalTo("{\"field\":{\"desc\":\"some text\"}}")
+        );
+    }
+
     public void testExistsQueryOnMappedProperty() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "flattened");
@@ -2578,5 +2611,11 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             new WildcardFieldMaskingReader(roundtripMaskedFields, reader),
             new WildcardFieldMaskingReader(roundtripMaskedFields, roundTripReader)
         );
+    }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The values of a flattened field are objects, not the scalar sample values.
+        return false;
     }
 }

@@ -8,7 +8,6 @@
  */
 
 
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -16,7 +15,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.internal.checks.ValidateBuildGradleScriptsTask
 import org.elasticsearch.gradle.util.GradleUtils
@@ -91,6 +89,13 @@ tasks.named('nmcpZipAggregation').configure {
 
   dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
   from(zipTree("build-tools/build/nmcp/zip/allPublications.zip"))
+}
+
+tasks.named('prepareDraSnapshotMavenAggregation').configure {
+  // This task reuses nmcpZipAggregation's copy-spec source, which includes the build-tools
+  // zip above via a plain file path. That path carries no task dependency, and the dependsOn
+  // declared on nmcpZipAggregation is not inherited, so wire the build-tools zip task explicitly.
+  dependsOn gradle.includedBuild('build-tools').task(':nmcpZipAllPublications')
 }
 
 /**
@@ -316,13 +321,6 @@ allprojects {
   // We disable this plugin for now till we shaked out the issues we see
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
-
-  plugins.withType(BaseInternalPluginBuildPlugin).whenPluginAdded {
-    project.dependencies {
-      compileOnly project(path: ":server")
-      testImplementation project(path: ":test:framework")
-    }
-  }
 
   ext.bwc_tests_enabled = bwc_tests_enabled
 
@@ -568,10 +566,15 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/plugin/security/build.gradle',
       'x-pack/plugin/sql/qa/server/build.gradle',
       'x-pack/plugin/sql/sql-cli/build.gradle',
-      'x-pack/qa/rolling-upgrade-legacy/build.gradle',
       'x-pack/qa/smoke-test-plugins/build.gradle',
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
     ],
+    // Measured on main ff3ed1ce5a62. Counts are direct model references, not action counts.
+    'execution-closure-project-reference': [
+      'build.gradle::6',
+      'modules/lang-painless/build.gradle::4',
+      'qa/vector/build.gradle::1'
+    ]
   ])
 }
 

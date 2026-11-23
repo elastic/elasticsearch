@@ -15,6 +15,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,10 +25,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiAlphanumOfLength;
+
 public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchCluster> extends AbstractLocalSpecBuilder<
     LocalClusterSpecBuilder<T>> implements LocalClusterSpecBuilder<T> {
 
-    private String name = "test-cluster";
+    @Nullable
+    private String name;
     private boolean shared = false;
     private final List<DefaultLocalNodeSpecBuilder> nodeBuilders = new ArrayList<>();
     private final List<User> users = new ArrayList<>();
@@ -137,8 +141,9 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
         // Apply lazily provided configuration
         lazyConfigProviders.forEach(s -> s.get().apply(this));
 
+        String clusterName = this.name == null ? "test-cluster-" + randomAsciiAlphanumOfLength(8) : this.name;
         List<User> clusterUsers = users.isEmpty() ? List.of(User.DEFAULT_USER) : users;
-        LocalClusterSpec clusterSpec = new LocalClusterSpec(name, clusterUsers, roleFiles, shared);
+        LocalClusterSpec clusterSpec = new LocalClusterSpec(clusterName, clusterUsers, roleFiles, shared);
         List<LocalNodeSpec> nodeSpecs;
 
         if (nodeBuilders.isEmpty()) {

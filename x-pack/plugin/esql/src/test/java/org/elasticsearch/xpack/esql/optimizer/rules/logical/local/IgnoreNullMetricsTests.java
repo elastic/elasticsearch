@@ -117,9 +117,11 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         }
     }
 
-    public void testSkipCoalescedMetrics() {
-        // Note: this test is passing because the reference attribute metric_2 in the stats block does not inherit the
-        // metric property from the original field.
+    /**
+     * The reference attribute metric_2 doesn't inherit the metric property from the original field. Filtering on metric_1 alone would
+     * drop the rows that only have a value for metric_2, so no filter is added.
+     */
+    public void testSkipFilterForComputedInputs() {
         LogicalPlan actual = metrics().localPlan("""
             TS test
             | EVAL metric_2 = coalesce(metric_2, 0)
@@ -131,10 +133,25 @@ public class IgnoreNullMetricsTests extends AbstractLocalLogicalPlanOptimizerTes
         // The optimizer expands the STATS out into two STATS steps
         Aggregate tsAgg = as(agg.child(), Aggregate.class);
         Eval eval = as(tsAgg.child(), Eval.class);
-        Filter filter = as(eval.child(), Filter.class);
-        IsNotNull condition = as(filter.condition(), IsNotNull.class);
-        FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
-        assertEquals("metric_1", attribute.fieldName().string());
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * A converted metric doesn't carry the metric property. Filtering on metric_1 alone would drop the rows that only have a value for
+     * metric_2, so no filter is added.
+     */
+    public void testSkipFilterForConvertedMetrics() {
+        LogicalPlan actual = metrics().localPlan("""
+            TS test
+            | STATS max(max_over_time(metric_1)), max(max_over_time(metric_2::double))
+            | LIMIT 10
+            """);
+        Limit limit = as(actual, Limit.class);
+        Aggregate agg = as(limit.child(), Aggregate.class);
+        // The optimizer expands the STATS out into two STATS steps
+        Aggregate tsAgg = as(agg.child(), Aggregate.class);
+        Eval eval = as(tsAgg.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
     }
 
     /**

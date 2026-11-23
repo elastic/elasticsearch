@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
+import java.time.Clock;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -30,7 +31,8 @@ public record TransformServices(
     TransformScheduler scheduler,
     TransformNode transformNode,
     CrossProjectModeDecider crossProjectModeDecider,
-    Function<ProjectId, Boolean> hasLinkedProjects
+    Function<ProjectId, Boolean> hasLinkedProjects,
+    Clock clock
 ) {
     public TransformServices {
         Objects.requireNonNull(configManager);
@@ -40,5 +42,6 @@ public record TransformServices(
         Objects.requireNonNull(transformNode);
         Objects.requireNonNull(crossProjectModeDecider);
         Objects.requireNonNull(hasLinkedProjects);
+        Objects.requireNonNull(clock);
     }
 }

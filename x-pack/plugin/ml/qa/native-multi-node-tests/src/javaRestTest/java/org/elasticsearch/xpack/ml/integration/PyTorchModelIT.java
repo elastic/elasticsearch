@@ -915,7 +915,7 @@ public class PyTorchModelIT extends PyTorchModelRestTestCase {
         stopDeployment(modelId2);
     }
 
-    public void testNotifications() throws IOException {
+    public void testNotifications() throws Exception {
         String modelId1 = "test_notifications_1";
         createPassThroughModel(modelId1);
         putModelDefinition(modelId1);

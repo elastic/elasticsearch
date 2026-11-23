@@ -132,7 +132,7 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         return new SemanticInferenceMetadataFieldsMapper.FieldType();
     }
 
-    static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
+    public static IndexVersion getRandomCompatibleIndexVersion(boolean useLegacyFormat) {
         if (useLegacyFormat) {
             // Randomly choose an index version compatible with the legacy semantic text format
             if (randomBoolean()) {

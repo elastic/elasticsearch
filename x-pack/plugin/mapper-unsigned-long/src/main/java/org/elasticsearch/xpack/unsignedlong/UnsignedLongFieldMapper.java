@@ -360,7 +360,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
-                if (context.indexSortedOnField(name())) {
+                if (context.canUseIndexSortRangeQuery(name())) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
                 }
             }

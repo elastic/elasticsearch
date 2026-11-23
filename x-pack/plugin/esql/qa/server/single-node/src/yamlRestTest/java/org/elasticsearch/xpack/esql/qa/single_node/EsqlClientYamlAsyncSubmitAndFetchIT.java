@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.qa.single_node;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -26,7 +27,7 @@ import java.util.Map;
  * Run the ESQL yaml tests async and then fetch the results with a long wait time.
  */
 public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlIT {
-    public EsqlClientYamlAsyncSubmitAndFetchIT(final ClientYamlTestCandidate testCandidate) {
+    public EsqlClientYamlAsyncSubmitAndFetchIT(@Name("yaml") final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

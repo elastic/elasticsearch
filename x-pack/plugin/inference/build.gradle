@@ -154,12 +154,12 @@ dependencies {
   // Reactor
   api "io.projectreactor.netty:reactor-netty-core:${versions.azureReactorNetty}"
   api "io.projectreactor.netty:reactor-netty-http:${versions.azureReactorNetty}"
-  api "io.projectreactor:reactor-core:3.7.19"
+  api "io.projectreactor:reactor-core:3.8.7"
   api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.10.1"
+  api "org.ow2.asm:asm:9.11.1"
   /* End packages for Azure */
 }
 

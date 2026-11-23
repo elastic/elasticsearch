@@ -5,6 +5,12 @@ coming[8.19.26]
 
 Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
 
+[IMPORTANT]
+====
+This release contains security fixes.
+Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
+
 [[bug-8.19.26]]
 [float]
 === Bug fixes
@@ -78,6 +84,9 @@ Snapshot/Restore::
 [[upgrade-8.19.26]]
 [float]
 === Upgrades
+
+Infra/Core::
+* Bump bundled JDK to 27.0.1.1 {es-pull}166388[#166388]
 
 Security::
 * Upgrade commons-lang3 to 3.20.0 {es-pull}165875[#165875]

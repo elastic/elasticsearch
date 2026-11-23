@@ -14,18 +14,23 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -74,7 +79,7 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(BlobCacheMetricsIT.SynchronousWarmingPlugin.class);
-        plugins.add(MockRepository.Plugin.class);
+        plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
 
@@ -85,19 +90,36 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         populateIndex(indexName);
         flush(indexName);
 
-        startSearchNode();
+        final String searchNode = startSearchNode();
         ensureStableCluster(2);
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
 
         clearShardCache(findSearchShard(indexName));
 
+        setNodeRepositoryStrategy(searchNode, delayReads(randomLongBetween(10, 50)));
         Map<String, Long> coldCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
         assertThat(coldCacheMetrics, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER));
         assertThat(coldCacheMetrics.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
 
         Map<String, Long> warmCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
         assertThat(warmCacheMetrics, not(hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER)));
+    }
+
+    private static StatelessMockRepositoryStrategy delayReads(long delayMillis) {
+        return new StatelessMockRepositoryStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                safeSleep(delayMillis);
+                return originalSupplier.get();
+            }
+        };
     }
 
     private Map<String, Long> searchAndCollectDirectoryMetrics(String indexName) throws InterruptedException {

@@ -436,11 +436,6 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates
   issue: https://github.com/elastic/elasticsearch/issues/154731
-- class: org.elasticsearch.xpack.stateless.cache.CacheMissWaitTimeHeaderIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testCacheMissWaitTimeHeader
-  issue: https://github.com/elastic/elasticsearch/issues/165322
 - class: org.elasticsearch.xpack.sql.qa.jdbc.multi_node.MultiNodeJdbcFetchSizeIT
   tasks:
   - :x-pack:plugin:sql:qa:jdbc:v9.5.7#bwcTest

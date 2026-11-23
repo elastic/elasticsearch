@@ -1,6 +1,5 @@
 area: Analysis
 issues: []
 pr: 167174
-summary: "Split queries on whitespace with lowercase normalizer, like the documentation\
-  \ says"
+summary: Built-in `lowercase` normalizer now honors `split_queries_on_whitespace`
 type: bug

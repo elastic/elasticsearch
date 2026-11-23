@@ -4689,10 +4689,9 @@ public class EsqlCapabilities {
         NAMED_SUBQUERY_LET_METADATA_CLASS_AND_NAME,
 
         /**
-         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
-         * and {@code column_metadata} reports the same field semantics as {@code _meta.field}.
+         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type and unit.
          */
-        DESCRIBE_COMMAND(Build.current().isSnapshot()),
+        DESCRIBE_COMMAND,
 
         /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
@@ -4954,25 +4953,25 @@ public class EsqlCapabilities {
          * {@code DESCRIBE} and {@code column_metadata} keep the field semantics and units that merged branches agree on,
          * for views next to indices, {@code FORK} and subqueries.
          */
-        COLUMN_METADATA_MERGED_BRANCHES(Build.current().isSnapshot()),
+        COLUMN_METADATA_MERGED_BRANCHES,
 
         /**
          * {@code DESCRIBE} and {@code column_metadata} report every unit and description of a column whose indices or merged
          * branches disagree on them as a multi-value, and merge the field semantics of branches that read the same field as
          * they merge indices.
          */
-        COLUMN_METADATA_LISTED_UNITS(Build.current().isSnapshot()),
+        COLUMN_METADATA_LISTED_UNITS,
 
         /**
          * {@code DESCRIBE} reports {@code role: time} for the {@code @timestamp} column of a dataset and for a time column
          * that is rounded or converted to another date type.
          */
-        DESCRIBE_TIME_COLUMNS(Build.current().isSnapshot()),
+        DESCRIBE_TIME_COLUMNS,
 
         /**
          * {@code DESCRIBE} reports the {@code interval} and {@code time_zone} of the date buckets with a constant interval.
          */
-        DESCRIBE_INTERVAL(Build.current().isSnapshot()),
+        DESCRIBE_INTERVAL,
 
         /**
          * Fixes a bug in the planner where {@code TS} queries failed with an {@link IllegalStateException} when an aggregation

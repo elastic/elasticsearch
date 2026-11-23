@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166728
-summary: Harvest no CSV, TSV or NDJSON statistics when the external-source cache is disabled, and no CSV or TSV column statistics when the stripe-column scope is count
+summary: Harvest no statistics during CSV, TSV or NDJSON scans when the external-source cache is disabled, and no column statistics during CSV or TSV scans when the stripe-column scope is count
 type: enhancement

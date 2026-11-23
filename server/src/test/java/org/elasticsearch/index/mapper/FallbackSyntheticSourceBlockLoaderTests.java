@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,7 +39,12 @@ public class FallbackSyntheticSourceBlockLoaderTests extends MapperServiceTestCa
         var settings = Settings.builder().put("index.mapping.source.mode", "synthetic");
         MapperService mapperService = createMapperService(settings.build(), mapping);
 
-        Map<String, Object> document = Map.of("obj", Map.of("sub", Map.of("field", "a", "fielx", "x"), "other", "y", "sub.field", "b"));
+        // Map.of has a randomized iteration order, but the expected result depends on "sub" being serialized before "sub.field".
+        Map<String, Object> obj = new LinkedHashMap<>();
+        obj.put("sub", Map.of("field", "a", "fielx", "x"));
+        obj.put("other", "y");
+        obj.put("sub.field", "b");
+        Map<String, Object> document = Map.of("obj", obj);
         new BlockLoaderTestRunner(params).runTest(mapperService, document, List.of(new BytesRef("a"), new BytesRef("b")), "obj.sub.field");
     }
 }

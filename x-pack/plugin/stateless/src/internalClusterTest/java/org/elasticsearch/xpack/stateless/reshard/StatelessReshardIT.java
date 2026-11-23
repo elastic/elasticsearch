@@ -4229,7 +4229,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             }
 
             private void maybeBlockCommitUpload(String blobName) {
-                if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
+                if (BccBlob.startsWithBlobPrefix(blobName) && blockNextCommitUpload.compareAndSet(true, false)) {
                     commitUploadStarted.countDown();
                     safeAwait(commitUploadRelease);
                 }

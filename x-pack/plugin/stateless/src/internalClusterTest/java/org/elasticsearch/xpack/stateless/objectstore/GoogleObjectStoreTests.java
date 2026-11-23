@@ -32,6 +32,7 @@ import org.elasticsearch.repositories.gcs.GoogleCloudStorageService;
 import org.elasticsearch.repositories.gcs.MeteredStorage;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -181,7 +182,7 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
                 .writeBlob(OperationPurpose.INDICES, "commit-1", blobData, true);
 
             final var task = new CancellableTask(1L, "test", "copyShard", "", TaskId.EMPTY_TASK_ID, Map.of());
-            objectStoreService.copyShard(task, sourceShardId, destShardId, primaryTerm, null);
+            objectStoreService.copyShard(task, sourceShardId, destShardId, new PrimaryTermAndGeneration(primaryTerm, Long.MAX_VALUE));
 
             try (
                 var is = objectStoreService.getProjectBlobContainer(destShardId, primaryTerm).readBlob(OperationPurpose.INDICES, "commit-1")

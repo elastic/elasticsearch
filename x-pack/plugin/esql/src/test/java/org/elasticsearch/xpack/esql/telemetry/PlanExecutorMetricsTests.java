@@ -147,7 +147,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             IpLocationService.NOOP,
             blockFactoryProvider,
             new PlannerSettings.Holder(clusterService),
-            cpsDecider
+            cpsDecider,
+            null
         );
     }
 

@@ -85,15 +85,15 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
             ResourceSpans resourceSpans = resourceSpansList.get(i);
             Resource resource = resourceSpans.getResource();
             TargetIndex resourceSpanTargetIndex = TargetIndex.defaultForTraces().withAttributeOverrides(resource.getAttributesList());
-            TargetIndex resourceEventTargetIndex = TargetIndex.defaultForLogs().withAttributeOverrides(resource.getAttributesList());
+            // span event targets are resolved lazily as most spans don't have events
+            TargetIndex resourceEventTargetIndex = null;
             List<ScopeSpans> scopeSpansList = resourceSpans.getScopeSpansList();
             for (int j = 0, scopeSpansListSize = scopeSpansList.size(); j < scopeSpansListSize; j++) {
                 ScopeSpans scopeSpans = scopeSpansList.get(j);
                 InstrumentationScope scope = scopeSpans.getScope();
                 TargetIndex scopeSpanTargetIndex = resourceSpanTargetIndex.withAttributeOverrides(scope.getAttributesList())
                     .maybeApplyScopeBasedRouting(scope);
-                TargetIndex scopeEventTargetIndex = resourceEventTargetIndex.withAttributeOverrides(scope.getAttributesList())
-                    .maybeApplyScopeBasedRouting(scope);
+                TargetIndex scopeEventTargetIndex = null;
                 List<Span> spansList = scopeSpans.getSpansList();
                 for (int k = 0, spansListSize = spansList.size(); k < spansListSize; k++) {
                     Span span = spansList.get(k);
@@ -120,6 +120,14 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                     List<Span.Event> eventsList = span.getEventsList();
                     for (int l = 0, eventsListSize = eventsList.size(); l < eventsListSize; l++) {
                         Span.Event event = eventsList.get(l);
+                        if (scopeEventTargetIndex == null) {
+                            if (resourceEventTargetIndex == null) {
+                                resourceEventTargetIndex = TargetIndex.defaultForLogs()
+                                    .withAttributeOverrides(resource.getAttributesList());
+                            }
+                            scopeEventTargetIndex = resourceEventTargetIndex.withAttributeOverrides(scope.getAttributesList())
+                                .maybeApplyScopeBasedRouting(scope);
+                        }
                         TargetIndex eventIndex = scopeEventTargetIndex.withAttributeOverrides(event.getAttributesList());
                         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
                             spanEventDocumentBuilder.buildSpanEventDocument(

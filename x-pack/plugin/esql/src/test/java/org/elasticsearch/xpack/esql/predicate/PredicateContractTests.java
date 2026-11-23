@@ -40,9 +40,9 @@ public class PredicateContractTests extends ESTestCase {
         StatsPruningSource pruned = new StatsPruningSource(rows);
         FullScanSource scan = new FullScanSource(rows);
 
-        assertThat(PredicatePlans.filter(MIXED, exact).acceptedRows(), equalTo(List.of(0)));
-        assertThat(PredicatePlans.filter(MIXED, pruned).acceptedRows(), equalTo(List.of(0)));
-        assertThat(PredicatePlans.filter(MIXED, scan).acceptedRows(), equalTo(List.of(0)));
+        assertThat(PredicatePlans.filter(MIXED, exact).acceptedRows(), equalTo(List.of(exact.row(0))));
+        assertThat(PredicatePlans.filter(MIXED, pruned).acceptedRows(), equalTo(List.of(pruned.row(0))));
+        assertThat(PredicatePlans.filter(MIXED, scan).acceptedRows(), equalTo(List.of(scan.row(0))));
 
         assertThat(exact.yielded, equalTo(List.of(0)));
         assertThat(pruned.yielded, equalTo(List.of(0, 1)));
@@ -78,7 +78,7 @@ public class PredicateContractTests extends ESTestCase {
 
         assertThat(plan.constraint(), equalTo(CandidateConstraint.none()));
         assertThat(plan.coverage(), equalTo(CandidateCoverage.COMPLETE));
-        assertThat(plan.acceptedRows(), equalTo(List.of(0, 1)));
+        assertThat(plan.acceptedRows(), equalTo(List.of(source.row(0), source.row(1))));
         assertThat(
             source.loads,
             equalTo(
@@ -163,9 +163,9 @@ public class PredicateContractTests extends ESTestCase {
         PredicateExpr sameChild = new PredicateExpr.And(new FieldEquals("sku", "a"), new ProductGreaterThan("qty", "price", 100));
         AnyReduction reduction = new AnyReduction(2);
         RowPredicate child = Predicates.compile(sameChild, new FullScanSource(List.of()));
-        reduction.add(first, child);
+        reduction.add(first, child.evaluate(first, first.candidates()));
         assertThat(reduction.knownTrues(), equalTo(SelectionMask.of(false, false)));
-        reduction.add(second, child);
+        reduction.add(second, child.evaluate(second, second.candidates()));
         assertThat(reduction.knownTrues(), equalTo(SelectionMask.of(false, true)));
         PredicateResult parents = reduction.seal();
 
@@ -180,7 +180,7 @@ public class PredicateContractTests extends ESTestCase {
         FilterPlan plan = PredicatePlans.filter(CATEGORY, source);
 
         assertThat(plan.coverage(), equalTo(CandidateCoverage.EXACT));
-        assertThat(plan.acceptedRows(), equalTo(List.of(0)));
+        assertThat(plan.acceptedRows(), equalTo(List.of(source.row(0))));
     }
 
     public void testNotIsAnalyzedAsAWholeAndKeepsNull() {
@@ -191,7 +191,7 @@ public class PredicateContractTests extends ESTestCase {
         assertThat(source.analyzed.getFirst(), equalTo(new PredicateExpr.Not(CATEGORY)));
         assertThat(plan.constraint(), equalTo(CandidateConstraint.none()));
         assertThat(plan.coverage(), equalTo(CandidateCoverage.COMPLETE));
-        assertThat(plan.acceptedRows(), equalTo(List.of(2)));
+        assertThat(plan.acceptedRows(), equalTo(List.of(source.row(2))));
     }
 
     public void testTrueOnlyProducerDoesNotEraseNullOnEval() {
@@ -209,13 +209,22 @@ public class PredicateContractTests extends ESTestCase {
     private record Row(String category, Long price, Long quantity) {}
 
     private static final class MemoryBatch implements ChildBatch {
+        private final RowSpace space;
         private final int[] rowIds;
         private final int[] parents;
         private final Map<String, Object[]> values;
         private final SelectionMask mask;
         private final List<String> loads;
 
-        private MemoryBatch(int[] rowIds, int[] parents, Map<String, Object[]> values, SelectionMask mask, List<String> loads) {
+        private MemoryBatch(
+            RowSpace space,
+            int[] rowIds,
+            int[] parents,
+            Map<String, Object[]> values,
+            SelectionMask mask,
+            List<String> loads
+        ) {
+            this.space = space;
             this.rowIds = rowIds;
             this.parents = parents;
             this.values = values;
@@ -224,10 +233,10 @@ public class PredicateContractTests extends ESTestCase {
         }
 
         private static MemoryBatch of(int[] rowIds, Map<String, Object[]> values, List<String> loads) {
-            return new MemoryBatch(rowIds, null, values, SelectionMask.all(rowIds.length), loads);
+            return new MemoryBatch(new RowSpace("batch"), rowIds, null, values, SelectionMask.all(rowIds.length), loads);
         }
 
-        private static MemoryBatch select(List<Row> rows, List<Integer> ids, List<String> loads) {
+        private static MemoryBatch select(RowSpace space, List<Row> rows, List<Integer> ids, List<String> loads) {
             int count = ids.size();
             int[] rowIds = new int[count];
             Object[] category = new Object[count];
@@ -240,11 +249,18 @@ public class PredicateContractTests extends ESTestCase {
                 price[i] = row.price();
                 quantity[i] = row.quantity();
             }
-            return of(rowIds, Map.of("category", category, "price", price, "quantity", quantity), loads);
+            return new MemoryBatch(
+                space,
+                rowIds,
+                null,
+                Map.of("category", category, "price", price, "quantity", quantity),
+                SelectionMask.all(count),
+                loads
+            );
         }
 
         private static MemoryBatch children(int[] rowIds, int[] parents, Map<String, Object[]> values) {
-            return new MemoryBatch(rowIds, parents, values, SelectionMask.all(rowIds.length), new ArrayList<>());
+            return new MemoryBatch(new RowSpace("children"), rowIds, parents, values, SelectionMask.all(rowIds.length), new ArrayList<>());
         }
 
         @Override
@@ -275,8 +291,13 @@ public class PredicateContractTests extends ESTestCase {
         }
 
         @Override
-        public int sourceRow(int position) {
-            return rowIds[position];
+        public RowSpace rowSpace() {
+            return space;
+        }
+
+        @Override
+        public SourceRow sourceRow(int position) {
+            return new SourceRow(space, rowIds[position]);
         }
 
         @Override
@@ -288,6 +309,7 @@ public class PredicateContractTests extends ESTestCase {
     /** Produces exactly the rows whose category matches, the way a Lucene doc-id iterator would. */
     private static final class ExactIteratorSource implements PredicateSource {
         private final List<Row> rows;
+        private final RowSpace space = new RowSpace("exact");
         private final List<Integer> yielded = new ArrayList<>();
         private final List<String> loads = new ArrayList<>();
         private final List<PredicateExpr> analyzed = new ArrayList<>();
@@ -319,7 +341,7 @@ public class PredicateContractTests extends ESTestCase {
                 }
             }
             yielded.addAll(ids);
-            return once(MemoryBatch.select(rows, ids, loads));
+            return once(MemoryBatch.select(space, rows, ids, loads));
         }
 
         @Override
@@ -328,6 +350,10 @@ public class PredicateContractTests extends ESTestCase {
                 return Optional.of((batch, candidates) -> new FieldEqualsRefiner(equals).evaluate(batch, candidates));
             }
             return Optional.empty();
+        }
+
+        private SourceRow row(int id) {
+            return new SourceRow(space, id);
         }
 
         private static boolean keeps(CandidateConstraint constraint, Row row) {
@@ -343,6 +369,7 @@ public class PredicateContractTests extends ESTestCase {
     /** Drops a row group only when its category statistics cannot contain the requested value. */
     private static final class StatsPruningSource implements PredicateSource {
         private final List<Row> rows;
+        private final RowSpace space = new RowSpace("stats");
         private final List<Integer> yielded = new ArrayList<>();
         private final List<String> loads = new ArrayList<>();
 
@@ -370,7 +397,7 @@ public class PredicateContractTests extends ESTestCase {
                 }
             }
             yielded.addAll(ids);
-            return once(MemoryBatch.select(rows, ids, loads));
+            return once(MemoryBatch.select(space, rows, ids, loads));
         }
 
         @Override
@@ -392,11 +419,16 @@ public class PredicateContractTests extends ESTestCase {
             }
             return true;
         }
+
+        private SourceRow row(int id) {
+            return new SourceRow(space, id);
+        }
     }
 
     /** Evaluates every predicate itself. Candidate production returns every row. */
     private static final class FullScanSource implements PredicateSource {
         private final List<Row> rows;
+        private final RowSpace space = new RowSpace("scan");
         private final List<Integer> yielded = new ArrayList<>();
         private final List<String> loads = new ArrayList<>();
 
@@ -416,12 +448,16 @@ public class PredicateContractTests extends ESTestCase {
                 ids.add(i);
             }
             yielded.addAll(ids);
-            return once(MemoryBatch.select(rows, ids, loads));
+            return once(MemoryBatch.select(space, rows, ids, loads));
         }
 
         @Override
         public Optional<PredicateRefiner> refiner(PredicateExpr predicate) {
             return Optional.empty();
+        }
+
+        private SourceRow row(int id) {
+            return new SourceRow(space, id);
         }
     }
 

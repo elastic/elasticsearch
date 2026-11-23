@@ -29,14 +29,19 @@ public final class AnyReduction {
         return SelectionMask.of(trues.clone());
     }
 
-    public void add(ChildBatch batch, RowPredicate childPredicate) {
+    /** Folds an already evaluated child batch. The reducer does not evaluate the child predicate. */
+    public void add(ChildBatch batch, PredicateResult result) {
         if (sealed) {
             throw new IllegalStateException("this reduction is already sealed");
+        }
+        if (result.trues().positionCount() != batch.positionCount()) {
+            throw new IllegalArgumentException(
+                "result covers [" + result.trues().positionCount() + "] positions and the batch has [" + batch.positionCount() + "]"
+            );
         }
         if (batch.positionCount() == 0) {
             return;
         }
-        PredicateResult result = childPredicate.evaluate(batch, batch.candidates());
         for (int i = 0; i < batch.positionCount(); i++) {
             if (result.trues().get(i)) {
                 trues[batch.parentPosition(i)] = true;

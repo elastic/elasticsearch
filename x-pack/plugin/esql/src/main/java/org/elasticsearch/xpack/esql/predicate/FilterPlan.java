@@ -20,7 +20,7 @@ public final class FilterPlan {
     private final Projection projection;
     private final CandidateCursor cursor;
     private final RowPredicate residual;
-    private List<Integer> accepted;
+    private List<SourceRow> accepted;
 
     FilterPlan(
         CandidateConstraint constraint,
@@ -49,12 +49,15 @@ public final class FilterPlan {
         return projection;
     }
 
-    /** Source row ids whose residual result is true, in ascending order. */
-    public List<Integer> acceptedRows() {
+    /**
+     * Rows whose residual result is true. This materializes the whole cursor so a test can compare row identity. A
+     * downstream operator has to consume batches and stop early instead of calling this.
+     */
+    public List<SourceRow> acceptedRows() {
         if (accepted != null) {
             return accepted;
         }
-        List<Integer> rows = new ArrayList<>();
+        List<SourceRow> rows = new ArrayList<>();
         for (SelectionBatch batch = cursor.nextBatch(); batch != null; batch = cursor.nextBatch()) {
             PredicateResult result = residual.evaluate(batch, batch.candidates());
             for (int i = 0; i < batch.positionCount(); i++) {
@@ -63,8 +66,14 @@ public final class FilterPlan {
                 }
             }
         }
-        rows.sort(Integer::compareTo);
+        rows.sort(FilterPlan::compareRows);
         accepted = List.copyOf(rows);
         return accepted;
+    }
+
+    /** Order within one row space is by id. Ids from different spaces stay distinct and are grouped by space. */
+    private static int compareRows(SourceRow left, SourceRow right) {
+        int space = Integer.compare(System.identityHashCode(left.space()), System.identityHashCode(right.space()));
+        return space != 0 ? space : Integer.compare(left.id(), right.id());
     }
 }

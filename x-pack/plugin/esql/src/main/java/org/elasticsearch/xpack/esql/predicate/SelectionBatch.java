@@ -24,6 +24,9 @@ public interface SelectionBatch {
      */
     Column load(FieldRef field, SelectionMask selection);
 
-    /** The source's stable id for this position, such as a Lucene doc id, a Parquet row, or a remote result row. */
-    int sourceRow(int position);
+    /** The row space these positions belong to. Ids from another space are different rows. */
+    RowSpace rowSpace();
+
+    /** This position's identity inside {@link #rowSpace()}. */
+    SourceRow sourceRow(int position);
 }

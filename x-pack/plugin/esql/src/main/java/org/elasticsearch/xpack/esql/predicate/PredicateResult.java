@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.predicate;
 import java.util.Objects;
 
 /**
- * True and null positions in a batch. Every other position is false. True and null do not overlap.
+ * True and null positions in a batch. True and null do not overlap. A position in neither mask is false only when that
+ * position was inside the selection the evaluator was given. A position outside that selection was not evaluated, and
+ * the false bit there is not a result.
  */
 public final class PredicateResult {
     private final SelectionMask trues;

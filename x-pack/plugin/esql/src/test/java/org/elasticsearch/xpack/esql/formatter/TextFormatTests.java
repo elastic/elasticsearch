@@ -391,6 +391,143 @@ public class TextFormatTests extends ESTestCase {
         return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, randomZone(), 0L, 0L, null);
     }
 
+    public void testCsvFormatWithSourceData() {
+        String text = format(CSV, req(), sourceData());
+        assertEquals("""
+            name,_unmapped_fields\r
+            Alice,"{""key"":""value"",""num"":42}"\r
+            Bob,"{""key"":""other"",""num"":99}"\r
+            """, text);
+    }
+
+    public void testTsvFormatWithSourceData() {
+        String text = format(TSV, req(), sourceData());
+        assertEquals("""
+            name\t_unmapped_fields
+            Alice\t{"key":"value","num":42}
+            Bob\t{"key":"other","num":99}
+            """, text);
+    }
+
+    public void testMarkdownFormatWithSourceData() {
+        String text = format(MARKDOWN, req(), sourceData());
+        assertEquals("""
+            | name | _unmapped_fields |
+            | --- | --- |
+            | Alice | {"key":"value","num":42} |
+            | Bob | {"key":"other","num":99} |
+            """, text);
+    }
+
+    public void testCsvFormatWithNestedSourceData() {
+        String text = format(CSV, req(), nestedSourceData());
+        assertEquals("""
+            id,_unmapped_fields\r
+            1,"{""title"":""first"",""nested"":{""a"":[1,2,{""b"":null}]}}"\r
+            """, text);
+    }
+
+    public void testCsvFormatWithNullSourceData() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        List<ColumnInfoImpl> headers = asList(
+            new ColumnInfoImpl("name", "keyword", null),
+            new ColumnInfoImpl("_unmapped_fields", "_source", null)
+        );
+        List<Page> values = List.of(
+            new Page(
+                blockFactory.newBytesRefBlockBuilder(2)
+                    .appendBytesRef(new BytesRef("Alice"))
+                    .appendBytesRef(new BytesRef("Bob"))
+                    .build(),
+                blockFactory.newBytesRefBlockBuilder(2)
+                    .appendBytesRef(new BytesRef("{\"key\":\"value\"}"))
+                    .appendNull()
+                    .build()
+            )
+        );
+        EsqlQueryResponse response = new EsqlQueryResponse(headers, values, 0, 0, null, false, false, randomZone(), 0L, 0L, null);
+        String text = format(CSV, req(), response);
+        assertEquals("""
+            name,_unmapped_fields\r
+            Alice,"{""key"":""value""}"\r
+            Bob,\r
+            """, text);
+    }
+
+    public void testCsvFormatWithMultiValueSourceData() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        List<ColumnInfoImpl> headers = asList(
+            new ColumnInfoImpl("name", "keyword", null),
+            new ColumnInfoImpl("_unmapped_fields", "_source", null)
+        );
+        List<Page> values = List.of(
+            new Page(
+                blockFactory.newBytesRefBlockBuilder(1)
+                    .appendBytesRef(new BytesRef("Alice"))
+                    .build(),
+                blockFactory.newBytesRefBlockBuilder(1)
+                    .beginPositionEntry()
+                    .appendBytesRef(new BytesRef("{\"a\":1}"))
+                    .appendBytesRef(new BytesRef("{\"b\":2}"))
+                    .endPositionEntry()
+                    .build()
+            )
+        );
+        EsqlQueryResponse response = new EsqlQueryResponse(headers, values, 0, 0, null, false, false, randomZone(), 0L, 0L, null);
+        String text = format(CSV, req(), response);
+        assertEquals("""
+            name,_unmapped_fields\r
+            Alice,"[{""a"":1},{""b"":2}]"\r
+            """, text);
+    }
+
+    private static EsqlQueryResponse sourceData() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        List<ColumnInfoImpl> headers = asList(
+            new ColumnInfoImpl("name", "keyword", null),
+            new ColumnInfoImpl("_unmapped_fields", "_source", null)
+        );
+
+        String source1 = "{\"key\":\"value\",\"num\":42}";
+        String source2 = "{\"key\":\"other\",\"num\":99}";
+
+        List<Page> values = List.of(
+            new Page(
+                blockFactory.newBytesRefBlockBuilder(2)
+                    .appendBytesRef(new BytesRef("Alice"))
+                    .appendBytesRef(new BytesRef("Bob"))
+                    .build(),
+                blockFactory.newBytesRefBlockBuilder(2)
+                    .appendBytesRef(new BytesRef(source1))
+                    .appendBytesRef(new BytesRef(source2))
+                    .build()
+            )
+        );
+
+        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, randomZone(), 0L, 0L, null);
+    }
+
+    private static EsqlQueryResponse nestedSourceData() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        List<ColumnInfoImpl> headers = asList(
+            new ColumnInfoImpl("id", "integer", null),
+            new ColumnInfoImpl("_unmapped_fields", "_source", null)
+        );
+
+        String source = "{\"title\":\"first\",\"nested\":{\"a\":[1,2,{\"b\":null}]}}";
+
+        List<Page> values = List.of(
+            new Page(
+                blockFactory.newIntArrayVector(new int[] { 1 }, 1).asBlock(),
+                blockFactory.newBytesRefBlockBuilder(1)
+                    .appendBytesRef(new BytesRef(source))
+                    .build()
+            )
+        );
+
+        return new EsqlQueryResponse(headers, values, 0, 0, null, false, false, randomZone(), 0L, 0L, null);
+    }
+
     private static RestRequest req() {
         return new FakeRestRequest();
     }

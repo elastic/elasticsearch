@@ -11,11 +11,14 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -295,7 +298,7 @@ public enum TextFormat implements MediaType {
                         continue;
                     }
                     writer.append("| ");
-                    writeEscaped(Objects.toString(row.next(), StringUtils.EMPTY), null, writer);
+                    writeEscaped(valueToString(row.next()), null, writer);
                     writer.append(' ');
                 }
                 writer.append("|\n");
@@ -412,7 +415,7 @@ public enum TextFormat implements MediaType {
                 : Collections.emptyIterator(),
             Iterators.map(
                 esqlResponse.values(),
-                row -> writer -> row(writer, row, f -> Objects.toString(f, StringUtils.EMPTY), delimiter, dropColumns)
+                row -> writer -> row(writer, row, TextFormat::valueToString, delimiter, dropColumns)
             )
         );
     }
@@ -472,4 +475,45 @@ public enum TextFormat implements MediaType {
      * Write the given {@code value} to the {@code writer}, adding escaping if needed.
      */
     abstract void writeEscaped(String value, Character delimiter, Writer writer) throws IOException;
+
+    /**
+     * Convert a value to its string representation for text output.
+     * Map instances (from SOURCE columns) are serialized as JSON.
+     */
+    private static String valueToString(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return mapToJson(map);
+        }
+        if (value instanceof List<?> list) {
+            for (Object v : list) {
+                if (v instanceof Map || v instanceof List) {
+                    return listToJson(list);
+                }
+            }
+        }
+        return Objects.toString(value, StringUtils.EMPTY);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String mapToJson(Map<?, ?> map) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.map((Map<String, Object>) map);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String listToJson(List<?> list) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startArray();
+            for (Object item : list) {
+                builder.value(item);
+            }
+            builder.endArray();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 }

@@ -57,7 +57,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASK_START_TIME_IN_MILL
  * The cleanup is disabled by default: it runs only when {@link #TASK_RESULTS_CLEANUP_INTERVAL_SETTING} is a positive duration, and it is
  * stopped or started as that dynamic setting changes.
  */
-public class TaskResultsCleanupService extends AbstractLifecycleComponent implements ClusterStateListener {
+public final class TaskResultsCleanupService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(TaskResultsCleanupService.class);
 
@@ -129,19 +129,46 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         this.threadPool = threadPool;
         this.clientWithOrigin = clientWithOrigin;
         clusterService.getClusterSettings().initializeAndWatch(TASK_RESULTS_RETENTION_PERIOD_SETTING, v -> this.retentionPeriod = v);
-        this.cleanupInterval = clusterService.getClusterSettings().get(TASK_RESULTS_CLEANUP_INTERVAL_SETTING);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(TASK_RESULTS_CLEANUP_INTERVAL_SETTING, v -> {
-            boolean isCleanupEnabledBefore = isCleanupEnabled();
-            this.cleanupInterval = v;
-            boolean isCleanupEnabledAfter = isCleanupEnabled();
-            if (logger.isTraceEnabled() && isCleanupEnabledBefore != isCleanupEnabledAfter) {
-                if (isCleanupEnabledAfter) {
-                    logger.trace("task results cleanup is now enabled");
-                } else {
-                    logger.trace("task results cleanup is now disabled");
+        clusterService.getClusterSettings().initializeAndWatch(TASK_RESULTS_CLEANUP_INTERVAL_SETTING, this::onCleanupIntervalChanged);
+    }
+
+    /**
+     * Applies the initial value of {@link #TASK_RESULTS_CLEANUP_INTERVAL_SETTING}, and then each update to it.
+     * <p>
+     * This only records the new interval, and does not start or stop the cleanup. That is done by {@link #clusterChanged}, which relies on
+     * the cluster applier service applying the settings updates, which calls this, before it notifies the cluster state listeners of the
+     * same cluster state update, so that {@link #isCleanupEnabled()} already reflects the new interval by then.
+     * <p>
+     * Any change of the interval also restarts the loop of cleanups that is running, so that the next cleanup waits for the new interval
+     * rather than for the one it was scheduled with: otherwise, going from {@code 7d} to {@code 30m} would still leave the next cleanup
+     * waiting for the {@code 7d}.
+     */
+    private void onCleanupIntervalChanged(TimeValue newInterval) {
+        final TimeValue previousInterval = this.cleanupInterval;
+        this.cleanupInterval = newInterval;
+        if (previousInterval == null) {
+            // the initial value
+            return;
+        }
+        final boolean isCleanupEnabledBefore = previousInterval.nanos() > 0;
+        final boolean isCleanupEnabledAfter = isCleanupEnabled();
+        if (isCleanupEnabledBefore != isCleanupEnabledAfter) {
+            logger.trace("task results cleanup is now {}", isCleanupEnabledAfter ? "enabled" : "disabled");
+        }
+        if (newInterval.compareTo(previousInterval) != 0) {
+            synchronized (this) {
+                // reschedule the next cleanup, but only if there was a cleanup loop already running that's now stopped
+                // if none was running, a new one will be started by updateProjectsAndStartCleanupLoop
+                // the loop is stopped first, so that it is stopped even if the cleanup is now disabled, without waiting for #clusterChanged
+                if (stopCurrentCleanupLoop() && isCleanupEnabledAfter) {
+                    logger.debug("restarting the task results cleanup loop after the interval changed");
+                    // schedule a new loop here, otherwise updateProjectsAndStartCleanupLoop would start one that runs a cleanup right away,
+                    // as there is no loop running at this point
+                    currentLoop = new CleanupLoop();
+                    currentLoop.scheduleNextCleanup();
                 }
             }
-        });
+        }
     }
 
     @Override
@@ -152,7 +179,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     @Override
     protected void doStop() {
         clusterService.removeListener(this);
-        stopCleanup();
+        stopCurrentCleanupLoop();
     }
 
     @Override
@@ -196,7 +223,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         }
         if (projectsOnLocalNode.isEmpty() || isCleanupEnabled() == false) {
             this.projectsToCleanup = List.of();
-            stopCleanup();
+            stopCurrentCleanupLoop();
             return;
         }
         this.projectsToCleanup = projectsOnLocalNode;
@@ -285,7 +312,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         /**
          * Cancels the scheduled next cleanup, if any. This only saves a pointless wakeup: correctness does not depend on it, because a
          * cleanup of a loop that is no longer {@link #currentLoop} does nothing. It is called while holding the lock of the service, so
-         * that it is atomic with {@link #currentLoop} being cleared, and so that it cannot miss a cleanup that
+         * that it is atomic with {@link #currentLoop} being changed, and so that it cannot miss a cleanup that
          * {@link #scheduleNextCleanup} is scheduling concurrently.
          */
         private void cancel() {
@@ -368,12 +395,19 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         return request;
     }
 
-    synchronized void stopCleanup() {
-        if (currentLoop != null) {
-            logger.trace("stopping task results cleanup, no projects to cleanup: [{}]", projectsToCleanup.isEmpty());
-            currentLoop.cancel();
-            currentLoop = null;
-            logger.debug("stopped task results cleanup, no projects to cleanup: [{}]", projectsToCleanup.isEmpty());
+    /**
+     * Stops the current loop of cleanups, if there is one running.
+     *
+     * @return whether a loop was running, and has now been stopped
+     */
+    synchronized boolean stopCurrentCleanupLoop() {
+        if (currentLoop == null) {
+            return false;
         }
+        logger.trace("stopping task results cleanup, no projects to cleanup: [{}]", projectsToCleanup.isEmpty());
+        currentLoop.cancel();
+        currentLoop = null;
+        logger.debug("stopped task results cleanup, no projects to cleanup: [{}]", projectsToCleanup.isEmpty());
+        return true;
     }
 }

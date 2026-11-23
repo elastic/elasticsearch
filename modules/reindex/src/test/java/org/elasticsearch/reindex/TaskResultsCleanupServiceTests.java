@@ -155,7 +155,7 @@ public class TaskResultsCleanupServiceTests extends ESTestCase {
         assertThat(scheduledCleanups, hasSize(0));
 
         // the cleanup is stopped, and started again, which starts a second chain with a first cleanup that completes
-        service.stopCleanup();
+        service.stopCurrentCleanupLoop();
         assertFalse(service.isCleanupRunning());
         service.clusterChanged(new ClusterChangedEvent(getTestName(), state, ClusterState.EMPTY_STATE));
         assertTrue(service.isCleanupRunning());
@@ -172,23 +172,103 @@ public class TaskResultsCleanupServiceTests extends ESTestCase {
         assertThat(scheduledCleanups, hasSize(2));
     }
 
+    public void testIntervalChangeRestartsCleanupLoop() {
+        final ThreadPool threadPoolSpy = Mockito.spy(threadPool);
+        Mockito.doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPoolSpy).generic();
+        final List<TimeValue> scheduledDelays = new ArrayList<>();
+        final List<Runnable> scheduledCleanups = new ArrayList<>();
+        final List<Scheduler.ScheduledCancellable> scheduledCancellables = new ArrayList<>();
+        Mockito.doAnswer(invocation -> {
+            scheduledCleanups.add(invocation.getArgument(0));
+            scheduledDelays.add(invocation.getArgument(1));
+            final Scheduler.ScheduledCancellable cancellable = Mockito.mock(Scheduler.ScheduledCancellable.class);
+            // cancelling succeeds. Whether the scheduled cleanup has started is decided by the test, which may run it regardless
+            Mockito.when(cancellable.cancel()).thenReturn(true);
+            scheduledCancellables.add(cancellable);
+            return cancellable;
+        }).when(threadPoolSpy).schedule(any(Runnable.class), any(TimeValue.class), any(Executor.class));
+
+        final List<ProjectId> deleteByQueryProjects = new ArrayList<>();
+        final Client client = mockDeleteByQueryClient(
+            projectResolver,
+            deleteByQueryProjects,
+            listener -> listener.onResponse(emptyDeleteByQueryResponse())
+        );
+        final ClusterSettings clusterSettings = createClusterSettings(TimeValue.timeValueDays(7));
+        service = createService(clusterSettings, projectResolver, localNodeId, threadPoolSpy, client);
+        service.start();
+
+        // the first cleanup completes and schedules the next one after the 7d interval
+        service.clusterChanged(new ClusterChangedEvent(getTestName(), clusterState(Map.of(P1, localNodeId)), ClusterState.EMPTY_STATE));
+        assertThat(scheduledDelays, equalTo(List.of(TimeValue.timeValueDays(7))));
+        assertThat(deleteByQueryProjects, hasSize(1));
+
+        // increasing the interval replaces the scheduled cleanup by one that is due after the new interval
+        clusterSettings.applySettings(cleanupIntervalSettings(TimeValue.timeValueDays(14)));
+        Mockito.verify(scheduledCancellables.get(0)).cancel();
+        assertThat(scheduledDelays, equalTo(List.of(TimeValue.timeValueDays(7), TimeValue.timeValueDays(14))));
+
+        // so does reducing it
+        clusterSettings.applySettings(cleanupIntervalSettings(TimeValue.timeValueMinutes(30)));
+        Mockito.verify(scheduledCancellables.get(1)).cancel();
+        assertThat(
+            scheduledDelays,
+            equalTo(List.of(TimeValue.timeValueDays(7), TimeValue.timeValueDays(14), TimeValue.timeValueMinutes(30)))
+        );
+
+        // the cleanups scheduled with the old intervals are fired nonetheless, which must do nothing as their loops were replaced
+        scheduledCleanups.get(0).run();
+        scheduledCleanups.get(1).run();
+        assertThat(deleteByQueryProjects, hasSize(1));
+        assertThat(scheduledDelays, hasSize(3));
+
+        // the cleanup scheduled with the current interval runs and is followed by a single next one: there is only one chain
+        scheduledCleanups.get(2).run();
+        assertThat(deleteByQueryProjects, hasSize(2));
+        assertThat(scheduledDelays, hasSize(4));
+        assertThat(scheduledDelays.get(3), equalTo(TimeValue.timeValueMinutes(30)));
+
+        // disabling the cleanup stops it, without scheduling anything
+        clusterSettings.applySettings(cleanupIntervalSettings(TimeValue.MINUS_ONE));
+        Mockito.verify(scheduledCancellables.get(3)).cancel();
+        assertFalse(service.isCleanupRunning());
+        scheduledCleanups.get(3).run();
+        assertThat(deleteByQueryProjects, hasSize(2));
+        assertThat(scheduledDelays, hasSize(4));
+    }
+
     private static TaskResultsCleanupService createService(
         ProjectResolver projectResolver,
         String localNodeId,
         ThreadPool threadPool,
         Client client
     ) {
+        // the shortest interval the setting allows
+        return createService(createClusterSettings(TimeValue.timeValueSeconds(1)), projectResolver, localNodeId, threadPool, client);
+    }
+
+    private static TaskResultsCleanupService createService(
+        ClusterSettings clusterSettings,
+        ProjectResolver projectResolver,
+        String localNodeId,
+        ThreadPool threadPool,
+        Client client
+    ) {
+        final ClusterService clusterService = Mockito.mock(ClusterService.class);
+        Mockito.when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return new TaskResultsCleanupService(clusterService, projectResolver, localNodeId, threadPool, client);
+    }
+
+    private static ClusterSettings createClusterSettings(TimeValue cleanupInterval) {
         final Set<Setting<?>> registeredSettings = Set.of(
             TaskResultsCleanupService.TASK_RESULTS_RETENTION_PERIOD_SETTING,
             TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING
         );
-        final Settings settings = Settings.builder()
-            // the shortest interval the setting allows
-            .put(TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-            .build();
-        final ClusterService clusterService = Mockito.mock(ClusterService.class);
-        Mockito.when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, registeredSettings));
-        return new TaskResultsCleanupService(clusterService, projectResolver, localNodeId, threadPool, client);
+        return new ClusterSettings(cleanupIntervalSettings(cleanupInterval), registeredSettings);
+    }
+
+    private static Settings cleanupIntervalSettings(TimeValue cleanupInterval) {
+        return Settings.builder().put(TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING.getKey(), cleanupInterval).build();
     }
 
     /**

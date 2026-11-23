@@ -881,3 +881,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testCancellingTheQueryFreesTheContextsOfTheRowsInTheSinks
   issue: https://github.com/elastic/elasticsearch/issues/167058
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecEqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:multi-node:csvSpecTests
+  method: test {csv-spec:eql.sampleSimpleIpAsKey}
+  issue: https://github.com/elastic/elasticsearch/issues/167064

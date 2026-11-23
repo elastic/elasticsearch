@@ -3274,6 +3274,31 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 
+    /**
+     * Indices created before {@link IndexVersions#EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE} keep the text of a vector in
+     * {@code _ignored_source} even with {@code index.mapping.exclude_source_vectors}. Newer ones are covered by
+     * {@code search.vectors/243_source_synthetic_dense_vectors_keep.yml}.
+     */
+    public void testSyntheticSourceKeepAllBeforeExcludingVectorsFromIgnoredSource() throws IOException {
+        IndexVersion version = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE)
+        );
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true)
+            .build();
+        DocumentMapper mapper = createMapperService(
+            version,
+            settings,
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("synthetic_source_keep", "all"))
+        ).documentMapper();
+        assertThat(
+            syntheticSource(mapper, b -> b.field("field", List.of(1, 3.14159265358979, -2))),
+            equalTo("{\"field\":[1,3.14159265358979,-2]}")
+        );
+    }
+
     /** The post-filter threshold is user-settable, so it must reject anything outside [0, 1], including NaN. */
     public void testPostFilterSelectivityThresholdValidation() {
         Setting<Float> setting = DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD;

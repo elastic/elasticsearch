@@ -11,9 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -25,6 +27,7 @@ import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -589,7 +592,7 @@ public abstract class DocumentParserContext {
             assert ignoredFieldWithNoSource.value() == null;
             Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
             IgnoredSourceFieldMapper.NameValue withValue = ignoredFieldWithNoSource.cloneWithValue(
-                XContentDataHelper.encodeXContentBuilder(tuple.v2())
+                XContentDataHelper.encodeXContentBuilder(removeIgnoredSourceVectorFields(tuple.v2(), ignoredFieldWithNoSource.name()))
             );
             // Remove any void placeholder that an earlier copy-to traversal added for this field and document.
             // A real _ignored_source entry suppresses the native loader just as the void would; keeping both
@@ -599,6 +602,30 @@ public abstract class DocumentParserContext {
             return tuple.v1();
         }
         return this;
+    }
+
+    /**
+     * The source of the object or array at {@code path} without the fields beneath it that are never kept in {@code _ignored_source}
+     * ({@link MappingLookup#ignoredSourceVectorFields()}), as stored source leaves out excluded vectors.
+     */
+    private XContentBuilder removeIgnoredSourceVectorFields(XContentBuilder builder, String path) throws IOException {
+        Set<String> vectorFields = mappingLookup.ignoredSourceVectorFields();
+        String prefix = path + ".";
+        if (vectorFields.stream().noneMatch(field -> field.startsWith(prefix))) {
+            return builder;
+        }
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY,
+                BytesReference.bytes(builder),
+                builder.contentType()
+            )
+        ) {
+            XContentBuilder removed = XContentBuilder.builder(builder.contentType().xContent());
+            parser.nextToken();
+            SourceFieldMapper.removeSyntheticVectorFields(removed.generator(), parser, path, vectorFields);
+            return removed;
+        }
     }
 
     /**

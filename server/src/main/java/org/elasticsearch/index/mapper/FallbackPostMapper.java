@@ -97,7 +97,7 @@ public final class FallbackPostMapper {
 
         /** Builds a {@link FieldContext} for the regular field parse path ({@code parseObjectOrField}). */
         public static FieldContext forField(DocumentParserContext ctx, FieldMapper mapper) {
-            Mapper.SourceKeepMode mode = effectiveKeepMode(mapper.sourceKeepMode(), ctx.indexSettings());
+            Mapper.SourceKeepMode mode = effectiveKeepMode(ctx, mapper);
             return new FieldContext(
                 ctx.canAddIgnoredField(),
                 false,
@@ -130,7 +130,7 @@ public final class FallbackPostMapper {
                     mode = Mapper.SourceKeepMode.NONE;
                 }
             } else if (mapper instanceof FieldMapper fieldMapper) {
-                mode = effectiveKeepMode(fieldMapper.sourceKeepMode(), ctx.indexSettings());
+                mode = effectiveKeepMode(ctx, fieldMapper);
                 syntheticFallback = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             }
             return new FieldContext(
@@ -184,6 +184,16 @@ public final class FallbackPostMapper {
      */
     static Mapper.SourceKeepMode effectiveKeepMode(Optional<Mapper.SourceKeepMode> own, IndexSettings indexSettings) {
         return own.orElse(indexSettings.sourceKeepMode());
+    }
+
+    /**
+     * Like {@link #effectiveKeepMode(Optional, IndexSettings)} for a field, except that a field whose values must stay out of
+     * {@code _ignored_source} ({@link MappingLookup#ignoredSourceVectorFields}) keeps none of its source, whatever it is set to.
+     */
+    static Mapper.SourceKeepMode effectiveKeepMode(DocumentParserContext ctx, FieldMapper mapper) {
+        return ctx.mappingLookup().ignoredSourceVectorFields().contains(mapper.fullPath())
+            ? Mapper.SourceKeepMode.NONE
+            : effectiveKeepMode(mapper.sourceKeepMode(), ctx.indexSettings());
     }
 
     /**

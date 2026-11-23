@@ -4723,11 +4723,30 @@ public class DenseVectorFieldMapper extends FieldMapper {
         };
     }
 
+    /**
+     * With synthetic source, {@link IndexSettings#INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING} keeps the text of vectors out of
+     * {@code _ignored_source} as it keeps them out of a stored {@code _source}: {@code synthetic_source_keep} would otherwise store
+     * the vector a second time. The vector is patched back in from the index instead. {@code columnar_stored} already leaves vectors
+     * out of its source, see {@link #syntheticVectorsLoader()}. Indices created before
+     * {@link IndexVersions#EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE} keep the text as they always have.
+     */
+    @Override
+    public SourceLoader.SyntheticVectorsLoader ignoredSourceVectorsLoader() {
+        if (excludeSourceVectorsSetting
+            && excludeSourceVectors == false
+            && fieldType().isSyntheticSource
+            && indexCreatedVersion.onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_FROM_IGNORED_SOURCE)) {
+            return vectorPatchLoader();
+        }
+        return null;
+    }
+
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (excludeSourceVectors == false) {
-            return null;
-        }
+        return excludeSourceVectors ? vectorPatchLoader() : null;
+    }
+
+    private SourceLoader.SyntheticVectorsLoader vectorPatchLoader() {
         // Recreate the loader for each leaf so that different segments can be searched concurrently. It has to match where
         // the vector lives: the vector index when the field is indexed, binary doc values otherwise.
         if (fieldType().indexed) {

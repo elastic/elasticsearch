@@ -853,6 +853,17 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * With synthetic source, the loader that patches this field's values back into {@code _source}, for a field whose values must never
+     * be copied to {@code _ignored_source}, or {@code null} for every other field. Such values are held in the index already, so
+     * storing their text as well would store them twice. {@code synthetic_source_keep} keeps none of the field's own source, and an
+     * enclosing object or array that it keeps is kept without the field. The loader patches the values back in the same way as
+     * {@link #syntheticVectorsLoader()} does for a stored {@code _source}.
+     */
+    public SourceLoader.SyntheticVectorsLoader ignoredSourceVectorsLoader() {
+        return null;
+    }
+
+    /**
      * <p>
      * Specifies the mode of synthetic source support by the mapper.
      * <br>

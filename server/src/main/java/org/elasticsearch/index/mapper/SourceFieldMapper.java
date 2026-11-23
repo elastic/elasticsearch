@@ -821,7 +821,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             || version.between(IndexVersions.V8_DEPRECATE_SOURCE_MODE_MAPPER, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 
-    private static void removeSyntheticVectorFields(
+    static void removeSyntheticVectorFields(
         XContentGenerator destination,
         XContentParser parser,
         String fullPath,

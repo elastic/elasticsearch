@@ -82,6 +82,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.sort.BucketedSort;
@@ -1145,10 +1146,23 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())
                 .getLoader(leafReader.getContext(), docIds);
             storedFieldLoader.advanceTo(docId);
+            BytesReference written;
             try (XContentBuilder b = new XContentBuilder(xContent, new ByteArrayOutputStream())) {
                 sourceLeafLoader.write(storedFieldLoader, docId, b);
-                synthetic2 = BytesReference.bytes(b).utf8ToString();
+                written = BytesReference.bytes(b);
             }
+            // The provider patches in the vectors left out of _ignored_source, which a synthetic loader can't write.
+            var patchLoader = mapper.mappers().ignoredSourceVectorsLoader(filter);
+            var patchLeaf = patchLoader == null ? null : patchLoader.leaf(leafReader.getContext());
+            List<SourceLoader.SyntheticVectorPatch> patches = new ArrayList<>();
+            if (patchLeaf != null) {
+                patchLeaf.load(docId, patches);
+            }
+            synthetic2 = patches.isEmpty()
+                ? written.utf8ToString()
+                : SourceLoader.applySyntheticVectors(Source.fromBytes(written, xContent.type()), patches)
+                    .internalSourceRef()
+                    .utf8ToString();
         }
 
         assertThat(synthetic2, equalTo(synthetic1));

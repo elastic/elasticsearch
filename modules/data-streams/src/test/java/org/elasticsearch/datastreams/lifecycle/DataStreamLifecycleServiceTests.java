@@ -56,6 +56,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.transport.TransportRequest;
@@ -2001,6 +2002,56 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         );
     }
 
+    /**
+     * A default repository set only in {@code elasticsearch.yml} is a node setting, and is absent from the cluster state metadata
+     * settings. A lifecycle run must still mark the indices that are past {@code frozen_after} with that repository.
+     */
+    public void testRunMarksIndicesForFrozenWithNodeLevelDefaultRepository() throws Exception {
+        String repository = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
+        DataStream dataStream = createDataStream(
+            builder,
+            "my-datastream-with-frozen",
+            2,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.dataLifecycleBuilder().enabled(true).frozenAfter(TimeValue.timeValueMillis(1)).build(),
+            now
+        );
+        builder.put(dataStream);
+        // Mark the force merge as done, otherwise the force merge step excludes the index from the rest of the run
+        Index frozenCandidate = dataStream.getIndices().getFirst();
+        builder.put(
+            IndexMetadata.builder(builder.get(frozenCandidate.getName()))
+                .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, Map.of(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, Long.toString(now)))
+        );
+
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        // we are the master node
+        nodesBuilder.masterNodeId(nodeId);
+        setState(clusterService, ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).nodes(nodesBuilder).build());
+
+        DataStreamLifecycleService service = createDataStreamLifecycleService(
+            Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), repository).build(),
+            null,
+            null,
+            null
+        );
+        try {
+            service.run(clusterService.state());
+            assertBusy(() -> {
+                IndexMetadata indexMetadata = clusterService.state().metadata().getProject(builder.getId()).index(frozenCandidate);
+                assertThat(
+                    indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
+                        .get(DataStreamLifecycleService.FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY),
+                    equalTo(repository)
+                );
+            });
+        } finally {
+            service.close();
+        }
+    }
+
     public void testIndicesPastFrozenAfter() {
         ProjectMetadata.Builder builder = ProjectMetadata.builder(randomProjectIdOrDefault());
         int backingIndices = randomIntBetween(3, 10);
@@ -2261,7 +2312,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
         for (boolean minimumLifecycleEnabled : new boolean[] { true, false }) {
-            DataStreamLifecycleService service = createDataStreamLifecycleService(minimumLifecycleEnabled, null, null);
+            DataStreamLifecycleService service = createDataStreamLifecycleService(Settings.EMPTY, minimumLifecycleEnabled, null, null);
             try {
                 for (Index index : dataStream.getIndices()) {
                     service.getErrorStore().recordError(builder.getId(), index, new NullPointerException("bad"));
@@ -2371,6 +2422,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
     ) {
         clientSeenRequests.clear();
         DataStreamLifecycleService service = createDataStreamLifecycleService(
+            Settings.EMPTY,
             minimumLifecycleEnabled,
             globalDefaultRetention,
             globalMaxRetention
@@ -2383,7 +2435,8 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
     }
 
     private DataStreamLifecycleService createDataStreamLifecycleService(
-        boolean minimumLifecycleEnabled,
+        Settings nodeSettings,
+        Boolean minimumLifecycleEnabled,
         TimeValue globalDefaultRetention,
         TimeValue globalMaxRetention
     ) {
@@ -2395,7 +2448,7 @@ public class DataStreamLifecycleServiceTests extends DataStreamLifecycleServiceT
         DataStreamLifecycleErrorStore errorStore = new DataStreamLifecycleErrorStore(() -> now);
         Client client = getTransportRequestsRecordingClient();
         return new DataStreamLifecycleService(
-            Settings.EMPTY,
+            nodeSettings,
             client,
             clusterService,
             Clock.fixed(Instant.ofEpochMilli(now), ZoneOffset.UTC),

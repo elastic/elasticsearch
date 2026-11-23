@@ -17,11 +17,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.repositories.RepositoriesService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,9 +32,10 @@ import java.util.Set;
 /**
  * This task takes a set of indices, and adds custom metadata to the {@link DataStreamsPlugin#LIFECYCLE_CUSTOM_INDEX_METADATA_KEY} map
  * that indicates the index is ready to be converted into a frozen index. The metadata is a key-value pair of
- * {@link DataStreamLifecycleService#FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY} and a String which is the default repository
- * that {@link DataStreamLifecycleService} held when it submitted the task. The service reads it from node settings plus dynamic
- * updates, because a repository set only in {@code elasticsearch.yml} is not present in the cluster state metadata settings.
+ * {@link DataStreamLifecycleService#FROZEN_CANDIDATE_REPOSITORY_METADATA_KEY} and a String which is the
+ * {@link RepositoriesService#DEFAULT_REPOSITORY_SETTING} in effect when the task executes. A value in the cluster state metadata
+ * settings takes precedence. If there is none, the node-level value is used, because a repository set only in
+ * {@code elasticsearch.yml} is not present in the cluster state metadata settings.
  *
  * If the default repository is not configured, the cluster state update is a no-op.
  */
@@ -40,18 +43,18 @@ public class MarkIndicesForFrozenTask extends AckedBatchedClusterStateUpdateTask
     private static final Logger logger = LogManager.getLogger(MarkIndicesForFrozenTask.class);
     private final Set<Index> indicesToMarkForFrozen;
     private final ProjectId projectId;
-    private final String defaultRepository;
+    private final String nodeDefaultRepository;
 
     public MarkIndicesForFrozenTask(
         ProjectId projectId,
         Set<Index> indicesToMarkForFrozen,
-        String defaultRepository,
+        String nodeDefaultRepository,
         ActionListener<AcknowledgedResponse> listener
     ) {
         super(TimeValue.THIRTY_SECONDS, listener);
         this.indicesToMarkForFrozen = indicesToMarkForFrozen;
         this.projectId = projectId;
-        this.defaultRepository = defaultRepository;
+        this.nodeDefaultRepository = nodeDefaultRepository;
     }
 
     ClusterState execute(ClusterState currentState) {
@@ -59,6 +62,10 @@ public class MarkIndicesForFrozenTask extends AckedBatchedClusterStateUpdateTask
         if (projectMetadata == null) {
             return currentState;
         }
+        final Settings clusterStateSettings = currentState.metadata().settings();
+        final String defaultRepository = RepositoriesService.DEFAULT_REPOSITORY_SETTING.exists(clusterStateSettings)
+            ? RepositoriesService.DEFAULT_REPOSITORY_SETTING.get(clusterStateSettings)
+            : nodeDefaultRepository;
         if (Strings.hasText(defaultRepository) == false) {
             logger.debug("DLM skipping marking indices as ready for frozen conversion, because no default repository has been configured");
             return currentState;

@@ -214,11 +214,12 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     }
 
     private void setClusterStateForProjects(Map<ProjectId, TestProjectData> projects, String defaultRepository) {
-        Settings.Builder repositorySettings = Settings.builder();
-        if (defaultRepository != null) {
-            repositorySettings.put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), defaultRepository);
-        }
         Metadata.Builder metadataBuilder = Metadata.builder();
+        if (defaultRepository != null) {
+            metadataBuilder.persistentSettings(
+                Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), defaultRepository).build()
+            );
+        }
         for (Map.Entry<ProjectId, TestProjectData> entry : projects.entrySet()) {
             ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(entry.getKey());
             for (IndexMetadata idx : entry.getValue().indices()) {
@@ -230,8 +231,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
             metadataBuilder.put(projectBuilder);
         }
         setState(clusterService, ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build());
-        // Applied after setState, because applying a cluster state overwrites the dynamic cluster settings
-        clusterService.getClusterSettings().applySettings(repositorySettings.build());
     }
 
     private SnapshotInfo createSnapshotInfo(String snapshotName, List<String> snapshotIndices) {
@@ -395,11 +394,23 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
     }
 
     public void testOrphanedSnapshot_soleIndexIsOrphaned_snapshotDeleted() {
+        if (randomBoolean()) {
+            setClusterState(List.of(), List.of(), REPO_NAME);
+        } else {
+            // A repository set only in elasticsearch.yml is a node setting, and is absent from the cluster state metadata settings
+            clusterService.close();
+            Settings nodeSettings = Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO_NAME).build();
+            clusterService = createClusterService(
+                threadPool,
+                DiscoveryNodeUtils.create("node", "node"),
+                nodeSettings,
+                new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            setClusterState(List.of(), List.of(), null);
+        }
         String orphanedIndex = randomAlphaOfLength(10);
         String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
         SnapshotInfo orphanedSnapshot = createSnapshotInfo(snapshotName, List.of(orphanedIndex));
-
-        setClusterState(List.of(), List.of(), REPO_NAME);
         mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(orphanedSnapshot), null, 1, 0));
         mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
 
@@ -407,39 +418,6 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
             service.checkForOrphanedResources();
         }
 
-        DeleteSnapshotRequest req = capturedDeleteSnapshotRequest.get();
-        assertThat(req, not(nullValue()));
-        assertThat(req.repository(), is(REPO_NAME));
-        assertThat(List.of(req.snapshots()), containsInAnyOrder(snapshotName));
-    }
-
-    /**
-     * A default repository set only in {@code elasticsearch.yml} is a node setting, and is absent from the cluster state
-     * metadata settings. Snapshot cleanup must still run.
-     */
-    public void testDefaultRepositoryFromNodeSettings_snapshotCleanupRuns() {
-        clusterService.close();
-        Settings nodeSettings = Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO_NAME).build();
-        clusterService = createClusterService(
-            threadPool,
-            DiscoveryNodeUtils.create("node", "node"),
-            nodeSettings,
-            new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
-
-        String orphanedIndex = randomAlphaOfLength(10);
-        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
-        SnapshotInfo orphanedSnapshot = createSnapshotInfo(snapshotName, List.of(orphanedIndex));
-        Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId));
-        setState(clusterService, ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build());
-        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(orphanedSnapshot), null, 1, 0));
-        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
-
-        try (DLMFrozenCleanupService service = createService()) {
-            service.checkForOrphanedResources();
-        }
-
-        assertThat(capturedGetSnapshotsRequest.get(), not(nullValue()));
         DeleteSnapshotRequest req = capturedDeleteSnapshotRequest.get();
         assertThat(req, not(nullValue()));
         assertThat(req.repository(), is(REPO_NAME));

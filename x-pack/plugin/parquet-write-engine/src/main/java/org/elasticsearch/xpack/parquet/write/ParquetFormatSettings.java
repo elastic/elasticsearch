@@ -130,11 +130,12 @@ public final class ParquetFormatSettings {
     );
 
     /**
-     * The compression of the local files that every bulk writes. They live until the next flush merges them, and the flush reads them
-     * once. Compression makes them smaller on the disk and in the counters of the flush threshold and of the backpressure, and costs
-     * CPU on the path that acknowledges the bulk. On the ClickBench documents, ZSTD made the local files 2.3 times smaller than
-     * uncompressed ones, as large as the uploaded file (88 MB and 80 MB for 1,000,000 rows), with no change in the throughput of the
-     * bulks that the measurement could see (one run is about 7% noisy).
+     * The compression of the local files that every bulk writes, and so of their staged copies. They live until the next flush merges
+     * them, and the flush reads them once. Compression makes them smaller on the disk and in the counters of the flush threshold and of
+     * the backpressure, and costs CPU on the path that acknowledges the bulk. With ZSTD the level is 1 and the files have no dictionary
+     * (see {@code ColumnarParquetWriter}), because the merge of the flush encodes the rows again, and the file that it uploads keeps the
+     * dictionary and the level 3. On 600,000 distinct documents with 105 fields, the local files were 345 bytes for each row and the
+     * uploaded file 310, and the write threads used 6 microseconds of CPU for each document (11 to 12 with a dictionary and level 3).
      */
     public static final Setting<Compression> LOCAL_COMPRESSION = Setting.enumSetting(
         Compression.class,
@@ -175,6 +176,21 @@ public final class ParquetFormatSettings {
     public static final Setting<ByteSizeValue> MAX_FILE_SIZE = Setting.byteSizeSetting(
         "index.parquet.max_file_size",
         ByteSizeValue.ofGb(1),
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * The number of threads that encode the columns of one run of a flush: the thread of the flush and tasks of the {@code parquet_merge}
+     * pool. The columns are split into that many groups, and the file that is written is the same as the one that one thread writes.
+     * 1 merges on the thread of the flush alone. The tasks come from a pool of at most half the processors of the node, so a larger
+     * value than the pool has threads for does not make the merge faster.
+     */
+    public static final Setting<Integer> FLUSH_MERGE_PARALLELISM = Setting.intSetting(
+        "index.parquet.flush_merge_parallelism",
+        4,
+        1,
+        16,
         Property.IndexScope,
         Property.Dynamic
     );
@@ -269,6 +285,7 @@ public final class ParquetFormatSettings {
             FLUSH_THRESHOLD_AGE,
             MAX_LOCAL_SIZE,
             MAX_FILE_SIZE,
+            FLUSH_MERGE_PARALLELISM,
             ROW_GROUP_SIZE,
             COMPACTION_ENABLED,
             COMPACTION_TARGET_FILE_SIZE,

@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.TreeSet;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -207,6 +208,22 @@ public class StagedFileAdopterTests extends ESTestCase {
         assertThat(result.histories(), equalTo(0));
         assertThat(current.listStaged(), hasSize(1));
         assertThat(current.uploadedFiles(), hasSize(0));
+    }
+
+    /**
+     * A file system keeps the empty directory of a history whose staged files were deleted, and the test file system adds directories of
+     * its own (a run with one seed found such a directory and counted it as a history). Neither is a history.
+     */
+    public void testADirectoryWithoutAStagedFileIsNotAHistory() throws Exception {
+        stage(table(OLD), 0, 49);
+        // the directory of a history that has no staged file: listing the staged files of a table makes its directory
+        assertThat(table("history-with-no-file").listStaged(), hasSize(0));
+        assertThat(table(CURRENT).listStagedHistories(), contains(OLD));
+
+        final StagedFileAdopter.Result result = adopter(StagedFileAdopter.Hooks.NONE).adopt();
+
+        assertThat(result.histories(), equalTo(1));
+        assertThat(result.rows(), equalTo(50L));
     }
 
     public void testSeveralOldHistoriesAreAdoptedEachIntoItsOwnDirectory() throws Exception {

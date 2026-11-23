@@ -46,4 +46,33 @@ public class ParquetCodecsTests extends ESTestCase {
             assertThat(codec.name(), output.array(), equalTo(original));
         }
     }
+
+    /**
+     * The local files of the bulks are written at the lowest ZSTD level and the uploaded files at a higher one, and a reader cannot tell
+     * the level from the file, so every level must read back with the same decompressor, and a higher level must not make the page larger.
+     */
+    public void testZstdReadsBackAtEveryLevelAndAHigherLevelIsNotLarger() throws Exception {
+        // bytes of text-like pages, from a formula and not from a random generator, so that the sizes are the same in every run
+        final byte[] original = new byte[1 << 20];
+        long state = 12_345;
+        for (int i = 0; i < original.length; i++) {
+            state = state * 6364136223846793005L + 1442695040888963407L;
+            original[i] = (byte) ('a' + ((state >>> 33) % (i % 64 < 48 ? 4 : 26)));
+        }
+
+        final ParquetCodecs decoder = new ParquetCodecs();
+        int previousSize = Integer.MAX_VALUE;
+        for (int level : new int[] { ColumnarParquetWriter.LOCAL_ZSTD_LEVEL, ParquetCodecs.DEFAULT_ZSTD_LEVEL, 19 }) {
+            final byte[] compressed = new ParquetCodecs(level).getCompressor(CompressionCodecName.ZSTD)
+                .compress(BytesInput.from(original))
+                .toByteArray();
+            assertThat(
+                "level " + level,
+                decoder.getDecompressor(CompressionCodecName.ZSTD).decompress(BytesInput.from(compressed), original.length).toByteArray(),
+                equalTo(original)
+            );
+            assertThat("level " + level + " is not larger than the level before", compressed.length <= previousSize, equalTo(true));
+            previousSize = compressed.length;
+        }
+    }
 }

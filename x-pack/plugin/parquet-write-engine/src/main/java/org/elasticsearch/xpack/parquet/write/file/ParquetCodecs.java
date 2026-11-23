@@ -25,7 +25,23 @@ import java.nio.ByteBuffer;
  */
 public final class ParquetCodecs implements CompressionCodecFactory {
 
-    private static final int ZSTD_LEVEL = 3;
+    /** The ZSTD level of the files that stay in the object store: the file of a flush, of a compaction and of an adoption. */
+    public static final int DEFAULT_ZSTD_LEVEL = 3;
+
+    private final int zstdLevel;
+
+    /** A factory that compresses with ZSTD at {@link #DEFAULT_ZSTD_LEVEL}. A reader does not care about the level. */
+    public ParquetCodecs() {
+        this(DEFAULT_ZSTD_LEVEL);
+    }
+
+    /**
+     * A factory that compresses with ZSTD at {@code zstdLevel}. The level is not in the file, so files of any level read the same.
+     * The local files of the bulks use a low level, because they are written once and read once, by the merge of a flush.
+     */
+    public ParquetCodecs(int zstdLevel) {
+        this.zstdLevel = zstdLevel;
+    }
 
     @Override
     public BytesInputCompressor getCompressor(CompressionCodecName codec) {
@@ -50,7 +66,7 @@ public final class ParquetCodecs implements CompressionCodecFactory {
                     final byte[] in = bytes.toByteArray();
                     final byte[] out = new byte[zstd.compressBound(in.length)];
                     try {
-                        return BytesInput.from(out, 0, zstd.compressHeap(out, 0, out.length, in, 0, in.length, ZSTD_LEVEL));
+                        return BytesInput.from(out, 0, zstd.compressHeap(out, 0, out.length, in, 0, in.length, zstdLevel));
                     } catch (RuntimeException e) {
                         throw new IOException("ZSTD compression failed", e);
                     }

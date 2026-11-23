@@ -264,6 +264,8 @@ public class ParquetStagingIT extends ESIntegTestCase {
         for (BulkItemResponse item : failed.getItems()) {
             assertTrue(item.isFailed());
             assertThat(item.getFailure().getStatus(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            // the client sees what failed, not only that something did
+            assertThat(item.getFailure().getMessage(), containsString("AccessDeniedException"));
             assertThat(org.elasticsearch.ExceptionsHelper.stackTrace(item.getFailure().getCause()), containsString("could not stage"));
         }
         assertThat("the local file of the failed bulk is gone", localFiles(), equalTo(1L));
@@ -280,6 +282,95 @@ public class ParquetStagingIT extends ESIntegTestCase {
         assertTrue(counts.contains(99L));
         assertTrue(counts.contains(250L));
         assertThat(stagedFiles(), hasSize(0));
+    }
+
+    /**
+     * A throttled request or a reset connection fails the upload of a staged copy for a moment. The engine tries it three times, with
+     * waits of 250 ms and 1 s, so a failure that ends within a quarter of a second must not fail the bulk.
+     */
+    public void testAStagedUploadThatFailsForAMomentIsTriedAgainAndTheBulkIsAcknowledged() throws Exception {
+        assumePosixPermissions();
+        registerRepository();
+        createIndex();
+        assertBulkOk(bulk(0, 100));
+
+        failStaging(true);
+        final BulkResponse[] response = new BulkResponse[1];
+        startInParallel(2, task -> {
+            if (task == 0) {
+                response[0] = bulk(100, 200);
+            } else {
+                safeSleep(100);
+                try {
+                    failStaging(false);
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }
+        });
+
+        assertBulkOk(response[0]);
+        assertThat(stagedFiles(), hasSize(2));
+        assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), equalTo(200L));
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+        assertThat(uploadedCounts().size(), equalTo(200));
+        assertThat(stagedFiles(), hasSize(0));
+    }
+
+    /**
+     * A flush takes a local file only after its range is processed, and with staged durability that is after the staged copy is
+     * uploaded. Otherwise a flush could put the rows of a bulk in the table while the upload is being tried again, and when every
+     * try fails the client is told that the bulk failed and sends it again, which indexes the rows twice. The flushes here run all the
+     * time while a bulk is failing, which takes over a second because of the waits between the tries.
+     */
+    public void testAFlushNeverTakesTheFileOfABulkThatFailsToStage() throws Exception {
+        assumePosixPermissions();
+        registerRepository();
+        createIndex();
+        assertBulkOk(bulk(0, 100));
+
+        failStaging(true);
+        final BulkResponse[] response = new BulkResponse[1];
+        final java.util.concurrent.atomic.AtomicBoolean done = new java.util.concurrent.atomic.AtomicBoolean();
+        final java.util.concurrent.atomic.AtomicInteger flushes = new java.util.concurrent.atomic.AtomicInteger();
+        try {
+            startInParallel(2, task -> {
+                if (task == 0) {
+                    try {
+                        response[0] = bulk(100, 200);
+                    } finally {
+                        done.set(true);
+                    }
+                } else {
+                    while (done.get() == false) {
+                        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+                        flushes.incrementAndGet();
+                    }
+                }
+            });
+        } finally {
+            failStaging(false);
+        }
+
+        assertTrue(response[0].hasFailures());
+        for (BulkItemResponse item : response[0].getItems()) {
+            assertThat(item.getFailure().getStatus(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+        assertThat("flushes ran while the bulk was being tried", flushes.get(), greaterThan(1));
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+        final TreeSet<Long> counts = uploadedCounts();
+        assertThat("only the rows of the bulk that was acknowledged are in the table", counts.size(), equalTo(100));
+        assertTrue(counts.contains(99L));
+        assertFalse("a row of the failed bulk is in the table", counts.contains(150L));
+        assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), equalTo(100L));
+    }
+
+    private static void assumePosixPermissions() {
+        assumeTrue(
+            "needs POSIX permissions",
+            org.elasticsearch.core.PathUtils.getDefaultFileSystem().supportedFileAttributeViews().contains("posix")
+        );
+        assumeFalse("root ignores permissions", "root".equals(System.getProperty("user.name")));
     }
 
     public void testAMissingRepositoryFailsTheBulkBeforeAnythingIsWritten() throws Exception {

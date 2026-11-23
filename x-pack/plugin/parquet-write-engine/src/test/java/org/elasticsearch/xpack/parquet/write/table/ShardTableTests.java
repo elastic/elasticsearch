@@ -279,9 +279,18 @@ public class ShardTableTests extends ESTestCase {
 
     public void testAReaderSeesTheFilesAndTheVersionThatTheWritersCommitted() throws Exception {
         final TableReader reader = TableReader.open(store, LOCATION);
-        // the table does not exist yet, and the reader does not create it
+        // the table does not exist yet, and the reader does not create it (the test file system may add extra files, which are no
+        // metadata files)
         assertThat(reader.read(), equalTo(TableReader.Contents.NONE));
-        assertThat(store.blobContainer(LOCATION.blobPath().add("metadata")).listBlobs(RepositoryFileIO.PURPOSE).keySet(), hasSize(0));
+        assertThat(
+            store.blobContainer(LOCATION.blobPath().add("metadata"))
+                .listBlobs(RepositoryFileIO.PURPOSE)
+                .keySet()
+                .stream()
+                .filter(name -> RepositoryTableOperations.versionOfMetadataFile(name) >= 0)
+                .toList(),
+            hasSize(0)
+        );
 
         final ShardTable shard0 = open(0);
         final ShardTable shard1 = open(1);

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.parquet.write;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.store.Directory;
+import org.apache.parquet.column.Encoding;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -55,7 +57,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -151,6 +155,8 @@ public class ParquetFlushIT extends ESIntegTestCase {
                         .put("index.parquet.repository", REPOSITORY)
                         .put("index.parquet.durability", randomFrom("local", "staged"))
                         .put("index.parquet.local_compression", randomFrom("uncompressed", "snappy", "zstd"))
+                        // the columns of a merge are encoded by one to four threads: the files are the same
+                        .put("index.parquet.flush_merge_parallelism", between(1, 4))
                         .put(extra.build())
                 )
                 .setMapping(mapping)
@@ -175,6 +181,31 @@ public class ParquetFlushIT extends ESIntegTestCase {
             );
         }
         return bulk.get();
+    }
+
+    private static IndexRequest docRequest(int i) {
+        return new IndexRequest(INDEX).source(
+            "@timestamp",
+            BASE_TIMESTAMP + i * 1000L,
+            "host.name",
+            "host-" + (i % 7),
+            "count",
+            i,
+            "bytes",
+            i % 1000
+        );
+    }
+
+    /** The documents of {@code ids} that failed in the response, which must all have failed with a 429. */
+    private static List<Integer> rejectedIds(List<Integer> ids, BulkResponse response) {
+        final List<Integer> failed = new java.util.ArrayList<>();
+        for (int j = 0; j < response.getItems().length; j++) {
+            if (response.getItems()[j].isFailed()) {
+                assertThat(response.getItems()[j].getFailureMessage(), response.getItems()[j].status().getStatus(), equalTo(429));
+                failed.add(ids.get(j));
+            }
+        }
+        return failed;
     }
 
     private IndexShard shard(int shard) {
@@ -347,6 +378,202 @@ public class ParquetFlushIT extends ESIntegTestCase {
 
         assertUploaded(1, rows);
         assertThat("local files", localFiles(0), equalTo(0L));
+    }
+
+    /**
+     * The local file of a bulk, and the staged copy of it, is intermediate and gets the cheapest encoding: no dictionary. The file that a
+     * flush uploads stays in the object store for a long time, so it keeps the dictionary where it pays, and the codec of
+     * {@code index.parquet.compression}. The keyword here has seven values, so a dictionary pays.
+     */
+    public void testLocalFilesHaveNoDictionaryAndTheFlushedFileKeepsIt() throws Exception {
+        registerRepository();
+        createIndex(
+            1,
+            Settings.builder()
+                .put("index.parquet.local_compression", "zstd")
+                .put("index.parquet.compression", "zstd")
+                .put("index.parquet.compaction.enabled", false)
+        );
+        assertFalse(bulk(0, 6_000).hasFailures());
+
+        final Directory directory = shard(0).store().directory();
+        final List<LocalParquetFiles.LocalFile> local = LocalParquetFiles.list(directory);
+        assertThat(local.size(), greaterThan(0));
+        for (LocalParquetFiles.LocalFile file : local) {
+            try (
+                ParquetFileReader reader = ParquetFileReader.open(
+                    new IndexInputFile(directory, file.name()),
+                    PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+                )
+            ) {
+                for (BlockMetaData block : reader.getFooter().getBlocks()) {
+                    for (ColumnChunkMetaData column : block.getColumns()) {
+                        final String what = file.name() + " " + column.getPath();
+                        assertThat(what + " codec", column.getCodec(), equalTo(CompressionCodecName.ZSTD));
+                        assertFalse(what + " has a dictionary page", column.hasDictionaryPage());
+                        assertThat(what + " encodings", column.getEncodings(), not(hasItem(Encoding.PLAIN_DICTIONARY)));
+                        assertThat(what + " encodings", column.getEncodings(), not(hasItem(Encoding.RLE_DICTIONARY)));
+                    }
+                }
+            }
+        }
+
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+
+        final List<ShardTable.UploadedFile> uploaded = table(0).uploadedFiles();
+        assertThat(uploaded.size(), greaterThan(0));
+        boolean keywordHasADictionary = false;
+        for (ShardTable.UploadedFile file : uploaded) {
+            final Path path = org.elasticsearch.core.PathUtils.get(java.net.URI.create(file.location()));
+            try (
+                ParquetFileReader reader = ParquetFileReader.open(
+                    new TestParquetBytes.MemoryInputFile(java.nio.file.Files.readAllBytes(path)),
+                    PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
+                )
+            ) {
+                for (BlockMetaData block : reader.getFooter().getBlocks()) {
+                    for (ColumnChunkMetaData column : block.getColumns()) {
+                        assertThat(column.getPath() + " codec", column.getCodec(), equalTo(CompressionCodecName.ZSTD));
+                        if (column.getPath().toDotString().equals("host.name")) {
+                            keywordHasADictionary |= column.hasDictionaryPage();
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue("the uploaded file has a dictionary for the keyword with seven values", keywordHasADictionary);
+        assertUploaded(1, 6_000);
+    }
+
+    /**
+     * What the benchmark does: several clients send bulks to one shard while the periodic flush and the compaction run all the time and
+     * the local files reach {@code index.parquet.max_local_size}, so bulks are rejected with a 429. A client sends again the items that
+     * were rejected. At the end every row is counted once by the stats and is in the table once, in files with contiguous ranges.
+     */
+    public void testConcurrentBulksThatAreRejectedAndSentAgainLoseNoRowAndCountNoRowTwice() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.flush_threshold_size", "1mb").put("index.parquet.max_local_size", "4mb"));
+        final int writers = 6;
+        final int bulksEach = 12;
+        final int docsPerBulk = 10_000;
+        final java.util.concurrent.atomic.AtomicLong rejected = new java.util.concurrent.atomic.AtomicLong();
+
+        startInParallel(writers, task -> {
+            for (int b = 0; b < bulksEach; b++) {
+                final int from = (task * bulksEach + b) * docsPerBulk;
+                List<Integer> pending = new java.util.ArrayList<>();
+                for (int i = from; i < from + docsPerBulk; i++) {
+                    pending.add(i);
+                }
+                while (pending.isEmpty() == false) {
+                    final BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+                    for (int i : pending) {
+                        bulk.add(docRequest(i));
+                    }
+                    final List<Integer> failed = rejectedIds(pending, bulk.get());
+                    if (failed.isEmpty() == false) {
+                        rejected.addAndGet(failed.size());
+                        safeSleep(20);
+                    }
+                    pending = failed;
+                }
+            }
+        });
+        logger.info("rejected items that were sent again: [{}]", rejected.get());
+
+        final long total = (long) writers * bulksEach * docsPerBulk;
+        assertThat(indicesAdmin().prepareFlush(INDEX).setWaitIfOngoing(true).get().getFailedShards(), equalTo(0));
+        assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), equalTo(total));
+        assertUploaded(1, (int) total);
+        assertThat("local files", localFiles(0), equalTo(0L));
+    }
+
+    /**
+     * The server hands the engine the documents of a bulk in chunks of at most 5,000. A chunk that the engine rejects fails its own
+     * documents with a 429, and never the documents of the chunks before it, which are written. If the rejection failed the whole bulk, a
+     * client that sends the bulk again would index those documents twice. The limit here is one byte, so the first chunk of a bulk is
+     * taken, and every later chunk is rejected until a flush has uploaded the local files. A client that sends again only what failed
+     * ends with every document once.
+     */
+    public void testARejectedChunkFailsOnlyItsOwnDocumentsAndSendingThemAgainIndexesEveryDocumentOnce() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.max_local_size", "1b"));
+        final int total = 12_000; // the chunks of one bulk: 5,000, 5,000 and 2,000
+        List<Integer> pending = new java.util.ArrayList<>();
+        for (int i = 0; i < total; i++) {
+            pending.add(i);
+        }
+
+        final BulkRequestBuilder first = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        for (int i : pending) {
+            first.add(docRequest(i));
+        }
+        final BulkResponse response = first.get();
+        for (int j = 0; j < total; j++) {
+            assertThat(
+                "the first chunk is written, the others are rejected: item " + j,
+                response.getItems()[j].isFailed(),
+                equalTo(j >= 5_000)
+            );
+        }
+        pending = rejectedIds(pending, response);
+        assertThat(pending.size(), equalTo(total - 5_000));
+        assertThat(
+            "only the first chunk is counted",
+            indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(),
+            equalTo(5_000L)
+        );
+
+        while (pending.isEmpty() == false) {
+            assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+            final BulkRequestBuilder again = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+            for (int i : pending) {
+                again.add(docRequest(i));
+            }
+            final List<Integer> failed = rejectedIds(pending, again.get());
+            assertThat("a flush makes room for a chunk", failed.size(), lessThan(pending.size()));
+            pending = failed;
+        }
+
+        assertThat(indicesAdmin().prepareFlush(INDEX).get().getFailedShards(), equalTo(0));
+        assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), equalTo((long) total));
+        assertUploaded(1, total);
+    }
+
+    /**
+     * The engine rejects bulks when the local bytes reach {@code index.parquet.max_local_size}. A flush of several runs takes minutes, and
+     * the counter of the local bytes (which the stats show as {@code docs.total_size_in_bytes}) used to fall only when the whole flush was
+     * over, so bulks were rejected for the space of runs that were already uploaded. The limit on the size of a file here puts each
+     * local file in a run of its own, and the stats are read all the time while one flush runs. The value must fall in steps, and not
+     * stay as it is until the flush ends. A flush is short, so the test tries a few times.
+     */
+    public void testTheLocalBytesFallAsEachRunOfAFlushIsCommittedAndNotOnlyWhenTheFlushEnds() throws Exception {
+        registerRepository();
+        createIndex(1, Settings.builder().put("index.parquet.max_file_size", "1b").put("index.parquet.compaction.enabled", false));
+
+        boolean sawAStep = false;
+        for (int round = 0; round < 5 && sawAStep == false; round++) {
+            final int from = round * 60_000;
+            assertFalse(bulk(from, from + 60_000).hasFailures()); // 12 local files, so 12 runs
+            final long before = indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getTotalSizeInBytes();
+            assertThat(before, greaterThan(0L));
+
+            final var flush = indicesAdmin().prepareFlush(INDEX).setWaitIfOngoing(true).execute();
+            while (flush.isDone() == false) {
+                final long now = indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getTotalSizeInBytes();
+                if (now > 0 && now < before) {
+                    sawAStep = true;
+                }
+            }
+            assertThat(flush.get().getFailedShards(), equalTo(0));
+            assertThat(
+                "everything is uploaded",
+                indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getTotalSizeInBytes(),
+                equalTo(0L)
+            );
+        }
+        assertTrue("the local bytes fell before the flush was over", sawAStep);
+        assertThat(indicesAdmin().prepareStats(INDEX).get().getTotal().getDocs().getCount(), greaterThan(0L));
     }
 
     public void testFlushUploadsTheRowsOfEveryShardAsFilesOfOneTable() throws Exception {

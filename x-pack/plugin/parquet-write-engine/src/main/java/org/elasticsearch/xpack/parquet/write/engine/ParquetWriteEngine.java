@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.parquet.write.file.LocalParquetFiles;
 import org.elasticsearch.xpack.parquet.write.file.MultiValuedFields;
 import org.elasticsearch.xpack.parquet.write.flush.ParquetFlusher;
 import org.elasticsearch.xpack.parquet.write.flush.ShardCommitData;
+import org.elasticsearch.xpack.parquet.write.staging.Retries;
 import org.elasticsearch.xpack.parquet.write.staging.StagedFileAdopter;
 import org.elasticsearch.xpack.parquet.write.table.ShardTable;
 
@@ -124,6 +125,8 @@ public class ParquetWriteEngine extends Engine {
     private final ShardTables tables;
     private final TableVersionPublisher publisher;
     private final ReentrantLock flushLock = new ReentrantLock();
+    /** The commit data of the shard, kept in memory: the engine is the only one that changes it, see {@link StoreCommitData}. */
+    private final StoreCommitData commitData = new StoreCommitData(store);
     /**
      * The flushes that were started and have not completed. The shard schedules a periodic flush and releases its own guard as soon
      * as {@code flush} returns, because the flush of the usual engine is done by then. Ours completes later, so without this the shard
@@ -239,11 +242,19 @@ public class ParquetWriteEngine extends Engine {
         }
         // With staged durability the repository must work before anything is written: a missing repository, or a table that another index
         // owns, fails the bulk and leaves no local file and no gap in the sequence numbers.
-        final ShardTable stagingTable = acceptedCount > 0 && isStaged() ? openTableForStaging() : null;
+        final ShardTable stagingTable;
+        try {
+            stagingTable = acceptedCount > 0 && isStaged() ? openTableForStaging() : null;
+        } catch (ElasticsearchStatusException e) {
+            return failedBatch(operations, accepted, e);
+        }
         LocalParquetFiles.LocalFile written = null;
         long firstSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         if (acceptedCount > 0) {
-            rejectWhenLocalFilesAreFull();
+            final EsRejectedExecutionException rejection = rejectionWhenLocalFilesAreFull();
+            if (rejection != null) {
+                return failedBatch(operations, accepted, rejection);
+            }
             // The sequence numbers are taken before the write, so that bulks write their files in parallel. A bulk that fails to write
             // leaves a gap, which the engine tolerates (the ranges are in the names of the files and the rows come from the footers).
             firstSeqNo = tracker.generateSeqNos(acceptedCount);
@@ -251,7 +262,14 @@ public class ParquetWriteEngine extends Engine {
         }
         if (stagingTable != null && written != null) {
             // The uploads of concurrent bulks of the shard overlap; the bulk is acknowledged after this returns
-            stage(stagingTable, written, acceptedCount);
+            try {
+                stage(stagingTable, written, acceptedCount);
+            } catch (ElasticsearchStatusException e) {
+                return failedBatch(operations, accepted, e);
+            } finally {
+                // the file is staged, or it is gone: a flush may take it now, or must not wait for it (see writeLocalFile)
+                markProcessed(firstSeqNo, acceptedCount);
+            }
         }
         final List<IndexResult> results = new ArrayList<>(docCount);
         long seqNo = firstSeqNo;
@@ -260,25 +278,46 @@ public class ParquetWriteEngine extends Engine {
                 results.add(new ParquetIndexResult(operations.primaryTerm(), seqNo, operations.id(i), new Translog.Location(0, seqNo, 0)));
                 seqNo++;
             } else {
-                results.add(
-                    new IndexResult(new IllegalArgumentException(NOT_SUPPORTED + ": the document has an explicit id"), 1L, operations.id(i))
-                );
+                results.add(new IndexResult(explicitIdFailure(), 1L, operations.id(i)));
             }
         }
         return results;
     }
 
     /**
-     * A 429 when the local files have reached {@code index.parquet.max_local_size}. The check is not exact: bulks that are writing at that
-     * moment add their files, so the size can pass the limit by what they write. It happens before the sequence numbers are taken, so
-     * a rejected bulk leaves no gap, and the client can send it again.
+     * The results of a batch that the engine did not take: every document that it could have taken fails with {@code failure}, and a
+     * document with an explicit id fails as always.
+     *
+     * <p>A refusal must be a result for each document and never an exception. The server applies the batches of one shard request one
+     * after the other (at most 5,000 documents each), and an exception from a later batch fails the whole request, so the client is told
+     * that the documents of the earlier batches failed too, although they are written. A client that sends them again then indexes them
+     * twice (the benchmark counted 40,000 to 65,000 documents too many that way). As a result for each document, the earlier batches
+     * succeed, and the client sends again only the documents that failed.
      */
-    private void rejectWhenLocalFilesAreFull() {
+    private static List<IndexResult> failedBatch(IndexOperationBatch operations, boolean[] accepted, Exception failure) {
+        final List<IndexResult> results = new ArrayList<>(accepted.length);
+        for (int i = 0; i < accepted.length; i++) {
+            results.add(new IndexResult(accepted[i] ? failure : explicitIdFailure(), 1L, operations.id(i)));
+        }
+        return results;
+    }
+
+    private static IllegalArgumentException explicitIdFailure() {
+        return new IllegalArgumentException(NOT_SUPPORTED + ": the document has an explicit id");
+    }
+
+    /**
+     * A 429 when the local files have reached {@code index.parquet.max_local_size}, and null otherwise. The check is not exact: bulks that
+     * are writing at that moment add their files, so the size can pass the limit by what they write. It happens before the sequence
+     * numbers are taken, so a rejected batch leaves no gap, and nothing of it is written, so the client can send it again. The caller
+     * returns it as the result of each document (see {@link #failedBatch}).
+     */
+    private EsRejectedExecutionException rejectionWhenLocalFilesAreFull() {
         final long maxLocalBytes = ParquetFormatSettings.MAX_LOCAL_SIZE.get(engineConfig.getIndexSettings().getSettings()).getBytes();
         final long bytes = localBytes.get();
         if (bytes >= maxLocalBytes) {
             // The upload does not keep up, or the repository is down. A 429 tells the client to retry, and the rows are not lost.
-            throw new EsRejectedExecutionException(
+            return new EsRejectedExecutionException(
                 "the local Parquet files of shard ["
                     + shardId
                     + "] hold ["
@@ -287,11 +326,13 @@ public class ParquetWriteEngine extends Engine {
                 false
             );
         }
+        return null;
     }
 
     /**
      * Writes the local file of a bulk for the sequence numbers {@code [firstSeqNo, firstSeqNo + count - 1]} that the caller reserved, and
-     * marks them processed, so that the flush may take the file. Bulks run this in parallel.
+     * marks them processed, so that the flush may take the file. Bulks run this in parallel. With staged durability the caller marks them
+     * processed when the staged copy is uploaded.
      *
      * <p>The range of a file becomes eligible for a flush only when every lower sequence number is processed too (see
      * {@link ParquetFlusher}), because the flush records the highest range it uploaded and deletes every file below it as a leftover. So
@@ -347,12 +388,13 @@ public class ParquetWriteEngine extends Engine {
             return file;
         } finally {
             try {
-                for (long seqNo = firstSeqNo; seqNo < firstSeqNo + count; seqNo++) {
-                    tracker.markSeqNoAsProcessed(seqNo);
-                    if (staged == false || file == null) {
-                        // with staged durability the rows are persisted when the staged copy is uploaded, unless there is no file
-                        tracker.markSeqNoAsPersisted(seqNo);
-                    }
+                // With staged durability the caller marks the range processed after the staged copy is uploaded. Until then a flush must
+                // not take the file: if the upload fails, the bulk is discarded and its client is told that it failed, and rows that a
+                // flush had put in the table by then would be indexed twice when the client sends the bulk again.
+                if (staged == false || file == null) {
+                    markProcessed(firstSeqNo, count);
+                    // the rows of a staged bulk are persisted when the staged copy is uploaded, unless there is no file
+                    markPersisted(firstSeqNo, count);
                 }
             } finally {
                 localFilesLock.readLock().unlock();
@@ -380,41 +422,92 @@ public class ParquetWriteEngine extends Engine {
         }
     }
 
+    /** How often a staged upload is tried before the bulk fails, and the wait after the first failure (it grows by four times). */
+    private static final int STAGE_ATTEMPTS = 3;
+    private static final long STAGE_FIRST_DELAY_MILLIS = 250;
+
     /**
      * Copies the local file of a bulk to the staging directory of the repository, and only then marks its sequence numbers persisted.
-     * A failure discards the bulk: the local file is deleted (its sequence numbers stay used, which is a gap that the engine tolerates,
-     * because the ranges are in the names of the files and the rows come from the footers), and the client gets an error and may retry.
-     * A flush can have picked the local file up already. Then its rows are in the table, and they are durable.
+     * A failure of the upload is tried again (see {@link Retries}), each time under a new key, and the blob of a failed try is deleted.
+     * If every try fails, the bulk is discarded: the local file is deleted (its sequence numbers stay used, which is a gap that the
+     * engine tolerates, because the ranges are in the names of the files and the rows come from the footers), and the client gets a
+     * 503 with the cause in its message. The file cannot be in the table by then, because a flush takes a file only after its range is
+     * processed, which the caller does after this returns, so the client can send the bulk again without indexing a row twice.
      */
     private void stage(ShardTable table, LocalParquetFiles.LocalFile file, int rows) {
-        final String attempt = ShardTable.newAttempt();
-        String stagedName = null;
+        final String[] lastBlob = new String[1];
         try {
-            try (IndexInput in = store.directory().openInput(file.name(), IOContext.DEFAULT)) {
-                stagedName = table.stageFile(
-                    file.fromSeqNo(),
-                    file.toSeqNo(),
-                    attempt,
-                    new BufferedInputStream(new InputStreamIndexInput(in, file.length())),
-                    file.length()
-                );
-            } catch (NoSuchFileException e) {
-                // flushed already: the rows are in the table
-            }
+            Retries.run(STAGE_ATTEMPTS, STAGE_FIRST_DELAY_MILLIS, attempt -> {
+                final String attemptId = ShardTable.newAttempt();
+                final String blob = ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo(), attemptId);
+                lastBlob[0] = blob;
+                try (IndexInput in = store.directory().openInput(file.name(), IOContext.DEFAULT)) {
+                    return table.stageFile(
+                        file.fromSeqNo(),
+                        file.toSeqNo(),
+                        attemptId,
+                        new BufferedInputStream(new InputStreamIndexInput(in, file.length())),
+                        file.length()
+                    );
+                } catch (NoSuchFileException e) {
+                    return null; // flushed already: the rows are in the table
+                } catch (IOException | RuntimeException e) {
+                    // the blob that this try may have written is not wanted, and the next try has a key of its own
+                    deleteStagedQuietly(table, blob);
+                    throw e;
+                }
+            }, Thread::sleep);
         } catch (IOException | RuntimeException | LinkageError e) {
-            discard(table, file, stagedName != null ? stagedName : ShardTable.dataFileName(file.fromSeqNo(), file.toSeqNo(), attempt));
+            logger.warn(
+                () -> Strings.format(
+                    "could not stage the bulk [%s] of shard [%s] in the repository after [%d] attempts, so it is not acknowledged",
+                    file.name(),
+                    shardId,
+                    STAGE_ATTEMPTS
+                ),
+                e
+            );
+            discard(table, file, lastBlob[0]);
             markPersisted(file.fromSeqNo(), rows);
             if (e instanceof LinkageError linkage) {
                 throw LinkageFailures.asException("stage a bulk", linkage);
             }
             throw new ElasticsearchStatusException(
-                "could not stage the bulk for shard [{}] in the repository, so it is not acknowledged",
+                "could not stage the bulk for shard [{}] in the repository, so it is not acknowledged: [{}]",
                 RestStatus.SERVICE_UNAVAILABLE,
                 e,
-                shardId
+                shardId,
+                describe(e)
             );
         }
         markPersisted(file.fromSeqNo(), rows);
+    }
+
+    private void deleteStagedQuietly(ShardTable table, String blob) {
+        try {
+            table.deleteStaged(List.of(blob));
+        } catch (IOException | RuntimeException e) {
+            logger.debug(() -> Strings.format("could not delete the staged file [%s] of a try that failed", blob), e);
+        }
+    }
+
+    /** The class and the message of an exception and of its causes, so that a client that sees only a message sees what failed. */
+    private static String describe(Throwable failure) {
+        final StringBuilder description = new StringBuilder();
+        int depth = 0;
+        for (Throwable t = failure; t != null && depth < 4; t = t.getCause() == t ? null : t.getCause(), depth++) {
+            if (depth > 0) {
+                description.append(" <- ");
+            }
+            description.append(t.getClass().getSimpleName()).append(": ").append(t.getMessage());
+        }
+        return description.toString();
+    }
+
+    private void markProcessed(long firstSeqNo, int rows) {
+        for (long seqNo = firstSeqNo; seqNo < firstSeqNo + rows; seqNo++) {
+            tracker.markSeqNoAsProcessed(seqNo);
+        }
     }
 
     private void markPersisted(long firstSeqNo, int rows) {
@@ -572,8 +665,10 @@ public class ParquetWriteEngine extends Engine {
     /** True when the local files have reached the size or the age at which they are uploaded. */
     @Override
     public boolean shouldPeriodicallyFlush() {
-        final long bytes = localBytes.get();
-        if (bytes == 0 || activeFlushes.get() > 0) {
+        // the run that is uploading in the background is on the disk, and it is not data that waits for a flush
+        final ParquetFlusher current = flusher;
+        final long bytes = localBytes.get() - (current == null ? 0 : current.uploadingLocalBytes());
+        if (bytes <= 0 || activeFlushes.get() > 0) {
             return false;
         }
         final Settings settings = engineConfig.getIndexSettings().getSettings();
@@ -604,7 +699,7 @@ public class ParquetWriteEngine extends Engine {
                         return new FlushResult(true, flushGeneration.get());
                     }
                     try {
-                        flushLocalFiles();
+                        flushLocalFiles(waitIfOngoing);
                         return new FlushResult(false, flushGeneration.incrementAndGet());
                     } finally {
                         flushLock.unlock();
@@ -614,26 +709,41 @@ public class ParquetWriteEngine extends Engine {
         }));
     }
 
-    /** Merges the complete local files, uploads them and lists them in the table. Runs under the flush lock. */
-    private void flushLocalFiles() throws IOException {
+    /**
+     * Merges the complete local files, uploads them and lists them in the table. Runs under the flush lock.
+     *
+     * @param waitForUploads true for a flush that a caller waits for (the {@code _flush} API): the rows of every run are in the table when
+     *                       it returns. The periodic flush does not wait for the upload of its last run, so that the next flush can merge
+     *                       while it goes on (see {@link ParquetFlusher#flush(boolean)}).
+     */
+    private void flushLocalFiles(boolean waitForUploads) throws IOException {
         try {
             ParquetFlusher current = flusher;
             if (current == null) {
                 current = new ParquetFlusher(
                     store.directory(),
-                    new StoreCommitData(store),
+                    commitData,
                     openTable(),
                     this::flushSettings,
                     tracker::getProcessedCheckpoint,
-                    ParquetFlusher.Hooks.NONE
+                    ParquetFlusher.Hooks.NONE,
+                    // the space of a run that is uploaded is free at once: a flush of several runs takes minutes, and bulks must not be
+                    // rejected for the whole time because of a counter that counts the files that are already gone
+                    this::refreshLocalFiles,
+                    engineConfig.getThreadPool().executor(ParquetThreadPools.MERGE),
+                    engineConfig.getThreadPool().executor(ParquetThreadPools.UPLOAD),
+                    // the close of the engine waits for an upload that goes on after its flush has returned
+                    this::acquireEnsureOpenRef
                 );
                 flusher = current;
             }
             final long start = System.nanoTime();
-            final ParquetFlusher.Result result = current.flush();
+            final ParquetFlusher.Result result = current.flush(waitForUploads);
             if (result.files() > 0) {
                 logger.info(
-                    "flushed [{}] files with [{}] rows ([{}]) to the repository in [{}]",
+                    waitForUploads
+                        ? "flushed [{}] files with [{}] rows ([{}]) to the repository in [{}]"
+                        : "merged [{}] files with [{}] rows ([{}]) in [{}], the upload of the last one may still run",
                     result.files(),
                     result.rows(),
                     ByteSizeValue.ofBytes(result.bytes()),
@@ -698,7 +808,7 @@ public class ParquetWriteEngine extends Engine {
 
     /** Completes the listeners whose operations are uploaded, and starts another flush for the others. */
     private void completeFlushListeners() throws IOException {
-        final long uploaded = ShardCommitData.uploadedThroughSeqNo(new StoreCommitData(store).userData());
+        final long uploaded = ShardCommitData.uploadedThroughSeqNo(commitData.userData());
         uploadedThroughSeqNo = uploaded;
         final List<ActionListener<Long>> done = new ArrayList<>();
         final boolean pending;
@@ -847,7 +957,7 @@ public class ParquetWriteEngine extends Engine {
                     return;
                 }
                 try {
-                    if (ShardCommitData.uploadedThroughSeqNo(new StoreCommitData(store).userData()) < 0) {
+                    if (ShardCommitData.uploadedThroughSeqNo(commitData.userData()) < 0) {
                         return;
                     }
                 } finally {
@@ -951,8 +1061,18 @@ public class ParquetWriteEngine extends Engine {
             ParquetFormatSettings.MAX_FILE_SIZE.get(settings).getBytes(),
             ParquetFormatSettings.ROW_GROUP_SIZE.get(settings).getBytes(),
             CompressionCodecName.valueOf(ParquetFormatSettings.COMPRESSION.get(settings).name()),
-            isStaged()
+            isStaged(),
+            mergeParallelism(settings)
         );
+    }
+
+    /**
+     * The threads of a merge: the setting, but no more than the thread of the flush and the threads that the merge pool can have, because
+     * a group that waits in the queue of the pool for a thread only delays the groups that run.
+     */
+    private int mergeParallelism(Settings settings) {
+        final int poolMax = engineConfig.getThreadPool().info(ParquetThreadPools.MERGE).getMax();
+        return Math.min(ParquetFormatSettings.FLUSH_MERGE_PARALLELISM.get(settings), 1 + poolMax);
     }
 
     /** Whether a bulk is acknowledged only after a copy of its file is in the repository. */
@@ -967,7 +1087,7 @@ public class ParquetWriteEngine extends Engine {
      * not.
      */
     private void refreshLocalFiles() throws IOException {
-        final Map<String, String> userData = new StoreCommitData(store).userData();
+        final Map<String, String> userData = commitData.userData();
         final long uploadedThrough = ShardCommitData.uploadedThroughSeqNo(userData);
         // The write side waits for the bulks that are writing, and keeps new ones out while it lists the directory.
         localFilesLock.writeLock().lock();
@@ -1146,10 +1266,29 @@ public class ParquetWriteEngine extends Engine {
 
     // ---- commits and stats: the one empty Lucene commit is the metadata record of the shard ----
 
+    /** The last commit that was read, and the version of the commit data at the time. */
+    private record ReadCommit(long version, SegmentInfos infos) {}
+
+    private volatile ReadCommit readCommit;
+
+    /**
+     * The last commit, read again only after a commit of this engine. Reading it lists the directory twice and starts again until both
+     * lists are the same (Lucene's {@code FindSegmentsFile}), and with the files of thousands of bulks that are created and renamed while
+     * it reads that took about 20 seconds, for every call of the stats API. A commit that does not go through {@link #commitData} cannot
+     * happen while the engine is open.
+     */
     @Override
     public SegmentInfos getLastCommittedSegmentInfos() {
+        // The version is read before the commit: a commit in between makes this read newer than its version, and the next call reads again.
+        final long version = commitData.version();
+        final ReadCommit known = readCommit;
+        if (known != null && known.version() == version) {
+            return known.infos();
+        }
         try {
-            return store.readLastCommittedSegmentsInfo();
+            final ReadCommit read = new ReadCommit(version, store.readLastCommittedSegmentsInfo());
+            readCommit = read;
+            return read.infos();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

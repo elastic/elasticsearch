@@ -407,7 +407,7 @@ public class JvmOptionsParserTests extends ESTestCase {
         Runtime.Version withOption = Runtime.Version.parse(randomFrom("21.0.1", "21.0.4", "22", "25.0.1"));
         assertThat(
             SystemJvmOptions.maybeTrimNativeHeap(true, true, withOption).toList(),
-            equalTo(List.of("-XX:TrimNativeHeapInterval=3600000"))
+            equalTo(List.of("-XX:+UnlockExperimentalVMOptions", "-XX:TrimNativeHeapInterval=3600000"))
         );
         assertThat(SystemJvmOptions.maybeTrimNativeHeap(false, true, withOption).toList(), empty());
         assertThat(SystemJvmOptions.maybeTrimNativeHeap(true, false, withOption).toList(), empty());

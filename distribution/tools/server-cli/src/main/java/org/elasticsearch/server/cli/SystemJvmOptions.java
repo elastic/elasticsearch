@@ -185,12 +185,14 @@ final class SystemJvmOptions {
      * Trim the native heap hourly: the JVM calls glibc's malloc_trim, which returns the whole free pages in glibc's free lists to the OS.
      * HotSpot supports this only on Linux, and warns on other platforms. The option
      * is in JDK 22, and was backported to 21.0.1 (JDK-8314107); an older JDK refuses to start with it.
+     * The option is experimental in JDK 21.0.1, 21.0.2 and 22.0.0 (JDK-8325496 made it a product option in 21.0.3, 22.0.1 and 23), so we
+     * unlock experimental options before it; that has no effect where it is a product option.
      */
     @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // The version check can be removed when min JDK version >= 22
     static Stream<String> maybeTrimNativeHeap(boolean isLinux, boolean isHotspot, Runtime.Version version) {
         boolean hasOption = version.feature() > 21 || (version.feature() == 21 && version.update() >= 1);
         if (isLinux && isHotspot && hasOption) {
-            return Stream.of("-XX:TrimNativeHeapInterval=" + TimeUnit.HOURS.toMillis(1));
+            return Stream.of("-XX:+UnlockExperimentalVMOptions", "-XX:TrimNativeHeapInterval=" + TimeUnit.HOURS.toMillis(1));
         }
         return Stream.empty();
     }

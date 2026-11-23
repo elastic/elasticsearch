@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -64,6 +65,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests.relation;
 import static org.hamcrest.Matchers.contains;
@@ -702,6 +704,37 @@ public class HeterogeneousFromOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(as(branch1.aggregates().get(0), Alias.class).child(), instanceOf(Min.class));
 
         assertValidPlan(result);
+    }
+
+    /**
+     * The combiner of a pushed {@code MIN}/{@code MAX} must skip {@code NaN} exactly when the per-branch aggregates do,
+     * whether through {@code skipNan} or through the PromQL {@code allowNonFinite} variant.
+     */
+    public void testMinMaxCombinerKeepsNanSkipping() {
+        for (boolean max : new boolean[] { false, true }) {
+            for (boolean[] flags : new boolean[][] { { false, false }, { false, true }, { true, false } }) {
+                boolean allowNonFinite = flags[0];
+                boolean skipNan = flags[1];
+                ReferenceAttribute unionValue = new ReferenceAttribute(EMPTY, "value", DOUBLE);
+                EsRelation esRelation = relation().withAttributes(List.of(getFieldAttribute("value", DOUBLE)));
+                ExternalRelation extRelation = externalRelation(List.of(extAttr("value", DOUBLE)));
+                UnionAll unionAll = new UnionAll(EMPTY, List.of(esRelation, extRelation), List.of(unionValue));
+
+                AggregateFunction agg = max
+                    ? new Max(EMPTY, unionValue, Literal.TRUE, AggregateFunction.NO_WINDOW, allowNonFinite, skipNan)
+                    : new Min(EMPTY, unionValue, Literal.TRUE, AggregateFunction.NO_WINDOW, allowNonFinite, skipNan);
+                Aggregate aggregate = new Aggregate(EMPTY, unionAll, List.of(), List.of(new Alias(EMPTY, "m", agg)));
+
+                Aggregate outerAgg = as(new PushAggregateThroughUnionAll().apply(aggregate), Aggregate.class);
+                Expression combiner = as(outerAgg.aggregates().get(0), Alias.class).child();
+                boolean expected = allowNonFinite || skipNan;
+                if (max) {
+                    assertThat(as(combiner, Max.class).skipNan(), equalTo(expected));
+                } else {
+                    assertThat(as(combiner, Min.class).skipNan(), equalTo(expected));
+                }
+            }
+        }
     }
 
     /**

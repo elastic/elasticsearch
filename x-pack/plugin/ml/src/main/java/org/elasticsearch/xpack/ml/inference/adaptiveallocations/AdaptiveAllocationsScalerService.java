@@ -280,6 +280,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     }
 
     public synchronized void start() {
+        // Stats from a previous time as master are stale, so start fresh.
+        lastInferenceStatsByDeploymentAndNode.clear();
+        lastInferenceStatsTimestampMillis = null;
         updateAutoscalers(clusterService.state());
         metrics.init();
         clusterService.addListener(this);

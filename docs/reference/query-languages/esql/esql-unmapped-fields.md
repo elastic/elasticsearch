@@ -43,6 +43,8 @@ The `unmapped_fields` setting accepts the following values, which range from str
 
 For the full syntax, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
+{applies_to}`stack: ga 9.7+` You can also send the setting in the `_query` request body, as `"settings": {"unmapped_fields": "LOAD_ALL"}`. A value set in the query with `SET` overrides the request body.
+
 :::{tip}
 :applies_to: stack: preview =9.4, ga 9.5+
 
@@ -168,7 +170,7 @@ serverless: preview
 
 In addition to the restrictions above, `LOAD_ALL` has these limitations:
 
-- It supports most commands, and a query that uses another command fails with an error that lists the supported ones. Notably, the [`TS`](commands/ts.md) source command is not supported.
+- It supports most commands, and a query that uses another command fails with an error that lists the supported ones.
 - It doesn't apply inside [views](/reference/query-languages/esql/esql-views.md). The setting stops at a view's boundary: a view doesn't return an `_unmapped_fields` column, and the query returns `null` with a warning for an unmapped field that the view doesn't output. To load such fields, the view definition must itself `SET unmapped_fields="load"` and reference them. A view definition can't use `LOAD_ALL`. Indices and subqueries next to a view are loaded as usual.
 - Reading every unmapped field uses more memory than `LOAD`, especially on documents with many fields or large arrays. If you know which fields you need, name them and use `LOAD`.
 

@@ -8732,3 +8732,240 @@ FROM partial_mapping_sample_data
 @timestamp:datetime      | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
 2024-10-23T13:33:34.937Z | 173.21.0.5   | 1232381             | 42              | "{""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
 ;
+
+###############################################
+# TS, METRICS_INFO and TS_INFO (#157190)      #
+###############################################
+
+// A TS query without a STATS returns the unmapped fields of its rows, as a FROM does. The patterns only match unmapped fields of the
+// k8s_unmapped index, so the mapped columns do not show.
+loadAllTsReturnsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: ts_command_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s_unmapped
+| SORT @timestamp
+| LIMIT 2
+| KEEP @timestamp, pod, reg*, network.bytes_in*, network.cost*, network.eth0.tx*
+;
+
+@timestamp:datetime      | pod:keyword | _unmapped_fields:_source
+2024-05-10T00:00:29.000Z | two         | "{""network.bytes_in"":699,""network.cost"":9.375,""network.eth0.tx"":81,""region"":""us""}"
+2024-05-10T00:00:33.000Z | three       | "{""network.bytes_in"":473,""network.cost"":1.25,""network.eth0.tx"":48,""region"":""us""}"
+;
+
+// A time-series aggregation drops _unmapped_fields like any STATS. A field it names is its own keyword column, cast here.
+loadAllTsAggregationDropsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: ts_command_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s_unmapped
+| WHERE pod == "one"
+| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket, cluster
+| LIMIT 3
+;
+
+tx:long | cluster:keyword | time_bucket:datetime
+970     | prod            | 2024-05-10T00:00:00.000Z
+842     | qa              | 2024-05-10T00:00:00.000Z
+753     | staging         | 2024-05-10T00:00:00.000Z
+;
+
+// The same as the two TS queries above over an index that stores its _source: the unmapped fields are read from it, not rebuilt from
+// _ignored_source as for the synthetic source of k8s_unmapped.
+loadAllTsStoredSourceReturnsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: ts_command_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s_unmapped_stored_source
+| SORT @timestamp
+| LIMIT 2
+| KEEP @timestamp, pod, reg*, network.bytes_in*, network.cost*, network.eth0.tx*
+;
+
+@timestamp:datetime      | pod:keyword | _unmapped_fields:_source
+2024-05-10T00:00:29.000Z | two         | "{""region"":""us"",""network.bytes_in"":699,""network.cost"":9.375,""network.eth0.tx"":81}"
+2024-05-10T00:00:33.000Z | three       | "{""region"":""us"",""network.bytes_in"":473,""network.cost"":1.25,""network.eth0.tx"":48}"
+;
+
+loadAllTsStoredSourceAggregation
+required_capability: optional_fields_load_all_single_source_column
+required_capability: ts_command_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s_unmapped_stored_source
+| WHERE pod == "one"
+| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| SORT time_bucket, cluster
+| LIMIT 3
+;
+
+tx:long | cluster:keyword | time_bucket:datetime
+970     | prod            | 2024-05-10T00:00:00.000Z
+842     | qa              | 2024-05-10T00:00:00.000Z
+753     | staging         | 2024-05-10T00:00:00.000Z
+;
+
+// A downsampled-shaped index: the unmapped fields of its documents are returned like those of any other time series index.
+loadAllTsDownsampledReturnsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: ts_command_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s_downsampled_unmapped
+| SORT @timestamp, cluster, pod
+| LIMIT 2
+| KEEP @timestamp, cluster, pod, network.bytes_in*, network.cost*
+;
+
+@timestamp:datetime | cluster:keyword | pod:keyword | _unmapped_fields:_source
+2024-05-09T23:30:00.000Z | prod            | one         | "{""network.bytes_in"":677,""network.cost"":12.125}"
+2024-05-09T23:30:00.000Z | prod            | three       | "{""network.bytes_in"":799,""network.cost"":12.375}"
+;
+
+// A time-series aggregation over the same downsampled-shaped index reads a rolled-up aggregate_metric_double gauge, which is mapped, together
+// with an unmapped field that the query names, which is its own keyword column cast here. The gauge's default metric is max, so the min of
+// it shows that the aggregation reads the rolled-up min and not the default scalar.
+loadAllTsDownsampledAggregation
+required_capability: optional_fields_load_all_single_source_column
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s_downsampled_unmapped
+| STATS tx = min(min_over_time(network.eth0.tx)), bytes = sum(max_over_time(network.bytes_in :: long)) BY cluster
+| SORT cluster
+;
+
+tx:double | bytes:long | cluster:keyword
+20.0      | 2329       | prod
+75.0      | 2507       | qa
+157.0     | 2443       | staging
+;
+
+// METRICS_INFO replaces the columns of its input, so it returns no _unmapped_fields column, and the shards read no _source for it.
+loadAllMetricsInfo
+required_capability: optional_fields_load_all_single_source_column
+required_capability: metrics_info_command
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s
+| METRICS_INFO
+| SORT metric_name
+;
+
+metric_name:keyword    | data_stream:keyword | unit:keyword | metric_type:keyword | field_type:keyword | dimension_fields:keyword
+network.eth0.rx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]
+network.eth0.tx        | k8s                 | packets      | gauge               | integer            | [cluster, pod, region]
+network.total_bytes_in | k8s                 | bytes        | counter             | long               | [cluster, pod, region]
+network.total_cost     | k8s                 | usd          | counter             | double             | [cluster, pod, region]
+;
+
+loadAllMetricsInfoOverAnIndexWithUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: metrics_info_command
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s_unmapped
+| METRICS_INFO
+| KEEP metric_name
+| SORT metric_name
+;
+
+metric_name:keyword
+network.eth0.rx
+network.total_bytes_in
+network.total_cost
+;
+
+loadAllTsInfo
+required_capability: optional_fields_load_all_single_source_column
+required_capability: ts_info_command
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s
+| TS_INFO
+| WHERE metric_name == "network.total_cost"
+| KEEP metric_name, unit, metric_type, dimensions
+| SORT dimensions
+| LIMIT 3
+;
+
+metric_name:keyword | unit:keyword | metric_type:keyword | dimensions:keyword
+network.total_cost  | usd          | counter             | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu, us]""}"
+network.total_cost  | usd          | counter             | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
+network.total_cost  | usd          | counter             | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
+;
+
+// A TS branch of a union returns its own unmapped keys under its own KEEP, and the index branch next to it returns its own.
+loadAllSubqueryWithTsRowsNextToAnIndex
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: ts_command_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (TS k8s_unmapped | SORT @timestamp | LIMIT 1 | KEEP @timestamp, reg*, network.bytes_in*),
+     (FROM partial_mapping_sample_data | SORT @timestamp | LIMIT 1 | KEEP @timestamp, unmapped_message*)
+| SORT @timestamp
+;
+
+@timestamp:datetime      | _unmapped_fields:_source
+2024-05-10T00:00:29.000Z | "{""network.bytes_in"":699,""region"":""us""}"
+2024-10-23T12:15:03.360Z | "{""unmapped_message"":""Disconnected from 10.1.0.3""}"
+;
+
+// A TS aggregation in a branch has no _unmapped_fields column, so the union takes the column from the index branch and null-fills it
+// for the aggregation rows.
+loadAllSubqueryWithTsAggregationNextToAnIndex
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: subquery_in_from_command
+required_capability: ts_command_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (TS k8s_unmapped | STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster | SORT cluster | LIMIT 2),
+     (FROM partial_mapping_sample_data | SORT @timestamp | LIMIT 1 | KEEP @timestamp, unmapped_message*)
+| SORT cluster, tx
+;
+
+tx:long | cluster:keyword | @timestamp:datetime      | _unmapped_fields:_source
+3015    | prod            | null                     | null
+3022    | qa              | null                     | null
+null    | null            | 2024-10-23T12:15:03.360Z | "{""unmapped_message"":""Disconnected from 10.1.0.3""}"
+;
+
+// After a time-series aggregation there is no _unmapped_fields column to carry into the branches of a FORK.
+loadAllForkAfterTsAggregation
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork
+required_capability: fork_v9
+required_capability: ts_command_v0
+required_capability: optional_fields_load_all_ts
+
+SET unmapped_fields="LOAD_ALL"\;
+TS k8s_unmapped
+| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster
+| FORK (WHERE cluster == "prod") (WHERE cluster == "qa")
+| SORT cluster, _fork
+;
+
+tx:long | cluster:keyword | _fork:keyword
+3015    | prod            | fork1
+3022    | qa              | fork2
+;

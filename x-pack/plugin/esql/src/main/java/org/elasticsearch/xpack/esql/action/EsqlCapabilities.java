@@ -3873,6 +3873,14 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_ONLY_KEEP_AND_DROP_REACH_KEYS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
 
         /**
+         * {@code unmapped_fields="LOAD_ALL"} works with the {@code TS} source command, and with {@code METRICS_INFO} and {@code TS_INFO}.
+         * A time-series aggregation drops the {@code _unmapped_fields} column like any {@code STATS}, and a {@code TS} query without
+         * one returns it like a {@code FROM} does. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available. See
+         * <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_TS(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}
@@ -5032,6 +5040,12 @@ public class EsqlCapabilities {
          * was the earliest. {@code LAST} and {@code LATEST} on histogram fields returned all histograms of the series merged.
          */
         FIX_TS_FIRST_LAST_SAMPLES,
+
+        /**
+         * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
+         * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
+         */
+        UNMAPPED_FIELDS_IN_REQUEST_BODY,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

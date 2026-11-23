@@ -75,9 +75,8 @@ public record SourceOperatorContext(
     @Nullable TaskId queryId
 ) {
     /**
-     * Single source of truth for the {@code external_max_concurrent_open_segments} default. Lives in this SPI (leaf)
-     * layer so both the {@code QueryPragmas} setting and the datasources-side fallback defaults reference it
-     * without {@code datasources} having to depend on {@code plugin}. Change here and it propagates.
+     * Datasources-side fallback for {@code external_max_concurrent_open_segments} when the planner did not
+     * pass a pragma-resolved value. {@code QueryPragmas} holds the matching Setting default independently.
      */
     public static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = 4;
 

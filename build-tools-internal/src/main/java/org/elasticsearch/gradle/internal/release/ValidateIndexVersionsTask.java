@@ -57,7 +57,7 @@ import static org.elasticsearch.gradle.internal.release.AbstractVersionsTask.IND
  *   <li>Once the branch's {@code x.y.0} is released (listed in {@code IndexVersions.csv}), no id may have a higher server version part
  *   than the id {@code x.y.0} shipped with, so the branch can only add patch ids.</li>
  *   <li>In a PR build whose target branch is a release branch or the serverless patch branch, every id must exist on main with the same
- *   name, and every main id below the branch's highest id must exist on the branch, except patch ids of older branches.
+ *   name and Lucene version, and every main id below the branch's highest id must exist on the branch, except patch ids of older branches.
  *   A base id the change adds must not follow a patch id, and a change that adds ids must raise the branch's highest id. Reads main, and
  *   the target branch at the commit the change branched from, from git.</li>
  * </ul>
@@ -72,6 +72,9 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
 
     // IndexVersions#FIRST_DETACHED_INDEX_VERSION. Lower ids use the format of releases before 8.11 and are never the id new indices get.
     static final int FIRST_DETACHED_ID = 8_500_000;
+
+    // IndexVersions#NEW_INDEXVERSION_FORMAT. Lower ids have no patch part, so each one is a base id.
+    static final int FIRST_PATCH_FORMAT_ID = 8_501_0_00;
 
     // appended once after all errors, since every error has the same cause and fix
     private static final String HOW_TO_FIX =
@@ -95,7 +98,6 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
 
     @TaskAction
     public void validate() throws IOException {
-        TransportVersionResourcesService git = getGit().get();
         List<String> errors = check(
             VersionProperties.getElasticsearchVersion(),
             Files.readString(rootDir.resolve(INDEX_VERSIONS_FILE_PATH)),
@@ -103,9 +105,9 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
             // only PR builds compare with main, so a change on main never blocks a release branch's builds after merge
             System.getenv("BUILDKITE_PULL_REQUEST_BASE_BRANCH"),
             getPatchBranchName().getOrNull(),
-            () -> git.getFileFromElasticBranch("main", INDEX_VERSIONS_FILE_PATH),
+            () -> getGit().get().getFileFromElasticBranch("main", INDEX_VERSIONS_FILE_PATH),
             // the target as the change branched from it, since CI builds the change without merging the target's later commits into it
-            () -> git.getFileFromBaseRef(INDEX_VERSIONS_FILE_PATH)
+            () -> getGit().get().getFileFromBaseRef(INDEX_VERSIONS_FILE_PATH)
         );
         if (errors.isEmpty() == false) {
             throw new GradleException(String.join(System.lineSeparator(), errors) + System.lineSeparator() + HOW_TO_FIX);
@@ -151,8 +153,8 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
     }
 
     /**
-     * Maps each index version id to its constant's name. The Lucene version is left out: main rewrites it when Lucene drops old constants, and
-     * a change that reuses an id for a different change shows up as a different name.
+     * Maps each index version id to its constant's name and Lucene version. The Lucene version is normalized, since main rewrites constants
+     * such as {@code Version.LUCENE_9_12_1} to {@code parseUnchecked("9.12.1")} when Lucene drops them.
      */
     static Map<Integer, String> readDefinitions(String source) {
         Map<Integer, String> definitions = new TreeMap<>();
@@ -168,10 +170,34 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
                 .filter(MethodCallExpr.class::isInstance)
                 .map(MethodCallExpr.class::cast)
                 .filter(call -> call.getNameAsString().equals("def") && call.getArguments().isEmpty() == false)
-                .filter(call -> call.getArgument(0).isIntegerLiteralExpr())
-                .ifPresent(
-                    call -> definitions.put(call.getArgument(0).asIntegerLiteralExpr().asNumber().intValue(), variable.getNameAsString())
-                );
+                .ifPresent(call -> {
+                    // an id this task cannot read would escape every check
+                    if (call.getArgument(0).isIntegerLiteralExpr() == false) {
+                        throw new IllegalArgumentException(
+                            "Index version ["
+                                + variable.getNameAsString()
+                                + "] must define its id as an integer literal, not ["
+                                + call.getArgument(0)
+                                + "]"
+                        );
+                    }
+                    String lucene = call.getArgument(1)
+                        .toString()
+                        .replaceFirst("^Version\\.LUCENE_(\\d+)_(\\d+)_(\\d+)$", "$1.$2.$3")
+                        .replaceFirst("^parseUnchecked\\(\"(.+)\"\\)$", "$1");
+                    int id = call.getArgument(0).asIntegerLiteralExpr().asNumber().intValue();
+                    // compared as text, so a Lucene version each branch resolves itself, such as Version.LATEST, could differ unnoticed
+                    if (id != 0 && lucene.matches("\\d+\\.\\d+\\.\\d+") == false) {
+                        throw new IllegalArgumentException(
+                            "Index version ["
+                                + variable.getNameAsString()
+                                + "] must name its Lucene version, such as Version.LUCENE_10_4_0, not ["
+                                + call.getArgument(1)
+                                + "]"
+                        );
+                    }
+                    definitions.put(id, variable.getNameAsString() + " (Lucene " + lucene + ")");
+                });
         }
         return definitions;
     }
@@ -194,7 +220,7 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
             return errors;
         }
         for (int id : ids) {
-            if (id / 1000 > frozenBaseId / 1000) {
+            if (id > frozenBaseId + 99) {
                 errors.add(
                     String.format(
                         Locale.ROOT,
@@ -221,7 +247,7 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
                 errors.add("Index version [" + label(definition) + "] is not on main.");
             } else if (onMain.equals(definition.getValue()) == false) {
                 errors.add(
-                    "Index version [" + label(definition) + "] is named [" + onMain + "] on main. If main renamed it, backport that change."
+                    "Index version [" + label(definition) + "] is [" + onMain + "] on main. If main changed it, backport that change."
                 );
             }
             if (definition.getKey() % 100 == 0) {
@@ -233,7 +259,7 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
         // branches, so they are exempt; patch ids above it are this branch's own, and skipping one is the same bug as skipping a base id.
         for (var definition : main.entrySet()) {
             int id = definition.getKey();
-            boolean required = id < highestId && (id % 100 == 0 || id > highestBaseId);
+            boolean required = id < highestId && (id < FIRST_PATCH_FORMAT_ID || id % 100 == 0 || id > highestBaseId);
             if (required && branch.containsKey(id) == false && allowedMissing.contains(id) == false) {
                 errors.add(
                     "Index version [" + label(definition) + "] from main is missing, but this branch has [" + format(highestId) + "]."
@@ -269,10 +295,14 @@ public abstract class ValidateIndexVersionsTask extends DefaultTask {
                 );
             }
         }
-        // a change that also removes ids corrects a wrong id, as 9.1 and 9.2 did by replacing a copied base id with a patch id
+        // Compared with the kept ids rather than the target's, since a change may remove a wrong id, as 9.1 and 9.2 did by replacing a
+        // copied base id with a patch id, and the target may have ids the change lacks when the merge base is unknown and the target's
+        // head is used. Those ids are above the kept ids, so an id the change removes below them is a correction, such as backporting
+        // main renumbering an id, and the id that replaces it adds no change.
         List<Integer> added = branch.stream().filter(id -> id >= FIRST_DETACHED_ID && targetBase.contains(id) == false).sorted().toList();
-        int targetHighest = targetBase.stream().max(Integer::compare).orElse(0);
-        if (added.isEmpty() == false && branch.containsAll(targetBase) && Collections.max(branch) <= targetHighest) {
+        int targetHighest = branch.stream().filter(targetBase::contains).max(Integer::compare).orElse(0);
+        long replaced = targetBase.stream().filter(id -> id < targetHighest && branch.contains(id) == false).count();
+        if (added.size() > replaced && Collections.max(added) < targetHighest) {
             errors.add(
                 String.format(
                     Locale.ROOT,

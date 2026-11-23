@@ -253,9 +253,10 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 "No git remote points to an elastic GitHub repository, cannot read [" + path + "] from " + branch
             );
         }
-        // tasks run in parallel, and two fetches that update the same remote ref at once can fail to lock it
+        // tasks run in parallel, and two fetches that update the same remote ref at once can fail to lock it. The destination is explicit
+        // since a fetch by name only updates the remote ref when the fetch refspec covers it, which a single branch clone's does not.
         synchronized (baseRefName) {
-            gitCommand("fetch", remote, branch);
+            gitCommand("fetch", remote, "+refs/heads/" + branch + ":refs/remotes/" + remote + "/" + branch);
         }
         return gitCommand("show", remote + "/" + branch + ":" + path);
     }

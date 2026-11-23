@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertThrows;
 
 public class ValidateIndexVersionsTaskTests {
 
@@ -56,7 +57,26 @@ public class ValidateIndexVersionsTaskTests {
                     return o instanceof String s && s.isEmpty() == false;
                 }
             }""");
-        assertThat(definitions, equalTo(Map.of(0, "ZERO", 9_094_0_00, "A", 9_094_0_01, "A_BACKPORT")));
+        assertThat(
+            definitions,
+            equalTo(
+                Map.of(0, "ZERO (Lucene Version.LATEST)", 9_094_0_00, "A (Lucene 10.4.0)", 9_094_0_01, "A_BACKPORT (Lucene 10.4.0)")
+            )
+        );
+
+        // an id this task cannot read would escape every check
+        IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> readDefinitions("class IndexVersions { static final IndexVersion A = def((9_112_0_00), Version.LATEST); }")
+        );
+        assertThat(e.getMessage(), containsString("[A] must define its id as an integer literal, not [(9_112_0_00)]"));
+
+        // Version.LATEST reads the same on every branch but resolves to each branch's Lucene version, so only ZERO may use it
+        e = assertThrows(
+            IllegalArgumentException.class,
+            () -> readDefinitions("class IndexVersions { static final IndexVersion A = def(9_112_0_00, Version.LATEST); }")
+        );
+        assertThat(e.getMessage(), containsString("[A] must name its Lucene version, such as Version.LUCENE_10_4_0, not [Version.LATEST]"));
     }
 
     @Test
@@ -79,6 +99,9 @@ public class ValidateIndexVersionsTaskTests {
         List<String> errors = checkOnlyPatchIdsAfterRelease(List.of(frozen, later, later + 1), frozen);
         assertThat("frozen [" + frozen + "] later [" + later + "]", errors, hasSize(2));
         assertThat(errors.get(0), containsString("[" + format(later) + "] is above [" + format(frozen) + "]"));
+
+        // a non-zero subsidiary part is above every patch id of the frozen base id
+        assertThat(checkOnlyPatchIdsAfterRelease(List.of(frozen, frozen + 100), frozen), contains(containsString("is above")));
     }
 
     @Test
@@ -89,7 +112,7 @@ public class ValidateIndexVersionsTaskTests {
         // the first 9.5 backport attempt reused main's 9_108_0_00 for a different change
         assertThat(
             checkAgainstMain(Map.of(9_107_0_00, "A", 9_108_0_00, "C"), main, Set.of()),
-            contains("Index version [C = 9_108_0_00] is named [B] on main. If main renamed it, backport that change.")
+            contains("Index version [C = 9_108_0_00] is [B] on main. If main changed it, backport that change.")
         );
         assertThat(
             checkAgainstMain(Map.of(9_107_0_00, "A", 9_107_0_01, "P"), main, Set.of()),
@@ -105,6 +128,15 @@ public class ValidateIndexVersionsTaskTests {
                 Set.of()
             ),
             empty()
+        );
+        // Elasticsearch creates empty Lucene indices with the Lucene version of an index version, so a different one is a different change
+        assertThat(
+            checkAgainstMain(
+                readDefinitions(String.format(Locale.ROOT, lucene, "Version.LUCENE_9_12_1")),
+                readDefinitions(String.format(Locale.ROOT, lucene, "Version.LUCENE_9_12_2")),
+                Set.of()
+            ),
+            contains("Index version [A (Lucene 9.12.1) = 9_107_0_00] is [A (Lucene 9.12.2)] on main. If main changed it, backport that change.")
         );
     }
 
@@ -157,6 +189,11 @@ public class ValidateIndexVersionsTaskTests {
         branch.remove(base + patches);
         branch.put(skipped, main.get(skipped));
         assertThat(checkAgainstMain(branch, main, Set.of()), empty());
+
+        // ids before 8.11's format have no patch part, so a missing one is a missing base id, like main's NEW_SPARSE_VECTOR = 8_500_001
+        int detached = 8_500_000 + ThreadLocalRandom.current().nextInt(1, 20);
+        main.put(detached, "DETACHED");
+        assertThat(checkAgainstMain(branch, main, Set.of()), contains(containsString("[DETACHED = " + format(detached) + "] from main is missing")));
     }
 
     @Test
@@ -197,8 +234,17 @@ public class ValidateIndexVersionsTaskTests {
         assertThat(checkAddedIds(Set.of(older, olderPatch, base, patch, patch + 1), target), empty());
         // replacing a wrong id corrects a mistake, like 9.2 replacing a copied 9_040_0_00 with 9_039_0_03
         assertThat(checkAddedIds(Set.of(older, base, patch), Set.of(older, base, base + 1000)), empty());
+        // so does correcting an id below the highest, like backporting main renumbering it
+        int right = older + ThreadLocalRandom.current().nextInt(1, 50);
+        int wrong = right + ThreadLocalRandom.current().nextInt(1, 50);
+        assertThat(checkAddedIds(Set.of(older, right, base, patch), Set.of(older, wrong, base, patch)), empty());
         // ids before 8.11 are never the id new indices get, like 9.0 adding V_8_5_3 = 8_05_03_99
         assertThat(checkAddedIds(Set.of(8_05_03_99, older, base, patch), target), empty());
+        // without a merge base the target's head is used, which may have ids the change lacks; adding only an older id still fails
+        assertThat(
+            checkAddedIds(Set.of(older, olderPatch, base, patch), Set.of(older, base, patch, patch + 1)),
+            contains(containsString("Index versions [" + format(olderPatch) + "] do not raise this branch's highest id [" + format(patch) + "]"))
+        );
     }
 
     @Test
@@ -222,7 +268,7 @@ public class ValidateIndexVersionsTaskTests {
         List<String> errors = check(Version.fromString("9.6.1"), source(on95), csv, "9.6", null, () -> elastic.get("main"), () -> elastic.get("9.6"));
         assertThat("patches [" + patches + "]", errors, hasSize(1 + patches + 3));
         assertThat(errors.get(0), containsString("[9_111_0_00] is above [9_107_0_00]"));
-        assertThat(errors.get(1 + patches), containsString("[V9108000 = 9_108_0_00] from main is missing"));
+        assertThat(errors.get(1 + patches), containsString("[V9108000 (Lucene 10.4.0) = 9_108_0_00] from main is missing"));
 
         // a target that is not compared with main reads nothing from git
         assertThat(check(v95, source(on95), csv, "stack/9.5-fix", null, ValidateIndexVersionsTaskTests::unread, ValidateIndexVersionsTaskTests::unread), empty());
@@ -236,7 +282,7 @@ public class ValidateIndexVersionsTaskTests {
         copied.add(skipped);
         assertThat(
             check(v95, source(copied), csv, null, null, ValidateIndexVersionsTaskTests::unread, ValidateIndexVersionsTaskTests::unread),
-            contains(containsString("[V" + skipped + " = " + format(skipped) + "] must stay off 9.5"))
+            contains(containsString("[V" + skipped + " (Lucene 10.4.0) = " + format(skipped) + "] must stay off 9.5"))
         );
 
         // the target branch, not main, decides which base ids the change adds
@@ -262,7 +308,7 @@ public class ValidateIndexVersionsTaskTests {
     private static String source(List<Integer> ids) {
         StringBuilder source = new StringBuilder("class IndexVersions {\n");
         for (int id : ids) {
-            source.append("    static final IndexVersion V").append(id).append(" = def(").append(id).append(", L);\n");
+            source.append("    static final IndexVersion V").append(id).append(" = def(").append(id).append(", Version.LUCENE_10_4_0);\n");
         }
         return source.append("}").toString();
     }

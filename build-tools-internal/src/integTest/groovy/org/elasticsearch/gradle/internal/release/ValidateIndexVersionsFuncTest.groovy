@@ -13,8 +13,7 @@ import org.elasticsearch.gradle.internal.transport.AbstractTransportVersionFuncT
 
 /**
  * Covers the wiring the unit tests cannot: precommit runs the task, and the PR's target branch decides whether it reads main from git.
- * The test repository has no remote on GitHub's elastic organization, so reading main fails with a known error. Changelog validation
- * is skipped since it needs a schema file this build does not have.
+ * Changelog validation is skipped since it needs a schema file this build does not have.
  */
 class ValidateIndexVersionsFuncTest extends AbstractTransportVersionFuncTest {
 
@@ -32,11 +31,29 @@ class ValidateIndexVersionsFuncTest extends AbstractTransportVersionFuncTest {
     }
 
     def "precommit reads main from git when a PR targets a release branch"() {
+        given: "main renamed the index version after 9.6 copied it"
+        commitAll("copy-to-9.6")
+        execute("git branch 9.6")
+        execute("git branch -f main")
+        execute("git checkout main")
+        def indexVersions = file("server/src/main/java/org/elasticsearch/index/IndexVersions.java")
+        indexVersions.text = indexVersions.text.replace("FIRST", "RENAMED")
+        commitAll("rename-on-main")
+        execute("git checkout test")
+
+        and: "a remote on GitHub's elastic organization that fetches only 9.6, like CI's clone, and is served by this repository over ssh"
+        def ssh = file("fake-ssh")
+        ssh.text = "#!/bin/sh\nexec git-upload-pack '${testProjectDir.root}'\n"
+        ssh.setExecutable(true)
+        execute("git remote add -t 9.6 origin git@github.com:elastic/elasticsearch.git")
+        execute("git config core.sshCommand ${ssh}")
+        execute("git config ssh.variant simple")
+
         when:
         def result = gradleRunnerWithEnv(Map.of("BUILDKITE_PULL_REQUEST_BASE_BRANCH", "9.6"), ":precommit", "-x", ":validateChangelogs").buildAndFail()
 
         then:
-        result.output.contains("No git remote points to an elastic GitHub repository")
+        result.output.contains("Index version [FIRST (Lucene 10.5.0) = 9_107_0_00] is [RENAMED (Lucene 10.5.0)] on main.")
     }
 
     def "builds that are not PRs do not read git"() {

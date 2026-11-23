@@ -35,6 +35,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -316,11 +317,18 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
         return Pattern.compile("(?i)\\bRENAME\\b[^|]*(?<![\\w.*])" + Pattern.quote(name) + "(?![\\w.*])").matcher(query).find();
     }
 
-    /** Does the query assign to a column of this name, as {@code EVAL name = ...} or {@code RENAME x AS name} do? */
-    private static boolean definesColumn(String query, String name) {
-        String quoted = Pattern.quote(name);
-        return Pattern.compile("(?<![\\w.])" + quoted + "\\s*=(?!=)").matcher(query).find()
-            || Pattern.compile("(?i)\\bAS\\s+" + quoted + "(?![\\w.*])").matcher(query).find();
+    private static final Pattern COMMAND_PATTERN = Pattern.compile("\\|\\s*(\\w+)");
+    private static final Set<String> FILTERING_COMMANDS = Set.of("WHERE", "SORT", "LIMIT");
+
+    /** Does the query use no command but {@code WHERE}, {@code SORT} and {@code LIMIT}, in the query or in a subquery? */
+    private static boolean onlyFiltersSortsAndLimits(String query) {
+        Matcher command = COMMAND_PATTERN.matcher(query);
+        while (command.find()) {
+            if (FILTERING_COMMANDS.contains(command.group(1).toUpperCase(Locale.ROOT)) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean projectsColumns(String query) {
@@ -559,12 +567,10 @@ public class CsvLoadAllUnmappedKeywordIT extends CsvIT {
                 }
                 // And the other way round: the key must still be there, with the value of the column. The object is not stripped when it
                 // differs, so a key that wrongly disappears fails the comparison with the expected results instead of passing unnoticed.
-                // Not for a query that projects, since a KEEP reaches the keys with its patterns only, and an exact name does not, and not
-                // for one that defines a column of that name (an EVAL or a RENAME), whose values are not those of the key.
-                if (expectedColumn
-                    && alreadyAColumn
-                    && projectsColumns(testCase.query) == false
-                    && definesColumn(testCase.query, removedField) == false) {
+                // Only for queries that filter, sort and limit: any other command can make the column differ from the key (an EVAL, a
+                // RENAME, a GROK or a MV_EXPAND), or decide which keys remain (a KEEP or a DROP). How the keys and those commands interact
+                // is not decided here but by DetermineUnmappedFieldsToKeepTests, UnmappedFieldsPatternTests and unmapped-load-all.csv-spec.
+                if (expectedColumn && alreadyAColumn && onlyFiltersSortsAndLimits(testCase.query)) {
                     int column = names.indexOf(removedField);
                     for (int i = 0; i < rows.size(); i++) {
                         if (sortedDistinctValues(rows.get(i).get(column)).equals(sortedDistinctValues(removedValues.get(i))) == false) {

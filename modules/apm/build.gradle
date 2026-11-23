@@ -48,8 +48,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.opentelemetry.exporter.internal.marshal.UnsafeStringEncoder$UnsafeHolder'
   )
   ignoreMissingClasses(
-    'com.fasterxml.jackson.core.JsonFactory',
-    'com.fasterxml.jackson.core.JsonGenerator',
     'com.google.common.io.ByteStreams',
     'io.grpc.Drainable',
     'io.grpc.KnownLength',

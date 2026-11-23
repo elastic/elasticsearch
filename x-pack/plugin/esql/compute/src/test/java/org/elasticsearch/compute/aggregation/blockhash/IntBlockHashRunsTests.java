@@ -26,6 +26,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -98,7 +100,7 @@ public class IntBlockHashRunsTests extends ComputeTestCase {
 
     /** Unique keys make every run one row long: the page is hashed row by row, and the scan stops after the probe. */
     public void testUniqueKeysAreHashedRowByRow() {
-        try (BlockHash hash = new IntBlockHash(0, blockFactory())) {
+        try (IntBlockHash hash = new IntBlockHash(0, blockFactory())) {
             int key = 0;
             for (int page = 0; page < 20; page++) {
                 int[] keys = new int[8192];
@@ -110,6 +112,8 @@ public class IntBlockHashRunsTests extends ComputeTestCase {
                 assertThat("page " + page, ids(hash, keys), equalTo(expected));
             }
             assertThat(hash.toString(), containsString("runPages=0, rowByRowPages=20"));
+            // The probe is 256 rows, so no page is scanned for much longer than that, not for its 8192 rows.
+            assertThat(hash.scannedRows(), lessThanOrEqualTo(20L * 257));
         }
     }
 
@@ -196,11 +200,14 @@ public class IntBlockHashRunsTests extends ComputeTestCase {
                 keys[i] = i % 2;
                 expected[i] = i % 2 + 1;
             }
-            try (BlockHash hash = new IntBlockHash(0, blockFactory())) {
+            try (IntBlockHash hash = new IntBlockHash(0, blockFactory())) {
                 Seen seen = add(hash, keys);
                 assertThat("positions " + positions, seen.how, equalTo("vector"));
                 assertThat("positions " + positions, seen.groupIds, equalTo(expected));
                 assertThat(hash.toString(), containsString("runPages=0, rowByRowPages=1"));
+                // Every key is a new run, so a quarter of the page has already made more runs than the page can afford.
+                assertThat("positions " + positions, hash.scannedRows(), lessThanOrEqualTo(positions / 4L + 1));
+                assertThat("positions " + positions, hash.scannedRows(), lessThan((long) positions));
             }
         }
     }

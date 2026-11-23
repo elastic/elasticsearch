@@ -74,6 +74,12 @@ final class IntBlockHash extends PartitionedBlockHash {
     private long rowByRowPages;
 
     /**
+     * How many rows the search for runs looked at, over all pages, so that a test can check that a page which cannot take
+     * the runs path stops being scanned early.
+     */
+    private long scannedRows;
+
+    /**
      * The smallest average run length at which a page takes the runs path. Finding the runs costs a comparison per row and
      * saves one hash probe per row that repeats the previous key, and the aggregators that cannot combine a run still pay
      * to expand it, so it only pays when keys repeat several times in a row. Measured with {@code COUNT}, {@code AVG},
@@ -170,6 +176,7 @@ final class IntBlockHash extends PartitionedBlockHash {
                 final boolean cannotReachTheAverage = (long) (completedRuns + 1) * MIN_AVERAGE_RUN_LENGTH > positions;
                 final boolean sparseSoFar = i >= PROBE_ROWS && (long) completedRuns * MIN_AVERAGE_RUN_LENGTH > i;
                 if (cannotReachTheAverage || sparseSoFar) {
+                    scannedRows += i + 1;
                     addRowByRow(vector, addInput);
                     return;
                 }
@@ -177,6 +184,7 @@ final class IntBlockHash extends PartitionedBlockHash {
             }
         }
         runs.appendRunEnd(positions);
+        scannedRows += positions;
         int runCount = runs.runCount();
         if ((long) runCount * MIN_AVERAGE_RUN_LENGTH > positions) {
             addRowByRow(vector, addInput);
@@ -191,6 +199,13 @@ final class IntBlockHash extends PartitionedBlockHash {
         } finally {
             runs.release();
         }
+    }
+
+    /**
+     * How many rows the search for runs looked at, over all pages. Only for tests.
+     */
+    long scannedRows() {
+        return scannedRows;
     }
 
     private void addRowByRow(IntVector vector, GroupingAggregatorFunction.AddInput addInput) {

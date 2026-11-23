@@ -915,6 +915,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
+            failIfNoDocValuesForDistanceFeature();
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             long pivotLong = resolution.convert(pivotTime);

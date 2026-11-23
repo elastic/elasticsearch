@@ -83,3 +83,61 @@ setup:
 - match: { hits.hits.0._id: "3" }
 - match: { hits.hits.1._id: "1" }
 - match: { hits.hits.2._id: "2" }
+
+---
+"test distance_feature query on fields without doc values":
+- requires:
+    test_runner_features: [capabilities]
+    capabilities:
+      - method: POST
+        path: /_search
+        capabilities: [distance_feature_no_doc_values_bad_request]
+    reason: "distance_feature on a field without doc values is rejected with a 400"
+
+- do:
+    indices.create:
+      index: index_no_dv
+      body:
+        mappings:
+          properties:
+            my_date:
+              type: date
+              doc_values: false
+            my_geo:
+              type: geo_point
+              doc_values: false
+
+- do:
+    index:
+      index: index_no_dv
+      id: "1"
+      refresh: true
+      body: { "my_date": "2018-02-01T10:00:00Z", "my_geo": [-71.34, 41.13] }
+
+- do:
+    catch: bad_request
+    search:
+      index: index_no_dv
+      body:
+        query:
+          distance_feature:
+            field: my_date
+            pivot: 7d
+            origin: 2018-02-01T10:00:00Z
+
+- match: { error.root_cause.0.type: query_shard_exception }
+- match: { error.root_cause.0.reason: "failed to create query: Cannot run [distance_feature] query on field [my_date] since it does not have doc values." }
+
+- do:
+    catch: bad_request
+    search:
+      index: index_no_dv
+      body:
+        query:
+          distance_feature:
+            field: my_geo
+            pivot: 1km
+            origin: [-71.35, 41.12]
+
+- match: { error.root_cause.0.type: query_shard_exception }
+- match: { error.root_cause.0.reason: "failed to create query: Cannot run [distance_feature] query on field [my_geo] since it does not have doc values." }

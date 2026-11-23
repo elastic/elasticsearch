@@ -687,6 +687,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
+            failIfNoDocValuesForDistanceFeature();
             GeoPoint originGeoPoint;
             if (origin instanceof GeoPoint) {
                 originGeoPoint = (GeoPoint) origin;

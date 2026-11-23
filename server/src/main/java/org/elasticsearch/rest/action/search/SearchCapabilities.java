@@ -107,6 +107,9 @@ public final class SearchCapabilities {
     /** Scripts that enumerate or return the {@code doc} or {@code _fields} lookup are rejected with a 400. */
     private static final String DOC_LOOKUP_ENUMERATION_ILLEGAL_ARGUMENT = "doc_lookup_enumeration_illegal_argument";
 
+    /** A {@code distance_feature} query on a field without doc values is rejected with a 400 instead of a 500. */
+    private static final String DISTANCE_FEATURE_NO_DOC_VALUES_BAD_REQUEST = "distance_feature_no_doc_values_bad_request";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -156,6 +159,7 @@ public final class SearchCapabilities {
         capabilities.add(COMPOSITE_AGG_REJECTS_NON_POSITIVE_SIZE);
         capabilities.add(NUMERIC_VALUE_SCRIPT_NULL_IS_MISSING);
         capabilities.add(DOC_LOOKUP_ENUMERATION_ILLEGAL_ARGUMENT);
+        capabilities.add(DISTANCE_FEATURE_NO_DOC_VALUES_BAD_REQUEST);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

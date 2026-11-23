@@ -125,6 +125,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 - `sum`, `avg`, `min`, `max`, `count`, `quantile`, `stddev`, and `stdvar`, with `by(...)`, `without(...)`, or no grouping.
 - {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `topk`, `bottomk`, `limitk`, and `limit_ratio`.
+- {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` Nested `without(...)`, such as `sum without (pod) (max without (container) (x))`.
 - {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` `count_values`, with `by(...)` or no grouping, such as `count_values("version", build_version)`.
 
 **Not supported yet**
@@ -139,7 +140,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 | 33 | `or` between `count_values` and a vector whose label of the same name is mapped as a type other than `keyword` {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` | `sum by (shard) (x) or count_values("shard", x)`, where `shard` is a `long` field | - | - |
 | 34 | `topk`, `bottomk`, `limitk`, `limit_ratio`, or `count_values` with `without(...)` | `topk without (instance) (1, x)`, `count_values without (instance) ("v", x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
 | 35 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
-| 36 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 36 | Nested `without(...)` {applies_to}`stack: preview =9.4, ga 9.5-9.6` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
 | 37 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
 | 38 | Grouping by a label named `step`, or a `count_values` label named `step`, `_timeseries`, or with the same name as the value column (set by `name=(...)`) | `sum by (step) (x)`, `count_values("step", x)`, `value=(count_values("value", x))` | `step`, `_timeseries`, and the value column are output columns of the `PROMQL` command | - |
 :::

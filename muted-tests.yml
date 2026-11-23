@@ -815,11 +815,6 @@ tests:
   - :modules:aggregations:yamlRestTest
   method: test {yaml=aggregations/terms_include_exclude_regex/a build predicted to exceed the request breaker is refused, and the reservation is released}
   issue: https://github.com/elastic/elasticsearch/issues/167016
-- class: org.elasticsearch.index.codec.vectors.es816.BinaryQuantizationTests
-  tasks:
-  - :server:test
-  method: testQuantizeForQuery
-  issue: https://github.com/elastic/elasticsearch/issues/167018
 - class: org.elasticsearch.xpack.esql.action.CrossClusterSerializedPlanBreakerIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

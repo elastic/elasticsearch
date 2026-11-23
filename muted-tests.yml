@@ -361,12 +361,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
   method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162491
-- class: org.elasticsearch.xpack.enrich.heappressure.EnrichDistinctKeysHeapPressureIT
-  issue: https://github.com/elastic/incident-management/issues/2018
-- class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyColdHeapPressureIT
-  issue: https://github.com/elastic/incident-management/issues/2018
-- class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyWarmHeapPressureIT
-  issue: https://github.com/elastic/incident-management/issues/2018
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
@@ -771,26 +765,11 @@ tests:
 - class: org.elasticsearch.xpack.spatial.heappressure.GeoShapeHeapPressureIT
   method: testContainsPointClauses
   issue: https://github.com/elastic/elasticsearch/issues/166396
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
-  tasks:
-  - :server:test
-  method: testRequiredFieldWithoutValueCausesColumnarFallback
-  issue: https://github.com/elastic/elasticsearch/issues/166579
-- class: org.elasticsearch.action.bulk.ShardBatchMapperParseTests
-  tasks:
-  - :server:test
-  method: testRequiredFieldWithoutValueAppearsInIgnoredOnIgnoreFailure
-  issue: https://github.com/elastic/elasticsearch/issues/166451
 - class: org.elasticsearch.snapshots.SnapshotResiliencyTests
   tasks:
   - :server:test
   method: testSnapshotDeleteWithMasterFailover
   issue: https://github.com/elastic/elasticsearch/issues/166596
-- class: org.elasticsearch.xpack.stateless.StatelessComponentsOrderIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testClosingNodeShouldWaitForOngoingMerge
-  issue: https://github.com/elastic/elasticsearch/issues/166623
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

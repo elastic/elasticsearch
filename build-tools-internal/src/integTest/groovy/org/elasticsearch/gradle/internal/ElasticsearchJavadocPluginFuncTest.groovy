@@ -12,9 +12,15 @@ package org.elasticsearch.gradle.internal
 import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import spock.lang.Unroll
 
 class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+
+    /** Holds the build cache and the project copies of the relocation test, outside of the test project itself. */
+    @Rule
+    TemporaryFolder relocationDir = new TemporaryFolder()
 
     Class<? extends org.gradle.api.Plugin> pluginClassUnderTest = org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin
 
@@ -70,9 +76,10 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFun
 
     def "javadoc with inter project linking is relocatable"() {
         given:
-        def buildCacheDir = testProjectDir.newFolder("build-cache")
-        def originalDir = testProjectDir.newFolder("original")
-        def relocatedDir = testProjectDir.newFolder("relocated")
+        // kept outside the test project so the copies below do not include each other or the cache
+        def buildCacheDir = relocationDir.newFolder("build-cache")
+        def originalDir = relocationDir.newFolder("original")
+        def relocatedDir = relocationDir.newFolder("relocated")
         someLibProject()
         someDependingLibProject()
         buildFile << """
@@ -91,10 +98,13 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFun
         copyProjectTo(relocatedDir)
 
         when:
-        gradleRunner(originalDir, ':some-depending-lib:javadoc', '--build-cache').build()
+        def originalResult = gradleRunner(originalDir, ':some-depending-lib:javadoc', '--build-cache').build()
         def result = gradleRunner(relocatedDir, ':some-depending-lib:javadoc', '--build-cache').build()
 
         then:
+        // the cache entries were created by the original build, not picked up from elsewhere
+        originalResult.task(":some-lib:javadoc").outcome == TaskOutcome.SUCCESS
+        originalResult.task(":some-depending-lib:javadoc").outcome == TaskOutcome.SUCCESS
         result.task(":some-lib:javadoc").outcome == TaskOutcome.FROM_CACHE
         result.task(":some-depending-lib:javadoc").outcome == TaskOutcome.FROM_CACHE
     }
@@ -359,19 +369,9 @@ class ElasticsearchJavadocPluginFuncTest extends AbstractGradleInternalPluginFun
     }
 
     /**
-     * Copies the test project (without the copy targets themselves) into {@code targetDir} so the same build
-     * can be run from different locations.
+     * Copies the test project into {@code targetDir} so the same build can be run from different locations.
      */
     private void copyProjectTo(File targetDir) {
-        def root = testProjectDir.root
-        root.eachFile { f ->
-            if (f.name in ['build-cache', 'original', 'relocated'] == false) {
-                if (f.isDirectory()) {
-                    FileUtils.copyDirectory(f, new File(targetDir, f.name))
-                } else {
-                    FileUtils.copyFileToDirectory(f, targetDir)
-                }
-            }
-        }
+        FileUtils.copyDirectory(testProjectDir.root, targetDir)
     }
 }

@@ -29,14 +29,16 @@ options {
  * A. To add a development command (only available behind in snapshot/dev builds)
  *
  * Since the tokens/modes are in development, add a predicate like this:
- * DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand' -> ...
+ * DEV_MYCOMMAND : 'mycommand' {this.isDevVersion()}? -> ...
  *
- * IMPORTANT: this pattern is safe only for keyword tokens (alphabetic strings in
- * dedicated lexer modes). Do NOT place {this.isDevVersion()}? on tokens whose first
- * character is a common operator or symbol (e.g. '-', '+', '=', '~'). A lexer
- * predicate on such a token prevents ANTLR from caching the DFA transition for that
- * character, forcing ATN simulation on every occurrence and causing a severe
- * performance regression (~13x) for ALL queries — not just those that use the token.
+ * IMPORTANT: always put the predicate AFTER the literal, never before it. A predicate
+ * placed first (DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand') prevents ANTLR from
+ * caching the DFA start state of the lexer mode, forcing ATN simulation for every token
+ * and slowing ALL queries, including those that never use the command. This applies to
+ * any predicate, not only isDevVersion(), for example EsqlCapabilities.Cap.X.isEnabled().
+ * It also applies to tokens whose first character is a common operator or symbol
+ * (e.g. '-', '+', '=', '~'): the predicate prevents caching the DFA transition for that
+ * character, causing a severe performance regression (~13x) for ALL queries.
  * For symbol tokens, keep the lexer rule unconditional and guard the parser rule
  * with {this.isDevVersion()}? instead. See the ARROW token as an example.
  *

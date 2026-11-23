@@ -942,40 +942,49 @@ public final class LuceneSliceQueue {
          */
         List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, int taskConcurrency, int maxDocsPerLeave)
             throws IOException {
-            final LeafPartitions[] partitions = loadPartitions(leaves);
+            final LeafPartitions[] allPartitions = loadPartitions(leaves);
             final List<List<PartialLeafReaderContext>> slices = new ArrayList<>();
+            final LeafPartitions[] metricLeaves = new LeafPartitions[allPartitions.length];
             for (int metric = 0; metric < NUM_METRICS; metric++) {
                 int metricDocs = 0;
                 int prefix = NO_MORE_PREFIXES;
-                for (LeafPartitions leaf : partitions) {
+                int numMetricPartitions = 0;
+                for (LeafPartitions leaf : allPartitions) {
                     assert leaf.next == leaf.metricStarts[metric];
                     leaf.metricEnd = leaf.metricStarts[metric + 1];
-                    metricDocs += leaf.startDoc(leaf.metricEnd) - leaf.startDoc(leaf.next);
-                    prefix = Math.min(prefix, leaf.nextPrefix());
+                    final int docCount = leaf.startDoc(leaf.metricEnd) - leaf.startDoc(leaf.next);
+                    if (docCount > 0) {
+                        metricLeaves[numMetricPartitions++] = leaf;
+                        metricDocs += docCount;
+                        prefix = Math.min(prefix, leaf.nextPrefix());
+                    }
                 }
                 final int docsPerSlice = Math.max(Math.ceilDiv(metricDocs, taskConcurrency), maxDocsPerLeave);
                 int pendingDocs = 0;
                 while (prefix != NO_MORE_PREFIXES) {
                     boolean anyLeafExceedsMaxDocs = false;
                     int nextPrefix = NO_MORE_PREFIXES;
-                    for (LeafPartitions leaf : partitions) {
+                    for (int i = 0; i < numMetricPartitions; i++) {
+                        final LeafPartitions leaf = metricLeaves[i];
                         if (leaf.nextPrefix() == prefix) {
                             final int startDoc = leaf.startDocs[leaf.next++];
                             final int endDoc = leaf.startDoc(leaf.next);
                             pendingDocs += endDoc - startDoc;
                             if (endDoc - leaf.startDocs[leaf.sliceStart] >= maxDocsPerLeave) {
-                                anyLeafExceedsMaxDocs = true; // only flush after have included all paritions for this prefix
+                                anyLeafExceedsMaxDocs = true; // only flush after including all partitions for this prefix
                             }
                         }
                         nextPrefix = Math.min(nextPrefix, leaf.nextPrefix());
                     }
                     if (anyLeafExceedsMaxDocs || pendingDocs >= docsPerSlice) {
-                        flushSlice(partitions, slices);
+                        flushSlice(metricLeaves, slices);
                         pendingDocs = 0;
                     }
                     prefix = nextPrefix;
                 }
-                flushSlice(partitions, slices);
+                if (pendingDocs > 0) {
+                    flushSlice(metricLeaves, slices);
+                }
             }
             return slices;
         }

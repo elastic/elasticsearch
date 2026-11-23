@@ -36,8 +36,6 @@ public class TargetRelocationSlotsEstimator {
         -1
     );
 
-    /// The two limits are published together, so that a calculation does not combine the overall limit of one configuration with the
-    /// non-critical limit of another.
     private volatile IncomingRecoveryLimits incomingRecoveryLimits;
     private volatile boolean masterThrottlingDisabled;
 

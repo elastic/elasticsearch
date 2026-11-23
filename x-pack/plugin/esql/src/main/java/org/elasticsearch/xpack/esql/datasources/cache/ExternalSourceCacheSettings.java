@@ -66,8 +66,8 @@ public final class ExternalSourceCacheSettings {
      * running keeps the scope it was built with, so turning this off does not stop its collection.
      * <p>
      * Off also clears the cache, so switching it back on leaves the node cold. Node-scoped, so a node left off
-     * harvests nothing and the coordinator never warms for its files; the footer caches are not reached and
-     * carry their own budgets.
+     * harvests nothing and the coordinator never warms for its files. The Parquet and ORC footer caches are
+     * separate, with their own budgets: this setting neither clears nor bypasses them.
      */
     public static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
         "esql.external.cache.enabled",

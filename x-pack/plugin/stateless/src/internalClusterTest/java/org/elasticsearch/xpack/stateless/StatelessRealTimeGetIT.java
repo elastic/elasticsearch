@@ -49,7 +49,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
@@ -678,7 +677,8 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
                                 if (engine instanceof IndexEngine indexEngine) {
                                     var map = indexEngine.getLiveVersionMap();
                                     var archive = (StatelessLiveVersionMapArchive) getArchive(map);
-                                    logger.warn("shard {} on [{}] at generation [{}], last unsafe generation for gets [{}], "
+                                    logger.warn(
+                                        "shard {} on [{}] at generation [{}], last unsafe generation for gets [{}], "
                                             + "version map unsafe for gets [{}], archive unsafe [{}], archive min safe generation [{}]",
                                         shard.shardId(),
                                         shard.routingEntry().currentNodeId(),

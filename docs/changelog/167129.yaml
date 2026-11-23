@@ -1,0 +1,7 @@
+area: Data streams
+issues:
+ - 167119
+pr: 167129
+summary: "DLM frozen tier: data loss if a backing index is removed from its data stream\
+  \ mid-transition [#167119]"
+type: bug

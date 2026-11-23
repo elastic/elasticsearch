@@ -11,17 +11,22 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DatasetMapping;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
@@ -79,6 +84,7 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -118,6 +124,7 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoPageWriter;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
@@ -136,10 +143,12 @@ import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
@@ -310,6 +319,7 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final EsqlFlags flags;
     private final ClusterService clusterService;
+    private final BatchIndexingEnabled batchIndexingEnabled;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
     private final String localNodeName;
@@ -473,6 +483,7 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.flags = new EsqlFlags(services.clusterService().getClusterSettings());
         this.clusterService = services.clusterService();
+        this.batchIndexingEnabled = services.batchIndexingEnabled();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.localNodeName = services.clusterService().getNodeName();
@@ -678,6 +689,22 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
+        boolean hasInto = viewResolution.plan().anyMatch(Into.class::isInstance);
+        try {
+            VerificationException remoteSource = hasInto ? remoteSourceOfInto(viewResolution.plan()) : null;
+            if (remoteSource != null) {
+                listener.onFailure(remoteSource);
+                return;
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (hasInto && request.allowPartialResultsRequested()) {
+            HeaderWarning.addWarning("INTO does not return partial results, so [allow_partial_results] is ignored");
+        }
+        // A partial INTO would still have written the rows of the shards that succeeded
+        boolean allowPartialResults = request.allowPartialResults() && hasInto == false;
         Configuration configuration = new Configuration(
             Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
@@ -691,8 +718,7 @@ public class EsqlSession {
             request.profile(),
             request.tables(),
             System.nanoTime(),
-            // TODO: force allowPartialResults=false for INTO once FROM is supported so shard failures do not write partial data
-            request.allowPartialResults(),
+            allowPartialResults,
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             resolved,
@@ -3672,6 +3698,15 @@ public class EsqlSession {
             );
         }
         plan.setAnalyzed();
+        if (plan instanceof Into into) {
+            // The writer writes to the resolved name, so the checks look at it too
+            String target = IndexNameExpressionResolver.resolveDateMathExpression(into.destination());
+            rejectDestinationThatIsRead(into, target);
+            if (configuration.explainOnly() == false) {
+                boolean batchIndexingSupported = ShardBatchIndexer.isBatchIndexingSupported(batchIndexingEnabled, clusterService);
+                IntoPageWriter.Factory.requireBatchDestination(batchIndexingSupported, projectMetadata, target);
+            }
+        }
         // TODO: when the plan contains an INTO node, validate the destination's mapping in projectMetadata
         // (including column/field type mismatches against the INTO child's output) after authorizing write privileges
         // during pre-analysis.
@@ -3681,6 +3716,47 @@ public class EsqlSession {
         columnSemantics.putAll(semantics);
         columnUnits.putAll(ColumnUnits.collect(plan, semantics));
         return plan;
+    }
+
+    /**
+     * A later batch of shards opens its search contexts after an earlier batch may have written, so a query that reads its own
+     * destination can read, and write again, the rows it wrote, depending on refreshes and on the order of the shards.
+     */
+    private void rejectDestinationThatIsRead(Into into, String target) {
+        IndexAbstraction destination = projectMetadata.getIndicesLookup().get(target);
+        if (destination == null || destination.getWriteIndex() == null) {
+            return;
+        }
+        String writeIndex = destination.getWriteIndex().getName();
+        for (EsRelation source : into.child().collect(EsRelation.class)) {
+            if (source.concreteQualifiedIndices().contains(writeIndex)) {
+                String message = "INTO destination [{}] is also read by the query, through [{}]";
+                throw new VerificationException(List.of(Failure.fail(into, message, into.destination(), source.indexPattern())));
+            }
+        }
+    }
+
+    /**
+     * A remote cluster that is unavailable and can be skipped leaves no index to resolve, so planning can finish without analysis,
+     * and the verification of {@code INTO} never runs. This groups the index patterns as they were written by the cluster they
+     * target, as the resolution does, so that a remote that the query excludes, like {@code -remote:*}, is not a remote source.
+     * With cross-project search the verification stays the only check.
+     */
+    @Nullable
+    private VerificationException remoteSourceOfInto(LogicalPlan parsed) {
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            return null;
+        }
+        for (Into into : parsed.collect(Into.class)) {
+            for (UnresolvedRelation relation : into.child().collect(UnresolvedRelation.class)) {
+                String[] patterns = Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern());
+                var clusters = indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, patterns, false).keySet();
+                if (clusters.stream().anyMatch(cluster -> RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(cluster) == false)) {
+                    return new VerificationException(List.of(Failure.fail(into, Into.UNSUPPORTED_SOURCE)));
+                }
+            }
+        }
+        return null;
     }
 
     private LogicalPlan optimizedPlan(LogicalPlan logicalPlan, LogicalPlanOptimizer logicalPlanOptimizer, PlanTimeProfile planTimeProfile) {

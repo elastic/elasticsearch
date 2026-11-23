@@ -1,0 +1,28 @@
+[
+  {
+    "id": "es-node-1_es_esql_external_sources_cpu_2026-11-23T10:05:00.123Z",
+    "usage_timestamp": "2026-11-23T10:00:00.123Z",
+    "creation_timestamp": "2026-11-23T10:05:00.456Z",
+    "usage": {
+      "type": "es_esql_external_sources_cpu",
+      "quantity": 3007,
+      "period_seconds": 300,
+      "metadata": {
+        "cpu_nanos": "3000000000",
+        "read_cpu_nanos": "4000000",
+        "planning_cpu_nanos": "1000000",
+        "split_discovery_cpu_nanos": "2000000"
+      }
+    },
+    "source": {
+      "id": "es-node-1",
+      "instance_group_id": "deployment-1",
+      "instance_group_type": "stateful_deployment",
+      "provider": "aws",
+      "region": "eu-west-1",
+      "metadata": {
+        "cluster_id": "cluster-1"
+      }
+    }
+  }
+]

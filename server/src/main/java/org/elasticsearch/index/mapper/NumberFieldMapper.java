@@ -374,7 +374,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         private IndexType indexType() {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
-                return IndexType.archivedPoints();
+                return IndexType.archivedPoints(docValuesParameters.get().enabled());
             }
             if (indexTerms.getValue()) {
                 assert indexed.get() : "[index_terms] requires [index] to be true";

@@ -237,7 +237,7 @@ public class IpFieldMapper extends FieldMapper {
 
         private IndexType indexType() {
             if (indexSettings.getIndexVersionCreated().isLegacyIndexVersion()) {
-                return docValuesParameters.get().enabled() ? IndexType.archivedPoints() : IndexType.NONE;
+                return IndexType.archivedPoints(docValuesParameters.get().enabled());
             }
             if (usesBinaryDocValues()) {
                 // Disable skippers if using binary doc values

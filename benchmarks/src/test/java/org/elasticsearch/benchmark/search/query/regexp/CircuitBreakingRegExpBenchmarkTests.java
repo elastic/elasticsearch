@@ -65,6 +65,7 @@ public class CircuitBreakingRegExpBenchmarkTests extends ESTestCase {
         assertEquals("deterministic", lucene.isDeterministic(), charged.isDeterministic());
     }
 
+    // TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): unmute INTERSECTION_WITH_COMPLEMENT when ~(X) is restored.
     public void testReservationCoversTheBuildAndStaysClose() {
         CircuitBreakingRegExpBenchmark bench = newBenchmark();
         Metrics metrics = new Metrics();

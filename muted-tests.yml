@@ -327,6 +327,26 @@ tests:
   - :server:test
   method: testComplementOperatorSurvivesSerialization
   issue: https://github.com/elastic/elasticsearch/issues/162974
+- class: org.elasticsearch.benchmark.search.query.regexp.CircuitBreakingRegExpBenchmarkTests
+  tasks:
+  - :benchmarks:test
+  method: testReservationCoversTheBuildAndStaysClose {INTERSECTION_WITH_COMPLEMENT}
+  issue: https://github.com/elastic/elasticsearch/issues/162974
+- class: org.elasticsearch.aggregations.AggregationsClientYamlTestSuiteIT
+  tasks:
+  - :modules:aggregations:yamlRestTest
+  method: test {yaml=aggregations/terms_include_exclude_regex/include with an intersection and complement excludes the complemented language}
+  issue: https://github.com/elastic/elasticsearch/issues/162974
+- class: org.elasticsearch.xpack.runtimefields.test.mapped.CoreWithMappedRuntimeFieldsIT
+  tasks:
+  - :x-pack:qa:runtime-fields:core-with-mapped:yamlRestTest
+  method: test {yaml=aggregations/terms_include_exclude_regex/include with an intersection and complement excludes the complemented language}
+  issue: https://github.com/elastic/elasticsearch/issues/162974
+- class: org.elasticsearch.xpack.runtimefields.test.search.CoreTestsWithSearchRuntimeFieldsIT
+  tasks:
+  - :x-pack:qa:runtime-fields:core-with-search:yamlRestTest
+  method: test {yaml=aggregations/terms_include_exclude_regex/include with an intersection and complement excludes the complemented language}
+  issue: https://github.com/elastic/elasticsearch/issues/162974
 # Lucene 11 LRUQueryCache fires onQueryCache/onDocIdSetCache per (segment, query).
 # Shard QueryCacheStats / close asserts still expect the old hooks.
 - class: org.elasticsearch.indices.IndicesQueryCacheTests

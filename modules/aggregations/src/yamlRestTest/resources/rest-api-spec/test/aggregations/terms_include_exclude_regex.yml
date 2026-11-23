@@ -78,6 +78,7 @@ teardown:
   - match: { aggregations.terms_agg.buckets.0.key: apple }
 
 ---
+# TODO: LUCENE11 (https://github.com/elastic/elasticsearch/issues/162974): unmute when ~(X) complement is restored.
 "include with an intersection and complement excludes the complemented language":
   # '~' is the complement operator. That it stays one on a node that deserialized the request is pinned in
   # IncludeExcludeTests: a single-node run of this suite never sends the request over the wire.

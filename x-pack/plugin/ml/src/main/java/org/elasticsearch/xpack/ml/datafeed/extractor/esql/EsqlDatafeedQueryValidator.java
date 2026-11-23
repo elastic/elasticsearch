@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.esql;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -35,6 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.core.esql.action.EsqlQueryRequestBuilder.EsqlQueryParam.ParamClassification.VALUE;
 
@@ -46,19 +48,22 @@ public class EsqlDatafeedQueryValidator {
     private static final Logger logger = LogManager.getLogger(EsqlDatafeedQueryValidator.class);
 
     private final EsqlQueryRunner queryRunner;
+    /** Whether the ES|QL parser accepts DESCRIBE, which ES|QL enables only in snapshot builds for now. */
+    private final BooleanSupplier describeAvailable;
 
     public EsqlDatafeedQueryValidator() {
-        this(EsqlQueryRunner.DEFAULT);
+        this(EsqlQueryRunner.DEFAULT, () -> Build.current().isSnapshot());
     }
 
-    EsqlDatafeedQueryValidator(EsqlQueryRunner queryRunner) {
+    EsqlDatafeedQueryValidator(EsqlQueryRunner queryRunner, BooleanSupplier describeAvailable) {
         this.queryRunner = queryRunner;
+        this.describeAvailable = describeAvailable;
     }
 
     private static final String LIMIT_ZERO = " | LIMIT 0";
-    // MUST FIX before production: DESCRIBE is snapshot-only (dev grammar) until https://github.com/elastic/elasticsearch/pull/166439
-    // releases it, so a release build that opts into the ES|QL datafeeds flag would fail every PUT. Do not enable the ML flag in
-    // release builds before then.
+    // MUST FIX before production: DESCRIBE is in the ES|QL dev grammar (snapshot builds only) until
+    // https://github.com/elastic/elasticsearch/pull/166439 releases it. Until then validateQuery rejects ES|QL datafeeds in release
+    // builds with a clear error; remove that guard once DESCRIBE is released.
     private static final String DESCRIBE = "\n| DESCRIBE";
     /** Under cross-project search {@code _origin} names the local project, so it is not a remote. */
     private static final String ORIGIN_PROJECT_ALIAS = "_origin";
@@ -118,6 +123,14 @@ public class EsqlDatafeedQueryValidator {
         ActionListener<Boolean> listener,
         @Nullable String datafeedId
     ) {
+        if (describeAvailable.getAsBoolean() == false) {
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_ESQL_DESCRIBE_UNAVAILABLE, esqlDatafeedSubject(datafeedId))
+                )
+            );
+            return;
+        }
         // Filter and LIMIT so the default result row cap cannot hide a required column when the query has many columns.
         boolean needsSummaryCount = summaryCountField != null;
         String describeSuffix = needsSummaryCount

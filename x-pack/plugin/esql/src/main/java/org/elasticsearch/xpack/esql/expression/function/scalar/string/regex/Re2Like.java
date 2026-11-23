@@ -11,6 +11,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
@@ -22,6 +23,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -167,7 +169,13 @@ public class Re2Like extends RegexMatch<Re2Pattern> implements AnyNullIsNull, Tr
         try {
             Automaton a = re2.createAutomaton(false, breaker, NAME);
             breaker.addEstimateBytesAndMaybeBreak(a.ramBytesUsed(), NAME);
-            Automaton b = lucene.createAutomaton(false);
+            // the Lucene side is built as the old label matcher built it, every step charged to the same budget
+            Automaton nfa = new CircuitBreakingRegExp(lucene.pattern(), RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT, 0).toAutomaton(
+                breaker,
+                NAME
+            );
+            breaker.addEstimateBytesAndMaybeBreak(nfa.ramBytesUsed(), NAME);
+            Automaton b = CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, breaker, NAME);
             breaker.addEstimateBytesAndMaybeBreak(b.ramBytesUsed(), NAME);
             return Operations.isEmpty(CircuitBreakingOperations.minus(a, b, breaker, NAME))
                 && Operations.isEmpty(CircuitBreakingOperations.minus(b, a, breaker, NAME));

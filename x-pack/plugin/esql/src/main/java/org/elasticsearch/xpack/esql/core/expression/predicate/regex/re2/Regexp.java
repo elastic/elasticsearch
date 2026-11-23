@@ -276,6 +276,53 @@ public class Regexp {
     }
   }
 
+  /**
+   * ES: an upper bound of the instructions the compiled program of this expression has, as Go's regexp/syntax
+   * calcSize counts them before it simplifies the expression, so that the memory of simplifying and compiling it can
+   * be reserved before either runs.
+   */
+  public long programSize() {
+    long size = 0;
+    switch (op) {
+      case LITERAL:
+        size = runes.length;
+        break;
+      case CAPTURE:
+      case STAR:
+        // a star can be 1+ or 2+; 2 is the pessimistic count
+        size = 2 + subs[0].programSize();
+        break;
+      case PLUS:
+      case QUEST:
+        size = 1 + subs[0].programSize();
+        break;
+      case CONCAT:
+        for (Regexp sub : subs) {
+          size += sub.programSize();
+        }
+        break;
+      case ALTERNATE:
+        for (Regexp sub : subs) {
+          size += sub.programSize();
+        }
+        if (subs.length > 1) {
+          size += subs.length - 1;
+        }
+        break;
+      case REPEAT:
+        long sub = subs[0].programSize();
+        if (max == -1) {
+          size = min == 0 ? 2 + sub : 1 + (long) min * sub;
+        } else {
+          size = (long) max * sub + (max - min);
+        }
+        break;
+      default:
+        break;
+    }
+    return Math.max(1, size);
+  }
+
   // ES: the name of each capture by index, as Go's Regexp.SubexpNames has them, for expanding a name used more than once
   void capNames(String[] names) {
     if (op == Op.CAPTURE) {

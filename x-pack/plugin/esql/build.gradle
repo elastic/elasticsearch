@@ -424,6 +424,11 @@ tasks.named("precommit").configure {
   dependsOn checkRe2UnicodeTables
 }
 
+// the regeneration rewrites a source file it doesn't declare as an output, so its readers run after it when both are scheduled
+["compileJava", "checkRe2UnicodeTables"].each { reader ->
+  tasks.named(reader).configure { mustRunAfter "regenRe2UnicodeTables" }
+}
+
 /**********************************************
  *          ESQL Parser regeneration           *
  **********************************************/

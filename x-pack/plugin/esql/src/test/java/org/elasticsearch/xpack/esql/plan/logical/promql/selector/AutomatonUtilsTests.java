@@ -193,6 +193,11 @@ public class AutomatonUtilsTests extends ESTestCase {
         // a class holds its runes, | included, so the split isn't known to be at the top
         assertThat(extractFragments("[\\pL|]"), nullValue());
         assertThat(extractFragments("a|[|]b"), nullValue());
+        // whitespace is literal in RE2, so a part keeps it
+        List<PatternFragment> fragments = extractFragments("\\pL| foo");
+        assertThat(fragments, hasSize(2));
+        assertThat(fragments.get(1).type(), equalTo(EXACT));
+        assertThat(fragments.get(1).value(), equalTo(" foo"));
     }
 
     public void testExtractFragments_RegexMetacharactersInAlternation() {

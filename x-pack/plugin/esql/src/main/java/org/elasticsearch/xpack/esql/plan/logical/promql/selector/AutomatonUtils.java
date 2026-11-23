@@ -83,6 +83,13 @@ public final class AutomatonUtils {
         if (singleton == null) {
             return null;
         }
+        for (int i = singleton.offset; i < singleton.offset + singleton.length; i++) {
+            // a surrogate code point, as RE2's \x{D800} names, is in no valid UTF-8 and so in no label value; as a keyword
+            // it would encode to U+FFFD and match that, so the regex is matched as it is, which no value matches
+            if (singleton.ints[i] >= Character.MIN_SURROGATE && singleton.ints[i] <= Character.MAX_SURROGATE) {
+                return null;
+            }
+        }
         return UnicodeUtil.newString(singleton.ints, singleton.offset, singleton.length);
     }
 
@@ -165,7 +172,8 @@ public final class AutomatonUtils {
      * @return PatternFragment with appropriate type (EXACT, PREFIX, SUFFIX, or REGEX)
      */
     private static PatternFragment classifyPart(String part) {
-        String trimmed = removeStartingAnchor(removeEndingAnchor(part.trim()));
+        // whitespace is literal in RE2, so the part is taken as it is
+        String trimmed = removeStartingAnchor(removeEndingAnchor(part));
 
         // Empty pattern
         if (trimmed.isEmpty()) {
@@ -178,7 +186,7 @@ public final class AutomatonUtils {
 
         if (startsWithWildcard && endsWithWildcard) {
             // Contains pattern - fallback to REGEX
-            return new PatternFragment(PatternFragment.Type.REGEX, part.trim());
+            return new PatternFragment(PatternFragment.Type.REGEX, part);
         }
 
         if (startsWithWildcard) {
@@ -191,7 +199,7 @@ public final class AutomatonUtils {
                 );
             }
             // Complex suffix pattern - fallback to REGEX
-            return new PatternFragment(PatternFragment.Type.REGEX, part.trim());
+            return new PatternFragment(PatternFragment.Type.REGEX, part);
         }
 
         if (endsWithWildcard) {
@@ -204,7 +212,7 @@ public final class AutomatonUtils {
                 );
             }
             // Complex prefix pattern - fallback to REGEX
-            return new PatternFragment(PatternFragment.Type.REGEX, part.trim());
+            return new PatternFragment(PatternFragment.Type.REGEX, part);
         }
 
         // Exact literal match
@@ -213,7 +221,7 @@ public final class AutomatonUtils {
         }
 
         // Complex pattern - fallback to REGEX
-        return new PatternFragment(PatternFragment.Type.REGEX, part.trim());
+        return new PatternFragment(PatternFragment.Type.REGEX, part);
     }
 
     /**

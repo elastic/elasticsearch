@@ -272,6 +272,20 @@ public class LabelMatcherTests extends ESTestCase {
     }
 
     /** The value of {@code !=} is a literal, so regex metacharacters in it, as in {@code le!="+Inf"}, match themselves. */
+    /**
+     * A surrogate code point is in no valid UTF-8, so a regex of one matches no label value, as in Prometheus. It isn't
+     * lowered to an equality, whose keyword would encode the surrogate to U+FFFD and match that.
+     */
+    public void testSurrogateIsNotLoweredToEquality() {
+        Expression condition = LabelMatchers.condition(
+            Source.EMPTY,
+            new ReferenceAttribute(Source.EMPTY, "l", DataType.KEYWORD),
+            new LabelMatcher("l", "\\x{D800}", Matcher.REG)
+        );
+        assertFalse(condition.anyMatch(e -> e instanceof Literal literal && literal.value() instanceof org.apache.lucene.util.BytesRef));
+        assertTrue(condition.anyMatch(e -> e instanceof Re2Like));
+    }
+
     public void testNegatedLiteralIsNotARegex() {
         String value = randomFrom("+Inf", "*", "a(b", "[x", "a|b");
         Expression condition = LabelMatchers.condition(

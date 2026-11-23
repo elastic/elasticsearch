@@ -15,6 +15,8 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingOperations;
+import org.elasticsearch.lucene.util.automaton.CircuitBreakingRegExp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.Re2Pattern;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -125,9 +127,20 @@ public class Re2AutomatonBenchmark {
         return new Re2Pattern(re2).createAutomaton(false, BREAKER, "benchmark");
     }
 
+    /** Lucene's own build, with no accounting: a raw comparison of the two engines. */
     @Benchmark
     public Automaton lucene() {
         return lucene(lucene, luceneFlags);
+    }
+
+    /**
+     * The automaton as label matchers built it before, accounted on a circuit breaker: the path {@link #re2Accounted}
+     * replaces.
+     */
+    @Benchmark
+    public Automaton luceneAccounted() {
+        Automaton nfa = new CircuitBreakingRegExp(lucene, RegExp.ALL, luceneFlags).toAutomaton(BREAKER, "benchmark");
+        return CircuitBreakingOperations.determinize(nfa, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, BREAKER, "benchmark");
     }
 
     private static Automaton lucene(String regex, int flags) {

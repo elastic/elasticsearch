@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Inst;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Parser;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Prog;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.RE2;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Regexp;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Simplify;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Unicode;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.re2.Utils;
@@ -47,7 +48,8 @@ public final class Re2RegExp {
 
     /** The strings of an expression that is an alternation of literals, which needs no parsing; null if it isn't one. */
     private final List<String> literals;
-    private final Prog prog;
+    /** The parsed expression, simplified and compiled only once the memory of that is reserved; null for literals. */
+    private final Regexp parsed;
 
     /**
      * @param flags the {@link RE2} parser flags, such as {@link RE2#PERL}, {@link RE2#DOT_NL} and {@link RE2#FOLD_CASE}
@@ -55,8 +57,14 @@ public final class Re2RegExp {
      */
     public Re2RegExp(String pattern, int flags) {
         this.literals = (flags & RE2.FOLD_CASE) == 0 ? literals(pattern) : null;
-        this.prog = literals == null ? Compiler.compileRegexp(Simplify.simplify(Parser.parse(pattern, flags))) : null;
+        this.parsed = literals == null ? Parser.parse(pattern, flags) : null;
     }
+
+    /**
+     * Peak bytes per instruction of the program: its instruction, the node simplifying expands to it, and the builder's
+     * arrays indexed by instruction, of which the visited marks take sixteen ints.
+     */
+    static final long BYTES_PER_INSTRUCTION = 256L;
 
     /**
      * Most states and transitions one build may make: as many as {@link CircuitBreakingRegExp#DEFAULT_WORK_LIMIT} lets a
@@ -95,8 +103,19 @@ public final class Re2RegExp {
             List<BytesRef> sorted = literals.stream().map(BytesRef::new).sorted().toList();
             return Automata.makeStringUnion(sorted);
         }
-        Builder builder = new Builder(prog, breaker, label);
+        // the program is as large as its counted repeats expand to, so its size is bounded and reserved before it is built
+        long instructions = parsed.programSize();
+        if (instructions > MAX_BUILT_STATES_AND_TRANSITIONS) {
+            throw new TooComplexToDeterminizeException(Automata.makeEmpty(), CircuitBreakingRegExp.DEFAULT_WORK_LIMIT);
+        }
+        long programBytes = 0;
+        if (breaker != null) {
+            breaker.addEstimateBytesAndMaybeBreak(instructions * BYTES_PER_INSTRUCTION, label);
+            programBytes = instructions * BYTES_PER_INSTRUCTION;
+        }
+        Builder builder = null;
         try {
+            builder = new Builder(Compiler.compileRegexp(Simplify.simplify(parsed)), breaker, label);
             Automaton automaton = builder.build();
             if (builder.mayHaveDeadStates == false) {
                 return automaton;
@@ -107,7 +126,12 @@ public final class Re2RegExp {
             // that a run automaton can be built from the determinized one
             return automaton.getNumStates() == 0 ? Automata.makeEmpty() : automaton;
         } finally {
-            builder.release();
+            if (builder != null) {
+                builder.release();
+            }
+            if (programBytes > 0) {
+                breaker.addWithoutBreaking(-programBytes);
+            }
         }
     }
 
@@ -218,6 +242,7 @@ public final class Re2RegExp {
             int n = prog.numInst();
             this.holds = new boolean[n];
             BitSet afterRune = null;
+            BitSet beforeRune = null;
             boolean contextual = false;
             for (int pc = 0; pc < n; pc++) {
                 Inst inst = prog.getInst(pc);
@@ -234,7 +259,10 @@ public final class Re2RegExp {
                     holds = afterRune.get(pc) == false;
                 }
                 if (holds && (inst.arg & end) != 0) {
-                    holds = reachesRune(prog, inst.out) == false;
+                    if (beforeRune == null) {
+                        beforeRune = beforeRune(prog);
+                    }
+                    holds = beforeRune.get(inst.out) == false;
                 }
                 this.holds[pc] = holds;
                 contextual |= holds == false;
@@ -417,18 +445,55 @@ public final class Re2RegExp {
             return reached;
         }
 
-        /** Whether the empty moves from {@code pc} reach a rune instruction, so that a rune may come after. */
-        private static boolean reachesRune(Prog prog, int pc) {
-            BitSet reached = new BitSet(prog.numInst());
-            IntArrayList stack = new IntArrayList();
-            stack.add(pc);
-            emptyMoves(prog, stack, reached);
-            for (int i = reached.nextSetBit(0); i >= 0; i = reached.nextSetBit(i + 1)) {
-                if (isRune(prog.getInst(i))) {
-                    return true;
+        /**
+         * The instructions whose empty moves reach a rune instruction, them included, the positions that a rune may come
+         * after: found in one walk back along the empty moves from every rune instruction, rather than one walk per assertion.
+         */
+        private static BitSet beforeRune(Prog prog) {
+            int n = prog.numInst();
+            // the empty moves into each instruction, as linked lists: head[to] and next[edge], from[edge]
+            int[] head = new int[n];
+            Arrays.fill(head, -1);
+            IntArrayList from = new IntArrayList();
+            IntArrayList next = new IntArrayList();
+            for (int pc = 0; pc < n; pc++) {
+                Inst inst = prog.getInst(pc);
+                switch (inst.op) {
+                    case Inst.ALT, Inst.ALT_MATCH -> {
+                        head[inst.out] = edge(from, next, pc, head[inst.out]);
+                        head[inst.arg] = edge(from, next, pc, head[inst.arg]);
+                    }
+                    case Inst.NOP, Inst.CAPTURE, Inst.EMPTY_WIDTH -> head[inst.out] = edge(from, next, pc, head[inst.out]);
+                    case Inst.RUNE, Inst.RUNE1, Inst.RUNE_ANY, Inst.RUNE_ANY_NOT_NL, Inst.MATCH, Inst.FAIL -> {
+                        // a move past a rune, or the end of the way
+                    }
+                    default -> throw new IllegalStateException("unknown instruction [" + inst.op + "]");
                 }
             }
-            return false;
+            BitSet reached = new BitSet(n);
+            IntArrayList stack = new IntArrayList();
+            for (int pc = 0; pc < n; pc++) {
+                if (isRune(prog.getInst(pc))) {
+                    stack.add(pc);
+                }
+            }
+            while (stack.isEmpty() == false) {
+                int pc = stack.removeLast();
+                if (reached.get(pc)) {
+                    continue;
+                }
+                reached.set(pc);
+                for (int e = head[pc]; e >= 0; e = next.get(e)) {
+                    stack.add(from.get(e));
+                }
+            }
+            return reached;
+        }
+
+        private static int edge(IntArrayList from, IntArrayList next, int pc, int previous) {
+            from.add(pc);
+            next.add(previous);
+            return from.size() - 1;
         }
 
         /** Adds the instructions the empty moves from those on {@code stack} reach, them included, to {@code reached}. */

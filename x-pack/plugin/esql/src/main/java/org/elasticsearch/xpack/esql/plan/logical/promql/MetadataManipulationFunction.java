@@ -185,10 +185,9 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
      * label of the same name: any such stored column is projected away so a lookup by name binds to the derived one.
      * <p>
      * Because ES|QL treats {@code null} and {@code ""} as distinct grouping keys while Prometheus treats an absent label
-     * and an empty label value alike, every "label absent" outcome is normalized to {@code ""}: an absent source is
-     * coalesced to {@code ""} before matching, and {@code label_replace}'s no-match ({@code null}) is coalesced back to
-     * {@code ""}. The destination then reads an empty value as absent, a {@code null}, as Prometheus removes a label set to
-     * an empty value. All such series therefore fall into the same group, matching Prometheus.
+     * and an empty label value alike, every "label absent" outcome is normalized: an absent source is coalesced to
+     * {@code ""} before matching, {@code label_replace}'s no-match ({@code null}) is coalesced back to the existing value,
+     * and an empty result removes the label. All such series therefore fall into the same group, matching Prometheus.
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
@@ -200,7 +199,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         boolean overwrites = concrete
             ? child().output().stream().anyMatch(label -> TranslationContext.mapFinite(label).equals(name))
             : context.cmd().child().output().stream().anyMatch(field -> PromqlLabels.labelName(field).equals(name));
-        if (context.containerFunctions() && overwrites && concrete == false) {
+        if (overwrites && concrete == false) {
             childRequired = union(childRequired, TranslationSchema.open());
         }
         IntermediateResult child = context.withRequired(childRequired).translate(child());
@@ -232,7 +231,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         Alias derived = new Alias(source, destination.name(), destinationValue, destination.id());
         LogicalPlan plan = new Eval(context.cmd().source(), aggregated.plan(), List.of(computed, derived));
         boolean opaque = aggregated.schema().isOpen();
-        if (context.containerFunctions() && opaque) {
+        if (opaque) {
             // The label is written into every packing holding it too, so the series' identity is the relabeled one.
             var packings = new ArrayList<Alias>();
             for (var skip : aggregated.schema().skips()) {
@@ -269,7 +268,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         // every label of a series: the label columns of a concrete input, or the packing with the label columns it leaves out.
         Set<String> finest = schema.finestSkip();
         boolean complete = concrete || finest != null && schema.labels().containsAll(finest);
-        if (context.containerFunctions() && overwrites && complete) {
+        if (overwrites && complete) {
             var labels = new ArrayList<Attribute>();
             Attribute packing = opaque ? TranslationContext.find(plan.output(), TranslationContext.mapOpen(schema.finestSkip())) : null;
             if (packing != null) {

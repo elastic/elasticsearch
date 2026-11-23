@@ -405,7 +405,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         );
     }
 
-    /** Whether a translation may use the label container functions: only when every node, as of {@code minimumVersion}, knows them. */
+    /**
+     * Whether every node, as of {@code minimumVersion}, knows the label container functions. The translation does not depend on
+     * it; without them the verifier rejects the shapes a cluster of older nodes did not run.
+     */
     public static boolean containerFunctions(TransportVersion minimumVersion) {
         return minimumVersion.supports(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS);
     }
@@ -501,6 +504,19 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                 }
                 case AcrossSeriesAggregate agg -> verifyAcrossSeriesAggregate(agg, failures, containerFunctions);
                 case AcrossSeriesReduction reduction -> {
+                    // A without partition is a packing of its own next to the series' one, derived from it after the
+                    // per-series aggregate, which takes the label container functions.
+                    if (reduction.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && containerFunctions == false) {
+                        failures.add(
+                            fail(
+                                reduction,
+                                "function [{}] is not yet supported with [{}] [{}]",
+                                reduction.functionName(),
+                                reduction.grouping(),
+                                reduction.sourceText()
+                            )
+                        );
+                    }
                     for (Attribute grouping : reduction.groupings()) {
                         checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping), failures);
                     }

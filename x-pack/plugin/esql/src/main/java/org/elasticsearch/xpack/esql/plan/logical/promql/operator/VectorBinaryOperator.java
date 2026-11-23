@@ -315,10 +315,6 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     /** Translates explicit vector matching as a join; other binary operators compose over a shared frame. */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        boolean containerFunctions = context.containerFunctions();
-        if (this instanceof VectorBinarySet set && set.op() == VectorBinarySet.SetOp.UNION && containerFunctions) {
-            return translateUnion(context);
-        }
         if (this instanceof VectorBinarySet) {
             return translateMatched(context);
         }
@@ -330,7 +326,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             // aggregates twice, so it cannot share a single aggregate with the other operand either.
             boolean countValues = CountValuesAggregate.usesCountValues(left()) || CountValuesAggregate.usesCountValues(right());
             if (scalarOperand || (nestedMatch == false && countValues == false && hasMismatchedLabelSets() == false)) {
-                if (containerFunctions && requiresIndependentPipelines(context)) {
+                if (requiresIndependentPipelines(context)) {
                     return translateContainerJoin(context);
                 }
                 return translateAggregate(context);
@@ -344,15 +340,14 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * operator, which matches series many-to-many.
      */
     public IntermediateResult translateMatched(TranslationContext context) {
-        if (context.containerFunctions() && this instanceof VectorBinarySet set && set.op() == VectorBinarySet.SetOp.UNION) {
+        if (this instanceof VectorBinarySet set && set.op() == VectorBinarySet.SetOp.UNION) {
             return translateUnion(context);
         }
-        if (context.containerFunctions()
-            && (this instanceof VectorBinarySet
-                || hasPackedLabels(left().output())
-                || hasPackedLabels(right().output())
-                || left().anyMatch(VectorBinarySet.class::isInstance)
-                || right().anyMatch(VectorBinarySet.class::isInstance))) {
+        if (this instanceof VectorBinarySet
+            || hasPackedLabels(left().output())
+            || hasPackedLabels(right().output())
+            || left().anyMatch(VectorBinarySet.class::isInstance)
+            || right().anyMatch(VectorBinarySet.class::isInstance)) {
             return translateContainerJoin(context);
         }
         return translateJoin(context);
@@ -822,7 +817,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         LogicalPlan plan;
         Expression filter;
         if (left.kind().afterInitialAggregation && right.kind().afterInitialAggregation) {
-            if (outer.containerFunctions() && (sharesGrouping(left, right) == false || combines(left) || combines(right))) {
+            if (sharesGrouping(left, right) == false || combines(left) || combines(right)) {
                 // Aggregates over different groupings, such as two different without, or a union or join of operands of its
                 // own, pair like any match.
                 return translateContainerJoin(outer);

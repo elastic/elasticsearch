@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -132,12 +131,6 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
      */
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        // A without partition is a packing of its own next to the series' one, derived from it after the per-series
-        // aggregate, which takes the label container functions.
-        if (grouping() == WITHOUT && context.containerFunctions() == false) {
-            throw new VerificationException("function [{}] is not yet supported with [{}]", functionName(), WITHOUT.name());
-        }
-
         // Ranking happens per series, so the child stays at series grain whatever the enclosing translation regroups
         // by; the partition labels must be exposed to rank within them. limit_ratio is membership-neutral:
         // its sampling key is solely the input vector's identity, so outer partitions are neither required

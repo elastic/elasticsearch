@@ -112,8 +112,8 @@ index pattern that targets a single remote cluster, that is the remote cluster's
 `false`, which returns no sequences rather than the ones found on the remaining shards.
 `WITH { "allow_partial_sequence_results": … }` overrides the setting for a single query; set it to `true` to
 prefer resilience over completeness. Whenever a shard fails and the query still returns, even with no sequences,
-the response sets `is_partial` to `true` and adds a warning listing up to three distinct failure reasons, rather
-than reporting a partial result as complete.
+the response sets `is_partial` to `true` and lists the failed shards under `_clusters`, on the cluster each
+belongs to.
 
 ### Unmapped fields
 

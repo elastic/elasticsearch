@@ -10309,7 +10309,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,  // client - not needed for these tests
             LocalExecutionPlanner.ExternalComputeContext.NONE,
             null,  // escfBulkService - not needed for these tests
-            () -> false
+            () -> false,
+            null   // executionInfo - not needed for these tests
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance(), randomBoolean());

@@ -74,8 +74,6 @@ public class DriverContext {
      */
     private volatile List<String> warningsSnapshot;
 
-    private volatile boolean partial;
-
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
 
     private final BigArrays bigArrays;
@@ -272,15 +270,6 @@ public class DriverContext {
     public List<String> warnings() {
         ensureFinished();
         return warningsSnapshot;
-    }
-
-    public void markPartial() {
-        assert isFinished() == false;
-        partial = true;
-    }
-
-    public boolean partial() {
-        return partial;
     }
 
     private void ensureFinished() {

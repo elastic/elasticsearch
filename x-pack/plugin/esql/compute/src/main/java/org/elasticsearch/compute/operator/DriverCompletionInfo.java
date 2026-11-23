@@ -64,9 +64,8 @@ import static org.elasticsearch.compute.operator.DriverStatus.ESQL_DRIVER_NANOS;
  *                               consumers because the merge algorithm lives in
  *                               {@code SourceStatisticsSerializer.mergeStatistics} which depends on
  *                               esql-module types this compute module cannot reach.
- * @param partial Whether any driver returned partial results because an operator marked its driver partial or a lenient
- *                policy dropped data during the read (e.g. a {@code external_max_record_size} truncation under a non-strict
- *                {@code error_mode}).
+ * @param partial Whether any driver returned partial results because a lenient policy dropped data during
+ *                the read (e.g. a {@code external_max_record_size} truncation under a non-strict {@code error_mode}).
  *                OR-aggregated across drivers/nodes and consumed by the coordinator to flip the response's
  *                {@code is_partial} flag — the structured counterpart of the client-visible truncation warning.
  * @param warnings Fully-formatted warning strings accumulated per driver into each {@link DriverContext}'s sink
@@ -338,16 +337,12 @@ public record DriverCompletionInfo(
     }
 
     /**
-     * ORs each driver's {@link DriverContext#partial()} and the {@link CapturingExternalSourceStatus#partial()} flag across every
-     * completed operator. True when an operator marked its driver partial or any external-source read on any driver dropped data
-     * under a lenient policy (e.g. {@code external_max_record_size} truncation), so the coordinator can flip the response's
-     * {@code is_partial} flag.
+     * ORs the {@link CapturingExternalSourceStatus#partial()} flag across every completed operator. True when
+     * any external-source read on any driver dropped data under a lenient policy (e.g. {@code external_max_record_size}
+     * truncation), so the coordinator can flip the response's {@code is_partial} flag.
      */
     private static boolean collectPartial(List<Driver> drivers) {
         for (Driver d : drivers) {
-            if (d.driverContext().partial()) {
-                return true;
-            }
             for (OperatorStatus o : d.status().completedOperators()) {
                 if (o.status() instanceof CapturingExternalSourceStatus capturing && capturing.partial()) {
                     return true;

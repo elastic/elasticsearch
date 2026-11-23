@@ -400,6 +400,17 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             assertThat(remote1.getFailures().get(0).reason(), containsString("index [unavailable-cluster1] has no active shard copy"));
             assertThat(resp.getExecutionInfo().getCluster(LOCAL_CLUSTER).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
+        request.query("FROM ok*,unavailable*,cluster-a:ok* | LIMIT 0");
+        try (var resp = runQuery(request)) {
+            assertThat(EsqlTestUtils.getValuesList(resp), empty());
+            assertTrue(resp.isPartial());
+            var executionInfo = resp.getExecutionInfo();
+            var localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            assertThat(localCluster.getFailures(), not(empty()));
+            assertThat(localCluster.getFailures().get(0).reason(), containsString("index [unavailable-local] has no active shard copy"));
+            assertThat(executionInfo.getCluster(REMOTE_CLUSTER_1).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        }
     }
 
     private Set<String> populateIndexWithFailingFields(String clusterAlias, String indexName, int numShards) throws IOException {

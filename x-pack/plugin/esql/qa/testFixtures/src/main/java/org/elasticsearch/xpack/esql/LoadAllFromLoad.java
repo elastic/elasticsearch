@@ -40,20 +40,6 @@ public final class LoadAllFromLoad {
     );
 
     /**
-     * Tests with {@code TS}, which {@code LOAD_ALL} does not support.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/157190">#157190</a>.
-     */
-    private static final Set<String> NEEDS_TS = Set.of(
-        "unmapped-load.evalOnMaxOverTime",
-        "unmapped-load.explicitLastOverTimeUnmappedTsIndex",
-        "unmapped-load.loadViewTsBranchingStatsLoadMode",
-        "unmapped-load.loadViewTsMaxBytesLoadMode",
-        "unmapped-load.maxOverTimeWithFiltering",
-        "unmapped-load.unmappedNumericFromK8sSyntheticTsIndex",
-        "unmapped-type-conflicts.tsPartiallyMappedNonKeywordFieldWithCast"
-    );
-
-    /**
      * Tests where {@code LOAD_ALL} is meant to differ: a field that one branch of a subquery names is loaded in that branch only by
      * {@code LOAD}, which null-fills it in the others, and in all of them by {@code LOAD_ALL}. Their expected results cannot be reused, so
      * each has its own {@code LOAD_ALL} version in {@code unmapped-load-all.csv-spec}.
@@ -88,9 +74,6 @@ public final class LoadAllFromLoad {
     public static String skipReason(String testId) {
         if (NEEDS_ROW.contains(testId)) {
             return "LOAD_ALL does not support ROW";
-        }
-        if (NEEDS_TS.contains(testId)) {
-            return "LOAD_ALL does not support TS";
         }
         if (DIFFERS_BY_DESIGN.contains(testId)) {
             return "LOAD_ALL differs from LOAD by design here: it loads the field in the other branches too";

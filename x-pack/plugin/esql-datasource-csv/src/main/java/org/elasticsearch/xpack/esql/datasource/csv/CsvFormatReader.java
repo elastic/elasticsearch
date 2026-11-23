@@ -1374,27 +1374,44 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@code containsStoragePath} matches anywhere in it, and a user may call a file {@code logs.amazonaws.com.csv}.
      * Untyped, this refusal loses its remedy for exactly the objects whose name the clause carries. Typed, it stands
      * inside {@code classify}'s assertion on the same terms as the schema-path refusals.
+     * <p>
+     * Renders the way that sibling does, because the two refuse one condition and a user who meets this sentence on
+     * a declared read meets the other one on inference over the same file: the format's own name, so a {@code .tsv}
+     * is not called a CSV; every duplicate rather than the first, so one pass over the header answers for the whole
+     * of it; and the names quoted, so an empty name -- which a header of {@code ,,ts} produces -- is visible rather
+     * than collapsing to nothing. The cap and the escape go on the joined list and the brackets go on after the cap,
+     * both for the reasons stated there. The remedy is the one part that differs, because binding cannot be told the
+     * file has no header row.
      */
     private void rejectDuplicateHeaderNames(String[] headerNames, StorageObject object) {
         Set<String> seen = new HashSet<>(headerNames.length);
+        LinkedHashSet<String> duplicates = null;
         for (String name : headerNames) {
             if (seen.add(name) == false) {
-                ExternalClientException bindEx = new ExternalClientException(
-                    ExternalException.Condition.MALFORMED_DATA,
-                    StoragePath.NONE,
-                    "",
-                    ""
-                );
-                bindEx.setDetail(
-                    "the header"
-                        + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
-                        + " has duplicate column name ["
-                        + ErrorExcerpts.summarizeEscaped(name)
-                        + "]; columns cannot bind by name"
-                );
-                throw bindEx;
+                if (duplicates == null) {
+                    duplicates = new LinkedHashSet<>();
+                }
+                duplicates.add(name);
             }
         }
+        if (duplicates == null) {
+            return;
+        }
+        StringJoiner rendered = new StringJoiner("', '");
+        for (String dup : duplicates) {
+            rendered.add(dup);
+        }
+        ExternalClientException bindEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
+        bindEx.setDetail(
+            displayName(formatName())
+                + " header"
+                + RowLocation.objectClause(" of", RowLocation.displayObjectName(object.path().objectName()))
+                + " has duplicate column names ['"
+                + ErrorExcerpts.summarizeEscaped(rendered.toString())
+                + "']"
+                + "; columns cannot bind by name"
+        );
+        throw bindEx;
     }
 
     /**

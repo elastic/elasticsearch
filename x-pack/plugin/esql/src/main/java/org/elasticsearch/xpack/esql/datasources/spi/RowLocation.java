@@ -53,7 +53,8 @@ public final class RowLocation {
     private RowLocation() {}
 
     /**
-     * Renders {@code row [N] of [object]}, plus {@code counted from byte [B]} for a positive {@code B} or
+     * Renders {@code row [N] of [object]}, plus {@code counted from byte [B] of the decoded stream} for a positive
+     * {@code B} or
      * {@code counted within a split} for {@link #BYTE_UNKNOWN}. Zero takes neither, being a read from the start of
      * the file. An empty {@code objectName} leaves the object clause out rather than printing {@code of []}.
      *

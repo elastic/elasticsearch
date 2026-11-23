@@ -6629,9 +6629,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         );
         assertThat(overWide.getMessage(), containsString("of [wide-record.csv]"));
 
-        // The seventh: a duplicate header column. Its sibling rejectDuplicateHeaderNames named the object for
-        // the identical fault while this one named only the format, so a glob said a file had a duplicate
-        // column without saying which file.
+        // The seventh: a duplicate header column. A glob fails the whole query here, so without the object the
+        // user is told that one of their files duplicates a column and not which one -- which is why its read-path
+        // sibling rejectDuplicateHeaderNames names the object for the identical fault.
         ExternalClientException duplicateHeader = expectThrows(
             ExternalClientException.class,
             () -> new CsvFormatReader(blockFactory).schema(createStorageObject("id,id\n1,2\n", "duplicate-header.csv"))
@@ -6642,7 +6642,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * A refusal that concatenates a token from the object's own header line inside brackets has to escape it,
      * and that -- not whether an object name happens to stand beside it -- is the rule these four sites share.
-     * Left raw, a column literally named {@code a] has duplicate column name [b} closes the real bracket and
+     * Left raw, a column literally named {@code a'] has duplicate column names ['b} closes the real bracket and
      * opens a counterfeit one, so the sentence names two columns the file does not have. Escaping the brackets
      * is what defeats that; the words of the forged clause still appear inside the escaped name, because the
      * escape rewrites the characters that carry structure and nothing else.
@@ -6670,7 +6670,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertThat("the brackets must not survive raw", inferred.getMessage(), not(containsString(forgesInferenceDuplicate)));
         assertThat("the escape must have fired", inferred.getMessage(), containsString("\\u005D"));
 
-        String forgesBindDuplicate = "a] has duplicate column name [b";
+        String forgesBindDuplicate = "a'] has duplicate column names ['b";
         CsvFormatReader binding = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true);
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
@@ -6793,7 +6793,8 @@ public class CsvFormatReaderTests extends ESTestCase {
      * The read path answers these same two objects differently, and that half is pinned here as well:
      * {@code ExternalFailures.classify} applies the same predicate as an assertion over the whole message, so
      * under {@code -ea} both raise an {@link AssertionError}. A shipped distribution runs without {@code -ea}
-     * and gets the diagnosis, which is the point of the type; {@code checkBudget} and the FAIL_FAST row error
+     * and gets the diagnosis, which is the point of the type; {@code checkBudget}, the FAIL_FAST row error and the
+     * read path's own duplicate-header refusal ({@link #testTheBindingRefusalSurvivesAnObjectNamedLikeAStorageHost})
      * stand inside that assertion on the same terms. It ends when the guard learns which span of a message is
      * the permitted object name, and this expectation then inverts rather than being deleted.
      */
@@ -8972,20 +8973,92 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    /** Duplicate header names make by-name binding ambiguous; a declared read rejects them, as inference does. */
+    /**
+     * Duplicate header names make by-name binding ambiguous; a declared read rejects them, as inference does, and
+     * says it the way inference does: the format the read was served by, the object, every duplicate rather than
+     * the first, and the names quoted so an empty one -- which a header of {@code ,,ts} produces -- is visible
+     * rather than collapsing to nothing. Three arms, one per half of that sentence that a reader can lose.
+     */
     public void testDuplicateHeaderNameRejected() {
-        StorageObject object = createStorageObject("id,ts,id\n1,2,3\n");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
-            .withDeclaredProvenanceBinding(true);
-        Exception e = expectThrows(
+        Exception onCsv = expectThrows(
             ExternalClientException.class,
-            () -> reader.read(
-                object,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject("id,ts,id,ts\n1,2,3,4\n"),
                 FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
             )
         );
-        assertThat(e.getMessage(), Matchers.containsString("duplicate column name [id]; columns cannot bind by name"));
+        assertThat(
+            onCsv.getMessage(),
+            containsString("CSV header of [test.csv] has duplicate column names ['id', 'ts']; columns cannot bind by name")
+        );
+
+        Exception onTsv = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))).read(
+                createStorageObject("id\tts\tid\n1\t2\t3\n"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat("a .tsv read must not be told about a CSV", onTsv.getMessage(), containsString("TSV header of [test.csv]"));
+
+        // Leading double commas, the commonest way to write a duplicate nobody meant to write.
+        Exception onEmptyName = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject(",,ts\n1,2,3\n"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(onEmptyName.getMessage(), containsString("has duplicate column names ['']; columns cannot bind by name"));
+    }
+
+    /** A headered read that binds a declared schema by name, which is the only path reaching the binding refusal. */
+    private static CsvFormatReader bindingReader(CsvFormatReader reader) {
+        return (CsvFormatReader) reader.withConfig(Map.of("header_row", true)).withDeclaredProvenanceBinding(true);
+    }
+
+    /**
+     * The read path's duplicate-header refusal is typed for the two reasons its schema-path siblings are, and this
+     * pins both halves against one message.
+     * <p>
+     * Forwarding -- raised as a plain {@link IllegalArgumentException} the sentence is withheld whole, remedy
+     * included, for an object a user is entitled to call {@code logs.amazonaws.com.csv}. That is the name the
+     * object clause exists to carry, so untyped this refusal loses its remedy for exactly the objects it was
+     * taught to name.
+     * <p>
+     * Classification -- the same predicate is also an assertion inside {@code ExternalFailures.classify}, which
+     * walks the chain and tests every message including the one {@code setDetail} appends, so under {@code -ea}
+     * such a name is a fatal {@link AssertionError} here rather than the 400 this refusal is. Pinned because it is
+     * the live boundary, not because it is wanted: a shipped distribution runs without {@code -ea} and gets the
+     * 400. It stops being true when the guard learns which span of a message is the permitted object name, and
+     * this test is then inverted rather than deleted.
+     */
+    public void testTheBindingRefusalSurvivesAnObjectNamedLikeAStorageHost() {
+        List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
+        ExternalClientException refusal = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject("id,ts,id\n1,2,3\n", "logs.amazonaws.com.csv"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(refusal.getMessage(), containsString("of [logs.amazonaws.com.csv]"));
+        assertThat("the remedy is the part a withheld message loses", refusal.getMessage(), containsString("columns cannot bind by name"));
+        assertTrue(
+            "a typed refusal must open with the condition's prefix, got: " + refusal.getMessage(),
+            refusal.getMessage().startsWith("Malformed external data: ")
+        );
+
+        // The forwarding half, exercised rather than described: untyped, this exact sentence is withheld whole.
+        assertNull(
+            "an object the user is entitled to name this way must not cost them the message",
+            ExternalFailures.forwardableDetail(new IllegalArgumentException(refusal.getMessage()))
+        );
+
+        assumeTrue("the read-path boundary below is only observable under -ea", getClass().desiredAssertionStatus());
+        AssertionError onTheReadPath = expectThrows(AssertionError.class, () -> ExternalFailures.classify(refusal));
+        assertThat(onTheReadPath.getMessage(), containsString("storage path leaked in ExternalException"));
     }
 
     /** Only a headered dialect has a header line to deliver to later splits; the answer is the setting, nothing else. */

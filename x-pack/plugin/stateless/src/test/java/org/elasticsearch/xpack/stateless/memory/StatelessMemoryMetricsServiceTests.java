@@ -1144,7 +1144,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         );
     }
 
-    public void testLargestOperationSizeIsConvertedWithLocalIndexingPressureLimit() {
+    public void testMinimumRequiredHeapForAcceptingLargeIndexingOps() {
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
         final long operationSize = randomLongBetween(1L, 50_000_000L);
@@ -1206,7 +1206,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         }
     }
 
-    public void testPercentageLimitIsTenTimesTheOperationAndAbsoluteLimitIsNotAHeapRequirement() {
+    public void testCustomMaxOperationSizeSetting() {
         final long operationSize = 4_000_000L;
         final Settings tenPercent = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "10%").build();
         assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(tenPercent, operationSize), equalTo(40_000_000L));
@@ -1215,10 +1215,10 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(absolute, operationSize), equalTo(0L));
     }
 
-    public void testOtherPercentageUsesCeilOfOperationDividedByPercent() {
+    public void testCeilingRoundsUp() {
         final long operationSize = 1_000L;
         final Settings fifteenPercent = Settings.builder().put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "15%").build();
-        // ceil(1000 * 100 / 15) = 6667, which is not ten times the operation.
+        // ceil(1000 * 100 / 15) = 6667
         assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(fifteenPercent, operationSize), equalTo(6_667L));
     }
 
@@ -1227,7 +1227,8 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(StatelessMemoryMetricsService.heapRequiredForOperation(zeroPercent, 4_000_000L), equalTo(0L));
     }
 
-    public void testValidRequirementsReportConvertedRawSizeThenLargerLegacyHeap() {
+    // If a heap requirement is sent through bigger than what the master is computing, then we must default to the larger value
+    public void testLargerLegacyHeapReplacesRawSize() {
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
         final long operationSize = 1_000L;
@@ -1248,7 +1249,11 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(merged.minimumRequiredHeapInBytes(), equalTo(legacyHeap));
     }
 
-    public void testValidRequirementsKeepTheExpiryOfTheWinningHeap() {
+    // Two heap numbers can be stored at once, one from the raw operation size, and one from the old heap message, each with its own
+    // expiry. This test checks that the bigger number keeps the expiry that came with it. It does not borrow the later expiry
+    // from subsequent changing heap requirements. So if the raw size produced the bigger heap first, that earlier deadline stays even
+    // after a smaller old-style heap estimate arrives.
+    public void testWinnerKeepsItsOwnDeadline() {
         final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService rawWins = new StatelessMemoryMetricsService(now::get, clusterService);
@@ -1274,6 +1279,9 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(legacyDeadline, equalTo(validityNanos));
     }
 
+    // The same as {@link testWinnerKeepsItsOwnDeadline} but the other order. A small heap arrives first. A bigger one arrives later,
+    // and the test checks that the expiry moves to the later update, the one that produced the bigger heap. It does not stay stuck
+    // on the earlier, smaller value.
     public void testWinningDeadlineIsKeptWhenThatSourceIsPublishedSecond() {
         final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
         final AtomicLong now = new AtomicLong(0L);
@@ -1289,6 +1297,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(winner.validUntil(), greaterThan(earlierDeadline));
     }
 
+    // If two estimates are equal, then we need to ensure the deadline gets bumped, as technically the second update is >= the first
     public void testEqualHeapsKeepTheLaterDeadline() {
         final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
         final AtomicLong now = new AtomicLong(0L);
@@ -1302,6 +1311,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(merged.validUntil(), equalTo(now.get() + validityNanos));
     }
 
+    // Similar to {@link testEqualHeapsKeepTheLaterDeadline}, but no legacy heap is involved
     public void testRepublishingTheSameOperationExtendsItsExpiry() {
         final long validityNanos = StatelessMemoryMetricsService.DEFAULT_INDEXING_OPERATIONS_MEMORY_REQUIREMENTS_VALIDITY.nanos();
         final AtomicLong now = new AtomicLong(0L);
@@ -1321,7 +1331,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(operationSize * 10));
     }
 
-    public void testExpiredOperationIsReplacedWithoutAPriorRead() {
+    public void testExpiredOperationIsReplaced() {
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);
         timed.updateLargestIndexingOperationSize(1_000L);
@@ -1331,6 +1341,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         assertThat(timed.minimumRequiredHeapForAcceptingLargeIndexingOps(), equalTo(replacement * 10));
     }
 
+    // Stores a largest operation size, but then this node is no longer the master
     public void testNonMasterClusterStateClearsLargestOperation() {
         final AtomicLong now = new AtomicLong(0L);
         final StatelessMemoryMetricsService timed = new StatelessMemoryMetricsService(now::get, clusterService);

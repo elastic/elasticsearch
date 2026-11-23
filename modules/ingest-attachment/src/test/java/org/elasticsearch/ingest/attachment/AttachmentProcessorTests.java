@@ -13,6 +13,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -1217,6 +1219,17 @@ public class AttachmentProcessorTests extends ESTestCase {
         Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
         assertThat(attachmentData.get("content"), is("\"God Save the Queen\" (alternatively \"God Save the King\""));
         assertThat(attachmentData.get("language"), is("en"));
+    }
+
+    /** Tika passes an {@code indexed_chars} below -1 on as a negative length, which the writer rejects. */
+    public void testIndexedCharsBelowMinusOneFails() {
+        int indexedChars = between(-100, -2);
+        Processor processor = newProcessor("target_field", EnumSet.allOf(AttachmentProcessor.Property.class), indexedChars, false, -1);
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseDocument("text-in-english.txt", processor)
+        );
+        assertThat(ExceptionsHelper.unwrap(e, IndexOutOfBoundsException.class), instanceOf(IndexOutOfBoundsException.class));
     }
 
     /** The target replaces the source's parent, so removing the binary removes the extracted content again. */

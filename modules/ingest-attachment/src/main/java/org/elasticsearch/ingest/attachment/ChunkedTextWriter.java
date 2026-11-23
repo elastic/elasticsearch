@@ -14,6 +14,7 @@ import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Collects Tika's extracted text in fixed-size chunks, so the full text only exists once, as the final {@link String}.
@@ -49,6 +50,7 @@ final class ChunkedTextWriter extends Writer {
     @Override
     public void write(char[] cbuf, int off, int len) {
         ensureOpen();
+        Objects.checkFromIndexSize(off, len, cbuf.length);
         while (len > 0) {
             int n = Math.min(len, room());
             System.arraycopy(cbuf, off, buffer, bufferLength, n);
@@ -61,6 +63,7 @@ final class ChunkedTextWriter extends Writer {
     @Override
     public void write(String str, int off, int len) {
         ensureOpen();
+        Objects.checkFromIndexSize(off, len, str.length());
         while (len > 0) {
             int n = Math.min(len, room());
             str.getChars(off, off + n, buffer, bufferLength);

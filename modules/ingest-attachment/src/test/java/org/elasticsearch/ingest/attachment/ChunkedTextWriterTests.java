@@ -82,6 +82,15 @@ public class ChunkedTextWriterTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> writer.writeTo(new StringWriter(), -1));
     }
 
+    public void testRejectsInvalidRange() {
+        ChunkedTextWriter writer = new ChunkedTextWriter(randomChunkSize());
+        expectThrows(IndexOutOfBoundsException.class, () -> writer.write(new char[4], 0, between(-10, -1)));
+        expectThrows(IndexOutOfBoundsException.class, () -> writer.write(new char[4], 1, 4));
+        expectThrows(IndexOutOfBoundsException.class, () -> writer.write("text", 0, between(-10, -1)));
+        expectThrows(IndexOutOfBoundsException.class, () -> writer.write("text", 1, 4));
+        assertThat(writer.length(), equalTo(0L));
+    }
+
     public void testInvalidChunkSize() {
         expectThrows(IllegalArgumentException.class, () -> new ChunkedTextWriter(between(-10, 0)));
     }

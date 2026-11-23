@@ -41,7 +41,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.OptionalLong;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
@@ -109,14 +108,13 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     private volatile TimeValue retentionPeriod;
     private volatile TimeValue cleanupInterval;
 
-    private boolean isCleanupRunning;
     /**
-     * Cleanups can be dynamically toggled and each completed one schedules the next one itself.
-     * This generation counter avoids multiple chains, by only rescheduling on the latest chain.
+     * The loop of cleanups that is currently running, or {@code null} if the cleanup is stopped. Cleanups can be dynamically toggled and
+     * each completed one schedules the next one of its loop itself. A loop that is no longer this one has been stopped, and ends the next
+     * time it checks, so there is never more than one loop that reschedules. Guarded by {@code this}.
      */
-    private long cleanupGeneration;
+    private CleanupLoop currentLoop;
     private Collection<ProjectId> projectsToCleanup;
-    private Scheduler.Cancellable cancellable;
 
     public TaskResultsCleanupService(
         ClusterService clusterService,
@@ -182,39 +180,36 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
             }
             return localNodeId.equals(indexRouting.shard(0).primaryShard().currentNodeId());
         }).toList();
-        final OptionalLong startedGeneration = updateProjectsAndMarkRunning(projectsOnLocalNode);
-        if (startedGeneration.isPresent()) {
-            threadPool.generic().execute(() -> executeNextCleanupForGeneration(startedGeneration.getAsLong()));
-        }
+        updateProjectsAndStartCleanupLoop(projectsOnLocalNode);
     }
 
     /**
-     * Records which projects this node should clean up and, if there are any and the cleanup is enabled, marks the cleanup as running.
-     * Dynamic settings changes are applied before cluster state listeners are notified, so this also picks up the cleanup being enabled
-     * or disabled: the same cluster state update that changes the interval reaches {@link #clusterChanged}.
-     * Starting the actual cleanup is left to the caller so that it happens outside the lock.
-     *
-     * @return the generation of the new chain of cleanups if the caller must now start it, which is the case only when this call is what
-     *         turned the cleanup from stopped to running, and empty otherwise.
+     * Records which projects this node should clean up and, if there are any and the cleanup is enabled, starts the loop of cleanups
+     * unless it is already running. Dynamic settings changes are applied before cluster state listeners are notified, so this also picks
+     * up the cleanup being enabled or disabled: the same cluster state update that changes the interval reaches {@link #clusterChanged}.
+     * <p>
+     * The first cleanup is forked to the {@code generic} thread pool, so it never runs while this thread holds the lock.
      */
-    private synchronized OptionalLong updateProjectsAndMarkRunning(List<ProjectId> projectsOnLocalNode) {
+    private synchronized void updateProjectsAndStartCleanupLoop(List<ProjectId> projectsOnLocalNode) {
         if (lifecycle.stoppedOrClosed()) {
-            return OptionalLong.empty();
+            return;
         }
         if (projectsOnLocalNode.isEmpty() || isCleanupEnabled() == false) {
             this.projectsToCleanup = List.of();
             stopCleanup();
-            return OptionalLong.empty();
+            return;
         }
         this.projectsToCleanup = projectsOnLocalNode;
         logger.trace("found task results to cleanup for projects {}", projectsToCleanup);
-        if (isCleanupRunning) {
-            // task cleanup is already enabled, so #projectsToCleanup is picked up upon the next scheduled execution
-            return OptionalLong.empty();
+        if (currentLoop != null) {
+            // task cleanup loop is already running
+            // the updated {@code TaskResultsCleanupService#projectsToCleanup} are picked up when that loop reschedules itself
+            return;
         }
-        isCleanupRunning = true;
         logger.debug("attempt starting task results cleanup for projects {}", projectsToCleanup);
-        return OptionalLong.of(++cleanupGeneration);
+        final CleanupLoop loop = new CleanupLoop();
+        currentLoop = loop;
+        threadPool.generic().execute(loop::runCleanup);
     }
 
     /**
@@ -226,33 +221,79 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
 
     // exposed for tests
     synchronized boolean isCleanupRunning() {
-        return isCleanupRunning;
+        return currentLoop != null;
     }
 
     /**
-     * Runs one cleanup of the chain identified by {@code generation}, which then schedules the next one.
-     * Does nothing if the generation has since been increased, i.e. cleanup has been stopped or started again, terminating this
-     * generation's chain. This is necessary because it's not possible to cancel an in-flight delete-by-query.
+     * A loop of cleanups: each one, once completed, schedules the next. Identity tells whether the loop is still the current one, so a
+     * loop that was stopped while a delete-by-query was in flight (which cannot be cancelled) ends without scheduling anything, even if
+     * the cleanup was started again meanwhile with a new loop.
      */
-    void executeNextCleanupForGeneration(long generation) {
-        final Collection<ProjectId> projects;
-        synchronized (this) {
-            if (isCleanupRunning == false || generation != cleanupGeneration) {
-                logger.trace("task results cleanup and reschedule skipped for generation {}", generation);
-                return;
+    private final class CleanupLoop {
+
+        /** The scheduled next cleanup of this loop, if any. Guarded by {@code TaskResultsCleanupService.this}. */
+        private Scheduler.Cancellable cancellable;
+
+        /**
+         * Runs one cleanup, which then schedules the next one. Does nothing if this loop has been stopped.
+         */
+        void runCleanup() {
+            final Collection<ProjectId> projects;
+            synchronized (TaskResultsCleanupService.this) {
+                if (currentLoop != this) {
+                    logger.trace("task results cleanup and reschedule skipped for stopped loop");
+                    return;
+                }
+                projects = projectsToCleanup;
             }
-            projects = projectsToCleanup;
+            logger.debug("running task results cleanup for [{}] project(s)", projects.size());
+            ThrottledIterator.run(
+                projects.iterator(),
+                (releasable, project) -> cleanupTaskResultsForProject(project, ActionListener.releasing(releasable)),
+                MAX_CONCURRENT_PROJECT_CLEANUPS,
+                this::scheduleNextCleanup,
+                threadPool.generic(),
+                // the remaining projects are skipped, but #scheduleNextCleanup is still invoked, so they'll be picked up next
+                e -> logger.warn("failed to continue task results cleanup with the next project; it will be retried on the next cleanup", e)
+            );
         }
-        logger.debug("running task results cleanup for [{}] project(s)", projects.size());
-        ThrottledIterator.run(
-            projects.iterator(),
-            (releasable, project) -> cleanupTaskResultsForProject(project, ActionListener.releasing(releasable)),
-            MAX_CONCURRENT_PROJECT_CLEANUPS,
-            () -> scheduleNextCleanupForGeneration(generation),
-            threadPool.generic(),
-            // the remaining projects are skipped, but #scheduleNextCleanupForGeneration is still invoked, so they'll be picked up next
-            e -> logger.warn("failed to continue task results cleanup with the next project; it will be retried on the next cleanup", e)
-        );
+
+        /**
+         * Called when a cleanup has completed, successfully or not. Schedules the next one, unless this loop has been stopped since.
+         */
+        private void scheduleNextCleanup() {
+            synchronized (TaskResultsCleanupService.this) {
+                if (currentLoop != this) {
+                    return;
+                }
+                try {
+                    final TimeValue interval = cleanupInterval;
+                    logger.trace("scheduling the next task results cleanup in [{}]", interval);
+                    cancellable = threadPool.schedule(this::runCleanup, interval, threadPool.generic());
+                    logger.debug("scheduled the next task results cleanup in [{}]", interval);
+                } catch (EsRejectedExecutionException e) {
+                    if (e.isExecutorShutdown()) {
+                        logger.debug("failed to schedule next task results cleanup; shutting down", e);
+                    } else {
+                        logger.warn("failed to schedule next task results cleanup; will retry on the next cluster state change", e);
+                        currentLoop = null;
+                    }
+                }
+            }
+        }
+
+        /**
+         * Cancels the scheduled next cleanup, if any. This only saves a pointless wakeup: correctness does not depend on it, because a
+         * cleanup of a loop that is no longer {@link #currentLoop} does nothing. It is called while holding the lock of the service, so
+         * that it is atomic with {@link #currentLoop} being cleared, and so that it cannot miss a cleanup that
+         * {@link #scheduleNextCleanup} is scheduling concurrently.
+         */
+        private void cancel() {
+            assert Thread.holdsLock(TaskResultsCleanupService.this);
+            if (cancellable != null && cancellable.isCancelled() == false) {
+                cancellable.cancel();
+            }
+        }
     }
 
     private void cleanupTaskResultsForProject(ProjectId projectId, ActionListener<Void> actionListener) {
@@ -327,36 +368,12 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         return request;
     }
 
-    /**
-     * Called when a cleanup of the chain identified by {@code generation} has completed, successfully or not. Schedules the next one,
-     * unless the cleanup has been stopped or started again since, in which case this chain is stale and ends here.
-     */
-    private synchronized void scheduleNextCleanupForGeneration(long generation) {
-        if (isCleanupRunning && generation == cleanupGeneration) {
-            try {
-                final TimeValue interval = cleanupInterval;
-                logger.trace("scheduling the next task results cleanup in [{}]", interval);
-                cancellable = threadPool.schedule(() -> executeNextCleanupForGeneration(generation), interval, threadPool.generic());
-                logger.debug("scheduled the next task results cleanup in [{}]", interval);
-            } catch (EsRejectedExecutionException e) {
-                if (e.isExecutorShutdown()) {
-                    logger.debug("failed to schedule next task results cleanup; shutting down", e);
-                } else {
-                    logger.warn("failed to schedule next task results cleanup; will retry on the next cluster state change", e);
-                    isCleanupRunning = false;
-                }
-            }
-        }
-    }
-
     synchronized void stopCleanup() {
-        if (isCleanupRunning) {
-            logger.debug("stopping task results cleanup");
-            if (cancellable != null && cancellable.isCancelled() == false) {
-                cancellable.cancel();
-            }
-            isCleanupRunning = false;
-            logger.debug("stopped task results cleanup");
+        if (currentLoop != null) {
+            logger.trace("stopping task results cleanup, no projects to cleanup: [{}]", projectsToCleanup.isEmpty());
+            currentLoop.cancel();
+            currentLoop = null;
+            logger.debug("stopped task results cleanup, no projects to cleanup: [{}]", projectsToCleanup.isEmpty());
         }
     }
 }

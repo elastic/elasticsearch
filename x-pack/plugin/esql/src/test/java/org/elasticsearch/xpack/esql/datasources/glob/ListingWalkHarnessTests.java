@@ -41,6 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.DAY_SPEC;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.FILES_PER_DAY;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.HIVE_ON;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.HOUR_SPEC;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.LIST_PAGE_SIZE;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.LOGS_GLOB;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.MIXED_GLOB;
@@ -50,7 +51,9 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.W
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_DAY_START;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_GLOB;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_FILES;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_FINISH_PAGES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN;
+import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIX;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_PREFIXES;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.WIDE_HIVE_SEVEN_DAY_END;
@@ -68,17 +71,12 @@ import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.r
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.temporalHints;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveSevenDayTree;
 import static org.elasticsearch.xpack.esql.datasources.glob.ListingWalkHarness.wideHiveTree;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Named-tree harness: listing must match a flat prefix listing plus {@code PartitionValueMatcher},
  * {@code PartitionSpec.overlaps}, and {@code _file.*} hints. LIST pins record request counts under the
  * request-count finish rule. Key-dump replay and the 154-prefix AWS VPC Hive tree pin listing cost.
- *
- * <p>Documented holes (flipped by later PRs):
- * <ul>
- *   <li>Mixed-tree {@code month == 6} returns only {@code month=6}. {@code 006} is another spelling of 6;
- *       {@code 007} is integer 7.</li>
- * </ul>
  */
 public class ListingWalkHarnessTests extends ESTestCase {
 
@@ -238,110 +236,6 @@ public class ListingWalkHarnessTests extends ESTestCase {
         assertEquals(pathsOf(walked), pathsOf(flattened));
     }
 
-    /**
-     * 154-prefix Hive tree, time-only 1 June filter. Walk and forced-flat keep the same files as the
-     * oracle. Folder-range only so grain-IN splice does not retry. Today's 512 cap aborts at
-     * {@link ListingWalkHarness#WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN} children, then a prefix listing.
-     */
-    public void testWideHiveTreeOneDayWalkCostVersusFlat() throws IOException {
-        List<StorageEntry> tree = wideHiveTree();
-        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
-        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
-        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
-        ListingWalkHarness.Reference ref = reference(tree, WIDE_HIVE_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
-        assertEquals(WIDE_HIVE_ONE_DAY_FILES, ref.paths().size());
-        assertFalse(ref.inferenceAnchor());
-        assertEquals(0, ref.excludedByFileHint());
-        Set<String> accountRegions = new HashSet<>();
-        for (String path : ref.paths()) {
-            int yearAt = path.indexOf("/year=");
-            assertTrue(path, yearAt > 0);
-            accountRegions.add(path.substring(0, yearAt));
-        }
-        assertEquals(WIDE_HIVE_PREFIXES, accountRegions.size());
-
-        // Folder-range only: grain-IN listing hints would splice month=6 vs disk 06 and retry the glob.
-        ListingWalkHarness walk = new ListingWalkHarness(tree);
-        FileList walked = expand(walk, WIDE_HIVE_GLOB, List.of(), MAX, pred);
-        assertObserved(walked, ref);
-
-        ListingWalkHarness flatExpand = new ListingWalkHarness(tree);
-        flatExpand.setChildrenUnsupported(true);
-        FileList flattened = expand(flatExpand, WIDE_HIVE_GLOB, List.of(), MAX, pred);
-        assertObserved(flattened, ref);
-        assertEquals(pathsOf(walked), pathsOf(flattened));
-
-        ListingWalkHarness rawFlat = new ListingWalkHarness(tree);
-        int drained = 0;
-        try (var it = rawFlat.listObjects(StoragePath.of(WIDE_HIVE_PREFIX), true)) {
-            while (it.hasNext()) {
-                it.next();
-                drained++;
-            }
-        }
-        assertEquals(tree.size(), drained);
-        assertEquals(0, rawFlat.listChildrenRequests());
-        assertEquals(objectPages(tree.size()), rawFlat.listObjectPages());
-        assertEquals(WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN, walk.listChildrenRequests());
-        assertEquals(objectPages(tree.size()), walk.listObjectPages());
-        assertEquals(objectPages(tree.size()), flatExpand.listObjectPages());
-        assertTrue(walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
-    }
-
-    /**
-     * 154-prefix Hive tree, 7 June days and {@code hour == 0}. Walk and forced-flat keep the same files as
-     * the oracle. {@code hour=0} splices miss padded {@code hour=00}, so listing retries the original glob
-     * and today's 512 cap aborts twice at
-     * {@link ListingWalkHarness#WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN}. {@link
-     * ListingWalkHarness#WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES} is the derived directory count to reach
-     * matching hour folders; not observed under the cap.
-     */
-    public void testWideHiveTreeSevenDayHourWalkCostVersusFlat() throws IOException {
-        List<StorageEntry> tree = wideHiveSevenDayTree();
-        assertEquals(1957, WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES);
-        Set<String> julyPrefixes = new HashSet<>();
-        for (StorageEntry e : tree) {
-            String path = e.path().toString();
-            int monthAt = path.indexOf("/month=07/");
-            if (monthAt >= 0) {
-                julyPrefixes.add(path.substring(0, monthAt));
-            }
-        }
-        assertEquals(WIDE_HIVE_PREFIXES, julyPrefixes.size());
-        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END));
-        List<PartitionFilterHint> hourHint = List.of(new PartitionFilterHint("hour", Operator.EQUALS, List.of(0)));
-        List<PartitionFilterHint> hints = new ArrayList<>(listingHints(filters, DAY_SPEC));
-        hints.addAll(hourHint);
-        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
-        ListingWalkHarness.Reference ref = reference(tree, WIDE_HIVE_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
-        assertEquals(WIDE_HIVE_SEVEN_DAY_HOUR_FILES, ref.paths().size());
-        assertFalse(ref.inferenceAnchor());
-        assertEquals(0, ref.excludedByFileHint());
-        for (String path : ref.paths()) {
-            assertTrue(path, path.contains("/hour=00/"));
-            assertFalse(path, path.contains("/hour=01/"));
-            assertFalse(path, path.contains("/month=07/"));
-        }
-
-        ListingWalkHarness walk = new ListingWalkHarness(tree);
-        FileList walked = expand(walk, WIDE_HIVE_GLOB, hourHint, MAX, pred);
-        assertObserved(walked, ref);
-
-        ListingWalkHarness flatExpand = new ListingWalkHarness(tree);
-        flatExpand.setChildrenUnsupported(true);
-        FileList flattened = expand(flatExpand, WIDE_HIVE_GLOB, hourHint, MAX, pred);
-        assertObserved(flattened, ref);
-        assertEquals(pathsOf(walked), pathsOf(flattened));
-
-        // hour=0 splices to hour=0, misses padded hour=00, retries the original glob, then the 512
-        // cap aborts the walk the same way as the 1-day test (417 children and a prefix listing each
-        // attempt).
-        assertEquals(2 * WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN, walk.listChildrenRequests());
-        assertEquals(2 * objectPages(tree.size()), walk.listObjectPages());
-        assertEquals(2 * objectPages(tree.size()), flatExpand.listObjectPages());
-        assertTrue(walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
-    }
-
     public void testChildrenUnsupportedForcesOnePrefixList() throws IOException {
         ListingWalkHarness provider = new ListingWalkHarness(fieldShapedTree());
         provider.childrenUnsupported = true;
@@ -419,30 +313,23 @@ public class ListingWalkHarnessTests extends ESTestCase {
     }
 
     /**
-     * Unpadded {@code month=6} exists, so the splice hits and padded siblings are not listed. The matcher
-     * keeps {@code 6}/{@code 06}/{@code 006}.
+     * Integer {@code month == 6} leaves {@code month=*}. Walk and forced-flat keep every typed spelling
+     * ({@code 6}/{@code 06}/{@code 006}), matching the matcher.
      */
-    public void testMixedTreeMonthEqualsSixReturnsOnlyUnpaddedSpelling() throws IOException {
+    public void testMixedTreeMonthEqualsSixKeepsEveryTypedSpelling() throws IOException {
         List<StorageEntry> tree = mixedTree();
         List<PartitionFilterHint> hints = List.of(new PartitionFilterHint("month", Operator.EQUALS, List.of(6)));
         ListingWalkHarness.Reference ref = reference(tree, MIXED_GLOB, hints, PartitionSpec.EMPTY, List.of(), HIVE_ON);
         assertEquals("matcher keeps 6, 06, and 006", 3 * FILES_PER_DAY, ref.paths().size());
 
         ListingWalkHarness walk = new ListingWalkHarness(tree);
-        assertSplicedUnpaddedOnly(expand(walk, MIXED_GLOB, hints, MAX));
+        FileList walked = expand(walk, MIXED_GLOB, hints, MAX);
+        assertObserved(walked, ref);
         ListingWalkHarness flat = new ListingWalkHarness(tree);
         flat.childrenUnsupported = true;
-        assertSplicedUnpaddedOnly(expand(flat, MIXED_GLOB, hints, MAX));
-    }
-
-    private static void assertSplicedUnpaddedOnly(FileList result) {
-        assertEquals(FILES_PER_DAY, result.fileCount());
-        assertFalse(result.isInferenceAnchor());
-        for (String path : pathsOf(result)) {
-            assertTrue(path, path.contains("/month=6/"));
-            assertFalse(path, path.contains("/month=06/"));
-            assertFalse(path, path.contains("/month=006/"));
-        }
+        FileList flattened = expand(flat, MIXED_GLOB, hints, MAX);
+        assertObserved(flattened, ref);
+        assertEquals(pathsOf(walked), pathsOf(flattened));
     }
 
     /**
@@ -582,6 +469,131 @@ public class ListingWalkHarnessTests extends ESTestCase {
             assertEquals(pathsOf(rule), pathsOf(finish));
         }
         assertFinishModeChangesListShape();
+    }
+
+    /**
+     * 154-prefix Hive tree, time-only 1 June filter. Folder-range only so grain-IN splice does not retry.
+     * Cap 512 still aborts at {@link ListingWalkHarness#WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN} children, then
+     * a prefix listing. Walk and forced-flat keep the same files as the oracle.
+     */
+    public void testWideHiveTreeOneDayWalkAbortsAt512() throws IOException {
+        List<StorageEntry> tree = wideHiveTree();
+        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, WIDE_HIVE_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+        assertEquals(WIDE_HIVE_ONE_DAY_FILES, ref.paths().size());
+        assertFalse(ref.inferenceAnchor());
+        Set<String> accountRegions = new HashSet<>();
+        for (String path : ref.paths()) {
+            int yearAt = path.indexOf("/year=");
+            assertTrue(path, yearAt > 0);
+            accountRegions.add(path.substring(0, yearAt));
+        }
+        assertEquals(WIDE_HIVE_PREFIXES, accountRegions.size());
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = expand(walk, WIDE_HIVE_GLOB, List.of(), MAX, pred, 512);
+        assertObserved(walked, ref);
+
+        ListingWalkHarness flatExpand = new ListingWalkHarness(tree);
+        flatExpand.setChildrenUnsupported(true);
+        FileList flattened = expand(flatExpand, WIDE_HIVE_GLOB, List.of(), MAX, pred);
+        assertObserved(flattened, ref);
+        assertEquals(pathsOf(walked), pathsOf(flattened));
+
+        ListingWalkHarness rawFlat = new ListingWalkHarness(tree);
+        int drained = 0;
+        try (var it = rawFlat.listObjects(StoragePath.of(WIDE_HIVE_PREFIX), true)) {
+            while (it.hasNext()) {
+                it.next();
+                drained++;
+            }
+        }
+        assertEquals(tree.size(), drained);
+        assertEquals(0, rawFlat.listChildrenRequests());
+        assertEquals(objectPages(tree.size()), rawFlat.listObjectPages());
+        assertEquals(WIDE_HIVE_ONE_DAY_WALK_ABORT_CHILDREN, walk.listChildrenRequests());
+        assertEquals(objectPages(tree.size()), walk.listObjectPages());
+        assertEquals(objectPages(tree.size()), flatExpand.listObjectPages());
+        assertTrue(walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
+    }
+
+    /**
+     * Same 1-day tree under the default ceiling. {@code ALWAYS_FINISH} pins complete-walk LIST: sparse {@code k=4}
+     * still makes RULE flatten. Observed {@code listChildren} must match the derived day-grain formula.
+     */
+    public void testWideHiveTreeOneDayWalkCompletesUnderDefaultCeiling() throws IOException {
+        assertEquals(879, WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES);
+        assertTrue(
+            "default ceiling must cover the derived 1-day walk",
+            WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES < PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
+        List<StorageEntry> tree = wideHiveTree();
+        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, DAY_SPEC);
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, WIDE_HIVE_GLOB, hints, DAY_SPEC, temporalHints(filters, DAY_SPEC), HIVE_ON);
+        assertEquals(WIDE_HIVE_ONE_DAY_FILES, ref.paths().size());
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(walk, WIDE_HIVE_GLOB, List.of(), MAX, pred)
+        );
+        assertEquals(WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES, walk.listChildrenRequests());
+        // ALWAYS_FINISH lists matching day dirs; June 2 siblings can survive the folder-range grain,
+        // so file count is a superset of the oracle, not an exact match.
+        assertThat(walked.fileCount(), greaterThanOrEqualTo(WIDE_HIVE_ONE_DAY_FILES));
+        assertThat(walk.listObjectPages(), greaterThanOrEqualTo(WIDE_HIVE_ONE_DAY_FINISH_PAGES));
+        assertFalse("complete walk must not prefix-list the dataset", walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
+        assertEquals(walk.listChildrenRequests() + walk.listObjectPages(), walk.requestCount());
+    }
+
+    /**
+     * 7-day window at hour grain on the same 154 prefixes. Observed {@code listChildren} is 2111; the
+     * default ceiling is 3000 so this walk completes. Raise the setting if a wider layout exceeds it.
+     */
+    public void testWideHiveTreeSevenDayWalkCompletesUnderDefaultCeiling() throws IOException {
+        int sevenDayFiles = WIDE_HIVE_SEVEN_DAY_HOUR_FILES;
+        assertEquals(2111, WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES);
+        assertTrue(
+            "hour-grain derived 7-day count must still fit the default ceiling",
+            WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES < PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
+        List<StorageEntry> tree = wideHiveSevenDayTree();
+        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_SEVEN_DAY_END));
+        List<PartitionFilterHint> hints = listingHints(filters, HOUR_SPEC);
+        FolderRangePredicate pred = folderRange(filters, HOUR_SPEC);
+        ListingWalkHarness.Reference ref = reference(tree, WIDE_HIVE_GLOB, hints, HOUR_SPEC, temporalHints(filters, HOUR_SPEC), HIVE_ON);
+        assertEquals(sevenDayFiles, ref.paths().size());
+
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        FileList walked = PartitionPruningWalk.withFinishMode(
+            PartitionPruningWalk.FinishMode.ALWAYS_FINISH,
+            () -> expand(walk, WIDE_HIVE_GLOB, List.of(), MAX, pred)
+        );
+        assertEquals(WIDE_HIVE_SEVEN_DAY_WALK_DIRECTORIES, walk.listChildrenRequests());
+        assertThat(walked.fileCount(), greaterThanOrEqualTo(sevenDayFiles));
+        assertTrue(
+            "observed 7-day hour-grain walk must fit the default ceiling",
+            walk.listChildrenRequests() <= PartitionPruningWalk.DEFAULT_MAX_DIRECTORY_LISTINGS
+        );
+        assertFalse(walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
+    }
+
+    /**
+     * Sparse {@code k=4} on 154 matching day dirs: RULE still flattens after a complete walk. Raising the
+     * ceiling is what avoids the 46M-object prefix listing, not a new finish-vs-flat formula.
+     */
+    public void testWideHiveTreeOneDayRuleStillFlattensSparseLeaves() throws IOException {
+        List<StorageEntry> tree = wideHiveTree();
+        List<Expression> filters = List.of(window(WIDE_HIVE_DAY_START, WIDE_HIVE_DAY_END));
+        FolderRangePredicate pred = folderRange(filters, DAY_SPEC);
+        ListingWalkHarness walk = new ListingWalkHarness(tree);
+        expand(walk, WIDE_HIVE_GLOB, List.of(), MAX, pred);
+        assertTrue("RULE finish-vs-flat still prefix-lists this sparse tree", walk.listedPrefixes().contains(WIDE_HIVE_PREFIX + "/"));
+        assertEquals(WIDE_HIVE_ONE_DAY_WALK_DIRECTORIES, walk.listChildrenRequests());
     }
 
     /** RULE flattens 7-day (k=8); ALWAYS_FINISH lists the 7 days; ALWAYS_FLAT prefix-lists without measuring. */

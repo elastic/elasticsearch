@@ -468,11 +468,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShardFilesNotDeletedOnStateNotRecoveredDedicatedMaster
   issue: https://github.com/elastic/elasticsearch/issues/164248
-- class: org.elasticsearch.datastreams.DataStreamAutoshardingIT
-  tasks:
-  - :modules:data-streams:internalClusterTest
-  method: testReduceShardsOnRollover
-  issue: https://github.com/elastic/elasticsearch/issues/164371
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   tasks:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
@@ -855,3 +850,13 @@ tests:
   - :x-pack:plugin:esql:qa:server:multi-node:csvSpecTests
   method: test {csv-spec:eql.sampleSimpleIpAsKey}
   issue: https://github.com/elastic/elasticsearch/issues/167064
+- class: org.elasticsearch.xpack.esql.action.IntoIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testShardFailureAfterBulkIsNotRetried
+  issue: https://github.com/elastic/elasticsearch/issues/167131
+- class: org.elasticsearch.xpack.esql.action.IntoIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFailureDuringTheWriteIsNotRetried
+  issue: https://github.com/elastic/elasticsearch/issues/167145

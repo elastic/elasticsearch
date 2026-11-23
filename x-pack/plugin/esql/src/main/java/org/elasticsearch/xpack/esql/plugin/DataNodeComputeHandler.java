@@ -86,8 +86,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.fetch.FetchContextTracker;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
@@ -195,6 +197,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             ? null
             : TimeValue.timeValueMillis(searchService.getDefaultKeepAliveInMillis());
         Integer maxConcurrentNodesPerCluster = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
+        final boolean writesInto = writesInto(dataNodePlan);
 
         new DataNodeRequestSender(
             clusterService,
@@ -223,8 +226,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
 
                 final AtomicLong pagesFetched = new AtomicLong();
-                // TODO: once FROM supports INTO, do not retry requests whose writer has already sent a bulk
-                var listener = ActionListener.wrap(nodeListener::onResponse, e -> nodeListener.onFailure(e, pagesFetched.get() > 0));
+                final AtomicBoolean requestSent = new AtomicBoolean();
+                // A node that was sent an INTO may have written rows before it failed, without a page for the coordinator to have
+                // fetched, and another copy of the shard would write the same rows again
+                var listener = ActionListener.wrap(
+                    nodeListener::onResponse,
+                    e -> nodeListener.onFailure(e, pagesFetched.get() > 0 || (writesInto && requestSent.get()))
+                );
                 final Transport.Connection connection;
                 try {
                     connection = transportService.getConnection(node);
@@ -291,6 +299,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                             final var sinkPart = computeService.remoteSinkPart(computeService.queryId(parentTask), groupTask);
                             final var remoteSink = computeService.newRemoteSink(groupTask, childSessionId, connection, sinkPart);
+                            requestSent.set(true);
                             transportService.sendChildRequest(
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
@@ -685,13 +694,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             || ExceptionsHelper.unwrap(failure, NodeClosedException.class) != null;
     }
 
+    static boolean writesInto(PhysicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof FragmentExec f && f.fragment().anyMatch(Into.class::isInstance));
+    }
+
     /**
      * Whether the walk should send this worker's splits to the next resolved worker. Pages already
      * fetched from this walk cannot be replayed, so a failure after the first page is terminal.
      */
-    static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker) {
-        // TODO: once FROM supports INTO, do not reroute external workers whose writer has already sent a bulk
-        return hasNextWorker && pagesFetched == 0 && isRetryableExternalWorkerFailure(failure);
+    static boolean shouldRerouteExternalWorker(Exception failure, long pagesFetched, boolean hasNextWorker, boolean writesInto) {
+        return hasNextWorker && pagesFetched == 0 && writesInto == false && isRetryableExternalWorkerFailure(failure);
     }
 
     /**
@@ -938,7 +950,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             if (ended.get()) {
                 return false;
             }
-            if (shouldRerouteExternalWorker(e, pagesFetched.get(), nextWorker(workers, targetIndex, attempt + 1) != null) == false) {
+            if (shouldRerouteExternalWorker(
+                e,
+                pagesFetched.get(),
+                nextWorker(workers, targetIndex, attempt + 1) != null,
+                writesInto(dataNodePlan)
+            ) == false) {
                 return false;
             }
             if (claimedAttempt.get() != attempt) {
@@ -1257,7 +1274,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
-                    // TODO: once FROM supports INTO, fail fast if a writer in this batch has already sent a bulk
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);
@@ -1753,8 +1769,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.requiredClusterStateVersion(),
             request.readerContextKeepAlive()
         );
-        // the sender doesn't support retry on shard failures, so we need to fail fast here.
-        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
+        // the sender doesn't support retry on shard failures, so we need to fail fast here. Also when writing, since the other
+        // shards would otherwise keep writing for a query that is bound to fail.
+        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false || writesInto(request.plan());
         final NodeFetchContexts fetchContexts = request.keepFetchContexts() ? newFetchContexts(task, request) : null;
         var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
         runComputeOnDataNode(

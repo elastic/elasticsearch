@@ -44,10 +44,11 @@ retry_with_backoff() {
   local description="$1"
   shift
 
-  local max_attempts=4
-  # Overridable so tests do not have to wait out the real backoff.
+  # Overridable so tests do not have to wait out the real backoff. The number of
+  # attempts is derived from the delays, so any override stays self-consistent.
   local -a delays
   read -r -a delays <<< "${DRA_PUBLISH_RETRY_DELAYS:-5 15 30}"
+  local max_attempts=$(( ${#delays[@]} + 1 ))
   local attempt=1
   local exit_code
 
@@ -75,40 +76,57 @@ retry_with_backoff() {
 publish_recursive_tree() {
   local source_dir="$1"
   local destination="$2"
+  shift 2
 
   aws s3 cp --recursive --no-progress --only-show-errors \
-    "$source_dir" "$destination"
+    "$source_dir" "$destination" "$@"
 }
 
 publish_javadoc_tree() {
   local source_dir="$1"
   local destination="$2"
   local aws_config_file="$WORK_DIR/aws-javadoc-config"
-  local aws_profile="${AWS_PROFILE:-default}"
   local caller_config_file="${AWS_CONFIG_FILE:-$HOME/.aws/config}"
+
+  # Resolve the profile the same way for the config write and the upload. The AWS
+  # CLI honours AWS_DEFAULT_PROFILE before AWS_PROFILE. `--profile` is only passed
+  # when a profile was selected: an explicit `--profile` makes the CLI ignore
+  # credentials from the environment, which is how this job authenticates.
+  local -a profile_args=()
+  local selected_profile="${AWS_DEFAULT_PROFILE:-${AWS_PROFILE:-}}"
+  if [[ -n "$selected_profile" ]]; then
+    profile_args=(--profile "$selected_profile")
+  fi
 
   # `index-all.html` can be large enough to trigger multipart uploads, and the
   # multipart completion path is where we've seen intermittent missing-ETag
   # failures from `aws s3 cp`. Force single-part uploads for the expanded
   # javadoc tree; these files are comfortably below S3's 5 GiB single PUT limit.
   #
-  # The threshold is written to a scratch copy of the caller's AWS config, for the
-  # selected profile, so the caller's config is left untouched and any profile
-  # settings (role_arn, region, ...) are preserved. This function runs as an `if`
-  # condition in retry_with_backoff, where `set -e` is suppressed, so failures
-  # are checked explicitly.
+  # The threshold is written to a scratch copy of the caller's AWS config so the
+  # caller's config is left untouched and profile settings (role_arn, region, ...)
+  # are preserved. The CRT transfer client ignores `multipart_threshold`, so the
+  # classic client is selected as well. This function runs as an `if` condition
+  # in retry_with_backoff, where `set -e` is suppressed, so failures are checked
+  # explicitly.
   (
+    # The scratch file is created fresh with owner-only, writable permissions so
+    # a read-only caller config (e.g. mode 0444) does not make it unwritable.
+    umask 077
+    : > "$aws_config_file" || return 1
     if [[ -f "$caller_config_file" ]]; then
-      cp "$caller_config_file" "$aws_config_file" || return 1
-    else
-      : > "$aws_config_file" || return 1
+      cat "$caller_config_file" > "$aws_config_file" || return 1
     fi
     export AWS_CONFIG_FILE="$aws_config_file"
-    if ! aws configure set s3.multipart_threshold 5GB --profile "$aws_profile" >/dev/null; then
-      echo "failed to set s3.multipart_threshold for AWS profile '$aws_profile'" >&2
-      return 1
-    fi
-    publish_recursive_tree "$source_dir" "$destination"
+    local key value
+    for setting in "s3.multipart_threshold 5GB" "s3.preferred_transfer_client classic"; do
+      read -r key value <<< "$setting"
+      if ! aws configure set "$key" "$value" ${profile_args[@]+"${profile_args[@]}"} >/dev/null; then
+        echo "failed to set $key for the javadoc upload" >&2
+        return 1
+      fi
+    done
+    publish_recursive_tree "$source_dir" "$destination" ${profile_args[@]+"${profile_args[@]}"}
   )
 }
 

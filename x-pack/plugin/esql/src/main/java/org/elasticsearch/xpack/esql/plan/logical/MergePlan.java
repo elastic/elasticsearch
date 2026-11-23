@@ -332,6 +332,64 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     /**
+     * Whether a column of this merge that has the name of a metadata field, such as {@code _index}, is one that the query made, as
+     * in {@code EVAL _index = x | FORK ...}, and not the metadata that the merge passes on. A merge outputs the column as a
+     * reference attribute, which does not say which of the two it is, so it is decided from what each branch puts in it: the
+     * query made it when at least one branch has a column of that name that is not known to be null. A branch whose column is
+     * known to hold nothing but nulls has no say, because alignment fills in a column that a sibling has and the analyzer injects
+     * the outer {@code METADATA _index} as nulls into the branches of a union, and neither can be told from {@code EVAL _index = null}.
+     * That is a static property of the plan, not of the data: {@code EVAL _score = gender} is the query's own column even if every
+     * {@code gender} is null. A branch that outputs the column through a merge of its own is what that merge says.
+     */
+    public boolean mergesColumnThatTheQueryMade(Attribute merged) {
+        return columnOrigin(merged.name()) == ColumnOrigin.QUERY;
+    }
+
+    /** What a column of a merge holds, see {@link #mergesColumnThatTheQueryMade}. */
+    private enum ColumnOrigin {
+        METADATA,
+        NULLS,
+        QUERY
+    }
+
+    private ColumnOrigin columnOrigin(String name) {
+        boolean metadata = false;
+        for (LogicalPlan branch : children()) {
+            switch (branchOrigin(branch, name)) {
+                case QUERY -> {
+                    return ColumnOrigin.QUERY;
+                }
+                case METADATA -> metadata = true;
+                case NULLS -> {
+                }
+            }
+        }
+        return metadata ? ColumnOrigin.METADATA : ColumnOrigin.NULLS;
+    }
+
+    private static ColumnOrigin branchOrigin(LogicalPlan branch, String name) {
+        for (Attribute attr : branch.output()) {
+            if (attr.name().equals(name) == false) {
+                continue;
+            }
+            if (attr instanceof MetadataAttribute) {
+                return ColumnOrigin.METADATA;
+            }
+            if (producesOnlyNull(branch).test(attr)) {
+                return ColumnOrigin.NULLS;
+            }
+            for (MergePlan inner : branch.collect(MergePlan.class)) {
+                if (inner.outputSet().contains(attr)) {
+                    return inner.columnOrigin(name);
+                }
+            }
+            return ColumnOrigin.QUERY;
+        }
+        // a branch that does not have the column contributes nulls to it
+        return ColumnOrigin.NULLS;
+    }
+
+    /**
      * Whether a column of {@code branch}'s output holds nothing but nulls. A column written as an explicit
      * {@code EVAL x = null} is indistinguishable from one inserted by Analyzer rules (such as {@code InjectOuterMetadataForSubqueries}),
      * so both are treated alike.

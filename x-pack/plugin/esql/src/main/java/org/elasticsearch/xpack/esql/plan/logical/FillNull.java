@@ -276,16 +276,21 @@ public class FillNull extends UnaryPlan implements TelemetryAware, PostAnalysisV
 
     /**
      * Whether a {@code *} leaves the column alone: the internals and the metadata columns a merge passes on. A union or a {@code FORK}
-     * turns a metadata column into a reference attribute, which is not internal any more, so for one that a merge below produces the
-     * name decides. A column that the query creates with such a name, as in {@code EVAL _score = ROUND(_score, 4)}, is an ordinary
-     * one and is filled.
+     * turns a metadata column into a reference attribute, which is not internal any more, so for one that a merge below produces
+     * the branches decide whether the query made it, see {@link MergePlan#mergesColumnThatTheQueryMade}. A column that the query
+     * creates with such a name, as in {@code EVAL _score = ROUND(_score, 4)}, is an ordinary one and is filled, also when it goes
+     * through a {@code FORK}.
      */
     private boolean leftAloneByAllFields(Attribute attribute) {
-        return attribute.isInternal() || (MetadataAttribute.isSupported(attribute.name()) && producedByAMerge(attribute));
+        return attribute.isInternal() || (MetadataAttribute.isSupported(attribute.name()) && passedOnByAMerge(attribute));
     }
 
-    private boolean producedByAMerge(Attribute attribute) {
-        return child().anyMatch(plan -> plan instanceof MergePlan && plan.outputSet().contains(attribute));
+    private boolean passedOnByAMerge(Attribute attribute) {
+        return child().anyMatch(
+            plan -> plan instanceof MergePlan merge
+                && merge.outputSet().contains(attribute)
+                && merge.mergesColumnThatTheQueryMade(attribute) == false
+        );
     }
 
     public boolean fills(Attribute attribute) {

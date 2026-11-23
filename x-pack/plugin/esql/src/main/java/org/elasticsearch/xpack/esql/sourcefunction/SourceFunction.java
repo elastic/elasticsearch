@@ -66,22 +66,28 @@ public interface SourceFunction {
      * after the shape has been checked and {@link #validate} has passed for every call in the query, not just
      * this one.
      * <p>
-     * Asked once for each call the user wrote, including where the plan reaches that call from several parents —
-     * one per {@code FORK} branch. The relation then stands in every one of those places, so it is read once per
-     * place; a function does not have to count those reads, because the facility gives a returned
-     * {@code LocalRelation} a supplier that copies per read before installing it.
+     * Asked once for every place a call appears, which is not the same as once per call the user wrote: a plan
+     * reaches one leaf from several parents — one per {@code FORK} branch — and each of those places is asked on
+     * its own. That is what the rest of the pipeline does with a fork, where every branch is planned into its own
+     * fragment and an index above one is scanned per branch. So a function that does I/O pays a round trip per
+     * branch, and what comes back is installed as it came rather than shared between places.
      * <p>
-     * What it does have to do is answer two calls with two relations. A function whose rows follow from its
-     * arguments is the one tempted to hand both the same cached instance, and a relation the engine does not
-     * complete cannot stand in two places: one page is released by whichever consumer reads it first, and one set
-     * of attribute ids would sit under two parents. That is refused, naming the function. A relation the engine
-     * completes may be shared, because each occurrence of one becomes its own relation downstream.
+     * Which makes the first line of this javadoc a requirement and not a description: a function <i>of</i> an
+     * invocation. Two branches over one written call are answered separately, so a function reading something
+     * that changes underneath it may hand them different rows — no more and no less than two branches over an
+     * index may see different documents. A function whose answer has to be stable across one query owns making
+     * it so.
      * <p>
-     * That copying carries one requirement back onto the function, and it is not a promise: build the page on
-     * {@code PlannerUtils.NON_BREAKING_BLOCK_FACTORY}, as the facility's own test functions do. The copying
-     * supplier deep-copies onto that factory, and the page handed over here is reachable only from the supplier
-     * afterwards -- no operator ever receives it, so no operator closes it. A page built on an accounted factory
-     * would therefore hold its circuit-breaker reservation for the life of the node. Bounding a materialized
+     * And every place has to come back with its own relation. A function whose rows follow from its arguments is
+     * the one tempted to answer twice from a cached instance, and a relation the engine does not complete cannot
+     * stand in two places: one page is released by whichever consumer reads it first, and one set of attribute
+     * ids would sit under two parents. That is refused, naming the function. A relation the engine completes may
+     * be shared, because each occurrence of one becomes its own relation downstream.
+     * <p>
+     * One requirement comes back onto a function that materializes its rows, and it is not a promise: build the
+     * page on {@code PlannerUtils.NON_BREAKING_BLOCK_FACTORY}, as the facility's own test functions do. The page
+     * is built while the query is still being planned rather than by the operator that will read it, so an
+     * accounted one can outlive anything that would release its circuit-breaker reservation. Bounding a materialized
      * relation properly is a follow-up; until it lands, this is a constraint a function has to meet.
      *
      * @param metadataFields the names from the user's {@code METADATA} clause, threaded to every leaf in the source

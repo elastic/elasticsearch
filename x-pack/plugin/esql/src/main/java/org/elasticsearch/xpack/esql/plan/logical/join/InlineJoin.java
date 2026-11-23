@@ -194,7 +194,12 @@ public class InlineJoin extends Join implements SortPreserving {
         LogicalPlanTuple tuple = null;
         var plan = stubReplacedSubPlanHolder.get();
         if (plan != null) {
-            plan = plan.transformUp(LocalRelation.class, LocalRelation::withRepeatedReads);
+            plan = plan.transformUp(LocalRelation.class, lr -> {
+                if (lr.supplier() instanceof CopyingLocalSupplier == false) {
+                    return new LocalRelation(lr.source(), lr.output(), new CopyingLocalSupplier(lr.supplier().get()));
+                }
+                return lr;
+            });
             plan.setOptimized();
             tuple = new LogicalPlanTuple(plan, originalSubPlanHolder.get());
         }

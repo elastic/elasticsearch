@@ -18,10 +18,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceFunctionRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,11 +32,14 @@ import java.util.concurrent.Executor;
  * Turns every {@link UnresolvedSourceFunctionRelation} the parser left in a plan into the leaf that reads.
  * <p>
  * The whole of what is common to every source function lives here. Four steps per call — resolve the name, check
- * the shape, run the function's own validation, bind — and three things the facility owns on every query's behalf:
- * the ceiling on how many calls one query may make, refusing a returned relation that names a view, and making a
- * relation several parents reach safe to read once per parent. Everything else a particular function needs — a
- * privilege, a round-trip, a collaborator — belongs to that function, not here. Nothing here reads a function's
- * arguments, holds a collaborator, or itself checks a privilege.
+ * the shape, run the function's own validation, bind — and two things the facility owns on every query's behalf:
+ * the ceiling on how many calls one query may make, and refusing a returned relation that names a view. Everything
+ * else a particular function needs — a privilege, a round-trip, a collaborator — belongs to that function, not
+ * here. Nothing here reads a function's arguments, holds a collaborator, or itself checks a privilege.
+ * <p>
+ * What it never does is change what a function handed back. A returned leaf is installed as it came, so nothing
+ * here needs to know which kind of relation it is: this checks what it was given and stops there. The checks are
+ * the facility's, the relation is the function's.
  * <p>
  * Resolution of the <i>name</i> happens before any of it, so a misspelled function is answered by its own
  * diagnostic at its own position rather than by whatever the next stage would have made of it.
@@ -43,7 +47,9 @@ import java.util.concurrent.Executor;
 public class SourceFunctionResolver {
 
     /**
-     * The most calls one query may make, counted over the whole plan once views have been expanded.
+     * The most calls one query may make, counted over the whole plan once views have been expanded — and counted
+     * per place a call appears rather than per call written, because a call under a {@code FORK} is asked once per
+     * branch and that is what the cluster is being asked to serve.
      * <p>
      * Checked here because nothing later checks it in time: the configurable {@code max_branch_count} is applied
      * to the <i>optimized</i> plan, long after every call in this query has been made, and the parser's own width
@@ -77,19 +83,18 @@ public class SourceFunctionResolver {
      */
     public void resolveSourceFunctions(LogicalPlan parsed, ProjectMetadata projectMetadata, ActionListener<LogicalPlan> listener) {
         List<UnresolvedSourceFunctionRelation> leaves = new ArrayList<>();
-        // Distinct by identity, because a plan may reach one leaf from more than one parent: FORK hands every
-        // branch the one plan above it -- LogicalPlanBuilder#visitForkCommand applies each branch's factory to the
-        // same input -- so FROM f("x") | FORK (..) (..) walks down to one leaf once per branch. Collected per
-        // occurrence, a call the user wrote once is asked once per branch: a function doing I/O pays a round trip
-        // per branch, and every relation but the last is built and thrown away. Identity rather than equality for
-        // the reason the map below is: two calls written separately must each bind, and they can compare equal.
+        // Every place a call appears, not every call a user wrote. A plan reaches one leaf from more than one
+        // parent: FORK hands every branch the one plan above it -- LogicalPlanBuilder#visitForkCommand applies
+        // each branch's factory to the same input -- so FROM f("x") | FORK (..) (..) walks down to one leaf once
+        // per branch, and each of those places is asked on its own.
         //
-        // Counted rather than merely de-duplicated. Asking once means the one relation is then installed in every
-        // place that leaf occupied, and a relation carrying a page cannot be read from more than one of them --
-        // see withRepeatedReads, which the count decides to apply.
-        Map<UnresolvedSourceFunctionRelation, Integer> occurrences = new IdentityHashMap<>();
+        // Which is what the rest of the pipeline already does with a fork: Mapper#mapMergePlan maps every branch
+        // into its own fragment, so an EVAL above one runs per branch too, and two branches over an index scan it
+        // separately. Asking per place rather than once is also what lets a returned relation be installed
+        // untouched -- nothing is shared, so nothing has to be made safe to share, and the facility needs no
+        // opinion about what a function handed back.
         parsed.forEachDown(node -> {
-            if (node instanceof UnresolvedSourceFunctionRelation leaf && occurrences.merge(leaf, 1, Integer::sum) == 1) {
+            if (node instanceof UnresolvedSourceFunctionRelation leaf) {
                 leaves.add(leaf);
             }
         });
@@ -144,9 +149,7 @@ public class SourceFunctionResolver {
         // planning work, so it belongs on the pool planning continues on, which is what the executor names.
         ActionListener<Void> onPlanningPool = new ThreadedActionListener<>(
             executor,
-            PlanningCpuTracker.inheritMeteredCpu(
-                listener.map(ignored -> substitute(parsed, leaves, functions, relations, occurrences, projectMetadata))
-            )
+            PlanningCpuTracker.inheritMeteredCpu(listener.map(ignored -> substitute(parsed, leaves, functions, relations, projectMetadata)))
         );
         try (var refs = new RefCountingListener(onPlanningPool)) {
             for (int i = 0; i < leaves.size(); i++) {
@@ -178,7 +181,6 @@ public class SourceFunctionResolver {
         List<UnresolvedSourceFunctionRelation> leaves,
         List<SourceFunction> functions,
         LeafPlan[] relations,
-        Map<UnresolvedSourceFunctionRelation, Integer> occurrences,
         ProjectMetadata projectMetadata
     ) {
         // Keyed by identity rather than by equality, and the difference is not hypothetical in the way it looks.
@@ -202,34 +204,35 @@ public class SourceFunctionResolver {
             }
             checkNoViewIsNamed(functions.get(i), relations[i], projectMetadata);
         }
-        // A function is asked once per call, so two calls have to come back as two relations. Nothing in the
-        // interface stops one answering both from a cached instance -- the obvious thing to write for a function
-        // whose rows follow from its arguments -- and a relation the engine does not complete cannot stand in two
-        // places. Its page is released by whichever consumer reads it first, and the copy-per-read supplier below
-        // cannot save it: that is applied per leaf, and each of two leaves holding one relation occurs once. Its
-        // attributes are shared as well, so one plan would carry the same ids under two parents.
+        // A function is asked once per place a call appears, so each of those places has to come back with its own
+        // relation. Nothing in the interface stops one answering twice from a cached instance -- the obvious thing
+        // to write for a function whose rows follow from its arguments -- and a relation the engine does not
+        // complete cannot stand in two places: its page is released by whichever consumer reads it first, and its
+        // attributes are shared too, so one plan would carry the same ids under two parents.
         //
-        // Refused rather than repaired. Copying the page is the easy half; the ids would have to be freshened too,
-        // and what a function's attributes mean is the function's own business. A relation the engine completes is
-        // exempt, because each occurrence of one becomes its own relation downstream, the way a written-out index
-        // pattern does.
+        // Refused rather than repaired, and refused rather than worked around here. Copying the page would be the
+        // easy half; the ids would have to be freshened as well, and what a function's attributes mean is the
+        // function's own business. A relation the engine completes is exempt, because each occurrence of one
+        // becomes its own relation downstream, the way a written-out index pattern does.
         Map<LeafPlan, UnresolvedSourceFunctionRelation> installed = new IdentityHashMap<>(leaves.size());
         for (int i = 0; i < leaves.size(); i++) {
             if (relations[i] instanceof Unresolvable == false && installed.put(relations[i], leaves.get(i)) != null) {
                 throw new IllegalStateException(
-                    "source function ["
-                        + functions.get(i).name()
-                        + "] answered two calls with one relation, which cannot stand in both places"
+                    "source function [" + functions.get(i).name() + "] answered twice with one relation, which cannot stand in both places"
                 );
             }
         }
-        Map<UnresolvedSourceFunctionRelation, LeafPlan> bound = new IdentityHashMap<>(leaves.size());
+        // One queue per leaf OBJECT, because that object stands at every place a FORK reached it and the walk
+        // below is handed it once per place. Which of its relations lands at which place does not matter -- they
+        // are answers to the one call -- so a queue is enough, and nothing depends on the two walks visiting in
+        // the same order.
+        Map<UnresolvedSourceFunctionRelation, Deque<LeafPlan>> bound = new IdentityHashMap<>(leaves.size());
         for (int i = 0; i < leaves.size(); i++) {
-            UnresolvedSourceFunctionRelation leaf = leaves.get(i);
-            bound.put(leaf, withRepeatedReadsIfShared(relations[i], occurrences.get(leaf)));
+            bound.computeIfAbsent(leaves.get(i), ignored -> new ArrayDeque<>()).add(relations[i]);
         }
         return parsed.transformDown(UnresolvedSourceFunctionRelation.class, leaf -> {
-            LeafPlan relation = bound.get(leaf);
+            Deque<LeafPlan> answers = bound.get(leaf);
+            LeafPlan relation = answers == null ? null : answers.poll();
             // Thrown rather than asserted: assertions are off in production, where a null would surface later as
             // an NPE naming no function, or as the user's own syntax being reported unresolved. Worded apart from
             // the function-completed-with-null case above, which reads the same from a stack trace and is not the
@@ -240,23 +243,6 @@ public class SourceFunctionResolver {
             }
             return relation;
         });
-    }
-
-    /**
-     * Makes a relation that is about to be installed in several places safe to read from each of them.
-     * <p>
-     * Reached here by asking a call once and installing its relation under every FORK branch, which without
-     * {@link LocalRelation#withRepeatedReads()} crashes on the released block or hangs the request.
-     * <p>
-     * Only where a leaf really does occur more than once, so a call written once and read once pays no copy. And
-     * only for {@code LocalRelation}: a leaf a function left unresolved becomes its own relation per occurrence
-     * further down, the way a written-out index pattern does, so there is nothing to make safe.
-     */
-    private static LeafPlan withRepeatedReadsIfShared(LeafPlan relation, int occurrences) {
-        if (occurrences > 1 && relation instanceof LocalRelation local) {
-            return local.withRepeatedReads();
-        }
-        return relation;
     }
 
     /**

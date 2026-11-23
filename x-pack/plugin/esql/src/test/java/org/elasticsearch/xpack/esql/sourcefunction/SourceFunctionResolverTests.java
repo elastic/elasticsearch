@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedSourceFunctionRelation;
-import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ImmediateLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -628,7 +627,7 @@ public class SourceFunctionResolverTests extends ESTestCase {
      * each branch. Asked per arrival, a function doing I/O pays a round trip per branch for a call written once,
      * and every relation but the last is built and discarded.
      */
-    public void testALeafReachedFromSeveralParentsIsAskedOnce() {
+    public void testALeafReachedFromSeveralParentsIsAskedPerParent() {
         Numbers function = new Numbers();
         UnresolvedSourceFunctionRelation shared = call("2");
         LogicalPlan plan = new UnionAll(
@@ -639,44 +638,24 @@ public class SourceFunctionResolverTests extends ESTestCase {
 
         LogicalPlan resolved = resolve(function, plan);
 
-        assertThat(function.bindings.get(), equalTo(1));
+        assertThat(function.bindings.get(), equalTo(2));
         LogicalPlan left = resolved.children().get(0).children().get(0);
         LogicalPlan right = resolved.children().get(1).children().get(0);
         assertThat(left, instanceOf(LocalRelation.class));
-        // The one relation stands under both. Not what an index pattern does, though it reads like it: an
-        // UnresolvedRelation under two branches is visited once per branch by Analyzer.ResolveTable, which
-        // returns a new EsRelation each time, so a pattern yields two. One shared instance is this facility's
-        // own shape, and what makes it safe to read twice is the supplier the next test pins.
-        assertSame(left, right);
-    }
-
-    /**
-     * A relation installed under several parents is read once per parent, so it is given a supplier that copies
-     * per read. Without it the first reader releases the page and the second crashes on it — reproduced end to
-     * end as {@code SourceFunctionFacilityIT.testOneCallReadByEveryForkBranch}. This pins it at the unit layer,
-     * where no seed decides it.
-     */
-    public void testARelationReadBySeveralParentsCopiesPerRead() {
-        UnresolvedSourceFunctionRelation shared = call("2");
-        LogicalPlan plan = new UnionAll(
-            Source.EMPTY,
-            List.of(new Filter(Source.EMPTY, shared, Literal.TRUE), new Filter(Source.EMPTY, shared, Literal.TRUE)),
-            List.of()
-        );
-
-        LogicalPlan resolved = resolve(new Numbers(), plan);
-
-        LocalRelation installed = (LocalRelation) resolved.children().get(0).children().get(0);
-        assertThat(installed.supplier(), instanceOf(CopyingLocalSupplier.class));
-        // Two reads, each its own page, which is the property the supplier is there for.
-        Page first = installed.supplier().get();
-        Page second = installed.supplier().get();
+        assertThat(right, instanceOf(LocalRelation.class));
+        // Two places, two relations, which is what an index pattern already does: an UnresolvedRelation under two
+        // branches is visited once per branch by Analyzer.ResolveTable and yields a new EsRelation each time.
+        // Nothing is shared, so nothing has to be made safe to share.
+        assertNotSame(left, right);
+        // And each carries its own page, so one reader releasing its block cannot reach the other's.
+        Page first = ((LocalRelation) left).supplier().get();
+        Page second = ((LocalRelation) right).supplier().get();
         assertNotSame(first, second);
         assertNotSame(first.getBlock(0), second.getBlock(0));
     }
 
-    /** And a call read once is not made to pay for it: the relation the function returned is installed as it is. */
-    public void testARelationReadOnceIsNotCopied() {
+    /** What a function hands back is installed as it came: the facility adds no wrapper of its own. */
+    public void testARelationIsInstalledExactlyAsItCameBack() {
         LogicalPlan resolved = resolve(new Numbers(), call("2"));
 
         assertThat(((LocalRelation) resolved).supplier(), instanceOf(ImmediateLocalSupplier.class));
@@ -711,18 +690,17 @@ public class SourceFunctionResolverTests extends ESTestCase {
     }
 
     /**
-     * Two calls may not be answered with one relation. The copy-per-read supplier above cannot save it: that is
-     * applied per leaf, and each of two leaves holding one relation occurs once, so the first consumer releases
-     * the page and the second reads a released block. The attributes are shared as well, so one plan would carry
-     * the same ids under two parents. Refused with the function named, rather than crashing in execution with a
-     * message that names nothing the author can act on.
+     * One relation may not stand in two places, and the facility will not repair it: the first consumer releases
+     * the page and the second reads a released block, while the attributes are shared too, so one plan would
+     * carry the same ids under two parents. Refused with the function named, rather than crashing in execution
+     * with a message that names nothing the author can act on.
      */
     public void testAFunctionAnsweringTwoCallsWithOneRelationIsRefused() {
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> resolve(new Caching(), new UnionAll(Source.EMPTY, List.of(named("caching"), named("caching")), List.of()))
         );
-        assertThat(e.getMessage(), containsString("source function [caching] answered two calls with one relation"));
+        assertThat(e.getMessage(), containsString("source function [caching] answered twice with one relation"));
     }
 
     /** The discriminating half: that same cached relation under a single call stands, because it is in one place. */

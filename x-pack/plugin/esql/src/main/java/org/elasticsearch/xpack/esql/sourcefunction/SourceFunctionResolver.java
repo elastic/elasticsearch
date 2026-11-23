@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.xpack.esql.action.PlanningCpuTracker;
-import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -213,11 +212,19 @@ public class SourceFunctionResolver {
         //
         // Refused rather than repaired, and refused rather than worked around here. Copying the page would be the
         // easy half; the ids would have to be freshened as well, and what a function's attributes mean is the
-        // function's own business. A relation the engine completes is exempt, because each occurrence of one
-        // becomes its own relation downstream, the way a written-out index pattern does.
+        // function's own business.
+        //
+        // This covers a relation the engine completes too, which looks exempt and is not. Each occurrence of an
+        // unresolved leaf does become its own relation downstream, so sharing one reads as harmless -- but what
+        // runs downstream is keyed by the leaf's IDENTITY, not by its contents, and the scope that is keyed with
+        // it varies per place. DatasetResolver collects a ScopedRelation per occurrence, each carrying its own
+        // wildcardsMatchDatasets, and then skips any relation already in an IdentityHashMap, so one object
+        // standing at two places is resolved once under whichever scope reached it first and the other place
+        // silently inherits that answer. One rule for both kinds is also simply easier to state, and a rule with
+        // a carve-out is the one a function author reads as permission.
         Map<LeafPlan, UnresolvedSourceFunctionRelation> installed = new IdentityHashMap<>(leaves.size());
         for (int i = 0; i < leaves.size(); i++) {
-            if (relations[i] instanceof Unresolvable == false && installed.put(relations[i], leaves.get(i)) != null) {
+            if (installed.put(relations[i], leaves.get(i)) != null) {
                 throw new IllegalStateException(
                     "source function ["
                         + functions.get(i).name()

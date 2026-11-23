@@ -730,6 +730,58 @@ public class SourceFunctionResolverTests extends ESTestCase {
     }
 
     /**
+     * And the same refusal for a relation the engine completes, which is the case that reads as harmless. Each
+     * occurrence of an unresolved leaf does become its own relation downstream, so sharing one looks free — but
+     * what runs downstream keys a leaf by identity and pairs it with a scope that varies per place.
+     * {@code DatasetResolver} collects a scoped relation per occurrence, each carrying its own
+     * {@code wildcardsMatchDatasets}, then skips any relation already in an identity map, so one object at two
+     * places is resolved once under whichever scope reached it first and the other place inherits that answer.
+     * One rule for both kinds, because a carve-out is what a function author reads as permission.
+     */
+    public void testAFunctionAnsweringTwoPlacesWithOneUnresolvedRelationIsRefused() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> resolve(
+                new CachingUnresolved(),
+                new UnionAll(Source.EMPTY, List.of(named("caching_unresolved"), named("caching_unresolved")), List.of())
+            )
+        );
+        assertThat(e.getMessage(), containsString("source function [caching_unresolved] answered more than one place"));
+    }
+
+    /** As {@link Caching}, but handing back a leaf the engine completes rather than one it does not. */
+    private static class CachingUnresolved implements SourceFunction {
+        private final UnresolvedRelation cached = new UnresolvedRelation(
+            Source.EMPTY,
+            new IndexPattern(Source.EMPTY, "logs"),
+            false,
+            List.of(),
+            IndexMode.STANDARD,
+            null
+        );
+
+        @Override
+        public String name() {
+            return "caching_unresolved";
+        }
+
+        @Override
+        public SourceFunctionSignature signature() {
+            return SourceFunctionSignature.of(SourceFunctionSignature.string("x"));
+        }
+
+        @Override
+        public void toRelation(
+            SourceFunctionInvocation call,
+            List<NamedExpression> metadataFields,
+            ProjectMetadata projectMetadata,
+            ActionListener<LeafPlan> listener
+        ) {
+            listener.onResponse(cached);
+        }
+    }
+
+    /**
      * A query may name many calls, and they go out together, so the ceiling is checked before any of them is
      * asked rather than by the branch-count check on the optimized plan, which would arrive after every one of
      * them had been made.

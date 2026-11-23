@@ -63,7 +63,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.grok.MatcherWatchdog;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -140,7 +139,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.FetchOperatorProvider;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -294,7 +292,7 @@ public class ComputeService {
         this.ipLocationService = transportActionServices.ipLocationService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
-        this.batchIndexingEnabled = new BatchIndexingEnabled(this.clusterService.getClusterSettings());
+        this.batchIndexingEnabled = transportActionServices.batchIndexingEnabled();
         this.clusterService.getClusterSettings()
             .initializeAndWatch(
                 GROK_WATCHDOG_MAX_EXECUTION_TIME,
@@ -461,7 +459,7 @@ public class ComputeService {
                     List.of(),
                     FormatReader.NO_LIMIT,
                     discoveryMemory(run),
-                    configuration.pragmas().taskConcurrency(),
+                    configuration.pragmas().taskConcurrency(clusterService.getSettings()),
                     minTransportVersion(),
                     ioExecutor,
                     ActionListener.wrap(result -> {
@@ -548,11 +546,10 @@ public class ComputeService {
     }
 
     private int externalCoalesceFloor(Configuration configuration) {
-        int taskConcurrency = configuration.pragmas().taskConcurrency();
-        // The TASK_CONCURRENCY default is computed from Settings.EMPTY at class-load time and therefore ignores
-        // node.processors. On a K8s node with node.processors=4 on a 64-CPU host the default is 97 while the
-        // esql_worker pool has only 7 threads. Cap against the pool size so the floor never creates more groups
-        // than there are workers to drain them. ThreadPool#info returns null for a pool this node did not register,
+        int taskConcurrency = configuration.pragmas().taskConcurrency(clusterService.getSettings());
+        // Cap against the live esql_worker pool so the floor never creates more groups than there are
+        // workers to drain them. Still needed when esql.worker.thread_pool_size is overridden below the
+        // search-formula default. ThreadPool#info returns null for a pool this node did not register,
         // in which case there is no pool size to cap against and the pragma value stands on its own.
         ThreadPool.Info computePoolInfo = threadPool.info(EsqlPlugin.computePool());
         int effectiveConcurrency = computePoolInfo == null ? taskConcurrency : Math.min(taskConcurrency, computePoolInfo.getMax());
@@ -780,7 +777,7 @@ public class ComputeService {
             execInfo,
             isCancelled,
             run,
-            configuration.pragmas().taskConcurrency(),
+            configuration.pragmas().taskConcurrency(clusterService.getSettings()),
             ActionListener.wrap(rewritten -> {
                 if (SplitCoalescer.shouldCoalesce(splits.size())) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits, externalCoalesceFloor(configuration));
@@ -2211,10 +2208,8 @@ public class ComputeService {
             final String logicalPlanJson;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
-                // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
-                List<SearchExecutionContext> localContexts = new ArrayList<>();
-                shardContexts.iterable()
-                    .forEach(shardContext -> localContexts.add(((DefaultShardContext) shardContext).executionContext()));
+                // Planning sees the fields the plan reads as each shard resolves them
+                SearchStats localStats = SearchContextStats.fromShards(shardContexts.iterable());
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,
@@ -2222,7 +2217,7 @@ public class ComputeService {
                         context.configuration(),
                         context.foldCtx(),
                         plan,
-                        SearchContextStats.from(localContexts),
+                        localStats,
                         formatReaderRegistry,
                         coordinatorExternalSplits,
                         planTimeProfile,
@@ -2235,10 +2230,10 @@ public class ComputeService {
                     var localPlanResult = PlannerUtils.localPlanWithLogical(
                         plannerSettings,
                         context.flags(),
-                        localContexts,
                         context.configuration(),
                         context.foldCtx(),
                         plan,
+                        localStats,
                         planTimeProfile
                     );
                     localPlan = localPlanResult.physicalPlan();

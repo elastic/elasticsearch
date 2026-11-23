@@ -605,7 +605,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
         private void abortWindowStream(InputStream in, Throwable failure) {
             try {
-                storageObject.abortStream(in);
+                in.close();
             } catch (Exception abortEx) {
                 failure.addSuppressed(abortEx);
             }

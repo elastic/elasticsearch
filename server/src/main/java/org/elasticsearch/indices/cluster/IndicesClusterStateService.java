@@ -1677,7 +1677,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
         final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {
-            // The code in this try block should not throw, except under fatal conditions.
+            // The code throughout this try block should not throw, except under fatal conditions.
             // It is handling a recovery failure, and needs to swallow its own failures.
             // Everything should either be exception-free or handle its own exceptions.
             CloseUtils.executeDirectly(l -> {
@@ -1738,14 +1738,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     assert blocked : "ticket for " + key + " was replaced while handling recovery failure";
                 }
                 case FAIL_SEND -> {
+                    // The sendFailShard() method handles its own exceptions.
                     sendFailShard(shardRouting, primaryTerm, message, failure, clusterService.state());
                 }
                 case ABORT -> {
+                    // ShardRecoveryListener.onRecoveryFailure() returns early for ABORT and does not call handleRecoveryFailure()
                     assert false : "handleRecoveryFailure called with ABORT strategy, which should not happen";
                 }
             }
         } catch (Exception e) {
-            // This should not be possible, see the comment at the top of the try block.
+            // Getting here should not be possible, see the comment at the very top of the try block.
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
             logger.error(wrappedException.getMessage(), e);
             assert false : e;

@@ -158,6 +158,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.IndependentSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
@@ -575,7 +576,7 @@ public class EsqlSession {
             SettingsValidationContext.from(crossProjectModeDecider),
             verifier.licenseState()
         );
-        // Resolve LET bindings before view resolution. This is a synchronous, local rewrite that
+        // Resolve LET named subqueries before view resolution. This is a synchronous, local rewrite that
         // requires no cluster state — it simply substitutes named subquery bodies for their names.
         // Performing it before replaceViews ensures that LET names never reach field-caps and that
         // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
@@ -611,7 +612,7 @@ public class EsqlSession {
             QuerySettings.PROJECT_ROUTING.get(resolved),
             QuerySettings.WILDCARDS_MATCH_VIEWS.get(resolved),
             QuerySettings.WILDCARDS_MATCH_DATASETS.get(resolved),
-            // Resolve the view's own LET bindings before the resolver reads the plan. The statement is what the
+            // Resolve the view's own LET named subqueries before the resolver reads the plan. The statement is what the
             // resolver reads the definition's SET settings from, so the resolved plan has to stay on that statement.
             (query, viewName) -> planningCpu.meteredCpu(() -> {
                 var viewStmt = parser.parseView(
@@ -2542,8 +2543,10 @@ public class EsqlSession {
      * Collects the clusters that feed rows into a plan node (a LOOKUP JOIN's left subtree, or an ENRICH's child) by walking
      * only the data-bearing spine of that subtree.
      * <p>
-     * For any {@link AbstractSubqueryJoin} (SEMI/ANTI/MARK) that {@code InSubqueryResolver} produces for {@code field IN (subquery)}, only
-     * the left child carries rows into the subsequent plan; the right child does not contribute source clusters to this join.
+     * For any {@link IndependentSubqueryJoin}, the right child is a separate query that the coordinator runs and replaces with its
+     * result, so only the left child contributes source clusters to this join. That covers the SEMI/ANTI/MARK joins that
+     * {@code InSubqueryResolver} produces for {@code field IN (subquery)} and the {@code SubqueryJoin} of
+     * {@code LEFT OUTER JOIN (subquery)}.
      * So {@code ... | WHERE x IN (FROM remote:idx) | LOOKUP JOIN ...} scopes the lookup to the outer source only, not to {@code remote}.
      * A {@code FROM a, b} union ({@code Fork}/{@code UnionAll}) instead reads from every branch, so all of its children are followed.
      * The behavior is validated by {@code CrossClusterInSubqueryIT.testMissingLookupIndexAfterWhereInSubquery}
@@ -2564,7 +2567,7 @@ public class EsqlSession {
             case Row row -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             // The EQL engine returns its matches to the coordinator, so its rows are local even when its pattern targets a remote.
             case UnresolvedEqlRelation eql -> scope.add(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            case AbstractSubqueryJoin subqueryJoin -> collectSourceClusterScope(subqueryJoin.left(), scope, indexResolution);
+            case IndependentSubqueryJoin subqueryJoin -> collectSourceClusterScope(subqueryJoin.left(), scope, indexResolution);
             default -> {
                 for (LogicalPlan child : plan.children()) {
                     collectSourceClusterScope(child, scope, indexResolution);

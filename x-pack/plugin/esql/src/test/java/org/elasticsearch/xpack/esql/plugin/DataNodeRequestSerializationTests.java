@@ -265,7 +265,9 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         ).v2();
         UnmappedFieldsAttribute before = unmappedFieldsAttribute(dataNodePlan);
         assertTrue(before.pattern().matches("first_name_suffix"));
-        assertFalse(before.pattern().matches("first_name"));
+        // A mapped field is not excluded from the pattern: only KEEP and DROP restrict it, and a shard skips the fields it maps.
+        assertTrue(before.pattern().matches("first_name"));
+        assertFalse(before.pattern().matches("last_name"));
 
         DataNodeRequest request = new DataNodeRequest(
             "load-all-session",

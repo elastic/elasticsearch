@@ -26,6 +26,8 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_MAX_CONN;
+
 public class HnswUtilsTests extends ESTestCase {
 
     public void testGraphSerialization() throws IOException {
@@ -37,7 +39,7 @@ public class HnswUtilsTests extends ESTestCase {
                 vectors[c][d] = random().nextFloat() * 2f - 1f;
             }
         }
-        int m = random().nextInt(4, 24);
+        int m = random().nextInt(DEFAULT_MAX_CONN, 24);
         int candidates = Math.min(numVectors - 1, 64);
         NeighborHood[] neighborhoods = NeighborHood.computeNeighborhoods(CentroidOps.FLOAT, vectors, candidates);
         HnswUtils.MultiLevelAdjacency built = HnswUtils.buildMultiLevelFromNeighborhoods(

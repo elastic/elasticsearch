@@ -173,7 +173,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
                 nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
             } else {
-                test.systemProperty("tests.seed", buildParams.get().getTestSeed());
+                test.systemProperty("tests.seed", buildParams.get().getTestSeedProvider().get());
             }
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability

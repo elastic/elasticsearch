@@ -46,9 +46,32 @@ public class GlibcErgonomicsTests extends ESTestCase {
     }
 
     public void testArenaMaxFollowsNodeProcessors() {
-        Settings settings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1.5).build();
+        // below one, so that the setting is valid on a single-processor machine too; it is rounded up
+        Settings settings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.5).build();
         Map<String, String> chosen = GlibcErgonomics.chooseEnvironment(Map.of(), settings, true);
-        assertThat(chosen, hasEntry("MALLOC_ARENA_MAX", "2"));
+        assertThat(chosen, hasEntry("MALLOC_ARENA_MAX", "1"));
+    }
+
+    public void testArenaMaxLeftOutWhenArenaTestSet() {
+        // glibc ignores the arena test once the arena max is set, so setting it would override the user's arena test
+        Map<String, String> environment = randomFrom(
+            Map.of("MALLOC_ARENA_TEST", "4"),
+            Map.of("GLIBC_TUNABLES", "glibc.malloc.arena_test=4")
+        );
+        Map<String, String> chosen = GlibcErgonomics.chooseEnvironment(environment, Settings.EMPTY, true);
+        assertThat(chosen, not(hasKey("MALLOC_ARENA_MAX")));
+        assertThat(chosen, aMapWithSize(2));
+    }
+
+    public void testGlibcTunablesEntryWithoutValueIgnored() {
+        // glibc ignores an entry without a value, so it doesn't configure anything
+        Map<String, String> chosen = GlibcErgonomics.chooseEnvironment(
+            Map.of("GLIBC_TUNABLES", "glibc.malloc.arena_max:glibc.malloc.tcache_count=0"),
+            Settings.EMPTY,
+            true
+        );
+        assertThat(chosen, hasKey("MALLOC_ARENA_MAX"));
+        assertThat(chosen, aMapWithSize(3));
     }
 
     public void testDefaultLeftOutWhenVariableAlreadySet() {

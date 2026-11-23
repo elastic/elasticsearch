@@ -91,7 +91,7 @@ class ServerCli extends EnvironmentAwareCommand {
     static final Map<String, GlibcEnvLimits> GLIBC_MALLOC_ENV_VARS = Map.of(
         GlibcErgonomics.MALLOC_ARENA_MAX,
         new GlibcEnvLimits(1, Long.MAX_VALUE),
-        "MALLOC_ARENA_TEST",
+        GlibcErgonomics.MALLOC_ARENA_TEST,
         new GlibcEnvLimits(1, Long.MAX_VALUE),
         GlibcErgonomics.MALLOC_MMAP_THRESHOLD,
         new GlibcEnvLimits(0, 32L * 1024 * 1024),

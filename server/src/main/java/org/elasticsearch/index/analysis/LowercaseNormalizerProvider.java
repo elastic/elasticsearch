@@ -30,6 +30,14 @@ public class LowercaseNormalizerProvider extends AbstractIndexAnalyzerProvider<L
         return analyzer;
     }
 
+    /**
+     * Returns a new normalizer that lowercases the output of {@code tokenizerFactory}. Always a fresh instance, so the
+     * keyword and whitespace variants of one index never share (and so never close) the same analyzer.
+     */
+    public LowercaseNormalizer build(TokenizerFactory tokenizerFactory) {
+        return new LowercaseNormalizer(tokenizerFactory::create);
+    }
+
     @Override
     public Object sharingKey() {
         // Stateless normalizer: every instance is interchangeable.

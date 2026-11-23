@@ -57,6 +57,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -798,5 +799,27 @@ public class AnalysisRegistryTests extends ESTestCase {
 
         registry.close();
         verify(mock).close();
+    }
+
+    /** {@code split_queries_on_whitespace} uses the whitespace variant of the built-in {@code lowercase} normalizer. */
+    public void testLowercaseNormalizerWhitespaceVariantSplits() throws IOException {
+        try (
+            IndexAnalyzers ia = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettingsOfCurrentVersion(Settings.builder()))
+        ) {
+            assertTokenStreamContents(ia.getNormalizer("lowercase").tokenStream("f", "FoO BaR"), new String[] { "foo bar" });
+            assertTokenStreamContents(ia.getWhitespaceNormalizer("lowercase").tokenStream("f", "FoO BaR"), new String[] { "foo", "bar" });
+        }
+    }
+
+    /**
+     * The keyword and whitespace variants are cached and released separately when analyzers are shared, so they must never
+     * wrap the same analyzer instance: releasing one would close the other.
+     */
+    public void testLowercaseNormalizerVariantsAreDistinctInstances() throws IOException {
+        try (
+            IndexAnalyzers ia = nonEmptyRegistry.build(IndexCreationContext.CREATE_INDEX, indexSettingsOfCurrentVersion(Settings.builder()))
+        ) {
+            assertNotSame(ia.getNormalizer("lowercase").analyzer(), ia.getWhitespaceNormalizer("lowercase").analyzer());
+        }
     }
 }

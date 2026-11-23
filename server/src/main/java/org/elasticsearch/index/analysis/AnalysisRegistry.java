@@ -1494,7 +1494,9 @@ public final class AnalysisRegistry implements Closeable {
         if (normalizerFactory instanceof CustomNormalizerProvider) {
             ((CustomNormalizerProvider) normalizerFactory).build(tokenizerFactory, charFilters, tokenFilters);
         }
-        Analyzer normalizerF = normalizerFactory.get();
+        Analyzer normalizerF = normalizerFactory instanceof LowercaseNormalizerProvider lowercase
+            ? lowercase.build(tokenizerFactory)
+            : normalizerFactory.get();
         if (normalizerF == null) {
             throw new IllegalArgumentException("normalizer [" + normalizerFactory.name() + "] created null normalizer");
         }

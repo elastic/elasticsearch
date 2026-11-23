@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -737,6 +739,17 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = service.fieldType("field");
         assertFalse(ft.hasDocValues());
         assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ((GeoPointFieldMapper.GeoPointFieldType) ft).geoShapeQuery(
+                context,
+                "field",
+                ShapeRelation.INTERSECTS,
+                new org.apache.lucene.geo.Point(0, 0)
+            )
+        );
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
     }
 
     @Override

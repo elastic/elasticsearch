@@ -37,6 +37,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
@@ -827,6 +828,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = service.fieldType("field");
         assertFalse(ft.hasDocValues());
         assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery("2020-01-01", context));
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
     }
 
     private static IndexSettings buildIndexSettings(IndexVersion indexVersion) {

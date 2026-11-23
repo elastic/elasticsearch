@@ -2,5 +2,5 @@ area: Mapping
 issues:
  - 166769
 pr: 166841
-summary: Explicitly check for `doc_values` when building `IndexType.archivedPoints()`
+summary: Correct error message when trying to run queries against archive index numeric fields that have no `doc_values`
 type: bug

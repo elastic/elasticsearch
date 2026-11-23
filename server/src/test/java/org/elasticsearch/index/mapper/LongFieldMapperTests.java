@@ -262,6 +262,9 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         MappedFieldType ft = service.fieldType("field");
         assertFalse(ft.hasDocValues());
         assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery(1L, context));
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
     }
 
     private static Set<Integer> matchingDocIds(IndexSearcher searcher, Query query) throws IOException {

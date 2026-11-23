@@ -5022,6 +5022,12 @@ public class EsqlCapabilities {
          */
         FIX_TS_FIRST_LAST_SAMPLES,
 
+        /**
+         * The {@code unmapped_fields} setting is accepted in the request body, under {@code settings.unmapped_fields}, as well as
+         * with {@code SET}. See <a href="https://github.com/elastic/elasticsearch/issues/164668">#164668</a>.
+         */
+        UNMAPPED_FIELDS_IN_REQUEST_BODY,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

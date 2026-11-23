@@ -76,9 +76,13 @@ public class IVFOverspillDedupTests extends ESTestCase {
                 true
             ) {
                 @Override
-                protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
+                protected IVFCollectorManager getKnnCollectorManager(
+                    int k,
+                    SharedMinCompetitiveScore sharedScore,
+                    QueryTransformCache queryTransformCache
+                ) {
                     // No cross-segment score sharing, so the result does not depend on how the leaves interleave.
-                    return new IVFCollectorManager(k, null) {
+                    return new IVFCollectorManager(k, null, queryTransformCache) {
                         @Override
                         public AbstractMaxScoreKnnCollector newCollector(
                             int visitedLimit,

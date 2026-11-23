@@ -86,6 +86,11 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     private static final List<String> INTERNAL_FIELDS = List.of(GetResult._ID, GetResult._INDEX);
 
+    // Reserved but no longer in the bundled results mapping: existing indices still map "source_end_ms" as "long", so an input
+    // field of that name must not be copied into results as a string. The literal is deliberately independent of the constant in
+    // ReservedFieldNames, so renaming or mistyping that constant fails this test.
+    private static final List<String> LEGACY_RESERVED_FIELDS = List.of("source_end_ms");
+
     public void testResultsMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
 
@@ -105,6 +110,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);
         expected.addAll(INTERNAL_FIELDS);
+        expected.addAll(LEGACY_RESERVED_FIELDS);
 
         compareFields(expected, ReservedFieldNames.RESERVED_RESULT_FIELD_NAMES);
     }

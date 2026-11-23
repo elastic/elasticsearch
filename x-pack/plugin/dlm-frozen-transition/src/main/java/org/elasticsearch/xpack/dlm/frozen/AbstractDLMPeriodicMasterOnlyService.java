@@ -119,7 +119,8 @@ abstract class AbstractDLMPeriodicMasterOnlyService implements ClusterStateListe
         };
     }
 
-    private void stopThreadPools() {
+    // visible for testing
+    void stopThreadPools() {
         synchronized (this) {
             scheduledTask = null;
             if (schedulerThreadExecutor != null) {

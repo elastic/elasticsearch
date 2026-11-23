@@ -127,6 +127,14 @@ $$$esql-external-max-glob-expansion$$$
     - **Default:** `100`
     - **Valid values:** `1` to `10000`
 
+$$$esql-external-max-directory-listings$$$
+
+`esql.external.max_directory_listings` {applies_to}`stack: preview 9.7+`
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Ceiling on directory listings (`listChildren`) issued during one partition-pruning walk. When the walk would exceed this, it stops descending and either finishes surviving folders or falls back to a flat listing of the prefix. Finish `listObjects` pages are not counted. Raise this so a wide Hive tree (many unfiltered prefixes above a time partition) can complete the walk instead of flattening the whole prefix.
+
+    - **Default:** `3000`
+    - **Valid values:** `1` to `1000000`
+
 ## Read safety
 
 These settings limit how much CPU and read-thread time a single compressed object can consume. The first 1 MB of decompressed data is always allowed, and the ratio limit applies after that.

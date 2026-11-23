@@ -208,7 +208,7 @@ public class IVFKnnByteVectorQuery extends AbstractIVFKnnVectorQuery {
         byte[] leafQuery
     ) throws IOException {
         LeafReader reader = context.reader();
-        IVFKnnSearchStrategy strategy = knnCollectorManager.newSearchStrategy(visitRatio, numCands, k);
+        IVFKnnSearchStrategy strategy = knnCollectorManager.newSearchStrategy(visitRatio, numCands, k, leafQuery == query);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;

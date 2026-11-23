@@ -80,6 +80,10 @@ final class IVFSlicedSearchHelper {
     /**
      * Executes the sliced IVF search: resolves slice ordinals, iterates slices, and collects results. The actual
      * per-slice vector search is delegated to {@code sliceSearcher}.
+     *
+     * @param searchesQueryVector whether {@code sliceSearcher} searches with the query's own vector, so that the named slices
+     *                            searched in this leaf can share transformations of it with each other and with the
+     *                            other leaves of the query
      */
     static TopDocs getLeafResults(
         LeafReaderContext ctx,
@@ -91,6 +95,7 @@ final class IVFSlicedSearchHelper {
         String field,
         String sliceField,
         SliceKeys sliceKeys,
+        boolean searchesQueryVector,
         SliceSearcher sliceSearcher
     ) throws IOException {
         final LeafReader reader = ctx.reader();
@@ -116,7 +121,7 @@ final class IVFSlicedSearchHelper {
         }
         final Bits liveDocs = reader.getLiveDocs();
         final int maxDoc = reader.maxDoc();
-        final IVFKnnSearchStrategy strategy = knnCollectorManager.newSearchStrategy(visitRatio, numCands, k);
+        final IVFKnnSearchStrategy strategy = knnCollectorManager.newSearchStrategy(visitRatio, numCands, k, searchesQueryVector);
         final AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(Integer.MAX_VALUE, strategy, ctx);
         if (knnCollector == null) {
             return AbstractIVFKnnVectorQuery.NO_RESULTS;

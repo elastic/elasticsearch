@@ -20,12 +20,20 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
+<% /*
+  Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
+  the layers that do not change between builds can be reused. List them from the least to the most
+  frequently changing. Wildcards are allowed: the distribution only contains the machine learning
+  libraries of the architecture being built.
+*/
+def separateLayers = ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+
 ################################################################################
 # Build stage 1 `builder`:
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:e2bef9bbb6e0640235aab43e2d66739f69a0923fecf0404e974ccd33567e22e6 AS builder
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:f4301352b900a11399dfc5f3541e0cf0f45c641a5059db78e0e968aa8df7620f AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -63,6 +71,11 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 #  8. Make some directories writable. `bin` must be writable because
 #     plugins can install their own CLI utilities.
 #  9. Make some files writable
+# 10. Replace the identical jars that many modules and plugins bundle with hard links, so that each one is
+#     stored only once in the image layer. This relies on the permission reset above, since `ln -f` keys on
+#     content only and the linked paths take the mode and owner of the first file
+# 11. Move the paths that are copied in layers of their own out of the way, keeping their paths, into a
+#     directory per layer
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
@@ -71,7 +84,22 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -type f -perm /111 -exec chmod 0555 {} + && \\
     find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
-    find config -type f -exec chmod 0664 {} +
+    find config -type f -exec chmod 0664 {} + && \\
+    prev= && \\
+    set -o pipefail && \\
+    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
+        if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
+    done && \\
+    mkdir /layers && \\
+    n=0 && \\
+    for pattern in <%= separateLayers.collect { "'" + it + "'" }.join(' ') %>; do \\
+        mkdir "/layers/\$n" || exit 1; \\
+        for path in \$pattern; do \\
+            [ -d "\$path" ] || continue; \\
+            mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
+        done; \\
+        n=\$((n + 1)); \\
+    done
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
@@ -80,7 +108,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:e2bef9bbb6e0640235aab43e2d66739f69a0923fecf0404e974ccd33567e22e6
+FROM docker.elastic.co/wolfi/chainguard-base:latest@sha256:f4301352b900a11399dfc5f3541e0cf0f45c641a5059db78e0e968aa8df7620f
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -107,6 +135,10 @@ ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 
+<% separateLayers.eachWithIndex { path, i -> %>
+# Layer of its own: ${path}
+COPY --from=builder --chown=0:0 /layers/${i} /usr/share/elasticsearch
+<% } %>
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH

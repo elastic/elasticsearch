@@ -428,7 +428,7 @@ To regenerate everything for all functions and operators in a module:
 
 ### Settings
 
-Query settings (see [SET](directives/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Markdown docs and the table of contents only include non-snapshot settings; Kibana definitions are generated for all settings, with snapshot-only ones carrying `"snapshotOnly": true`.
+Query settings (see [SET](directives/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. The "Can also be set in" list of each setting (request body, cluster setting, view definition) is generated from the setting declarations. The versions that introduced those places are not part of the declarations, so they are constants in `DocsV3Support.SettingsDocsSupport`, next to the one setting that joined the request body late. The general description of the places in [`_snippets/commands/layout/set.md`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/_snippets/commands/layout/set.md) deliberately states no versions, so that they are kept in one place. Markdown docs and the table of contents only include non-snapshot settings; Kibana definitions are generated for all settings, with snapshot-only ones carrying `"snapshotOnly": true`.
 
 ### Time series implicit conversions
 
@@ -436,6 +436,16 @@ Inside `TS ... | STATS ...`, a bare field is implicitly wrapped in `last_over_ti
 
 ```
 ./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateKibanaDefinitionTests
+```
+
+### Profile response schema
+
+The generated draft-7 schema for the ES|QL profile response is published for Kibana in
+[`kibana/generated/x-pack-esql/definition/profile/esql_profile.schema.json`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/profile/esql_profile.schema.json).
+To regenerate it after you change a `PROFILE_SCHEMA` definition or add an operator status (see `EsqlProfileSchemaRegistry`), run:
+
+```
+./gradlew :x-pack:plugin:esql:profile-schema:updateProfileSchema
 ```
 
 ### Reserved keywords

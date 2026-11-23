@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 161931
-summary: Fix MATCH and MATCH_PHRASE on fused fields
+summary: Fix `MATCH` and `MATCH_PHRASE` on fused fields
 type: bug

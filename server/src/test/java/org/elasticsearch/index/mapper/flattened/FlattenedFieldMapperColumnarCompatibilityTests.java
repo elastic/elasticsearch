@@ -63,6 +63,20 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         );
     }
 
+    /** Dots in the key above the field's own path still give it one object, as do the nested spellings of that path. */
+    public void testDottedKeyAboveFieldPath() throws IOException {
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject("a.flat").field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "dotted key above field path",
+                1L,
+                doc("d1", 1L, "{\"a.flat\":{\"k\":\"v\"}}"),
+                doc("d2", 2L, "{\"a\":{\"flat\":{\"k\":\"w\",\"x\":{\"y\":\"z\"}}}}")
+            )
+        );
+    }
+
     /** Array order and duplicates must survive: the keyed channel is document-order with no dedup. */
     public void testArrayValuesPreserveOrderAndDuplicates() throws IOException {
         assertColumnarMatchesXContent(

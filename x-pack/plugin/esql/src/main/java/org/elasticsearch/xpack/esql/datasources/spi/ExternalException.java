@@ -116,16 +116,11 @@ public abstract class ExternalException extends QlException {
                     : "Unexpected internal failure reading external source: " + detailCode;
             }
         },
-        /**
-         * The worker that received external splits has not yet applied the cluster state the coordinator planned from (a node that
-         * has just joined, or one behind a dataset change), so it cannot bind the plan's datasets or credentials. Not tied to any
-         * object; the store is not involved. A coordinator with another worker hands the splits to it; otherwise the worker waits
-         * for the state, and this is what it fails with when that wait runs out.
-         */
+        /** A node has not yet applied the cluster state the query needs, so it cannot serve the external reads; retryable. */
         WORKER_NOT_READY {
             @Override
             public String render(String objectName, String detailCode, String remedy) {
-                String base = "Node has not yet applied the cluster state this query was planned from";
+                String base = "Node not ready to serve external data";
                 return detailCode.isEmpty() ? base : base + " (" + detailCode + ")";
             }
         };
@@ -369,6 +364,15 @@ public abstract class ExternalException extends QlException {
             }
         }
         return false;
+    }
+
+    /**
+     * Whether this failure means a cached listing or file-metadata entry no longer describes the store: the object
+     * was rewritten ({@link Condition#OBJECT_CHANGED}) or deleted ({@link Condition#OBJECT_NOT_FOUND}). Callers drop
+     * the entries they used and, when the query has not yet run, resolve or discover once more.
+     */
+    public static boolean isStaleCachedObject(Throwable failure) {
+        return hasCondition(failure, Condition.OBJECT_CHANGED) || hasCondition(failure, Condition.OBJECT_NOT_FOUND);
     }
 
     private String baseMessage() {

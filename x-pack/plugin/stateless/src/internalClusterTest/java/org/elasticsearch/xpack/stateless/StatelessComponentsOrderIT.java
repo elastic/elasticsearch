@@ -24,12 +24,18 @@ import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MonitorInfo;
+import java.lang.management.ThreadInfo;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -96,6 +102,7 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
 
         shuttingDownThread.join(30000);
         assertFalse(shuttingDownThread.isAlive());
+        assertThat(plugin.mergeBlockFailure.get(), nullValue());
     }
 
     public static class TestStatelessPlugin extends TestUtils.StatelessPluginWithTrialLicense {
@@ -105,6 +112,7 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
         private final CountDownLatch mergeReadStartedLatch = new CountDownLatch(1);
         private final CountDownLatch cacheEvictedLatch = new CountDownLatch(1);
         private final CountDownLatch statelessCloseCalledLatch = new CountDownLatch(1);
+        private final AtomicReference<String> mergeBlockFailure = new AtomicReference<>();
 
         public TestStatelessPlugin(Settings settings) {
             super(settings);
@@ -118,14 +126,84 @@ public class StatelessComponentsOrderIT extends AbstractStatelessPluginIntegTest
             return new IndexBlobStoreCacheDirectory(cacheService, shardId) {
                 @Override
                 protected IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges) {
-                    if (ThreadPool.Names.MERGE.equals(EsExecutors.executorName(Thread.currentThread()))) {
+                    // Only park the merge thread where it holds no IndexWriter monitor. Lucene opens the readers of the segments to merge
+                    // under that monitor (see IndexWriter#mergeMiddle calling ReadersAndUpdates#getReaderForMerge), and parking there
+                    // would block every flush and refresh of the shard, including the ones the test still has to complete before it can
+                    // resume the merge. Those opens are let through, the merge is blocked at a later read made outside the monitor.
+                    if (ThreadPool.Names.MERGE.equals(EsExecutors.executorName(Thread.currentThread()))
+                        && holdsIndexWriterMonitor() == false) {
                         mergeReadStartedLatch.countDown();
                         logger.info("--> merge thread blocked");
-                        safeAwait(cacheEvictedLatch);
+                        awaitCacheEvicted();
                     }
                     return super.doOpenInput(name, context, blobFileRanges);
                 }
             };
+        }
+
+        /**
+         * Parks the merge thread until the test resumes it. A timeout is recorded in {@link #mergeBlockFailure} for the test thread to
+         * report, rather than thrown from here: an {@link AssertionError} thrown into Lucene is a tragic event that fails the engine
+         * and leaves the test waiting for a merge that never completes instead of failing with the actual cause.
+         */
+        private void awaitCacheEvicted() {
+            try {
+                if (cacheEvictedLatch.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)) {
+                    return;
+                }
+                final var threads = dumpRelevantThreads();
+                logger.info("--> merge thread timed out waiting to be unblocked, relevant threads:\n{}", threads);
+                mergeBlockFailure.compareAndSet(null, "merge thread timed out waiting to be unblocked, relevant threads:\n" + threads);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                mergeBlockFailure.compareAndSet(null, "merge thread interrupted while waiting to be unblocked");
+            }
+            // let this and any later merge read proceed, the test fails on the recorded failure
+            cacheEvictedLatch.countDown();
+        }
+
+        /**
+         * @return whether the current thread holds the monitor of an {@code IndexWriter} (matched by class name so that the engine's
+         * own subclasses of it are covered too)
+         */
+        private static boolean holdsIndexWriterMonitor() {
+            final var threadInfos = ManagementFactory.getThreadMXBean()
+                .getThreadInfo(new long[] { Thread.currentThread().threadId() }, true, false);
+            for (MonitorInfo monitor : threadInfos[0].getLockedMonitors()) {
+                if (monitor.getClassName().contains("IndexWriter")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Dumps the test, flush and merge threads including the monitor each is blocked on and its owner, so that a failure can show what
+         * (if anything) the blocked merge thread is holding up, e.g. the flush waiting on the IndexWriter monitor.
+         */
+        private static String dumpRelevantThreads() {
+            final var sb = new StringBuilder();
+            for (ThreadInfo info : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
+                final String name = info.getThreadName();
+                if (name.startsWith("TEST-") == false && name.contains("[flush]") == false && name.contains("[merge]") == false) {
+                    continue;
+                }
+                sb.append('"').append(name).append("\" ").append(info.getThreadState());
+                if (info.getLockInfo() != null) {
+                    sb.append(" on ").append(info.getLockInfo());
+                }
+                if (info.getLockOwnerName() != null) {
+                    sb.append(" owned by \"").append(info.getLockOwnerName()).append('"');
+                }
+                sb.append('\n');
+                for (StackTraceElement frame : info.getStackTrace()) {
+                    sb.append("\tat ").append(frame).append('\n');
+                }
+                for (MonitorInfo monitor : info.getLockedMonitors()) {
+                    sb.append("\t- locked ").append(monitor).append(" at depth ").append(monitor.getLockedStackDepth()).append('\n');
+                }
+            }
+            return sb.toString();
         }
 
         @Override

@@ -16,8 +16,7 @@ setup:
 ---
 "Template request is passed to the service in place of messages":
   - do:
-      inference.inference:
-        task_type: chat_completion
+      inference.chat_completion:
         inference_id: test-template-cc
         body:
           template:
@@ -39,8 +38,7 @@ setup:
 "Template and messages are mutually exclusive":
   - do:
       catch: /Fields \[messages\] and \[template\] are mutually exclusive/
-      inference.inference:
-        task_type: chat_completion
+      inference.chat_completion:
         inference_id: test-template-cc
         body:
           messages:
@@ -55,8 +53,7 @@ setup:
 "Template cannot be combined with tools":
   - do:
       catch: /Field \[tools\] cannot be specified with \[template\]/
-      inference.inference:
-        task_type: chat_completion
+      inference.chat_completion:
         inference_id: test-template-cc
         body:
           template:
@@ -73,8 +70,7 @@ setup:
 "Template id must start with a dot":
   - do:
       catch: /Field \[template.id\] must start with a dot/
-      inference.inference:
-        task_type: chat_completion
+      inference.chat_completion:
         inference_id: test-template-cc
         body:
           template:
@@ -87,8 +83,7 @@ setup:
   # The chat completion error shape carries only the outer parse message; the "Required [version]" cause is in the server log.
   - do:
       catch: /failed to parse field \[template\]/
-      inference.inference:
-        task_type: chat_completion
+      inference.chat_completion:
         inference_id: test-template-cc
         body:
           template:
@@ -99,8 +94,7 @@ setup:
 "Messages are required when no template is given":
   - do:
       catch: /Field \[messages\] cannot be null/
-      inference.inference:
-        task_type: chat_completion
+      inference.chat_completion:
         inference_id: test-template-cc
         body:
           temperature: 0.1

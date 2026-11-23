@@ -13,6 +13,14 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
+<% /*
+  Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
+  the layers that do not change between builds can be reused. List them from the least to the most
+  frequently changing. Wildcards are allowed: the distribution only contains the machine learning
+  libraries of the architecture being built.
+*/
+def separateLayers = ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+
 
 ################################################################################
 # Build stage 1 `builder`:
@@ -65,7 +73,28 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # You can't install plugins that include configuration when running as `elasticsearch` and the `config`
 # dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 # config directory.
-    chown 1000:1000 bin config config/jvm.options.d data logs plugins
+    chown 1000:1000 bin config config/jvm.options.d data logs plugins && \\
+# Many modules and plugins bundle identical copies of the same jars. Replace the duplicates with hard links so
+# that each one is stored only once in the image layer. This has to happen before the layers are split off, and
+# the jdk is not touched since it is copied in a layer of its own. `ln -f` keys on content only, so the linked
+# paths take the mode and owner of the first file. That is only safe because the permissions of all files were
+# reset above, which leaves every jar with the same mode (and owner).
+    prev= && \\
+    set -o pipefail && \\
+    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
+        if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
+    done && \\
+# Move the paths that are copied in layers of their own out of the way, keeping their paths, into a directory per layer
+    mkdir /layers && \\
+    n=0 && \\
+    for pattern in <%= separateLayers.collect { "'" + it + "'" }.join(' ') %>; do \\
+        mkdir "/layers/\$n" || exit 1; \\
+        for path in \$pattern; do \\
+            [ -d "\$path" ] || continue; \\
+            mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
+        done; \\
+        n=\$((n + 1)); \\
+    done
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -97,6 +126,10 @@ COPY --from=builder /bin/tini /bin/tini
 
 WORKDIR /usr/share/elasticsearch
 
+<% separateLayers.eachWithIndex { path, i -> %>
+# Layer of its own: ${path}
+COPY --from=builder --chown=0:0 /layers/${i} .
+<% } %>
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS

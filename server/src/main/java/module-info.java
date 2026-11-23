@@ -33,7 +33,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.iplocation.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
-    requires org.elasticsearch.lucene.store;
+    requires transitive org.elasticsearch.lucene.store;
     requires org.elasticsearch.simdvec;
     requires org.elasticsearch.simdjson;
     requires org.elasticsearch.columnar;
@@ -344,6 +344,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.script.field;
     exports org.elasticsearch.script.field.vectors;
     exports org.elasticsearch.search;
+    exports org.elasticsearch.search.scheduling;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
     exports org.elasticsearch.search.aggregations.bucket.composite;
@@ -521,7 +522,8 @@ module org.elasticsearch.server {
 
     provides org.apache.lucene.index.SortFieldProvider
         with
-            org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField.Provider;
+            org.elasticsearch.index.fielddata.plain.MultiValuedBinaryDocValuesSortField.Provider,
+            org.elasticsearch.index.fielddata.plain.ColumnarNumericSortField.Provider;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 

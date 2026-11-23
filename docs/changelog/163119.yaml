@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 163119
+summary: Measure search waiting per query and shard
+type: enhancement

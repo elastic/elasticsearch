@@ -37,6 +37,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
@@ -819,6 +820,19 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
 
+    public void testLegacyIndexRespectsDocValuesFalse() throws IOException {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), fieldMapping(b -> {
+            b.field("type", "date");
+            b.field("doc_values", false);
+        }));
+        MappedFieldType ft = service.fieldType("field");
+        assertFalse(ft.hasDocValues());
+        assertEquals(IndexType.NONE, ft.indexType());
+        SearchExecutionContext context = createSearchExecutionContext(service);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ft.termQuery("2020-01-01", context));
+        assertThat(e.getMessage(), containsString("of legacy index since it does not have doc values"));
+    }
+
     private static IndexSettings buildIndexSettings(IndexVersion indexVersion) {
         return new IndexSettings(
             new IndexMetadata.Builder("index").settings(indexSettings(indexVersion, 1, 1).build()).build(),
@@ -1020,6 +1034,40 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertThat(src, containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
 
+    /**
+     * In a strictly columnar index a null counts only as an element of the field's own array (see
+     * {@link MultiValuedBinaryDocValuesField#keepsNullSlot}). Date keeps array order in the offsets sidecar like the mappers that
+     * {@link OffsetDocValuesLoaderTestCase} covers, but has no subclass of it.
+     */
+    public void testColumnarDateKeepsOnlyNullsInsideTheFieldsArray() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("field").field("type", "date").field("format", "epoch_millis").endObject();
+            b.startObject("obj").startObject("properties");
+            b.startObject("field").field("type", "date").field("format", "epoch_millis").endObject();
+            b.endObject().endObject();
+        })).documentMapper();
+        String absent = syntheticSource(mapper, b -> {});
+        assertEquals(absent, syntheticSource(mapper, b -> b.nullField("field")));
+        assertEquals(absent, syntheticSource(mapper, b -> b.startObject("obj").nullField("field").endObject()));
+
+        long value = randomLongBetween(0L, 4_000_000_000_000L);
+        assertEquals(
+            syntheticSource(mapper, b -> b.startArray("obj").startObject().field("field", value).endObject().endArray()),
+            syntheticSource(mapper, b -> {
+                b.startArray("obj");
+                b.startObject().nullField("field").endObject();
+                b.startObject().field("field", value).endObject();
+                b.endArray();
+            })
+        );
+        assertEquals(
+            "{\"field\":[null,\"" + value + "\"]}",
+            syntheticSource(mapper, b -> b.startArray("field").nullValue().value(value).endArray())
+        );
+        assertEquals("{\"field\":[null,null]}", syntheticSource(mapper, b -> b.startArray("field").nullValue().nullValue().endArray()));
+    }
+
     @Override
     protected List<CheckedConsumer<XContentBuilder, IOException>> fieldMappingsForIndexSortRangeTest() {
         return List.of(b -> {
@@ -1040,4 +1088,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
         throw new AssertionError("no [format] parameter");
     }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

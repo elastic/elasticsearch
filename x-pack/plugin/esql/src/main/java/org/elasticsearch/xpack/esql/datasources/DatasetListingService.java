@@ -53,6 +53,7 @@ public final class DatasetListingService {
     private final IntSupplier maxDiscoveredFiles;
     private final IntSupplier maxGlobExpansion;
     private final IntSupplier maxListedObjects;
+    private final IntSupplier maxDirectoryListings;
 
     /**
      * @param cacheService the shared listing cache, or {@code null} to list live every time.
@@ -68,11 +69,27 @@ public final class DatasetListingService {
         @Nullable IntSupplier maxGlobExpansion,
         @Nullable IntSupplier maxListedObjects
     ) {
+        this(settings, cacheService, maxDiscoveredFiles, maxGlobExpansion, maxListedObjects, null);
+    }
+
+    /**
+     * @param maxDirectoryListings live {@link ExternalSourceSettings#MAX_DIRECTORY_LISTINGS} cap; {@code null} reads
+     *        the node's own settings, same fallback as the other caps.
+     */
+    public DatasetListingService(
+        Settings settings,
+        @Nullable ExternalSourceCacheService cacheService,
+        @Nullable IntSupplier maxDiscoveredFiles,
+        @Nullable IntSupplier maxGlobExpansion,
+        @Nullable IntSupplier maxListedObjects,
+        @Nullable IntSupplier maxDirectoryListings
+    ) {
         Settings effective = settings != null ? settings : Settings.EMPTY;
         this.cacheService = cacheService;
         this.maxDiscoveredFiles = capOrSettings(maxDiscoveredFiles, ExternalSourceSettings.MAX_DISCOVERED_FILES, effective);
         this.maxGlobExpansion = capOrSettings(maxGlobExpansion, ExternalSourceSettings.MAX_GLOB_EXPANSION, effective);
         this.maxListedObjects = capOrSettings(maxListedObjects, ExternalSourceSettings.MAX_LISTED_OBJECTS, effective);
+        this.maxDirectoryListings = capOrSettings(maxDirectoryListings, ExternalSourceSettings.MAX_DIRECTORY_LISTINGS, effective);
     }
 
     private static IntSupplier capOrSettings(@Nullable IntSupplier supplied, Setting<Integer> setting, Settings settings) {
@@ -94,6 +111,10 @@ public final class DatasetListingService {
 
     public int maxListedObjects() {
         return maxListedObjects.getAsInt();
+    }
+
+    public int maxDirectoryListings() {
+        return maxDirectoryListings.getAsInt();
     }
 
     /**
@@ -161,7 +182,8 @@ public final class DatasetListingService {
             extents,
             memory,
             cancelled,
-            folderRange
+            folderRange,
+            maxDirectoryListings.getAsInt()
         );
     }
 
@@ -217,7 +239,8 @@ public final class DatasetListingService {
             cancelled,
             executor,
             listener,
-            folderRange
+            folderRange,
+            maxDirectoryListings.getAsInt()
         );
     }
 
@@ -228,6 +251,11 @@ public final class DatasetListingService {
      * starting a fan-out. A query that waited allocated nothing in the walk, so
      * like a cache hit it reserves the listing's size here; a leader that was cancelled fails only itself, and the
      * others list again.
+     * <p>
+     * A bounded listing that comes back untruncated is the whole glob, not a prefix of it, so it is also
+     * published under the unbounded address. A later query that needs the full dataset then hits rather than
+     * listing again. A truncated prefix is not published there: that would serve a fraction of the dataset as
+     * if it were all of it. An inference-anchor leftover is not the glob either.
      */
     public void cachedListingAsync(
         String path,
@@ -281,15 +309,15 @@ public final class DatasetListingService {
         ActionListener<FileList> listener,
         @Nullable FolderRangePredicate folderRange
     ) {
-        ListingCacheKey listingKey = ListingCacheKey.build(
-            storagePath.scheme(),
-            storagePath.host(),
-            storagePath.path(),
+        ListingCacheKey listingKey = listingCacheKey(
+            path,
+            storagePath,
             storageIdentity,
             secretIdentity,
-            ExternalSourceResolver.storageConfig(config),
-            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config, extents, folderRange)
+            hints,
+            config,
+            extents,
+            folderRange
         );
         usedListing.accept(listingKey);
         // Set by whichever thread runs the compute and read by whichever completes the listing.
@@ -331,7 +359,47 @@ public final class DatasetListingService {
                 return;
             }
             listener.onResponse(listing);
+            // After the query has its listing: a wait on a concurrent sync compute of the unbounded key
+            // must not delay or fail this one. Truncated prefixes and inference-anchor leftovers are not
+            // the glob; DatasetDiscovery.schemaListingIsComplete is that test.
+            if (extents.boundsFileSet() && DatasetDiscovery.shared(listing).schemaListingIsComplete()) {
+                cacheService.publishListingIfAbsent(
+                    listingCacheKey(
+                        path,
+                        storagePath,
+                        storageIdentity,
+                        secretIdentity,
+                        hints,
+                        config,
+                        ListingExtents.UNBOUNDED,
+                        folderRange
+                    ),
+                    listing
+                );
+            }
         }, listener::onFailure));
+    }
+
+    private static ListingCacheKey listingCacheKey(
+        String path,
+        StoragePath storagePath,
+        String storageIdentity,
+        String secretIdentity,
+        @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
+        Map<String, Object> config,
+        ListingExtents extents,
+        @Nullable FolderRangePredicate folderRange
+    ) {
+        return ListingCacheKey.build(
+            storagePath.scheme(),
+            storagePath.host(),
+            storagePath.path(),
+            storageIdentity,
+            secretIdentity,
+            ExternalSourceResolver.storageConfig(config),
+            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
+            GlobExpander.listingCacheDiscriminator(path, hints, config, extents, folderRange)
+        );
     }
 
     /**
@@ -370,15 +438,15 @@ public final class DatasetListingService {
         // The two identities are passed in rather than derived here: only the provider that would list this prefix
         // knows which of its settings name the same store twice and which of them are declared secret, and the
         // resolver already holds what it reported. Re-deriving would take a fresh lease and decrypt again.
-        ListingCacheKey listingKey = ListingCacheKey.build(
-            storagePath.scheme(),
-            storagePath.host(),
-            storagePath.path(),
+        ListingCacheKey listingKey = listingCacheKey(
+            path,
+            storagePath,
             storageIdentity,
             secretIdentity,
-            ExternalSourceResolver.storageConfig(config),
-            // intentional raw config: only reads partition-filter keys, not auth/connection params from _datasource
-            GlobExpander.listingCacheDiscriminator(path, hints, config, ListingExtents.UNBOUNDED, folderRange)
+            hints,
+            config,
+            ListingExtents.UNBOUNDED,
+            folderRange
         );
         FileList listing;
         boolean[] servedFromCacheHolder = { true };

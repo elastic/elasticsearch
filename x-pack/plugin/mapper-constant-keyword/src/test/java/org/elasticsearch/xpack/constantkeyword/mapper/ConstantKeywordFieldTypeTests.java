@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.ConstantFieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
@@ -22,6 +26,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
 
@@ -134,6 +141,19 @@ public class ConstantKeywordFieldTypeTests extends ConstantFieldTypeTestCase {
         ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
         assertEquals(Queries.ALL_DOCS_INSTANCE, ft.regexpQuery("f.o", RegExp.ALL, 0, 10, null, null));
         assertEquals(Queries.NO_DOCS_INSTANCE, ft.regexpQuery("f..o", RegExp.ALL, 0, 10, null, null));
+    }
+
+    /** With a request breaker in the context, the pattern is built step by step on it, as it is for keyword fields. */
+    public void testRegexpQueryIsChargedToTheBreaker() {
+        ConstantKeywordFieldType ft = new ConstantKeywordFieldType("f", "foo");
+        // A mock context, because the field type reads only the breaker from it.
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        when(context.getCircuitBreaker()).thenReturn(breaker);
+        expectThrows(CircuitBreakingException.class, () -> ft.regexpQuery("x?{500}{2}", RegExp.ALL, 0, 10_000, null, context));
+        assertEquals(0L, breaker.getUsed());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, ft.regexpQuery("f.o", RegExp.ALL, 0, 10_000, null, context));
+        assertEquals(0L, breaker.getUsed());
     }
 
     public void testFetchValue() throws Exception {

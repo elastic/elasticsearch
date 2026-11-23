@@ -15,6 +15,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -42,8 +43,11 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongConsumer;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DfsQueryPhaseTests extends ESTestCase {
 
@@ -77,6 +81,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -177,6 +182,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -242,6 +248,73 @@ public class DfsQueryPhaseTests extends ESTestCase {
         }
     }
 
+    public void testShardResponseTripFailsSearch() throws IOException {
+        AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
+        AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
+        results.set(
+            0,
+            newSearchResult(0, new ShardSearchContextId("", 1), new SearchShardTarget("node1", new ShardId("test", "na", 0), null))
+        );
+        results.set(
+            1,
+            newSearchResult(1, new ShardSearchContextId("", 2), new SearchShardTarget("node2", new ShardId("test", "na", 0), null))
+        );
+        results.get(0).termsStatistics(new Term[0], new TermStatistics[0]);
+        results.get(1).termsStatistics(new Term[0], new TermStatistics[0]);
+
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+            @Override
+            public void sendExecuteQuery(
+                Transport.Connection connection,
+                QuerySearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<SearchPhaseResult> listener,
+                LongConsumer bytesConsumer,
+                LongConsumer requestBytesConsumer
+            ) {
+                if (request.contextId().getId() == 1) {
+                    trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener));
+                } else if (request.contextId().getId() == 2) {
+                    listener.onFailure(new MockDirectoryWrapper.FakeIOException());
+                } else {
+                    fail("no such request ID: " + request.contextId());
+                }
+            }
+        };
+        SearchPhaseController searchPhaseController = searchPhaseController();
+        MockSearchDfsQueryThenFetchAsyncAction mockSearchPhaseContext = new MockSearchDfsQueryThenFetchAsyncAction(
+            2,
+            new SearchRequest().allowPartialSearchResults(true),
+            newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT)
+        );
+        mockSearchPhaseContext.searchTransport = searchTransportService;
+        try (
+            SearchPhaseResults<SearchPhaseResult> consumer = searchPhaseController.newSearchPhaseResults(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                NoopCircuitBreaker.INSTANCE,
+                () -> false,
+                SearchProgressListener.NOOP,
+                mockSearchPhaseContext.getRequest(),
+                results.length(),
+                exc -> {}
+            )
+        ) {
+            DfsQueryPhase phase = makeDfsPhase(results, consumer, mockSearchPhaseContext, responseRef);
+            phase.run();
+            assertThat(mockSearchPhaseContext.phaseFailure.get(), sameInstance(trip.get()));
+            // The shard that failed after the trip is not counted down, so the phase does not move on
+            assertThat(mockSearchPhaseContext.failures, empty());
+            assertNull("the phase must not finish after a trip", responseRef.get());
+            assertThat(
+                mockSearchPhaseContext.releasedSearchContexts,
+                containsInAnyOrder(new ShardSearchContextId("", 1), new ShardSearchContextId("", 2))
+            );
+            mockSearchPhaseContext.results.close();
+        }
+    }
+
     public void testFailPhaseOnException() throws IOException {
         AtomicArray<DfsSearchResult> results = new AtomicArray<>(2);
         AtomicReference<AtomicArray<SearchPhaseResult>> responseRef = new AtomicReference<>();
@@ -262,6 +335,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer
@@ -363,6 +437,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 Transport.Connection connection,
                 QuerySearchRequest request,
                 SearchTask task,
+                ShardResponseReservation reservation,
                 ActionListener<SearchPhaseResult> listener,
                 LongConsumer bytesConsumer,
                 LongConsumer requestBytesConsumer

@@ -116,23 +116,21 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     public void testSerialization() throws IOException {
 
-        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Mapper mapper = defaultMapper.mappers().getMapper("field");
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        fieldToXContent(mapperService, "field", builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("""
             {"field":{"type":"boolean"}}""", Strings.toString(builder));
 
         // now change some parameters
-        defaultMapper = createDocumentMapper(fieldMapping(b -> {
+        mapperService = createMapperService(fieldMapping(b -> {
             b.field("type", "boolean");
             b.field("doc_values", false);
             b.field("null_value", true);
         }));
-        mapper = defaultMapper.mappers().getMapper("field");
         builder = XContentFactory.jsonBuilder().startObject();
-        mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        fieldToXContent(mapperService, "field", builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("""
             {"field":{"type":"boolean","doc_values":false,"null_value":true}}""", Strings.toString(builder));
@@ -471,4 +469,9 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         // NOTE: The test needs three distinct ordered values and a boolean has two.
         return false;
     }
+
+    public void testScriptedFieldIsNotStaticallySingleValued() throws IOException {
+        assertScriptedFieldIsNotStaticallySingleValued("non-empty");
+    }
+
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobVersionMismatchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -75,6 +76,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -103,6 +105,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.matchesRegex;
 
 /**
  * This class tests how a {@link AzureBlobContainer} and its underlying SDK client are retrying requests when reading or writing blobs.
@@ -716,6 +719,57 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             AlreadyClosedException.class,
             () -> Streams.readFully(blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"))
         );
+    }
+
+    public void testContentsChangeWhileStreaming() throws Exception {
+        final byte[] bytes = randomBlobContent(2);
+        final BlobContainer blobContainer = createBlobContainer(1);
+        final CountDownLatch firstByteConsumed = new CountDownLatch(1);
+        httpServer.createContext(
+            downloadStorageEndpoint(blobContainer, "contents_change_while_streaming"),
+            interceptGetBlobRequest(exchange -> {
+                try {
+                    Streams.readFully(exchange.getRequestBody());
+
+                    if (exchange.getRequestHeaders().getFirst("If-Match") != null) {
+                        // The resume after we've sent some bytes (see below); this resume has an "If-Match" due to it being set
+                        // in `RetryingInputStream.openStreamWithRetry` (also see `addSuccessfulDownloadHeaders` where the
+                        // ETag is taken from during the first read).
+                        // We fail this read to show that the content has changed.
+                        AzureHttpHandler.sendError(
+                            exchange,
+                            RestStatus.PRECONDITION_FAILED,
+                            "ConditionNotMet",
+                            "The condition specified using HTTP conditional header(s) is not met."
+                        );
+                        return;
+                    }
+                    // We only send 1 byte (of the at least 2 in `bytes`) so we have a resume.
+                    addSuccessfulDownloadHeaders(exchange, bytes, bytes.length);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), bytes.length);
+                    exchange.getResponseBody().write(bytes, 0, 1);
+                    exchange.getResponseBody().flush();
+                    // we wait before `close`-ing because otherwise the byte and the FIN can arrive at the client on the same read and
+                    // hence the retry won't be sent with an "If-Match" leading to the 412 `sendError` above
+                    safeAwait(firstByteConsumed);
+                } finally {
+                    exchange.close();
+                }
+            }, bytes)
+        );
+
+        try (InputStream inputStream = blobContainer.readBlob(randomRetryingPurpose(), "contents_change_while_streaming")) {
+            firstByteConsumed.countDown();
+            String message = expectThrows(BlobVersionMismatchException.class, () -> Streams.readFully(inputStream)).getMessage();
+            assertThat(
+                message,
+                matchesRegex(
+                    "blob \\["
+                        + blobContainer.path().buildAsString()
+                        + "contents_change_while_streaming] version \\[\\S+] is no longer available: .*"
+                )
+            );
+        }
     }
 
     private BlobContainer createBlobContainer(int maxRetries, String secondaryHost, LocationMode locationMode) {

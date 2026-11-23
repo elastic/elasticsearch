@@ -12,7 +12,10 @@ package org.elasticsearch;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -79,9 +82,14 @@ public final class ExceptionsHelper {
 
     public static RestStatus status(Throwable t) {
         if (t != null) {
+            if (isWrappedCircuitBreakingException(t)) {
+                return RestStatus.TOO_MANY_REQUESTS;
+            }
             if (t instanceof ElasticsearchException) {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
+                return RestStatus.BAD_REQUEST;
+            } else if (t instanceof IndexSearcher.TooManyClauses) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof XContentParseException) {
                 return RestStatus.BAD_REQUEST;
@@ -90,6 +98,20 @@ public final class ExceptionsHelper {
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    /**
+     * Whether {@code t} is a circuit breaker trip wrapped only in parse exceptions, so that it is a 429 rather than a 400. A trip while a
+     * request is parsed is wrapped by {@code ObjectParser} once per level of nesting, and some parsers wrap it again.
+     */
+    private static boolean isWrappedCircuitBreakingException(Throwable t) {
+        Throwable cause = t;
+        while (cause instanceof XContentParseException
+            || cause instanceof ParsingException
+            || cause instanceof ElasticsearchParseException) {
+            cause = cause.getCause();
+        }
+        return cause != t && cause instanceof CircuitBreakingException;
     }
 
     public static Throwable unwrapCause(Throwable t) {
@@ -514,20 +536,19 @@ public final class ExceptionsHelper {
      * @param failures array to deduplicate
      * @return deduplicated array; if failures is null or empty, it will be returned without modification
      */
-    public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
-        if (failures == null || failures.length == 0) {
-            return failures;
+    public static List<ShardOperationFailedException> groupBy(List<? extends ShardOperationFailedException> failures) {
+        if (failures.isEmpty()) {
+            return Collections.emptyList();
         }
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
             GroupBy reason = new GroupBy(failure);
-            if (reasons.contains(reason) == false) {
-                reasons.add(reason);
+            if (reasons.add(reason)) {
                 uniqueFailures.add(failure);
             }
         }
-        return uniqueFailures.toArray(new ShardOperationFailedException[0]);
+        return Collections.unmodifiableList(uniqueFailures);
     }
 
     /**

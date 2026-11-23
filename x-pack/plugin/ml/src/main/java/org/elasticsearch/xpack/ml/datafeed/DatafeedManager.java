@@ -87,6 +87,7 @@ import java.util.stream.Collectors;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 /**
@@ -325,11 +326,6 @@ public class DatafeedManager {
             final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
             final boolean hasCpsCredential = hasCallerCloudCredential(credentialTransitions, threadPool, request.getCloudCredential());
 
-            BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
-                warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
-                jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
-            };
-
             final String datafeedId = request.getUpdate().getId();
             final DatafeedUpdate update = request.getUpdate();
             if (Boolean.TRUE.equals(update.getForceRekeying()) && (crossProjectMlEnabled() == false || hasCpsCredential == false)) {
@@ -345,6 +341,8 @@ public class DatafeedManager {
                         l.onFailure(e);
                         return;
                     }
+                    // Reject an unapplyable update before minting a credential or retaining rollback state.
+                    update.apply(current, Map.of(), state);
                     CredentialTransitions.TransitionContext ctx = new CredentialTransitions.TransitionContext(
                         crossProjectMlEnabled(),
                         hasCpsCredential,
@@ -369,6 +367,14 @@ public class DatafeedManager {
                     // over the minted key's Authentication stored at mint time.
                     final Map<String, String> headersForUpdate = intent == CredentialTransitions.Intent.KEEP
                         && current.getCloudInternalCredential() != null ? Map.of() : headers;
+                    BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
+                        warnIfProjectRoutingIsInert(request.getUpdate().getProjectRouting());
+                        if (current.getEsqlQuery() == null) {
+                            jobConfigProvider.validateDatafeedJob(updatedConfig, validatorListener);
+                        } else {
+                            jobConfigProvider.validateDatafeedUpdate(current, updatedConfig, updatedConfig.getHeaders(), validatorListener);
+                        }
+                    };
                     final Consumer<Boolean> executeUpdate = rollbackSnapshotRetained -> {
                         ActionListener<PutDatafeedAction.Response> updateListener;
                         if (defaultedProjectRoutingForMigration) {
@@ -725,10 +731,15 @@ public class DatafeedManager {
             );
         };
 
-        CheckedConsumer<Boolean, Exception> jobOk = ok -> jobConfigProvider.validateDatafeedJob(
-            request.getDatafeed(),
-            ActionListener.wrap(validationOk, listener::onFailure)
-        );
+        CheckedConsumer<Boolean, Exception> jobOk = ok -> {
+            DatafeedConfig datafeed = request.getDatafeed();
+            ActionListener<Boolean> validationListener = ActionListener.wrap(validationOk, listener::onFailure);
+            if (datafeed.getEsqlQuery() != null) {
+                jobConfigProvider.validateDatafeedJobAndEsqlQuery(datafeed, filterSecurityHeaders(headers), validationListener);
+            } else {
+                jobConfigProvider.validateDatafeedJob(datafeed, validationListener);
+            }
+        };
 
         checkJobDoesNotHaveADatafeed(request.getDatafeed().getJobId(), ActionListener.wrap(jobOk, listener::onFailure));
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -56,9 +57,11 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -626,6 +629,19 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
             equalTo(2L)
+        );
+    }
+
+    /**
+     * significant_terms on a floating point field is a bad request (400), not an internal error (500).
+     */
+    public void testFloatingPointFieldRejected() {
+        assertAcked(prepareCreate("float_idx").setMapping("d", "type=" + randomFrom("double", "float", "half_float")));
+        indexRandom(true, prepareIndex("float_idx").setSource("d", 1.5));
+        assertFailures(
+            prepareSearch("float_idx").setSize(0).addAggregation(significantTerms("sig_float").field("d")),
+            RestStatus.BAD_REQUEST,
+            containsString("Aggregation [sig_float] does not support floating point values")
         );
     }
 }

@@ -52,10 +52,10 @@ class JavaModulePrecommitPluginFuncTest extends AbstractGradleInternalPluginFunc
         result.task(":validateModule").outcome == TaskOutcome.FAILED
 
         and: "problems report contains java-module group"
-        assertProblemsReportContains("java-module")
-        assertProblemsReportContains("elasticsearch-build")
-        assertProblemsReportContains("precommit")
-        assertProblemsReportSeverity("invalid-module-name-prefix", "ERROR")
+        assertProblemsReportContains("Java Module")
+        assertProblemsReportContains("Verification")
+        assertProblemsReportContains("Elasticsearch Precommit")
+        assertProblemsReportSeverity("Invalid module name prefix", "ERROR")
     }
 
     def "passes for valid module"() {

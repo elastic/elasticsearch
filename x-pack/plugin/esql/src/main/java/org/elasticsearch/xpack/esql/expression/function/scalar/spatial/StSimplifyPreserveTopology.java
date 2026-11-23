@@ -205,7 +205,7 @@ public class StSimplifyPreserveTopology extends SpatialDocValuesFunction impleme
     }
 
     @Override
-    public Object fold(FoldContext foldCtx) {
+    public Object doFold(Source source, FoldContext foldCtx) {
         var toleranceExpression = tolerance.fold(foldCtx);
         double inputTolerance = StSimplify.getInputTolerance(toleranceExpression);
         Object input = geometry.fold(foldCtx);

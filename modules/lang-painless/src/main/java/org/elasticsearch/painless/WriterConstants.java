@@ -298,10 +298,11 @@ public final class WriterConstants {
     /** ASM {@link Type} for {@link AllocationGuard}, the log-and-throw helper called on a limit breach. */
     public static final Type ALLOCATION_GUARD_TYPE = Type.getType(AllocationGuard.class);
 
-    /** {@link AllocationGuard#allocationLimitExceeded(long, long, long)} — called from {@code $checkAllocBytes} on breach. */
+    /** {@link AllocationGuard#allocationLimitExceeded(String, long, long, long)} — called from {@code $checkAllocBytes} on breach. */
     public static final Method ALLOCATION_LIMIT_EXCEEDED = getAsmMethod(
         void.class,
         "allocationLimitExceeded",
+        String.class,
         long.class,
         long.class,
         long.class
@@ -318,6 +319,9 @@ public final class WriterConstants {
      * {@code execute} return path.
      */
     public static final Method RECORD_EXECUTION_ALLOCATION = getAsmMethod(void.class, "recordExecutionAllocation", long.class);
+
+    /** {@link AllocationMetrics.ContextRecorder#recordLimitExceeded()}, called from {@code $checkAllocBytes} on breach. */
+    public static final Method RECORD_LIMIT_EXCEEDED = getAsmMethod(void.class, "recordLimitExceeded");
 
     /** {@link AllocationGuard#sanitizeEstimate(long)} — normalizes an {@code @allocates} estimator's result. */
     public static final Method SANITIZE_ESTIMATE = getAsmMethod(long.class, "sanitizeEstimate", long.class);

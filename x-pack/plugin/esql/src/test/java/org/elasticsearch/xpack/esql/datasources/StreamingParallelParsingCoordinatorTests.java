@@ -467,6 +467,42 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * The close warning names the object too, and WARN is on by default, so an unredacted location would put a
+     * pre-signed URL's signature where an operator is already reading. A failing {@code close()} fires the line
+     * on an ordinary read. The expectation reads the formatted message, which is what this call site builds;
+     * the throwable it attaches is the store's own and is not redacted here.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinator:WARN",
+        reason = "the close give-up is a warning, and this asserts its location carries no signature"
+    )
+    public void testAFailedCloseDoesNotLogAPreSignedUrlsSignature() throws Exception {
+        String signature = "X-Amz-Signature=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+        String path = "https://bucket.s3.example.com/data/employees.csv?" + signature;
+        try (MockLog mockLog = MockLog.capture(StreamingParallelParsingCoordinator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "the close warning, naming the location without its query string",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*Failed to close storage object for [https://bucket.s3.example.com/data/employees.csv]*"
+                )
+            );
+            // Paired with the expectation above, so this cannot pass by the warning never being logged at all.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no signature on any warning",
+                    StreamingParallelParsingCoordinator.class.getCanonicalName(),
+                    Level.WARN,
+                    "*" + signature + "*"
+                )
+            );
+            streamingReadCountingMtimeProbes(ExternalStatsCapture.newSink(), new AtomicInteger(), new FailingCloseStorageObject(path));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
     private static final String MTIME_PROBE_PATH = "mem://streaming-mtime-probe-test";
 
     private static final Instant MTIME_PROBE_INSTANT = Instant.parse("2020-01-01T00:00:00Z");
@@ -6786,6 +6822,55 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return path;
+        }
+    }
+
+    /**
+     * Path + mtime, and a {@code close()} that fails. Every streaming read closes the storage object on its
+     * way out, so this makes the close warning fire on an otherwise ordinary read.
+     */
+    private static final class FailingCloseStorageObject extends AbstractTestStorageObject {
+        private final StoragePath path;
+
+        FailingCloseStorageObject(String path) {
+            this.path = StoragePath.of(path);
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() {
+            return MTIME_PROBE_INSTANT;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public void close() throws IOException {
+            // Carries no location: the warning attaches this throwable in full, so a signature in its message
+            // would be the store's own leak rather than the call site's.
+            throw new IOException("this store cannot close");
         }
     }
 

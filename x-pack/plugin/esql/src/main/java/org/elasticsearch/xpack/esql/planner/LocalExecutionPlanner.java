@@ -1891,13 +1891,11 @@ public class LocalExecutionPlanner {
         }
 
         // Load the "positions" of each match
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, join.repeatedKeys(), join.source()), layout);
         if (join.repeatedKeys()) {
-            source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping, true, join.source()), layout);
             // A probe row gets one position for each build row it matches: give each match a row of its own before loading its values.
             // Pages hold as many matches as LOOKUP JOIN's lookup pages, so a probe row with many matches doesn't make one huge page.
             source = source.with(new MvExpandOperator.Factory(positionsChannel, LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE), layout);
-        } else {
-            source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
         }
 
         // Load the "values" from each match

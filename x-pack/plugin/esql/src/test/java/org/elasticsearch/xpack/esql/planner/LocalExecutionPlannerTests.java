@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -1514,51 +1515,26 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * A probe row comes out once for each build row with its key, and once with null build values if it matches none.
+     * A probe row comes out once for each build row with its key. LEFT also keeps a probe row that matches nothing, with null
+     * build values, and INNER drops it.
      */
-    public void testRepeatedKeyLeftHashJoinExpandsMatchesAndKeepsMisses() throws IOException {
-        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, longs(1, 2, 1, 3), longs(10, 20, 11, 30), longs(1, 1, 3), longs(100, 101, 300));
-        // Rows in HashJoin.output() order: the probe value, the build value, then the join key.
-        assertThat(
-            longRows(runHashJoin(mapHashJoin(join))),
-            equalTo(
-                List.of(
-                    List.of(10L, 100L, 1L),
-                    List.of(10L, 101L, 1L),
-                    Arrays.asList(20L, null, 2L),
-                    List.of(11L, 100L, 1L),
-                    List.of(11L, 101L, 1L),
-                    List.of(30L, 300L, 3L)
-                )
-            )
+    public void testRepeatedKeyHashJoinExpandsMatches() throws IOException {
+        List<List<Long>> matched = List.of(
+            List.of(10L, 100L, 1L),
+            List.of(10L, 101L, 1L),
+            List.of(11L, 100L, 1L),
+            List.of(11L, 101L, 1L),
+            List.of(30L, 300L, 3L)
         );
+        List<List<Long>> left = new ArrayList<>(matched);
+        left.add(2, Arrays.asList(20L, null, 2L));
+        for (JoinType type : List.of(JoinTypes.LEFT, JoinTypes.INNER)) {
+            HashJoin join = repeatedKeyHashJoin(type, longs(1, 2, 1, 3), longs(10, 20, 11, 30), longs(1, 1, 3), longs(100, 101, 300));
+            // Rows in HashJoin.output() order: the probe value, the build value, then the join key.
+            assertThat(longRows(runHashJoin(mapHashJoin(join))), equalTo(type == JoinTypes.LEFT ? left : matched));
+        }
     }
 
-    public void testRepeatedKeyInnerHashJoinExpandsMatchesAndDropsMisses() throws IOException {
-        HashJoin join = repeatedKeyHashJoin(
-            JoinTypes.INNER,
-            longs(1, 2, 1, 3),
-            longs(10, 20, 11, 30),
-            longs(1, 1, 3),
-            longs(100, 101, 300)
-        );
-        assertThat(
-            longRows(runHashJoin(mapHashJoin(join))),
-            equalTo(
-                List.of(
-                    List.of(10L, 100L, 1L),
-                    List.of(10L, 101L, 1L),
-                    List.of(11L, 100L, 1L),
-                    List.of(11L, 101L, 1L),
-                    List.of(30L, 300L, 3L)
-                )
-            )
-        );
-    }
-
-    /**
-     * With no build values to load, the matches are still expanded: the probe row repeats once for each.
-     */
     /**
      * A probe row with more matches than fit in a page is spread over several, each holding at most as many matches as a
      * {@code LOOKUP JOIN} lookup page.
@@ -1576,30 +1552,35 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(longRows(pages).stream().map(row -> row.get(1)).toList(), equalTo(LongStream.range(0, matches).boxed().toList()));
     }
 
+    /**
+     * With no build values to load, the matches are still expanded: the probe row repeats once for each.
+     */
     public void testRepeatedKeyHashJoinWithoutBuildValuesStillExpandsMatches() throws IOException {
         HashJoin join = repeatedKeyHashJoin(JoinTypes.INNER, longs(1, 2), longs(10, 20), longs(1, 1, 2), null);
         assertThat(longRows(runHashJoin(mapHashJoin(join))), equalTo(List.of(List.of(10L, 1L), List.of(10L, 1L), List.of(20L, 2L))));
     }
 
     /**
-     * A multivalued probe key matches nothing, as in {@code LOOKUP JOIN}, and warns.
+     * A multivalued key on either side matches nothing, as in {@code LOOKUP JOIN}, and the join warns.
      */
-    public void testRepeatedKeyHashJoinMultivaluedProbeKeyMatchesNothing() throws IOException {
+    public void testRepeatedKeyHashJoinMultivaluedKeyMatchesNothing() throws IOException {
+        HashJoin join = repeatedKeyHashJoin(
+            JoinTypes.LEFT,
+            longColumn(List.of(1L, 3L), 1L, 3L),
+            longs(10, 20, 30),
+            longColumn(1L, List.of(1L, 3L), 3L),
+            longs(100, 200, 300)
+        );
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
-        Block probeKeys;
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
-            builder.beginPositionEntry().appendLong(1).appendLong(3).endPositionEntry();
-            builder.appendLong(3);
-            probeKeys = builder.build();
-        }
-        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, probeKeys, longs(10, 30), longs(1, 3), longs(100, 300));
-
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         List<List<Long>> rows = longRows(
             runPlanned(planHashJoin(mapHashJoin(join)).driverFactories.get(0).driverSupplier().physicalOperation(), driverContext)
         );
-        assertThat(rows.stream().map(row -> row.get(0)).toList(), equalTo(List.of(10L, 30L)));
-        assertThat(rows.stream().map(row -> row.get(1)).toList(), equalTo(Arrays.asList(null, 300L)));
+        // The probe and build values: a multivalued key, on either side, joins nothing.
+        assertThat(
+            rows.stream().map(row -> row.subList(0, 2)).toList(),
+            equalTo(List.of(Arrays.asList(10L, null), List.of(20L, 100L), List.of(30L, 300L)))
+        );
         assertThat(
             driverContext.warnings(),
             contains(
@@ -1616,9 +1597,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testRepeatedKeyHashJoinNullKeyMatchesNothing() throws IOException {
         HashJoin join = repeatedKeyHashJoin(
             JoinTypes.LEFT,
-            longsWithNull(1L, null, 2L),
+            longColumn(1L, null, 2L),
             longs(10, 15, 20),
-            longsWithNull(1L, null, 1L),
+            longColumn(1L, null, 1L),
             longs(100, 200, 101)
         );
         assertThat(
@@ -1628,45 +1609,11 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * A build row with a multivalued key matches none of its values, as in {@code LOOKUP JOIN}, and the join warns once that
-     * the build side has one.
+     * A long column whose values may be null, or a list for a multivalued position.
      */
-    public void testRepeatedKeyHashJoinMultivaluedBuildKeyMatchesNothing() throws IOException {
-        var blockFactory = TestBlockFactory.getNonBreakingInstance();
-        Block buildKeys;
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(3)) {
-            builder.appendLong(1);
-            builder.beginPositionEntry().appendLong(1).appendLong(3).endPositionEntry();
-            builder.appendLong(3);
-            buildKeys = builder.build();
-        }
-        HashJoin join = repeatedKeyHashJoin(JoinTypes.LEFT, longs(1, 3), longs(10, 30), buildKeys, longs(100, 200, 300));
-
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        List<List<Long>> rows = longRows(
-            runPlanned(planHashJoin(mapHashJoin(join)).driverFactories.get(0).driverSupplier().physicalOperation(), driverContext)
-        );
-        assertThat(rows, equalTo(List.of(List.of(10L, 100L, 1L), List.of(30L, 300L, 3L))));
-        assertThat(
-            driverContext.warnings(),
-            contains(
-                "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
-            )
-        );
-    }
-
-    private static Block longsWithNull(Long... values) {
-        try (LongBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newLongBlockBuilder(values.length)) {
-            for (Long value : values) {
-                if (value == null) {
-                    builder.appendNull();
-                } else {
-                    builder.appendLong(value);
-                }
-            }
-            return builder.build();
-        }
+    private static Block longColumn(Object... values) {
+        List<List<Object>> rows = Arrays.stream(values).map(Collections::singletonList).toList();
+        return BlockUtils.fromList(TestBlockFactory.getNonBreakingInstance(), rows)[0];
     }
 
     /**

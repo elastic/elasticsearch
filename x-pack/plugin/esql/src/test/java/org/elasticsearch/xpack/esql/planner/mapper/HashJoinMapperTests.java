@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.planner.mapper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -38,9 +36,10 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.planner.mapper.Mapper.JOIN_MARKER_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -114,17 +113,7 @@ public class HashJoinMapperTests extends ESTestCase {
      */
     public void testUniqueWithRepeatedKeysNotSupported() {
         HashJoin template = hashJoin(true, JoinTypes.LEFT, new long[] { 10, 20 }, new long[] { 100, 200 });
-        HashJoin hashJoin = new HashJoin(
-            template.source(),
-            template.left(),
-            template.right(),
-            template.leftFields(),
-            template.rightFields(),
-            template.addedFields(),
-            true,
-            template.config().type(),
-            true
-        );
+        HashJoin hashJoin = withLeft(template, template.left(), template.leftFields());
         EsqlIllegalArgumentException e = expectThrows(EsqlIllegalArgumentException.class, () -> map(hashJoin));
         assertThat(e.getMessage(), equalTo("a unique hash join cannot allow repeated keys"));
     }
@@ -135,20 +124,8 @@ public class HashJoinMapperTests extends ESTestCase {
      */
     public void testHashJoinOverIndexExchangesTheLeftSide() {
         HashJoin template = hashJoin(false, JoinTypes.LEFT, new long[] { 10, 10 }, new long[] { 100, 200 });
-        FieldAttribute indexKey = new FieldAttribute(
-            Source.EMPTY,
-            "k",
-            new EsField("k", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-        );
-        EsRelation index = new EsRelation(
-            Source.EMPTY,
-            "idx",
-            IndexMode.STANDARD,
-            Map.of(),
-            Map.of("", List.of("idx")),
-            Map.of(),
-            List.of(indexKey)
-        );
+        FieldAttribute indexKey = getFieldAttribute("k", DataType.LONG);
+        EsRelation index = relation().withAttributes(List.of(indexKey));
         HashJoin hashJoin = withLeft(template, index, List.of(indexKey));
 
         HashJoinExec join = as(as(map(hashJoin), ProjectExec.class).child(), HashJoinExec.class);

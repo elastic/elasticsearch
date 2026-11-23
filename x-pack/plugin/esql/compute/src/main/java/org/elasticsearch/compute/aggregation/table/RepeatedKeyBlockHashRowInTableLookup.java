@@ -23,16 +23,16 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Keeps all build-side row offsets for each hash group so repeated keys can produce one output row per match.
  * <p>
  * A build row with a null or multivalued key matches nothing, as in {@code LOOKUP JOIN}. A multivalued row never enters
- * the hash ({@link PackedValuesBlockHash#add(Page, GroupingAggregatorFunction.AddInput, boolean)} skips it), so it costs
- * no entries, not one per value or per combination of values. A row with a null key keeps the hash's fast path, which packs
- * a null as a value, so its key gets a group, but the row goes in no group's rows: that group has no rows and is a miss.
- * Warning about multivalued build keys is up to the caller.
+ * the hash ({@link PackedValuesBlockHash#add(Page, GroupingAggregatorFunction.AddInput, boolean)} skips it). A row with a
+ * null key stays on the hash's fast path, which gives its key a group, but the row goes in no group's rows, so a probe row
+ * with the same key misses.
  */
 final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
     /** Marks a build row that is in no group's rows, because one of its keys is null or multivalued. */
@@ -46,12 +46,10 @@ final class RepeatedKeyBlockHashRowInTableLookup extends RowInTableLookup {
     RepeatedKeyBlockHashRowInTableLookup(BlockFactory blockFactory, Block[] keys) {
         int rowCount = keys[0].getPositionCount();
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keys.length);
-        boolean mayHaveNulls = false;
         for (int k = 0; k < keys.length; k++) {
             groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
-            mayHaveNulls |= keys[k].mayHaveNulls();
         }
-        boolean checkNulls = mayHaveNulls;
+        boolean checkNulls = Arrays.stream(keys).anyMatch(Block::mayHaveNulls);
 
         // The emit batch size counts ordinals, not bytes, and the hash keeps a buffer of that many ints while the table lives.
         PackedValuesBlockHash builtHash = BlockHash.buildPackedValuesBlockHash(groups, blockFactory, 4096);

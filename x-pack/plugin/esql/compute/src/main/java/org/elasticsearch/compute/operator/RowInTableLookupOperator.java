@@ -121,23 +121,12 @@ public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOpera
         private final boolean repeatedKeys;
         private final WarningSourceLocation warningSource;
         /**
-         * Whether a repeated-key table has a build key that is multivalued. The table skips such rows, and every operator
-         * warns once, whether or not a probe key would have matched one of their values.
-         * <p>
-         * This deliberately differs from {@code LOOKUP JOIN}, which only warns when a probe key matches a multivalued
-         * document. {@code LOOKUP JOIN} gets that cheaply, because the Lucene index already holds each value of the field.
-         * The build side here is a page with no index, so warning only on a match means building one for rows that can
-         * never join:
-         * <ul>
-         *     <li>Hashing their values the way single values are hashed adds one entry per combination of values, which
-         *     grows exponentially with the number of multivalued key columns: a row with four key columns of 100 values
-         *     each adds 100 million entries.</li>
-         *     <li>Indexing each key column's values on its own avoids the combinations, but still copies every value of
-         *     those rows, so memory grows with them even when only one column is multivalued, and every probe row has to
-         *     intersect the matches of each key column.</li>
-         * </ul>
-         * Both cost the most when most build rows are multivalued, and buy only a warning, since those rows match nothing
-         * either way. Warning once costs one {@link Block#doesHaveMultivaluedFields} check per key column, whatever the data.
+         * Whether a repeated-key table has a multivalued build key. The table skips such rows, and every operator warns
+         * once, even if no probe key would have matched them. This deliberately differs from {@code LOOKUP JOIN}, which
+         * warns only on a match because its Lucene index can find one. Finding one here would need an index of those rows'
+         * values: hashing them adds an entry per combination of values, exponential in the multivalued key columns, and
+         * indexing each column on its own still copies every value. Either costs the most when most rows are multivalued,
+         * only to warn.
          */
         private final boolean multivaluedBuildKeys;
         /**

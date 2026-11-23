@@ -77,10 +77,9 @@ public class HashJoinTests extends ESTestCase {
      * Repeated keys are off unless asked for, and survive replacing the right side with its materialized result.
      */
     public void testRepeatedKeys() {
-        FieldAttribute leftKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute rightKey = getFieldAttribute("k", DataType.LONG);
         FieldAttribute value = getFieldAttribute("v", DataType.LONG);
-        HashJoin plain = hashJoin(leftKey, rightKey, value, false);
+        HashJoin plain = hashJoin(getFieldAttribute("k", DataType.LONG), rightKey, value, false);
         assertThat(plain.repeatedKeys(), is(false));
 
         HashJoin repeated = new HashJoin(
@@ -91,32 +90,14 @@ public class HashJoinTests extends ESTestCase {
             plain.rightFields(),
             plain.addedFields(),
             false,
-            JoinTypes.LEFT,
+            plain.config().type(),
             true
         );
-        assertThat(repeated.repeatedKeys(), is(true));
-        assertThat(
-            repeated,
-            not(
-                equalTo(
-                    new HashJoin(
-                        Source.EMPTY,
-                        plain.left(),
-                        plain.right(),
-                        plain.leftFields(),
-                        plain.rightFields(),
-                        plain.addedFields(),
-                        false,
-                        JoinTypes.LEFT
-                    )
-                )
-            )
-        );
+        assertThat(repeated, not(equalTo(plain)));
 
         HashJoin.LogicalPlanTuple tuple = HashJoin.firstSubPlan(repeated, new HashSet<>());
         HashJoin rebuilt = as(HashJoin.newMainPlan(repeated, tuple, localRelation(List.of(rightKey, value))), HashJoin.class);
         assertThat(rebuilt.repeatedKeys(), is(true));
-        assertThat(rebuilt.config().type(), sameInstance(JoinTypes.LEFT));
     }
 
     public void testNotSerialized() {

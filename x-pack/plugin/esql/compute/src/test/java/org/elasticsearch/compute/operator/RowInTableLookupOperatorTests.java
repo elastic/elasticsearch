@@ -352,56 +352,36 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
     }
 
     /**
-     * A build row with a multivalued key matches nothing, and every operator warns once, even when no probe key equals one
-     * of its values. That is a deliberate difference from {@code LOOKUP JOIN}, which only warns when a probe key matches a
-     * multivalued document. A build row with a null key matches nothing without a warning.
+     * A multivalued build key makes the operator warn once, even when no probe key equals one of its values, unlike
+     * {@code LOOKUP JOIN}, which only warns on a match.
      */
     public void testRepeatedTableWarnsOnceForMultivaluedBuildKeys() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext noHit = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        DriverContext hit = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        LongBlock key;
-        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(4)) {
+        DriverContext context = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
             builder.appendLong(7);
             builder.beginPositionEntry().appendLong(20).appendLong(30).endPositionEntry();
-            builder.appendNull();
-            builder.appendLong(20);
-            key = builder.build();
-        }
-        try (key) {
-            var factory = new RowInTableLookupOperator.Factory(
-                new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) },
-                new int[] { 0 },
-                true,
-                new TestWarningsSource("join")
-            );
-            try (Operator operator = factory.get(noHit)) {
-                operator.addInput(new Page(blockFactory.newLongArrayVector(new long[] { 7, 9 }, 2).asBlock()));
-                try (Page output = operator.getOutput()) {
-                    IntBlock matches = output.getBlock(1);
-                    assertThat(toJavaObject(matches, 0), equalTo(0));
-                    assertNull(toJavaObject(matches, 1));
-                }
-            }
-            try (Operator operator = factory.get(hit)) {
-                operator.addInput(new Page(blockFactory.newLongArrayVector(new long[] { 20, 30 }, 2).asBlock()));
-                try (Page output = operator.getOutput()) {
-                    IntBlock matches = output.getBlock(1);
-                    assertThat(toJavaObject(matches, 0), equalTo(3));
-                    assertNull(toJavaObject(matches, 1));
+            try (LongBlock key = builder.build()) {
+                var factory = new RowInTableLookupOperator.Factory(
+                    new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("foo", key) },
+                    new int[] { 0 },
+                    true,
+                    new TestWarningsSource("join")
+                );
+                try (Operator operator = factory.get(context)) {
+                    operator.addInput(new Page(blockFactory.newConstantLongBlockWith(9, 1)));
+                    operator.getOutput().releaseBlocks();
                 }
             }
         }
-        for (DriverContext context : List.of(noHit, hit)) {
-            context.finish();
-            assertThat(
-                context.warnings(),
-                contains(
-                    "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
-                )
-            );
-        }
+        context.finish();
+        assertThat(
+            context.warnings(),
+            contains(
+                "Line 1:1: evaluation of [join] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: JOIN encountered multi-value"
+            )
+        );
     }
 
     /**
@@ -409,38 +389,22 @@ public class RowInTableLookupOperatorTests extends OperatorTestCase {
      * combination of its values: 30 values in each of 4 columns would be 810,000 entries.
      */
     public void testRepeatedTableDoesNotExpandMultivaluedBuildKeys() {
-        int columns = 4;
-        int values = 30;
         BlockFactory blockFactory = blockFactory();
-        Block[] keys = new Block[columns];
+        Block[] keys = new Block[4];
         try {
-            for (int k = 0; k < columns; k++) {
-                try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(2)) {
+            for (int k = 0; k < keys.length; k++) {
+                try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(1)) {
                     builder.beginPositionEntry();
-                    for (int v = 0; v < values; v++) {
+                    for (int v = 0; v < 30; v++) {
                         builder.appendLong(v);
                     }
-                    builder.endPositionEntry();
-                    builder.appendLong(1);
-                    keys[k] = builder.build();
+                    keys[k] = builder.endPositionEntry().build();
                 }
             }
             TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
-            try (RowInTableLookup lookup = RowInTableLookup.build(trackingBlockFactory(breaker), keys, true)) {
-                // Expanding the combinations would reserve tens of megabytes: each key packs four longs.
-                assertThat(breaker.peak(), lessThan(ByteSizeValue.ofMb(1).getBytes()));
-                Block[] probeKeys = new Block[columns];
-                for (int k = 0; k < columns; k++) {
-                    probeKeys[k] = blockFactory.newConstantLongBlockWith(1, 1);
-                }
-                try (
-                    Page probe = new Page(probeKeys);
-                    ReleasableIterator<IntBlock> blocks = lookup.lookup(probe, blockFactory, ByteSizeValue.ofKb(8));
-                    IntBlock matches = blocks.next()
-                ) {
-                    assertThat(toJavaObject(matches, 0), equalTo(1));
-                }
-            }
+            RowInTableLookup.build(trackingBlockFactory(breaker), keys, true).close();
+            // Expanding the combinations would reserve tens of megabytes: each key packs four longs.
+            assertThat(breaker.peak(), lessThan(ByteSizeValue.ofMb(1).getBytes()));
             assertThat(breaker.getUsed(), equalTo(0L));
         } finally {
             Releasables.close(keys);

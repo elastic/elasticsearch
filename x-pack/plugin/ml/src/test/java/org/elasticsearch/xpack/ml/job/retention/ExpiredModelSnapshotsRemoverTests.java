@@ -54,6 +54,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.ml.job.persistence.JobScopedDeleteCheckTests.assertNoMissingJobScopeEvent;
 import static org.elasticsearch.xpack.ml.job.retention.AbstractExpiredJobDataRemoverTests.TestListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -173,6 +174,34 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             "expected ids related to [old-snapshot] but received [" + idsQueryBuilder.ids() + "]",
             idsQueryBuilder.ids().stream().allMatch(s -> s.contains("old-snapshot"))
         );
+    }
+
+    public void testRemoveExpiredSnapshotShouldNotLogMissingJobScope() {
+        Job job = JobTests.buildJobBuilder("job-1").setModelSnapshotRetentionDays(7L).setModelSnapshotId("active").build();
+        Date now = new Date();
+        Date oneDayAgo = new Date(now.getTime() - TimeValue.timeValueDays(1).getMillis());
+        Date eightDaysAndOneMsAgo = new Date(now.getTime() - TimeValue.timeValueDays(8).getMillis() - 1);
+        List<SearchResponse> searchResponses = new ArrayList<>();
+        searchResponses.add(
+            AbstractExpiredJobDataRemoverTests.createSearchResponseFromHits(
+                Collections.singletonList(createModelSnapshotQueryHit("job-1", "fresh-snapshot", oneDayAgo))
+            )
+        );
+        Map<String, List<ModelSnapshot>> snapshots = Map.of(
+            "job-1",
+            List.of(
+                createModelSnapshot("job-1", "active", eightDaysAndOneMsAgo),
+                createModelSnapshot("job-1", "old-snapshot", eightDaysAndOneMsAgo)
+            )
+        );
+        givenClientRequestsSucceed(searchResponses, snapshots);
+
+        assertNoMissingJobScopeEvent(() -> {
+            createExpiredModelSnapshotsRemover(List.of(job).iterator()).remove(1.0f, listener, () -> false);
+            listener.waitToCompletion();
+        });
+
+        assertThat(capturedDeleteModelSnapshotRequests.size(), equalTo(1));
     }
 
     public void testRemove_GivenTimeout() throws IOException {

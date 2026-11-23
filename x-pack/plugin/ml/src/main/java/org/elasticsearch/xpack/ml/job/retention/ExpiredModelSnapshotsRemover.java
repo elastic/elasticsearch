@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobScopedDeleteCheck;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
@@ -290,6 +291,7 @@ public class ExpiredModelSnapshotsRemover extends AbstractExpiredJobDataRemover 
         // _doc is the most efficient sort order and will also disable scoring
         deleteByQueryRequest.getSearchRequest().source().sort(ElasticsearchMappings.ES_DOC);
 
+        JobScopedDeleteCheck.logIfNotJobScoped(jobId, deleteByQueryRequest);
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,

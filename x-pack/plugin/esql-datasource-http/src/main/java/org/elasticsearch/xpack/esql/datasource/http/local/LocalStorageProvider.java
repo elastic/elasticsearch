@@ -86,7 +86,7 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new NoSuchFileException(prefix.objectName());
+            throw new NoSuchFileException(prefix.objectName(), null, "Directory does not exist");
         }
 
         if (Files.isDirectory(dirPath) == false) {
@@ -109,7 +109,7 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new NoSuchFileException(prefix.objectName());
+            throw new NoSuchFileException(prefix.objectName(), null, "Directory does not exist");
         }
         if (Files.isDirectory(dirPath) == false) {
             throw new IOException("Path is not a directory: " + prefix.objectName());
@@ -124,7 +124,7 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toListablePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new NoSuchFileException(prefix.objectName());
+            throw new NoSuchFileException(prefix.objectName(), null, "Directory does not exist");
         }
         if (Files.isDirectory(dirPath) == false) {
             throw new IOException("Path is not a directory: " + prefix.objectName());

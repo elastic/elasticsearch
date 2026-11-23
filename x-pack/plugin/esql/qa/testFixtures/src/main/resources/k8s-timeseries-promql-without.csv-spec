@@ -12,12 +12,13 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum without (pod, region) (avg_over_time(network.cost[1h])))
+| EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
 | SORT result;
 
-result:double      | step:datetime            | _timeseries:keyword
-17.521233974358974 | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
-18.032269021739133 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
-20.76903735632184  | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
+result:double | step:datetime            | _timeseries:keyword
+17.521234     | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
+18.032269     | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
+20.769037     | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
 ;
 
 
@@ -28,12 +29,13 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])) without (pod, region))
+| EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
 | SORT result;
 
-result:double      | step:datetime            | _timeseries:keyword
-17.521233974358974 | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
-18.032269021739133 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
-20.76903735632184  | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
+result:double | step:datetime            | _timeseries:keyword
+17.521234     | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
+18.032269     | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
+20.769037     | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
 ;
 
 
@@ -44,12 +46,13 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum without (pod, region,) (avg_over_time(network.cost[1h])))
+| EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
 | SORT result;
 
-result:double      | step:datetime            | _timeseries:keyword
-17.521233974358974 | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
-18.032269021739133 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
-20.76903735632184  | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
+result:double | step:datetime            | _timeseries:keyword
+17.521234     | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
+18.032269     | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
+20.769037     | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
 ;
 
 
@@ -91,12 +94,13 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(max without (pod, region) (avg_over_time(network.cost[1h])))
+| EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
 | SORT result;
 
-result:double     | step:datetime            | _timeseries:keyword
-6.46875           | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
-7.262931034482759 | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
-8.375             | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
+result:double | step:datetime            | _timeseries:keyword
+6.46875       | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
+7.262931      | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
+8.375         | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
 ;
 
 
@@ -107,12 +111,13 @@ required_capability: fix_promql_time_bucket_v2
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(min without (pod, region) (avg_over_time(network.cost[1h])))
+| EVAL result = ROUND(result, 6), step = step, _timeseries = _timeseries
 | SORT result;
 
-result:double      | step:datetime            | _timeseries:keyword
-4.0703125          | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
-5.1826923076923075 | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
-6.635416666666667  | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
+result:double | step:datetime            | _timeseries:keyword
+4.070313      | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod""}"
+5.182692      | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging""}"
+6.635417      | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa""}"
 ;
 
 

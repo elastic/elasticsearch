@@ -140,7 +140,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             nodeIds.forEach(
                 nodeId -> initialUsages.put(
                     nodeId,
-                    new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                    new EstimatedHeapUsage(nodeId, totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage - 1) / 100)
                 )
             );
             monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(initialUsages).build());
@@ -196,7 +196,7 @@ public class EstimatedHeapUsageMonitorTests extends ESTestCase {
             final Map<String, EstimatedHeapUsage> reducedUsages = new HashMap<>(moreUsages);
             reducedUsages.put(
                 nodeIds.get(0),
-                new EstimatedHeapUsage(nodeIds.get(0), totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage) / 100)
+                new EstimatedHeapUsage(nodeIds.get(0), totalBytesPerNode, totalBytesPerNode * between(0, highWatermarkPercentage - 1) / 100)
             );
             monitor.onNewInfo(ClusterInfo.builder().estimatedHeapUsages(reducedUsages).build());
             mockLog.assertAllExpectationsMatched();

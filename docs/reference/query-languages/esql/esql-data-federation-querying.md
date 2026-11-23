@@ -75,8 +75,8 @@ To change cache sizes and TTLs, refer to [caching settings](esql-data-federation
 
 A dataset's resource path can use [glob patterns](esql-data-federation-patterns.md) to match many files. These cluster settings bound file discovery:
 
-- {applies_to}`stack: preview 9.6+` `esql.external.max_listed_objects` (default 1,000,000): the maximum number of objects visited while listing a glob, including keys that do not match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings; a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list.
-- `esql.external.max_discovered_files` (default 25,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
+- {applies_to}`stack: preview 9.6+` `esql.external.max_listed_objects` (default 10,000,000): the maximum number of objects visited while listing a glob, including keys that do not match the pattern and keys dropped by exclusion. Applied independently to each glob listing. A comma-separated resource of N globs therefore does N listings; a rewrite-empty fallback can list the same glob again. The kept-files cap (`esql.external.max_discovered_files`) is shared across that list.
+- `esql.external.max_discovered_files` (default derived from node heap, minimum 25,000, maximum 10,000,000): the maximum number of files a single dataset keeps after listing filters (`_file.*`).
 - `esql.external.max_glob_expansion` (default 100): the maximum number of concrete paths a brace pattern (`{a,b,c}`) expands to. Past this cap, the engine falls back to listing the storage instead of failing.
 
 If your dataset exceeds these limits, narrow the resource path or adjust the settings. Refer to [cluster settings](esql-data-federation-cluster-settings.md) for details.

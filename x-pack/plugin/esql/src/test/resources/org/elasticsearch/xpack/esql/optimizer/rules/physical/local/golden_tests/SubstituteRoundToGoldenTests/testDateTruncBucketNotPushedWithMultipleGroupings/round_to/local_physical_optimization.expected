@@ -77,6 +77,6 @@ TopNExec[[Order[long{f}#0,ASC,LAST]],1000[INTEGER],null]
         }
       }
     ],
-    "boost" : 1.0
+    "boost" : 0.0
   }
 }, tags=[null]]]]

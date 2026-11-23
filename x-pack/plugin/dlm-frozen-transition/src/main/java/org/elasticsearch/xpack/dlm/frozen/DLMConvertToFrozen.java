@@ -526,6 +526,16 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         String dataStreamName = resolveDataStreamName(indexName, projectMetadata);
         if (dataStreamName != null) {
             swapIndicesInDataStream(dataStreamName);
+        } else if (resolveDataStreamName(snapshotName(indexName), projectMetadata) == null) {
+            // The original left its data stream before the mounted snapshot was swapped in.
+            // Abort as the data may exist only in the original.
+            throw new DLMUnrecoverableException(
+                indexName,
+                "Index [{}] is no longer part of a data stream and frozen index [{}] was not swapped into one, "
+                    + "so DLM will not delete the index",
+                indexName,
+                snapshotName(indexName)
+            );
         }
         // Delete the force merge index if it is different from the original.
         if (indexName.equals(forceMergeIndex) == false) {

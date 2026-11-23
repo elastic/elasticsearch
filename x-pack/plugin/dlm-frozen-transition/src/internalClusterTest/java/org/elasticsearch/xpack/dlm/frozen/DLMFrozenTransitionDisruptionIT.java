@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilter;
@@ -32,6 +33,7 @@ import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -78,6 +80,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -557,6 +560,56 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> lifecycle-policy-updated-during-transition disruption handled gracefully");
     }
 
+    /**
+     * Removes the original backing index from the data stream (without deleting it) just before the mount step.
+     * <p>
+     * Expected behaviour: the transition stops without deleting the original index, which is the only copy of the
+     * data that is still part of the cluster. The marker is removed so that the transition is not retried. The orphan
+     * cleanup then reclaims the clone, the mounted index and the snapshot in two passes (the snapshot is still
+     * protected by the mounted index during the first pass).
+     */
+    public void testRemoveBackingIndexFromDataStreamDuringTransition() throws Exception {
+        Index candidateIndex = setupClusterAndInfrastructure(1);
+        String candidateIndexName = candidateIndex.getName();
+        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndexName;
+        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndexName;
+
+        CountDownLatch latch = registerDisruptionInterceptor("cluster:admin/snapshot/mount", () -> {
+            ModifyDataStreamsAction.Request request = new ModifyDataStreamsAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                List.of(DataStreamAction.removeBackingIndex(DATA_STREAM_NAME, candidateIndexName))
+            );
+            assertAcked(client().execute(ModifyDataStreamsAction.INSTANCE, request).actionGet());
+        }, false);
+        triggerRollover();
+
+        assertTrue("MountSearchableSnapshot request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
+        awaitTransitionCompletion(candidateIndex);
+
+        ProjectMetadata projectMetadata = getProjectMetadata();
+        IndexMetadata originalMetadata = projectMetadata.index(candidateIndexName);
+        assertThat("The original index must not be deleted by DLM", originalMetadata, notNullValue());
+        assertThat(
+            "The marker must be removed so the transition is not retried",
+            DataStreamLifecycleService.indexMarkedForFrozen(originalMetadata),
+            is(false)
+        );
+        assertHitCount(prepareSearch(candidateIndexName), 1);
+
+        DLMFrozenCleanupService cleanupService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenCleanupService.class);
+        cleanupService.checkForOrphanedResources();
+        projectMetadata = getProjectMetadata();
+        assertThat("The orphaned clone should be cleaned up", projectMetadata.index(cloneIndexName), nullValue());
+        assertThat("The orphaned mounted index should be cleaned up", projectMetadata.index(frozenIndexName), nullValue());
+        assertThat("The original index must survive the cleanup", projectMetadata.index(candidateIndexName), notNullValue());
+
+        cleanupService.checkForOrphanedResources();
+        assertThat("The orphaned snapshot should be cleaned up", dlmSnapshotNames(), equalTo(List.of()));
+        assertThat("The original index must survive the cleanup", getProjectMetadata().index(candidateIndexName), notNullValue());
+        assertHitCount(prepareSearch(candidateIndexName), 1);
+    }
+
     // ======= Master Failover Tests =======
 
     /**
@@ -654,6 +707,23 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     }
 
     // ======= Helpers =======
+
+    private ProjectMetadata getProjectMetadata() {
+        return clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+    }
+
+    /**
+     * Returns the names of all {@code dlm-frozen-*} snapshots currently present in {@link #REPO_NAME}.
+     */
+    private List<String> dlmSnapshotNames() {
+        return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
+            .setSnapshots(DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + "*")
+            .get()
+            .getSnapshots()
+            .stream()
+            .map(snapshotInfo -> snapshotInfo.snapshotId().getName())
+            .toList();
+    }
 
     /**
      * Starts the required cluster nodes and sets up the data stream infrastructure.

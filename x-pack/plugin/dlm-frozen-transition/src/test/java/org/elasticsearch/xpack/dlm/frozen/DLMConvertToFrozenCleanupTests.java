@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.elasticsearch.xpack.dlm.frozen.DLMConvertToFrozen.CLONE_INDEX_PREFIX;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.is;
@@ -174,12 +175,43 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
     }
 
     /**
-     * Tests that when the original index is NOT part of a data stream, cleanup skips the swap step
-     * and just deletes the clone and the original index.
+     * Tests that when neither the original index nor the frozen index is part of a data stream (the original was removed from
+     * its data stream during the transition), cleanup throws an unrecoverable exception and deletes nothing, because the
+     * original index may be the only copy of the data.
      */
-    public void testCleanupWithNoDataStreamSkipsSwapAndDeletesBothIndices() throws InterruptedException {
+    public void testCleanupThrowsUnrecoverableAndDeletesNothingWhenNeitherIndexIsInADataStream() {
         String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
+        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
+        buildAndSetProjectState(null, indexName, cloneIndexName, frozenIndexName);
+
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            index,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        DLMUnrecoverableException exception = expectThrows(DLMUnrecoverableException.class, () -> convert.maybeCleanup(cloneIndexName));
+        assertThat(exception.getMessage(), containsString("no longer part of a data stream"));
+        assertThat(exception.getMessage(), containsString(indexName));
+
+        assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
+        assertThat(capturedDeleteRequests.size(), is(0));
+    }
+
+    /**
+     * Tests that when the original index is NOT part of a data stream because the swap already happened (for example the
+     * master changed before the original was deleted), cleanup skips the swap step and just deletes the clone and the
+     * original index.
+     */
+    public void testCleanupAfterSwapSkipsSwapAndDeletesBothIndices() throws InterruptedException {
+        String dataStreamName = "my-data-stream";
+        String cloneIndexName = CLONE_INDEX_PREFIX + indexName;
+        String frozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + indexName;
         buildAndSetProjectState(null, indexName, cloneIndexName);
+        addFrozenIndexToDataStream(dataStreamName, frozenIndexName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             index,
@@ -281,6 +313,22 @@ public class DLMConvertToFrozenCleanupTests extends ESTestCase {
         // No swap or delete should have been attempted
         assertThat(capturedModifyDataStreamsRequest.get(), is(nullValue()));
         assertThat(capturedDeleteRequests.size(), is(0));
+    }
+
+    /**
+     * Adds the frozen index, as the only backing index of a new data stream, to the project state that is already set.
+     */
+    private void addFrozenIndexToDataStream(String dataStreamName, String frozenIndexName) {
+        IndexMetadata frozenMetadata = IndexMetadata.builder(frozenIndexName)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState currentState = clusterService.state();
+        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(currentState.metadata().getProject(projectId))
+            .put(frozenMetadata, false)
+            .put(DataStream.builder(dataStreamName, List.of(frozenMetadata.getIndex())).setGeneration(1).build());
+        setState(clusterService, ClusterState.builder(currentState).putProjectMetadata(projectMetadataBuilder).build());
     }
 
     /**

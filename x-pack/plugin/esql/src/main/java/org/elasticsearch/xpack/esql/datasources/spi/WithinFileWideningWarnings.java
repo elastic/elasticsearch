@@ -26,13 +26,13 @@ public final class WithinFileWideningWarnings {
     private WithinFileWideningWarnings() {}
 
     /**
-     * @param sourceLocation the object this sample came from, ALREADY escaped by the caller -- CSV through
-     *                       {@link RowLocation#displayObjectName}, NDJSON through
-     *                       {@link RowLocation#escapedForDisplay} -- because it is printed inside a bracketed
-     *                       clause this method builds by concatenation and a store-supplied path is free to
-     *                       close that bracket. The column name beside it is escaped HERE instead, so the two
-     *                       store-supplied fields of this detail are escaped on opposite sides of the call;
-     *                       a third caller handing this one a raw path reopens the forgery
+     * @param sourceLocation the object this sample came from. Escaped here, like the column name beside it,
+     *                       because it is printed inside a bracketed clause this method builds by concatenation
+     *                       and a store-supplied path is free to close that bracket. Callers that have already
+     *                       escaped it -- CSV through {@link RowLocation#displayObjectName}, NDJSON through
+     *                       {@link RowLocation#escapedForDisplay} -- lose nothing by it: the escape replaces
+     *                       every character it acts on with six that it does not, so a second pass is a no-op.
+     *                       That is what makes this a contract rather than a convention a third caller can break
      * @param columnNoun     "column" or "field", used only in the summary line (e.g. "A field's
      *                       inferred type changed..."); the per-widening detail always says "column"
      *                       regardless, matching both readers' existing wording
@@ -65,7 +65,7 @@ public final class WithinFileWideningWarnings {
                 + " ["
                 + widened.sampleRow()
                 + "] of ["
-                + sourceLocation
+                + RowLocation.escapedForDisplay(sourceLocation)
                 + "]: value ["
                 + widened.value()
                 + "] forced type ["

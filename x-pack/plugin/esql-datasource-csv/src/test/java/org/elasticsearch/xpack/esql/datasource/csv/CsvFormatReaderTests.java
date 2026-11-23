@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorExcerpts;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -94,6 +95,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -6709,6 +6711,24 @@ public class CsvFormatReaderTests extends ESTestCase {
             not(containsString(forgesIllegalType.toUpperCase(Locale.ROOT)))
         );
         assertThat("the escape must have fired", illegalType.getMessage(), containsString("\\u005D"));
+
+        // The quote is the one delimiter the escape does not cover, on both paths, by the decision
+        // checkUniqueAttributeNames states and rejectDuplicateHeaderNames now repeats. A name holding the
+        // separator splits in two, so the sentence names three columns for two -- recorded here so the decline
+        // is a choice a reader finds rather than a gap they rediscover. It inverts if the quote is ever escaped.
+        // CSV-quoted, because the name has to carry the comma to carry the separator at all.
+        String forgesByQuote = "\"a', 'b\"";
+        ExternalClientException quoted = expectThrows(
+            ExternalClientException.class,
+            () -> new CsvFormatReader(blockFactory).schema(
+                createStorageObject(forgesByQuote + ",ts," + forgesByQuote + ",ts\n1,2,3,4\n", "forge-quote.csv")
+            )
+        );
+        assertThat(
+            "the quote passes through, so the two names render as three entries",
+            quoted.getMessage(),
+            containsString("duplicate column names ['a', 'b', 'ts']")
+        );
     }
 
     /**
@@ -6754,13 +6774,10 @@ public class CsvFormatReaderTests extends ESTestCase {
      * Forwarding — the sentence raised as a plain {@link IllegalArgumentException} is what
      * {@code ExternalFailures.forwardableDetail} withholds, remedy and all, which is why the refusal is typed.
      * <p>
-     * Classification — the type is not what decides it everywhere. The same predicate is also an assertion inside
-     * {@code ExternalFailures.classify}, which walks the chain and tests every message including the one
-     * {@code setDetail} appends, so on the read path such a name is a fatal {@link AssertionError} under
-     * {@code -ea} rather than the 400 this refusal is. Pinned because it is the live boundary, not because it is
-     * wanted: a shipped distribution runs without {@code -ea} and gets the 400. It stops being true when the
-     * guard learns which span of a message is the permitted object name, and this test is then inverted rather
-     * than deleted.
+     * Classification — the read boundary applies the same predicate as an assertion, and it is the half that must
+     * not fire here: {@code ExternalFailures.noStoragePathLeakedBesideFileText} exempts the message this package
+     * composed, because the file's own basename is in it by design. So the refusal comes back out of
+     * {@code classify} as itself, with its 400 and its sentence, under {@code -ea} as well as without.
      */
     public void testASchemaRefusalSurvivesAnObjectNamedLikeAStorageHost() {
         CsvFormatReader narrowSample = new CsvFormatReader(blockFactory).withSchemaSampleBytes(50);
@@ -6777,9 +6794,10 @@ public class CsvFormatReaderTests extends ESTestCase {
             ExternalFailures.forwardableDetail(new IllegalArgumentException(e.getMessage()))
         );
 
-        assumeTrue("the read-path boundary below is only observable under -ea", getClass().desiredAssertionStatus());
-        AssertionError onTheReadPath = expectThrows(AssertionError.class, () -> ExternalFailures.classify(e));
-        assertThat(onTheReadPath.getMessage(), containsString("storage path leaked in ExternalException"));
+        RuntimeException onTheReadPath = ExternalFailures.classify(e);
+        assertThat(onTheReadPath, instanceOf(ExternalClientException.class));
+        assertThat(onTheReadPath.getMessage(), containsString("declare a schema"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(onTheReadPath));
     }
 
     /**
@@ -6790,13 +6808,12 @@ public class CsvFormatReaderTests extends ESTestCase {
      * sentence gone. {@code ExternalSourceResolver} unwraps an {@link ExternalClientException} before that arm
      * and returns it as it stands. {@link CsvFormatReader#sampleLimitError} carries the reasoning.
      * <p>
-     * The read path answers these same two objects differently, and that half is pinned here as well:
-     * {@code ExternalFailures.classify} applies the same predicate as an assertion over the whole message, so
-     * under {@code -ea} both raise an {@link AssertionError}. A shipped distribution runs without {@code -ea}
-     * and gets the diagnosis, which is the point of the type; {@code checkBudget}, the FAIL_FAST row error and the
-     * read path's own duplicate-header refusal ({@link #testTheBindingRefusalSurvivesAnObjectNamedLikeAStorageHost})
-     * stand inside that assertion on the same terms. It ends when the guard learns which span of a message is
-     * the permitted object name, and this expectation then inverts rather than being deleted.
+     * The read path answers these same two objects the same way, and that half is pinned here as well:
+     * {@code ExternalFailures.classify} asserts over a composed message with
+     * {@code noStoragePathLeakedBesideFileText}, which a basename cannot trip, so both come back as themselves
+     * with their 400. {@code checkBudget}, the FAIL_FAST row error and the read path's own duplicate-header
+     * refusal ({@link #testTheBindingRefusalSurvivesAnObjectNamedLikeAStorageHost}) reach that boundary on the
+     * same terms.
      */
     public void testTheEmptyObjectDiagnosisSurvivesAStorageHostName() {
         CsvFormatReader headerless = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
@@ -6831,10 +6848,11 @@ public class CsvFormatReaderTests extends ESTestCase {
             );
         }
 
-        assumeTrue("the read-path boundary below is only observable under -ea", getClass().desiredAssertionStatus());
         for (ExternalClientException refusal : List.of(noRows, noHeader)) {
-            AssertionError onTheReadPath = expectThrows(AssertionError.class, () -> ExternalFailures.classify(refusal));
-            assertThat(onTheReadPath.getMessage(), containsString("storage path leaked in ExternalException"));
+            RuntimeException onTheReadPath = ExternalFailures.classify(refusal);
+            assertThat(onTheReadPath, instanceOf(ExternalClientException.class));
+            assertThat(onTheReadPath.getMessage(), containsString("logs.amazonaws.com.csv"));
+            assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(onTheReadPath));
         }
     }
 
@@ -8758,20 +8776,36 @@ public class CsvFormatReaderTests extends ESTestCase {
     /**
      * With no header columns to bind against there is nothing to fall back on but position, which would shift
      * every column. Failing loudly is the correct outcome, and stays so.
+     * <p>
+     * Our own invariant, so a 500 -- but typed, because the status and the sentence are separable and untyped
+     * only the status survived. {@code classify}'s final arm answers an {@link IllegalStateException} with
+     * {@code safeDetail}, which falls back to the class name whenever {@code forwardableDetail} withholds, and it
+     * withholds for the one kind of name the object clause here exists to carry. The object below is named that
+     * way so the assertion is about the case that was losing the sentence, rather than about the ordinary one.
      */
     public void testNonFirstChunkWithoutCarriedHeaderColumnsFailsLoudly() throws Exception {
-        StorageObject object = createStorageObject("1,Alice\n");
+        StorageObject object = createStorageObject("1,Alice\n", "logs.amazonaws.com.csv");
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "emp_no", DataType.LONG));
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", true))
             .withDeclaredProvenanceBinding(true);
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
+        ExternalServerException e = expectThrows(
+            ExternalServerException.class,
             () -> reader.read(
                 object,
                 FormatReadContext.builder().firstSplit(false).recordAligned(true).batchSize(10).readSchema(readSchema).build()
             )
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("without the file's header columns"));
+        assertThat(e.getMessage(), containsString("without the file's header columns"));
+        assertThat(e.getMessage(), containsString("[logs.amazonaws.com.csv]"));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(e));
+
+        RuntimeException classified = ExternalFailures.classify(e);
+        assertThat(
+            "the sentence is what the type is for; the 500 was never in doubt",
+            classified.getMessage(),
+            containsString("without the file's header columns")
+        );
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
     }
 
     /** A narrow declaration may name a column far to the right of a wide file — the classic ClickBench shape. */
@@ -9027,12 +9061,11 @@ public class CsvFormatReaderTests extends ESTestCase {
      * object clause exists to carry, so untyped this refusal loses its remedy for exactly the objects it was
      * taught to name.
      * <p>
-     * Classification -- the same predicate is also an assertion inside {@code ExternalFailures.classify}, which
-     * walks the chain and tests every message including the one {@code setDetail} appends, so under {@code -ea}
-     * such a name is a fatal {@link AssertionError} here rather than the 400 this refusal is. Pinned because it is
-     * the live boundary, not because it is wanted: a shipped distribution runs without {@code -ea} and gets the
-     * 400. It stops being true when the guard learns which span of a message is the permitted object name, and
-     * this test is then inverted rather than deleted.
+     * Classification -- the same predicate is also an assertion inside {@code ExternalFailures.classify}, and this
+     * message is the case the assertion must not fire on. It is composed here out of two things the file supplies,
+     * the basename and the column names, so {@code noStoragePathLeakedBesideFileText} is what the read boundary
+     * applies to it; the duplicate below is named {@code /data} precisely because a column name reaches the same
+     * guard with no storage-host name anywhere, and a leading slash is not something the escape touches.
      */
     public void testTheBindingRefusalSurvivesAnObjectNamedLikeAStorageHost() {
         List<Attribute> readSchema = List.of(new ReferenceAttribute(Source.EMPTY, null, "ts", DataType.LONG));
@@ -9056,9 +9089,21 @@ public class CsvFormatReaderTests extends ESTestCase {
             ExternalFailures.forwardableDetail(new IllegalArgumentException(refusal.getMessage()))
         );
 
-        assumeTrue("the read-path boundary below is only observable under -ea", getClass().desiredAssertionStatus());
-        AssertionError onTheReadPath = expectThrows(AssertionError.class, () -> ExternalFailures.classify(refusal));
-        assertThat(onTheReadPath.getMessage(), containsString("storage path leaked in ExternalException"));
+        RuntimeException onTheReadPath = ExternalFailures.classify(refusal);
+        assertThat(onTheReadPath, instanceOf(ExternalClientException.class));
+        assertThat(onTheReadPath.getMessage(), containsString("columns cannot bind by name"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(onTheReadPath));
+
+        // An ordinarily-named object whose duplicated column is itself path-shaped: the same guard, no host name.
+        ExternalClientException pathShapedColumn = expectThrows(
+            ExternalClientException.class,
+            () -> bindingReader(new CsvFormatReader(blockFactory)).read(
+                createStorageObject("/data,ts,/data\n1,2,3\n", "data.csv"),
+                FormatReadContext.builder().firstSplit(true).recordAligned(true).batchSize(10).readSchema(readSchema).build()
+            )
+        );
+        assertThat(pathShapedColumn.getMessage(), containsString("duplicate column names ['/data']"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(pathShapedColumn)));
     }
 
     /** Only a headered dialect has a header line to deliver to later splits; the answer is the setting, nothing else. */

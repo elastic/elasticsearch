@@ -136,6 +136,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     private static final String GARBAGE_PARQUET = "data/garbage.parquet";
     private static final String TRUNCATED_PARQUET = "data/truncated.parquet";
     private static final String RAGGED_CSV = "data/ragged.csv";
+    private static final String DUPLICATE_HEADER_CSV = "data/duplicate_header.csv";
     private static final String GLOB_A = "glob/a.csv";
     private static final String GLOB_B = "glob/b.csv";
     private static final String GLOB_INCOMPATIBLE = "glob/c.csv";
@@ -162,6 +163,8 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         seed(TRUNCATED_PARQUET, "PAR1" + "x".repeat(64));
         // Row 2 has one field too many for the declared header.
         seed(RAGGED_CSV, "id,city\n1,Vienna\n2,Berlin,extra\n");
+        // A header naming one column twice: by-name binding cannot say which physical column a schema column means.
+        seed(DUPLICATE_HEADER_CSV, "id,city,id\n1,Vienna,2\n");
         seed(GLOB_A, "id,city\n1,Vienna\n");
         seed(GLOB_B, "id,city\n2,Berlin\n");
         // Same column count, different names — forces schema reconciliation across the glob.
@@ -304,6 +307,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("date format declared on a non-date column", 400),
         entry("strict declaration with no columns", 400),
         entry("declared type not coercible from the bytes", 400),
+        entry("duplicate header name under a declared schema", 400),
         entry("glob matches nothing", 400),
         entry("glob over incompatible schemas", 200),
         entry("glob over a bucket that does not exist", 400),
@@ -346,6 +350,11 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
      * a basename the replacement message prints anyway. The type lines them up with the CSV reader's other
      * refusals rather than with this surface, which has no single convention: the parquet cells in this same map
      * answer an argument error for an object whose bytes contradict its declared format.
+     * <p>
+     * The duplicate-header cell is the read path's own refusal and answers the same way, for the same reason and
+     * from a different site: binding by name cannot choose between two physical columns of one name, and untyped
+     * that sentence is withheld whole for a basename the guard mistakes for a host. It is the one cell here whose
+     * refusal is raised while rows are being read rather than while the schema is being settled.
      * <p>
      * A typed refusal is handed back as it stands, so {@code error.reason} opens with the
      * {@code Malformed external data:} prefix {@code MALFORMED_DATA} renders, with the diagnosis word for word
@@ -394,6 +403,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         entry("date format declared on a non-date column", "illegal_argument_exception"),
         entry("strict declaration with no columns", "illegal_argument_exception"),
         entry("declared type not coercible from the bytes", "external_client_exception"),
+        entry("duplicate header name under a declared schema", "external_client_exception"),
         entry("glob matches nothing", "illegal_argument_exception"),
         entry("glob over incompatible schemas", "<none>"),
         entry("glob over a bucket that does not exist", "external_client_exception"),
@@ -980,6 +990,21 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
             "declared type not coercible from the bytes",
             "name the column, the declared type, and the offending value",
             "strict_mismatch_ds"
+        );
+        // A duplicate header name is the read path's own refusal, and only a declared schema reaches it: inference
+        // refuses the same file one step earlier, from a different site, with a different remedy.
+        putDataset(
+            "duplicate_header_ds",
+            "good_ds",
+            s3(DUPLICATE_HEADER_CSV),
+            Map.of("region", regionSupplier.get()),
+            Map.of("dynamic", "false", "properties", Map.of("city", Map.of("type", "keyword")))
+        );
+        queryProbeExisting(
+            "declared_mapping",
+            "duplicate header name under a declared schema",
+            "name the format, the object and every duplicated column",
+            "duplicate_header_ds"
         );
     }
 

@@ -176,6 +176,13 @@ public abstract class ExternalException extends QlException {
      * after any {@link #detail}. Must be set before the exception crosses any node boundary.
      */
     private volatile String datasetContext;
+    /**
+     * Set when this exception's message is a row of the file quoted verbatim, which only {@link ExternalFailures#rowError}
+     * builds. A row may hold anything the file holds, a storage URL included, so the read boundary checks nothing in such
+     * a message: see {@link ExternalFailures#noStoragePathLeakedBesideFileText}. Copied by the copy constructor, so it
+     * survives the detach every classified failure goes through.
+     */
+    private volatile boolean messageIsRowContent;
 
     protected ExternalException(String message, Throwable cause) {
         super(message, cause);
@@ -264,6 +271,7 @@ public abstract class ExternalException extends QlException {
         this.remedy = source.remedy;
         this.detail = source.detail;
         this.datasetContext = source.datasetContext;
+        this.messageIsRowContent = source.messageIsRowContent;
         recordConditionMetadata();
     }
 
@@ -402,6 +410,21 @@ public abstract class ExternalException extends QlException {
      */
     public void setDetail(String detail) {
         this.detail = detail;
+    }
+
+    /**
+     * Declares that this exception's message quotes a row of the file verbatim. Only {@link ExternalFailures#rowError}
+     * sets it, and its own javadoc says why: row content is the caller's to vouch for, and can legitimately look like a
+     * location. Nothing else may claim this -- a message assembled from a basename and a column name is checked, and
+     * {@link ExternalFailures#noStoragePathLeakedBesideFileText} says what that check still is.
+     */
+    void markMessageIsRowContent() {
+        this.messageIsRowContent = true;
+    }
+
+    /** See {@link #markMessageIsRowContent()}. */
+    boolean messageIsRowContent() {
+        return messageIsRowContent;
     }
 
     /**

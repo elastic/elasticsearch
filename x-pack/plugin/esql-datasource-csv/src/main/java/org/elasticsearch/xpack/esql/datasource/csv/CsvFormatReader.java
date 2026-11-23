@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalFailures;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -1372,16 +1373,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Typed for the same reason {@link #checkUniqueAttributeNames} is, and the object clause is what makes the type
      * load-bearing: {@code ExternalFailures.forwardableDetail} withholds an untyped message whole when
      * {@code containsStoragePath} matches anywhere in it, and a user may call a file {@code logs.amazonaws.com.csv}.
-     * Untyped, this refusal loses its remedy for exactly the objects whose name the clause carries. Typed, it stands
-     * inside {@code classify}'s assertion on the same terms as the schema-path refusals.
+     * Untyped, this refusal loses its remedy for exactly the objects whose name the clause carries. Typed, it reaches
+     * {@code classify}'s assertion as a message this package composed, which is the form that lets a basename -- or a
+     * column named {@code /data}, which no escape here touches -- through.
      * <p>
      * Renders the way that sibling does, because the two refuse one condition and a user who meets this sentence on
      * a declared read meets the other one on inference over the same file: the format's own name, so a {@code .tsv}
      * is not called a CSV; every duplicate rather than the first, so one pass over the header answers for the whole
      * of it; and the names quoted, so an empty name -- which a header of {@code ,,ts} produces -- is visible rather
      * than collapsing to nothing. The cap and the escape go on the joined list and the brackets go on after the cap,
-     * both for the reasons stated there. The remedy is the one part that differs, because binding cannot be told the
-     * file has no header row.
+     * both for the reasons stated there. That sibling's declined escape comes with them: the escape covers the
+     * brackets and not the quote, so a column holding {@code ', '} renders as two entries and the sentence names a
+     * column the file does not have. Left as it is there, because quoting the quote costs every ordinary name its
+     * legibility to defend against a count a reader can check against the file.
+     * The remedy is the one part that differs, because binding cannot be told the file has no header row.
      */
     private void rejectDuplicateHeaderNames(String[] headerNames, StorageObject object) {
         Set<String> seen = new HashSet<>(headerNames.length);
@@ -2379,11 +2384,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * {@link ExternalClientException} is returned whole by that path, which is why all seven schema-path
      * refusals use it; {@code testEverySchemaPathFailureNamesTheObject} walks the set.
      * <p>
-     * The type does not make the name safe everywhere. {@code ExternalFailures.classify} applies the same
-     * predicate as an assertion over the whole chain, so on the read path such a name is a fatal
-     * {@code AssertionError} under {@code -ea} rather than this 400 — as it already is for {@code checkBudget}
-     * and the FAIL_FAST row error. Ending that means teaching the guard which span of a message is the
-     * permitted object name, which is a change to the guard rather than to this refusal.
+     * The read path applies the same predicate as an assertion, over a message this package composed, and
+     * {@code ExternalFailures.noStoragePathLeakedBesideFileText} is the form it uses there: a basename and a
+     * column name are the file's to choose, so only a storage-URI scheme condemns such a message. That is what
+     * keeps this refusal a 400 under {@code -ea} too, here and at {@code checkBudget} and the FAIL_FAST row
+     * error, which reach the same boundary with the same kind of text in them.
      */
     private static ExternalClientException sampleLimitError(long maxSampleBytes, String format, String sourceLocation) {
         ExternalClientException limitEx = new ExternalClientException(ExternalException.Condition.MALFORMED_DATA, StoragePath.NONE, "", "");
@@ -3070,11 +3075,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (context.firstSplit()) {
                 return null;
             }
-            throw new IllegalStateException(
+            // An invariant breach, so a 500 -- but typed, because untyped it is the one read-path site whose
+            // object clause is withheld for exactly the names the clause exists to carry: classify's final arm
+            // answers an IllegalStateException with safeDetail, which falls back to the class name whenever
+            // forwardableDetail withholds. ExternalServerException keeps the status and the sentence both.
+            ExternalServerException invariant = new ExternalServerException(
+                ExternalException.Condition.CLIENT_BUG,
+                StoragePath.NONE,
+                "",
+                ""
+            );
+            invariant.setDetail(
                 "headered read of ["
                     + RowLocation.displayObjectName(object.path().objectName())
                     + "] reached a non-first split without the file's header columns; cannot bind the schema by name"
             );
+            throw invariant;
         }
         // The names are charged by whoever holds them; this charges the binding's own scratch, which a declared read
         // does not cap by the file's width.

@@ -155,18 +155,63 @@ public final class ExternalFailures {
      * user-facing exception message.
      */
     static boolean noStoragePathLeaked(RuntimeException e) {
-        return chainNamesNoLocation(e);
+        return chainNamesNoLocation(e, true);
+    }
+
+    /**
+     * {@link #noStoragePathLeaked} for an exception whose own message this package composed, out of tokens the file
+     * supplies: an object's basename, a column name, a row excerpt. Only a storage-URI scheme condemns that message.
+     * The cause chain and every suppressed failure are still checked in full, so the leak this guard exists to catch
+     * -- a reader concatenating a path, or an SDK message carried along -- is caught exactly as before.
+     * <p>
+     * The two heuristics it drops are the ones that cannot tell our text from the file's. {@link #STORAGE_HOST_DOMAINS}
+     * answers about an endpoint host, which a storage SDK or a DNS failure writes; {@link #ABSOLUTE_FILESYSTEM_PATH}
+     * answers about a bare path, which a filesystem provider writes. Both arrive as a cause, or as third-party text
+     * already screened by {@link #forwardableDetail}. On a message we assembled they also match what the file is
+     * entitled to contain -- an object a user may legitimately name {@code logs.amazonaws.com.csv}, a column literally
+     * named {@code /data} -- and a scheme does not, because no file-supplied token carries one.
+     * <p>
+     * This is the rule {@link #rowError} already states for row content, applied where the message is finally
+     * asserted rather than only where it is built. Without it a deliberate HTTP 400 becomes a fatal
+     * {@link AssertionError} under {@code -ea} for input the reader is supposed to refuse politely.
+     * <p>
+     * A row error goes one step further and gets no check on its message at all, because the scheme is the one shape
+     * row content may legitimately hold too: a cell is free to be a URL, and {@link ErrorExcerpts} sizes its cap
+     * around values that usually are. That is {@link ExternalException#messageIsRowContent()}, which only
+     * {@link #rowError} sets, and it is the same decline that method's own cause-only assertion already makes.
+     */
+    static boolean noStoragePathLeakedBesideFileText(ExternalException e) {
+        if (e.messageIsRowContent()) {
+            return chainNamesNoLocation(e.getCause(), true) && suppressedNameNoLocation(e);
+        }
+        return chainNamesNoLocation(e, false);
+    }
+
+    /** Whether every failure suppressed on {@code e} itself is free of a location. Its cause chain is walked separately. */
+    private static boolean suppressedNameNoLocation(Throwable e) {
+        for (Throwable suppressed : e.getSuppressed()) {
+            if (containsStoragePath(suppressed.getMessage())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
      * Walks {@code start} and its cause chain, checking each message and its suppressed failures for a location.
      * {@code null} is accepted and trivially passes: used by {@link #rowError}, where only the cause (not the
      * caller-supplied top message, which is row data) must be checked.
+     *
+     * @param startMessageIsForeign {@code true} when {@code start}'s own message is text this package did not compose,
+     *     so every heuristic applies to it; {@code false} when we composed it from file-supplied tokens and only a
+     *     storage-URI scheme condemns it. Everything below depth 0, and every suppressed failure at any depth, is
+     *     foreign by definition and always checked in full.
      */
-    private static boolean chainNamesNoLocation(Throwable start) {
+    private static boolean chainNamesNoLocation(Throwable start, boolean startMessageIsForeign) {
         Throwable current = start;
         for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
-            if (containsStoragePath(current.getMessage())) {
+            boolean checkInFull = startMessageIsForeign || depth > 0;
+            if (checkInFull ? containsStoragePath(current.getMessage()) : namesStorageUriScheme(current.getMessage())) {
                 return false;
             }
             // suppressed[] is serialized into the response via innerToXContent; guard it too.
@@ -192,7 +237,11 @@ public final class ExternalFailures {
         "(?:^|[\\s\\[(<'\"=,])/[^\\s/\\[\\]()<>'\",]+|(?:^|[\\s\\[(<'\"=,])[A-Za-z]:[\\\\/]"
     );
 
-    private static boolean containsStoragePath(String msg) {
+    /**
+     * Whether {@code msg} names a storage-URI scheme. Split out from {@link #containsStoragePath} because it is the
+     * one test that holds on a message we composed ourselves: see {@link #noStoragePathLeakedBesideFileText}.
+     */
+    private static boolean namesStorageUriScheme(String msg) {
         if (msg == null) {
             return false;
         }
@@ -200,6 +249,16 @@ public final class ExternalFailures {
             if (msg.contains(scheme)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    private static boolean containsStoragePath(String msg) {
+        if (msg == null) {
+            return false;
+        }
+        if (namesStorageUriScheme(msg)) {
+            return true;
         }
         for (String domain : STORAGE_HOST_DOMAINS) {
             if (msg.contains(domain)) {
@@ -235,7 +294,8 @@ public final class ExternalFailures {
     public static ExternalClientException rowError(Throwable cause, String safeMessage) {
         Exception e = cause instanceof Exception ex ? ex : null;
         ExternalClientException result = new ExternalClientException(e, "{}", safeMessage);
-        assert chainNamesNoLocation(cause) : "storage path leaked via row error cause chain: " + result.getMessage();
+        result.markMessageIsRowContent();
+        assert chainNamesNoLocation(cause, true) : "storage path leaked via row error cause chain: " + result.getMessage();
         return result;
     }
 
@@ -246,7 +306,8 @@ public final class ExternalFailures {
      * Under {@code -ea} (assertions enabled), verifies that no message in the result's full cause chain
      * contains a known storage-URI scheme — a debug guard that fires immediately if a new throw site
      * embeds a full path instead of using the structured constructors on {@link ExternalException}.
-     * See {@link #noStoragePathLeaked}.
+     * See {@link #noStoragePathLeaked}, and {@link #noStoragePathLeakedBesideFileText} for the one message
+     * in that chain this package wrote itself.
      * <p>
      * An {@link IllegalArgumentException} or I/O failure whose message is withheld (see {@link #forwardableDetail}) is
      * logged as one WARN line naming the failure, at most once a minute per node: this node's log is the only place
@@ -276,7 +337,9 @@ public final class ExternalFailures {
         }
         if (t instanceof ExternalException ee) {
             ExternalException detached = detach(ee, failureLevel);
-            assert noStoragePathLeaked(detached) : "storage path leaked in ExternalException: " + detached.getMessage();
+            // Its message is one this package built, so the file's own tokens are in it by design; only a scheme
+            // condemns it. noStoragePathLeakedBesideFileText says why the other two heuristics cannot run here.
+            assert noStoragePathLeakedBesideFileText(detached) : "storage path leaked in ExternalException: " + detached.getMessage();
             return detached;
         }
         if (t instanceof ElasticsearchException ese) {

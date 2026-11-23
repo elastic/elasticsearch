@@ -581,6 +581,92 @@ public class ExternalFailuresTests extends ESTestCase {
         );
     }
 
+    /**
+     * A refusal this package composed carries the file's own tokens -- the object's basename, a column name, a row
+     * excerpt -- and two of them look exactly like a location. Both shapes below are legitimate input a reader is
+     * meant to refuse with an HTTP 400, so neither may cost the user the sentence that says what to fix.
+     */
+    public void testAComposedRefusalMayCarryFileTextThatLooksLikeALocation() {
+        var namedLikeAHost = new ExternalClientException("Malformed external data: CSV file [logs.amazonaws.com.csv] has no data rows");
+        assertTrue(ExternalFailures.noStoragePathLeakedBesideFileText(namedLikeAHost));
+        assertThat(ExternalFailures.classify(namedLikeAHost), instanceOf(ExternalClientException.class));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(namedLikeAHost)));
+
+        // A column name is not an object name, and nothing escapes a leading slash out of one.
+        var columnNamedLikeAPath = new ExternalClientException(
+            "Malformed external data: CSV header of [data.csv] has duplicate column names ['/data']; columns cannot bind by name"
+        );
+        assertTrue(ExternalFailures.noStoragePathLeakedBesideFileText(columnNamedLikeAPath));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(columnNamedLikeAPath)));
+
+        // Both still fail the full predicate, which is why the two entry points are not one: that one answers about
+        // foreign text, where the same shapes are a leak.
+        assertFalse(ExternalFailures.noStoragePathLeaked(namedLikeAHost));
+        assertFalse(ExternalFailures.noStoragePathLeaked(columnNamedLikeAPath));
+        assertFalse(ExternalFailures.safeForUserMessage("secret-bucket.s3.amazonaws.com: Name or service not known"));
+    }
+
+    /**
+     * A row is free to hold a URL -- {@link ErrorExcerpts} sizes its per-value cap around values that usually do --
+     * so a row error's own message is the one this boundary does not read at all. Its cause and its suppressed
+     * failures still are, and the exemption has to survive the detach that classification performs.
+     */
+    public void testARowErrorMayQuoteARowHoldingAUrl() {
+        var rowHoldingAUrl = ExternalFailures.rowError(
+            new IllegalArgumentException("not a long"),
+            "Row [7] of [hits.csv]: cannot parse [https://example.com/a?b=1] as [long]"
+        );
+        assertTrue(ExternalFailures.noStoragePathLeakedBesideFileText(rowHoldingAUrl));
+
+        RuntimeException classified = ExternalFailures.classify(rowHoldingAUrl);
+        assertThat(classified, instanceOf(ExternalClientException.class));
+        assertThat(classified.getMessage(), containsString("https://example.com/a?b=1"));
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        // The detach that classify performs copies the exemption, or a second pass over the result would fail.
+        assertTrue(ExternalFailures.noStoragePathLeakedBesideFileText((ExternalException) classified));
+
+        // The cause is still foreign text and is still read in full -- at the throw site, which is earlier than
+        // this boundary and is why a leaking cause never reaches it.
+        expectThrows(
+            AssertionError.class,
+            () -> ExternalFailures.rowError(
+                new IOException("Failed to read s3://secret-bucket/k"),
+                "Row [7] of [hits.csv]: cannot parse [x] as [long]"
+            )
+        );
+
+        // Assembled with the cause that assertion refuses, the boundary refuses it too: the exemption is the
+        // message's alone and the walk below it is unchanged.
+        var leakingCause = new ExternalClientException(
+            new IOException("Failed to read s3://secret-bucket/k"),
+            "{}",
+            "Row [7] of [hits.csv]: cannot parse [x] as [long]"
+        );
+        leakingCause.markMessageIsRowContent();
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideFileText(leakingCause));
+    }
+
+    /**
+     * What the carve-out does not give up. A scheme is the one shape no file-supplied token carries, so it condemns a
+     * composed message as before; and the cause chain and suppressed failures -- where an SDK writes a real path --
+     * are checked in full whatever the top message is.
+     */
+    public void testAComposedRefusalStillCannotCarryASchemeOrABuriedPath() {
+        var concatenatedUri = new ExternalClientException("Access denied [s3://bucket/prefix/file.parquet]");
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideFileText(concatenatedUri));
+
+        var sdkCause = new ExternalClientException(
+            new IOException("secret-bucket.s3.us-east-1.amazonaws.com: Name or service not known"),
+            "{}",
+            "CSV file [data.csv] could not be read"
+        );
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideFileText(sdkCause));
+
+        var suppressedLeak = new ExternalClientException("CSV file [data.csv] could not be read");
+        suppressedLeak.addSuppressed(new IOException("Path is not a regular file: /data/private/x.csv"));
+        assertFalse(ExternalFailures.noStoragePathLeakedBesideFileText(suppressedLeak));
+    }
+
     public void testDatasetContextAppendsToMessage() {
         var ex = new ExternalClientException("Access denied reading [file.parquet]");
         assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("dataset")));

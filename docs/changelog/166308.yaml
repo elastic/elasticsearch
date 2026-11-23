@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 166308
-summary: Say which object an external text parse error came from
+summary: Name the object, the split and the format in an external text parse error
 type: bug

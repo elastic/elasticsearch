@@ -193,6 +193,11 @@ public class RowLocationTests extends ESTestCase {
             String once = RowLocation.displayObjectName(name);
             assertThat(RowLocation.displayObjectName(once), equalTo(once));
             assertThat(RowLocation.of(1, once, 0L), equalTo(RowLocation.of(1, name, 0L)));
+
+            // The escape alone, without the cap, because WithinFileWideningWarnings.report escapes its location
+            // unconditionally and both its callers hand it one already escaped. A second pass must cost nothing.
+            String escapedOnce = RowLocation.escapedForDisplay(name);
+            assertThat(RowLocation.escapedForDisplay(escapedOnce), equalTo(escapedOnce));
         }
     }
 

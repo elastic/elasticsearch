@@ -28,5 +28,7 @@ limit_ratio(0.5, http_requests_total)
 :::{note}
 **Differences from {{prom}}**
 
-`without(...)`, such as `limit_ratio without (instance) (0.5, x)`, isn't supported yet. Series are kept by hashing the series identity rather than the {{prom}} label serialization, so the kept subset has the same statistical properties but is generally a different subset than the one {{prom}} keeps. `by` is a membership no-op as in {{prom}}.
+{applies_to}`stack: ga =9.6` `without(...)`, such as `limit_ratio without (instance) (0.5, x)`, isn't supported yet.
+
+Series are kept by hashing the series identity rather than the {{prom}} label serialization, so the kept subset has the same statistical properties but is generally a different subset than the one {{prom}} keeps. `by` is a membership no-op as in {{prom}}.
 :::

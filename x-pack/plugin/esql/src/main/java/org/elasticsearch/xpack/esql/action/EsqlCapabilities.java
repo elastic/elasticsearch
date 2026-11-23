@@ -4342,6 +4342,12 @@ public class EsqlCapabilities {
         PROMQL_COUNT_VALUES(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * PromQL {@code topk}, {@code bottomk}, {@code limitk} and {@code limit_ratio} with {@code without(...)}: they partition
+         * by every label of a series but the listed ones and the metric name.
+         */
+        PROMQL_REDUCTION_WITHOUT(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * PromQL {@code without(...)} over another {@code without(...)}: each level leaves out its own labels from what the level
          * below kept.
          */

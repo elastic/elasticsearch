@@ -191,8 +191,9 @@ public sealed class AcrossSeriesAggregate extends PromqlFunctionCall permits Cou
         }
         TranslationSchema childRequired = switch (grouping()) {
             case BY -> finite(keys);
-            // without () keeps the child's label set; without (K) declares its own and widens every pending one by K
-            case WITHOUT -> keys.isEmpty() ? context.required() : union(subtract(context.required(), keys), open(keys));
+            // without (K) declares its own packing, every label but K, which keeps one row per remaining label set even
+            // for an empty K, and widens every pending one by K
+            case WITHOUT -> union(subtract(context.required(), keys), open(keys));
             case NONE -> TranslationSchema.EMPTY;
         };
         TranslationContext childTranslation = context.withRequired(childRequired);

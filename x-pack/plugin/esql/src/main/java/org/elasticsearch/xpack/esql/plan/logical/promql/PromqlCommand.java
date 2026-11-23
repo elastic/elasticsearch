@@ -410,7 +410,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         return minimumVersion.supports(AbstractTimeSeriesMetadataFunction.ESQL_TIMESERIES_METADATA_FUNCTIONS);
     }
 
-    public void verify(Failures failures, int maxBranches, String limitSource) {
+    public void verify(Failures failures, int maxBranches, String limitSource, boolean containerFunctions) {
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
@@ -480,10 +480,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                 }
                 case CountValuesAggregate countValues -> {
-                    verifyAcrossSeriesAggregate(countValues, failures);
+                    verifyAcrossSeriesAggregate(countValues, failures, containerFunctions);
                     verifyCountValues(countValues, failures);
                 }
-                case AcrossSeriesAggregate agg -> verifyAcrossSeriesAggregate(agg, failures);
+                case AcrossSeriesAggregate agg -> verifyAcrossSeriesAggregate(agg, failures, containerFunctions);
                 case AcrossSeriesReduction reduction -> {
                     for (Attribute grouping : reduction.groupings()) {
                         checkBuiltInColumnCollision(reduction, PromqlLabels.labelName(grouping), failures);
@@ -748,8 +748,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         );
     }
 
-    private void verifyAcrossSeriesAggregate(AcrossSeriesAggregate agg, Failures failures) {
-        if (agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
+    private void verifyAcrossSeriesAggregate(AcrossSeriesAggregate agg, Failures failures, boolean containerFunctions) {
+        if (containerFunctions == false && agg.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT && usesWithoutGrouping(agg.child())) {
             failures.add(fail(agg, "nested WITHOUT over WITHOUT is not supported at this time [{}]", agg.sourceText()));
         }
         // Reject labels whose name collides with a built-in output column.

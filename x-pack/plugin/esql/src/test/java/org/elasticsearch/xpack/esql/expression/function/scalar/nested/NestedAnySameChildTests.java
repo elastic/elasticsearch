@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -50,6 +51,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -60,13 +62,23 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EvaluateNestedPredicateInLucene;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.After;
 
 import java.io.IOException;
@@ -78,7 +90,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * {@code NESTED_ANY(items, sku == "a" AND qty * price > 100)} on real nested documents. The sku term selects child
@@ -329,6 +344,136 @@ public class NestedAnySameChildTests extends ComputeTestCase {
         }
     }
 
+    /**
+     * The reference predicate, planned against this index and then evaluated. The sku comparison becomes the child filter and
+     * the product stays in the predicate, including the match past one page of children and the null price. When expensive
+     * queries are refused, the conjunction stays whole and the same parents match.
+     */
+    public void testTheReferencePredicatePlansAndEvaluates() throws IOException {
+        index(parentWithSplitChildren(), parentWithMatchOnTheNextPage(), parentWithNullPrice());
+        NestedPredicate predicate = referencePredicate();
+        NestedPredicate planned = plan(predicate, SearchContextStats.from(List.of(shard.executionContext())));
+
+        assertThat(planned.queryBuilder(), nullValue());
+        assertThat(planned.childFilter(), instanceOf(SingleValueQuery.Builder.class));
+        assertThat(planned.relativePaths(), equalTo(List.of("qty", "price")));
+        assertParents(planned, new IndexedByShardIdFromSingleton<>(shard), parents(parentDocs), false, true, false);
+
+        SearchExecutionContext refused = new SearchExecutionContext(shard.executionContext()) {
+            @Override
+            public boolean allowExpensiveQueries() {
+                return false;
+            }
+        };
+        assertThat(plan(predicate, SearchContextStats.from(List.of(refused))), equalTo(predicate));
+        assertParents(predicate, new IndexedByShardIdFromSingleton<>(shard), parents(parentDocs), false, true, false);
+    }
+
+    /**
+     * A lowercase normalizer on one shard makes the sku not queryable, so the comparison stays in the predicate. The stored
+     * value is {@code a}, and comparing it with {@code A} does not match that parent.
+     */
+    public void testANormalizedShardKeepsTheComparisonOnTheValueAsRead() throws IOException {
+        try (
+            OpenIndex plain = openIndex(0, MAPPING, "{\"items\":[{\"sku\":\"A\"}]}");
+            OpenIndex normalized = openIndex(1, NORMALIZED_MAPPING, "{\"items\":[{\"sku\":\"A\"}]}")
+        ) {
+            FieldAttribute sku = field("sku", DataType.KEYWORD);
+            NestedPredicate predicate = new NestedPredicate(
+                Source.EMPTY,
+                "items",
+                new Equals(Source.EMPTY, sku, Literal.keyword(Source.EMPTY, "A")),
+                List.of(sku),
+                List.of("sku"),
+                null,
+                null,
+                EsqlTestUtils.TEST_CFG
+            );
+            SearchStats stats = SearchContextStats.from(List.of(plain.shard.executionContext(), normalized.shard.executionContext()));
+
+            assertThat(plan(predicate, stats), equalTo(predicate));
+            try (DocBlock.Builder parents = DocBlock.newBlockBuilder(blockFactory(), 2)) {
+                parents.appendShard(plain.shard.index()).appendSegment(0).appendDoc(plain.parentDocs[0]);
+                parents.appendShard(normalized.shard.index()).appendSegment(0).appendDoc(normalized.parentDocs[0]);
+                assertParents(
+                    predicate,
+                    new IndexedByShardIdFromList<>(List.of(plain.shard, normalized.shard)),
+                    parents.build(),
+                    true,
+                    false
+                );
+            }
+        }
+    }
+
+    /** {@code items.sku == "a" AND items.qty * items.price > 100}, before the planner splits it. */
+    private NestedPredicate referencePredicate() {
+        FieldAttribute sku = field("sku", DataType.KEYWORD);
+        FieldAttribute qty = field("qty");
+        FieldAttribute price = field("price");
+        var skuMatches = new Equals(Source.EMPTY, sku, Literal.keyword(Source.EMPTY, "a"));
+        var product = new GreaterThan(
+            Source.EMPTY,
+            new Mul(Source.EMPTY, qty, price),
+            new Literal(Source.EMPTY, 100L, DataType.LONG),
+            null
+        );
+        return new NestedPredicate(
+            Source.EMPTY,
+            "items",
+            new And(Source.EMPTY, skuMatches, product),
+            List.of(sku, qty, price),
+            List.of("sku", "qty", "price"),
+            null,
+            null,
+            EsqlTestUtils.TEST_CFG
+        );
+    }
+
+    private NestedPredicate plan(NestedPredicate predicate, SearchStats stats) {
+        var planned = new EvaluateNestedPredicateInLucene().apply(
+            new EvalExec(
+                Source.EMPTY,
+                new LocalSourceExec(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY),
+                List.of(new Alias(Source.EMPTY, "h", predicate))
+            ),
+            new LocalPhysicalOptimizerContext(
+                PlannerSettings.DEFAULTS,
+                new EsqlFlags(true),
+                EsqlTestUtils.TEST_CFG,
+                FoldContext.small(),
+                stats
+            )
+        );
+        List<NestedPredicate> found = new ArrayList<>();
+        planned.forEachExpression(NestedPredicate.class, found::add);
+        assertThat(found, hasSize(1));
+        return found.getFirst();
+    }
+
+    private void assertParents(
+        NestedPredicate predicate,
+        IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> shards,
+        Block parents,
+        boolean... expected
+    ) {
+        Layout layout = new Layout.Builder().append(new ReferenceAttribute(Source.EMPTY, "_doc", DataType.DOC_DATA_TYPE)).build();
+        var blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        try (
+            var evaluator = EvalMapper.toEvaluator(FoldContext.small(), predicate, layout, shards, null, PlannerSettings.DEFAULTS)
+                .get(driverContext);
+            Page page = new Page(parents);
+            Block result = evaluator.eval(page)
+        ) {
+            BooleanBlock flags = (BooleanBlock) result;
+            for (int i = 0; i < expected.length; i++) {
+                assertThat(flags.getBoolean(flags.getFirstValueIndex(i)), equalTo(expected[i]));
+            }
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
     /** One child matches the sku and another, different, child is the expensive product. */
     private String parentWithSplitChildren() throws IOException {
         return document(items -> {
@@ -396,10 +541,14 @@ public class NestedAnySameChildTests extends ComputeTestCase {
     }
 
     private static FieldAttribute field(String name) {
+        return field(name, DataType.LONG);
+    }
+
+    private static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(
             Source.EMPTY,
             name,
-            new EsField(name, DataType.LONG, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
+            new EsField(name, type, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
         );
     }
 

@@ -123,3 +123,19 @@ PROMQL index=k8s step=5m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:40:
 result:double        | step:datetime                                                                                                  | cluster:keyword | pod:keyword
 [1.0, 1.0, 1.0, 1.0] | [2024-05-10T00:00:00.000Z, 2024-05-10T00:30:00.000Z, 2024-05-10T00:35:00.000Z, 2024-05-10T00:40:00.000Z] | qa              | two
 ;
+
+// TS_COLLAPSE folds the three steps into one row, so v holds three values while one holds one.
+stats_after_collapse_over_equal_values
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+required_capability: fix_deduplicate_aggs_over_aggregate_outputs
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" v=(vector(1))
+| TS_COLLAPSE
+| EVAL one = 1.0
+| STATS a = COUNT(v), b = COUNT(one);
+
+a:long | b:long
+3      | 1
+;

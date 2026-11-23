@@ -30,6 +30,7 @@ $endif$
     private final IntBlock positions;
     private final long targetByteSize;
     private int position;
+    private long usedBytes;
 
     private $type$ first;
     private int valuesInPosition;
@@ -49,8 +50,18 @@ $endif$
 
     @Override
     public $Type$Block next() {
-        try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(positions.getTotalValueCount())) {
-            int count = 0;
+        // build() keeps unused capacity, so pre-size for at most the values that fit in the target.
+$if(BytesRef)$
+        long maxValues = targetByteSize / Integer.BYTES;
+$else$
+        long maxValues = targetByteSize / $BYTES$;
+$endif$
+        int remaining = positions.getPositionCount() - position;
+        int estimatedSize = (int) Math.min(remaining, Math.max(Operator.MIN_TARGET_PAGE_SIZE + 1, maxValues));
+        try ($Type$Block.Builder builder = positions.blockFactory().new$Type$BlockBuilder(estimatedSize)) {
+            int positionsInBlock = 0;
+            boolean multivalued = false;
+            usedBytes = 0;
             while (position < positions.getPositionCount()) {
                 int start = positions.getFirstValueIndex(position);
                 int end = start + positions.getValueCount(position);
@@ -59,13 +70,28 @@ $endif$
                     copy(builder, positions.getInt(i));
                 }
                 switch (valuesInPosition) {
-                    case 0 -> builder.appendNull();
+                    case 0 -> {
+                        // A null still takes a value slot.
+                        builder.appendNull();
+$if(BytesRef)$
+                        usedBytes += Integer.BYTES;
+$else$
+                        usedBytes += $BYTES$;
+$endif$
+                    }
                     case 1 -> builder.append$Type$(first);
-                    default -> builder.endPositionEntry();
+                    default -> {
+                        builder.endPositionEntry();
+                        multivalued = true;
+                    }
                 }
                 position++;
+                positionsInBlock++;
                 // TOOD what if the estimate is super huge? should we break even with less than MIN_TARGET?
-                if (++count > Operator.MIN_TARGET_PAGE_SIZE && builder.estimatedBytes() < targetByteSize) {
+                // builder.estimatedBytes() includes the pre-sized capacity, so track the bytes actually used.
+                // Once a block has a multivalued position, every position has a first value index.
+                long indexBytes = multivalued ? (long) Integer.BYTES * (positionsInBlock + 1) : 0;
+                if (positionsInBlock > Operator.MIN_TARGET_PAGE_SIZE && usedBytes + indexBytes >= targetByteSize) {
                     break;
                 }
             }
@@ -83,8 +109,10 @@ $endif$
             if (valuesInPosition == 0) {
 $if(BytesRef)$
                 first = values.get$Type$(i, firstScratch);
+                usedBytes += first.length + Integer.BYTES;
 $else$
                 first = values.get$Type$(i);
+                usedBytes += $BYTES$;
 $endif$
                 valuesInPosition++;
                 continue;
@@ -98,9 +126,12 @@ $endif$
                 throw new IllegalArgumentException("Found a single entry with " + valuesInPosition + " entries");
             }
 $if(BytesRef)$
-            builder.append$Type$(values.get$Type$(i, valueScratch));
+            $type$ value = values.get$Type$(i, valueScratch);
+            usedBytes += value.length + Integer.BYTES;
+            builder.append$Type$(value);
 $else$
             builder.append$Type$(values.get$Type$(i));
+            usedBytes += $BYTES$;
 $endif$
             valuesInPosition++;
         }

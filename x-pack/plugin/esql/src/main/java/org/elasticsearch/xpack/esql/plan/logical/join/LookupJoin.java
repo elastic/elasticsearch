@@ -118,18 +118,13 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
     }
 
     private void checkForLimits(LogicalPlan plan, Failures failures) {
-        if (plan instanceof AbstractSubqueryJoin subqueryJoin) {
-            // The right side is an independent subquery; do not traverse into it.
-            checkForLimits(subqueryJoin.left(), failures);
-        } else {
-            if (plan instanceof Limit f) {
-                failures.add(
-                    fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.source().text() + "]" + f.source().source())
-                );
-            }
-            for (LogicalPlan child : plan.children()) {
-                checkForLimits(child, failures);
-            }
+        if (plan instanceof Limit f) {
+            failures.add(
+                fail(this, "LOOKUP JOIN with remote indices can't be executed after [" + f.source().text() + "]" + f.source().source())
+            );
+        }
+        for (LogicalPlan child : IndependentSubqueryJoin.mainScopeChildren(plan)) {
+            checkForLimits(child, failures);
         }
     }
 }

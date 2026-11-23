@@ -35,6 +35,9 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class KnnQueryUtilsTests extends ESTestCase {
@@ -119,6 +122,35 @@ public class KnnQueryUtilsTests extends ESTestCase {
         assertEquals(0.9f, result[1].score, 0.001f);
         assertEquals(3, result[2].doc);
         assertEquals(0.8f, result[2].score, 0.001f);
+    }
+
+    /** Ties at the cutoff go to the lower doc id. */
+    public void testDedupAndSelectTopKTiesGoToLowerDocId() {
+        // two winners, then 20 tied docs of which 3 fit in k = 5
+        List<ScoreDoc> docs = new ArrayList<>();
+        docs.add(new ScoreDoc(500, 2f));
+        docs.add(new ScoreDoc(501, 3f));
+        for (int doc = 10; doc < 30; doc++) {
+            docs.add(new ScoreDoc(doc, 1f));
+        }
+        for (int run = 0; run < 50; run++) {
+            Collections.shuffle(docs, random());
+            ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(docs.toArray(ScoreDoc[]::new), 5);
+            assertArrayEquals(new int[] { 501, 500, 10, 11, 12 }, Arrays.stream(result).mapToInt(sd -> sd.doc).toArray());
+        }
+    }
+
+    /** Ties go to the lower doc id when all candidates fit in k. */
+    public void testDedupAndSelectTopKTiesOrderedByDocIdWhenAllFit() {
+        List<ScoreDoc> docs = new ArrayList<>();
+        for (int doc = 10; doc < 15; doc++) {
+            docs.add(new ScoreDoc(doc, 1f));
+        }
+        for (int run = 0; run < 50; run++) {
+            Collections.shuffle(docs, random());
+            ScoreDoc[] result = KnnQueryUtils.dedupAndSelectTopK(docs.toArray(ScoreDoc[]::new), 5);
+            assertArrayEquals(new int[] { 10, 11, 12, 13, 14 }, Arrays.stream(result).mapToInt(sd -> sd.doc).toArray());
+        }
     }
 
     public void testDedupAndSelectTopKEmptyInputOrZeroK() {

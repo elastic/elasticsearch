@@ -55,7 +55,7 @@ public final class RangeMaxEvaluator implements ExpressionEvaluator {
   }
 
   public LongBlock eval(int positionCount, LongRangeBlock rangeBlock) {
-    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount, true)) {
       LongRangeBlockBuilder.LongRange rangeScratch = new LongRangeBlockBuilder.LongRange();
       position: for (int p = 0; p < positionCount; p++) {
         if (rangeBlock.isNull(p)) {

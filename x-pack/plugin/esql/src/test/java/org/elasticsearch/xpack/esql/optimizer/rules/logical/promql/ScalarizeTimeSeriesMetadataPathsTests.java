@@ -159,7 +159,13 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         Alias copied = new Alias(
             SOURCE,
             "copied",
-            new TimeSeriesMetadataSet(SOURCE, labels.toAttribute(), Literal.keyword(SOURCE, "copy"), path(labels.toAttribute(), "pod"), List.of("copy"))
+            new TimeSeriesMetadataSet(
+                SOURCE,
+                labels.toAttribute(),
+                Literal.keyword(SOURCE, "copy"),
+                path(labels.toAttribute(), "pod"),
+                List.of("copy")
+            )
         );
         Eval copies = new Eval(SOURCE, aggregate, List.of(copied));
         LogicalPlan plan = scalarize(new Eval(SOURCE, copies, List.of(read("copy", copied.toAttribute(), "copy"))));
@@ -208,7 +214,13 @@ public class ScalarizeTimeSeriesMetadataPathsTests extends ESTestCase {
         Alias labels = labels();
         TimeSeriesAggregate aggregate = timeSeriesAggregate(labels, cluster);
         Expression filtered = new TimeSeriesMetadataFilter(SOURCE, labels.toAttribute(), List.of(cluster), true);
-        Expression written = new TimeSeriesMetadataSet(SOURCE, labels.toAttribute(), cluster, Literal.keyword(SOURCE, "a"), List.of("cluster"));
+        Expression written = new TimeSeriesMetadataSet(
+            SOURCE,
+            labels.toAttribute(),
+            cluster,
+            Literal.keyword(SOURCE, "a"),
+            List.of("cluster")
+        );
         Expression values = new TimeSeriesMetadataSet(
             SOURCE,
             labels.toAttribute(),

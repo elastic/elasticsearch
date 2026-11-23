@@ -31,14 +31,23 @@ options {
  * Since the tokens/modes are in development, add a predicate like this:
  * DEV_MYCOMMAND : 'mycommand' {this.isDevVersion()}? -> ...
  *
- * IMPORTANT: always put the predicate AFTER the literal, never before it. A predicate
- * placed first (DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand') prevents ANTLR from
- * caching the DFA start state of the lexer mode, forcing ATN simulation for every token
- * and slowing ALL queries, including those that never use the command. This applies to
+ * IMPORTANT: always put the predicate AFTER the literal, never before it. This applies to
  * any predicate, not only isDevVersion(), for example EsqlCapabilities.Cap.X.isEnabled().
- * It also applies to tokens whose first character is a common operator or symbol
- * (e.g. '-', '+', '=', '~'): the predicate prevents caching the DFA transition for that
- * character, causing a severe performance regression (~13x) for ALL queries.
+ *
+ * - A predicate BEFORE the literal (DEV_MYCOMMAND : {this.isDevVersion()}? 'mycommand')
+ *   prevents ANTLR from caching the DFA start state of the lexer mode, whatever the first
+ *   character is. Every token in that mode is then lexed through ATN simulation, which
+ *   slows ALL queries, including those that never use the command.
+ * - A predicate AFTER the literal ('mycommand' {this.isDevVersion()}?) only prevents
+ *   caching the DFA transition where the predicate is evaluated, i.e. the one that
+ *   consumes the last character of the literal. For a keyword, that transition is
+ *   reached only by input that spells the keyword, so other queries are not affected.
+ *
+ * Symbol tokens are different because their characters are common in queries. A trailing
+ * predicate is evaluated on the last character of the symbol literal, so it uncaches
+ * that transition. For '->' that is the '>' transition, not the initial '-'. Every query
+ * containing the symbol then pays for it. A predicate on the ARROW token was reported to
+ * cause a severe regression (~13x) for ALL queries.
  * For symbol tokens, keep the lexer rule unconditional and guard the parser rule
  * with {this.isDevVersion()}? instead. See the ARROW token as an example.
  *
